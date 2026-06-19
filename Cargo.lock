@@ -1460,7 +1460,7 @@ checksum = "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4"
 
 [[package]]
 name = "rust_plots"
-version = "0.4.2"
+version = "0.1.0"
 dependencies = [
  "genevo",
  "image 0.25.10",
