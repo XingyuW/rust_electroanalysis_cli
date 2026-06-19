@@ -4,5 +4,4 @@ schema_version = 1
 level = "info"
 
 [last_run]
-mode = "plot-generic"
-plot_config_override = "/tmp/rust_plots_cli_e2e/config/plotting_generic.toml"
+mode = "plot-all"

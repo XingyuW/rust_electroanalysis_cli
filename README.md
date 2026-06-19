@@ -22,6 +22,12 @@
   - [Circuit Model Configuration (`config/parsing.toml`)](#circuit-model-configuration-configparsingtoml)
   - [Application State (`config/app.toml`)](#application-state-configapptoml)
   - [Configuration Precedence](#configuration-precedence)
+- [Configuration Examples](#configuration-examples)
+  - [Example A: Minimal Setup](#example-a-minimal-setup)
+  - [Example B: Standard Setup](#example-b-standard-setup)
+  - [Example C: Advanced Setup](#example-c-advanced-setup)
+- [Migrating from Legacy Configuration](#migrating-from-legacy-configuration)
+- [Getting Started](#getting-started)
 - [Plot Types and Features](#plot-types-and-features)
   - [EIS Plots (Nyquist / Bode)](#eis-plots-nyquist--bode)
   - [Regular (CHI) Plots](#regular-chi-plots)
@@ -98,11 +104,8 @@ rust_electroanalysis_cli/
 ├── .gitignore                          # Git ignore rules
 ├── README.md                           # This file
 │
-├── circuit_models.toml                 # Legacy circuit-model config (migrated to config/parsing.toml)
-├── ecm_search.toml                     # Legacy ECM search config (migrated to config/analysis.toml)
-├── plot_config.toml                    # Legacy plotting config (migrated to config/plotting.toml)
-├── plot_config.generic_plot_job_blocks_examples.toml  # Example generic-plot job blocks
-├── plot_config.plot_type_examples.toml                # Example plot-type presets
+├── plot_config.generic_plot_job_blocks_examples.toml  # Reference: example generic-plot job blocks
+├── plot_config.plot_type_examples.toml                # Reference: example plot-type style presets
 │
 ├── config/                             # Runtime configuration directory (auto-created)
 │   ├── app.toml                        # Application state (schema version, last run mode)
@@ -395,7 +398,7 @@ When the application starts, it creates the following workspace structure under 
 └── logs/                 # Log output
 ```
 
-**Legacy migration:** Root-level config files (`plot_config.toml`, `ecm_search.toml`, `circuit_models.toml`) from previous versions are automatically detected and migrated into `config/` on first run. The originals remain in place and a warning is emitted.
+> **Note:** Legacy root-level config files (`plot_config.toml`, `ecm_search.toml`, `circuit_models.toml`) from previous versions have been migrated to the `config/` directory (see [Migrating from Legacy Configuration](#migrating-from-legacy-configuration)).
 
 ### Plotting Configuration (`config/plotting.toml`)
 
@@ -617,6 +620,451 @@ search_top_override = 12
 5. **`[render]` global knobs** — `png_scale_factor`, `png_dpi`
 6. **Domain defaults** — `eis_individual_publication_config()`, `chi_plot`/`generic_plot` defaults
 7. **`PublicationConfig::default()`** — Global sentinel defaults
+
+---
+
+## Configuration Examples
+
+### Example A: Minimal Setup
+
+A small local project with a single input folder and single output folder.
+
+```toml
+# config/plotting.toml
+schema_version = 1
+
+[shared]
+input_path = "../data"
+output_path = "../output"
+output_prefix = ""
+input_is_directory = true
+```
+
+```toml
+# config/analysis.toml
+schema_version = 1
+max_ranked_results = 10
+
+[evolution]
+population_size = 24
+generation_limit = 12
+num_individuals_per_parents = 2
+selection_ratio = 0.7
+mutation_rate = 0.35
+reinsertion_ratio = 0.75
+
+[plotting]
+top_n = 0               # Disable search-result plots
+```
+
+```toml
+# config/parsing.toml
+schema_version = 1
+fallback_model = "R0-p(CPE1,R1)"
+
+[model_selection]
+ranking_metric = "aic"
+warburg_aic_threshold = 4.0
+```
+
+**How the application behaves with this setup:**
+
+- All CHI-format files in `data/` are processed.
+- Generated figures and reports are written to `output/`.
+- No search-result plots are generated (`top_n = 0`).
+- The default circuit model (`R0-p(CPE1,R1)`) is used for all EIS fitting.
+- Minimal style defaults are used for all plots (plotters library defaults).
+- Logging is set to `"info"` level by default.
+
+### Example B: Standard Setup
+
+Separate directories for data, figures, reports, and logs with explicit style configuration.
+
+```toml
+# config/plotting.toml
+schema_version = 1
+
+[shared]
+input_path = "../data"
+output_path = "../output"
+output_prefix = "experiment_2026"
+input_is_directory = true
+
+[shared.style]
+dpi = 300.0
+width_inches = 7.2
+height_inches = 5.2
+font_size_pt = 21.0
+line_width = 2
+experimental_color = "#0000ff"
+fitted_color = "#ff6a00"
+legend_position = "upper_right"
+png_scale_factor = 2
+show_points = false
+
+[render]
+png_scale_factor = 2
+png_dpi = 300.0
+```
+
+```toml
+# config/analysis.toml
+schema_version = 1
+max_ranked_results = 12
+
+[evolution]
+population_size = 24
+generation_limit = 12
+num_individuals_per_parents = 2
+selection_ratio = 0.7
+mutation_rate = 0.35
+reinsertion_ratio = 0.75
+
+[plotting]
+top_n = 3
+output_dir = "../output"
+```
+
+```toml
+# config/parsing.toml
+schema_version = 1
+fallback_model = "R0-p(CPE1,R1)"
+
+[model_selection]
+ranking_metric = "aic"
+warburg_aic_threshold = 4.0
+
+[[rules]]
+circuit_model = "R0-p(CPE1,R1)-Gw2"
+filename_contains = ["ism"]
+
+[[rules]]
+circuit_model = "R0-p(CPE1,R1)"
+filename_contains = ["qd"]
+
+[[rules]]
+circuit_model = "R0-W1"
+
+[rules.metadata_contains]
+equivalentcircuit = "R0-W1"
+```
+
+**How the application behaves with this setup:**
+
+- Input files in `data/` are processed in batch mode (`input_is_directory = true`).
+- All outputs are written to `output/` with filenames prefixed by `experiment_2026_`.
+- EIS plots are rendered at 300 DPI, 7.2×5.2 inches, with blue experimental and orange fitted data.
+- ECM search keeps the top 12 ranked candidates and generates plots for the top 3 (`top_n = 3`).
+- Circuit model rules automatically select models based on filename patterns.
+
+### Example C: Advanced Setup
+
+Multiple data sources, custom output locations, and customized analysis settings.
+
+```toml
+# config/plotting.toml
+schema_version = 1
+
+[shared]
+input_path = "/absolute/path/to/eis_measurements"
+output_path = "/absolute/path/to/project/figures"
+output_prefix = "eis_campaign_2026"
+input_is_directory = true
+
+[shared.style]
+dpi = 600.0
+width_inches = 8.5
+height_inches = 6.0
+font_size_pt = 24.0
+line_width = 3
+experimental_marker_radius = 10
+marker_radius = 8
+experimental_line_width = 3
+fitted_line_width = 2
+series_line_width = 2
+experimental_color = "#1a5276"
+fitted_color = "#e67e22"
+legend_position = "lower_right"
+png_scale_factor = 4
+show_points = true
+
+[shared.individual_style]
+# Override individual-plot defaults
+line_width = 2
+
+[shared.combined_style]
+# Override combined/overlay-plot defaults
+series_palette = ["#1a5276", "#e67e22", "#2ecc71", "#e74c3c"]
+legend_position = "lower_right"
+
+[render]
+png_scale_factor = 4
+png_dpi = 600.0
+
+[style_presets.publication_default.individual_style]
+experimental_color = "#000dff"
+fitted_color = "#ff6a00cc"
+
+[style_presets.publication_default.combined_style]
+series_palette = [
+    "#000dff", "#B25019", "#2E7D32", "#fb0606",
+    "#0b4282", "#6A1B9A", "#F9A825", "#f20ce6", "#4E342E",
+]
+legend_position = "lower_right"
+
+# A generic plot job block (domain-agnostic)
+[generic_plot]
+style_preset = "calibration_curve"
+
+[generic_plot.style]
+plot_type = "scatter"
+show_points = true
+regression = "linear"
+reg_info_print = [true, true]
+x_label = "Concentration (ppb)"
+y_label = "Signal (uA)"
+
+[style_presets.calibration_curve.style]
+plot_type = "scatter"
+show_points = true
+regression = "linear"
+reg_info_print = [true, true]
+```
+
+```toml
+# config/analysis.toml
+schema_version = 1
+max_ranked_results = 25
+
+[evolution]
+population_size = 48
+generation_limit = 25
+num_individuals_per_parents = 4
+selection_ratio = 0.8
+mutation_rate = 0.40
+reinsertion_ratio = 0.80
+
+[plotting]
+top_n = 5
+output_dir = "/absolute/path/to/project/figures/eis_search"
+```
+
+```toml
+# config/parsing.toml
+schema_version = 1
+fallback_model = "R0-p(CPE1,R1)"
+
+[model_selection]
+ranking_metric = "weighted_rmse"
+warburg_aic_threshold = 6.0
+
+[[rules]]
+circuit_model = "R0-p(CPE1,R1)-Gw2"
+filename_contains = ["ism"]
+
+[[rules]]
+circuit_model = "R0-p(CPE1,R1)"
+filename_contains = ["qd", "eis"]
+
+[[rules]]
+circuit_model = "R0-p(R1,CPE1)-p(R2,CPE2)"
+filename_contains = ["randles"]
+
+[[rules]]
+circuit_model = "R0-W1"
+filename_contains = ["warburg"]
+```
+
+**How the application behaves with this setup:**
+
+- Data is read from an absolute path (`/absolute/path/to/eis_measurements`).
+- Figures are output to a separate absolute path with the prefix `eis_campaign_2026_`.
+- Plots render at 600 DPI with 4× supersampling for publication-quality PNG output.
+- A custom `[style_presets.publication_default]` preset is defined for consistent styling.
+- A `[generic_plot]` job block creates a scatter plot with linear regression overlay (calibration curve).
+- The GA search is more thorough: 48 population, 25 generations, 4 offspring per parent pair.
+- Top 5 ranked candidates are plotted to the custom output path.
+- Circuit model selection uses `weighted_rmse` ranking with `[[rules]]` that match multiple filename patterns.
+
+---
+
+## Migrating from Legacy Configuration
+
+### What Changed
+
+The legacy configuration system stored settings in **root-level TOML files** directly in the project directory:
+
+- `plot_config.toml` — plotting paths, styles, and presets
+- `ecm_search.toml` — ECM search/evolution settings
+- `circuit_models.toml` — circuit model selection rules
+
+The new configuration system consolidates all settings into the **`config/` subdirectory**, organized by concern:
+
+- `config/plotting.toml` — plotting workflow settings
+- `config/analysis.toml` — ECM search/analysis settings
+- `config/parsing.toml` — circuit model resolution rules
+- `config/app.toml` — application state (auto-managed)
+
+### Why It Changed
+
+1. **Cleaner workspace root** — The project root is no longer cluttered with configuration files.
+2. **Logical separation** — Settings are organized by functional area (plotting, analysis, parsing, app state).
+3. **Self-documenting defaults** — Each config file includes inline comments explaining every field.
+4. **Consistent path resolution** — Relative paths in config files resolve from the `config/` directory, making path behavior predictable.
+5. **Schema versioning** — Each config file tracks its schema version for forward-compatibility.
+
+### Legacy File Locations → New File Locations
+
+| Legacy File | New File |
+|-------------|----------|
+| `./plot_config.toml` | `config/plotting.toml` |
+| `./ecm_search.toml` | `config/analysis.toml` |
+| `./circuit_models.toml` | `config/parsing.toml` |
+
+### Setting Mapping Table
+
+| Legacy Section/Key | New Section/Key | Notes |
+|---|---|---|
+| `[shared].workspace_dir` | `[shared].workspace_dir` in `config/plotting.toml` | Informational only; workspace dir is auto-detected |
+| `[shared].input_path` | `[shared].input_path` in `config/plotting.toml` | Same key, same semantics |
+| `[shared].output_path` | `[shared].output_path` in `config/plotting.toml` | Same key, same semantics |
+| `[shared].output_prefix` | `[shared].output_prefix` in `config/plotting.toml` | Same key, same semantics |
+| `[shared].input_is_directory` | `[shared].input_is_directory` in `config/plotting.toml` | Same key, same semantics |
+| `[shared.style]` fields | `[shared.style]` in `config/plotting.toml` | All style fields preserved 1:1 |
+| `[shared.individual_style]` | `[shared.individual_style]` in `config/plotting.toml` | Same structure |
+| `[shared.combined_style]` | `[shared.combined_style]` in `config/plotting.toml` | Same structure |
+| `[style_presets.*]` | `[style_presets.*]` in `config/plotting.toml` | Same structure |
+| `[render]` | `[render]` in `config/plotting.toml` | Same structure |
+| `[[eis]]`, `[[regular_plot]]`, `[[generic_plot]]` | `[eis]`, `[regular_plot]`, `[generic_plot]` in `config/plotting.toml` | Changed from array to singular table; path fields moved to `[shared]` |
+| `max_ranked_results` | `max_ranked_results` in `config/analysis.toml` | Same key |
+| `[evolution].*` | `[evolution].*` in `config/analysis.toml` | All evolution fields preserved 1:1 |
+| `[plotting].top_n` | `[plotting].top_n` in `config/analysis.toml` | Same key |
+| `[plotting].output_dir` | `[plotting].output_dir` in `config/analysis.toml` | Resolved relative to config directory in new system |
+| `fallback_model` | `fallback_model` in `config/parsing.toml` | Same key |
+| `[model_selection].*` | `[model_selection].*` in `config/parsing.toml` | All model selection fields preserved 1:1 |
+| `[[rules]]` | `[[rules]]` in `config/parsing.toml` | Same structure and semantics |
+
+### Common Migration Issues
+
+| Issue | Cause | Resolution |
+|-------|-------|------------|
+| "Config file not found" | Application still looking for legacy files | Ensure `config/` directory exists with the required files. The application falls back gracefully. |
+| Path resolution changed | Relative paths now resolve from `config/` instead of workspace root | Update relative paths: prepend `../` to reach the workspace root (e.g., `"figures/"` → `"../figures/"`). |
+| Schema version mismatch | Legacy configs may lack `schema_version` field | The application auto-migrates schema versions and emits a warning. |
+| Per-job path fields lost | Legacy `[[plot_type]]` arrays had inline paths | Paths are consolidated into `[shared]`. Copy `input_dir` to `[shared].input_path` and `output_dir` to `[shared].output_path`. |
+
+### Troubleshooting
+
+**Q: The application printed "migrated legacy ..." warnings — what does this mean?**
+
+A: This indicates the application found a legacy config file and copied it to the `config/` directory on a previous run. If you see this, the legacy file is still present and the migration was one-time. After verifying the new config works, you can safely delete the legacy file.
+
+**Q: I changed paths in `config/plotting.toml` but nothing appears in the expected output directory.**
+
+A: Verify that:
+1. The `input_path` points to a directory (or file) that actually exists.
+2. `input_is_directory` is `true` when pointing to a directory.
+3. Relative paths are correct from the `config/` directory perspective (use `../` to go up to the workspace root).
+4. The output directory is writable.
+
+**Q: My legacy `[[eis]]` array blocks are not loading correctly.**
+
+A: The new config uses singular `[eis]`, `[regular_plot]`, and `[generic_plot]` tables. Per-job path fields have been moved to `[shared]`. If your legacy file uses array syntax (`[[eis]]`), the built-in migration converter handles this automatically when the file is loaded via `--plot-config`.
+
+**Q: Can I still use the old root-level config files?**
+
+A: Direct loading of legacy files via `--plot-config path` or `--search-config path` still works — the application detects and migrates legacy file contents on load. However, writing new configurations should use the `config/` directory structure.
+
+---
+
+## Getting Started
+
+This section walks you through a complete first run — from installation to verified output.
+
+### Step 1: Install the Application
+
+```bash
+git clone <repository-url>
+cd rust_electroanalysis_cli
+cargo build --release
+```
+
+The compiled binary is placed at `target/release/rust_plots`. You can either run it with `cargo run -- <args>` from the project directory or copy the binary to your `PATH`.
+
+### Step 2: Locate or Generate Configuration Files
+
+Configuration files live in the `config/` subdirectory. They are **auto-created** with sensible defaults when you first run the application. You can also pre-populate them by copying the templates:
+
+```bash
+# The config/ directory and its files are created automatically on first run:
+cargo run -- --help
+# Or manually inspect the default config files:
+ls -la config/
+```
+
+The four configuration files are:
+
+| File | Purpose | Auto-created? |
+|------|---------|---------------|
+| `config/plotting.toml` | Plotting workflows: paths, style, render settings | Yes |
+| `config/analysis.toml` | ECM search: evolution algorithm, result plotting | Yes |
+| `config/parsing.toml`  | Circuit model resolution rules and fallback | Yes |
+| `config/app.toml`      | Application state (auto-managed) | Yes |
+
+### Step 3: Configure Input and Output Directories
+
+Place your CHI-format data files in the `data/` directory, or edit `config/plotting.toml` to point `input_path` at your data location:
+
+```toml
+# config/plotting.toml
+[shared]
+input_path = "../data"          # Relative to config/ directory → resolves to <workspace>/data
+output_path = "../output"       # Figures and reports go here
+input_is_directory = true        # Process all files in input_path
+```
+
+You can use either **relative** paths (resolved from the `config/` directory) or **absolute** paths.
+
+### Step 4: Validate the Configuration
+
+Run the application with `--help` to verify it loads without errors:
+
+```bash
+cargo run -- --help
+```
+
+Look for warning messages on stderr. If configuration files are corrupted or contain invalid TOML, the application will emit warnings and fall back to defaults.
+
+### Step 5: Run the CLI
+
+```bash
+# Generate all plots (EIS + regular CHI + generic):
+cargo run
+
+# Or run a targeted workflow:
+cargo run -- --plot eis           # EIS plots only
+cargo run -- --plot regular-plot  # Regular CHI plots only
+cargo run -- --plot generic       # Generic (domain-agnostic) plots only
+```
+
+### Step 6: Verify Outputs
+
+After running, check the `output/` directory for generated figures:
+
+```bash
+ls -la output/
+# Expected: .svg and .png files for each processed input file
+# Subdirectories: individual/, combined/ for regular plots
+```
+
+For ECM search:
+
+```bash
+cargo run -- --search-eis data/my_eis_file.txt
+# Reports are written alongside the input file by default:
+ls -la data/my_eis_file.ecm_search.txt
+ls -la data/my_eis_file.ecm_search.csv
+```
 
 ---
 
@@ -1383,28 +1831,19 @@ cargo build --release
 
 The release binary is self-contained and requires only the TOML configuration files and input data at runtime.
 
----
-
 ## Usage Guide
 
 ### Quick Start
 
-1. **Prepare your workspace:**
+1. **Place your CHI-format data files** in the `data/` directory (auto-created on first run).
 
-```bash
-mkdir my_experiment
-cd my_experiment
-```
-
-2. **Place your CHI-format data files** in `data/` (directory will be auto-created on first run).
-
-3. **Run all plots with default settings:**
+2. **Run all plots with default settings:**
 
 ```bash
 cargo run
 ```
 
-4. **Find output figures** in `output/` directory.
+3. **Find output figures** in the `output/` directory.
 
 ### Plotting Workflows
 

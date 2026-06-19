@@ -1,6 +1,35 @@
 schema_version = 1
 fallback_model = "R0-p(CPE1,R1)"
 
+# ── Model Selection ─────────────────────────────────────────────────────
 [model_selection]
+# Ranking metric: "aic" or "weighted_rmse"
 ranking_metric = "aic"
+# AIC threshold for preferring Warburg-based models
 warburg_aic_threshold = 4.0
+
+# ── Circuit Model Selection Rules ───────────────────────────────────────
+# Rules are evaluated in order (first match wins).
+# When a rule's filename_contains and metadata_contains conditions are all
+# satisfied for a given input file, its circuit_model is used.
+#
+# Resolution order:
+#   1. Explicit circuit= or model= tag in the filename
+#   2. Explicit equivalentcircuit / circuitmodel / circuit / model value
+#      in file metadata
+#   3. First matching [[rules]] entry below
+#   4. fallback_model above
+
+[[rules]]
+circuit_model = "R0-p(CPE1,R1)-Gw2"
+filename_contains = ["ism"]
+
+[[rules]]
+circuit_model = "R0-p(CPE1,R1)"
+filename_contains = ["qd"]
+
+[[rules]]
+circuit_model = "R0-W1"
+
+[rules.metadata_contains]
+equivalentcircuit = "R0-W1"

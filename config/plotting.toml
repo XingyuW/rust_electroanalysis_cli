@@ -1,6 +1,83 @@
 schema_version = 1
 
+# ── Shared paths and global style baseline ──────────────────────────────
+# All paths are resolved relative to the config file's directory
+# (i.e., the config/ subdirectory under the workspace root).
+# Absolute paths are also accepted.
 [shared]
-input_is_directory = true
+# input_path: Directory or single file containing input data.
+# Relative paths are resolved from config/ (so "../data" → <workspace>/data).
+input_path = "../data"
+
+# output_path: Directory where generated figures and reports are written.
 output_path = "../output"
+
+# output_prefix: Optional prefix prepended to every output filename.
+# Use "" (empty) for no prefix.
 output_prefix = ""
+
+# input_is_directory: When true, input_path is treated as a directory
+# and all supported files within it are processed. When false, input_path
+# is treated as a single file.
+input_is_directory = true
+
+# Global style defaults inherited by all plot workflows (EIS, regular, generic).
+# Per-job style overrides and named presets take precedence over these values.
+[shared.style]
+# Figure resolution (DPI)
+dpi = 300.0
+# Figure dimensions in inches
+width_inches = 7.2
+height_inches = 5.2
+# Base font size in points
+font_size_pt = 21.0
+# General line width
+line_width = 6
+# Marker sizes
+experimental_marker_radius = 8
+marker_radius = 8
+# Line widths for different data types
+experimental_line_width = 6
+fitted_line_width = 6
+series_line_width = 6
+# Colors
+experimental_color = "#0000ff"
+fitted_color = "#ff6a00"
+# Legend placement
+legend_position = "upper_right"
+# PNG supersampling factor
+png_scale_factor = 2
+# Show/hide individual data point markers
+show_points = false
+
+# ── Global rendering knobs ──────────────────────────────────────────────
+# These settings apply on top of domain defaults but below per-job styles.
+[render]
+# PNG supersampling factor (default: 2)
+png_scale_factor = 2
+# PNG output DPI (overrides shared.style.dpi for PNG output)
+png_dpi = 300.0
+
+# ── Named style presets ─────────────────────────────────────────────────
+# Presets are referenced by a workflow's `style_preset` field.
+# They follow the same structure: [style_presets.<name>.style],
+# [style_presets.<name>.individual_style],
+# [style_presets.<name>.combined_style]
+
+[style_presets.paper.individual_style]
+experimental_color = "#000dff"
+fitted_color = "#ff6a00cc"
+
+[style_presets.paper.combined_style]
+series_palette = [
+    "#000dff",
+    "#B25019",
+    "#2E7D32",
+    "#fb0606",
+    "#0b4282",
+    "#6A1B9A",
+    "#F9A825",
+    "#f20ce6",
+    "#4E342E",
+]
+legend_position = "lower_right"
