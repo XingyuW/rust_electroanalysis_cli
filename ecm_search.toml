@@ -1,0 +1,17 @@
+# Equivalent-circuit discovery runtime configuration.
+# CLI flags can still override max_ranked_results via --search-top and the file path via --search-config.
+
+max_ranked_results = 12
+
+[evolution]
+population_size = 24
+generation_limit = 12
+num_individuals_per_parents = 2
+selection_ratio = 0.7
+mutation_rate = 0.35
+reinsertion_ratio = 0.75
+
+[plotting]
+# Omit this key to disable search-result plots.
+top_n = 3
+output_dir = "figures/eis_search_plots"

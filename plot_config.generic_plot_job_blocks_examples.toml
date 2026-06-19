@@ -1,0 +1,206 @@
+# Complete generic-plot job-block examples by plot type.
+#
+# Notes:
+# - The current schema uses a singular [generic_plot] block.
+# - Because TOML cannot repeat the same table name in one valid file,
+#   each per-plot-type job block is provided as a full commented template.
+# - Copy ONE block at a time into your active plot_config.toml as [generic_plot]
+#   and adjust paths as needed.
+
+[render]
+png_scale_factor = 2
+png_dpi = 300
+
+[shared]
+workspace_dir = "/Users/xingyuwang/ProjectOngoing/rust_plots"
+input_path = "/Users/xingyuwang/ProjectOngoing/rust_plots/data/Shan/20260508_data"
+output_path = "/Users/xingyuwang/ProjectOngoing/rust_plots/figures/examples/job_blocks"
+output_prefix = "generic_job_demo"
+input_is_directory = true
+
+[shared.style]
+dpi = 300.0
+width_inches = 7.2
+height_inches = 5.2
+font_size_pt = 21.0
+line_width = 4
+experimental_marker_radius = 7
+series_line_width = 4
+legend_position = "upper_right"
+png_scale_factor = 2
+fill_alpha = 0.35
+bar_width_ratio = 0.72
+
+# -----------------------------------------------------------------------------
+# 1) LINE JOB BLOCK (copy as [generic_plot])
+# -----------------------------------------------------------------------------
+# [generic_plot]
+# style_preset = "line_job"
+#
+# [style_presets.line_job.style]
+# plot_type = "line"
+# show_points = false
+# x_label = "Potential (V)"
+# y_label = "Current (uA)"
+
+# -----------------------------------------------------------------------------
+# 2) SCATTER JOB BLOCK
+# -----------------------------------------------------------------------------
+# [generic_plot]
+# style_preset = "scatter_job"
+#
+# [style_presets.scatter_job.style]
+# plot_type = "scatter"
+# show_points = true
+# regression = "linear"
+# reg_info_print = [true, true]
+# x_label = "Concentration (ppb)"
+# y_label = "Signal (uA)"
+
+# -----------------------------------------------------------------------------
+# 3) VERTICAL BAR JOB BLOCK
+# -----------------------------------------------------------------------------
+# [generic_plot]
+# style_preset = "vertical_bar_job"
+#
+# [style_presets.vertical_bar_job.style]
+# plot_type = "vertical_bar"
+# category_labels = ["Blank", "Low", "Mid", "High"]
+# fill_alpha = 0.45
+# bar_width_ratio = 0.70
+# x_label = "Category"
+# y_label = "Response"
+
+# -----------------------------------------------------------------------------
+# 4) HORIZONTAL BAR JOB BLOCK
+# -----------------------------------------------------------------------------
+# [generic_plot]
+# style_preset = "horizontal_bar_job"
+#
+# [style_presets.horizontal_bar_job.style]
+# plot_type = "horizontal_bar"
+# category_labels = ["Pb", "Cu", "NO3", "Zn"]
+# fill_alpha = 0.45
+# bar_width_ratio = 0.70
+# x_label = "Magnitude"
+# y_label = "Species"
+
+# -----------------------------------------------------------------------------
+# 5) GROUPED BAR JOB BLOCK
+# -----------------------------------------------------------------------------
+# [generic_plot]
+# style_preset = "grouped_bar_job"
+#
+# [style_presets.grouped_bar_job.style]
+# plot_type = "grouped_bar"
+# category_labels = ["Week 1", "Week 2", "Week 3", "Week 4"]
+# fill_alpha = 0.52
+# bar_width_ratio = 0.84
+# x_label = "Collection Window"
+# y_label = "Average Response"
+#
+# [style_presets.grouped_bar_job.combined_style]
+# series_palette = ["#165E83", "#B25019", "#2E7D32", "#8E44AD"]
+
+# -----------------------------------------------------------------------------
+# 6) STACKED BAR JOB BLOCK
+# -----------------------------------------------------------------------------
+# [generic_plot]
+# style_preset = "stacked_bar_job"
+#
+# [style_presets.stacked_bar_job.style]
+# plot_type = "stacked_bar"
+# category_labels = ["Anode", "Cathode", "Electrolyte", "Losses"]
+# fill_alpha = 0.55
+# bar_width_ratio = 0.78
+# x_label = "Component"
+# y_label = "Contribution"
+#
+# [style_presets.stacked_bar_job.combined_style]
+# series_palette = ["#165E83", "#D97B29", "#4F8A3C", "#A23E48"]
+
+# -----------------------------------------------------------------------------
+# 7) FILL-BETWEEN JOB BLOCK
+# -----------------------------------------------------------------------------
+# [generic_plot]
+# style_preset = "fill_between_job"
+#
+# [style_presets.fill_between_job.style]
+# plot_type = "fill_between"
+# fill_between_mode = "between_curves"  # or: "to_zero", "to_baseline"
+# fill_baseline = 1.5                    # used only for "to_baseline"
+# fill_alpha = 0.28
+# show_points = false
+# x_label = "Time (min)"
+# y_label = "Signal Band"
+
+# -----------------------------------------------------------------------------
+# 8) STACK PLOT JOB BLOCK
+# -----------------------------------------------------------------------------
+# [generic_plot]
+# style_preset = "stack_plot_job"
+#
+# [style_presets.stack_plot_job.style]
+# plot_type = "stack_plot"
+# fill_alpha = 0.40
+# show_points = false
+# x_label = "Time (h)"
+# y_label = "Cumulative Output"
+#
+# [style_presets.stack_plot_job.combined_style]
+# series_palette = ["#165E83", "#C26A1B", "#3A7D44", "#7B5EA7"]
+
+# -----------------------------------------------------------------------------
+# 9) PIE JOB BLOCK
+# -----------------------------------------------------------------------------
+# [generic_plot]
+# style_preset = "pie_job"
+#
+# [style_presets.pie_job.style]
+# plot_type = "pie"
+# category_labels = ["Primary", "Control", "Blank", "Other"]
+# pie_value_label_mode = "value_and_percentage"  # none | percentage | value | value_and_percentage
+# pie_min_label_percentage = 4.0
+# legend_position = "middle_right"
+#
+# [style_presets.pie_job.combined_style]
+# series_palette = ["#165E83", "#D4772D", "#4F8A3C", "#8E4B84"]
+
+# -----------------------------------------------------------------------------
+# Domain-tailored complete job examples
+# -----------------------------------------------------------------------------
+# Shan calibration (scatter + regression)
+# [generic_plot]
+# style_preset = "shan_calibration_job"
+#
+# [shared]
+# input_path = "/Users/xingyuwang/ProjectOngoing/rust_plots/data/Shan/20260508_data"
+# output_path = "/Users/xingyuwang/ProjectOngoing/rust_plots/figures/Shan/20260508_data_examples"
+# output_prefix = "shan_calibration"
+# input_is_directory = true
+#
+# [style_presets.shan_calibration_job.style]
+# plot_type = "scatter"
+# show_points = true
+# regression = "linear"
+# reg_info_print = [true, true]
+# x_label = "Concentration (ppb)"
+# y_label = "Shan Response (uA)"
+#
+# Pb sensor grouped bars
+# [generic_plot]
+# style_preset = "pb_sensor_grouped_job"
+#
+# [shared]
+# input_path = "/Users/xingyuwang/ProjectOngoing/rust_plots/data/Pb Sensor/20260324"
+# output_path = "/Users/xingyuwang/ProjectOngoing/rust_plots/figures/pb_sensor_plots/20260324_examples"
+# output_prefix = "pb_sensor_grouped"
+# input_is_directory = true
+#
+# [style_presets.pb_sensor_grouped_job.style]
+# plot_type = "grouped_bar"
+# category_labels = ["0 ppb", "10 ppb", "25 ppb", "50 ppb"]
+# fill_alpha = 0.52
+# bar_width_ratio = 0.84
+# x_label = "Pb2+ Concentration"
+# y_label = "Mean Response"

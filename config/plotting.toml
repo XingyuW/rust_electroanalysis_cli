@@ -1,0 +1,6 @@
+schema_version = 1
+
+[shared]
+input_is_directory = true
+output_path = "../output"
+output_prefix = ""

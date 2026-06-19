@@ -1,0 +1,6 @@
+schema_version = 1
+fallback_model = "R0-p(CPE1,R1)"
+
+[model_selection]
+ranking_metric = "aic"
+warburg_aic_threshold = 4.0

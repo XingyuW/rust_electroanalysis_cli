@@ -1,0 +1,24 @@
+[package]
+name = "rust_plots"
+version = "0.4.2"
+edition = "2024"
+
+[dependencies]
+plotters = "0.3"
+image = "0.25.10"
+levenberg-marquardt = "0.15.0"
+nalgebra = "0.34.2"
+nom = "8"
+num-complex = "0.4"
+serde = { version = "1", features = ["derive"] }
+toml = "1.1.2"
+genevo = "0.7.1"
+rayon = "1.12.0"
+
+[profile.release]
+opt-level      = 3
+panic          = "abort"
+codegen-units  = 1
+lto            = "fat"
+strip = "symbols"
+debug = false

@@ -1,0 +1,214 @@
+# Sample `plot_config.toml` snippets for the generic plot geometries supported
+# by `rust_plots`.
+#
+# Purpose:
+# - provide copy-paste-ready style presets for each plot type
+# - show which fields are relevant for bars, fill-between, stack plots, and pie charts
+# - keep the user's active `plot_config.toml` untouched
+#
+# Usage:
+# 1. Copy the preset block you want into your active `plot_config.toml`, or
+# 2. save this file elsewhere and pass it with `--plot-config`, or
+# 3. use the values as a reference when editing the GUI Plot Settings panel.
+
+[render]
+png_scale_factor = 2
+png_dpi = 300
+
+[shared]
+workspace_dir = "/Users/xingyuwang/ProjectOngoing/rust_plots"
+input_path = "/Users/xingyuwang/ProjectOngoing/rust_plots/data/Shan/20260508_data"
+output_path = "/Users/xingyuwang/ProjectOngoing/rust_plots/figures/examples"
+output_prefix = "plot_type_demo"
+input_is_directory = true
+
+[shared.style]
+dpi = 300.0
+width_inches = 7.2
+height_inches = 5.2
+font_size_pt = 21.0
+line_width = 4
+experimental_marker_radius = 7
+marker_radius = 7
+experimental_line_width = 4
+fitted_line_width = 4
+series_line_width = 4
+legend_position = "upper_right"
+png_scale_factor = 2
+fill_alpha = 0.35
+bar_width_ratio = 0.72
+pie_value_label_mode = "value_and_percentage"
+pie_min_label_percentage = 3.0
+
+[style_presets.line_example.style]
+plot_type = "line"
+show_points = false
+x_label = "Potential (V)"
+y_label = "Current (uA)"
+
+[style_presets.scatter_example.style]
+plot_type = "scatter"
+show_points = true
+x_label = "Concentration (ppb)"
+y_label = "Response (uA)"
+
+[style_presets.vertical_bar_example.style]
+plot_type = "vertical_bar"
+category_labels = ["Blank", "Low", "Mid", "High"]
+fill_alpha = 0.45
+bar_width_ratio = 0.68
+x_label = "Category"
+y_label = "Signal (uA)"
+
+[style_presets.horizontal_bar_example.style]
+plot_type = "horizontal_bar"
+category_labels = ["Pb", "Cu", "NO3", "Zn"]
+fill_alpha = 0.45
+bar_width_ratio = 0.68
+x_label = "Magnitude"
+y_label = "Species"
+
+[style_presets.grouped_bar_example.style]
+plot_type = "grouped_bar"
+category_labels = ["Week 1", "Week 2", "Week 3", "Week 4"]
+fill_alpha = 0.50
+bar_width_ratio = 0.82
+x_label = "Collection Window"
+y_label = "Average Response"
+
+[style_presets.grouped_bar_example.combined_style]
+series_palette = [
+    "#165E83",
+    "#B25019",
+    "#2E7D32",
+    "#8E44AD",
+]
+
+[style_presets.stacked_bar_example.style]
+plot_type = "stacked_bar"
+category_labels = ["Anode", "Cathode", "Electrolyte", "Losses"]
+fill_alpha = 0.55
+bar_width_ratio = 0.78
+x_label = "Component"
+y_label = "Contribution"
+
+[style_presets.stacked_bar_example.combined_style]
+series_palette = [
+    "#165E83",
+    "#D97B29",
+    "#4F8A3C",
+    "#A23E48",
+]
+
+[style_presets.fill_between_curves_example.style]
+plot_type = "fill_between"
+fill_between_mode = "between_curves"
+fill_alpha = 0.28
+show_points = false
+x_label = "Time (min)"
+y_label = "Signal Band"
+
+[style_presets.fill_to_zero_example.style]
+plot_type = "fill_between"
+fill_between_mode = "to_zero"
+fill_alpha = 0.25
+show_points = false
+x_label = "Potential (V)"
+y_label = "Current Density"
+
+[style_presets.fill_to_baseline_example.style]
+plot_type = "fill_between"
+fill_between_mode = "to_baseline"
+fill_baseline = 1.5
+fill_alpha = 0.25
+show_points = false
+x_label = "Frequency (Hz)"
+y_label = "Residual"
+
+[style_presets.stack_plot_example.style]
+plot_type = "stack_plot"
+fill_alpha = 0.40
+show_points = false
+x_label = "Time (h)"
+y_label = "Cumulative Output"
+
+[style_presets.stack_plot_example.combined_style]
+series_palette = [
+    "#165E83",
+    "#C26A1B",
+    "#3A7D44",
+    "#7B5EA7",
+]
+
+[style_presets.pie_example.style]
+plot_type = "pie"
+category_labels = ["Primary", "Control", "Blank", "Other"]
+pie_value_label_mode = "value_and_percentage"
+pie_min_label_percentage = 4.0
+legend_position = "middle_right"
+
+[style_presets.pie_example.combined_style]
+series_palette = [
+    "#165E83",
+    "#D4772D",
+    "#4F8A3C",
+    "#8E4B84",
+]
+
+# -----------------------------------------------------------------------------
+# Domain-specific presets (Shan / Pb Sensor)
+# -----------------------------------------------------------------------------
+
+[style_presets.shan_calibration_scatter.style]
+plot_type = "scatter"
+show_points = true
+regression = "linear"
+reg_info_print = [true, true]
+reg_metrics_print = [true, true, false, true]
+x_label = "Concentration (ppb)"
+y_label = "Shan Sensor Response (uA)"
+
+[style_presets.shan_calibration_scatter.combined_style]
+series_palette = [
+    "#165E83",
+    "#B25019",
+    "#2E7D32",
+    "#7B5EA7",
+]
+legend_position = "lower_right"
+
+[style_presets.pb_sensor_grouped_bar.style]
+plot_type = "grouped_bar"
+category_labels = ["0 ppb", "10 ppb", "25 ppb", "50 ppb"]
+fill_alpha = 0.52
+bar_width_ratio = 0.84
+x_label = "Pb2+ Concentration"
+y_label = "Pb Sensor Mean Response"
+
+[style_presets.pb_sensor_grouped_bar.combined_style]
+series_palette = [
+    "#0D3B66",
+    "#EE964B",
+    "#3C9D9B",
+    "#A44A3F",
+]
+legend_position = "upper_right"
+
+# -----------------------------------------------------------------------------
+# Example generic workflow block
+# -----------------------------------------------------------------------------
+# Switch `style_preset` to one of the presets above to render the same input
+# data with a different geometry.
+
+[generic_plot]
+style_preset = "line_example"
+
+[generic_plot.style]
+# Optional per-job overrides go here. Example:
+# plot_type = "grouped_bar"
+# category_labels = ["A", "B", "C", "D"]
+
+# Domain workflow switch examples:
+# style_preset = "shan_calibration_scatter"
+# style_preset = "pb_sensor_grouped_bar"
+

@@ -1,0 +1,14 @@
+# src module map (CLI-only)
+
+- `main.rs`: CLI entrypoint and command dispatch.
+- `cli.rs`: argument parsing and usage text.
+- `workspace.rs`: workspace bootstrap and TOML config lifecycle.
+- `plot_config.rs`: plotting TOML schema/load/migration/resolution.
+- `search_config.rs`: analysis TOML schema/load/validation.
+- `plot_runner.rs`: EIS/regular/generic plotting workflows.
+- `search_runner.rs`: ECM search workflow and exports.
+- `data_file/`: file parsing and transformations.
+- `impedance/`: circuit models, fitting, scoring, and evolution.
+- `plottings/`: rendering backends and plot styles.
+
+The codebase is intentionally CLI-focused; GUI/Tauri bridge modules are removed.

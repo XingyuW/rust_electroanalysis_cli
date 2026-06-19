@@ -1,0 +1,21 @@
+fallback_model = "R0-p(CPE1,R1)"
+
+[model_selection]
+# ranking_metric selection between "aic" and "weighted_rmse"
+ranking_metric = "aic"
+warburg_aic_threshold = 4.0
+
+[[rules]]
+circuit_model = "R0-p(CPE1,R1)-Gw2"
+# circuit_model = "R0-p(R1,CPE1)-p(R2-p(CPE2,W))"
+filename_contains = ["ism"]
+
+[[rules]]
+circuit_model = "R0-p(CPE1,R1)"
+filename_contains = ["qd"]
+
+[[rules]]
+circuit_model = "R0-W1"
+
+[rules.metadata_contains]
+equivalentcircuit = "R0-W1"
