@@ -4,8 +4,12 @@ use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
 
+pub use crate::potentiometry::calibration::error::CalibrationError;
+
 #[derive(Debug, Error)]
 pub enum PotentiometryError {
+    #[error(transparent)]
+    Calibration(#[from] CalibrationError),
     #[error("selected measurement channel '{channel}' does not exist")]
     MissingChannel { channel: String },
     #[error("experiment metadata is required for transient analysis: {0}")]

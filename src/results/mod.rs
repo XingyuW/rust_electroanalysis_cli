@@ -1,6 +1,9 @@
 //! Stable result models returned by scientific workflows.
 
+pub mod calibration;
 pub mod transient;
+
+pub use calibration::*;
 
 pub use transient::{
     BaselineResult, ConcentrationContext, FitStatus, FittedTransientParameter,

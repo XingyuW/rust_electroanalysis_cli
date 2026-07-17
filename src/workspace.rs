@@ -16,6 +16,7 @@ pub const PLOTTING_CONFIG_PATH: &str = "config/plotting.toml";
 pub const ANALYSIS_CONFIG_PATH: &str = "config/analysis.toml";
 pub const PARSING_CONFIG_PATH: &str = "config/parsing.toml";
 pub const TRANSIENT_CONFIG_PATH: &str = "config/transient.toml";
+pub const CALIBRATION_CONFIG_PATH: &str = "config/calibration.toml";
 
 const LEGACY_PLOTTING_CONFIG_PATH: &str = "plot_config.toml";
 const LEGACY_ANALYSIS_CONFIG_PATH: &str = "ecm_search.toml";
@@ -33,6 +34,7 @@ pub struct WorkspacePaths {
     pub analysis_config_path: PathBuf,
     pub parsing_config_path: PathBuf,
     pub transient_config_path: PathBuf,
+    pub calibration_config_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +53,10 @@ pub enum LastRunMode {
     Search,
     EisFit,
     TransientFit,
+    CalibrationExtract,
+    CalibrationFit,
+    CalibrationValidate,
+    CalibrationPredict,
 }
 
 impl LastRunMode {
@@ -63,6 +69,10 @@ impl LastRunMode {
             Self::Search => "search",
             Self::EisFit => "eis-fit",
             Self::TransientFit => "transient-fit",
+            Self::CalibrationExtract => "calibration-extract",
+            Self::CalibrationFit => "calibration-fit",
+            Self::CalibrationValidate => "calibration-validate",
+            Self::CalibrationPredict => "calibration-predict",
         }
     }
 }
@@ -107,6 +117,8 @@ struct LastRunConfig {
     analysis_config_override: Option<String>,
     search_output_override: Option<String>,
     search_top_override: Option<usize>,
+    calibration_config_override: Option<String>,
+    calibration_output_override: Option<String>,
 }
 
 impl WorkspaceSetup {
@@ -124,7 +136,29 @@ impl WorkspaceSetup {
             analysis_config_override: analysis_config_override.map(path_to_string),
             search_output_override: search_output_override.map(path_to_string),
             search_top_override,
+            calibration_config_override: self
+                .app_config
+                .last_run
+                .calibration_config_override
+                .clone(),
+            calibration_output_override: self
+                .app_config
+                .last_run
+                .calibration_output_override
+                .clone(),
         };
+        save_app_config(&self.paths.app_config_path, &self.app_config)
+    }
+
+    pub fn record_calibration_run(
+        &mut self,
+        mode: LastRunMode,
+        config_override: Option<&Path>,
+        output_override: Option<&Path>,
+    ) -> Result<(), WorkspaceError> {
+        self.app_config.last_run.mode = mode.as_str().to_string();
+        self.app_config.last_run.calibration_config_override = config_override.map(path_to_string);
+        self.app_config.last_run.calibration_output_override = output_override.map(path_to_string);
         save_app_config(&self.paths.app_config_path, &self.app_config)
     }
 }
@@ -141,6 +175,7 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         analysis_config_path: root.join(ANALYSIS_CONFIG_PATH),
         parsing_config_path: root.join(PARSING_CONFIG_PATH),
         transient_config_path: root.join(TRANSIENT_CONFIG_PATH),
+        calibration_config_path: root.join(CALIBRATION_CONFIG_PATH),
     };
     let mut warnings = Vec::new();
 
@@ -159,6 +194,14 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         LEGACY_PLOTTING_CONFIG_PATH,
         DEFAULT_PLOTTING_CONFIG,
         "plotting config",
+        &mut warnings,
+    )?;
+    ensure_runtime_config_file(
+        root,
+        &paths.calibration_config_path,
+        "calibration.toml",
+        DEFAULT_CALIBRATION_CONFIG,
+        "calibration config",
         &mut warnings,
     )?;
     ensure_runtime_config_file(
@@ -394,4 +437,77 @@ json_filename = "transient_results.json"
 features_filename = "transient_features.csv"
 model_comparison_filename = "transient_model_comparison.csv"
 report_filename = "transient_report.txt"
+"#;
+
+const DEFAULT_CALIBRATION_CONFIG: &str = r#"schema_version = 1
+
+[observation_extraction]
+preferred_source = "transient_equilibrium"
+allow_warning_fits = true
+fallback_source = "steady_state_median"
+steady_state_start_s = 180.0
+steady_state_end_s = 300.0
+minimum_points = 20
+maximum_missing_fraction = 0.20
+maximum_absolute_slope_v_per_s = 0.00001
+
+[analyte]
+name = "auto"
+charge = 1
+
+[temperature]
+mode = "observation_specific"
+default_celsius = 25.0
+reference_celsius = 25.0
+environmental_series = "temperature"
+alignment = "linear_interpolation"
+maximum_gap_s = 30.0
+
+[activity]
+model = "ideal"
+
+[nernst]
+slope_mode = "free"
+response_sign = "auto"
+
+[hysteresis]
+analyze = true
+log_activity_matching_tolerance = 0.05
+warning_threshold_v = 0.010
+
+[weighting]
+mode = "potential_standard_error"
+minimum_standard_error_v = 0.000001
+
+[selection]
+criterion = "aicc"
+branch = "mixed"
+
+[validation]
+mode = "leave_one_concentration_level_out"
+folds = 5
+seed = 42
+prediction_interval_confidence = 0.95
+
+[uncertainty]
+confidence_level = 0.95
+bootstrap_iterations = 1000
+seed = 42
+minimum_success_fraction = 0.80
+
+[plotting]
+enabled = true
+include_residuals = true
+include_hysteresis = true
+include_validation = true
+include_confidence_band = true
+
+[export]
+observations_filename = "calibration_observations.json"
+model_filename = "calibration_model.json"
+results_filename = "calibration_results.json"
+features_filename = "calibration_summary.csv"
+residuals_filename = "calibration_residuals.csv"
+validation_filename = "calibration_validation.csv"
+report_filename = "calibration_report.txt"
 "#;

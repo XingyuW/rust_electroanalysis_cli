@@ -16,6 +16,7 @@ pub use plottings::plotting;
 #[path = "impedance/lib.rs"]
 pub mod impedance;
 
+pub mod calibration_config;
 pub mod cli;
 pub mod domain;
 pub mod fitting;
@@ -37,7 +38,13 @@ pub use domain::{
     MultiChannelMeasurement, ParseDiagnostics, PlottingError, ProvenanceError, ReferenceMetadata,
     ReportingError, SensorMetadata, WorkspaceError, load_experiment_metadata,
 };
+pub use potentiometry::units::{Quantity, QuantityUnit};
 pub use results::CircuitFitResult;
+pub use results::calibration::{
+    CalibrationAnalysisReport, CalibrationBranch, CalibrationModelKind, CalibrationObservation,
+    CalibrationObservationSet, CalibrationPotentialSource, CalibrationPrediction,
+    StoredCalibrationModel,
+};
 pub use results::transient::{
     TransientAnalysisReport, TransientEventResult, TransientFeatures, TransientFitResult,
 };

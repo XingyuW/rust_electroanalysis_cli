@@ -3,12 +3,14 @@
 //! Re-exports domain-specific plot runners (`chi_plot`, `eis_plot`,
 //! `generic_plot`) and the shared low-level renderer (`plotting`).
 
+pub mod calibration_plot;
 pub mod chi_plot;
 pub mod eis_plot;
 pub mod generic_plot;
 pub mod plotting;
 pub mod transient_plot;
 
+pub use calibration_plot::plot_calibration_report;
 pub use chi_plot::{
     ChiDirectoryPlotOutcome, ChiPlotOutcome, ChiPlotSkip, pb_sensor_combined_publication_config,
     pb_sensor_individual_publication_config, pb_sensor_publication_config, plot_chi_directory,

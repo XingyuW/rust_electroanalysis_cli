@@ -1,0 +1,71 @@
+schema_version = 1
+
+[observation_extraction]
+preferred_source = "transient_equilibrium"
+allow_warning_fits = true
+fallback_source = "steady_state_median"
+steady_state_start_s = 180.0
+steady_state_end_s = 300.0
+minimum_points = 20
+maximum_missing_fraction = 0.20
+maximum_absolute_slope_v_per_s = 0.00001
+
+[analyte]
+name = "auto"
+charge = 1
+
+[temperature]
+mode = "observation_specific"
+default_celsius = 25.0
+reference_celsius = 25.0
+environmental_series = "temperature"
+alignment = "linear_interpolation"
+maximum_gap_s = 30.0
+
+[activity]
+model = "ideal"
+
+[nernst]
+slope_mode = "free"
+response_sign = "auto"
+
+[hysteresis]
+analyze = true
+log_activity_matching_tolerance = 0.05
+warning_threshold_v = 0.010
+
+[weighting]
+mode = "potential_standard_error"
+minimum_standard_error_v = 0.000001
+
+[selection]
+criterion = "aicc"
+branch = "mixed"
+
+[validation]
+mode = "leave_one_concentration_level_out"
+folds = 5
+seed = 42
+prediction_interval_confidence = 0.95
+
+[uncertainty]
+confidence_level = 0.95
+bootstrap_iterations = 1000
+seed = 42
+minimum_success_fraction = 0.80
+
+[plotting]
+enabled = true
+include_residuals = true
+include_hysteresis = true
+include_validation = true
+include_confidence_band = true
+
+[export]
+observations_filename = "calibration_observations.json"
+model_filename = "calibration_model.json"
+results_filename = "calibration_results.json"
+features_filename = "calibration_summary.csv"
+residuals_filename = "calibration_residuals.csv"
+validation_filename = "calibration_validation.csv"
+report_filename = "calibration_report.txt"

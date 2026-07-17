@@ -6,7 +6,7 @@
 use rust_electroanalysis_cli::cli::{CliError, CommandSpec, parse_cli_args, print_usage};
 use rust_electroanalysis_cli::domain::{ConfigurationError, WorkspaceError};
 use rust_electroanalysis_cli::plot_config::PlotConfig;
-use rust_electroanalysis_cli::runners::{RunnerError, fit, plot, search, transient};
+use rust_electroanalysis_cli::runners::{RunnerError, calibration, fit, plot, search, transient};
 use rust_electroanalysis_cli::workspace::{self, LastRunMode};
 use thiserror::Error as ThisError;
 
@@ -151,6 +151,89 @@ fn run() -> Result<(), ApplicationError> {
                 selection.as_deref(),
                 bootstrap,
                 seed,
+            )?;
+        }
+        CommandSpec::CalibrationExtract {
+            input,
+            metadata,
+            channel,
+            transient_results,
+            config_path,
+            output,
+        } => {
+            workspace_setup.record_calibration_run(
+                LastRunMode::CalibrationExtract,
+                config_path.as_deref(),
+                output.as_deref(),
+            )?;
+            calibration::extract(
+                &workspace_dir,
+                &input,
+                &metadata,
+                &channel,
+                transient_results.as_deref(),
+                config_path.as_deref(),
+                output.as_deref(),
+            )?;
+        }
+        CommandSpec::CalibrationFit {
+            observations,
+            config_path,
+            output,
+            model,
+            selection,
+            bootstrap,
+            seed,
+        } => {
+            workspace_setup.record_calibration_run(
+                LastRunMode::CalibrationFit,
+                config_path.as_deref(),
+                output.as_deref(),
+            )?;
+            calibration::fit(
+                &workspace_dir,
+                &observations,
+                config_path.as_deref(),
+                output.as_deref(),
+                model.as_deref(),
+                selection.as_deref(),
+                bootstrap,
+                seed,
+            )?;
+        }
+        CommandSpec::CalibrationValidate {
+            model,
+            observations,
+            output,
+        } => {
+            workspace_setup.record_calibration_run(
+                LastRunMode::CalibrationValidate,
+                None,
+                output.as_deref(),
+            )?;
+            calibration::validate(&workspace_dir, &model, &observations, output.as_deref())?;
+        }
+        CommandSpec::CalibrationPredict {
+            model,
+            potential,
+            temperature,
+            input,
+            channel,
+            output,
+        } => {
+            workspace_setup.record_calibration_run(
+                LastRunMode::CalibrationPredict,
+                None,
+                output.as_deref(),
+            )?;
+            calibration::predict(
+                &workspace_dir,
+                &model,
+                potential,
+                temperature,
+                input.as_deref(),
+                channel.as_deref(),
+                output.as_deref(),
             )?;
         }
     }

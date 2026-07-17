@@ -18,6 +18,7 @@
   - [Data Validation and Diagnostics](#data-validation-and-diagnostics)
   - [PlotData Compatibility](#plotdata-compatibility)
 - [Transient Response Analysis](#transient-response-analysis)
+- [Equilibrium Potentiometric Calibration](#equilibrium-potentiometric-calibration)
 - [CLI Usage](#cli-usage)
   - [Commands](#commands)
   - [Examples](#examples)
@@ -317,6 +318,137 @@ path and SHA-256 where available, generation timestamp, and optional Git
 commit. Experimental metadata (sensor, sample matrix, environmental series,
 and events) remains separate from plotting configuration.
 
+## Equilibrium Potentiometric Calibration
+
+Phase 3 adds an equilibrium calibration workflow under
+src/potentiometry/calibration/. It extracts equilibrium potentials from valid
+selected transient fits, or uses a steady-state window only when
+[observation_extraction].fallback_source is explicitly configured. It then
+fits Nernst, fixed-theoretical-slope, Nicolsky-Eisenman, and explicitly
+empirical conductivity-corrected models.
+
+Concentration, molar concentration, molality, activity, activity coefficient,
+ionic strength, conductivity, potential, and temperature are separate typed
+quantities. Supported units include mol/L, mmol/L, µmol/L, mol/kg, mg/L, g/L,
+V, mV, K, °C, S/m, mS/cm, and µS/cm. Mass concentration requires a
+configured molar mass; mol/kg remains molal unless additional solvent-density
+information is supplied. Temperatures are converted to kelvin before
+scientific equations are evaluated.
+
+### Commands
+
+    electroanalysis calibration extract \
+      --input data/calibration.csv \
+      --metadata data/experiment.toml \
+      --channel E1/V \
+      --transient-results output/transient/transient_results.json \
+      --config config/calibration.toml \
+      --output output/calibration/calibration_observations.json
+
+    electroanalysis calibration fit \
+      --observations output/calibration/calibration_observations.json \
+      --config config/calibration.toml \
+      --output output/calibration/
+
+    electroanalysis calibration validate \
+      --model output/calibration/calibration_model.json \
+      --observations data/validation_observations.json \
+      --output output/calibration-validation/
+
+    electroanalysis calibration predict \
+      --model output/calibration/calibration_model.json \
+      --potential 0.184 --temperature 25.0 \
+      --output output/prediction.json
+
+Prediction can also consume a generic data file with --input and --channel,
+producing a CSV when the output name ends in .csv. Phase 3 does not add new
+flat legacy flags; existing plot, EIS, and transient commands and their legacy
+compatibility remain unchanged.
+
+### Calibration TOML schema
+
+config/calibration.toml is independent of config/transient.toml and
+config/analysis.toml. Workspace setup creates it when absent. A compact
+example is:
+
+    schema_version = 1
+
+    [observation_extraction]
+    preferred_source = "transient_equilibrium"
+    allow_warning_fits = true
+    fallback_source = "steady_state_median" # omit to disable fallback
+    steady_state_start_s = 180.0
+    steady_state_end_s = 300.0
+    minimum_points = 20
+    maximum_missing_fraction = 0.20
+    maximum_absolute_slope_v_per_s = 0.00001
+
+    [analyte]
+    name = "NH4+"
+    charge = 1
+    molar_mass_g_per_mol = 18.038
+
+    [temperature]
+    mode = "observation_specific"
+    default_celsius = 25.0
+    environmental_series = "temperature"
+    alignment = "linear_interpolation"
+    maximum_gap_s = 30.0
+
+    [activity]
+    model = "ideal" # ideal, davies, extended_debye_huckel, or conductivity_empirical
+
+    [nernst]
+    slope_mode = "free" # free, fixed_theoretical, or prior_constrained
+    response_sign = "auto"
+
+    [selection]
+    criterion = "aicc"
+    branch = "mixed"
+
+    [uncertainty]
+    bootstrap_iterations = 1000
+    confidence_level = 0.95
+    seed = 42
+    minimum_success_fraction = 0.80
+
+Davies activity coefficients require ionic strength and warn above the
+configured validity range. Extended Debye-Hückel additionally requires an
+explicit ion-size parameter; the configured default B constant uses Å and a
+nanometre ion-size input is converted to Å. Conductivity correction is a configured
+empirical relationship and is always labeled empirical; conductivity is not
+treated as a thermodynamic activity model. Nicolsky-Eisenman selectivity
+coefficients are positive and are reported as fixed literature/user-supplied
+or experimentally fitted for the tested matrix and range.
+
+### Validation, uncertainty, and outputs
+
+Calibration fitting uses weighted or unweighted stable least squares and
+reports RSS, weighted RSS, RMSE, MAE, R², adjusted R², AIC, AICc, BIC,
+residuals, covariance diagnostics, leverage-related fields, and warnings.
+AICc is used when available by default and is unavailable for small
+observation-to-parameter ratios. Residual bootstrap intervals are
+reproducible for a fixed seed; failed iterations are counted and intervals are
+suppressed when the configured success fraction is not met.
+
+The default output directory contains:
+
+calibration_observations.json, calibration_model.json,
+calibration_results.json, calibration_summary.csv,
+calibration_residuals.csv, calibration_validation.csv, and
+calibration_report.txt. Plot adapters produce SVG/PNG potential-vs-activity,
+potential-vs-molar-concentration, theoretical-slope comparison, residual,
+branch, hysteresis, and validation figures through the existing renderer.
+Confidence intervals and covariance diagnostics remain machine-readable in
+the JSON/report outputs; the current adapter does not draw shaded bands.
+The renderer remains unaware of calibration result types.
+
+Reports distinguish measured quantities, converted quantities, fitted
+quantities, empirical corrections, thermodynamic assumptions, validation
+metrics, uncertainty, and extrapolation warnings. A non-Nernstian slope is not
+automatically labeled sensor failure, and no fitted quantity is assigned an
+electrochemical mechanism.
+
 ---
 
 ## Repository Structure
@@ -336,7 +468,8 @@ rust_electroanalysis_cli/
 │   ├── plotting.toml                   # Plotting workflow configuration
 │   ├── analysis.toml                   # ECM search/evolution configuration
 │   ├── parsing.toml                    # Circuit model resolver configuration
-│   └── transient.toml                  # Potentiometric transient configuration
+│   ├── transient.toml                  # Potentiometric transient configuration
+│   └── calibration.toml                # Independent equilibrium calibration configuration
 │
 ├── data/                               # Input data directory (auto-created)
 ├── output/                             # Output figures and reports directory (auto-created)
@@ -354,9 +487,12 @@ rust_electroanalysis_cli/
     │   └── provenance.rs                # Input/config hashes and generation metadata
     ├── fitting/                        # Stable façade over the impedance fit pipeline
     ├── potentiometry/                  # Event-based potentiometric transient core
-    │   ├── error.rs                     # Typed transient-analysis errors
+    │   ├── units.rs                     # Centralized quantity/unit conversions
+    │   ├── error.rs                     # Typed potentiometry errors
+    │   ├── calibration/                 # Activity, Nernst, selectivity, fitting
     │   └── transient/                   # Models, segmentation, fitting, diagnostics, selection
     ├── transient_config.rs              # Independent transient TOML schema/resolution
+    ├── calibration_config.rs            # Independent calibration TOML schema/resolution
     ├── results/                        # Named serializable scientific result structures
     ├── runners/                        # Thin plot, fit, search, and transient boundaries
     ├── workspace.rs                    # Workspace bootstrap, config lifecycle, atomic writes
@@ -393,6 +529,7 @@ rust_electroanalysis_cli/
         ├── chi_plot.rs                 # Regular (CHI/Pb-sensor) plot pipeline
         ├── eis_plot.rs                 # EIS Nyquist/Bode plot pipeline and ranked-search plots
         ├── generic_plot.rs              # Domain-agnostic generic plot pipeline
+        ├── calibration_plot.rs          # Calibration-result to renderer adapter
         └── transient_plot.rs            # Transient-result to PlotSeries adapter
 ```
 
@@ -579,6 +716,12 @@ electroanalysis eis search <input> [--search-config <path>]
                               [--search-output <path>] [--search-top <n>]
 electroanalysis transient fit --input <path> --metadata <path> --channel <name>
                               [--config <path>] [--output <path>]
+electroanalysis calibration extract --input <path> --metadata <path> --channel <name>
+                                    [--transient-results <path>] [--config <path>] [--output <path>]
+electroanalysis calibration fit --observations <path> [--config <path>] [--output <path>]
+electroanalysis calibration validate --model <path> --observations <path> [--output <path>]
+electroanalysis calibration predict --model <path> (--potential <V> | --input <path> --channel <name>)
+                                    [--temperature <C>] [--output <path>]
 ```
 
 `plot` defaults to `all`. `eis fit` fits one EIS file using its resolved
@@ -609,6 +752,15 @@ cargo run -- eis search data/eis_measurements/ --search-top 20 \
 # Fit all eligible concentration-step transients
 cargo run -- transient fit --input data/sensor.csv \
   --metadata data/experiment.toml --channel E1/V --output output/transient/
+
+# Extract and fit an equilibrium calibration
+cargo run -- calibration extract --input data/calibration.csv \
+  --metadata data/experiment.toml --channel E1/V \
+  --transient-results output/transient/transient_results.json \
+  --output output/calibration/calibration_observations.json
+cargo run -- calibration fit \
+  --observations output/calibration/calibration_observations.json \
+  --output output/calibration/
 ```
 
 ### Legacy compatibility
@@ -642,7 +794,9 @@ When the application starts, it creates the following workspace structure under 
 │   ├── app.toml          # Application state (auto-managed)
 │   ├── plotting.toml     # Plotting workflow settings
 │   ├── analysis.toml     # ECM search settings
-│   └── parsing.toml      # Circuit model resolver settings
+│   ├── parsing.toml      # Circuit model resolver settings
+│   ├── transient.toml    # Potentiometric transient settings
+│   └── calibration.toml  # Equilibrium calibration settings
 ├── data/                 # Place input files here
 ├── output/               # Generated figures and reports
 └── logs/                 # Log output

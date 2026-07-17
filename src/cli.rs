@@ -55,6 +55,11 @@ pub enum Command {
         #[command(subcommand)]
         command: TransientCommand,
     },
+    /// Extract, fit, validate, and use equilibrium potentiometric calibrations.
+    Calibration {
+        #[command(subcommand)]
+        command: CalibrationCommand,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -79,6 +84,79 @@ pub enum EisCommand {
 pub enum TransientCommand {
     /// Fit configured transient models to one or more eligible events.
     Fit(TransientFitCommand),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CalibrationCommand {
+    /// Extract equilibrium calibration observations from concentration events.
+    Extract(CalibrationExtractCommand),
+    /// Fit configured calibration models to observations.
+    Fit(CalibrationFitCommand),
+    /// Validate a stored calibration model against observations.
+    Validate(CalibrationValidateCommand),
+    /// Predict activity or concentration from a stored calibration model.
+    Predict(CalibrationPredictCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct CalibrationExtractCommand {
+    #[arg(long, value_name = "PATH")]
+    pub input: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    pub metadata: PathBuf,
+    #[arg(long, value_name = "NAME")]
+    pub channel: String,
+    #[arg(long, value_name = "PATH")]
+    pub transient_results: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub config: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub output: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct CalibrationFitCommand {
+    #[arg(long, value_name = "PATH")]
+    pub observations: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    pub config: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub output: Option<PathBuf>,
+    #[arg(long, value_name = "MODEL")]
+    pub model: Option<String>,
+    #[arg(long, value_name = "CRITERION")]
+    pub selection: Option<String>,
+    #[arg(long, value_name = "N")]
+    pub bootstrap: Option<usize>,
+    #[arg(long, value_name = "N")]
+    pub seed: Option<u64>,
+}
+
+#[derive(Debug, Args)]
+pub struct CalibrationValidateCommand {
+    #[arg(long, value_name = "PATH")]
+    pub model: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    pub observations: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    pub output: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct CalibrationPredictCommand {
+    #[arg(long, value_name = "PATH")]
+    pub model: PathBuf,
+    #[arg(long, value_name = "V")]
+    pub potential: Option<f64>,
+    /// Temperature in degrees Celsius; converted to kelvin internally.
+    #[arg(long, value_name = "C")]
+    pub temperature: Option<f64>,
+    #[arg(long, value_name = "PATH")]
+    pub input: Option<PathBuf>,
+    #[arg(long, value_name = "NAME", requires = "input")]
+    pub channel: Option<String>,
+    #[arg(long, value_name = "PATH")]
+    pub output: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -251,7 +329,7 @@ pub struct LegacyArgs {
 }
 
 /// Normalized command values consumed by the application layer.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CommandSpec {
     Plot {
         target: PlotTarget,
@@ -281,6 +359,36 @@ pub enum CommandSpec {
         bootstrap: Option<usize>,
         seed: Option<u64>,
     },
+    CalibrationExtract {
+        input: PathBuf,
+        metadata: PathBuf,
+        channel: String,
+        transient_results: Option<PathBuf>,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    CalibrationFit {
+        observations: PathBuf,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+        model: Option<String>,
+        selection: Option<String>,
+        bootstrap: Option<usize>,
+        seed: Option<u64>,
+    },
+    CalibrationValidate {
+        model: PathBuf,
+        observations: PathBuf,
+        output: Option<PathBuf>,
+    },
+    CalibrationPredict {
+        model: PathBuf,
+        potential: Option<f64>,
+        temperature: Option<f64>,
+        input: Option<PathBuf>,
+        channel: Option<String>,
+        output: Option<PathBuf>,
+    },
 }
 
 /// Errors raised while parsing or validating command-line arguments.
@@ -294,7 +402,7 @@ pub enum CliError {
 
 /// Compatibility representation retained for callers of the former parser.
 /// New code should consume [`CommandSpec`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CliArgs {
     pub command: Option<CommandSpec>,
     pub plot_target: Option<PlotTarget>,
@@ -354,6 +462,10 @@ impl CliArgs {
                 result.search_top = search_top;
             }
             Some(CommandSpec::TransientFit { .. }) => {}
+            Some(CommandSpec::CalibrationExtract { .. })
+            | Some(CommandSpec::CalibrationFit { .. })
+            | Some(CommandSpec::CalibrationValidate { .. })
+            | Some(CommandSpec::CalibrationPredict { .. }) => {}
             None => {}
         }
 
@@ -435,6 +547,56 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     bootstrap: command.bootstrap,
                     seed: command.seed,
                 },
+            },
+            Command::Calibration { command } => match command {
+                CalibrationCommand::Extract(command) => CommandSpec::CalibrationExtract {
+                    input: command.input,
+                    metadata: command.metadata,
+                    channel: command.channel,
+                    transient_results: command.transient_results,
+                    config_path: command.config,
+                    output: command.output,
+                },
+                CalibrationCommand::Fit(command) => CommandSpec::CalibrationFit {
+                    observations: command.observations,
+                    config_path: command.config,
+                    output: command.output,
+                    model: command.model,
+                    selection: command.selection,
+                    bootstrap: command.bootstrap,
+                    seed: command.seed,
+                },
+                CalibrationCommand::Validate(command) => CommandSpec::CalibrationValidate {
+                    model: command.model,
+                    observations: command.observations,
+                    output: command.output,
+                },
+                CalibrationCommand::Predict(command) => {
+                    if command.potential.is_none() && command.input.is_none() {
+                        return Err(CliError::InvalidCombination(
+                            "calibration predict requires --potential or --input".to_string(),
+                        ));
+                    }
+                    if command.potential.is_some() && command.input.is_some() {
+                        return Err(CliError::InvalidCombination(
+                            "calibration predict accepts either --potential or --input, not both"
+                                .to_string(),
+                        ));
+                    }
+                    if command.input.is_some() && command.channel.is_none() {
+                        return Err(CliError::InvalidCombination(
+                            "calibration predict with --input requires --channel".to_string(),
+                        ));
+                    }
+                    CommandSpec::CalibrationPredict {
+                        model: command.model,
+                        potential: command.potential,
+                        temperature: command.temperature,
+                        input: command.input,
+                        channel: command.channel,
+                        output: command.output,
+                    }
+                }
             },
         }
     } else if let Some(search_target) = legacy.search_eis {
