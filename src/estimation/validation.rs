@@ -1,6 +1,7 @@
 use crate::{
     estimation::state::MeasurementUpdateStatus,
     estimation::state::{EstimationWarning, EstimationWarningKind},
+    estimation_config::{StateValidationConfig, TruthAlignmentPolicy},
     results::{StateEstimationReport, StateMetric, StateValidationResult},
 };
 use nalgebra::{DMatrix, DVector};
@@ -30,11 +31,26 @@ pub fn validate_report(
         .confidence_level
         .clamp(1e-6, 1.0 - 1e-6);
     let z_score = standard_normal_quantile(0.5 + confidence / 2.0);
-    let alignment_tolerance_s =
-        resolve_alignment_tolerance_s(&report.estimates, truth).max(f64::EPSILON);
-    let matching = align_samples(report, truth, alignment_tolerance_s);
+    let alignment_tolerance_s = report.configuration.validation.maximum_alignment_gap_s;
+    let matching = align_samples(
+        report,
+        truth,
+        report.configuration.validation.alignment_policy,
+        alignment_tolerance_s,
+        report.configuration.validation.allow_truth_reuse,
+    );
     let samples = matching.samples;
     let mut warnings = Vec::new();
+    if truth.windows(2).any(|window| {
+        !window[0].timestamp_s.is_finite()
+            || !window[1].timestamp_s.is_finite()
+            || window[1].timestamp_s <= window[0].timestamp_s
+    }) {
+        warnings.push(EstimationWarning::new(
+            EstimationWarningKind::ModelDiscrepancy,
+            "truth timestamps are not strictly increasing; truth alignment was rejected",
+        ));
+    }
     if !matching.unmatched_estimate_timestamps_s.is_empty() {
         warnings.push(EstimationWarning::new(
             EstimationWarningKind::ModelDiscrepancy,
@@ -56,7 +72,9 @@ pub fn validate_report(
         ));
     }
     let mut vector_nees = Vec::new();
-    for (truth_point, estimate_point) in &samples {
+    for sample in &samples {
+        let truth_point = &sample.truth;
+        let estimate_point = sample.estimate;
         let actual = report
             .state_definitions
             .iter()
@@ -70,7 +88,13 @@ pub fn validate_report(
                     .filtered_state
                     .iter()
                     .find(|state| state.name == definition.name)
-                    .and_then(|state| state.value)
+                    .and_then(|state| {
+                        if definition.name == "log10_activity" {
+                            state.latent_value.or(state.value)
+                        } else {
+                            state.value
+                        }
+                    })
             })
             .collect::<Vec<_>>();
         if actual.iter().all(Option::is_some) && estimate.iter().all(Option::is_some) {
@@ -102,13 +126,21 @@ pub fn validate_report(
         let mut outlier_count = 0;
         let mut rejected_outliers = 0;
         let mut samples_for_state = Vec::new();
-        for (truth_point, point) in &samples {
+        for sample in &samples {
+            let truth_point = &sample.truth;
+            let point = sample.estimate;
             let actual = truth_value(truth_point, &def.name);
             let estimate = point
                 .filtered_state
                 .iter()
                 .find(|state| state.name == def.name)
-                .and_then(|state| state.value);
+                .and_then(|state| {
+                    if def.name == "log10_activity" {
+                        state.latent_value.or(state.value)
+                    } else {
+                        state.value
+                    }
+                });
             if let (Some(actual), Some(estimate)) = (actual, estimate) {
                 let err = estimate - actual;
                 errors.push(err);
@@ -150,13 +182,18 @@ pub fn validate_report(
             nees_mean: (!nees.is_empty()).then_some(nees.iter().sum::<f64>() / nees.len() as f64),
             convergence_time_s: convergence_time(
                 &samples_for_state,
-                convergence_threshold(&def.name),
+                validation_state_config(report, &def.name),
             ),
-            step_response_delay_s: step_response_delay(&samples_for_state),
+            step_response_delay_s: step_response_delay(
+                &samples_for_state,
+                validation_state_config(report, &def.name),
+            ),
             maximum_transient_error: errors.iter().map(|x| x.abs()).reduce(f64::max),
             outlier_rejection_rate: (outlier_count > 0)
                 .then_some(rejected_outliers as f64 / outlier_count as f64),
             calibration_domain_violations: report.diagnostics.domain_excursion_count,
+            sample_count: count,
+            nees_consistency_interval: consistency_interval(nees.len(), 1.0, confidence, z_score),
         });
     }
     StateValidationResult {
@@ -165,31 +202,45 @@ pub fn validate_report(
         vector_nees_mean: (!vector_nees.is_empty())
             .then_some(vector_nees.iter().sum::<f64>() / vector_nees.len() as f64),
         vector_nees_count: vector_nees.len(),
+        vector_nees_consistency_interval: consistency_interval(
+            vector_nees.len(),
+            report.state_definitions.len() as f64,
+            confidence,
+            z_score,
+        ),
         matched_sample_count: samples.len(),
         alignment_tolerance_s: Some(alignment_tolerance_s),
         unmatched_estimate_timestamps_s: matching.unmatched_estimate_timestamps_s,
         unmatched_truth_timestamps_s: matching.unmatched_truth_timestamps_s,
+        alignment_policy: Some(format!(
+            "{:?}",
+            report.configuration.validation.alignment_policy
+        )),
+        alignment_methods: matching.methods,
         warnings,
     }
 }
 
+struct AlignedSample<'a> {
+    truth: TruthPoint,
+    estimate: &'a crate::results::StateEstimatePoint,
+}
+
 struct SampleAlignment<'a> {
-    samples: Vec<(&'a TruthPoint, &'a crate::results::StateEstimatePoint)>,
+    samples: Vec<AlignedSample<'a>>,
     unmatched_estimate_timestamps_s: Vec<f64>,
     unmatched_truth_timestamps_s: Vec<f64>,
+    methods: Vec<String>,
 }
 
 fn align_samples<'a>(
     report: &'a StateEstimationReport,
     truth: &'a [TruthPoint],
+    policy: TruthAlignmentPolicy,
     tolerance_s: f64,
+    allow_truth_reuse: bool,
 ) -> SampleAlignment<'a> {
-    let mut truth_indices = (0..truth.len()).collect::<Vec<_>>();
-    truth_indices.sort_by(|left, right| {
-        truth[*left]
-            .timestamp_s
-            .total_cmp(&truth[*right].timestamp_s)
-    });
+    let truth_indices = (0..truth.len()).collect::<Vec<_>>();
     let mut estimate_indices = (0..report.estimates.len()).collect::<Vec<_>>();
     estimate_indices.sort_by(|left, right| {
         report.estimates[*left]
@@ -198,28 +249,94 @@ fn align_samples<'a>(
     });
     let mut used_truth = vec![false; truth.len()];
     let mut samples = Vec::new();
+    let mut methods = Vec::new();
+    if truth.windows(2).any(|window| {
+        !window[0].timestamp_s.is_finite()
+            || !window[1].timestamp_s.is_finite()
+            || window[1].timestamp_s <= window[0].timestamp_s
+    }) {
+        return SampleAlignment {
+            samples,
+            unmatched_estimate_timestamps_s: report
+                .estimates
+                .iter()
+                .map(|estimate| estimate.timestamp_s)
+                .collect(),
+            unmatched_truth_timestamps_s: truth.iter().map(|point| point.timestamp_s).collect(),
+            methods,
+        };
+    }
     let mut unmatched_estimate_timestamps_s = Vec::new();
     for estimate_index in estimate_indices {
         let estimate = &report.estimates[estimate_index];
-        let mut best_match: Option<(usize, f64)> = None;
-        for truth_index in &truth_indices {
-            if used_truth[*truth_index] {
-                continue;
-            }
-            let delta = (truth[*truth_index].timestamp_s - estimate.timestamp_s).abs();
-            if delta <= tolerance_s {
-                if let Some((_, current)) = best_match {
-                    if delta < current {
-                        best_match = Some((*truth_index, delta));
-                    }
-                } else {
-                    best_match = Some((*truth_index, delta));
+        let aligned = match policy {
+            TruthAlignmentPolicy::Exact => truth_indices
+                .iter()
+                .copied()
+                .filter(|index| allow_truth_reuse || !used_truth[*index])
+                .find(|index| {
+                    (truth[*index].timestamp_s - estimate.timestamp_s).abs() <= f64::EPSILON
+                })
+                .map(|index| {
+                    (
+                        TruthPoint {
+                            ..truth[index].clone()
+                        },
+                        vec![index],
+                        "exact".to_string(),
+                    )
+                }),
+            TruthAlignmentPolicy::NearestWithinTolerance => truth_indices
+                .iter()
+                .copied()
+                .filter(|index| allow_truth_reuse || !used_truth[*index])
+                .filter_map(|index| {
+                    let gap = (truth[index].timestamp_s - estimate.timestamp_s).abs();
+                    (gap <= tolerance_s).then_some((index, gap))
+                })
+                .min_by(|left, right| left.1.total_cmp(&right.1))
+                .map(|(index, _)| {
+                    (
+                        TruthPoint {
+                            ..truth[index].clone()
+                        },
+                        vec![index],
+                        "nearest_within_tolerance".to_string(),
+                    )
+                }),
+            TruthAlignmentPolicy::LinearInterpolation => truth
+                .windows(2)
+                .enumerate()
+                .find(|(index, window)| {
+                    let unused =
+                        allow_truth_reuse || (!used_truth[*index] && !used_truth[*index + 1]);
+                    window[0].timestamp_s <= estimate.timestamp_s
+                        && estimate.timestamp_s <= window[1].timestamp_s
+                        && (estimate.timestamp_s - window[0].timestamp_s) <= tolerance_s
+                        && (window[1].timestamp_s - estimate.timestamp_s) <= tolerance_s
+                        && unused
+                })
+                .map(|(index, window)| {
+                    let fraction = (estimate.timestamp_s - window[0].timestamp_s)
+                        / (window[1].timestamp_s - window[0].timestamp_s).max(f64::EPSILON);
+                    (
+                        interpolate_truth(&window[0], &window[1], fraction, estimate.timestamp_s),
+                        vec![index, index + 1],
+                        "linear_interpolation".to_string(),
+                    )
+                }),
+        };
+        if let Some((point, indices, method)) = aligned {
+            if !allow_truth_reuse {
+                for index in indices {
+                    used_truth[index] = true;
                 }
             }
-        }
-        if let Some((truth_index, _)) = best_match {
-            used_truth[truth_index] = true;
-            samples.push((&truth[truth_index], estimate));
+            methods.push(method.clone());
+            samples.push(AlignedSample {
+                truth: point,
+                estimate,
+            });
         } else {
             unmatched_estimate_timestamps_s.push(estimate.timestamp_s);
         }
@@ -233,6 +350,25 @@ fn align_samples<'a>(
         samples,
         unmatched_estimate_timestamps_s,
         unmatched_truth_timestamps_s,
+        methods,
+    }
+}
+
+fn interpolate_truth(
+    left: &TruthPoint,
+    right: &TruthPoint,
+    fraction: f64,
+    timestamp_s: f64,
+) -> TruthPoint {
+    let lerp = |a: Option<f64>, b: Option<f64>| a.zip(b).map(|(a, b)| a + fraction * (b - a));
+    TruthPoint {
+        timestamp_s,
+        log10_activity: lerp(left.log10_activity, right.log10_activity),
+        activity: lerp(left.activity, right.activity),
+        baseline_offset_v: lerp(left.baseline_offset_v, right.baseline_offset_v),
+        polarization_v: lerp(left.polarization_v, right.polarization_v),
+        sensitivity_scale: lerp(left.sensitivity_scale, right.sensitivity_scale),
+        outlier: left.outlier || right.outlier,
     }
 }
 
@@ -253,56 +389,46 @@ fn matrix(values: &[Vec<f64>]) -> DMatrix<f64> {
     DMatrix::from_fn(values.len(), values.len(), |i, j| values[i][j])
 }
 
-fn convergence_time(samples: &[(f64, f64, f64)], threshold: f64) -> Option<f64> {
+fn convergence_time(samples: &[(f64, f64, f64)], config: &StateValidationConfig) -> Option<f64> {
     let first = samples.first()?.0;
-    let last_bad = samples
-        .iter()
-        .filter(|(_, actual, estimate)| (estimate - actual).abs() > threshold)
-        .map(|(time, _, _)| *time)
-        .reduce(f64::max);
-    Some((last_bad.unwrap_or(first) - first).max(0.0))
+    let required = config.minimum_consecutive_converged_points;
+    let mut consecutive = 0;
+    for (time, actual, estimate) in samples {
+        if (estimate - actual).abs() <= config.absolute_convergence_tolerance {
+            consecutive += 1;
+            if consecutive >= required {
+                return Some((*time - first).max(0.0));
+            }
+        } else {
+            consecutive = 0;
+        }
+    }
+    Some((samples.last()?.0 - first).max(0.0))
 }
 
-fn convergence_threshold(state: &str) -> f64 {
-    match state {
-        "log10_activity" => 5e-2,
-        "baseline_offset" | "polarization" => 1e-3,
-        "sensitivity_scale" => 1e-2,
-        _ => 1e-3,
-    }
+fn validation_state_config<'a>(
+    report: &'a StateEstimationReport,
+    state: &str,
+) -> &'a StateValidationConfig {
+    static DEFAULT: std::sync::OnceLock<StateValidationConfig> = std::sync::OnceLock::new();
+    report
+        .configuration
+        .validation
+        .states
+        .get(state)
+        .unwrap_or_else(|| DEFAULT.get_or_init(StateValidationConfig::default))
 }
 
-fn resolve_alignment_tolerance_s(
-    estimates: &[crate::results::StateEstimatePoint],
-    truth: &[TruthPoint],
-) -> f64 {
-    let estimate_step = median_time_step(estimates.iter().map(|point| point.timestamp_s));
-    let truth_step = median_time_step(truth.iter().map(|point| point.timestamp_s));
-    match (estimate_step, truth_step) {
-        (Some(left), Some(right)) => 0.5 * left.min(right),
-        (Some(step), None) | (None, Some(step)) => 0.5 * step,
-        (None, None) => 1e-9,
-    }
-}
-
-fn median_time_step<I>(timestamps: I) -> Option<f64>
-where
-    I: Iterator<Item = f64>,
-{
-    let mut sorted = timestamps
-        .filter(|value| value.is_finite())
-        .collect::<Vec<_>>();
-    sorted.sort_by(f64::total_cmp);
-    let mut deltas = sorted
-        .windows(2)
-        .map(|pair| pair[1] - pair[0])
-        .filter(|delta| delta.is_finite() && *delta > 0.0)
-        .collect::<Vec<_>>();
-    if deltas.is_empty() {
-        return None;
-    }
-    deltas.sort_by(f64::total_cmp);
-    Some(deltas[deltas.len() / 2])
+fn consistency_interval(
+    count: usize,
+    expected: f64,
+    _confidence: f64,
+    z_score: f64,
+) -> Option<(f64, f64)> {
+    (count >= 2).then_some((
+        0.0_f64.max(expected - z_score * (2.0 * expected / count as f64).sqrt()),
+        expected + z_score * (2.0 * expected / count as f64).sqrt(),
+    ))
 }
 
 fn standard_normal_quantile(p: f64) -> f64 {
@@ -354,17 +480,17 @@ fn standard_normal_quantile(p: f64) -> f64 {
     }
 }
 
-fn step_response_delay(samples: &[(f64, f64, f64)]) -> Option<f64> {
+fn step_response_delay(samples: &[(f64, f64, f64)], config: &StateValidationConfig) -> Option<f64> {
     let (step_index, step_size) = samples
         .windows(2)
         .enumerate()
         .map(|(index, window)| (index, window[1].1 - window[0].1))
         .max_by(|(_, left), (_, right)| left.abs().total_cmp(&right.abs()))?;
-    if step_size.abs() <= 1e-9 {
+    if step_size.abs() <= config.step_detection_threshold {
         return None;
     }
     let before = samples[step_index].2;
-    let target = before + 0.9 * step_size;
+    let target = before + config.step_response_fraction * step_size;
     samples
         .iter()
         .skip(step_index + 1)
@@ -426,6 +552,15 @@ pub fn read_truth_csv(path: &Path) -> Result<Vec<TruthPoint>, std::io::Error> {
                     matches!(value.to_ascii_lowercase().as_str(), "true" | "1" | "yes")
                 }),
         })
+    }
+    if out
+        .windows(2)
+        .any(|window| window[1].timestamp_s <= window[0].timestamp_s)
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "truth timestamps must be strictly increasing",
+        ));
     }
     Ok(out)
 }

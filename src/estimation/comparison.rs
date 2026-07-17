@@ -53,10 +53,43 @@ pub fn compare_reports(
             mean_activity_standard_error: (!se.is_empty())
                 .then_some(se.iter().sum::<f64>() / se.len() as f64),
             warnings: report.warnings.clone(),
+            log_likelihood: report.diagnostics.log_likelihood,
+            nis_consistency: report.diagnostics.nis_consistency_interval.map(|(lo, hi)| {
+                report
+                    .diagnostics
+                    .nis_mean
+                    .is_some_and(|value| value >= lo && value <= hi)
+            }),
+            nees_mean: report.diagnostics.nees_mean,
+            coverage: truth.and_then(|_| {
+                report.validation.as_ref().and_then(|validation| {
+                    let values = validation
+                        .metrics
+                        .iter()
+                        .filter_map(|metric| metric.interval_coverage)
+                        .collect::<Vec<_>>();
+                    (!values.is_empty()).then_some(values.iter().sum::<f64>() / values.len() as f64)
+                })
+            }),
+            activity_bias: truth.and_then(|_| {
+                report.validation.as_ref().and_then(|validation| {
+                    validation
+                        .metrics
+                        .iter()
+                        .find(|metric| metric.state == "log10_activity")
+                        .and_then(|metric| metric.bias)
+                })
+            }),
+            rejected_update_rate: {
+                let total = report.diagnostics.accepted_update_count
+                    + report.diagnostics.rejected_update_count;
+                (total > 0)
+                    .then_some(report.diagnostics.rejected_update_count as f64 / total as f64)
+            },
         });
     }
     StateFilterComparison {
-        schema_version: 1,
+        schema_version: 2,
         records,
         warnings: Vec::new(),
     }
