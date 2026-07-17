@@ -9,7 +9,7 @@
 use crate::runners::RunnerError;
 use crate::{
     data_file::{
-        ElectrochemData, IntoPlotData, PlotData,
+        ElectrochemData, PlotData, load_data, measurement_to_plot_data,
         value_transform::{AxisTransforms, regression_axis_term},
     },
     plot_config::{LoadedPlotConfig, PlotJob, PlotJobKind, RenderConfig},
@@ -554,10 +554,9 @@ where
         if !job.input_is_directory {
             // Single-file mode: load just this one file.
             let file_path = &job.input_dir;
-            let plot_data: Vec<PlotData> = ElectrochemData::parse_file_series(file_path)?
-                .into_iter()
-                .map(IntoPlotData::into_plot_data)
-                .collect();
+            let loaded = load_data(file_path)?;
+            let plot_data: Vec<PlotData> =
+                measurement_to_plot_data(loaded.experiment.measurement());
             let stem = file_path.file_stem().unwrap_or_default().to_string_lossy();
             let prefix = job.output_prefix.trim();
             let output_name = if prefix.is_empty() {

@@ -38,7 +38,7 @@
 //!
 //! No changes to `plotting.rs`, `plot_hq`, or anything else are needed.
 
-use crate::data_file::{ElectrochemData, IntoPlotData, PlotData};
+use crate::data_file::{PlotData, load_data, measurement_to_plot_data};
 use crate::plottings::plotting::{
     PlotColor, PlotLegendPosition, PublicationConfig, ResolvedPlotConfig, plot_hq,
 };
@@ -219,10 +219,9 @@ pub fn load_generic_datasets_from_dir<P: AsRef<Path>>(
             });
             continue;
         }
-        match ElectrochemData::parse_file_series(&path) {
-            Ok(parsed_series) => {
-                for electrochem in parsed_series {
-                    let data = electrochem.into_plot_data();
+        match load_data(&path) {
+            Ok(parsed) => {
+                for data in measurement_to_plot_data(parsed.experiment.measurement()) {
                     loaded.push(LoadedGenericDataset {
                         source_file: path.clone(),
                         data,
@@ -401,12 +400,9 @@ pub fn plot_generic_directory_with_configs<P: AsRef<Path>>(
             continue;
         }
 
-        // Parse via the existing CHI-format parser, then convert to PlotData.
-        // Future: swap this block for a different parser + IntoPlotData impl.
-        match ElectrochemData::parse_file_series(&path) {
-            Ok(parsed_series) => {
-                for electrochem in parsed_series {
-                    let plot_data: PlotData = electrochem.into_plot_data();
+        match load_data(&path) {
+            Ok(parsed) => {
+                for plot_data in measurement_to_plot_data(parsed.experiment.measurement()) {
                     let series_name =
                         sanitize_output_component(plot_data.label.as_deref().unwrap_or("data"));
                     let output_base = append_output_suffix(&individual_output_base, &series_name);

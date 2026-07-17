@@ -15,7 +15,8 @@ pub mod value_transform;
 pub use crate::domain::{DataParsingError, MeasurementParseResult};
 pub use chi_file::{EISData, EISFitResult, ElectrochemData};
 pub use data_op::{
-    IntoPlotData, PlotData, PlotDataBuilder, PlotDataError, PointSelection, YSeries,
+    DataFileType, IntoPlotData, LoadedExperimentData, PlotData, PlotDataBuilder, PlotDataError,
+    PointSelection, YSeries, load_data,
 };
 pub use measurement_adapter::{channel_to_plot_data, measurement_to_plot_data, to_plot_data};
 pub use measurement_parser::{load_experiment, parse_measurement_file, parse_measurement_text};

@@ -153,17 +153,14 @@ fn find_time_header<'a>(lines: &[&'a str]) -> Option<(usize, usize, Vec<&'a str>
 
 fn is_time_header(value: &str) -> bool {
     let normalized = normalize_header(value);
-    matches!(
-        normalized.as_str(),
-        "time"
-            | "time/s"
-            | "time/sec"
-            | "time(s)"
-            | "time(sec)"
-            | "time(seconds)"
-            | "timestamp"
-            | "timestamp/s"
-    )
+    normalized == "time"
+        || normalized.starts_with("time/")
+        || normalized.starts_with("time(")
+        || normalized.starts_with("time[")
+        || normalized == "timestamp"
+        || normalized.starts_with("timestamp/")
+        || normalized.starts_with("timestamp(")
+        || normalized.starts_with("timestamp[")
 }
 
 fn parse_channel_header(header: &str) -> (String, String) {
@@ -185,6 +182,7 @@ fn parse_channel_header(header: &str) -> (String, String) {
 fn normalize_header(value: &str) -> String {
     value
         .trim()
+        .trim_start_matches('\u{feff}')
         .to_ascii_lowercase()
         .chars()
         .filter(|character| !character.is_ascii_whitespace())

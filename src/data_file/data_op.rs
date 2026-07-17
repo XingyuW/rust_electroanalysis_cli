@@ -119,10 +119,15 @@
 //! materialized configuration with no `Option` fields — that is passed
 //! directly into `plot_hq()`.
 
-use crate::data_file::ElectrochemData;
-use crate::domain::PlottingError;
+use crate::data_file::{EISData, ElectrochemData, parse_measurement_file};
+use crate::domain::{
+    AnalysisProvenance, DataParsingError, ElectrochemicalExperiment, MeasurementChannel,
+    MultiChannelMeasurement, ParseDiagnostics, PlottingError, SensorMetadata,
+};
 use crate::plottings::{PlotDataSeries, PlotSeries};
+use std::collections::BTreeMap;
 use std::fmt;
+use std::path::Path;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YSeries — a single additional named y-series
@@ -822,5 +827,268 @@ impl IntoPlotData for ElectrochemData {
     /// Delegate to `From<ElectrochemData> for PlotData`.
     fn into_plot_data(self) -> PlotData {
         PlotData::from(self)
+    }
+}
+
+/// Supported input categories for automatic loader dispatch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DataFileType {
+    ChiEis,
+    ChiOcpt,
+    SensorCsv,
+}
+
+/// Unified loader result for all supported input formats.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoadedExperimentData {
+    pub file_type: DataFileType,
+    pub experiment: ElectrochemicalExperiment,
+    pub diagnostics: ParseDiagnostics,
+}
+
+/// Unified, content-detected data loading entrypoint.
+pub fn load_data(path: impl AsRef<Path>) -> Result<LoadedExperimentData, DataParsingError> {
+    let path = path.as_ref();
+    let text = std::fs::read_to_string(path).map_err(|error| DataParsingError::io(path, error))?;
+    let file_type = detect_file_type(path, &text)?;
+    match file_type {
+        DataFileType::ChiEis => load_chi_eis(path),
+        DataFileType::ChiOcpt => load_time_series(path, DataFileType::ChiOcpt),
+        DataFileType::SensorCsv => load_time_series(path, DataFileType::SensorCsv),
+    }
+}
+
+fn load_time_series(
+    path: &Path,
+    file_type: DataFileType,
+) -> Result<LoadedExperimentData, DataParsingError> {
+    let parsed = parse_measurement_file(path)?;
+    let provenance = AnalysisProvenance::from_paths(path, None)?;
+    let experiment_id = file_stem_or_default(path);
+    let sensor_metadata = default_sensor_metadata(path, file_type, None);
+    let sample_matrix = match file_type {
+        DataFileType::ChiOcpt => "chi_export".to_string(),
+        DataFileType::SensorCsv => "sensor_csv".to_string(),
+        DataFileType::ChiEis => "chi_eis".to_string(),
+    };
+    let experiment = ElectrochemicalExperiment::new(
+        experiment_id,
+        sensor_metadata,
+        None,
+        parsed.measurement,
+        Vec::new(),
+        Vec::new(),
+        sample_matrix,
+        provenance,
+    )?;
+    Ok(LoadedExperimentData {
+        file_type,
+        experiment,
+        diagnostics: parsed.diagnostics,
+    })
+}
+
+fn load_chi_eis(path: &Path) -> Result<LoadedExperimentData, DataParsingError> {
+    let parsed = EISData::parse_file(path)?;
+    let measurement = MultiChannelMeasurement::new(
+        parsed.freq.clone(),
+        vec![
+            MeasurementChannel::from_values("Z'", "ohm", parsed.z_re.clone()),
+            MeasurementChannel::from_values("Z\"", "ohm", parsed.z_im.clone()),
+            MeasurementChannel::from_values("phase", "deg", parsed.phase.clone()),
+        ],
+    )?;
+    let provenance = AnalysisProvenance::from_paths(path, None)?;
+    let experiment = ElectrochemicalExperiment::new(
+        file_stem_or_default(path),
+        default_sensor_metadata(path, DataFileType::ChiEis, Some(&parsed.instrument_model)),
+        None,
+        measurement,
+        Vec::new(),
+        Vec::new(),
+        "chi_eis".to_string(),
+        provenance,
+    )?;
+
+    Ok(LoadedExperimentData {
+        file_type: DataFileType::ChiEis,
+        experiment,
+        diagnostics: ParseDiagnostics {
+            total_rows: parsed.freq.len(),
+            successfully_parsed_rows: parsed.freq.len(),
+            ..ParseDiagnostics::default()
+        },
+    })
+}
+
+fn detect_file_type(path: &Path, text: &str) -> Result<DataFileType, DataParsingError> {
+    let lines = text.lines().map(str::trim).collect::<Vec<_>>();
+    let mut time_header_index = None;
+    for (index, line) in lines.iter().enumerate() {
+        let fields = split_csv_fields(line);
+        if fields.len() < 2 {
+            continue;
+        }
+        let normalized_headers = fields
+            .iter()
+            .map(|header| normalize_header(header))
+            .collect::<Vec<_>>();
+        let has_freq = normalized_headers.iter().any(|header| header == "freq/hz");
+        let has_impedance = normalized_headers
+            .iter()
+            .any(|header| header == "z'/ohm" || header == "z\"/ohm");
+        if has_freq && has_impedance {
+            return Ok(DataFileType::ChiEis);
+        }
+        if normalized_headers
+            .iter()
+            .any(|header| is_time_header(header.as_str()))
+        {
+            time_header_index.get_or_insert(index);
+        }
+    }
+
+    let Some(header_index) = time_header_index else {
+        return Err(DataParsingError::invalid_at(
+            path,
+            "unsupported file structure: expected a time or frequency header",
+        ));
+    };
+
+    let preamble = lines
+        .iter()
+        .take(header_index)
+        .map(|line| normalize_header(line))
+        .collect::<Vec<_>>();
+    let is_chi = preamble.iter().any(|line| {
+        line.starts_with("instrumentmodel:")
+            || line.starts_with("datasource:")
+            || line.starts_with("file:")
+            || line.contains("opencircuitpotential-time")
+            || line.contains("open-circuitpotential-time")
+    });
+    Ok(if is_chi {
+        DataFileType::ChiOcpt
+    } else {
+        DataFileType::SensorCsv
+    })
+}
+
+fn split_csv_fields(line: &str) -> Vec<&str> {
+    line.split(',').map(str::trim).collect()
+}
+
+fn normalize_header(value: &str) -> String {
+    value
+        .trim()
+        .trim_start_matches('\u{feff}')
+        .to_ascii_lowercase()
+        .chars()
+        .filter(|ch| !ch.is_ascii_whitespace())
+        .collect()
+}
+
+fn is_time_header(value: &str) -> bool {
+    value == "time"
+        || value.starts_with("time/")
+        || value.starts_with("time(")
+        || value.starts_with("time[")
+        || value == "timestamp"
+        || value.starts_with("timestamp/")
+}
+
+fn file_stem_or_default(path: &Path) -> String {
+    path.file_stem()
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_else(|| "experiment".to_string())
+}
+
+fn default_sensor_metadata(
+    path: &Path,
+    file_type: DataFileType,
+    instrument_model: Option<&str>,
+) -> SensorMetadata {
+    let mut metadata = BTreeMap::new();
+    metadata.insert(
+        "source_file_type".to_string(),
+        match file_type {
+            DataFileType::ChiEis => "chi_eis".to_string(),
+            DataFileType::ChiOcpt => "chi_ocpt".to_string(),
+            DataFileType::SensorCsv => "sensor_csv".to_string(),
+        },
+    );
+    metadata.insert(
+        "source_file".to_string(),
+        path.file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_default(),
+    );
+
+    SensorMetadata {
+        sensor_id: Some(file_stem_or_default(path)),
+        name: Some(file_stem_or_default(path)),
+        sensor_type: Some(
+            match file_type {
+                DataFileType::ChiEis => "chi_eis",
+                DataFileType::ChiOcpt => "chi_ocpt",
+                DataFileType::SensorCsv => "generic_sensor_csv",
+            }
+            .to_string(),
+        ),
+        analyte: None,
+        manufacturer: instrument_model
+            .and_then(|model| (!model.trim().is_empty()).then_some("CH Instruments".to_string())),
+        model: instrument_model
+            .and_then(|model| (!model.trim().is_empty()).then_some(model.to_string())),
+        metadata: Some(metadata),
+    }
+}
+
+#[cfg(test)]
+mod loader_tests {
+    use super::{DataFileType, load_data};
+    use crate::data_file::measurement_adapter::measurement_to_plot_data;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn write_fixture(prefix: &str, content: &str) -> PathBuf {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("{prefix}_{timestamp}.csv"));
+        fs::write(&path, content).expect("write fixture");
+        path
+    }
+
+    #[test]
+    fn detects_sensor_csv_with_bom_time_header() {
+        let path = write_fixture(
+            "sensor_bom",
+            "\u{feff}Time(d),Concentration\n0,1.0\n0.1,1.1\n",
+        );
+        let loaded = load_data(&path).expect("load sensor csv");
+        fs::remove_file(&path).ok();
+
+        assert_eq!(loaded.file_type, DataFileType::SensorCsv);
+        assert_eq!(loaded.experiment.measurement_data.channels.len(), 1);
+        assert_eq!(
+            measurement_to_plot_data(&loaded.experiment.measurement_data).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn detects_chi_eis_from_frequency_impedance_header() {
+        let path = write_fixture(
+            "chi_eis",
+            "Mar. 17, 2026\nA.C. Impedance\nInstrument Model: CHI760F\nFreq/Hz, Z'/ohm, Z\"/ohm, Phase/deg\n1,10,-1,-5\n0.1,20,-2,-6\n",
+        );
+        let loaded = load_data(&path).expect("load chis eis");
+        fs::remove_file(&path).ok();
+
+        assert_eq!(loaded.file_type, DataFileType::ChiEis);
+        assert_eq!(loaded.experiment.measurement_data.channels.len(), 3);
     }
 }
