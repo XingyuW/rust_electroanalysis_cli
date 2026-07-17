@@ -34,7 +34,9 @@ pub use ecm_candidate::{
     topology_from_genome,
 };
 pub use ecm_evolution::{EcmEvolutionConfig, EcmEvolutionOutcome, run_ecm_evolution};
-pub use ecm_scoring::{CandidateFitResult, bic, chi_square, format_candidate_ranking_table};
+pub use ecm_scoring::{
+    CandidateFitResult, bic, format_candidate_ranking_table, legacy_penalized_score,
+};
 pub use ecm_search::{
     EcmSearchConfig, EcmSearchReport, RankedEcmCandidate, discover_equivalent_circuits,
     discover_equivalent_circuits_with_config, format_ranked_candidates_table,

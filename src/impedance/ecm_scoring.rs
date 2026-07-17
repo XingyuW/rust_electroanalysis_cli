@@ -1,7 +1,10 @@
 //! Candidate scoring metrics for equivalent-circuit ranking.
 //!
-//! This module keeps ranking math (`chi_square`, `BIC`, weighted RMSE)
-//! isolated so search strategies can reuse the same evaluation rules.
+//! BIC is computed under an explicit Gaussian residual assumption. Each
+//! complex impedance point contributes two independent scalar observations
+//! (real and imaginary residuals), so `n_obs = 2 * n_frequency_points`.
+//! Modulus-normalized residuals are retained only as a legacy ranking signal;
+//! they are not a statistically calibrated chi-square.
 
 use super::{
     CircuitNode, PreparedImpedanceData, fit_circuit_with_circuit, parse_circuit_string,
@@ -13,8 +16,15 @@ use crate::domain::FittingError;
 #[derive(Debug, Clone)]
 pub struct CandidateFitResult {
     pub circuit_string: String,
-    pub chi_square: f64,
-    pub bic: f64,
+    /// Unweighted sum of squared real and imaginary scalar residuals.
+    pub residual_sum_of_squares: f64,
+    /// Legacy modulus-normalized sum of squared residuals. This is not a
+    /// chi-square because measurement variances are not supplied.
+    pub weighted_residual_sum_of_squares: Option<f64>,
+    /// Gaussian-residual BIC, or `None` when its inputs are invalid.
+    pub bic: Option<f64>,
+    /// Former modulus-normalized score, retained under an explicit name.
+    pub legacy_penalized_score: Option<f64>,
     pub weighted_rmse: f64,
     pub parameter_count: usize,
     pub fitted_parameters: Vec<f64>,
@@ -26,8 +36,13 @@ pub struct CandidateFitResult {
     pub fitted_phase: Vec<f64>,
 }
 
-/// Weighted chi-square objective used as the primary goodness-of-fit signal.
-pub fn chi_square(z_re: &[f64], z_im: &[f64], fitted_z_re: &[f64], fitted_z_im: &[f64]) -> f64 {
+/// Former modulus-normalized residual objective.
+pub fn legacy_penalized_score(
+    z_re: &[f64],
+    z_im: &[f64],
+    fitted_z_re: &[f64],
+    fitted_z_im: &[f64],
+) -> f64 {
     z_re.iter()
         .zip(z_im.iter())
         .zip(fitted_z_re.iter().zip(fitted_z_im.iter()))
@@ -40,13 +55,19 @@ pub fn chi_square(z_re: &[f64], z_im: &[f64], fitted_z_re: &[f64], fitted_z_im: 
         .sum()
 }
 
-/// Bayesian Information Criterion used to penalize over-parameterized models.
-pub fn bic(chi_square: f64, parameter_count: usize, point_count: usize) -> f64 {
-    if point_count == 0 {
-        return f64::INFINITY;
+/// Standard BIC for independent Gaussian scalar residuals.
+///
+/// `n_obs` must count scalar residuals, not complex frequency points.
+pub fn bic(residual_sum_of_squares: f64, parameter_count: usize, n_obs: usize) -> Option<f64> {
+    if n_obs == 0
+        || parameter_count == 0
+        || !residual_sum_of_squares.is_finite()
+        || residual_sum_of_squares <= 0.0
+    {
+        return None;
     }
-
-    parameter_count as f64 * (point_count as f64).ln() + chi_square
+    let n = n_obs as f64;
+    Some(n * (residual_sum_of_squares / n).ln() + parameter_count as f64 * n.ln())
 }
 
 /// Weighted RMSE in complex-impedance space.
@@ -136,14 +157,24 @@ fn score_parsed_circuit(
         ));
     }
 
-    let chi_square = chi_square(z_real, z_imag, &fitted_z_re, &fitted_z_im);
+    let residual_sum_of_squares = z_real
+        .iter()
+        .zip(z_imag)
+        .zip(fitted_z_re.iter().zip(&fitted_z_im))
+        .take(point_count)
+        .map(|((&re, &im), (&fit_re, &fit_im))| (re - fit_re).powi(2) + (im - fit_im).powi(2))
+        .sum::<f64>();
+    let legacy_penalized_score = legacy_penalized_score(z_real, z_imag, &fitted_z_re, &fitted_z_im);
+    let weighted_residual_sum_of_squares = Some(legacy_penalized_score);
     let weighted_rmse = weighted_rmse(z_real, z_imag, &fitted_z_re, &fitted_z_im);
-    let bic = bic(chi_square, parameter_count, point_count);
+    let bic = bic(residual_sum_of_squares, parameter_count, 2 * point_count);
 
     Ok(CandidateFitResult {
         circuit_string: circuit_str.to_string(),
-        chi_square,
+        residual_sum_of_squares,
+        weighted_residual_sum_of_squares,
         bic,
+        legacy_penalized_score: Some(legacy_penalized_score),
         weighted_rmse,
         parameter_count,
         fitted_parameters: fit.fitted_parameters,
@@ -158,16 +189,17 @@ fn score_parsed_circuit(
 
 pub fn format_candidate_ranking_table(results: &[CandidateFitResult]) -> String {
     let mut lines = Vec::with_capacity(results.len() + 2);
-    lines.push("Rank | Circuit String | chi^2 | BIC | Parameter Count".to_string());
-    lines.push("---- | -------------- | ----- | --- | ---------------".to_string());
+    lines.push("Rank | Circuit String | RSS | BIC | Legacy Score | Parameter Count".to_string());
+    lines.push("---- | -------------- | --- | --- | ------------ | ---------------".to_string());
 
     for (index, result) in results.iter().enumerate() {
         lines.push(format!(
-            "{} | {} | {:.6e} | {:.6e} | {}",
+            "{} | {} | {:.6e} | {:.6e} | {:.6e} | {}",
             index + 1,
             result.circuit_string,
-            result.chi_square,
-            result.bic,
+            result.residual_sum_of_squares,
+            result.bic.unwrap_or(f64::NAN),
+            result.legacy_penalized_score.unwrap_or(f64::NAN),
             result.parameter_count
         ));
     }
@@ -177,21 +209,30 @@ pub fn format_candidate_ranking_table(results: &[CandidateFitResult]) -> String 
 
 #[cfg(test)]
 mod tests {
-    use super::{bic, chi_square};
+    use super::{bic, legacy_penalized_score};
 
     #[test]
-    fn chi_square_is_zero_for_perfect_fit() {
+    fn legacy_score_is_zero_for_perfect_fit() {
         let z_re = [1.0, 2.0, 3.0];
         let z_im = [-1.0, -2.0, -3.0];
 
-        assert_eq!(chi_square(&z_re, &z_im, &z_re, &z_im), 0.0);
+        assert_eq!(legacy_penalized_score(&z_re, &z_im, &z_re, &z_im), 0.0);
     }
 
     #[test]
     fn bic_penalizes_parameter_growth() {
-        let base = bic(1.0, 3, 50);
-        let more_complex = bic(1.0, 6, 50);
+        let base = bic(1.0, 3, 100).unwrap();
+        let more_complex = bic(1.0, 6, 100).unwrap();
 
         assert!(more_complex > base);
+    }
+
+    #[test]
+    fn bic_uses_two_scalar_observations_per_complex_point() {
+        let value = bic(2.0, 3, 20).unwrap();
+        let expected = 20.0 * (2.0_f64 / 20.0).ln() + 3.0 * 20.0_f64.ln();
+        assert!((value - expected).abs() < 1e-12);
+        assert!(bic(0.0, 3, 20).is_none());
+        assert!(bic(1.0, 0, 20).is_none());
     }
 }

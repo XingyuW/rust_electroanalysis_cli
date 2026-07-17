@@ -24,13 +24,13 @@ use super::ecm_candidate::{
     CircuitGenome, CircuitTopology, LeafKind, candidate_from_genome, genome_from_topology,
     normalize_genome, randles_topology, seed_genomes, topology_from_genome,
 };
-use super::ecm_scoring::{CandidateFitResult, chi_square, weighted_rmse};
+use super::ecm_scoring::{CandidateFitResult, bic, legacy_penalized_score, weighted_rmse};
 use super::fitting::{
     BorrowedImpedanceFitter, guess_parameters, sanitize_physical_params, transform_backward,
     transform_forward,
 };
 use super::parse_circuit_string;
-use super::pinn_optimizer::{PinnOptimizer, compute_aic, compute_bic};
+use super::pinn_optimizer::{PinnOptimizer, compute_aic};
 use super::prepare_impedance_data;
 use crate::domain::FittingError;
 use genevo::genetic::{Children, Parents};
@@ -343,7 +343,7 @@ impl FitnessFunction<CircuitGenome, i64> for CircuitFitnessEvaluator {
                 }
 
                 // ── Step 3: Score ─────────────────────────────────────────
-                let chi_sq = chi_square(z_real, z_imag, &final_z_re, &final_z_im);
+                let legacy_score = legacy_penalized_score(z_real, z_imag, &final_z_re, &final_z_im);
                 let w_rmse = weighted_rmse(z_real, z_imag, &final_z_re, &final_z_im);
 
                 let n = frequencies.len();
@@ -356,9 +356,10 @@ impl FitnessFunction<CircuitGenome, i64> for CircuitFitnessEvaluator {
                         re * re + im * im
                     })
                     .sum();
-                let mse = (sum_sq / (2.0 * n as f64)).max(1e-30);
+                let mse = (sum_sq / (2.0 * n.max(1) as f64)).max(1e-30);
                 let aic = compute_aic(n, k, mse);
-                let bic_val = compute_bic(n, k, mse);
+                let residual_sum_of_squares = sum_sq;
+                let bic_val = bic(residual_sum_of_squares, k, 2 * n);
 
                 if !aic.is_finite() {
                     return EvaluationRecord {
@@ -380,8 +381,10 @@ impl FitnessFunction<CircuitGenome, i64> for CircuitFitnessEvaluator {
 
                 let fit = CandidateFitResult {
                     circuit_string,
-                    chi_square: chi_sq,
+                    residual_sum_of_squares,
+                    weighted_residual_sum_of_squares: Some(legacy_score),
                     bic: bic_val,
+                    legacy_penalized_score: Some(legacy_score),
                     weighted_rmse: w_rmse,
                     parameter_count: k,
                     fitted_parameters: final_params,
@@ -669,8 +672,9 @@ pub fn run_ecm_evolution(
             .partial_cmp(&b.bic)
             .unwrap_or(Ordering::Equal)
             .then_with(|| {
-                a.chi_square
-                    .partial_cmp(&b.chi_square)
+                a.legacy_penalized_score
+                    .unwrap_or(f64::INFINITY)
+                    .partial_cmp(&b.legacy_penalized_score.unwrap_or(f64::INFINITY))
                     .unwrap_or(Ordering::Equal)
             })
     });

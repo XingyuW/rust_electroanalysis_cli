@@ -462,12 +462,17 @@ pub fn compute_aic(n: usize, k: usize, mse: f64) -> f64 {
     n as f64 * mse.ln() + 2.0 * k as f64
 }
 
-/// Bayesian Information Criterion.  `BIC ≈ n · ln(MSE) + k · ln(n)`.
+/// Gaussian-residual Bayesian Information Criterion.
+///
+/// `n` is the number of complex frequency points. Real and imaginary
+/// residuals are independent scalar observations, so the scalar count is
+/// `2*n`.
 pub fn compute_bic(n: usize, k: usize, mse: f64) -> f64 {
     if n == 0 || mse <= 0.0 || !mse.is_finite() {
         return f64::INFINITY;
     }
-    n as f64 * mse.ln() + k as f64 * (n as f64).ln()
+    let n_obs = (2 * n) as f64;
+    n_obs * mse.ln() + k as f64 * n_obs.ln()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

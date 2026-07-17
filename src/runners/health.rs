@@ -71,15 +71,21 @@ pub fn baseline(
             let m: crate::results::MechanismAnalysisReport = read_json(&resolve(base, p))?;
             fs.extend(health::features::from_mechanism(&m));
         }
-        records.push((r.record_id.clone(), fs));
+        let context = r
+            .metadata
+            .as_ref()
+            .map(|p| load_context(&resolve(base, p)))
+            .transpose()?
+            .unwrap_or_default();
+        records.push((r.record_id.clone(), fs, context));
     }
     let provenance = provenance
         .ok_or_else(|| RunnerError::Message("health baseline manifest is empty".into()))?;
-    let b = health::baseline::build(
+    let b = health::baseline::build_with_contexts(
         "health-baseline",
         &records,
         provenance,
-        loaded.config.baseline.minimum_records,
+        loaded.config.baseline.minimum_required_records,
     );
     let dest = output_file(workspace, output, &loaded.config.export.baseline_filename);
     write_json(&dest, &b)?;
@@ -142,15 +148,23 @@ pub fn assess(
     };
     let current_context = metadata
         .map(|p| load_context(&resolve(workspace, p)))
+        .transpose()?
         .unwrap_or_default();
     let base_context = baseline
         .as_ref()
         .map(|b| Context {
             sensor_id: None,
-            sensor_design: None,
+            sensor_type: b.sensor_type.clone(),
+            sensor_design: b.sensor_design.clone(),
             analyte: b.analyte.clone(),
             sample_matrix: b.sample_matrix.clone(),
             temperature_k: b.temperature_domain_k.map(|x| (x.0 + x.1) / 2.0),
+            temperature_values_k: b
+                .temperature_domain_k
+                .map(|x| vec![x.0, x.1])
+                .unwrap_or_default(),
+            experiment_id: None,
+            metadata_source: None,
         })
         .unwrap_or_default();
     let mut comparisons = Vec::new();
@@ -179,7 +193,13 @@ pub fn assess(
         let dist = baseline
             .as_ref()
             .and_then(|b| b.feature_distributions.iter().find(|x| x.feature == f.name));
-        let mut c = health::normalization::compare(f, dist, cmp);
+        let mut c = health::normalization::compare_with_config(
+            f,
+            dist,
+            cmp,
+            &loaded.config.normalization,
+            None,
+        );
         c.override_reason = reason;
         if matches!(cmp, crate::results::FeatureComparability::NotComparable) {
             warnings.push(HealthWarning::FeatureNoncomparable);
@@ -372,17 +392,40 @@ struct HealthTrendRecord {
     #[serde(default)]
     pub independent_value: Option<f64>,
 }
-fn load_context(p: &Path) -> Context {
-    let Ok(d) = crate::domain::load_experiment_metadata(p) else {
-        return Context::default();
+fn load_context(p: &Path) -> Result<Context, RunnerError> {
+    let d = crate::domain::load_experiment_metadata(p)?;
+    let temperature_values_k = d
+        .environmental_data
+        .iter()
+        .filter(|series| series.name.to_ascii_lowercase().contains("temp"))
+        .flat_map(|series| {
+            let celsius =
+                series.unit.eq_ignore_ascii_case("c") || series.unit.eq_ignore_ascii_case("°c");
+            series
+                .values
+                .iter()
+                .flatten()
+                .copied()
+                .filter(|value| value.is_finite())
+                .map(move |value| if celsius { value + 273.15 } else { value })
+        })
+        .collect::<Vec<_>>();
+    let temperature_k = if temperature_values_k.is_empty() {
+        None
+    } else {
+        Some(temperature_values_k.iter().sum::<f64>() / temperature_values_k.len() as f64)
     };
-    Context {
+    Ok(Context {
         sensor_id: d.sensor.sensor_id,
+        sensor_type: d.sensor.sensor_type.clone(),
         sensor_design: d.sensor.model.or(d.sensor.sensor_type),
         analyte: d.sensor.analyte,
         sample_matrix: Some(d.sample_matrix),
-        temperature_k: None,
-    }
+        temperature_k,
+        temperature_values_k,
+        experiment_id: Some(d.experiment_id),
+        metadata_source: Some(p.display().to_string()),
+    })
 }
 fn read_json<T: DeserializeOwned>(p: &Path) -> Result<T, RunnerError> {
     Ok(serde_json::from_str(&fs::read_to_string(p)?)?)

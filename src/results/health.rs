@@ -58,28 +58,57 @@ pub struct BaselineFeatureDistribution {
     pub maximum: Option<f64>,
     pub reference_direction: Option<String>,
     pub comparison_context: Option<String>,
+    /// Finite empirical observations retained for a true empirical percentile.
+    #[serde(default)]
+    pub empirical_values: Vec<f64>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BaselineRecordSummary {
     pub record_id: String,
+    #[serde(default)]
+    pub experiment_id: Option<String>,
     pub sensor_id: Option<String>,
+    #[serde(default)]
+    pub sensor_type: Option<String>,
     pub analyte: Option<String>,
     pub sample_matrix: Option<String>,
     pub temperature_k: Option<f64>,
     pub sensor_design: Option<String>,
     pub domains: Vec<HealthDomain>,
+    #[serde(default)]
+    pub metadata_source: Option<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BaselineContextConflict {
+    pub field: String,
+    pub values: Vec<String>,
+    pub record_ids: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SensorHealthBaseline {
     pub schema_version: u32,
     pub baseline_id: String,
     pub sensor_type: Option<String>,
+    pub sensor_design: Option<String>,
     pub analyte: Option<String>,
     pub sample_matrix: Option<String>,
     pub temperature_domain_k: Option<(f64, f64)>,
     pub feature_distributions: Vec<BaselineFeatureDistribution>,
     pub records: Vec<BaselineRecordSummary>,
-    pub minimum_required_domains: usize,
+    /// Minimum number of baseline records required by the configuration.
+    #[serde(default)]
+    pub minimum_required_records: usize,
+    /// Domains represented by at least one baseline record.
+    #[serde(default)]
+    pub represented_domains: Vec<HealthDomain>,
+    /// Old schema-1 field retained only for deserialization; it was incorrectly
+    /// populated with a record count and is never used for current semantics.
+    #[serde(default, alias = "minimum_required_domains")]
+    pub legacy_minimum_required_domains: Option<usize>,
+    #[serde(default)]
+    pub context_conflicts: Vec<BaselineContextConflict>,
+    #[serde(default)]
+    pub metadata_sources: Vec<String>,
     pub provenance: AnalysisProvenance,
     pub warnings: Vec<HealthWarning>,
 }
@@ -103,7 +132,12 @@ pub struct BaselineComparison {
     pub log_ratio: Option<f64>,
     pub z_score: Option<f64>,
     pub robust_z_score: Option<f64>,
-    pub percentile_position: Option<f64>,
+    /// Empirical percentile: 100 * fraction of valid baseline values <= current.
+    #[serde(default)]
+    pub empirical_percentile: Option<f64>,
+    /// Legacy min-max range position, explicitly not a statistical percentile.
+    #[serde(default, alias = "percentile_position")]
+    pub range_position_percent: Option<f64>,
     pub override_reason: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -168,6 +202,11 @@ pub enum HealthWarning {
     AssessmentBasedOnWarningBearingFits,
     InvalidRule,
     NonFiniteArtifact,
+    MixedAnalyteContext,
+    MixedSampleMatrixContext,
+    MixedSensorDesignContext,
+    MixedSensorTypeContext,
+    MixedTemperatureContext,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SensorHealthAssessment {

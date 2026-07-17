@@ -36,10 +36,12 @@ pub struct RankedEcmCandidate {
     pub rank: usize,
     /// Canonical circuit expression string.
     pub circuit_string: String,
-    /// Weighted chi-square objective value.
-    pub chi_square: f64,
-    /// Bayesian information criterion.
-    pub bic: f64,
+    /// Unweighted sum of squared real and imaginary residuals.
+    pub residual_sum_of_squares: f64,
+    /// Standard Gaussian-residual BIC, with two scalar observations per EIS point.
+    pub bic: Option<f64>,
+    /// Former modulus-normalized objective; not a chi-square.
+    pub legacy_penalized_score: Option<f64>,
     /// Weighted RMSE in impedance space.
     pub weighted_rmse: f64,
     /// Number of free parameters in the model.
@@ -65,8 +67,9 @@ impl RankedEcmCandidate {
         Self {
             rank,
             circuit_string: fit.circuit_string,
-            chi_square: fit.chi_square,
+            residual_sum_of_squares: fit.residual_sum_of_squares,
             bic: fit.bic,
+            legacy_penalized_score: fit.legacy_penalized_score,
             weighted_rmse: fit.weighted_rmse,
             parameter_count: fit.parameter_count,
             fitted_parameters: fit.fitted_parameters,
@@ -133,8 +136,15 @@ impl EcmSearchReport {
                 "Rank {}: {}\n",
                 candidate.rank, candidate.circuit_string
             ));
-            report.push_str(&format!("  chi^2: {:.6e}\n", candidate.chi_square));
-            report.push_str(&format!("  BIC: {:.6e}\n", candidate.bic));
+            report.push_str(&format!(
+                "  RSS (real + imaginary residuals): {:.6e}\n",
+                candidate.residual_sum_of_squares
+            ));
+            report.push_str(&format!("  BIC: {:?}\n", candidate.bic));
+            report.push_str(&format!(
+                "  Legacy penalized score: {:?}\n",
+                candidate.legacy_penalized_score
+            ));
             report.push_str(&format!(
                 "  Weighted RMSE: {:.6e}\n",
                 candidate.weighted_rmse
@@ -241,16 +251,17 @@ pub fn discover_equivalent_circuits_with_config(
 /// Format ranked candidates as a compact plain-text table.
 pub fn format_ranked_candidates_table(ranked_candidates: &[RankedEcmCandidate]) -> String {
     let mut lines = Vec::with_capacity(ranked_candidates.len() + 2);
-    lines.push("Rank | Circuit String | chi^2 | BIC | Parameter Count".to_string());
-    lines.push("---- | -------------- | ----- | --- | ---------------".to_string());
+    lines.push("Rank | Circuit String | RSS | BIC | Legacy Score | Parameter Count".to_string());
+    lines.push("---- | -------------- | --- | --- | ------------ | ---------------".to_string());
 
     for candidate in ranked_candidates {
         lines.push(format!(
-            "{} | {} | {:.6e} | {:.6e} | {}",
+            "{} | {} | {:.6e} | {:.6e} | {:.6e} | {}",
             candidate.rank,
             candidate.circuit_string,
-            candidate.chi_square,
-            candidate.bic,
+            candidate.residual_sum_of_squares,
+            candidate.bic.unwrap_or(f64::NAN),
+            candidate.legacy_penalized_score.unwrap_or(f64::NAN),
             candidate.parameter_count,
         ));
     }
@@ -261,15 +272,16 @@ pub fn format_ranked_candidates_table(ranked_candidates: &[RankedEcmCandidate]) 
 /// Format ranked candidates as CSV.
 pub fn format_ranked_candidates_csv(ranked_candidates: &[RankedEcmCandidate]) -> String {
     let mut lines = Vec::with_capacity(ranked_candidates.len() + 1);
-    lines.push("rank,circuit_string,chi_square,bic,weighted_rmse,parameter_count".to_string());
+    lines.push("rank,circuit_string,residual_sum_of_squares,bic,legacy_penalized_score,weighted_rmse,parameter_count".to_string());
 
     for candidate in ranked_candidates {
         lines.push(format!(
-            "{},{},{:.6e},{:.6e},{:.6e},{}",
+            "{},{},{:.6e},{:.6e},{:.6e},{:.6e},{}",
             candidate.rank,
             csv_escape(&candidate.circuit_string),
-            candidate.chi_square,
-            candidate.bic,
+            candidate.residual_sum_of_squares,
+            candidate.bic.unwrap_or(f64::NAN),
+            candidate.legacy_penalized_score.unwrap_or(f64::NAN),
             candidate.weighted_rmse,
             candidate.parameter_count,
         ));
@@ -349,8 +361,9 @@ mod tests {
         let csv = format_ranked_candidates_csv(&[RankedEcmCandidate {
             rank: 1,
             circuit_string: "R0-p(CPE1,R1)".to_string(),
-            chi_square: 1.0,
-            bic: 2.0,
+            residual_sum_of_squares: 1.0,
+            bic: Some(2.0),
+            legacy_penalized_score: Some(1.5),
             weighted_rmse: 3.0,
             parameter_count: 4,
             fitted_parameters: Vec::new(),
@@ -375,8 +388,9 @@ mod tests {
             ranked_candidates: vec![RankedEcmCandidate {
                 rank: 1,
                 circuit_string: "R0-p(CPE1,R1)".to_string(),
-                chi_square: 1.0,
-                bic: 2.0,
+                residual_sum_of_squares: 1.0,
+                bic: Some(2.0),
+                legacy_penalized_score: Some(1.5),
                 weighted_rmse: 3.0,
                 parameter_count: 4,
                 fitted_parameters: vec![4.5, 3.2e-5, 0.91, 82.0],

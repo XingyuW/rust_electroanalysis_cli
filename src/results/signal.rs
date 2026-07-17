@@ -48,6 +48,14 @@ pub struct SamplingAnalysis {
     pub interpolation_count: usize,
     pub interpolation_gap_exceeded: bool,
     pub interpolated_indices: Vec<usize>,
+    #[serde(default)]
+    pub output_missing_indices: Vec<usize>,
+    #[serde(default)]
+    pub sorted_rows: usize,
+    #[serde(default)]
+    pub resolved_duplicate_groups: usize,
+    #[serde(default)]
+    pub transformations: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Quantile {
@@ -247,6 +255,9 @@ pub enum SignalWarning {
     ResidualArtifactIncompatible,
     InvalidConfiguration,
     EmptyWindow,
+    NonFiniteTimestamp,
+    TimestampPolicyApplied,
+    DuplicatePolicyApplied,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SignalAnalysisReport {

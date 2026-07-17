@@ -76,13 +76,15 @@ pub struct HealthRule {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct BaselineConfig {
-    pub minimum_records: usize,
+    /// Minimum number of baseline records, not a domain count.
+    #[serde(alias = "minimum_records")]
+    pub minimum_required_records: usize,
     pub robust_statistics: bool,
 }
 impl Default for BaselineConfig {
     fn default() -> Self {
         Self {
-            minimum_records: 3,
+            minimum_required_records: 3,
             robust_statistics: true,
         }
     }

@@ -11,7 +11,8 @@
 - `circuit_models.rs`: model selection rules/configuration and resolver logic.
 - `ecm_candidate.rs`: genetic encoding/decoding and seeded candidate families.
 - `ecm_evolution.rs`: evolutionary search loop and mutation/crossover operators.
-- `ecm_scoring.rs`: ranking metrics (`chi_square`, `BIC`, weighted RMSE).
+- `ecm_scoring.rs`: scalar-residual RSS, Gaussian BIC, explicit legacy score,
+  and weighted RMSE.
 - `ecm_search.rs`: report assembly for ranked candidate outputs.
 - `reporting.rs`: fitted-circuit composition summaries.
 - `pinn_optimizer.rs`: PINN-based optimizer utilities used by advanced fitting paths.
@@ -25,6 +26,11 @@
 - evolutionary topology search
 
 All report outputs (`*_ecm_search.txt` and `*_ecm_search.csv`) derive from structures generated here.
+
+ECM BIC assumes independent Gaussian real and imaginary residuals and uses two
+scalar observations per complex frequency point. The former modulus-normalized
+objective is named `legacy_penalized_score`; it is not a variance-calibrated
+chi-square.
 
 The direct fit façade returns the named `CircuitFitResult` from
 `src/results/`. Its fields expose fitted parameters, parameter metadata, and

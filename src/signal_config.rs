@@ -18,6 +18,24 @@ pub enum SamplingPolicy {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
+pub enum DuplicateTimestampPolicy {
+    #[default]
+    Error,
+    Average,
+    First,
+    Last,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum NonMonotonicTimestampPolicy {
+    #[default]
+    Error,
+    SortPaired,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum SignalWindowSource {
     #[default]
     EntireMeasurement,
@@ -72,6 +90,8 @@ impl Default for WindowingConfig {
 #[serde(default)]
 pub struct SamplingConfig {
     pub policy: SamplingPolicy,
+    pub duplicate_timestamp_policy: DuplicateTimestampPolicy,
+    pub non_monotonic_timestamp_policy: NonMonotonicTimestampPolicy,
     pub regularity_relative_tolerance: f64,
     pub resample_interval_s: Option<f64>,
     pub maximum_interpolation_gap_s: f64,
@@ -80,6 +100,8 @@ impl Default for SamplingConfig {
     fn default() -> Self {
         Self {
             policy: Default::default(),
+            duplicate_timestamp_policy: Default::default(),
+            non_monotonic_timestamp_policy: Default::default(),
             regularity_relative_tolerance: 0.01,
             resample_interval_s: None,
             maximum_interpolation_gap_s: 5.0,

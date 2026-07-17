@@ -164,7 +164,8 @@ fn health_mechanism_rule_requires_independent_domains() {
         log_ratio: Some(0.69),
         z_score: None,
         robust_z_score: None,
-        percentile_position: None,
+        empirical_percentile: None,
+        range_position_percent: None,
         override_reason: None,
     }];
     let (evaluations, findings) = rules::evaluate(&[rule], &one_domain, &comparisons, 2);

@@ -12,7 +12,9 @@ pub mod spikes;
 pub mod statistics;
 pub mod windows;
 
-pub use crate::signal_config::{SamplingPolicy, SignalWindowSource};
+pub use crate::signal_config::{
+    DuplicateTimestampPolicy, NonMonotonicTimestampPolicy, SamplingPolicy, SignalWindowSource,
+};
 
 use crate::{
     domain::{AnalysisProvenance, ExperimentEvent, ExperimentEventKind, MultiChannelMeasurement},

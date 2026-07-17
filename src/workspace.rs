@@ -462,7 +462,7 @@ enabled = true
 const DEFAULT_HEALTH_CONFIG: &str = r#"schema_version = 1
 
 [baseline]
-minimum_records = 3
+minimum_required_records = 3
 robust_statistics = true
 
 [comparability]

@@ -88,7 +88,8 @@ rust_electroanalysis_cli is designed for electrochemical researchers and analyst
 - **Visualize** data through publication-quality plots rendered at configurable DPI in both SVG and PNG formats
 - **Fit** EIS data to equivalent-circuit models using nonlinear least-squares optimization (Levenberg–Marquardt) and PINN-based optimizers
 - **Discover** optimal circuit topologies automatically via a genetic algorithm that evolves circuit structures
-- **Score and rank** candidate circuits using statistical metrics (chi-squared, AIC/BIC, weighted RMSE)
+- **Score and rank** candidate circuits using scalar-residual RSS, Gaussian BIC,
+  an explicitly named legacy score, and weighted RMSE
 - **Export** results as plain-text reports, CSV rankings, and high-resolution figures
 
 The application is organized into four major subsystems:
@@ -518,7 +519,7 @@ rust_electroanalysis_cli/
     │   ├── fitting.rs                  # NLLS fitting, ImpedanceFitter, parameter transforms, Lin-KK
     │   ├── ecm_candidate.rs           # Genetic encoding/decoding, CircuitTopology, seed circuits
     │   ├── ecm_evolution.rs           # Genetic algorithm loop, crossover, mutation operators
-    │   ├── ecm_scoring.rs             # Candidate scoring: chi_square, BIC, weighted_rmse
+    │   ├── ecm_scoring.rs             # RSS, Gaussian BIC, legacy score, weighted RMSE
     │   ├── ecm_search.rs              # Search report assembly, EcmSearchReport, ranking tables
     │   ├── pinn_optimizer.rs          # PINN-based optimizer for advanced fitting
     │   └── reporting.rs               # Fitted-circuit composition summaries (element breakdowns)
@@ -1564,7 +1565,7 @@ flowchart TD
 The ECM search uses a genetic algorithm (via the `genevo` crate) to evolve circuit topologies:
 
 1. **Initialization**: Population seeded from a set of canonical seed circuits (Randles, double-arc, transmission-line, etc.) plus random mutations
-2. **Evaluation**: Each candidate circuit is fitted via NLLS and scored using chi-squared/AIC
+2. **Evaluation**: Each candidate circuit is fitted via NLLS and scored using scalar RSS and standard Gaussian BIC
 3. **Selection**: Tournament selection based on fitness (inverse AIC)
 4. **Crossover**: Subtree crossover — swaps random subtrees between two parent circuits
 5. **Mutation operators**:
@@ -1596,11 +1597,13 @@ The search starts from 7 canonical topologies:
 
 | Metric | Formula | Description |
 |--------|---------|-------------|
-| **Chi-squared** | Σ((Z_re,exp - Z_re,fit)² + (Z_im,exp - Z_im,fit)²) / |Z_exp|² | Modulus-normalized squared residuals |
-| **BIC** | k·ln(n) + χ² | Bayesian Information Criterion — penalizes extra parameters |
+| **RSS** | Σ(ΔZ_re² + ΔZ_im²) | Unweighted scalar residual sum of squares |
+| **BIC** | n_obs·ln(RSS/n_obs) + k·ln(n_obs) | Gaussian residual BIC; n_obs = 2 × frequency points |
 | **Weighted RMSE** | √(Σ((ΔZ)/max(1, |Z_exp|))² / 2n) | Modulus-weighted root mean square error |
 
-Ranking can be configured to use either AIC (= BIC when residuals are weighted) or weighted RMSE.
+The modulus-normalized former objective is retained only as
+`legacy_penalized_score`; without measurement variances it is not a
+chi-square. Ranking is ordered by standard BIC when available.
 
 ### Reports
 
@@ -1608,9 +1611,9 @@ Each search produces two files per input:
 
 - **`*.ecm_search.txt`** — Detailed human-readable report with:
   - Run summary (seed circuit, generations, candidates evaluated)
-  - Ranking table (rank, circuit string, χ², BIC, parameter count)
+  - Ranking table (rank, circuit string, RSS, BIC, legacy score, parameter count)
   - Per-candidate parameter breakdown with element composition
-- **`*.ecm_search.csv`** — Machine-readable CSV with columns: `rank`, `circuit_string`, `chi_square`, `bic`, `weighted_rmse`, `parameter_count`
+- **`*.ecm_search.csv`** — Machine-readable CSV with columns: `rank`, `circuit_string`, `residual_sum_of_squares`, `bic`, `legacy_penalized_score`, `weighted_rmse`, `parameter_count`
 
 Additionally, when `[plotting] top_n > 0`:
 - Individual Nyquist plots for each ranked candidate
@@ -1976,8 +1979,8 @@ Provides the mathematical scoring metrics used for ranking.
 - `CandidateFitResult` — Full fit output for ranking
 
 **Key functions:**
-- `chi_square(z_re, z_im, fit_re, fit_im) -> f64` — Modulus-normalized chi-squared
-- `bic(chi_square, param_count, point_count) -> f64` — Bayesian Information Criterion
+- `legacy_penalized_score(z_re, z_im, fit_re, fit_im) -> f64` — Former modulus-normalized objective
+- `bic(rss, param_count, scalar_observation_count) -> Option<f64>` — Gaussian-residual BIC
 - `weighted_rmse(z_re, z_im, fit_re, fit_im) -> f64` — Modulus-weighted RMSE
 - `score_circuit(circuit_str, freq, z_re, z_im, phase) -> CandidateFitResult` — Full scoring
 - `format_candidate_ranking_table(results) -> String` — Text ranking table
@@ -2232,7 +2235,7 @@ The test suite includes:
 - **Parser tests**: CHI file parsing, header detection, multi-column extraction
 - **Circuit model tests**: Model resolution, filename matching, metadata matching
 - **Fitting tests**: NLLS convergence on synthetic data, CPE/capacitor equivalence, Warburg comparison
-- **Scoring tests**: Chi-squared (zero for perfect fit), BIC (penalizes complexity)
+- **Scoring tests**: Legacy-score perfect-fit behavior, scalar-observation BIC, and complexity penalties
 - **Search tests**: End-to-end GA search on synthetic data, CSV escaping
 - **Regression tests**: Perfect line fit, R² bounding, error handling
 - **Reporting tests**: Element composition breakdown and formatting
@@ -2352,6 +2355,51 @@ cargo run -- eis search data/
 ---
 
 ## Developer Documentation
+
+## Scientific correctness and artifact migration
+
+ECM search reports use standard Gaussian-residual BIC:
+
+`BIC = n_obs * ln(RSS / n_obs) + k * ln(n_obs)`
+
+Real and imaginary residuals are treated as independent scalar observations,
+so `n_obs` is twice the number of complex frequency points. This assumes
+independent, identically distributed Gaussian residuals. The former modulus-
+normalized objective is exported only as `legacy_penalized_score`; it is not a
+chi-square unless measurement variances and statistically justified weights are
+provided.
+
+Health baselines require the manifest metadata paths to resolve when supplied.
+Each record retains sensor/analyte/matrix/design/temperature/experiment and
+metadata-source context. Conflicting context is represented as mixed context
+with typed warnings and the record IDs responsible for the conflict. Baseline
+schema 2 adds `minimum_required_records`, `represented_domains`, empirical
+feature values, and context-conflict details. Schema-1 artifacts retain the
+old minimum field as `legacy_minimum_required_domains` without reusing it as a
+record or domain count.
+
+`NotComparable` health features retain their reason and receive no numerical
+comparison. A documented override must be supplied explicitly to enable one.
+Robust z-scores use `(current - median) / (1.4826 * MAD)` and are withheld below
+the configured minimum record count or when MAD is zero. Percentiles are
+empirical fractions of stored baseline values less than or equal to the current
+value; min-max range position is a separate field.
+
+Signal resampling requires explicit `Error`, `Average`, `First`, or `Last`
+duplicate handling and `Error` or paired `SortPaired` non-monotonic handling.
+The source measurement is never mutated. Sampling artifacts record sorting,
+duplicate resolution, interpolation counts, affected output indices, and gaps
+left missing when they exceed the configured maximum.
+
+Phase 6 state estimation is available through:
+
+`electroanalysis estimate run`, `validate`, `simulate`, `compare`, and `report`.
+
+New artifact fields use serde defaults where safe. The health schema version is
+incremented because the old minimum-domain field had incorrect semantics;
+legacy values are preserved under an explicit legacy name. Signal sampling
+fields are additive, and ECM CSV columns use explicit RSS/BIC/legacy-score
+names so old columns are not silently reinterpreted.
 
 ### Adding a New Circuit Element
 
