@@ -592,13 +592,12 @@ fn apply_polarization_input(
 }
 
 fn event_kind_matches(event: &crate::domain::ExperimentEvent, configured: &str) -> bool {
-    let expected = configured.trim().to_ascii_lowercase();
-    format!("{:?}", event.kind).to_ascii_lowercase() == expected
-        || matches!(
-            (event.kind, expected.as_str()),
-            (ExperimentEventKind::ConcentrationStep, "concentration_step")
-                | (ExperimentEventKind::ConcentrationStep, "concentration-step")
-        )
+    let expected = configured
+        .trim()
+        .to_ascii_lowercase()
+        .replace(['_', '-'], "");
+    let actual = format!("{:?}", event.kind).to_ascii_lowercase();
+    actual == expected
 }
 
 fn event_log10_activity(event: &crate::domain::ExperimentEvent) -> Result<f64, EstimationError> {
