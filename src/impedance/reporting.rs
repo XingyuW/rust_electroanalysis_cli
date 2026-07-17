@@ -4,6 +4,8 @@
 //! text reports and logs without leaking parser internals to callers.
 
 use super::{CircuitNode, ElementType, parse_circuit_string};
+use crate::domain::ReportingError;
+use crate::results::CircuitFitResult;
 use std::collections::BTreeMap;
 
 /// One fitted numeric value attached to a specific circuit-element parameter.
@@ -42,15 +44,16 @@ pub struct CircuitCompositionReport {
 pub fn describe_fitted_circuit(
     circuit_string: &str,
     fitted_parameters: &[f64],
-) -> Result<CircuitCompositionReport, String> {
+) -> Result<CircuitCompositionReport, ReportingError> {
     let circuit = parse_circuit_string(circuit_string)?;
     let expected_param_count = circuit.count_total_params();
 
     if fitted_parameters.len() != expected_param_count {
-        return Err(format!(
-            "parameter count mismatch for {circuit_string}: expected {expected_param_count}, got {}",
-            fitted_parameters.len()
-        ));
+        return Err(ReportingError::ParameterCountMismatch {
+            circuit: circuit_string.to_string(),
+            expected: expected_param_count,
+            actual: fitted_parameters.len(),
+        });
     }
 
     let mut element_nodes = Vec::new();
@@ -155,9 +158,35 @@ pub fn format_fitted_circuit_composition(
     circuit_string: &str,
     fitted_parameters: &[f64],
     indent: &str,
-) -> Result<String, String> {
+) -> Result<String, ReportingError> {
     let composition = describe_fitted_circuit(circuit_string, fitted_parameters)?;
     Ok(format_circuit_composition_report(&composition, indent))
+}
+
+/// Format the named output of a direct circuit fit for CLI/report consumers.
+pub fn format_circuit_fit_report(circuit_model: &str, fit: &CircuitFitResult) -> String {
+    let mut lines = vec![
+        format!("Circuit Model: {circuit_model}"),
+        "Parameters:".to_string(),
+        "Name | Value | Unit".to_string(),
+        "-----|-------|-----".to_string(),
+    ];
+
+    for ((name, unit), value) in fit
+        .parameter_names
+        .iter()
+        .zip(fit.parameter_units.iter())
+        .zip(fit.fitted_parameters.iter())
+    {
+        lines.push(format!("{name} | {value:.6e} | {unit}"));
+    }
+
+    lines.push(format!("Fitted points: {}", fit.fitted_z_re.len()));
+    lines.push("Fitted real impedance: available".to_string());
+    lines.push("Fitted imaginary impedance: available".to_string());
+    lines.push("Fitted magnitude: available".to_string());
+    lines.push("Fitted phase: available".to_string());
+    lines.join("\n")
 }
 
 fn collect_element_nodes(node: &CircuitNode, elements: &mut Vec<(ElementType, usize, String)>) {

@@ -9,6 +9,7 @@ use super::ecm_candidate::RANDLES_SEED_CIRCUIT;
 use super::ecm_evolution::{EcmEvolutionConfig, run_ecm_evolution};
 use super::ecm_scoring::CandidateFitResult;
 use super::reporting::format_fitted_circuit_composition;
+use crate::domain::{FittingError, ReportingError};
 use std::fs;
 use std::path::Path;
 
@@ -164,39 +165,29 @@ impl EcmSearchReport {
     }
 
     /// Export the detailed plain-text report to disk.
-    pub fn export_detailed_report<P: AsRef<Path>>(&self, path: P) -> Result<(), String> {
+    pub fn export_detailed_report<P: AsRef<Path>>(&self, path: P) -> Result<(), ReportingError> {
         let path = path.as_ref();
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() {
-                fs::create_dir_all(parent).map_err(|error| {
-                    format!(
-                        "failed to create report directory {}: {error}",
-                        parent.display()
-                    )
-                })?;
+                fs::create_dir_all(parent)?;
             }
         }
 
-        fs::write(path, self.detailed_report())
-            .map_err(|error| format!("failed to write {}: {error}", path.display()))
+        fs::write(path, self.detailed_report())?;
+        Ok(())
     }
 
     /// Export the ranking CSV to disk.
-    pub fn export_ranking_csv<P: AsRef<Path>>(&self, path: P) -> Result<(), String> {
+    pub fn export_ranking_csv<P: AsRef<Path>>(&self, path: P) -> Result<(), ReportingError> {
         let path = path.as_ref();
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() {
-                fs::create_dir_all(parent).map_err(|error| {
-                    format!(
-                        "failed to create report directory {}: {error}",
-                        parent.display()
-                    )
-                })?;
+                fs::create_dir_all(parent)?;
             }
         }
 
-        fs::write(path, self.ranking_csv())
-            .map_err(|error| format!("failed to write {}: {error}", path.display()))
+        fs::write(path, self.ranking_csv())?;
+        Ok(())
     }
 }
 
@@ -206,7 +197,7 @@ pub fn discover_equivalent_circuits(
     z_real: &[f64],
     z_imag: &[f64],
     phase_deg: &[f64],
-) -> Result<EcmSearchReport, String> {
+) -> Result<EcmSearchReport, FittingError> {
     discover_equivalent_circuits_with_config(
         frequencies,
         z_real,
@@ -223,7 +214,7 @@ pub fn discover_equivalent_circuits_with_config(
     z_imag: &[f64],
     phase_deg: &[f64],
     config: &EcmSearchConfig,
-) -> Result<EcmSearchReport, String> {
+) -> Result<EcmSearchReport, FittingError> {
     let outcome = run_ecm_evolution(frequencies, z_real, z_imag, phase_deg, &config.evolution)?;
 
     let limit = config

@@ -120,6 +120,7 @@
 //! directly into `plot_hq()`.
 
 use crate::data_file::ElectrochemData;
+use crate::domain::PlottingError;
 use crate::plottings::{PlotDataSeries, PlotSeries};
 use std::fmt;
 
@@ -528,7 +529,7 @@ impl PlotDataSeries for PlotData {
     /// * Series 1 — the primary `y_values` with `label` as its name.
     /// * Series 2+ — each `YSeries` in `y_series`, using its own `label` or
     ///   the generated fallback `"Series N"` where N starts at 2.
-    fn plot_series(&self) -> Result<Vec<PlotSeries>, String> {
+    fn plot_series(&self) -> Result<Vec<PlotSeries>, PlottingError> {
         // Primary series.
         let primary_pts: Vec<(f64, f64)> = self
             .x_values

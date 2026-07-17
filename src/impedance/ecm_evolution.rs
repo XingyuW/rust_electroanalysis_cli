@@ -32,6 +32,7 @@ use super::fitting::{
 use super::parse_circuit_string;
 use super::pinn_optimizer::{PinnOptimizer, compute_aic, compute_bic};
 use super::prepare_impedance_data;
+use crate::domain::FittingError;
 use genevo::genetic::{Children, Parents};
 use genevo::operator::{CrossoverOp, GeneticOperator, MutationOp, SingleObjective};
 use genevo::prelude::*;
@@ -602,10 +603,12 @@ pub fn run_ecm_evolution(
     z_imag: &[f64],
     phase_deg: &[f64],
     config: &EcmEvolutionConfig,
-) -> Result<EcmEvolutionOutcome, String> {
+) -> Result<EcmEvolutionOutcome, FittingError> {
     // Minimal shape/emptiness guard before any expensive setup.
     if frequencies.is_empty() || z_real.is_empty() || z_imag.is_empty() {
-        return Err("frequency, real impedance, and imaginary impedance data are required".into());
+        return Err(FittingError::invalid_input(
+            "frequency, real impedance, and imaginary impedance data are required",
+        ));
     }
 
     let evaluator = CircuitFitnessEvaluator::new(frequencies, z_real, z_imag, phase_deg);
@@ -655,7 +658,7 @@ pub fn run_ecm_evolution(
             Ok(SimResult::Final(step, _, _, _)) => {
                 break (step.iteration, step.result.best_solution.solution.fitness);
             }
-            Err(e) => return Err(format!("ECM evolution failed: {e}")),
+            Err(e) => return Err(FittingError::search(format!("ECM evolution failed: {e}"))),
         }
     };
 

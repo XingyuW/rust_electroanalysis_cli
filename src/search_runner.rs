@@ -6,7 +6,8 @@
 //! * orchestrating the ECM search and writing text / CSV reports, and
 //! * rendering optional ranked-model plots via the plotting layer.
 
-use rust_plots::{
+use crate::runners::RunnerError;
+use crate::{
     data_file::chi_file::EISData,
     impedance::discover_equivalent_circuits_with_config,
     plot_config::{LoadedPlotConfig, PlotConfig, PlotJob, PlotJobKind, RenderConfig},
@@ -64,9 +65,8 @@ pub fn run_eis_search(
     search_config_path: Option<&Path>,
     search_output: Option<&Path>,
     search_top: Option<usize>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let loaded_search_config = RuntimeEcmSearchConfig::load(workspace_dir, search_config_path)
-        .map_err(io::Error::other)?;
+) -> Result<(), RunnerError> {
+    let loaded_search_config = RuntimeEcmSearchConfig::load(workspace_dir, search_config_path)?;
     run_eis_search_with_loaded_config(
         workspace_dir,
         search_target,
@@ -89,7 +89,7 @@ pub fn run_eis_search_with_loaded_config<F>(
     search_top: Option<usize>,
     search_plot_config_override: Option<PublicationConfig>,
     mut log: F,
-) -> Result<(), Box<dyn std::error::Error>>
+) -> Result<(), RunnerError>
 where
     F: FnMut(SearchLogLevel, &str),
 {
@@ -159,8 +159,7 @@ where
             &data.z_im,
             &data.phase,
             &search_config,
-        )
-        .map_err(io::Error::other)?;
+        )?;
 
         emit_info(&mut log, format!("EIS Search: {}", input_file.display()));
         emit_info(&mut log, format!("Label: {}", data.label));
@@ -172,13 +171,9 @@ where
         // Write text and CSV reports.
         let export_path =
             resolve_search_export_path(&input_file, output_path.as_deref(), target.is_dir())?;
-        report
-            .export_detailed_report(&export_path)
-            .map_err(io::Error::other)?;
+        report.export_detailed_report(&export_path)?;
         let csv_export_path = resolve_search_csv_export_path(&export_path);
-        report
-            .export_ranking_csv(&csv_export_path)
-            .map_err(io::Error::other)?;
+        report.export_ranking_csv(&csv_export_path)?;
         emit_info(
             &mut log,
             format!("Search report written to: {}", export_path.display()),
@@ -299,7 +294,7 @@ fn resolve_search_export_path(
     input_file: &Path,
     configured_output: Option<&Path>,
     multi_input_search: bool,
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
+) -> Result<PathBuf, RunnerError> {
     let default_name = format!(
         "{}_ecm_search.txt",
         input_file
@@ -502,17 +497,21 @@ fn select_matching_eis_plot_job<'a>(
 fn apply_render_config_to_publication(
     base: &PublicationConfig,
     render: &RenderConfig,
-) -> Result<PublicationConfig, String> {
+) -> Result<PublicationConfig, crate::domain::ConfigurationError> {
     let mut config = base.clone();
     if let Some(scale) = render.png_scale_factor {
         if scale == 0 {
-            return Err("invalid render.png_scale_factor: expected a value >= 1".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid render.png_scale_factor: expected a value >= 1",
+            ));
         }
         config.png_scale_factor = scale;
     }
     if let Some(dpi) = render.png_dpi {
         if !dpi.is_finite() || dpi <= 0.0 {
-            return Err("invalid render.png_dpi: expected a positive finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid render.png_dpi: expected a positive finite value",
+            ));
         }
         config.dpi = dpi;
     }
@@ -528,9 +527,7 @@ fn apply_render_config_to_publication(
 ///
 /// Returns an error when the target does not exist or when no eligible files
 /// are found inside a directory.
-fn collect_eis_search_inputs(
-    target: &Path,
-) -> Result<SearchInputCollection, Box<dyn std::error::Error>> {
+fn collect_eis_search_inputs(target: &Path) -> Result<SearchInputCollection, RunnerError> {
     if !target.exists() {
         return Err(format!("Search target does not exist: {}", target.display()).into());
     }
@@ -632,7 +629,7 @@ mod tests {
     use super::{
         pair_dataset_experimental_and_fitted_colors, resolve_search_combined_plot_output_base,
     };
-    use rust_plots::plottings::{PlotSeries, PlotSeriesKind};
+    use crate::plottings::{PlotSeries, PlotSeriesKind};
     use std::path::Path;
 
     #[test]

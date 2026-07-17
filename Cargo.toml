@@ -1,9 +1,10 @@
 [package]
-name = "rust_plots"
+name = "rust_electroanalysis_cli"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
 plotters = "0.3"
 image = "0.25.10"
 levenberg-marquardt = "0.15.0"
@@ -11,6 +12,7 @@ nalgebra = "0.34.2"
 nom = "8"
 num-complex = "0.4"
 serde = { version = "1", features = ["derive"] }
+thiserror = "2"
 toml = "1.1.2"
 genevo = "0.7.1"
 rayon = "1.12.0"

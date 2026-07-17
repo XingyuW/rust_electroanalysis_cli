@@ -10,6 +10,7 @@ pub mod chi_file;
 pub mod data_op;
 pub mod value_transform;
 
+pub use crate::domain::DataParsingError;
 pub use chi_file::{EISData, EISFitResult, ElectrochemData};
 pub use data_op::{
     IntoPlotData, PlotData, PlotDataBuilder, PlotDataError, PointSelection, YSeries,

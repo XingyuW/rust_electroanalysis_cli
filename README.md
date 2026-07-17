@@ -1,6 +1,6 @@
-# rust_plots — Electrochemical Data Analysis CLI
+# rust_electroanalysis_cli — Electrochemical Data Analysis CLI
 
-**rust_plots** is a Rust CLI application for parsing, plotting, fitting, and searching equivalent-circuit models (ECMs) for electrochemical impedance spectroscopy (EIS) data. It provides a complete pipeline from raw instrument exports (CHI format) to publication-quality figures, statistical fit reports, and genetic-algorithm-driven equivalent-circuit topology discovery.
+**rust_electroanalysis_cli** is a Rust CLI application for parsing, plotting, fitting, and searching equivalent-circuit models (ECMs) for electrochemical impedance spectroscopy (EIS) data. The command-line interface is exposed as `electroanalysis`; the former `rust_plots` flat flags remain supported for existing scripts.
 
 ---
 
@@ -74,7 +74,7 @@
 
 ## Overview
 
-rust_plots is designed for electrochemical researchers and analysts who need to:
+rust_electroanalysis_cli is designed for electrochemical researchers and analysts who need to:
 
 - **Parse** CHI instrument electrochemical data files (EIS spectra, chronoamperometry, voltammetry, OCPT, etc.)
 - **Visualize** data through publication-quality plots rendered at configurable DPI in both SVG and PNG formats
@@ -91,7 +91,7 @@ The application is organized into three major subsystems:
 | **Impedance engine** (`impedance/`) | Circuit model AST, element equations, fitting, evolutionary search, scoring, and reporting |
 | **Plotting backend** (`plottings/`) | High-quality figure rendering in SVG + supersampled PNG, supporting 9 plot geometries |
 
-These are connected by an orchestration layer (`plot_runner.rs`, `search_runner.rs`) driven by CLI commands and TOML configuration files.
+These are connected by typed workflow façades (`fitting/` and `runners/`) plus the existing orchestration layer (`plot_runner.rs`, `search_runner.rs`). TOML configuration and scientific algorithms remain in their existing modules.
 
 ---
 
@@ -120,7 +120,11 @@ rust_electroanalysis_cli/
 └── src/
     ├── main.rs                         # CLI binary entrypoint and workflow dispatch
     ├── lib.rs                          # Crate root — re-exports all public modules
-    ├── cli.rs                          # CLI argument parsing (PlotTarget, CliArgs)
+    ├── cli.rs                          # clap derive CLI and legacy-flag normalization
+    ├── domain/                         # Shared typed CLI/config/data/fitting errors
+    ├── fitting/                        # Stable façade over the impedance fit pipeline
+    ├── results/                        # Named scientific result structures
+    ├── runners/                        # Thin plot, fit, and search workflow boundaries
     ├── workspace.rs                    # Workspace bootstrap, config lifecycle, atomic writes
     ├── plot_config.rs                  # Plot-job TOML schema, loading, migration, resolution
     ├── plot_runner.rs                  # Plot job orchestration (EIS, regular, generic)
@@ -325,58 +329,61 @@ flowchart TD
 
 ## CLI Usage
 
+The canonical interface uses derive-based subcommands. The CLI presents this
+interface as `electroanalysis`; with Cargo, use `cargo run --` before the same
+arguments. The release artifact remains `rust_electroanalysis_cli`.
+
 ### Commands
 
-The binary accepts two mutually exclusive operation modes: **plotting** and **ECM search**. Run `cargo run -- --help` for a synopsis.
+```text
+electroanalysis plot [all|eis|regular-plot|generic-plot]
+electroanalysis eis fit <input> [--circuit <expression>] [--output <path>]
+electroanalysis eis search <input> [--search-config <path>]
+                              [--search-output <path>] [--search-top <n>]
+```
 
-| Flag | Arguments | Default | Description |
-|------|-----------|---------|-------------|
-| `--plot` | `all` / `eis` / `regular-plot` / `generic` | `all` | Select which plot type to generate |
-| `--plot-config` | `<path>` | `config/plotting.toml` | Override the plotting configuration file |
-| `--search-eis` | `<file-or-dir>` | — | Run equivalent-circuit discovery on an EIS file or directory |
-| `--search-config` | `<path>` | `config/analysis.toml` | Override the analysis configuration file |
-| `--search-output` | `<path>` | Auto-derived from input | Override the report export path |
-| `--search-top` | `<n>` | From config | Override the maximum ranked candidates |
-| `--help` / `-h` | — | — | Print usage synopsis |
-
-**Cross-flag validation:**
-- `--plot-config` cannot be combined with `--search-eis`
-- `--search-config` requires `--search-eis`
-- `--plot` and `--search-eis` cannot be used together
-
-### Examples
+`plot` defaults to `all`. `eis fit` fits one EIS file using its resolved
+circuit model (or `--circuit`) and prints a named-parameter report unless
+`--output` is supplied. `eis search` retains the existing genetic ECM search,
+ranking, report, CSV, and optional plotting behavior.
 
 ```bash
-# Show usage
+# Show the structured command help
 cargo run -- --help
 
-# Generate all plots (EIS + regular + generic) with default config
-cargo run
+# Generate all plots, or EIS plots only
+cargo run -- plot
+cargo run -- plot eis
 
-# Generate only EIS plots
-cargo run -- --plot eis
+# Use an alternative plotting configuration
+cargo run -- plot all --plot-config /path/to/alternative.toml
 
-# Generate only regular (CHI/Pb-sensor) plots
-cargo run -- --plot regular-plot
+# Fit one EIS file
+cargo run -- eis fit data/my_sample.txt
+cargo run -- eis fit data/my_sample.txt --circuit 'R0-p(CPE1,R1)' --output output/fit.txt
 
-# Generate only generic plots (domain-agnostic)
-cargo run -- --plot generic
-
-# Use an alternative plot config file
-cargo run -- --plot all --plot-config /path/to/alternative.toml
-
-# Run ECM circuit search on a single EIS file
-cargo run -- --search-eis data/my_sample.txt
-
-# Run ECM search on all EIS files in a directory
-cargo run -- --search-eis data/eis_measurements/
-
-# Run ECM search with custom config, output, and top-N limit
-cargo run -- --search-eis data/ \
-  --search-config my_analysis.toml \
-  --search-output results/ \
-  --search-top 20
+# Search one file or a directory
+cargo run -- eis search data/my_sample.txt
+cargo run -- eis search data/eis_measurements/ --search-top 20 \
+  --search-config my_analysis.toml --search-output results/
 ```
+
+### Legacy compatibility
+
+The pre-Phase-0 flat flags are normalized into the same command tree and
+retain their existing configuration defaults, precedence, output names, and
+locations:
+
+| Existing invocation | Structured equivalent |
+|---|---|
+| `--plot eis` | `plot eis` |
+| `--plot all --plot-config <path>` | `plot all --plot-config <path>` |
+| `--search-eis <input>` | `eis search <input>` |
+| `--search-eis <input> --search-config <path> --search-output <path> --search-top <n>` | `eis search <input> --search-config <path> --search-output <path> --search-top <n>` |
+
+Legacy and structured options cannot be mixed in one invocation. Invalid
+combinations, such as `--plot` together with `--search-eis`, fail before any
+workspace or scientific work starts.
 
 ---
 
@@ -620,6 +627,11 @@ search_top_override = 12
 5. **`[render]` global knobs** — `png_scale_factor`, `png_dpi`
 6. **Domain defaults** — `eis_individual_publication_config()`, `chi_plot`/`generic_plot` defaults
 7. **`PublicationConfig::default()`** — Global sentinel defaults
+
+**ECM search resolution** keeps the existing priority: `--search-top` (or the
+legacy `--search-top`) overrides `max_ranked_results` in the selected analysis
+file, which overrides the library default. Individual evolution and search
+plotting settings follow the same file-over-default rule.
 
 ---
 
@@ -989,7 +1001,10 @@ cd rust_electroanalysis_cli
 cargo build --release
 ```
 
-The compiled binary is placed at `target/release/rust_plots`. You can either run it with `cargo run -- <args>` from the project directory or copy the binary to your `PATH`.
+The compiled binary is placed at `target/release/rust_electroanalysis_cli`. It
+uses `electroanalysis` in its help and usage text; you can either run it with
+`cargo run -- <args>` from the project directory or copy the binary to your
+`PATH`.
 
 ### Step 2: Locate or Generate Configuration Files
 
@@ -1042,9 +1057,9 @@ Look for warning messages on stderr. If configuration files are corrupted or con
 cargo run
 
 # Or run a targeted workflow:
-cargo run -- --plot eis           # EIS plots only
-cargo run -- --plot regular-plot  # Regular CHI plots only
-cargo run -- --plot generic       # Generic (domain-agnostic) plots only
+cargo run -- plot eis           # EIS plots only
+cargo run -- plot regular-plot  # Regular CHI plots only
+cargo run -- plot generic       # Generic (domain-agnostic) plots only
 ```
 
 ### Step 6: Verify Outputs
@@ -1060,7 +1075,7 @@ ls -la output/
 For ECM search:
 
 ```bash
-cargo run -- --search-eis data/my_eis_file.txt
+cargo run -- eis search data/my_eis_file.txt
 # Reports are written alongside the input file by default:
 ls -la data/my_eis_file.ecm_search.txt
 ls -la data/my_eis_file.ecm_search.csv
@@ -1260,12 +1275,13 @@ When fitting an EIS dataset, the circuit model is determined by:
 
 #### `main.rs` — Binary Entrypoint
 
-Dispatches to either the plotting workflow or the ECM search workflow based on parsed CLI arguments. It:
-1. Parses CLI arguments via `parse_cli_args()`
+Dispatches to plotting, single-file fitting, or ECM search after parsing the
+structured command tree. It:
+1. Parses clap-derived arguments via `parse_cli_args()`
 2. Prepares the workspace (creates directories, migrates configs)
 3. Records the last-run mode in `config/app.toml`
-4. If `--search-eis` is provided, calls `search_runner::run_eis_search()`
-5. Otherwise, loads the plot config and dispatches to `plot_runner` functions
+4. Loads only the configuration needed by the selected command
+5. Dispatches to the thin `runners::{plot, fit, search}` façades
 
 **Key functions:** `main()`
 
@@ -1275,16 +1291,19 @@ Owns all knowledge about CLI flags. No I/O beyond writing usage text.
 
 **Key types:**
 - `PlotTarget` — Enum: `All`, `Eis`, `RegularPlot`, `GenericPlot`
-- `CliArgs` — Struct containing all parsed flag values
+- `Cli` / `Command` / `EisCommand` — clap derive command tree
+- `CommandSpec` — normalized structured command used by the application
+- `CliArgs` — compatibility representation for former parser callers
 
 **Key functions:**
-- `parse_cli_args(args: &[String]) -> Result<CliArgs, Box<dyn Error>>` — Parses raw argv
+- `parse_cli_args(args: &[String]) -> Result<CliArgs, CliError>` — Parses raw argv
 - `print_usage(program: &str)` — Prints help synopsis to stdout
 
 **Cross-flag validation:**
-- `--plot-config` rejected with `--search-eis`
-- `--search-config` requires `--search-eis`
-- `--plot` and `--search-eis` are mutually exclusive
+- Legacy `--plot` and `--search-eis` are mutually exclusive.
+- Legacy `--search-config`, `--search-output`, and `--search-top` require
+  `--search-eis`.
+- Structured commands and legacy flags are not mixed in one invocation.
 
 ### Configuration Layer
 
@@ -1300,11 +1319,11 @@ Handles all filesystem setup and config lifecycle:
 **Key types:**
 - `WorkspacePaths` — Struct with all standard workspace paths
 - `WorkspaceSetup` — Runtime workspace state with paths, warnings, and app config
-- `LastRunMode` — Enum: `PlotAll`, `PlotEis`, `PlotRegular`, `PlotGeneric`, `Search`
+- `LastRunMode` — Enum: `PlotAll`, `PlotEis`, `PlotRegular`, `PlotGeneric`, `Search`, `EisFit`
 - `AppConfig` — Serialized app state (schema_version, logging, last_run)
 
 **Key functions:**
-- `prepare_workspace(root: &Path) -> Result<WorkspaceSetup, String>` — Main bootstrap
+- `prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError>` — Main bootstrap
 - `WorkspaceSetup::record_last_run(...)` — Record current run parameters
 
 #### `plot_config.rs` — Plot Configuration Schema
@@ -1790,10 +1809,10 @@ cargo clippy --all-targets --all-features
 cargo run
 
 # Run with specific plot type
-cargo run -- --plot eis
+cargo run -- plot eis
 
 # Run ECM search on test data
-cargo run -- --search-eis data/sample.txt
+cargo run -- eis search data/sample.txt
 ```
 
 ### Testing
@@ -1826,7 +1845,7 @@ The test suite includes:
 
 ```bash
 cargo build --release
-./target/release/rust_plots --help
+./target/release/rust_electroanalysis_cli --help
 ```
 
 The release binary is self-contained and requires only the TOML configuration files and input data at runtime.
@@ -1850,7 +1869,7 @@ cargo run
 #### Generate only EIS plots (Nyquist + Bode):
 
 ```bash
-cargo run -- --plot eis
+cargo run -- plot eis
 ```
 
 Each EIS file produces:
@@ -1860,7 +1879,7 @@ Each EIS file produces:
 #### Generate only regular CHI plots:
 
 ```bash
-cargo run -- --plot regular-plot
+cargo run -- plot regular-plot
 ```
 
 Each file produces individual plots in `output/individual/` and combined overlays in `output/combined/`.
@@ -1870,13 +1889,13 @@ Each file produces individual plots in `output/individual/` and combined overlay
 Create a `config/plotting.toml` with `[[generic_plot]]` blocks, then:
 
 ```bash
-cargo run -- --plot generic
+cargo run -- plot generic
 ```
 
 #### Custom plot configuration path:
 
 ```bash
-cargo run -- --plot all --plot-config /path/to/my_config.toml
+cargo run -- plot all --plot-config /path/to/my_config.toml
 ```
 
 ### ECM Search Workflows
@@ -1884,7 +1903,7 @@ cargo run -- --plot all --plot-config /path/to/my_config.toml
 #### Search a single file:
 
 ```bash
-cargo run -- --search-eis data/my_eis_data.txt
+cargo run -- eis search data/my_eis_data.txt
 ```
 
 Output: `data/my_eis_data.ecm_search.txt` and `data/my_eis_data.ecm_search.csv`.
@@ -1892,7 +1911,7 @@ Output: `data/my_eis_data.ecm_search.txt` and `data/my_eis_data.ecm_search.csv`.
 #### Search an entire directory:
 
 ```bash
-cargo run -- --search-eis data/eis_samples/
+cargo run -- eis search data/eis_samples/
 ```
 
 Output: One report pair per input file, placed alongside the original.
@@ -1900,7 +1919,7 @@ Output: One report pair per input file, placed alongside the original.
 #### Search with custom output directory:
 
 ```bash
-cargo run -- --search-eis data/ --search-output results/
+cargo run -- eis search data/ --search-output results/
 ```
 
 #### Search with more results and top-N plots:
@@ -1915,15 +1934,15 @@ output_dir = "figures/eis_search_plots"
 ```
 
 ```bash
-cargo run -- --search-eis data/
+cargo run -- eis search data/
 ```
 
 ### Troubleshooting
 
 | Symptom | Likely Cause | Solution |
 |---------|-------------|----------|
-| "Unsupported argument" | Typo in CLI flag | Run `cargo run -- --help` for valid flags |
-| "Missing value for --plot" | `--plot` without argument | Provide `eis`, `regular-plot`, `generic`, or `all` |
+| "unexpected argument" | Typo or command/flag mismatch | Run `cargo run -- --help` or the relevant subcommand help |
+| "missing required argument" | A command omitted its input | Provide a target for `plot`, `eis fit`, or `eis search` |
 | "Use either --plot or --search-eis" | Both flags provided | Use only one mode per invocation |
 | Config file parse errors | Corrupted TOML | Validate with a TOML linter; corrupted files are backed up |
 | No output figures | Empty `data/` directory | Place input files in `data/` or configure `input_path` |
@@ -1975,7 +1994,7 @@ cargo run -- --search-eis data/
 - **CLI-only focus**: The codebase is intentionally CLI-focused. GUI/Tauri bridge modules have been removed.
 - **Edition 2024**: The project uses Rust edition 2024.
 - **Lints**: `#![allow(clippy::collapsible_if)]` is used in several modules for readability.
-- **Error handling**: Functions return `Result<_, String>` for internal errors and `Result<_, Box<dyn Error>>` for I/O errors propagated to the CLI.
+- **Error handling**: `thiserror` types distinguish CLI, configuration, data parsing, fitting, workspace, reporting, plotting, and workflow failures. The renderer boundary may retain `Box<dyn Error>` because plot backends expose heterogeneous error types.
 - **Configuration precedence**: Style layers are merged in a strict priority order — never override a higher-priority value with a lower-priority default.
 - **Sentinel defaults**: `PublicationConfig::default()` uses sentinel values (e.g., `"X Values"` for axis labels) to distinguish "explicitly configured" from "not yet configured" states.
 - **TOML-only**: No JSON, YAML, or other config formats. All runtime configuration uses TOML.

@@ -1,3 +1,4 @@
+use crate::domain::WorkspaceError;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -46,6 +47,7 @@ pub enum LastRunMode {
     PlotRegular,
     PlotGeneric,
     Search,
+    EisFit,
 }
 
 impl LastRunMode {
@@ -56,6 +58,7 @@ impl LastRunMode {
             Self::PlotRegular => "plot-regular",
             Self::PlotGeneric => "plot-generic",
             Self::Search => "search",
+            Self::EisFit => "eis-fit",
         }
     }
 }
@@ -110,7 +113,7 @@ impl WorkspaceSetup {
         analysis_config_override: Option<&Path>,
         search_output_override: Option<&Path>,
         search_top_override: Option<usize>,
-    ) -> Result<(), String> {
+    ) -> Result<(), WorkspaceError> {
         self.app_config.last_run = LastRunConfig {
             mode: mode.as_str().to_string(),
             plot_config_override: plot_config_override.map(path_to_string),
@@ -122,7 +125,7 @@ impl WorkspaceSetup {
     }
 }
 
-pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, String> {
+pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> {
     let paths = WorkspacePaths {
         root: root.to_path_buf(),
         config_dir: root.join(CONFIG_DIR_NAME),
@@ -137,13 +140,13 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, String> {
     let mut warnings = Vec::new();
 
     fs::create_dir_all(&paths.config_dir)
-        .map_err(|error| format!("failed to create {}: {error}", paths.config_dir.display()))?;
+        .map_err(|error| WorkspaceError::io(&paths.config_dir, error))?;
     fs::create_dir_all(&paths.data_dir)
-        .map_err(|error| format!("failed to create {}: {error}", paths.data_dir.display()))?;
+        .map_err(|error| WorkspaceError::io(&paths.data_dir, error))?;
     fs::create_dir_all(&paths.output_dir)
-        .map_err(|error| format!("failed to create {}: {error}", paths.output_dir.display()))?;
+        .map_err(|error| WorkspaceError::io(&paths.output_dir, error))?;
     fs::create_dir_all(&paths.logs_dir)
-        .map_err(|error| format!("failed to create {}: {error}", paths.logs_dir.display()))?;
+        .map_err(|error| WorkspaceError::io(&paths.logs_dir, error))?;
 
     ensure_runtime_config_file(
         root,
@@ -180,13 +183,12 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, String> {
     })
 }
 
-fn load_app_config(path: &Path, warnings: &mut Vec<String>) -> Result<AppConfig, String> {
+fn load_app_config(path: &Path, warnings: &mut Vec<String>) -> Result<AppConfig, WorkspaceError> {
     if !path.exists() {
         return Ok(AppConfig::default());
     }
 
-    let text = fs::read_to_string(path)
-        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    let text = fs::read_to_string(path).map_err(|error| WorkspaceError::io(path, error))?;
     if text.trim().is_empty() {
         warnings.push(format!(
             "app config {} was empty; defaults were restored",
@@ -209,10 +211,10 @@ fn load_app_config(path: &Path, warnings: &mut Vec<String>) -> Result<AppConfig,
         Err(error) => {
             let backup = corrupt_backup_path(path);
             fs::rename(path, &backup).map_err(|rename_error| {
-                format!(
+                WorkspaceError::invalid(format!(
                     "failed to parse {}: {error}; additionally failed to move corrupt file: {rename_error}",
                     path.display()
-                )
+                ))
             })?;
             warnings.push(format!(
                 "app config {} is corrupted and was moved to {}; defaults were restored",
@@ -224,9 +226,8 @@ fn load_app_config(path: &Path, warnings: &mut Vec<String>) -> Result<AppConfig,
     }
 }
 
-fn save_app_config(path: &Path, config: &AppConfig) -> Result<(), String> {
-    let text = toml::to_string_pretty(config)
-        .map_err(|error| format!("failed to serialize app config: {error}"))?;
+fn save_app_config(path: &Path, config: &AppConfig) -> Result<(), WorkspaceError> {
+    let text = toml::to_string_pretty(config).map_err(crate::domain::ConfigurationError::from)?;
     atomic_write(path, &text)
 }
 
@@ -237,7 +238,7 @@ fn ensure_runtime_config_file(
     default_content: &str,
     label: &str,
     warnings: &mut Vec<String>,
-) -> Result<(), String> {
+) -> Result<(), WorkspaceError> {
     if target_path.exists() {
         return Ok(());
     }
@@ -245,11 +246,11 @@ fn ensure_runtime_config_file(
     let legacy_path = root.join(legacy_relative_path);
     if legacy_path.exists() {
         let content = fs::read_to_string(&legacy_path).map_err(|error| {
-            format!(
+            WorkspaceError::invalid(format!(
                 "failed to read legacy {} {}: {error}",
                 label,
                 legacy_path.display()
-            )
+            ))
         })?;
         atomic_write(target_path, &content)?;
         warnings.push(format!(
@@ -281,21 +282,13 @@ fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().to_string()
 }
 
-fn atomic_write(path: &Path, text: &str) -> Result<(), String> {
+fn atomic_write(path: &Path, text: &str) -> Result<(), WorkspaceError> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|error| format!("failed to create {}: {error}", parent.display()))?;
+        fs::create_dir_all(parent).map_err(|error| WorkspaceError::io(parent, error))?;
     }
     let tmp_path = path.with_extension("tmp");
-    fs::write(&tmp_path, text)
-        .map_err(|error| format!("failed to write {}: {error}", tmp_path.display()))?;
-    fs::rename(&tmp_path, path).map_err(|error| {
-        format!(
-            "failed to move {} to {}: {error}",
-            tmp_path.display(),
-            path.display()
-        )
-    })?;
+    fs::write(&tmp_path, text).map_err(|error| WorkspaceError::io(&tmp_path, error))?;
+    fs::rename(&tmp_path, path).map_err(|error| WorkspaceError::io(path, error))?;
     Ok(())
 }
 

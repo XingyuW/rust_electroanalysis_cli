@@ -17,12 +17,22 @@ pub use plottings::plotting;
 pub mod impedance;
 
 pub mod cli;
+pub mod domain;
+pub mod fitting;
 pub mod plot_config;
 pub mod plot_runner;
 pub mod regression_mod;
+pub mod results;
+pub mod runners;
 pub mod search_config;
 pub mod search_runner;
 pub mod workspace;
+
+pub use domain::{
+    ConfigurationError, DataParsingError, FittingError, PlottingError, ReportingError,
+    WorkspaceError,
+};
+pub use results::CircuitFitResult;
 
 /// Default logarithm base used whenever a log axis or log transform is enabled
 /// without an explicit base override.

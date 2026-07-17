@@ -1,7 +1,11 @@
 # src module map (CLI-only)
 
 - `main.rs`: CLI entrypoint and command dispatch.
-- `cli.rs`: argument parsing and usage text.
+- `cli.rs`: clap derive command tree, validation, and legacy-flag normalization.
+- `domain/`: shared typed errors for configuration, data parsing, fitting, reporting, and workspace concerns.
+- `fitting/`: stable façade for the scientific circuit-fit pipeline.
+- `results/`: named result structures, including `CircuitFitResult`.
+- `runners/`: thin plot, fit, and search workflow boundaries.
 - `workspace.rs`: workspace bootstrap and TOML config lifecycle.
 - `plot_config.rs`: plotting TOML schema/load/migration/resolution.
 - `search_config.rs`: analysis TOML schema/load/validation.
@@ -12,3 +16,6 @@
 - `plottings/`: rendering backends and plot styles.
 
 The codebase is intentionally CLI-focused; GUI/Tauri bridge modules are removed.
+Scientific equations and ECM evolution remain in `impedance/`; runners only
+coordinate existing modules. `data_file/`, `impedance/`, and `plottings/` are
+preserved as the implementation subsystems.

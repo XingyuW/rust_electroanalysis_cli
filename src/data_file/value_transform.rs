@@ -42,6 +42,7 @@
 //! ```
 
 use crate::DEFAULT_LOG_BASE;
+use crate::domain::ConfigurationError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -326,24 +327,24 @@ pub fn resolve_transform(
     base: Option<f64>,
     a: Option<f64>,
     b: Option<f64>,
-) -> Result<Option<ValueTransform>, String> {
+) -> Result<Option<ValueTransform>, ConfigurationError> {
     match kind {
         None => Ok(None),
         Some(TransformKind::Log) => {
             let base = base.unwrap_or(DEFAULT_LOG_BASE);
             if !base.is_finite() || base <= 1.0 {
-                return Err(format!(
+                return Err(ConfigurationError::invalid(format!(
                     "log transform base must be a finite value greater than 1.0, got {base}"
-                ));
+                )));
             }
             Ok(Some(ValueTransform::Log { base }))
         }
         Some(TransformKind::NegLog) => {
             let base = base.unwrap_or(DEFAULT_LOG_BASE);
             if !base.is_finite() || base <= 1.0 {
-                return Err(format!(
+                return Err(ConfigurationError::invalid(format!(
                     "-log transform base must be a finite value greater than 1.0, got {base}"
-                ));
+                )));
             }
             Ok(Some(ValueTransform::NegLog { base }))
         }
@@ -351,10 +352,14 @@ pub fn resolve_transform(
             let a = a.unwrap_or(1.0);
             let b = b.unwrap_or(0.0);
             if !a.is_finite() {
-                return Err(format!("linear transform 'a' must be finite, got {a}"));
+                return Err(ConfigurationError::invalid(format!(
+                    "linear transform 'a' must be finite, got {a}"
+                )));
             }
             if !b.is_finite() {
-                return Err(format!("linear transform 'b' must be finite, got {b}"));
+                return Err(ConfigurationError::invalid(format!(
+                    "linear transform 'b' must be finite, got {b}"
+                )));
             }
             Ok(Some(ValueTransform::Linear { a, b }))
         }
@@ -371,11 +376,11 @@ pub fn resolve_axis_transforms(
     y_base: Option<f64>,
     y_a: Option<f64>,
     y_b: Option<f64>,
-) -> Result<AxisTransforms, String> {
+) -> Result<AxisTransforms, ConfigurationError> {
     let x = resolve_transform(x_kind, x_base, x_a, x_b)
-        .map_err(|e| format!("x-axis transform: {e}"))?;
+        .map_err(|e| ConfigurationError::invalid(format!("x-axis transform: {e}")))?;
     let y = resolve_transform(y_kind, y_base, y_a, y_b)
-        .map_err(|e| format!("y-axis transform: {e}"))?;
+        .map_err(|e| ConfigurationError::invalid(format!("y-axis transform: {e}")))?;
     Ok(AxisTransforms { x, y })
 }
 

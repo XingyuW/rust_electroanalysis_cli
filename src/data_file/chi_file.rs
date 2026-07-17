@@ -4,6 +4,7 @@
 //! strongly typed series (`ElectrochemData`, `EISData`) while preserving
 //! metadata used later by plotting and ECM search reporting.
 
+use crate::domain::{DataParsingError, FittingError, PlottingError};
 use crate::impedance;
 use crate::impedance::{
     CircuitModelContext, CircuitModelResolver, FitRankingMetric, format_fitted_circuit_composition,
@@ -16,7 +17,7 @@ use std::path::Path;
 
 use crate::plottings::{PlotDataSeries, PlotSeries};
 
-fn read_nonempty_lines<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
+fn read_nonempty_lines<P: AsRef<Path>>(path: P) -> Result<Vec<String>, DataParsingError> {
     // Accept common delimited text exports from CHI instruments.
     let path = path.as_ref();
     if let Some(extension) = path.extension().and_then(|value| value.to_str())
@@ -25,21 +26,20 @@ fn read_nonempty_lines<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
             "csv" | "txt" | "dat"
         )
     {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Unsupported file type",
-        ));
+        return Err(DataParsingError::invalid_at(path, "unsupported file type"));
     }
 
-    let file = File::open(path)?;
+    let file = File::open(path).map_err(|error| DataParsingError::io(path, error))?;
     let reader = BufReader::new(file);
 
-    reader.lines().collect::<io::Result<Vec<_>>>().map(|lines| {
-        lines
-            .into_iter()
-            .map(|line| line.trim().to_string())
-            .collect()
-    })
+    let lines = reader
+        .lines()
+        .collect::<io::Result<Vec<_>>>()
+        .map_err(|error| DataParsingError::io(path, error))?;
+    Ok(lines
+        .into_iter()
+        .map(|line| line.trim().to_string())
+        .collect())
 }
 
 fn extract_metadata(lines: &[String]) -> (String, String, String) {
@@ -336,22 +336,20 @@ pub struct ElectrochemData {
 }
 
 impl ElectrochemData {
-    pub fn series_count<P: AsRef<Path>>(path: P) -> io::Result<usize> {
+    pub fn series_count<P: AsRef<Path>>(path: P) -> Result<usize, DataParsingError> {
+        let path = path.as_ref();
         let lines = read_nonempty_lines(path)?;
         find_electrochem_header_layout(&lines)
             .map(|layout| layout.y_indices.len())
-            .ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "Missing time/potential header")
-            })
+            .ok_or_else(|| DataParsingError::invalid_at(path, "missing time/potential header"))
     }
 
-    pub fn parse_file_series<P: AsRef<Path>>(path: P) -> io::Result<Vec<Self>> {
+    pub fn parse_file_series<P: AsRef<Path>>(path: P) -> Result<Vec<Self>, DataParsingError> {
         let path = path.as_ref();
         let lines = read_nonempty_lines(path)?;
         let (date, test_type, instrument_model) = extract_metadata(&lines);
-        let layout = find_electrochem_header_layout(&lines).ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidData, "Missing time/potential header")
-        })?;
+        let layout = find_electrochem_header_layout(&lines)
+            .ok_or_else(|| DataParsingError::invalid_at(path, "missing time/potential header"))?;
         let parsed_series = parse_numeric_series_columns(
             &lines,
             layout.header_index + 1,
@@ -384,9 +382,9 @@ impl ElectrochemData {
             .collect();
 
         if datasets.is_empty() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "No numeric time/potential data rows found",
+            return Err(DataParsingError::invalid_at(
+                path,
+                "no numeric time/potential data rows found",
             ));
         }
 
@@ -394,24 +392,23 @@ impl ElectrochemData {
     }
 
     #[allow(dead_code)]
-    pub fn parse_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let lines = read_nonempty_lines(&path)?;
+    pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Self, DataParsingError> {
+        let path = path.as_ref();
+        let lines = read_nonempty_lines(path)?;
         let (date, test_type, instrument_model) = extract_metadata(&lines);
-        let (header_index, x_index, y_index) =
-            find_electrochem_header(&lines).ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "Missing time/potential header")
-            })?;
+        let (header_index, x_index, y_index) = find_electrochem_header(&lines)
+            .ok_or_else(|| DataParsingError::invalid_at(path, "missing time/potential header"))?;
         let (x_values, y_values) =
             parse_numeric_columns(&lines, header_index + 1, x_index, y_index);
 
         if x_values.is_empty() || y_values.is_empty() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "No numeric time/potential data rows found",
+            return Err(DataParsingError::invalid_at(
+                path,
+                "no numeric time/potential data rows found",
             ));
         }
 
-        let label = file_label(&path);
+        let label = file_label(path);
 
         Ok(Self {
             date,
@@ -486,20 +483,21 @@ pub struct EISData {
 
 impl EISData {
     #[allow(dead_code)]
-    pub fn parse_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let resolver = CircuitModelResolver::load_or_default()?;
+    pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Self, DataParsingError> {
+        let resolver =
+            CircuitModelResolver::load_or_default().map_err(DataParsingError::Configuration)?;
         Self::parse_file_with_resolver(path, &resolver)
     }
 
     pub fn parse_file_with_resolver<P: AsRef<Path>>(
         path: P,
         resolver: &CircuitModelResolver,
-    ) -> io::Result<Self> {
+    ) -> Result<Self, DataParsingError> {
         let path = path.as_ref();
         let lines = read_nonempty_lines(path)?;
         let (date, test_type, instrument_model) = extract_metadata(&lines);
         let header_index = find_header_index(&lines, "Freq/Hz")
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Missing Freq/Hz header"))?;
+            .ok_or_else(|| DataParsingError::invalid_at(path, "missing Freq/Hz header"))?;
         let metadata = parse_metadata_entries(&lines, header_index);
 
         let header_fields = split_csv_fields(&lines[header_index]);
@@ -573,15 +571,15 @@ impl EISData {
         self.freq.len()
     }
 
-    pub fn fit_circuit(&self) -> Result<EISFitResult, String> {
+    pub fn fit_circuit(&self) -> Result<EISFitResult, FittingError> {
         self.compute_fit_result()
     }
 
-    pub fn fit_circuit_for_model(&self, circuit_model: &str) -> Result<EISFitResult, String> {
+    pub fn fit_circuit_for_model(&self, circuit_model: &str) -> Result<EISFitResult, FittingError> {
         self.compute_fit_result_for_model(circuit_model)
     }
 
-    pub fn fitted_parameters(&self) -> Result<Vec<f64>, String> {
+    pub fn fitted_parameters(&self) -> Result<Vec<f64>, FittingError> {
         Ok(self.compute_fit_result()?.fitted_parameters)
     }
 
@@ -934,20 +932,15 @@ impl EISData {
         series
     }
 
-    fn compute_fit_result(&self) -> Result<EISFitResult, String> {
+    fn compute_fit_result(&self) -> Result<EISFitResult, FittingError> {
         self.compute_fit_result_for_model(&self.circuit_model)
     }
 
-    fn compute_fit_result_for_model(&self, circuit_model: &str) -> Result<EISFitResult, String> {
-        let (
-            fitted_parameters,
-            parameter_names,
-            parameter_units,
-            fitted_z_re,
-            fitted_z_im,
-            fitted_magnitude,
-            fitted_phase,
-        ) = impedance::fit_circuit(
+    fn compute_fit_result_for_model(
+        &self,
+        circuit_model: &str,
+    ) -> Result<EISFitResult, FittingError> {
+        let fit = impedance::fit_circuit(
             circuit_model,
             &self.freq,
             &self.z_re,
@@ -957,13 +950,13 @@ impl EISData {
 
         Ok(EISFitResult {
             circuit_model: circuit_model.to_string(),
-            fitted_parameters,
-            parameter_names,
-            parameter_units,
-            fitted_z_re,
-            fitted_z_im,
-            fitted_magnitude,
-            fitted_phase,
+            fitted_parameters: fit.fitted_parameters,
+            parameter_names: fit.parameter_names,
+            parameter_units: fit.parameter_units,
+            fitted_z_re: fit.fitted_z_re,
+            fitted_z_im: fit.fitted_z_im,
+            fitted_magnitude: fit.fitted_magnitude,
+            fitted_phase: fit.fitted_phase,
         })
     }
 }
@@ -991,7 +984,7 @@ impl PlotDataSeries for EISData {
         )
     }
 
-    fn plot_series(&self) -> Result<Vec<PlotSeries>, String> {
+    fn plot_series(&self) -> Result<Vec<PlotSeries>, PlottingError> {
         let fit = self.fit_circuit()?;
         Ok(self.nyquist_series_for_fit(&fit))
     }

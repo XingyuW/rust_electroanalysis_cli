@@ -25,3 +25,9 @@
 - evolutionary topology search
 
 All report outputs (`*_ecm_search.txt` and `*_ecm_search.csv`) derive from structures generated here.
+
+The direct fit façade returns the named `CircuitFitResult` from
+`src/results/`. Its fields expose fitted parameters, parameter metadata, and
+the fitted real/imaginary/magnitude/phase channels without positional tuple
+access. Circuit parsing, fitting, and ECM search failures use
+`FittingError`; report construction uses `ReportingError`.

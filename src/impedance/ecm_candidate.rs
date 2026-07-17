@@ -8,6 +8,7 @@
 use super::circuits::CircuitNode;
 use super::elements::ElementType;
 use super::parse_circuit_string;
+use crate::domain::FittingError;
 
 /// Circuit genome: the UTF-8 bytes of the canonical circuit string.
 pub type CircuitGenome = Vec<u8>;
@@ -347,7 +348,7 @@ impl CircuitTopology {
 
     /// Validate serializability/parsability by round-tripping through the
     /// existing circuit parser.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), FittingError> {
         parse_circuit_string(&self.to_circuit_string()).map(|_| ())
     }
 }
@@ -382,7 +383,7 @@ impl CircuitCandidate {
     }
 
     /// Validate candidate topology via parser round-trip.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), FittingError> {
         self.topology.validate()
     }
 }

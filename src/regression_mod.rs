@@ -34,6 +34,7 @@
 //! Omitting `regression` (the default) preserves existing line-rendering
 //! behaviour unchanged.
 
+use crate::domain::FittingError;
 use serde::{Deserialize, Serialize};
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -94,18 +95,18 @@ pub struct LinearFit {
 /// * `x` and `y` have different lengths.
 /// * Fewer than 2 data points are provided.
 /// * All x values are identical (denominator = 0 → indeterminate system).
-pub fn fit_linear(x: &[f64], y: &[f64]) -> Result<LinearFit, String> {
+pub fn fit_linear(x: &[f64], y: &[f64]) -> Result<LinearFit, FittingError> {
     let n = x.len();
     if n < 2 {
-        return Err(format!(
+        return Err(FittingError::regression(format!(
             "linear regression requires at least 2 data points, got {n}"
-        ));
+        )));
     }
     if n != y.len() {
-        return Err(format!(
+        return Err(FittingError::regression(format!(
             "x and y must have equal length ({n} vs {})",
             y.len()
-        ));
+        )));
     }
 
     let n_f = n as f64;
@@ -116,7 +117,9 @@ pub fn fit_linear(x: &[f64], y: &[f64]) -> Result<LinearFit, String> {
 
     let denom = n_f * sum_xx - sum_x * sum_x;
     if denom.abs() < f64::EPSILON {
-        return Err("linear regression is indeterminate: all x values are identical".to_string());
+        return Err(FittingError::regression(
+            "linear regression is indeterminate: all x values are identical",
+        ));
     }
 
     let slope = (n_f * sum_xy - sum_x * sum_y) / denom;
@@ -220,7 +223,7 @@ pub fn compute_regression_with_fit(
     x: &[f64],
     y: &[f64],
     kind: RegressionKind,
-) -> Result<(Vec<(f64, f64)>, LinearFit), String> {
+) -> Result<(Vec<(f64, f64)>, LinearFit), FittingError> {
     match kind {
         RegressionKind::Linear => {
             let fit = fit_linear(x, y)?;
@@ -250,7 +253,7 @@ pub fn compute_regression(
     x: &[f64],
     y: &[f64],
     kind: RegressionKind,
-) -> Result<Vec<(f64, f64)>, String> {
+) -> Result<Vec<(f64, f64)>, FittingError> {
     match kind {
         RegressionKind::Linear => {
             let fit = fit_linear(x, y)?;
@@ -304,7 +307,7 @@ mod tests {
     #[test]
     fn linear_fit_error_on_too_few_points() {
         let err = fit_linear(&[1.0], &[2.0]).unwrap_err();
-        assert!(err.contains("at least 2"));
+        assert!(err.to_string().contains("at least 2"));
     }
 
     #[test]
@@ -312,13 +315,13 @@ mod tests {
         let x = vec![5.0, 5.0, 5.0];
         let y = vec![1.0, 2.0, 3.0];
         let err = fit_linear(&x, &y).unwrap_err();
-        assert!(err.contains("indeterminate"));
+        assert!(err.to_string().contains("indeterminate"));
     }
 
     #[test]
     fn linear_fit_error_on_length_mismatch() {
         let err = fit_linear(&[1.0, 2.0], &[3.0]).unwrap_err();
-        assert!(err.contains("equal length"));
+        assert!(err.to_string().contains("equal length"));
     }
 
     #[test]

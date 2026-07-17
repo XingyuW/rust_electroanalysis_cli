@@ -7,6 +7,7 @@ use super::{
     CircuitNode, PreparedImpedanceData, fit_circuit_with_circuit, parse_circuit_string,
     prepare_impedance_data, validate_input_lengths,
 };
+use crate::domain::FittingError;
 
 /// Full fit output used to rank and report one candidate circuit.
 #[derive(Debug, Clone)]
@@ -80,7 +81,7 @@ pub fn score_circuit(
     z_real: &[f64],
     z_imag: &[f64],
     phase_deg: &[f64],
-) -> Result<CandidateFitResult, String> {
+) -> Result<CandidateFitResult, FittingError> {
     let circuit = parse_circuit_string(circuit_str)?;
     validate_input_lengths(frequencies, z_real, z_imag, phase_deg)?;
     let prepared = prepare_impedance_data(frequencies, z_real, z_imag, phase_deg)?;
@@ -101,7 +102,7 @@ pub(crate) fn score_circuit_with_prepared(
     z_real: &[f64],
     z_imag: &[f64],
     prepared: &PreparedImpedanceData,
-) -> Result<CandidateFitResult, String> {
+) -> Result<CandidateFitResult, FittingError> {
     let circuit = parse_circuit_string(circuit_str)?;
     score_parsed_circuit(circuit_str, &circuit, frequencies, z_real, z_imag, prepared)
 }
@@ -113,18 +114,14 @@ fn score_parsed_circuit(
     z_real: &[f64],
     z_imag: &[f64],
     prepared: &PreparedImpedanceData,
-) -> Result<CandidateFitResult, String> {
+) -> Result<CandidateFitResult, FittingError> {
     let parameter_count = circuit.count_total_params();
 
-    let (
-        fitted_parameters,
-        parameter_names,
-        parameter_units,
-        fitted_z_re,
-        fitted_z_im,
-        fitted_magnitude,
-        fitted_phase,
-    ) = fit_circuit_with_circuit(circuit, frequencies, prepared)?;
+    let fit = fit_circuit_with_circuit(circuit, frequencies, prepared)?;
+    let fitted_z_re = fit.fitted_z_re;
+    let fitted_z_im = fit.fitted_z_im;
+    let fitted_magnitude = fit.fitted_magnitude;
+    let fitted_phase = fit.fitted_phase;
 
     let point_count = frequencies
         .len()
@@ -134,7 +131,9 @@ fn score_parsed_circuit(
         .min(fitted_z_im.len());
 
     if point_count == 0 {
-        return Err("candidate fit did not produce any impedance points".to_string());
+        return Err(FittingError::invalid_input(
+            "candidate fit did not produce any impedance points",
+        ));
     }
 
     let chi_square = chi_square(z_real, z_imag, &fitted_z_re, &fitted_z_im);
@@ -147,9 +146,9 @@ fn score_parsed_circuit(
         bic,
         weighted_rmse,
         parameter_count,
-        fitted_parameters,
-        parameter_names,
-        parameter_units,
+        fitted_parameters: fit.fitted_parameters,
+        parameter_names: fit.parameter_names,
+        parameter_units: fit.parameter_units,
         fitted_z_re,
         fitted_z_im,
         fitted_magnitude,

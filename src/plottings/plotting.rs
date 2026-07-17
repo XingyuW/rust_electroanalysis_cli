@@ -5,6 +5,7 @@
     clippy::unnecessary_map_or
 )]
 
+use crate::domain::PlottingError;
 use crate::regression_mod::{LinearFit, RegressionKind, compute_regression_with_fit};
 use image::RgbaImage;
 use plotters::coord::Shift;
@@ -249,7 +250,7 @@ pub trait PlotDataSeries {
             .collect()
     }
 
-    fn plot_series(&self) -> Result<Vec<PlotSeries>, String> {
+    fn plot_series(&self) -> Result<Vec<PlotSeries>, PlottingError> {
         Ok(vec![PlotSeries::experimental(
             self.label().to_string(),
             self.points(),
@@ -565,114 +566,144 @@ impl PublicationConfig {
     /// before chart construction.
     ///
     /// Returns descriptive string errors for user-facing config diagnostics.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), crate::domain::ConfigurationError> {
         if !self.dpi.is_finite() || self.dpi <= 0.0 {
-            return Err("invalid dpi: expected a positive finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid dpi: expected a positive finite value",
+            ));
         }
         if !self.width_inches.is_finite() || self.width_inches <= 0.0 {
-            return Err("invalid width_inches: expected a positive finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid width_inches: expected a positive finite value",
+            ));
         }
         if !self.height_inches.is_finite() || self.height_inches <= 0.0 {
-            return Err("invalid height_inches: expected a positive finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid height_inches: expected a positive finite value",
+            ));
         }
         if !self.font_size_pt.is_finite() || self.font_size_pt <= 0.0 {
-            return Err("invalid font_size_pt: expected a positive finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid font_size_pt: expected a positive finite value",
+            ));
         }
         if self.line_width == 0 {
-            return Err("invalid line_width: expected a value greater than zero".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid line_width: expected a value greater than zero",
+            ));
         }
         if !self.plot_ratio_x.is_finite() || self.plot_ratio_x <= 0.0 {
-            return Err("invalid plot_ratio_x: expected a positive finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid plot_ratio_x: expected a positive finite value",
+            ));
         }
         if !self.plot_ratio_y.is_finite() || self.plot_ratio_y <= 0.0 {
-            return Err("invalid plot_ratio_y: expected a positive finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid plot_ratio_y: expected a positive finite value",
+            ));
         }
         if !self.legend_font_ratio.is_finite() || self.legend_font_ratio <= 0.0 {
-            return Err("invalid legend_font_ratio: expected a positive finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid legend_font_ratio: expected a positive finite value",
+            ));
         }
         if !self.x_tick_scale.is_finite() || self.x_tick_scale <= 0.0 {
-            return Err("invalid x_tick_scale: expected a positive finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid x_tick_scale: expected a positive finite value",
+            ));
         }
         if !self.y_tick_scale.is_finite() || self.y_tick_scale <= 0.0 {
-            return Err("invalid y_tick_scale: expected a positive finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid y_tick_scale: expected a positive finite value",
+            ));
         }
         if self.experimental_marker_radius <= 0 {
-            return Err(
-                "invalid experimental_marker_radius: expected a value greater than zero"
-                    .to_string(),
-            );
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid experimental_marker_radius: expected a value greater than zero",
+            ));
         }
         if let Some(width) = self.experimental_line_width {
             if width == 0 {
-                return Err(
-                    "invalid experimental_line_width: expected a value greater than zero"
-                        .to_string(),
-                );
+                return Err(crate::domain::ConfigurationError::invalid(
+                    "invalid experimental_line_width: expected a value greater than zero",
+                ));
             }
         }
         if let Some(width) = self.fitted_line_width {
             if width == 0 {
-                return Err(
-                    "invalid fitted_line_width: expected a value greater than zero".to_string(),
-                );
+                return Err(crate::domain::ConfigurationError::invalid(
+                    "invalid fitted_line_width: expected a value greater than zero",
+                ));
             }
         }
         if !self.bar_width_ratio.is_finite() || self.bar_width_ratio <= 0.0 {
-            return Err("invalid bar_width_ratio: expected a positive finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid bar_width_ratio: expected a positive finite value",
+            ));
         }
         if !self.fill_baseline.is_finite() {
-            return Err("invalid fill_baseline: expected a finite value".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid fill_baseline: expected a finite value",
+            ));
         }
         if !self.fill_alpha.is_finite() || !(0.0..=1.0).contains(&self.fill_alpha) {
-            return Err("invalid fill_alpha: expected a finite value in [0, 1]".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid fill_alpha: expected a finite value in [0, 1]",
+            ));
         }
         if !self.pie_min_label_percentage.is_finite() || self.pie_min_label_percentage < 0.0 {
-            return Err(
-                "invalid pie_min_label_percentage: expected a finite value >= 0".to_string(),
-            );
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid pie_min_label_percentage: expected a finite value >= 0",
+            ));
         }
         if let Some((xmin, xmax)) = self.x_lim {
             if !xmin.is_finite() || !xmax.is_finite() || xmin >= xmax {
-                return Err("invalid x_lim: expected finite values with min < max".to_string());
+                return Err(crate::domain::ConfigurationError::invalid(
+                    "invalid x_lim: expected finite values with min < max",
+                ));
             }
         }
         if let Some((ymin, ymax)) = self.y_lim {
             if !ymin.is_finite() || !ymax.is_finite() || ymin >= ymax {
-                return Err("invalid y_lim: expected finite values with min < max".to_string());
+                return Err(crate::domain::ConfigurationError::invalid(
+                    "invalid y_lim: expected finite values with min < max",
+                ));
             }
         }
 
         // Axis scale validation
         if let AxisScale::Log { base } = self.x_scale {
             if !base.is_finite() || base <= 1.0 {
-                return Err(
-                    "invalid x_scale log base: must be a finite value greater than 1.0".to_string(),
-                );
+                return Err(crate::domain::ConfigurationError::invalid(
+                    "invalid x_scale log base: must be a finite value greater than 1.0",
+                ));
             }
         }
         if let AxisScale::Log { base } = self.y_scale {
             if !base.is_finite() || base <= 1.0 {
-                return Err(
-                    "invalid y_scale log base: must be a finite value greater than 1.0".to_string(),
-                );
+                return Err(crate::domain::ConfigurationError::invalid(
+                    "invalid y_scale log base: must be a finite value greater than 1.0",
+                ));
             }
         }
 
         // Scientific-notation threshold validation
         if !self.sci_notation_threshold_x.is_finite() || self.sci_notation_threshold_x <= 0.0 {
-            return Err(
-                "invalid sci_notation_threshold_x: must be a positive finite value".to_string(),
-            );
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid sci_notation_threshold_x: must be a positive finite value",
+            ));
         }
         if !self.sci_notation_threshold_y.is_finite() || self.sci_notation_threshold_y <= 0.0 {
-            return Err(
-                "invalid sci_notation_threshold_y: must be a positive finite value".to_string(),
-            );
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid sci_notation_threshold_y: must be a positive finite value",
+            ));
         }
 
         // PNG supersampling scale factor
         if self.png_scale_factor == 0 {
-            return Err("invalid png_scale_factor: expected a value >= 1".to_string());
+            return Err(crate::domain::ConfigurationError::invalid(
+                "invalid png_scale_factor: expected a value >= 1",
+            ));
         }
 
         Ok(())
@@ -1320,7 +1351,7 @@ fn transform_rendered_series(
     rendered_series: &[Vec<PlotSeries>],
     x_scale: AxisScale,
     y_scale: AxisScale,
-) -> Result<Vec<Vec<PlotSeries>>, Box<dyn Error>> {
+) -> Result<Vec<Vec<PlotSeries>>, PlottingError> {
     rendered_series
         .iter()
         .map(|group| {
@@ -1335,9 +1366,9 @@ fn transform_rendered_series(
                                 AxisScale::Linear => *x,
                                 AxisScale::Log { base } => {
                                     if *x <= 0.0 {
-                                        return Err(format!(
+                                        return Err(PlottingError::data(format!(
                                             "log x-axis requires positive data values (got {x})"
-                                        ));
+                                        )));
                                     }
                                     x.log(base)
                                 }
@@ -1346,16 +1377,16 @@ fn transform_rendered_series(
                                 AxisScale::Linear => *y,
                                 AxisScale::Log { base } => {
                                     if *y <= 0.0 {
-                                        return Err(format!(
+                                        return Err(PlottingError::data(format!(
                                             "log y-axis requires positive data values (got {y})"
-                                        ));
+                                        )));
                                     }
                                     y.log(base)
                                 }
                             };
                             Ok((tx, ty))
                         })
-                        .collect::<Result<Vec<_>, String>>()?;
+                        .collect::<Result<Vec<_>, PlottingError>>()?;
                     Ok(PlotSeries {
                         label: series.label.clone(),
                         points: new_points,
@@ -1363,10 +1394,9 @@ fn transform_rendered_series(
                         fit_info: series.fit_info.clone(),
                     })
                 })
-                .collect::<Result<Vec<_>, String>>()
+                .collect::<Result<Vec<_>, PlottingError>>()
         })
-        .collect::<Result<Vec<_>, String>>()
-        .map_err(|e| -> Box<dyn Error> { e.into() })
+        .collect::<Result<Vec<_>, PlottingError>>()
 }
 
 /// Format a single tick-label value for display on a chart axis.

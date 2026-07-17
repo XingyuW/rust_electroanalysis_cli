@@ -5,6 +5,7 @@
 
 use super::elements::Constraint;
 use super::elements::ElementType;
+use crate::domain::FittingError;
 use nom::{
     IResult, Parser,
     branch::alt,
@@ -219,10 +220,14 @@ fn parse_node(input: &str) -> IResult<&str, CircuitNode> {
 }
 
 /// Parses a circuit string (e.g., "R0-p(C1,R2)") into a CircuitNode AST.
-pub fn parse_circuit_string(input: &str) -> Result<CircuitNode, String> {
-    let (remaining, mut node) = parse_node(input).map_err(|e| e.to_string())?;
+pub fn parse_circuit_string(input: &str) -> Result<CircuitNode, FittingError> {
+    let (remaining, mut node) =
+        parse_node(input).map_err(|e| FittingError::circuit_parse(e.to_string()))?;
     if !remaining.is_empty() {
-        return Err(format!("Unparsed input: {}", remaining));
+        return Err(FittingError::circuit_parse(format!(
+            "Unparsed input: {}",
+            remaining
+        )));
     }
     let mut idx = 0;
     node.assign_indices(&mut idx);

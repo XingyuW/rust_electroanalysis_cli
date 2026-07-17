@@ -9,6 +9,8 @@ use rayon::prelude::*;
 use std::cmp::Ordering;
 use std::f64::consts::PI;
 
+use crate::domain::FittingError;
+
 pub mod circuit_models;
 pub mod circuits;
 pub mod ecm_candidate;
@@ -20,6 +22,7 @@ pub mod fitting;
 pub mod pinn_optimizer;
 pub mod reporting;
 
+pub use crate::results::CircuitFitResult;
 pub use circuit_models::{
     CircuitModelContext, CircuitModelResolver, CircuitModelRule, DEFAULT_CIRCUIT_MODEL_CONFIG_PATH,
     DEFAULT_EIS_CIRCUIT_MODEL, FitRankingMetric, ModelSelectionConfig,
@@ -45,19 +48,8 @@ pub use pinn_optimizer::{PinnConfig, PinnOptimizer, PinnResult, compute_aic, com
 pub use reporting::{
     CircuitCompositionReport, CircuitElementBreakdown, CircuitElementCount,
     CircuitElementParameterValue, describe_fitted_circuit, format_circuit_composition_report,
-    format_fitted_circuit_composition,
+    format_circuit_fit_report, format_fitted_circuit_composition,
 };
-
-// Type aliases to reduce complexity
-pub type FitCircuitResult = (
-    Vec<f64>,
-    Vec<String>,
-    Vec<String>,
-    Vec<f64>,
-    Vec<f64>,
-    Vec<f64>,
-    Vec<f64>,
-);
 
 pub type LinKkResult = (usize, f64, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
 
@@ -81,7 +73,7 @@ pub fn fit_circuit(
     z_real: &[f64],
     z_imag: &[f64],
     phase_deg: &[f64],
-) -> Result<FitCircuitResult, String> {
+) -> Result<CircuitFitResult, FittingError> {
     validate_input_lengths(frequencies, z_real, z_imag, phase_deg)?;
 
     let prepared = prepare_impedance_data(frequencies, z_real, z_imag, phase_deg)?;
@@ -93,7 +85,7 @@ pub(crate) fn fit_circuit_with_circuit(
     circuit: &CircuitNode,
     frequencies: &[f64],
     prepared: &PreparedImpedanceData,
-) -> Result<FitCircuitResult, String> {
+) -> Result<CircuitFitResult, FittingError> {
     let constraints = circuit.get_constraints();
     let bounds = circuit.get_bounds();
 
@@ -137,7 +129,7 @@ pub(crate) fn fit_circuit_with_circuit(
     let best_result = select_best_result(evaluated_guesses);
     let fitted_params_physical = best_result
         .map(|(_, params, _)| params)
-        .ok_or_else(|| "optimizer failed to produce a fit".to_string())?;
+        .ok_or_else(|| FittingError::optimizer("optimizer failed to produce a fit"))?;
 
     let param_names = circuit.get_param_names();
     let param_units = circuit.get_param_units();
@@ -156,15 +148,15 @@ pub(crate) fn fit_circuit_with_circuit(
         fitted_phase.push(z.im.atan2(z.re).to_degrees());
     }
 
-    Ok((
-        fitted_params_physical,
-        param_names,
-        param_units,
-        fitted_real,
-        fitted_imag,
-        fitted_mag,
+    Ok(CircuitFitResult {
+        fitted_parameters: fitted_params_physical,
+        parameter_names: param_names,
+        parameter_units: param_units,
+        fitted_z_re: fitted_real,
+        fitted_z_im: fitted_imag,
+        fitted_magnitude: fitted_mag,
         fitted_phase,
-    ))
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -182,7 +174,7 @@ pub(crate) fn prepare_impedance_data(
     z_real: &[f64],
     z_imag: &[f64],
     phase_deg: &[f64],
-) -> Result<PreparedImpedanceData, String> {
+) -> Result<PreparedImpedanceData, FittingError> {
     let mut rows = Vec::new();
 
     for idx in 0..frequencies.len() {
@@ -201,7 +193,9 @@ pub(crate) fn prepare_impedance_data(
     }
 
     if rows.len() < 3 {
-        return Err("not enough valid impedance points after preprocessing".to_string());
+        return Err(FittingError::invalid_input(
+            "not enough valid impedance points after preprocessing",
+        ));
     }
 
     rows.sort_by(|lhs, rhs| {
@@ -419,7 +413,7 @@ pub fn lin_kk(
     z_imag: &[f64],
     c: f64,
     max_m: usize,
-) -> Result<LinKkResult, String> {
+) -> Result<LinKkResult, FittingError> {
     validate_input_lengths(frequencies, z_real, z_imag, &[])?;
     Ok(lin_kk_solver(frequencies, z_real, z_imag, c, max_m))
 }
@@ -429,26 +423,26 @@ pub(crate) fn validate_input_lengths(
     z_real: &[f64],
     z_imag: &[f64],
     phase_deg: &[f64],
-) -> Result<(), String> {
+) -> Result<(), FittingError> {
     if frequencies.is_empty() {
-        return Err("frequencies cannot be empty".to_string());
+        return Err(FittingError::invalid_input("frequencies cannot be empty"));
     }
 
     if frequencies.len() != z_real.len() || frequencies.len() != z_imag.len() {
-        return Err(format!(
+        return Err(FittingError::invalid_input(format!(
             "frequencies, z_real, and z_imag must have the same length; got {}, {}, {}",
             frequencies.len(),
             z_real.len(),
             z_imag.len()
-        ));
+        )));
     }
 
     if !phase_deg.is_empty() && frequencies.len() != phase_deg.len() {
-        return Err(format!(
+        return Err(FittingError::invalid_input(format!(
             "phase_deg must have the same length as frequencies when provided; got {} and {}",
             phase_deg.len(),
             frequencies.len()
-        ));
+        )));
     }
 
     Ok(())
@@ -556,10 +550,10 @@ mod tests {
             phase.push(parts[4].parse::<f64>().expect("phase"));
         }
 
-        let (_, _, _, fitted_real, fitted_imag, _, _) =
+        let fit =
             fit_circuit("R0-p(CPE1,R1)", &freq, &z_real, &z_imag, &phase).expect("fit dataset");
 
-        let error = weighted_rmse(&z_real, &z_imag, &fitted_real, &fitted_imag);
+        let error = weighted_rmse(&z_real, &z_imag, &fit.fitted_z_re, &fit.fitted_z_im);
         assert!(error < 0.35, "weighted RMSE too high: {error}");
     }
 
@@ -591,10 +585,18 @@ mod tests {
 
     #[test]
     fn generalized_warburg_outperforms_fixed_warburg_for_ism_dataset() {
-        let data = crate::data_file::chi_file::EISData::parse_file(
+        let fixture = std::path::Path::new(
             "/Users/xingyuwang/ProjectOngoing/rust_plots/data/EIS/20260312/20260312_QD-Li-ISM-2_EIS (0.1M).csv",
-        )
-        .expect("parse li dataset");
+        );
+        if !fixture.exists() {
+            eprintln!(
+                "skipping external ISM comparison fixture: {}",
+                fixture.display()
+            );
+            return;
+        }
+        let data =
+            crate::data_file::chi_file::EISData::parse_file(fixture).expect("parse li dataset");
 
         let baseline_fit = data
             .fit_circuit_for_model("R0-p(CPE1,R1)")

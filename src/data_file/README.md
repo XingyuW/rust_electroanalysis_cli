@@ -19,3 +19,7 @@
 
 - Consumed by `plot_runner.rs` and `search_runner.rs`.
 - Type exports are re-exported from `src/data_file/lib.rs` and `src/lib.rs`.
+
+Parsing failures use the typed `DataParsingError` rather than stringly typed
+results. Fit-related errors are preserved through the error chain when a
+parsed EIS dataset is passed to the impedance fitter.

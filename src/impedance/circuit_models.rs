@@ -9,8 +9,9 @@
 
 use serde::Deserialize;
 use std::collections::BTreeMap;
-use std::io;
 use std::path::Path;
+
+use crate::domain::ConfigurationError;
 
 /// Fallback circuit expression used when no explicit/model-rule match exists.
 pub const DEFAULT_EIS_CIRCUIT_MODEL: &str = "R0-p(CPE1,R1)";
@@ -198,25 +199,23 @@ impl CircuitModelResolver {
     }
 
     /// Load resolver from a TOML config file.
-    pub fn from_config_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let config_text = std::fs::read_to_string(path)?;
-        let config: CircuitModelResolverConfig = toml::from_str(&config_text).map_err(|error| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("failed to parse circuit model config: {error}"),
-            )
-        })?;
+    pub fn from_config_file<P: AsRef<Path>>(path: P) -> Result<Self, ConfigurationError> {
+        let path = path.as_ref();
+        let config_text =
+            std::fs::read_to_string(path).map_err(|error| ConfigurationError::io(path, error))?;
+        let config: CircuitModelResolverConfig =
+            toml::from_str(&config_text).map_err(|error| ConfigurationError::parse(path, error))?;
 
         Ok(Self::from_config(config))
     }
 
     /// Load resolver from the default workspace config path.
-    pub fn from_default_config_file() -> io::Result<Self> {
+    pub fn from_default_config_file() -> Result<Self, ConfigurationError> {
         Self::from_config_file(DEFAULT_CIRCUIT_MODEL_CONFIG_PATH)
     }
 
     /// Load resolver from default path if present; otherwise use defaults.
-    pub fn load_or_default() -> io::Result<Self> {
+    pub fn load_or_default() -> Result<Self, ConfigurationError> {
         let default_path = Path::new(DEFAULT_CIRCUIT_MODEL_CONFIG_PATH);
         if default_path.exists() {
             Self::from_default_config_file()
@@ -231,7 +230,7 @@ impl CircuitModelResolver {
     }
 
     /// Load resolver from default path, then fallback to legacy root path.
-    pub fn from_default_or_legacy_config_file() -> io::Result<Self> {
+    pub fn from_default_or_legacy_config_file() -> Result<Self, ConfigurationError> {
         let default_path = Path::new(DEFAULT_CIRCUIT_MODEL_CONFIG_PATH);
         if default_path.exists() {
             Self::from_config_file(default_path)

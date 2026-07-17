@@ -6,7 +6,8 @@
 //! * **Regular plots** – CHI timeseries / Pb-sensor diagrams produced by
 //!   `chi_plot`.
 
-use rust_plots::{
+use crate::runners::RunnerError;
+use crate::{
     data_file::{
         ElectrochemData, IntoPlotData, PlotData,
         value_transform::{AxisTransforms, regression_axis_term},
@@ -42,7 +43,7 @@ pub enum PlotRunLogLevel {
 pub fn run_eis_plots(
     workspace_dir: &Path,
     plot_config: &LoadedPlotConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), RunnerError> {
     run_eis_plots_with_logger(workspace_dir, plot_config, |level, message| match level {
         PlotRunLogLevel::Info => println!("{message}"),
         PlotRunLogLevel::Warning => eprintln!("{message}"),
@@ -53,7 +54,7 @@ pub fn run_eis_plots_with_logger<F>(
     workspace_dir: &Path,
     plot_config: &LoadedPlotConfig,
     mut log: F,
-) -> Result<(), Box<dyn std::error::Error>>
+) -> Result<(), RunnerError>
 where
     F: FnMut(PlotRunLogLevel, &str),
 {
@@ -202,7 +203,7 @@ where
 pub fn run_regular_plots(
     workspace_dir: &Path,
     plot_config: &LoadedPlotConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), RunnerError> {
     run_regular_plots_with_logger(workspace_dir, plot_config, |level, message| match level {
         PlotRunLogLevel::Info => println!("{message}"),
         PlotRunLogLevel::Warning => eprintln!("{message}"),
@@ -213,7 +214,7 @@ pub fn run_regular_plots_with_logger<F>(
     workspace_dir: &Path,
     plot_config: &LoadedPlotConfig,
     mut log: F,
-) -> Result<(), Box<dyn std::error::Error>>
+) -> Result<(), RunnerError>
 where
     F: FnMut(PlotRunLogLevel, &str),
 {
@@ -490,7 +491,7 @@ where
 pub fn run_generic_plots(
     workspace_dir: &Path,
     plot_config: &LoadedPlotConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), RunnerError> {
     run_generic_plots_with_logger(workspace_dir, plot_config, |level, message| match level {
         PlotRunLogLevel::Info => println!("{message}"),
         PlotRunLogLevel::Warning => eprintln!("{message}"),
@@ -501,7 +502,7 @@ pub fn run_generic_plots_with_logger<F>(
     workspace_dir: &Path,
     plot_config: &LoadedPlotConfig,
     mut log: F,
-) -> Result<(), Box<dyn std::error::Error>>
+) -> Result<(), RunnerError>
 where
     F: FnMut(PlotRunLogLevel, &str),
 {
@@ -969,7 +970,7 @@ fn format_x_value_label(x: f64) -> String {
 
 fn apply_optional_selection(
     datasets: &[&PlotData],
-    selection: Option<&rust_plots::data_file::PointSelection>,
+    selection: Option<&crate::data_file::PointSelection>,
 ) -> Result<Vec<PlotData>, Box<dyn std::error::Error>> {
     match selection {
         None => Ok(datasets.iter().map(|d| (*d).clone()).collect()),

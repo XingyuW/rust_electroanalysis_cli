@@ -33,6 +33,7 @@
 use crate::DEFAULT_LOG_BASE;
 use crate::data_file::PointSelection;
 use crate::data_file::value_transform::{AxisTransforms, TransformKind, resolve_axis_transforms};
+use crate::domain::ConfigurationError;
 use crate::plottings::{
     AxisScale, AxisScaleKind, FillBetweenMode, PieValueLabelMode, PlotColor, PlotLegendPosition,
     PlotLineStyle, PlotMarkerShape, PlotType, PublicationConfig, RegressionAnnotationLayout,
@@ -221,7 +222,7 @@ impl PlotJobStyle {
     pub fn apply_to_individual(
         &self,
         base: &PublicationConfig,
-    ) -> Result<PublicationConfig, String> {
+    ) -> Result<PublicationConfig, ConfigurationError> {
         let common = self.style.apply_to(base)?;
         self.individual_style.apply_to(&common)
     }
@@ -231,7 +232,10 @@ impl PlotJobStyle {
     /// Applies `style` then `combined_style` on top of `base` (the domain
     /// default config from `eis_plot.rs` / `chi_plot.rs`).  Fields absent
     /// from both TOML layers are inherited from `base` unchanged.
-    pub fn apply_to_combined(&self, base: &PublicationConfig) -> Result<PublicationConfig, String> {
+    pub fn apply_to_combined(
+        &self,
+        base: &PublicationConfig,
+    ) -> Result<PublicationConfig, ConfigurationError> {
         let common = self.style.apply_to(base)?;
         self.combined_style.apply_to(&common)
     }
@@ -246,7 +250,9 @@ impl PlotJobStyle {
     ///
     /// Returns an error string if both `plot_positions` and `plot_values` are
     /// set in the same scope (ambiguous selection mode).
-    pub fn resolve_individual_selection(&self) -> Result<Option<PointSelection>, String> {
+    pub fn resolve_individual_selection(
+        &self,
+    ) -> Result<Option<PointSelection>, ConfigurationError> {
         let base = self.style.resolve_selection()?;
         let specific = self.individual_style.resolve_selection()?;
         Ok(specific.or(base))
@@ -262,7 +268,7 @@ impl PlotJobStyle {
     ///
     /// Returns an error string if both `plot_positions` and `plot_values` are
     /// set in the same scope (ambiguous selection mode).
-    pub fn resolve_combined_selection(&self) -> Result<Option<PointSelection>, String> {
+    pub fn resolve_combined_selection(&self) -> Result<Option<PointSelection>, ConfigurationError> {
         let base = self.style.resolve_selection()?;
         let specific = self.combined_style.resolve_selection()?;
         Ok(specific.or(base))
@@ -271,7 +277,7 @@ impl PlotJobStyle {
     /// Resolve axis transforms for **individual** plots.
     ///
     /// Per-axis fields in `individual_style` override those in `style`.
-    pub fn resolve_individual_transforms(&self) -> Result<AxisTransforms, String> {
+    pub fn resolve_individual_transforms(&self) -> Result<AxisTransforms, ConfigurationError> {
         let merged = self.style.merged_with(&self.individual_style);
         merged.resolve_transforms()
     }
@@ -279,7 +285,7 @@ impl PlotJobStyle {
     /// Resolve axis transforms for **combined** plots.
     ///
     /// Per-axis fields in `combined_style` override those in `style`.
-    pub fn resolve_combined_transforms(&self) -> Result<AxisTransforms, String> {
+    pub fn resolve_combined_transforms(&self) -> Result<AxisTransforms, ConfigurationError> {
         let merged = self.style.merged_with(&self.combined_style);
         merged.resolve_transforms()
     }
@@ -905,11 +911,12 @@ impl RawPlotStyle {
     ///
     /// Returns an error string if **both** `plot_positions` and `plot_values`
     /// are set in the same scope — setting both is ambiguous.
-    pub fn resolve_selection(&self) -> Result<Option<PointSelection>, String> {
+    pub fn resolve_selection(&self) -> Result<Option<PointSelection>, ConfigurationError> {
         match (&self.plot_positions, &self.plot_values) {
-            (Some(_), Some(_)) => Err("style block sets both `plot_positions` and `plot_values`; \
-                 only one selection mode may be active per scope"
-                .to_string()),
+            (Some(_), Some(_)) => Err(ConfigurationError::invalid(
+                "style block sets both `plot_positions` and `plot_values`; \
+                 only one selection mode may be active per scope",
+            )),
             (Some(positions), None) => Ok(Some(PointSelection::Positions(positions.clone()))),
             (None, Some(values)) => Ok(Some(PointSelection::XValues(values.clone()))),
             (None, None) => Ok(None),
@@ -920,7 +927,7 @@ impl RawPlotStyle {
     ///
     /// Returns an [`AxisTransforms`] that can be applied to data just before
     /// plotting.  Absent fields yield no transform for that axis.
-    pub fn resolve_transforms(&self) -> Result<AxisTransforms, String> {
+    pub fn resolve_transforms(&self) -> Result<AxisTransforms, ConfigurationError> {
         resolve_axis_transforms(
             self.x_transform,
             self.x_transform_base,
@@ -933,7 +940,10 @@ impl RawPlotStyle {
         )
     }
 
-    pub fn apply_to(&self, base: &PublicationConfig) -> Result<PublicationConfig, String> {
+    pub fn apply_to(
+        &self,
+        base: &PublicationConfig,
+    ) -> Result<PublicationConfig, ConfigurationError> {
         let mut config = base.clone();
 
         if let Some(value) = self.dpi {
@@ -1050,9 +1060,9 @@ impl RawPlotStyle {
         if matches!(self.x_axis_scale, Some(AxisScaleKind::Linear))
             && self.x_axis_log_base.is_some()
         {
-            return Err(
-                "x_axis_log_base cannot be combined with x_axis_scale = \"linear\"".to_string(),
-            );
+            return Err(ConfigurationError::invalid(
+                "x_axis_log_base cannot be combined with x_axis_scale = \"linear\"",
+            ));
         }
         if let Some(scale_kind) = self.x_axis_scale {
             config.x_scale = match scale_kind {
@@ -1070,9 +1080,9 @@ impl RawPlotStyle {
         if matches!(self.y_axis_scale, Some(AxisScaleKind::Linear))
             && self.y_axis_log_base.is_some()
         {
-            return Err(
-                "y_axis_log_base cannot be combined with y_axis_scale = \"linear\"".to_string(),
-            );
+            return Err(ConfigurationError::invalid(
+                "y_axis_log_base cannot be combined with y_axis_scale = \"linear\"",
+            ));
         }
         if let Some(scale_kind) = self.y_axis_scale {
             config.y_scale = match scale_kind {
@@ -1158,7 +1168,7 @@ pub enum RawPlotColor {
 }
 
 impl RawPlotColor {
-    fn to_plot_color(&self) -> Result<PlotColor, String> {
+    fn to_plot_color(&self) -> Result<PlotColor, ConfigurationError> {
         match self {
             Self::Hex(value) => parse_hex_color(value),
             Self::Rgb([red, green, blue]) => Ok(PlotColor::rgb(*red, *green, *blue)),
@@ -1185,7 +1195,7 @@ impl LoadedPlotConfig {
         &self,
         kind: PlotJobKind,
         workspace_dir: &Path,
-    ) -> Result<Vec<PlotJob>, String> {
+    ) -> Result<Vec<PlotJob>, ConfigurationError> {
         self.config
             .resolve_jobs(kind, &self.base_dir, workspace_dir)
     }
@@ -1331,19 +1341,20 @@ impl PlotConfig {
     ///    arrays are converted to single-table `[eis]`/etc. entries and any
     ///    per-job path fields are moved to `[shared]`.
     /// 2. **Struct-level**: no-op (kept for compatibility hooks).
-    pub fn from_toml_str(text: &str) -> Result<Self, String> {
-        let raw: toml::Value =
-            toml::from_str(text).map_err(|err| format!("failed to parse TOML: {err}"))?;
+    pub fn from_toml_str(text: &str) -> Result<Self, ConfigurationError> {
+        let raw: toml::Value = toml::from_str(text)
+            .map_err(|err| ConfigurationError::invalid(format!("failed to parse TOML: {err}")))?;
         let migrated = migrate_legacy_toml_value(raw);
-        let config: Self = toml::Value::try_into(migrated)
-            .map_err(|err: toml::de::Error| format!("failed to load config: {err}"))?;
+        let config: Self = toml::Value::try_into(migrated).map_err(|err: toml::de::Error| {
+            ConfigurationError::invalid(format!("failed to load config: {err}"))
+        })?;
         Ok(config)
     }
 
     pub fn load(
         workspace_dir: &Path,
         override_path: Option<&Path>,
-    ) -> Result<LoadedPlotConfig, String> {
+    ) -> Result<LoadedPlotConfig, ConfigurationError> {
         let config_path = override_path.map(|path| resolve_cli_config_path(path, workspace_dir));
         let default_path = workspace_dir.join(DEFAULT_PLOT_CONFIG_PATH);
         let legacy_default_path = workspace_dir.join(LEGACY_PLOT_CONFIG_PATH);
@@ -1362,10 +1373,10 @@ impl PlotConfig {
         };
 
         if override_path.is_some() && !resolved_path.exists() {
-            return Err(format!(
+            return Err(ConfigurationError::invalid(format!(
                 "plot config override does not exist: {}",
                 resolved_path.display()
-            ));
+            )));
         }
 
         if !resolved_path.exists() {
@@ -1378,7 +1389,7 @@ impl PlotConfig {
         }
 
         let config_text = fs::read_to_string(&resolved_path)
-            .map_err(|err| format!("failed to read {}: {err}", resolved_path.display()))?;
+            .map_err(|err| ConfigurationError::io(&resolved_path, err))?;
 
         if config_text.trim().is_empty() {
             return Ok(LoadedPlotConfig {
@@ -1403,10 +1414,10 @@ impl PlotConfig {
                 });
             }
             Err(error) => {
-                return Err(format!(
+                return Err(ConfigurationError::invalid(format!(
                     "failed to parse {}: {error}",
                     resolved_path.display()
-                ));
+                )));
             }
         };
 
@@ -1459,7 +1470,7 @@ impl PlotConfig {
         kind: PlotJobKind,
         config_base_dir: &Path,
         workspace_dir: &Path,
-    ) -> Result<Vec<PlotJob>, String> {
+    ) -> Result<Vec<PlotJob>, ConfigurationError> {
         let workflow_cfg: Option<&RawWorkflowConfig> = match kind {
             PlotJobKind::Eis => self.eis.as_ref(),
             PlotJobKind::RegularPlot => self.regular_plot.as_ref(),
@@ -1499,22 +1510,22 @@ impl PlotConfig {
         // Validate only when an explicit path was provided.
         if validate_input {
             if !input_dir.exists() {
-                return Err(format!(
+                return Err(ConfigurationError::invalid(format!(
                     "[shared].input_path does not exist: {}",
                     input_dir.display()
-                ));
+                )));
             }
             if input_is_directory && !input_dir.is_dir() {
-                return Err(format!(
+                return Err(ConfigurationError::invalid(format!(
                     "[shared].input_path is not a directory: {}",
                     input_dir.display()
-                ));
+                )));
             }
             if !input_is_directory && !input_dir.is_file() {
-                return Err(format!(
+                return Err(ConfigurationError::invalid(format!(
                     "[shared].input_path is not a file: {}",
                     input_dir.display()
-                ));
+                )));
             }
         }
 
@@ -1556,7 +1567,9 @@ impl PlotConfig {
         {
             Some(preset_name) => {
                 let preset = self.style_presets.get(preset_name).ok_or_else(|| {
-                    format!("[{kind_label}] references unknown style_preset '{preset_name}'")
+                    ConfigurationError::invalid(format!(
+                        "[{kind_label}] references unknown style_preset '{preset_name}'"
+                    ))
                 })?;
                 (
                     preset.style.clone(),
@@ -1594,7 +1607,7 @@ impl PlotConfig {
             combined_style: RawPlotStyle::default(),
         }
         .resolve_individual_selection()
-        .map_err(|e| format!("[{kind_label}]: {e}"))?;
+        .map_err(|e| ConfigurationError::invalid(format!("[{kind_label}]: {e}")))?;
 
         let combined_selection = PlotJobStyle {
             style: merged_base.clone(),
@@ -1602,7 +1615,7 @@ impl PlotConfig {
             combined_style: merged_combined.clone(),
         }
         .resolve_combined_selection()
-        .map_err(|e| format!("[{kind_label}]: {e}"))?;
+        .map_err(|e| ConfigurationError::invalid(format!("[{kind_label}]: {e}")))?;
 
         let individual_transforms = {
             let s = PlotJobStyle {
@@ -1611,7 +1624,7 @@ impl PlotConfig {
                 combined_style: RawPlotStyle::default(),
             };
             s.resolve_individual_transforms()
-                .map_err(|e| format!("[{kind_label}]: {e}"))?
+                .map_err(|e| ConfigurationError::invalid(format!("[{kind_label}]: {e}")))?
         };
 
         let combined_transforms = {
@@ -1621,7 +1634,7 @@ impl PlotConfig {
                 combined_style: merged_combined.clone(),
             };
             s.resolve_combined_transforms()
-                .map_err(|e| format!("[{kind_label}]: {e}"))?
+                .map_err(|e| ConfigurationError::invalid(format!("[{kind_label}]: {e}")))?
         };
 
         let (individual_assign_x, individual_assign_y) = {
@@ -1691,35 +1704,35 @@ fn resolve_path(value: &str, config_base_dir: &Path, workspace_dir: &Path) -> Pa
     }
 }
 
-fn parse_hex_color(value: &str) -> Result<PlotColor, String> {
+fn parse_hex_color(value: &str) -> Result<PlotColor, ConfigurationError> {
     let trimmed = value.trim();
     let hex = trimmed.strip_prefix('#').unwrap_or(trimmed);
     match hex.len() {
         6 => {
             let red = u8::from_str_radix(&hex[0..2], 16)
-                .map_err(|_| format!("invalid hex color '{value}'"))?;
+                .map_err(|_| ConfigurationError::invalid(format!("invalid hex color '{value}'")))?;
             let green = u8::from_str_radix(&hex[2..4], 16)
-                .map_err(|_| format!("invalid hex color '{value}'"))?;
+                .map_err(|_| ConfigurationError::invalid(format!("invalid hex color '{value}'")))?;
             let blue = u8::from_str_radix(&hex[4..6], 16)
-                .map_err(|_| format!("invalid hex color '{value}'"))?;
+                .map_err(|_| ConfigurationError::invalid(format!("invalid hex color '{value}'")))?;
             Ok(PlotColor::rgb(red, green, blue))
         }
         8 => {
             let red = u8::from_str_radix(&hex[0..2], 16)
-                .map_err(|_| format!("invalid hex color '{value}'"))?;
+                .map_err(|_| ConfigurationError::invalid(format!("invalid hex color '{value}'")))?;
             let green = u8::from_str_radix(&hex[2..4], 16)
-                .map_err(|_| format!("invalid hex color '{value}'"))?;
+                .map_err(|_| ConfigurationError::invalid(format!("invalid hex color '{value}'")))?;
             let blue = u8::from_str_radix(&hex[4..6], 16)
-                .map_err(|_| format!("invalid hex color '{value}'"))?;
+                .map_err(|_| ConfigurationError::invalid(format!("invalid hex color '{value}'")))?;
             let alpha = u8::from_str_radix(&hex[6..8], 16)
-                .map_err(|_| format!("invalid hex color '{value}'"))?
+                .map_err(|_| ConfigurationError::invalid(format!("invalid hex color '{value}'")))?
                 as f64
                 / 255.0;
             Ok(PlotColor::rgba(red, green, blue, alpha))
         }
-        _ => Err(format!(
+        _ => Err(ConfigurationError::invalid(format!(
             "invalid hex color '{value}'; use #RRGGBB or #RRGGBBAA"
-        )),
+        ))),
     }
 }
 
@@ -1958,7 +1971,7 @@ series_palette = ["#165E8Z"]
             .apply_to(&PublicationConfig::default())
             .expect_err("malformed hex should fail");
 
-        assert!(error.contains("invalid hex color"));
+        assert!(error.to_string().contains("invalid hex color"));
     }
 
     #[test]
@@ -2030,7 +2043,7 @@ style_preset = "missing"
             .resolve_jobs(PlotJobKind::Eis, &workspace, &workspace)
             .expect_err("unknown preset should fail");
 
-        assert!(error.contains("unknown style_preset 'missing'"));
+        assert!(error.to_string().contains("unknown style_preset 'missing'"));
     }
 
     #[test]
@@ -2046,7 +2059,7 @@ width_inches = 0.0
             .apply_to(&PublicationConfig::default())
             .expect_err("invalid width should fail");
 
-        assert!(error.contains("invalid width_inches"));
+        assert!(error.to_string().contains("invalid width_inches"));
     }
 
     #[test]
@@ -2062,7 +2075,7 @@ x_lim = [10.0, 1.0]
             .apply_to(&PublicationConfig::default())
             .expect_err("invalid x_lim should fail");
 
-        assert!(error.contains("invalid x_lim"));
+        assert!(error.to_string().contains("invalid x_lim"));
     }
 
     #[test]
@@ -2207,6 +2220,6 @@ x_axis_log_base = 2.0
             .apply_to(&PublicationConfig::default())
             .expect_err("linear axis plus log base should fail");
 
-        assert!(error.contains("x_axis_log_base"));
+        assert!(error.to_string().contains("x_axis_log_base"));
     }
 }

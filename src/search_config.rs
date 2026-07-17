@@ -1,5 +1,6 @@
 #![allow(clippy::collapsible_if)]
 
+use crate::domain::ConfigurationError;
 use crate::impedance::{EcmEvolutionConfig, EcmSearchConfig};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -54,7 +55,7 @@ impl RuntimeEcmSearchConfig {
     pub fn load(
         workspace_dir: &Path,
         override_path: Option<&Path>,
-    ) -> Result<LoadedEcmSearchConfig, String> {
+    ) -> Result<LoadedEcmSearchConfig, ConfigurationError> {
         let config_path = override_path.map(|path| resolve_cli_config_path(path, workspace_dir));
         let default_path = workspace_dir.join(DEFAULT_ECM_SEARCH_CONFIG_PATH);
         let legacy_default_path = workspace_dir.join(LEGACY_ECM_SEARCH_CONFIG_PATH);
@@ -73,10 +74,10 @@ impl RuntimeEcmSearchConfig {
         };
 
         if override_path.is_some() && !resolved_path.exists() {
-            return Err(format!(
+            return Err(ConfigurationError::invalid(format!(
                 "search config override does not exist: {}",
                 resolved_path.display()
-            ));
+            )));
         }
 
         if !resolved_path.exists() {
@@ -89,7 +90,7 @@ impl RuntimeEcmSearchConfig {
         }
 
         let config_text = fs::read_to_string(&resolved_path)
-            .map_err(|error| format!("failed to read {}: {error}", resolved_path.display()))?;
+            .map_err(|error| ConfigurationError::io(&resolved_path, error))?;
 
         if config_text.trim().is_empty() {
             return Ok(LoadedEcmSearchConfig {
@@ -114,10 +115,10 @@ impl RuntimeEcmSearchConfig {
                 });
             }
             Err(error) => {
-                return Err(format!(
+                return Err(ConfigurationError::invalid(format!(
                     "failed to parse {}: {error}",
                     resolved_path.display()
-                ));
+                )));
             }
         };
         config.validate()?;
@@ -144,54 +145,68 @@ impl RuntimeEcmSearchConfig {
     }
 
     /// Validate user-supplied numeric ranges before runtime resolution.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), ConfigurationError> {
         if let Some(value) = self.max_ranked_results {
             if value == 0 {
-                return Err("max_ranked_results must be greater than zero".to_string());
+                return Err(ConfigurationError::invalid(
+                    "max_ranked_results must be greater than zero",
+                ));
             }
         }
 
         if let Some(value) = self.evolution.population_size {
             if value == 0 {
-                return Err("evolution.population_size must be greater than zero".to_string());
+                return Err(ConfigurationError::invalid(
+                    "evolution.population_size must be greater than zero",
+                ));
             }
         }
 
         if let Some(value) = self.evolution.generation_limit {
             if value == 0 {
-                return Err("evolution.generation_limit must be greater than zero".to_string());
+                return Err(ConfigurationError::invalid(
+                    "evolution.generation_limit must be greater than zero",
+                ));
             }
         }
 
         if let Some(value) = self.evolution.num_individuals_per_parents {
             if value == 0 {
-                return Err(
-                    "evolution.num_individuals_per_parents must be greater than zero".to_string(),
-                );
+                return Err(ConfigurationError::invalid(
+                    "evolution.num_individuals_per_parents must be greater than zero",
+                ));
             }
         }
 
         if let Some(value) = self.evolution.selection_ratio {
             if !(0.0..=1.0).contains(&value) || value == 0.0 {
-                return Err("evolution.selection_ratio must be between 0.0 and 1.0".to_string());
+                return Err(ConfigurationError::invalid(
+                    "evolution.selection_ratio must be between 0.0 and 1.0",
+                ));
             }
         }
 
         if let Some(value) = self.evolution.mutation_rate {
             if !(0.0..=1.0).contains(&value) {
-                return Err("evolution.mutation_rate must be between 0.0 and 1.0".to_string());
+                return Err(ConfigurationError::invalid(
+                    "evolution.mutation_rate must be between 0.0 and 1.0",
+                ));
             }
         }
 
         if let Some(value) = self.evolution.reinsertion_ratio {
             if !(0.0..=1.0).contains(&value) || value == 0.0 {
-                return Err("evolution.reinsertion_ratio must be between 0.0 and 1.0".to_string());
+                return Err(ConfigurationError::invalid(
+                    "evolution.reinsertion_ratio must be between 0.0 and 1.0",
+                ));
             }
         }
 
         if let Some(value) = self.plotting.top_n {
             if value == 0 {
-                return Err("plotting.top_n must be greater than zero".to_string());
+                return Err(ConfigurationError::invalid(
+                    "plotting.top_n must be greater than zero",
+                ));
             }
         }
 
@@ -298,6 +313,7 @@ mod tests {
         assert!((resolved.evolution.mutation_rate - 0.4).abs() < f64::EPSILON);
         assert!((resolved.evolution.reinsertion_ratio - 0.75).abs() < f64::EPSILON);
         assert_eq!(resolved.max_ranked_results, 8);
+        assert_eq!(config.resolve_search_config(Some(3)).max_ranked_results, 3);
         assert_eq!(config.resolved_plot_top_n(), 3);
     }
 }
