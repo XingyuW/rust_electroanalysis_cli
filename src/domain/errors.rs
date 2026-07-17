@@ -63,6 +63,30 @@ pub enum DataParsingError {
     Configuration(#[from] ConfigurationError),
     #[error(transparent)]
     Fitting(#[from] FittingError),
+    #[error(transparent)]
+    Provenance(#[from] ProvenanceError),
+}
+
+/// Errors raised while hashing input/configuration files for provenance.
+#[derive(Debug, Error)]
+pub enum ProvenanceError {
+    #[error("provenance I/O error for {path}: {source}")]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    #[error("invalid provenance timestamp")]
+    Timestamp,
+}
+
+impl ProvenanceError {
+    pub fn io(path: impl Into<PathBuf>, source: io::Error) -> Self {
+        Self::Io {
+            path: path.into(),
+            source,
+        }
+    }
 }
 
 impl DataParsingError {

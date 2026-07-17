@@ -4,7 +4,10 @@
 //! strongly typed series (`ElectrochemData`, `EISData`) while preserving
 //! metadata used later by plotting and ECM search reporting.
 
-use crate::domain::{DataParsingError, FittingError, PlottingError};
+use crate::domain::{
+    DataParsingError, FittingError, MeasurementChannel, MultiChannelMeasurement, ParseDiagnostics,
+    PlottingError,
+};
 use crate::impedance;
 use crate::impedance::{
     CircuitModelContext, CircuitModelResolver, FitRankingMetric, format_fitted_circuit_composition,
@@ -336,6 +339,42 @@ pub struct ElectrochemData {
 }
 
 impl ElectrochemData {
+    pub fn parse_file_with_diagnostics<P: AsRef<Path>>(
+        path: P,
+    ) -> Result<(Self, ParseDiagnostics), DataParsingError> {
+        let path = path.as_ref();
+        let diagnostics = crate::data_file::parse_measurement_file(path)?.diagnostics;
+        Ok((Self::parse_file(path)?, diagnostics))
+    }
+
+    pub fn parse_file_series_with_diagnostics<P: AsRef<Path>>(
+        path: P,
+    ) -> Result<(Vec<Self>, ParseDiagnostics), DataParsingError> {
+        let path = path.as_ref();
+        let diagnostics = crate::data_file::parse_measurement_file(path)?.diagnostics;
+        Ok((Self::parse_file_series(path)?, diagnostics))
+    }
+
+    pub fn to_multi_channel_measurement(
+        &self,
+    ) -> Result<MultiChannelMeasurement, DataParsingError> {
+        if self.x_values.len() != self.y_values.len() {
+            return Err(DataParsingError::invalid(format!(
+                "electrochemical data has {} x values and {} y values",
+                self.x_values.len(),
+                self.y_values.len()
+            )));
+        }
+        MultiChannelMeasurement::new(
+            self.x_values.clone(),
+            vec![MeasurementChannel::from_values(
+                self.label.clone(),
+                "",
+                self.y_values.clone(),
+            )],
+        )
+    }
+
     pub fn series_count<P: AsRef<Path>>(path: P) -> Result<usize, DataParsingError> {
         let path = path.as_ref();
         let lines = read_nonempty_lines(path)?;
@@ -432,6 +471,14 @@ impl PlotDataSeries for ElectrochemData {
 
     fn y_values(&self) -> &[f64] {
         &self.y_values
+    }
+}
+
+impl TryFrom<ElectrochemData> for MultiChannelMeasurement {
+    type Error = DataParsingError;
+
+    fn try_from(data: ElectrochemData) -> Result<Self, Self::Error> {
+        data.to_multi_channel_measurement()
     }
 }
 

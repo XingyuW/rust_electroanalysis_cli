@@ -12,6 +12,11 @@
   - [Module Dependency Graph](#module-dependency-graph)
   - [Data Flow](#data-flow)
   - [Configuration Loading](#configuration-loading)
+- [Scientific Data Model](#scientific-data-model)
+  - [Core Types](#core-types)
+  - [Experiment TOML Schema](#experiment-toml-schema)
+  - [Data Validation and Diagnostics](#data-validation-and-diagnostics)
+  - [PlotData Compatibility](#plotdata-compatibility)
 - [CLI Usage](#cli-usage)
   - [Commands](#commands)
   - [Examples](#examples)
@@ -83,15 +88,103 @@ rust_electroanalysis_cli is designed for electrochemical researchers and analyst
 - **Score and rank** candidate circuits using statistical metrics (chi-squared, AIC/BIC, weighted RMSE)
 - **Export** results as plain-text reports, CSV rankings, and high-resolution figures
 
-The application is organized into three major subsystems:
+The application is organized into four major subsystems:
 
 | Subsystem | Purpose |
 |-----------|---------|
 | **Data file parser** (`data_file/`) | Reads CHI-format electrochemical files, extracts metadata and measurement columns |
+| **Scientific domain** (`domain/`) | Owns aligned multi-channel measurements, experiment metadata, diagnostics, and provenance |
 | **Impedance engine** (`impedance/`) | Circuit model AST, element equations, fitting, evolutionary search, scoring, and reporting |
 | **Plotting backend** (`plottings/`) | High-quality figure rendering in SVG + supersampled PNG, supporting 9 plot geometries |
 
 These are connected by typed workflow façades (`fitting/` and `runners/`) plus the existing orchestration layer (`plot_runner.rs`, `search_runner.rs`). TOML configuration and scientific algorithms remain in their existing modules.
+
+---
+
+## Scientific Data Model
+
+Phase 1 adds an experiment-oriented foundation without changing numerical
+fitting or the plotting renderer. Source data enters through `data_file`, is
+represented by the types in `domain`, and can still be projected into the
+existing `PlotData` type for current plotting workflows.
+
+### Core Types
+
+`MultiChannelMeasurement` stores a single shared `time` axis and one or more
+named `MeasurementChannel`s. Each channel has a unit, optional sensor/analyte
+identifiers, optional metadata, and `Vec<Option<f64>>` values. `None` preserves
+a missing reading at its original timestamp.
+
+`ElectrochemicalExperiment` adds the context needed for future ion-selective
+membrane analysis: `SensorMetadata`, optional `ReferenceMetadata`, a sample
+matrix, environmental series, ordered `ExperimentEvent`s, and
+`AnalysisProvenance`. The event model currently includes concentration steps,
+flow/temperature/ionic-strength changes, interferent additions, flush and
+reading boundaries, and manual annotations.
+
+### Experiment TOML Schema
+
+Experiment metadata is separate from plotting configuration and can be loaded
+with `load_experiment_metadata` or combined with a measurement using
+`data_file::load_experiment`:
+
+```toml
+experiment_id = "exp-001"
+sample_matrix = "aqueous buffer"
+
+[sensor]
+sensor_id = "sensor-7"
+sensor_type = "ion_selective_membrane"
+analyte = "K+"
+manufacturer = "Example Instruments"
+model = "ISE-1"
+
+[reference]
+reference_id = "ref-1"
+electrode_type = "Ag/AgCl"
+potential_unit = "V"
+
+[[environmental_data]]
+name = "temperature"
+unit = "C"
+time = [0.0, 1.0, 2.0]
+values = [25.0, 25.1, 25.1]
+
+[[events]]
+timestamp = 1.0
+kind = "concentration_step"
+value = 0.001
+unit = "mol/L"
+analyte = "K+"
+
+[[events]]
+timestamp = 0.0
+kind = "reading_start"
+annotation = "baseline"
+```
+
+Event records are validated and ordered by timestamp when an
+`ElectrochemicalExperiment` is constructed. The schema also accepts
+`environmental_series` as a compatibility alias for `environmental_data`.
+
+### Data Validation and Diagnostics
+
+The measurement constructor rejects an empty time axis, missing channels,
+non-finite timestamps, and channels whose value vectors do not align with the
+shared axis. Parsers retain valid rows and return `ParseDiagnostics` alongside
+the measurement. Diagnostics report total rows, successfully parsed rows,
+skipped and malformed rows, missing values, irregular sampling, duplicate
+timestamps, non-monotonic timestamps, and explanatory messages. These findings
+are visible to callers; malformed or incomplete input is not silently dropped.
+
+### PlotData Compatibility
+
+`data_file::measurement_to_plot_data` and `channel_to_plot_data` are one-way
+adapters from the scientific model to the existing `PlotData` container. They
+produce one plot series per measurement channel and include the channel unit
+in its label. Missing values are omitted only from this rendering projection;
+the original `MultiChannelMeasurement` and its diagnostics are unchanged. The
+plotting engine therefore remains unaware of all Phase 1 domain types.
 
 ---
 
@@ -121,7 +214,12 @@ rust_electroanalysis_cli/
     ├── main.rs                         # CLI binary entrypoint and workflow dispatch
     ├── lib.rs                          # Crate root — re-exports all public modules
     ├── cli.rs                          # clap derive CLI and legacy-flag normalization
-    ├── domain/                         # Shared typed CLI/config/data/fitting errors
+    ├── domain/                         # Scientific data, metadata, provenance, and typed errors
+    │   ├── measurement.rs               # Shared-axis multi-channel measurements
+    │   ├── experiment.rs                # Experiment metadata and timestamped events
+    │   ├── diagnostics.rs               # Parse and sampling diagnostics
+    │   ├── metadata.rs                  # Experiment TOML schema/loading
+    │   └── provenance.rs                # Input/config hashes and generation metadata
     ├── fitting/                        # Stable façade over the impedance fit pipeline
     ├── results/                        # Named scientific result structures
     ├── runners/                        # Thin plot, fit, and search workflow boundaries
@@ -135,6 +233,8 @@ rust_electroanalysis_cli/
     ├── data_file/                      # Data ingestion and normalization layer
     │   ├── lib.rs                      # Module facade — re-exports parsers and types
     │   ├── chi_file.rs                 # CHI-format file parser (ElectrochemData, EISData)
+    │   ├── measurement_parser.rs       # Generic/CHI parser into domain measurements
+    │   ├── measurement_adapter.rs      # Domain measurement → PlotData adapters
     │   ├── data_op.rs                  # Generic PlotData container, PointSelection, IntoPlotData
     │   └── value_transform.rs          # Axis transform resolution (log, neg-log, linear)
     │

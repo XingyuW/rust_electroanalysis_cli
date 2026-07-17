@@ -29,8 +29,11 @@ pub mod search_runner;
 pub mod workspace;
 
 pub use domain::{
-    ConfigurationError, DataParsingError, FittingError, PlottingError, ReportingError,
-    WorkspaceError,
+    AnalysisProvenance, ChannelMetadata, ConfigurationError, DataParsingError,
+    ElectrochemicalExperiment, EnvironmentalSeries, ExperimentEvent, ExperimentEventKind,
+    ExperimentMetadataDocument, FittingError, MeasurementChannel, MeasurementParseResult,
+    MultiChannelMeasurement, ParseDiagnostics, PlottingError, ProvenanceError, ReferenceMetadata,
+    ReportingError, SensorMetadata, WorkspaceError, load_experiment_metadata,
 };
 pub use results::CircuitFitResult;
 
