@@ -26,7 +26,6 @@ pub fn analyze_sampling(
         ));
     }
 
-    let duplicate_count = time.windows(2).filter(|pair| pair[1] == pair[0]).count();
     let nonmonotonic_count = time.windows(2).filter(|pair| pair[1] < pair[0]).count();
     if nonmonotonic_count > 0
         && matches!(
@@ -38,17 +37,6 @@ pub fn analyze_sampling(
             "non-monotonic timestamps require SortPaired policy".into(),
         ));
     }
-    if duplicate_count > 0
-        && matches!(
-            config.duplicate_timestamp_policy,
-            DuplicateTimestampPolicy::Error
-        )
-    {
-        return Err(SignalError::Sampling(
-            "duplicate timestamps require an explicit duplicate policy".into(),
-        ));
-    }
-
     let mut rows = time
         .iter()
         .copied()
@@ -59,6 +47,8 @@ pub fn analyze_sampling(
     let mut transformations = Vec::new();
     let mut sorted_rows = 0;
     if nonmonotonic_count > 0 {
+        // `sort_by` is stable, so First and Last remain deterministic for a
+        // duplicate group while the timestamp/value pairing is preserved.
         rows.sort_by(|a, b| a.0.total_cmp(&b.0));
         sorted_rows = rows
             .iter()
@@ -71,14 +61,27 @@ pub fn analyze_sampling(
     }
 
     let mut resolved_duplicate_groups = 0;
+    let mut duplicate_count = 0;
     let mut unique_rows = Vec::with_capacity(rows.len());
     let mut index = 0;
     while index < rows.len() {
-        let end = (index + 1..=rows.len())
-            .find(|candidate| *candidate == rows.len() || rows[*candidate].0 != rows[index].0)
-            .unwrap_or(rows.len());
+        let mut end = index + 1;
+        while end < rows.len() && rows[end].0 == rows[index].0 {
+            end += 1;
+        }
         let group = &rows[index..end];
         if group.len() > 1 {
+            duplicate_count += group.len() - 1;
+            if matches!(
+                config.duplicate_timestamp_policy,
+                DuplicateTimestampPolicy::Error
+            ) {
+                return Err(SignalError::Sampling(format!(
+                    "duplicate timestamp group at {} contains {} rows",
+                    group[0].0,
+                    group.len()
+                )));
+            }
             resolved_duplicate_groups += 1;
             let value = match config.duplicate_timestamp_policy {
                 DuplicateTimestampPolicy::Average => {
@@ -94,7 +97,11 @@ pub fn analyze_sampling(
                 }
                 DuplicateTimestampPolicy::First => group.first().and_then(|(_, value, _)| *value),
                 DuplicateTimestampPolicy::Last => group.last().and_then(|(_, value, _)| *value),
-                DuplicateTimestampPolicy::Error => unreachable!("validated above"),
+                DuplicateTimestampPolicy::Error => {
+                    return Err(SignalError::Sampling(
+                        "duplicate timestamp policy rejected a duplicate group".into(),
+                    ));
+                }
             };
             unique_rows.push((group[0].0, value));
             transformations.push(format!(

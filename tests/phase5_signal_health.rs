@@ -7,7 +7,8 @@ use rust_electroanalysis_cli::{
     results::{FeatureComparability, HealthDomain, HealthFeature, SignalWarning},
     signal::{allan, correlation, drift, psd, sampling, spikes},
     signal_config::{
-        AllanConfig, CorrelationConfig, PsdConfig, SamplingConfig, SamplingPolicy, SpikesConfig,
+        AllanConfig, CorrelationConfig, DuplicateTimestampPolicy, NonMonotonicTimestampPolicy,
+        PsdConfig, SamplingConfig, SamplingPolicy, SpikesConfig,
     },
 };
 use std::path::PathBuf;
@@ -21,6 +22,77 @@ fn provenance() -> AnalysisProvenance {
         configuration_sha256: None,
         generation_timestamp: 1,
         git_commit: None,
+    }
+}
+
+#[test]
+fn duplicate_groups_are_detected_after_paired_sorting() {
+    let config = SamplingConfig {
+        policy: SamplingPolicy::AllowIrregularTimeDomainOnly,
+        non_monotonic_timestamp_policy: NonMonotonicTimestampPolicy::SortPaired,
+        duplicate_timestamp_policy: DuplicateTimestampPolicy::Average,
+        ..Default::default()
+    };
+    let (analysis, time, values) = sampling::analyze_sampling(
+        &[2.0, 0.0, 1.0, 2.0],
+        &[Some(20.0), Some(0.0), Some(10.0), Some(22.0)],
+        &config,
+    )
+    .unwrap();
+    assert_eq!(time, vec![0.0, 1.0, 2.0]);
+    assert_eq!(values, vec![Some(0.0), Some(10.0), Some(21.0)]);
+    assert_eq!(analysis.duplicate_timestamps, 1);
+    assert_eq!(analysis.resolved_duplicate_groups, 1);
+    assert!(
+        analysis
+            .transformations
+            .iter()
+            .any(|x| x.contains("duplicate"))
+    );
+}
+
+#[test]
+fn duplicate_error_after_sorting_returns_without_panic() {
+    let result = sampling::analyze_sampling(
+        &[2.0, 0.0, 1.0, 2.0],
+        &[Some(20.0), Some(0.0), Some(10.0), Some(22.0)],
+        &SamplingConfig {
+            policy: SamplingPolicy::AllowIrregularTimeDomainOnly,
+            non_monotonic_timestamp_policy: NonMonotonicTimestampPolicy::SortPaired,
+            duplicate_timestamp_policy: DuplicateTimestampPolicy::Error,
+            ..Default::default()
+        },
+    );
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("duplicate timestamp")
+    );
+}
+
+#[test]
+fn duplicate_first_last_are_stable_and_missing_values_are_deterministic() {
+    let base = [2.0, 0.0, 1.0, 2.0];
+    let values = [Some(20.0), Some(0.0), Some(10.0), None];
+    for (policy, expected) in [
+        (DuplicateTimestampPolicy::First, Some(20.0)),
+        (DuplicateTimestampPolicy::Last, None),
+        (DuplicateTimestampPolicy::Average, Some(20.0)),
+    ] {
+        let (_, time, output) = sampling::analyze_sampling(
+            &base,
+            &values,
+            &SamplingConfig {
+                policy: SamplingPolicy::AllowIrregularTimeDomainOnly,
+                non_monotonic_timestamp_policy: NonMonotonicTimestampPolicy::SortPaired,
+                duplicate_timestamp_policy: policy,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(time, vec![0.0, 1.0, 2.0]);
+        assert_eq!(output[2], expected);
     }
 }
 
