@@ -713,7 +713,7 @@ minimum_records = 3
 independent_variable = "sensor_age_days"
 "#;
 
-const DEFAULT_ESTIMATION_CONFIG: &str = r#"schema_version = 1
+const DEFAULT_ESTIMATION_CONFIG: &str = r#"schema_version = 3
 
 [filter]
 kind = "ukf"
@@ -776,6 +776,8 @@ horizon_steps = 20
 rank_tolerance = 1.0e-8
 maximum_condition_number = 1.0e10
 reject_unobservable_model = true
+empirical_perturbation = 1.0e-3
+empirical_sensitivity_tolerance = 1.0e-8
 
 [ekf]
 numerical_jacobian_relative_step = 1.0e-6
@@ -794,6 +796,27 @@ warn_outside_domain = true
 inflate_measurement_variance = false
 variance_inflation_factor = 4.0
 near_boundary_fraction = 0.05
+near_boundary_variance_inflation_factor = 1.25
+
+[validation]
+alignment_policy = "nearest_within_tolerance"
+maximum_alignment_gap_s = 0.5
+allow_truth_reuse = false
+
+[validation.states.log10_activity]
+absolute_convergence_tolerance = 0.05
+minimum_consecutive_converged_points = 1
+step_detection_threshold = 1.0e-6
+step_response_fraction = 0.9
+
+[validation.states.baseline_offset]
+absolute_convergence_tolerance = 0.001
+
+[validation.states.polarization]
+absolute_convergence_tolerance = 0.001
+
+[validation.states.sensitivity_scale]
+absolute_convergence_tolerance = 0.02
 
 [auxiliary]
 condition_requires_auxiliary = true

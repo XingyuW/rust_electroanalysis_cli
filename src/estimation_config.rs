@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub const ESTIMATION_CONFIG_SCHEMA_VERSION: u32 = 2;
+pub const ESTIMATION_CONFIG_SCHEMA_VERSION: u32 = 3;
 pub const DEFAULT_ESTIMATION_CONFIG_PATH: &str = "config/estimation.toml";
 
 #[derive(Debug, Clone)]
@@ -110,6 +110,17 @@ pub enum MeasurementNoiseSourceKind {
     CalibrationPredictionUncertainty,
 }
 
+/// Policy used to align a validation estimate to an independently generated
+/// truth trajectory.  Truth is never silently sorted or reused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TruthAlignmentPolicy {
+    Exact,
+    #[default]
+    NearestWithinTolerance,
+    LinearInterpolation,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ResolvedEstimationConfig {
@@ -126,6 +137,7 @@ pub struct ResolvedEstimationConfig {
     pub ekf: EkfConfig,
     pub ukf: UkfConfig,
     pub extrapolation: ExtrapolationConfig,
+    pub validation: ValidationConfig,
     pub auxiliary: AuxiliaryConfig,
     pub plotting: EstimationPlottingConfig,
     pub export: EstimationExportConfig,
@@ -149,6 +161,7 @@ impl Default for ResolvedEstimationConfig {
             ekf: EkfConfig::default(),
             ukf: UkfConfig::default(),
             extrapolation: ExtrapolationConfig::default(),
+            validation: ValidationConfig::default(),
             auxiliary: AuxiliaryConfig::default(),
             plotting: EstimationPlottingConfig::default(),
             export: EstimationExportConfig::default(),
@@ -361,6 +374,8 @@ pub struct ObservabilityConfig {
     pub rank_tolerance: f64,
     pub maximum_condition_number: f64,
     pub reject_unobservable_model: bool,
+    pub empirical_perturbation: f64,
+    pub empirical_sensitivity_tolerance: f64,
 }
 impl Default for ObservabilityConfig {
     fn default() -> Self {
@@ -370,6 +385,8 @@ impl Default for ObservabilityConfig {
             rank_tolerance: 1e-8,
             maximum_condition_number: 1e10,
             reject_unobservable_model: true,
+            empirical_perturbation: 1.0e-3,
+            empirical_sensitivity_tolerance: 1.0e-8,
         }
     }
 }
@@ -419,6 +436,7 @@ pub struct ExtrapolationConfig {
     pub inflate_measurement_variance: bool,
     pub variance_inflation_factor: f64,
     pub near_boundary_fraction: f64,
+    pub near_boundary_variance_inflation_factor: f64,
 }
 impl Default for ExtrapolationConfig {
     fn default() -> Self {
@@ -427,6 +445,68 @@ impl Default for ExtrapolationConfig {
             inflate_measurement_variance: false,
             variance_inflation_factor: 4.0,
             near_boundary_fraction: 0.05,
+            near_boundary_variance_inflation_factor: 1.25,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StateValidationConfig {
+    pub absolute_convergence_tolerance: f64,
+    pub minimum_consecutive_converged_points: usize,
+    pub step_detection_threshold: f64,
+    pub step_response_fraction: f64,
+}
+impl Default for StateValidationConfig {
+    fn default() -> Self {
+        Self {
+            absolute_convergence_tolerance: 0.05,
+            minimum_consecutive_converged_points: 1,
+            step_detection_threshold: 1.0e-6,
+            step_response_fraction: 0.9,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ValidationConfig {
+    pub alignment_policy: TruthAlignmentPolicy,
+    pub maximum_alignment_gap_s: f64,
+    pub allow_truth_reuse: bool,
+    pub states: BTreeMap<String, StateValidationConfig>,
+}
+impl Default for ValidationConfig {
+    fn default() -> Self {
+        let mut states = BTreeMap::new();
+        states.insert("log10_activity".into(), StateValidationConfig::default());
+        states.insert(
+            "baseline_offset".into(),
+            StateValidationConfig {
+                absolute_convergence_tolerance: 0.001,
+                ..StateValidationConfig::default()
+            },
+        );
+        states.insert(
+            "polarization".into(),
+            StateValidationConfig {
+                absolute_convergence_tolerance: 0.001,
+                ..StateValidationConfig::default()
+            },
+        );
+        states.insert(
+            "sensitivity_scale".into(),
+            StateValidationConfig {
+                absolute_convergence_tolerance: 0.02,
+                ..StateValidationConfig::default()
+            },
+        );
+        Self {
+            alignment_policy: TruthAlignmentPolicy::NearestWithinTolerance,
+            maximum_alignment_gap_s: 0.5,
+            allow_truth_reuse: false,
+            states,
         }
     }
 }
@@ -567,6 +647,14 @@ impl ResolvedEstimationConfig {
                 "maximum_variance_v2",
                 self.measurement_noise.maximum_variance_v2,
             ),
+            (
+                "configured_variance_v2",
+                self.measurement_noise.configured_variance_v2,
+            ),
+            (
+                "known_log10_activity_variance",
+                self.auxiliary.known_log10_activity_variance,
+            ),
         ] {
             if !value.is_finite() || value < 0.0 {
                 return Err(ConfigurationError::invalid(format!(
@@ -577,6 +665,14 @@ impl ResolvedEstimationConfig {
         if self.measurement_noise.maximum_variance_v2 < self.measurement_noise.minimum_variance_v2 {
             return Err(ConfigurationError::invalid(
                 "measurement variance bounds are inverted",
+            ));
+        }
+        if self.measurement_noise.configured_variance_v2 <= 0.0
+            || self.measurement_noise.minimum_variance_v2 <= 0.0
+            || self.known_log10_activity_variance() <= 0.0
+        {
+            return Err(ConfigurationError::invalid(
+                "configured measurement and auxiliary variances must be positive",
             ));
         }
         if !self.environment.maximum_gap_s.is_finite() || self.environment.maximum_gap_s <= 0.0 {
@@ -591,6 +687,54 @@ impl ResolvedEstimationConfig {
             return Err(ConfigurationError::invalid(
                 "observability horizon and tolerance are invalid",
             ));
+        }
+        if !self.observability.empirical_perturbation.is_finite()
+            || self.observability.empirical_perturbation <= 0.0
+            || !self
+                .observability
+                .empirical_sensitivity_tolerance
+                .is_finite()
+            || self.observability.empirical_sensitivity_tolerance < 0.0
+        {
+            return Err(ConfigurationError::invalid(
+                "observability empirical perturbation settings are invalid",
+            ));
+        }
+        if !self.extrapolation.near_boundary_fraction.is_finite()
+            || self.extrapolation.near_boundary_fraction < 0.0
+            || self.extrapolation.near_boundary_fraction > 1.0
+            || !self
+                .extrapolation
+                .near_boundary_variance_inflation_factor
+                .is_finite()
+            || self.extrapolation.near_boundary_variance_inflation_factor < 1.0
+            || !self.extrapolation.variance_inflation_factor.is_finite()
+            || self.extrapolation.variance_inflation_factor < 1.0
+        {
+            return Err(ConfigurationError::invalid(
+                "calibration-domain variance inflation settings are invalid",
+            ));
+        }
+        if !self.validation.maximum_alignment_gap_s.is_finite()
+            || self.validation.maximum_alignment_gap_s < 0.0
+        {
+            return Err(ConfigurationError::invalid(
+                "validation maximum_alignment_gap_s must be finite and nonnegative",
+            ));
+        }
+        for (name, state) in &self.validation.states {
+            if !state.absolute_convergence_tolerance.is_finite()
+                || state.absolute_convergence_tolerance < 0.0
+                || state.minimum_consecutive_converged_points == 0
+                || !state.step_detection_threshold.is_finite()
+                || state.step_detection_threshold < 0.0
+                || !state.step_response_fraction.is_finite()
+                || !(0.0..=1.0).contains(&state.step_response_fraction)
+            {
+                return Err(ConfigurationError::invalid(format!(
+                    "validation state '{name}' has invalid thresholds",
+                )));
+            }
         }
         if !self.ukf.alpha.is_finite()
             || self.ukf.alpha <= 0.0
@@ -663,7 +807,7 @@ impl ResolvedEstimationConfig {
                 );
             } else {
                 warnings.push(
-                    "migrated estimation configuration schema to version 2; verify known_log10_activity_variance semantics".into(),
+                    "migrated estimation configuration to schema version 3; verify validation alignment and state-specific threshold defaults".into(),
                 );
             }
             config.schema_version = ESTIMATION_CONFIG_SCHEMA_VERSION;
