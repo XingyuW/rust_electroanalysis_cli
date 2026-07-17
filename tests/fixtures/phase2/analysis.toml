@@ -1,0 +1,13 @@
+schema_version = 1
+max_ranked_results = 1
+
+[evolution]
+population_size = 8
+generation_limit = 1
+num_individuals_per_parents = 2
+selection_ratio = 0.7
+mutation_rate = 0.2
+reinsertion_ratio = 0.75
+
+[plotting]
+top_n = 1

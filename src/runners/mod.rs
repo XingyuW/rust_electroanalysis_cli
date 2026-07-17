@@ -7,6 +7,7 @@
 use crate::domain::{
     ConfigurationError, DataParsingError, FittingError, ReportingError, WorkspaceError,
 };
+use crate::potentiometry::PotentiometryError;
 use std::error::Error;
 use std::io;
 use thiserror::Error as ThisError;
@@ -14,6 +15,7 @@ use thiserror::Error as ThisError;
 pub mod fit;
 pub mod plot;
 pub mod search;
+pub mod transient;
 
 /// Errors crossing a workflow boundary into the CLI.
 #[derive(Debug, ThisError)]
@@ -28,6 +30,8 @@ pub enum RunnerError {
     Reporting(#[from] ReportingError),
     #[error(transparent)]
     Workspace(#[from] WorkspaceError),
+    #[error(transparent)]
+    Potentiometry(#[from] PotentiometryError),
     #[error("workflow I/O error: {0}")]
     Io(#[from] io::Error),
     #[error("plotting workflow failed: {0}")]

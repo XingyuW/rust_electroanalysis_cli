@@ -1,0 +1,16 @@
+schema_version = 1
+
+[segmentation]
+pre_event_s = 10.0
+post_event_s = 80.0
+minimum_points = 20
+minimum_duration_s = 10.0
+
+[models]
+enabled = ["single"]
+
+[uncertainty]
+bootstrap_iterations = 0
+
+[plotting]
+enabled = false

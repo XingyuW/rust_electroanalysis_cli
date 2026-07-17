@@ -21,11 +21,13 @@ pub mod domain;
 pub mod fitting;
 pub mod plot_config;
 pub mod plot_runner;
+pub mod potentiometry;
 pub mod regression_mod;
 pub mod results;
 pub mod runners;
 pub mod search_config;
 pub mod search_runner;
+pub mod transient_config;
 pub mod workspace;
 
 pub use domain::{
@@ -36,6 +38,9 @@ pub use domain::{
     ReportingError, SensorMetadata, WorkspaceError, load_experiment_metadata,
 };
 pub use results::CircuitFitResult;
+pub use results::transient::{
+    TransientAnalysisReport, TransientEventResult, TransientFeatures, TransientFitResult,
+};
 
 /// Default logarithm base used whenever a log axis or log transform is enabled
 /// without an explicit base override.

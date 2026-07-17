@@ -1,0 +1,15 @@
+Mar. 12, 2026   15:48:13
+A.C. Impedance
+File: phase2-eis.csv
+Data Source:  Experiment
+Instrument Model:  CHI760F
+Header:
+Note:
+
+Freq/Hz, Z'/ohm, Z"/ohm, Z/ohm, Phase/deg
+
+1000, 10.0, -1.0, 10.05, -5.7106
+300, 12.0, -5.0, 13.0, -22.6199
+100, 18.0, -10.0, 20.5913, -29.0546
+30, 25.0, -9.0, 26.5707, -19.7989
+10, 30.0, -5.0, 30.4138, -9.4623

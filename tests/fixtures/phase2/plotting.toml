@@ -1,0 +1,7 @@
+schema_version = 1
+
+[shared]
+input_path = "eis.csv"
+output_path = "../../../target/phase2-command-smoke/plot"
+input_is_directory = false
+output_prefix = ""

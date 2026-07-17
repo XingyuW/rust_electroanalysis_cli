@@ -15,6 +15,7 @@ pub const APP_CONFIG_PATH: &str = "config/app.toml";
 pub const PLOTTING_CONFIG_PATH: &str = "config/plotting.toml";
 pub const ANALYSIS_CONFIG_PATH: &str = "config/analysis.toml";
 pub const PARSING_CONFIG_PATH: &str = "config/parsing.toml";
+pub const TRANSIENT_CONFIG_PATH: &str = "config/transient.toml";
 
 const LEGACY_PLOTTING_CONFIG_PATH: &str = "plot_config.toml";
 const LEGACY_ANALYSIS_CONFIG_PATH: &str = "ecm_search.toml";
@@ -31,6 +32,7 @@ pub struct WorkspacePaths {
     pub plotting_config_path: PathBuf,
     pub analysis_config_path: PathBuf,
     pub parsing_config_path: PathBuf,
+    pub transient_config_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +50,7 @@ pub enum LastRunMode {
     PlotGeneric,
     Search,
     EisFit,
+    TransientFit,
 }
 
 impl LastRunMode {
@@ -59,6 +62,7 @@ impl LastRunMode {
             Self::PlotGeneric => "plot-generic",
             Self::Search => "search",
             Self::EisFit => "eis-fit",
+            Self::TransientFit => "transient-fit",
         }
     }
 }
@@ -136,6 +140,7 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         plotting_config_path: root.join(PLOTTING_CONFIG_PATH),
         analysis_config_path: root.join(ANALYSIS_CONFIG_PATH),
         parsing_config_path: root.join(PARSING_CONFIG_PATH),
+        transient_config_path: root.join(TRANSIENT_CONFIG_PATH),
     };
     let mut warnings = Vec::new();
 
@@ -170,6 +175,14 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         LEGACY_PARSING_CONFIG_PATH,
         DEFAULT_PARSING_CONFIG,
         "parsing config",
+        &mut warnings,
+    )?;
+    ensure_runtime_config_file(
+        root,
+        &paths.transient_config_path,
+        "transient.toml",
+        DEFAULT_TRANSIENT_CONFIG,
+        "transient config",
         &mut warnings,
     )?;
 
@@ -321,4 +334,64 @@ fallback_model = "R0-p(CPE1,R1)"
 [model_selection]
 ranking_metric = "aic"
 warburg_aic_threshold = 4.0
+"#;
+
+const DEFAULT_TRANSIENT_CONFIG: &str = r#"schema_version = 1
+
+[segmentation]
+pre_event_s = 30.0
+post_event_s = 300.0
+baseline_window_s = 20.0
+minimum_points = 20
+minimum_duration_s = 10.0
+maximum_missing_fraction = 0.20
+duplicate_timestamp_policy = "error"
+non_monotonic_policy = "sort"
+irregular_sampling_policy = "allow"
+
+[baseline]
+method = "median"
+response_mode = "baseline_relative"
+
+[models]
+enabled = ["single", "double", "double_drift", "stretched"]
+beta_min = 0.05
+beta_max = 1.0
+
+[optimizer]
+maximum_iterations = 400
+ftol = 1e-10
+xtol = 1e-10
+gtol = 1e-10
+patience = 400
+step_bound = 50.0
+multiple_starts = 8
+
+[selection]
+criterion = "aic"
+
+[validation]
+minimum_tau_ratio = 3.0
+maximum_tau_to_window_ratio = 1.0
+negligible_amplitude_fraction = 0.05
+high_autocorrelation_threshold = 0.8
+bound_proximity_fraction = 0.01
+
+[uncertainty]
+bootstrap_iterations = 500
+confidence_level = 0.95
+seed = 42
+minimum_success_fraction = 0.80
+
+[plotting]
+enabled = true
+include_components = true
+include_residuals = true
+include_model_comparison = true
+
+[export]
+json_filename = "transient_results.json"
+features_filename = "transient_features.csv"
+model_comparison_filename = "transient_model_comparison.csv"
+report_filename = "transient_report.txt"
 "#;

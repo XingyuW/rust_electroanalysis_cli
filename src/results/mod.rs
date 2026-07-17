@@ -1,5 +1,14 @@
 //! Stable result models returned by scientific workflows.
 
+pub mod transient;
+
+pub use transient::{
+    BaselineResult, ConcentrationContext, FitStatus, FittedTransientParameter,
+    ParameterConfidenceInterval, SegmentSummary, TransientAnalysisReport, TransientEventResult,
+    TransientFeatures, TransientFitFailure, TransientFitResult, TransientFitStatistics,
+    TransientWarning, TransientWarningKind,
+};
+
 /// Complete output of a circuit fit.
 ///
 /// The fields are deliberately named so callers do not need to rely on the

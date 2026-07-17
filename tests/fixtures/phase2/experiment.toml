@@ -1,0 +1,14 @@
+experiment_id = "phase2-fixture"
+sample_matrix = "aqueous buffer"
+
+[sensor]
+sensor_id = "sensor-1"
+sensor_type = "ion_selective_membrane"
+analyte = "K+"
+
+[[events]]
+timestamp = 20.0
+kind = "concentration_step"
+value = 0.001
+unit = "mol/L"
+analyte = "K+"

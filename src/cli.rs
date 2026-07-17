@@ -50,6 +50,11 @@ pub enum Command {
         #[command(subcommand)]
         command: EisCommand,
     },
+    /// Analyze potentiometric transient responses around experimental events.
+    Transient {
+        #[command(subcommand)]
+        command: TransientCommand,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -68,6 +73,124 @@ pub enum EisCommand {
     Fit(EisFitCommand),
     /// Search one EIS file or all supported EIS files in a directory.
     Search(EisSearchCommand),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TransientCommand {
+    /// Fit configured transient models to one or more eligible events.
+    Fit(TransientFitCommand),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum TransientEventKindArg {
+    #[value(name = "concentration-step")]
+    ConcentrationStep,
+    #[value(name = "flow-change")]
+    FlowChange,
+    #[value(name = "temperature-change")]
+    TemperatureChange,
+    #[value(name = "ionic-strength-change")]
+    IonicStrengthChange,
+    #[value(name = "interferent-addition")]
+    InterferentAddition,
+    #[value(name = "flush-start")]
+    FlushStart,
+    #[value(name = "reading-start")]
+    ReadingStart,
+    #[value(name = "flush-end")]
+    FlushEnd,
+    #[value(name = "manual-annotation")]
+    ManualAnnotation,
+}
+
+impl TransientEventKindArg {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::ConcentrationStep => "concentration-step",
+            Self::FlowChange => "flow-change",
+            Self::TemperatureChange => "temperature-change",
+            Self::IonicStrengthChange => "ionic-strength-change",
+            Self::InterferentAddition => "interferent-addition",
+            Self::FlushStart => "flush-start",
+            Self::ReadingStart => "reading-start",
+            Self::FlushEnd => "flush-end",
+            Self::ManualAnnotation => "manual-annotation",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum TransientModelArg {
+    Single,
+    Double,
+    #[value(name = "double-drift")]
+    DoubleDrift,
+    Stretched,
+    All,
+}
+
+impl TransientModelArg {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Single => "single",
+            Self::Double => "double",
+            Self::DoubleDrift => "double-drift",
+            Self::Stretched => "stretched",
+            Self::All => "all",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum TransientSelectionArg {
+    Aic,
+    Bic,
+}
+
+impl TransientSelectionArg {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Aic => "aic",
+            Self::Bic => "bic",
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+pub struct TransientFitCommand {
+    /// Input time-series data file.
+    #[arg(long, value_name = "PATH")]
+    pub input: PathBuf,
+    /// Experiment metadata TOML file.
+    #[arg(long, value_name = "PATH")]
+    pub metadata: PathBuf,
+    /// Measurement channel name, for example `E1/V` or `potential`.
+    #[arg(long, value_name = "NAME")]
+    pub channel: String,
+    /// Transient configuration override.
+    #[arg(long, value_name = "PATH")]
+    pub config: Option<PathBuf>,
+    /// Output directory for transient reports and figures.
+    #[arg(long, value_name = "PATH")]
+    pub output: Option<PathBuf>,
+    /// Event category to analyze.
+    #[arg(long, value_enum, default_value_t = TransientEventKindArg::ConcentrationStep)]
+    pub event_kind: TransientEventKindArg,
+    /// Zero-based index among eligible events.
+    #[arg(long, value_name = "N")]
+    pub event_index: Option<usize>,
+    /// Fit one model or all configured models.
+    #[arg(long, value_enum)]
+    pub model: Option<TransientModelArg>,
+    /// Information criterion used for model selection.
+    #[arg(long, value_enum)]
+    pub selection: Option<TransientSelectionArg>,
+    /// Residual bootstrap iteration override.
+    #[arg(long, value_name = "N")]
+    pub bootstrap: Option<usize>,
+    /// Reproducibility seed override.
+    #[arg(long, value_name = "N")]
+    pub seed: Option<u64>,
 }
 
 #[derive(Debug, Args)]
@@ -145,6 +268,19 @@ pub enum CommandSpec {
         search_output: Option<PathBuf>,
         search_top: Option<usize>,
     },
+    TransientFit {
+        input: PathBuf,
+        metadata: PathBuf,
+        channel: String,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+        event_kind: String,
+        event_index: Option<usize>,
+        model: Option<String>,
+        selection: Option<String>,
+        bootstrap: Option<usize>,
+        seed: Option<u64>,
+    },
 }
 
 /// Errors raised while parsing or validating command-line arguments.
@@ -217,6 +353,7 @@ impl CliArgs {
                 result.search_output = search_output;
                 result.search_top = search_top;
             }
+            Some(CommandSpec::TransientFit { .. }) => {}
             None => {}
         }
 
@@ -281,6 +418,23 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                         search_top: command.search_top,
                     }
                 }
+            },
+            Command::Transient { command } => match command {
+                TransientCommand::Fit(command) => CommandSpec::TransientFit {
+                    input: command.input,
+                    metadata: command.metadata,
+                    channel: command.channel,
+                    config_path: command.config,
+                    output: command.output,
+                    event_kind: command.event_kind.as_str().to_string(),
+                    event_index: command.event_index,
+                    model: command.model.map(|model| model.as_str().to_string()),
+                    selection: command
+                        .selection
+                        .map(|selection| selection.as_str().to_string()),
+                    bootstrap: command.bootstrap,
+                    seed: command.seed,
+                },
             },
         }
     } else if let Some(search_target) = legacy.search_eis {

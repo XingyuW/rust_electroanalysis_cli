@@ -13,6 +13,10 @@
   - Nyquist/Bode rendering pipeline for single-file, directory, and ranked-search outputs.
 - `generic_plot.rs`
   - Domain-agnostic plotting for generic `x/y` datasets.
+- `transient_plot.rs`
+  - Converts selected transient event results into existing `PlotSeries`
+    values and delegates response, residual, component, and comparison plots
+    to the shared renderer. It performs no fitting.
 - `lib.rs`
   - Re-export façade for consumers.
 
@@ -68,3 +72,12 @@ Important extension points:
 ## Data dependencies
 
 Plot pipelines consume parsed datasets from `data_file/` and style/job resolution from `plot_config.rs`.
+
+The potentiometric transient pipeline follows the same boundary:
+
+```text
+ElectrochemicalExperiment -> transient result -> PlotSeries -> existing renderer
+```
+
+The renderer does not depend on `TransientFitResult` or any other domain-level
+transient type.

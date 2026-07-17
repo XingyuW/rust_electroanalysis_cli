@@ -17,6 +17,7 @@
   - [Experiment TOML Schema](#experiment-toml-schema)
   - [Data Validation and Diagnostics](#data-validation-and-diagnostics)
   - [PlotData Compatibility](#plotdata-compatibility)
+- [Transient Response Analysis](#transient-response-analysis)
 - [CLI Usage](#cli-usage)
   - [Commands](#commands)
   - [Examples](#examples)
@@ -25,6 +26,7 @@
   - [Plotting Configuration (`config/plotting.toml`)](#plotting-configuration-configplottingtoml)
   - [Analysis Configuration (`config/analysis.toml`)](#analysis-configuration-configanalysistoml)
   - [Circuit Model Configuration (`config/parsing.toml`)](#circuit-model-configuration-configparsingtoml)
+  - [Transient Configuration (`config/transient.toml`)](#transient-configuration-configtransienttoml)
   - [Application State (`config/app.toml`)](#application-state-configapptoml)
   - [Configuration Precedence](#configuration-precedence)
 - [Configuration Examples](#configuration-examples)
@@ -186,6 +188,135 @@ in its label. Missing values are omitted only from this rendering projection;
 the original `MultiChannelMeasurement` and its diagnostics are unchanged. The
 plotting engine therefore remains unaware of all Phase 1 domain types.
 
+## Transient Response Analysis
+
+Phase 2 adds an event-oriented potentiometric workflow. It consumes an
+`ElectrochemicalExperiment`, selects one `MeasurementChannel`, and analyzes
+the response after eligible timestamped events. The scientific core is under
+`potentiometry/transient/`; the runner only coordinates loading, fitting,
+export, and plotting. The existing `PlotData` and renderer are unchanged.
+
+### Command
+
+```bash
+electroanalysis transient fit \
+  --input data/sensor.csv \
+  --metadata data/experiment.toml \
+  --channel E1/V \
+  --config config/transient.toml \
+  --output output/transient/
+```
+
+The command analyzes every `concentration_step` event by default. Use
+`--event-kind`, `--event-index` (zero-based among eligible events),
+`--model single|double|double-drift|stretched|all`, `--selection aic|bic`,
+`--bootstrap N`, and `--seed N` to override the resolved configuration. The
+channel selector accepts the channel name, `name/unit`, or `name [unit]`.
+
+### Models and interpretation
+
+The supported descriptive models are a single exponential, a two-component
+exponential, a two-component exponential with linear drift, and a stretched
+exponential. Positive time constants are fitted through logarithmic
+parameterizations; double models use an ordered fast/slow parameterization;
+the stretched exponent is bounded by `beta_min` and `beta_max`.
+
+Model selection uses the configured AIC or BIC value, not raw residual error.
+The report also contains AICc when the sample size permits it, criterion
+deltas, model weights, residual diagnostics, and residual-bootstrap intervals.
+All model-derived quantities are reported with neutral labels such as
+“fast fitted timescale” and “slow fitted timescale”. A fitted time constant is
+not automatically assigned an electrochemical mechanism.
+
+### Segmentation and validation behavior
+
+The event timestamp is local time zero. The configured pre-event window is
+used for baseline estimation, and the post-event window supplies the fitted
+observations. The default baseline is a median and the default response is
+baseline-relative; both can be changed to mean, linear, or absolute response.
+The source measurement is never modified.
+
+- Missing values remain in the domain measurement. Only missing time/value
+  pairs are omitted from a fit, and their count and fraction are exported.
+- Non-monotonic paired rows are sorted by timestamp by default; the values are
+  moved with their timestamps. The `error` policy rejects them.
+- Duplicate timestamps are an error by default. `average` explicitly replaces
+  duplicate finite values at a timestamp with their mean while preserving a
+  diagnostic count.
+- Irregular sampling is allowed by default. Fits use the actual timestamps;
+  no resampling or filtering is performed. The `error` policy rejects an
+  irregular segment.
+- Segments are rejected for too few finite points, too short finite duration,
+  excessive missing fraction, invalid timestamps under the selected policies,
+  or an event outside the data range. A failed event is recorded while other
+  eligible events continue when safe.
+
+### Outputs
+
+The output directory contains, by default:
+
+`transient_results.json` (complete serializable report),
+`transient_features.csv` (one selected-model row per event),
+`transient_model_comparison.csv` (one candidate row per event), and
+`transient_report.txt` (a researcher-readable report separating observations,
+model-derived values, warnings, failures, selection, and uncertainty).
+When plotting is enabled, selected events also produce publication-style SVG
+and PNG response, residual, and candidate-comparison figures. The transient
+plot adapter converts results to existing `PlotSeries` values before calling
+the renderer; the generic plotting code does not know about transient fit
+types.
+
+### Configuration schema
+
+`config/transient.toml` is independent of `config/analysis.toml`. It is
+created with workspace setup when absent and supports schema version 1:
+
+```toml
+schema_version = 1
+
+[segmentation]
+pre_event_s = 30.0
+post_event_s = 300.0
+baseline_window_s = 20.0
+minimum_points = 20
+minimum_duration_s = 10.0
+maximum_missing_fraction = 0.20
+duplicate_timestamp_policy = "error" # or "average"
+non_monotonic_policy = "sort"        # or "error"
+irregular_sampling_policy = "allow"  # or "error"
+
+[baseline]
+method = "median"                    # mean, median, or linear
+response_mode = "baseline_relative"  # or absolute
+
+[models]
+enabled = ["single", "double", "double_drift", "stretched"]
+beta_min = 0.05
+beta_max = 1.0
+
+[selection]
+criterion = "aic"                    # or bic
+
+[uncertainty]
+bootstrap_iterations = 500
+confidence_level = 0.95
+seed = 42
+minimum_success_fraction = 0.80
+```
+
+The file also contains `[optimizer]`, `[validation]`, `[plotting]`, and
+`[export]` sections. CLI model, selection, bootstrap, and seed values override
+the TOML values. An explicit missing `--config` is fatal; an absent default
+config uses validated defaults. Unsupported schema versions produce a warning
+while the file is still validated and loaded.
+
+### Provenance
+
+The JSON report carries software version, input path and SHA-256, metadata/config
+path and SHA-256 where available, generation timestamp, and optional Git
+commit. Experimental metadata (sensor, sample matrix, environmental series,
+and events) remains separate from plotting configuration.
+
 ---
 
 ## Repository Structure
@@ -204,7 +335,8 @@ rust_electroanalysis_cli/
 │   ├── app.toml                        # Application state (schema version, last run mode)
 │   ├── plotting.toml                   # Plotting workflow configuration
 │   ├── analysis.toml                   # ECM search/evolution configuration
-│   └── parsing.toml                    # Circuit model resolver configuration
+│   ├── parsing.toml                    # Circuit model resolver configuration
+│   └── transient.toml                  # Potentiometric transient configuration
 │
 ├── data/                               # Input data directory (auto-created)
 ├── output/                             # Output figures and reports directory (auto-created)
@@ -221,8 +353,12 @@ rust_electroanalysis_cli/
     │   ├── metadata.rs                  # Experiment TOML schema/loading
     │   └── provenance.rs                # Input/config hashes and generation metadata
     ├── fitting/                        # Stable façade over the impedance fit pipeline
-    ├── results/                        # Named scientific result structures
-    ├── runners/                        # Thin plot, fit, and search workflow boundaries
+    ├── potentiometry/                  # Event-based potentiometric transient core
+    │   ├── error.rs                     # Typed transient-analysis errors
+    │   └── transient/                   # Models, segmentation, fitting, diagnostics, selection
+    ├── transient_config.rs              # Independent transient TOML schema/resolution
+    ├── results/                        # Named serializable scientific result structures
+    ├── runners/                        # Thin plot, fit, search, and transient boundaries
     ├── workspace.rs                    # Workspace bootstrap, config lifecycle, atomic writes
     ├── plot_config.rs                  # Plot-job TOML schema, loading, migration, resolution
     ├── plot_runner.rs                  # Plot job orchestration (EIS, regular, generic)
@@ -256,7 +392,8 @@ rust_electroanalysis_cli/
         ├── plotting.rs                 # Core renderer: PublicationConfig, plot_hq, draw_plot_area
         ├── chi_plot.rs                 # Regular (CHI/Pb-sensor) plot pipeline
         ├── eis_plot.rs                 # EIS Nyquist/Bode plot pipeline and ranked-search plots
-        └── generic_plot.rs             # Domain-agnostic generic plot pipeline
+        ├── generic_plot.rs              # Domain-agnostic generic plot pipeline
+        └── transient_plot.rs            # Transient-result to PlotSeries adapter
 ```
 
 ---
@@ -440,6 +577,8 @@ electroanalysis plot [all|eis|regular-plot|generic-plot]
 electroanalysis eis fit <input> [--circuit <expression>] [--output <path>]
 electroanalysis eis search <input> [--search-config <path>]
                               [--search-output <path>] [--search-top <n>]
+electroanalysis transient fit --input <path> --metadata <path> --channel <name>
+                              [--config <path>] [--output <path>]
 ```
 
 `plot` defaults to `all`. `eis fit` fits one EIS file using its resolved
@@ -466,6 +605,10 @@ cargo run -- eis fit data/my_sample.txt --circuit 'R0-p(CPE1,R1)' --output outpu
 cargo run -- eis search data/my_sample.txt
 cargo run -- eis search data/eis_measurements/ --search-top 20 \
   --search-config my_analysis.toml --search-output results/
+
+# Fit all eligible concentration-step transients
+cargo run -- transient fit --input data/sensor.csv \
+  --metadata data/experiment.toml --channel E1/V --output output/transient/
 ```
 
 ### Legacy compatibility

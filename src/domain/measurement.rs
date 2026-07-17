@@ -115,7 +115,13 @@ impl MultiChannelMeasurement {
     }
 
     pub fn channel(&self, name: &str) -> Option<&MeasurementChannel> {
-        self.channels.iter().find(|channel| channel.name == name)
+        self.channels.iter().find(|channel| {
+            channel.name == name
+                || (!channel.unit.is_empty()
+                    && format!("{}/{}", channel.name, channel.unit) == name)
+                || (!channel.unit.is_empty()
+                    && format!("{} [{}]", channel.name, channel.unit) == name)
+        })
     }
 
     pub fn missing_value_count(&self) -> usize {

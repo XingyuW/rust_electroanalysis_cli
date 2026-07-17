@@ -6,7 +6,7 @@
 use rust_electroanalysis_cli::cli::{CliError, CommandSpec, parse_cli_args, print_usage};
 use rust_electroanalysis_cli::domain::{ConfigurationError, WorkspaceError};
 use rust_electroanalysis_cli::plot_config::PlotConfig;
-use rust_electroanalysis_cli::runners::{RunnerError, fit, plot, search};
+use rust_electroanalysis_cli::runners::{RunnerError, fit, plot, search, transient};
 use rust_electroanalysis_cli::workspace::{self, LastRunMode};
 use thiserror::Error as ThisError;
 
@@ -115,6 +115,42 @@ fn run() -> Result<(), ApplicationError> {
                 &input,
                 circuit_model.as_deref(),
                 output.as_deref(),
+            )?;
+        }
+        CommandSpec::TransientFit {
+            input,
+            metadata,
+            channel,
+            config_path,
+            output,
+            event_kind,
+            event_index,
+            model,
+            selection,
+            bootstrap,
+            seed,
+        } => {
+            workspace_setup.record_last_run(
+                LastRunMode::TransientFit,
+                None,
+                config_path.as_deref(),
+                output.as_deref(),
+                None,
+            )?;
+            transient::run(
+                &workspace_dir,
+                &workspace_setup,
+                &input,
+                &metadata,
+                &channel,
+                config_path.as_deref(),
+                output.as_deref(),
+                &event_kind,
+                event_index,
+                model.as_deref(),
+                selection.as_deref(),
+                bootstrap,
+                seed,
             )?;
         }
     }

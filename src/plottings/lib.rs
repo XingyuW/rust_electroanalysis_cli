@@ -7,6 +7,7 @@ pub mod chi_plot;
 pub mod eis_plot;
 pub mod generic_plot;
 pub mod plotting;
+pub mod transient_plot;
 
 pub use chi_plot::{
     ChiDirectoryPlotOutcome, ChiPlotOutcome, ChiPlotSkip, pb_sensor_combined_publication_config,
@@ -31,3 +32,4 @@ pub use plotting::{
     PlotType, PublicationConfig, RegressionAnnotationLayout, ResolvedPlotConfig,
     ScientificNotationStyle, plot_hq, plot_rendered_series_hq, plot_rendered_series_panels_hq,
 };
+pub use transient_plot::plot_transient_event;
