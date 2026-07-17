@@ -67,7 +67,8 @@ pub fn initialize_state(
             }
         }
     };
-    mean[model.index("log10_activity").unwrap_or(0)] = log_activity;
+    mean[model.index("log10_activity").unwrap_or(0)] =
+        model.latent_from_log10_activity(log_activity)?;
     if !standard_source {
         sources.push(if source.contains("configured") {
             "configured initial activity".into()
@@ -86,11 +87,23 @@ pub fn initialize_state(
         assumptions.push("polarization is initialized from the configured prior; transient data may constrain its time constant".into());
     }
     if let Some(i) = model.index("sensitivity_scale") {
-        mean[i] = if config.initialization.condition_value.is_finite() {
+        let physical = if config.initialization.condition_value.is_finite() {
             config.initialization.condition_value
         } else {
             config.state_model.condition_initial
         };
+        mean[i] = model
+            .physical_state_value(&DVector::from_element(model.dimension(), physical), i)
+            .and_then(|_| {
+                model.definitions[i].transform.from_physical(
+                    physical,
+                    model.definitions[i].lower_bound,
+                    model.definitions[i].upper_bound,
+                )
+            })
+            .ok_or_else(|| {
+                EstimationError::config("initial sensitivity value violates its transform bounds")
+            })?;
         sources.push("configured sensitivity-scale prior".into());
         if config.auxiliary.condition_requires_auxiliary {
             assumptions.push(

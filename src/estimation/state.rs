@@ -23,11 +23,49 @@ pub enum StateTransform {
 impl StateTransform {
     pub fn from_config(kind: StateTransformKind) -> Self {
         match kind {
-            StateTransformKind::IdentityLog10 | StateTransformKind::Log10Positive => {
-                Self::Log10Positive
-            }
+            StateTransformKind::IdentityLog10 => Self::Identity,
+            StateTransformKind::Log10Positive => Self::Log10Positive,
             StateTransformKind::LogPositive => Self::LogPositive,
             StateTransformKind::LogisticBounded => Self::LogisticBounded,
+        }
+    }
+    pub fn from_physical(self, value: f64, lower: Option<f64>, upper: Option<f64>) -> Option<f64> {
+        let result = match self {
+            Self::Identity => value,
+            Self::Log10Positive => value.log10(),
+            Self::LogPositive => value.ln(),
+            Self::LogisticBounded => {
+                let (lo, hi) = (lower?, upper?);
+                if !(lo..hi).contains(&value) {
+                    return None;
+                }
+                ((value - lo) / (hi - value)).ln()
+            }
+        };
+        result.is_finite().then_some(result)
+    }
+    /// Derivative of physical value with respect to the latent coordinate.
+    pub fn derivative(self, latent: f64, lower: Option<f64>, upper: Option<f64>) -> Option<f64> {
+        let result = match self {
+            Self::Identity => 1.0,
+            Self::Log10Positive => std::f64::consts::LN_10 * 10_f64.powf(latent),
+            Self::LogPositive => latent.exp(),
+            Self::LogisticBounded => {
+                let (lo, hi) = (lower?, upper?);
+                let sigmoid = 1.0 / (1.0 + (-latent).exp());
+                (hi - lo) * sigmoid * (1.0 - sigmoid)
+            }
+        };
+        result.is_finite().then_some(result)
+    }
+    pub fn validate_bounds(self, lower: Option<f64>, upper: Option<f64>) -> Result<(), String> {
+        if matches!(self, Self::LogisticBounded) {
+            match (lower, upper) {
+                (Some(lo), Some(hi)) if lo.is_finite() && hi.is_finite() && hi > lo => Ok(()),
+                _ => Err("logistic transform requires finite ordered bounds".into()),
+            }
+        } else {
+            Ok(())
         }
     }
     pub fn to_physical(self, value: f64, lower: Option<f64>, upper: Option<f64>) -> Option<f64> {
@@ -130,15 +168,32 @@ pub fn state_definitions(
     condition: bool,
     condition_lower: f64,
     condition_upper: f64,
+    activity_transform: StateTransformKind,
 ) -> Vec<StateDefinition> {
+    let configured_transform = StateTransform::from_config(activity_transform);
+    // LogisticBounded is meaningful for the bounded sensitivity proxy.  The
+    // activity state remains an interpretable log10 coordinate.
+    let activity_transform = if matches!(configured_transform, StateTransform::LogisticBounded) {
+        StateTransform::Identity
+    } else {
+        configured_transform
+    };
     let mut states = vec![StateDefinition {
         name: "log10_activity".into(),
-        unit: "log10(activity)".into(),
-        transform: StateTransform::Log10Positive,
+        unit: if matches!(activity_transform, StateTransform::Identity) {
+            "log10(activity)".into()
+        } else {
+            "activity".into()
+        },
+        transform: activity_transform,
         lower_bound: None,
         upper_bound: None,
-        interpretation: "latent base-10 logarithm of target-ion activity; activity is 10^value"
-            .into(),
+        interpretation: if matches!(activity_transform, StateTransform::Identity) {
+            "latent base-10 logarithm of target-ion activity; activity is 10^value".into()
+        } else {
+            "physical positive activity with a separately exported latent logarithmic coordinate"
+                .into()
+        },
     }];
     if matches!(
         model,
@@ -172,7 +227,11 @@ pub fn state_definitions(
         states.push(StateDefinition {
             name: "sensitivity_scale".into(),
             unit: "dimensionless".into(),
-            transform: StateTransform::Identity,
+            transform: if matches!(configured_transform, StateTransform::LogisticBounded) {
+                StateTransform::LogisticBounded
+            } else {
+                StateTransform::Identity
+            },
             lower_bound: Some(condition_lower),
             upper_bound: Some(condition_upper),
             interpretation: "latent neutral sensor-condition or sensitivity proxy; not a diagnosis"

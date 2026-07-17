@@ -36,7 +36,14 @@ impl StateModel {
             config.state_model.include_condition_state,
             config.state_model.condition_lower,
             config.state_model.condition_upper,
+            config.state_model.activity_transform,
         );
+        for definition in &definitions {
+            definition
+                .transform
+                .validate_bounds(definition.lower_bound, definition.upper_bound)
+                .map_err(EstimationError::config)?;
+        }
         Ok(Self {
             kind: config.state_model.kind,
             definitions,
@@ -61,6 +68,56 @@ impl StateModel {
     }
     pub fn index(&self, name: &str) -> Option<usize> {
         self.definitions.iter().position(|x| x.name == name)
+    }
+    pub fn log10_activity(&self, state: &DVector<f64>) -> Result<f64, EstimationError> {
+        let index = self.index("log10_activity").unwrap_or(0);
+        let definition = &self.definitions[index];
+        let value = match definition.transform {
+            crate::estimation::state::StateTransform::Identity
+            | crate::estimation::state::StateTransform::Log10Positive => state[index],
+            crate::estimation::state::StateTransform::LogPositive => {
+                state[index] / std::f64::consts::LN_10
+            }
+            crate::estimation::state::StateTransform::LogisticBounded => {
+                return Err(EstimationError::config(
+                    "logistic activity transform requires a bounded physical activity state",
+                ));
+            }
+        };
+        value.is_finite().then_some(value).ok_or_else(|| {
+            EstimationError::Numerical(
+                "activity transform returned a nonfinite log10 activity".into(),
+            )
+        })
+    }
+    pub fn latent_from_log10_activity(&self, log10: f64) -> Result<f64, EstimationError> {
+        let index = self.index("log10_activity").unwrap_or(0);
+        let definition = &self.definitions[index];
+        let latent = match definition.transform {
+            crate::estimation::state::StateTransform::Identity
+            | crate::estimation::state::StateTransform::Log10Positive => log10,
+            crate::estimation::state::StateTransform::LogPositive => {
+                log10 * std::f64::consts::LN_10
+            }
+            crate::estimation::state::StateTransform::LogisticBounded => {
+                return Err(EstimationError::config(
+                    "logistic activity transform requires a bounded physical activity state",
+                ));
+            }
+        };
+        latent.is_finite().then_some(latent).ok_or_else(|| {
+            EstimationError::Numerical(
+                "activity inverse transform returned a nonfinite state".into(),
+            )
+        })
+    }
+    pub fn physical_state_value(&self, state: &DVector<f64>, index: usize) -> Option<f64> {
+        let definition = &self.definitions[index];
+        definition.transform.to_physical(
+            state[index],
+            definition.lower_bound,
+            definition.upper_bound,
+        )
     }
     pub fn transition_matrix(&self, dt_s: f64) -> DMatrix<f64> {
         let mut f = DMatrix::identity(self.dimension(), self.dimension());
@@ -106,14 +163,18 @@ pub fn observation_components(
     model: &StateModel,
     calibration: &dyn CalibrationObservationModel,
 ) -> Result<(f64, DVector<f64>), EstimationError> {
-    let activity = state[model.index("log10_activity").unwrap_or(0)];
+    let activity = model.log10_activity(state)?;
     let h_activity = calibration.predict_potential(activity, env)?;
     let h_zero = calibration.predict_potential(0.0, env)?;
     let mut value = h_activity;
     let mut jacobian = DVector::zeros(model.dimension());
     let mut activity_jacobian = calibration.jacobian_log10_activity(activity, env)?;
     if let Some(i) = model.index("sensitivity_scale") {
-        let scale = state[i];
+        let scale = model.physical_state_value(state, i).ok_or_else(|| {
+            EstimationError::Numerical(
+                "sensitivity state transform returned a nonfinite value".into(),
+            )
+        })?;
         let signal = h_activity - h_zero;
         value = h_zero + scale * signal;
         activity_jacobian *= scale;
@@ -159,7 +220,13 @@ pub fn apply_known_standard_constraint(
             "known-standard auxiliary observation is invalid".into(),
         ));
     }
-    let innovation = value - state[index];
+    let latent_value = match config.state_model.activity_transform {
+        crate::estimation_config::StateTransformKind::LogPositive => {
+            value * std::f64::consts::LN_10
+        }
+        _ => value,
+    };
+    let innovation = latent_value - state[index];
     let innovation_variance = covariance[(index, index)] + variance;
     if !innovation_variance.is_finite() || innovation_variance <= 0.0 {
         return Err(EstimationError::Covariance(
