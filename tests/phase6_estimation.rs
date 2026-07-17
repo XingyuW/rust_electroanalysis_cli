@@ -6,12 +6,17 @@ use rust_electroanalysis_cli::{
     estimation::{
         self,
         calibration_adapter::{CalibrationObservationModel, StoredCalibrationObservationModel},
-        environment::AlignedEnvironment,
+        environment::{
+            AlignedEnvironment, AlignmentMethod, align_experiment,
+            align_experiment_with_polarization, resolve_standard_activity,
+        },
+        measurement::observations,
         simulation,
         state::{CalibrationDomainStatus, MeasurementUpdateStatus},
     },
     estimation_config::{
-        FilterKind, MeasurementNoiseSourceKind, ResolvedEstimationConfig, StateModelKind,
+        EnvironmentConfig, FilterKind, MeasurementNoiseSourceKind, PolarizationInputModel,
+        ResolvedEstimationConfig, StateModelKind,
     },
 };
 use std::{path::PathBuf, str::FromStr};
@@ -58,6 +63,153 @@ fn config(model: StateModelKind) -> ResolvedEstimationConfig {
     c.observability.horizon_steps = 20;
     c.plotting.enabled = false;
     c
+}
+
+#[test]
+fn measurement_adapter_converts_potential_and_variance_to_volts() {
+    let measurement = MultiChannelMeasurement::new(
+        vec![0.0, 1.0],
+        vec![
+            MeasurementChannel::new("E", "mV", vec![Some(100.0), Some(200.0)])
+                .with_variance(vec![Some(4.0), Some(9.0)]),
+        ],
+    )
+    .unwrap();
+    let rows = observations(&measurement, "E").unwrap();
+    assert_eq!(rows[0].potential_v, Some(0.1));
+    assert_eq!(rows[0].observation_variance_v2, Some(4e-6));
+    assert!(
+        observations(
+            &MultiChannelMeasurement::new(
+                vec![0.0, 1.0],
+                vec![MeasurementChannel::from_values(
+                    "E",
+                    "mol/L",
+                    vec![1.0, 2.0]
+                )]
+            )
+            .unwrap(),
+            "E"
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn nicolsky_derivative_uses_supplied_activity_and_preserves_sign() {
+    use rust_electroanalysis_cli::potentiometry::calibration::nicolsky_eisenman::{
+        InterferentModelInput, derivative_log10_activity, evaluate_potential,
+    };
+    let interferents = vec![InterferentModelInput {
+        name: "K".into(),
+        charge: 1,
+        activity: 1e-2,
+        selectivity_coefficient: 0.1,
+    }];
+    for &x in &[-6.0, -3.0, 0.0] {
+        let h = 1e-6;
+        let numerical = (evaluate_potential(0.2, 10_f64.powf(x + h), 1, 298.15, &interferents)
+            .unwrap()
+            - evaluate_potential(0.2, 10_f64.powf(x - h), 1, 298.15, &interferents).unwrap())
+            / (2.0 * h);
+        let analytical =
+            derivative_log10_activity(10_f64.powf(x), 1, 298.15, &interferents).unwrap();
+        assert!((numerical - analytical).abs() < 1e-8);
+        let negative = derivative_log10_activity(10_f64.powf(x), -1, 298.15, &[]).unwrap();
+        assert!(analytical > 0.0 && negative < 0.0);
+    }
+}
+
+#[test]
+fn polarization_input_is_one_shot_and_conservative_by_default() {
+    let mut exp = experiment(vec![Some(0.0); 4], vec![0.0, 1.0, 2.0, 3.0]);
+    exp.events.push(ExperimentEvent {
+        timestamp: 1.5,
+        kind: ExperimentEventKind::ConcentrationStep,
+        value: Some(1e-3),
+        unit: Some("mol/L".into()),
+        analyte: None,
+        annotation: Some("standard".into()),
+        metadata: Some([("polarization_input_v".into(), "0.02".into())].into()),
+    });
+    let mut p = ResolvedEstimationConfig::default().polarization;
+    p.input_model = PolarizationInputModel::ExplicitEventVoltage;
+    p.input_event_kind = Some("concentration_step".into());
+    let e0 = align_experiment_with_polarization(&exp, 2.0, &EnvironmentConfig::default(), None, &p)
+        .unwrap();
+    assert_eq!(e0.polarization_input_v, Some(0.02));
+    let e1 =
+        align_experiment_with_polarization(&exp, 3.0, &EnvironmentConfig::default(), Some(&e0), &p)
+            .unwrap();
+    assert_eq!(e1.polarization_input_v, None);
+    let conservative = align_experiment_with_polarization(
+        &exp,
+        2.0,
+        &EnvironmentConfig::default(),
+        None,
+        &Default::default(),
+    )
+    .unwrap();
+    assert_eq!(conservative.polarization_input_v, None);
+    let _ = AlignmentMethod::Nearest;
+}
+
+#[test]
+fn known_standard_pipeline_requires_units_and_nonideal_context() {
+    use rust_electroanalysis_cli::{
+        calibration_config::ActivityConfig, domain::EnvironmentalSeries, results::ActivityModelKind,
+    };
+    let mut ideal_experiment = experiment(vec![Some(0.0)], vec![0.0]);
+    ideal_experiment.events.push(ExperimentEvent {
+        timestamp: 0.0,
+        kind: ExperimentEventKind::ConcentrationStep,
+        value: Some(1.0),
+        unit: Some("mmol/L".into()),
+        analyte: None,
+        annotation: Some("known standard".into()),
+        metadata: None,
+    });
+    let mut env =
+        align_experiment(&ideal_experiment, 0.0, &EnvironmentConfig::default(), None).unwrap();
+    resolve_standard_activity(&mut env, &ActivityConfig::default(), None, 1).unwrap();
+    assert_eq!(env.known_activity_log10, Some(-3.0));
+    assert!(
+        env.known_standard_assumption
+            .as_ref()
+            .unwrap()
+            .contains("ideal")
+    );
+
+    let nonideal = ActivityConfig {
+        model: ActivityModelKind::Davies,
+        ..ActivityConfig::default()
+    };
+    assert!(resolve_standard_activity(&mut env.clone(), &nonideal, None, 1).is_err());
+    ideal_experiment
+        .environmental_data
+        .push(EnvironmentalSeries {
+            name: "ionic_strength".into(),
+            unit: "mmol/L".into(),
+            time: vec![0.0],
+            values: vec![Some(100.0)],
+            metadata: None,
+        });
+    let mut with_ionic =
+        align_experiment(&ideal_experiment, 0.0, &EnvironmentConfig::default(), None).unwrap();
+    resolve_standard_activity(&mut with_ionic, &nonideal, None, 1).unwrap();
+    assert!(with_ionic.known_activity_log10.unwrap() < -3.0);
+
+    let mut ambiguous = experiment(vec![Some(0.0)], vec![0.0]);
+    ambiguous.events.push(ExperimentEvent {
+        timestamp: 0.0,
+        kind: ExperimentEventKind::ConcentrationStep,
+        value: Some(1.0),
+        unit: None,
+        analyte: None,
+        annotation: Some("known standard".into()),
+        metadata: None,
+    });
+    assert!(align_experiment(&ambiguous, 0.0, &EnvironmentConfig::default(), None).is_err());
 }
 
 #[test]
