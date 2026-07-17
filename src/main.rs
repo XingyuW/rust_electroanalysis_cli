@@ -7,7 +7,7 @@ use rust_electroanalysis_cli::cli::{CliError, CommandSpec, parse_cli_args, print
 use rust_electroanalysis_cli::domain::{ConfigurationError, WorkspaceError};
 use rust_electroanalysis_cli::plot_config::PlotConfig;
 use rust_electroanalysis_cli::runners::{
-    RunnerError, calibration, fit, mechanism, plot, search, transient,
+    RunnerError, calibration, fit, health, mechanism, plot, search, signal, transient,
 };
 use rust_electroanalysis_cli::workspace::{self, LastRunMode};
 use thiserror::Error as ThisError;
@@ -310,6 +310,103 @@ fn run() -> Result<(), ApplicationError> {
                 None,
             )?;
             mechanism::report(&workspace_dir, &results, output.as_deref())?;
+        }
+        CommandSpec::SignalCharacterize {
+            input,
+            metadata,
+            channel,
+            config_path,
+            output,
+        } => {
+            signal::characterize(
+                &workspace_dir,
+                &input,
+                metadata.as_deref(),
+                &channel,
+                config_path.as_deref(),
+                output.as_deref(),
+            )?;
+        }
+        CommandSpec::SignalCompare {
+            manifest,
+            config_path,
+            output,
+        } => {
+            signal::compare(
+                &workspace_dir,
+                &manifest,
+                config_path.as_deref(),
+                output.as_deref(),
+            )?;
+        }
+        CommandSpec::SignalResiduals {
+            transient_results,
+            calibration_results,
+            eis_fit,
+            config_path,
+            output,
+        } => {
+            signal::residuals(
+                &workspace_dir,
+                transient_results.as_deref(),
+                calibration_results.as_deref(),
+                eis_fit.as_deref(),
+                config_path.as_deref(),
+                output.as_deref(),
+            )?;
+        }
+        CommandSpec::HealthBaseline {
+            manifest,
+            config_path,
+            output,
+        } => {
+            health::baseline(
+                &workspace_dir,
+                &manifest,
+                config_path.as_deref(),
+                output.as_deref(),
+            )?;
+        }
+        CommandSpec::HealthAssess {
+            signal_results,
+            transient_results,
+            calibration_results,
+            eis_fit,
+            mechanism_results,
+            baseline,
+            metadata,
+            config_path,
+            output,
+        } => {
+            health::assess(
+                &workspace_dir,
+                &signal_results,
+                transient_results.as_deref(),
+                calibration_results.as_deref(),
+                eis_fit.as_deref(),
+                mechanism_results.as_deref(),
+                baseline.as_deref(),
+                metadata.as_deref(),
+                config_path.as_deref(),
+                output.as_deref(),
+            )?;
+        }
+        CommandSpec::HealthTrend {
+            manifest,
+            baseline,
+            config_path,
+            output,
+        } => {
+            health::trend(
+                &workspace_dir,
+                &manifest,
+                baseline.as_deref(),
+                config_path.as_deref(),
+                output.as_deref(),
+            )?;
+        }
+        CommandSpec::HealthReport { results, output } => {
+            health::report(&workspace_dir, &results, output.as_deref())?;
         }
     }
 

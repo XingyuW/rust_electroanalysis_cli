@@ -18,6 +18,8 @@ pub const PARSING_CONFIG_PATH: &str = "config/parsing.toml";
 pub const TRANSIENT_CONFIG_PATH: &str = "config/transient.toml";
 pub const CALIBRATION_CONFIG_PATH: &str = "config/calibration.toml";
 pub const MECHANISM_CONFIG_PATH: &str = "config/mechanism.toml";
+pub const SIGNAL_CONFIG_PATH: &str = "config/signal.toml";
+pub const HEALTH_CONFIG_PATH: &str = "config/health.toml";
 
 const LEGACY_PLOTTING_CONFIG_PATH: &str = "plot_config.toml";
 const LEGACY_ANALYSIS_CONFIG_PATH: &str = "ecm_search.toml";
@@ -37,6 +39,8 @@ pub struct WorkspacePaths {
     pub transient_config_path: PathBuf,
     pub calibration_config_path: PathBuf,
     pub mechanism_config_path: PathBuf,
+    pub signal_config_path: PathBuf,
+    pub health_config_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -185,6 +189,8 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         transient_config_path: root.join(TRANSIENT_CONFIG_PATH),
         calibration_config_path: root.join(CALIBRATION_CONFIG_PATH),
         mechanism_config_path: root.join(MECHANISM_CONFIG_PATH),
+        signal_config_path: root.join(SIGNAL_CONFIG_PATH),
+        health_config_path: root.join(HEALTH_CONFIG_PATH),
     };
     let mut warnings = Vec::new();
 
@@ -203,6 +209,22 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         LEGACY_PLOTTING_CONFIG_PATH,
         DEFAULT_PLOTTING_CONFIG,
         "plotting config",
+        &mut warnings,
+    )?;
+    ensure_runtime_config_file(
+        root,
+        &paths.signal_config_path,
+        "signal.toml",
+        DEFAULT_SIGNAL_CONFIG,
+        "signal config",
+        &mut warnings,
+    )?;
+    ensure_runtime_config_file(
+        root,
+        &paths.health_config_path,
+        "health.toml",
+        DEFAULT_HEALTH_CONFIG,
+        "health config",
         &mut warnings,
     )?;
     ensure_runtime_config_file(
@@ -371,6 +393,108 @@ const DEFAULT_PLOTTING_CONFIG: &str = r#"schema_version = 1
 input_is_directory = true
 output_path = "../output"
 output_prefix = ""
+"#;
+
+const DEFAULT_SIGNAL_CONFIG: &str = r#"schema_version = 1
+
+[windowing]
+source = "stable_experiment_region"
+exclude_before_event_s = 10.0
+exclude_after_event_s = 300.0
+
+[sampling]
+policy = "require_regular"
+regularity_relative_tolerance = 0.01
+maximum_interpolation_gap_s = 5.0
+
+[psd]
+enabled = true
+segment_points = 256
+overlap_fraction = 0.5
+window = "hann"
+detrend = "linear"
+parseval_tolerance = 0.10
+
+[allan]
+enabled = true
+minimum_clusters = 8
+tau_points = 30
+
+[drift]
+models = ["ordinary_linear", "theil_sen"]
+minimum_duration_s = 300.0
+
+[spikes]
+enabled = true
+method = "hampel"
+window_points = 11
+mad_threshold = 4.0
+
+[correlation]
+enabled = true
+maximum_lag_s = 60.0
+
+[plotting]
+enabled = true
+"#;
+
+const DEFAULT_HEALTH_CONFIG: &str = r#"schema_version = 1
+
+[baseline]
+minimum_records = 3
+robust_statistics = true
+
+[comparability]
+require_same_analyte = true
+require_same_sample_matrix = true
+maximum_temperature_difference_k = 2.0
+require_same_sensor_design = true
+
+[normalization]
+use_relative_difference = true
+use_robust_z_score = true
+minimum_baseline_records_for_z_score = 5
+
+[assessment]
+minimum_domains_for_assessment = 2
+minimum_domains_for_mechanistic_finding = 2
+allow_warning_artifacts = true
+
+[[rules]]
+rule_id = "elevated-noise"
+finding = "elevated_noise"
+severity = "moderate"
+minimum_evidence_domains = 1
+
+[[rules.all_of]]
+feature = "signal.robust_noise_standard_deviation"
+operator = "robust_z_greater_than"
+value = 3.0
+
+[[rules]]
+rule_id = "probable-fouling"
+finding = "probable_fouling"
+severity = "major"
+minimum_evidence_domains = 2
+alternative_explanations = ["environmental mismatch", "incomplete baseline context"]
+
+[[rules.all_of]]
+feature = "transient.tau_slow"
+operator = "relative_increase_greater_than"
+value = 1.0
+
+[[rules.any_of]]
+feature = "calibration.slope_efficiency"
+operator = "relative_decrease_greater_than"
+value = 0.20
+
+[[rules.any_of]]
+feature = "eis.role.transport.relaxation_timescale"
+operator = "relative_increase_greater_than"
+value = 1.0
+
+[plotting]
+enabled = true
 "#;
 
 const DEFAULT_ANALYSIS_CONFIG: &str = r#"schema_version = 1

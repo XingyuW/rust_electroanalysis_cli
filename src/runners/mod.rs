@@ -14,9 +14,11 @@ use thiserror::Error as ThisError;
 
 pub mod calibration;
 pub mod fit;
+pub mod health;
 pub mod mechanism;
 pub mod plot;
 pub mod search;
+pub mod signal;
 pub mod transient;
 
 /// Errors crossing a workflow boundary into the CLI.
@@ -36,6 +38,14 @@ pub enum RunnerError {
     Potentiometry(#[from] PotentiometryError),
     #[error(transparent)]
     Calibration(#[from] CalibrationError),
+    #[error(transparent)]
+    Signal(#[from] crate::signal::error::SignalError),
+    #[error(transparent)]
+    Health(#[from] crate::health::error::HealthError),
+    #[error("workflow JSON error: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("workflow TOML error: {0}")]
+    Toml(#[from] toml::de::Error),
     #[error("workflow I/O error: {0}")]
     Io(#[from] io::Error),
     #[error("workflow CSV error: {0}")]

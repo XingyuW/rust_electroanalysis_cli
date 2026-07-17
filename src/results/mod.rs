@@ -2,8 +2,13 @@
 
 pub mod calibration;
 pub mod eis;
+pub mod health;
 pub mod mechanism;
+pub mod signal;
 pub mod transient;
+
+pub use health::*;
+pub use signal::*;
 
 pub use calibration::*;
 

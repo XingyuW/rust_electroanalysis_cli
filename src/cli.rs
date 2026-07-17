@@ -65,6 +65,16 @@ pub enum Command {
         #[command(subcommand)]
         command: MechanismCommand,
     },
+    /// Characterize signal quality and residual structure.
+    Signal {
+        #[command(subcommand)]
+        command: SignalCommand,
+    },
+    /// Construct baselines and assess sensor health.
+    Health {
+        #[command(subcommand)]
+        command: HealthCommand,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -92,6 +102,105 @@ pub enum MechanismCommand {
     Compare(MechanismCompareCommand),
     Trend(MechanismTrendCommand),
     Report(MechanismReportCommand),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SignalCommand {
+    Characterize(SignalCharacterizeCommand),
+    Compare(SignalCompareCommand),
+    Residuals(SignalResidualsCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct SignalCharacterizeCommand {
+    #[arg(long)]
+    pub input: PathBuf,
+    #[arg(long)]
+    pub metadata: Option<PathBuf>,
+    #[arg(long)]
+    pub channel: String,
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+#[derive(Debug, Args)]
+pub struct SignalCompareCommand {
+    #[arg(long)]
+    pub manifest: PathBuf,
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+#[derive(Debug, Args)]
+pub struct SignalResidualsCommand {
+    #[arg(long)]
+    pub transient_results: Option<PathBuf>,
+    #[arg(long)]
+    pub calibration_results: Option<PathBuf>,
+    #[arg(long)]
+    pub eis_fit: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum HealthCommand {
+    Baseline(HealthBaselineCommand),
+    Assess(HealthAssessCommand),
+    Trend(HealthTrendCommand),
+    Report(HealthReportCommand),
+}
+#[derive(Debug, Args)]
+pub struct HealthBaselineCommand {
+    #[arg(long)]
+    pub manifest: PathBuf,
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+#[derive(Debug, Args)]
+pub struct HealthAssessCommand {
+    #[arg(long)]
+    pub signal_results: PathBuf,
+    #[arg(long)]
+    pub transient_results: Option<PathBuf>,
+    #[arg(long)]
+    pub calibration_results: Option<PathBuf>,
+    #[arg(long)]
+    pub eis_fit: Option<PathBuf>,
+    #[arg(long)]
+    pub mechanism_results: Option<PathBuf>,
+    #[arg(long)]
+    pub baseline: Option<PathBuf>,
+    #[arg(long)]
+    pub metadata: Option<PathBuf>,
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+#[derive(Debug, Args)]
+pub struct HealthTrendCommand {
+    #[arg(long)]
+    pub manifest: PathBuf,
+    #[arg(long)]
+    pub baseline: Option<PathBuf>,
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+#[derive(Debug, Args)]
+pub struct HealthReportCommand {
+    #[arg(long)]
+    pub results: PathBuf,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -485,6 +594,51 @@ pub enum CommandSpec {
         results: PathBuf,
         output: Option<PathBuf>,
     },
+    SignalCharacterize {
+        input: PathBuf,
+        metadata: Option<PathBuf>,
+        channel: String,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    SignalCompare {
+        manifest: PathBuf,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    SignalResiduals {
+        transient_results: Option<PathBuf>,
+        calibration_results: Option<PathBuf>,
+        eis_fit: Option<PathBuf>,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    HealthBaseline {
+        manifest: PathBuf,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    HealthAssess {
+        signal_results: PathBuf,
+        transient_results: Option<PathBuf>,
+        calibration_results: Option<PathBuf>,
+        eis_fit: Option<PathBuf>,
+        mechanism_results: Option<PathBuf>,
+        baseline: Option<PathBuf>,
+        metadata: Option<PathBuf>,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    HealthTrend {
+        manifest: PathBuf,
+        baseline: Option<PathBuf>,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    HealthReport {
+        results: PathBuf,
+        output: Option<PathBuf>,
+    },
 }
 
 /// Errors raised while parsing or validating command-line arguments.
@@ -569,7 +723,14 @@ impl CliArgs {
             | Some(CommandSpec::CalibrationPredict { .. }) => {}
             Some(CommandSpec::MechanismCompare { .. })
             | Some(CommandSpec::MechanismTrend { .. })
-            | Some(CommandSpec::MechanismReport { .. }) => {}
+            | Some(CommandSpec::MechanismReport { .. })
+            | Some(CommandSpec::SignalCharacterize { .. })
+            | Some(CommandSpec::SignalCompare { .. })
+            | Some(CommandSpec::SignalResiduals { .. })
+            | Some(CommandSpec::HealthBaseline { .. })
+            | Some(CommandSpec::HealthAssess { .. })
+            | Some(CommandSpec::HealthTrend { .. })
+            | Some(CommandSpec::HealthReport { .. }) => {}
             None => {}
         }
 
@@ -727,6 +888,55 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                 MechanismCommand::Report(command) => CommandSpec::MechanismReport {
                     results: command.results,
                     output: command.output,
+                },
+            },
+            Command::Signal { command } => match command {
+                SignalCommand::Characterize(c) => CommandSpec::SignalCharacterize {
+                    input: c.input,
+                    metadata: c.metadata,
+                    channel: c.channel,
+                    config_path: c.config,
+                    output: c.output,
+                },
+                SignalCommand::Compare(c) => CommandSpec::SignalCompare {
+                    manifest: c.manifest,
+                    config_path: c.config,
+                    output: c.output,
+                },
+                SignalCommand::Residuals(c) => CommandSpec::SignalResiduals {
+                    transient_results: c.transient_results,
+                    calibration_results: c.calibration_results,
+                    eis_fit: c.eis_fit,
+                    config_path: c.config,
+                    output: c.output,
+                },
+            },
+            Command::Health { command } => match command {
+                HealthCommand::Baseline(c) => CommandSpec::HealthBaseline {
+                    manifest: c.manifest,
+                    config_path: c.config,
+                    output: c.output,
+                },
+                HealthCommand::Assess(c) => CommandSpec::HealthAssess {
+                    signal_results: c.signal_results,
+                    transient_results: c.transient_results,
+                    calibration_results: c.calibration_results,
+                    eis_fit: c.eis_fit,
+                    mechanism_results: c.mechanism_results,
+                    baseline: c.baseline,
+                    metadata: c.metadata,
+                    config_path: c.config,
+                    output: c.output,
+                },
+                HealthCommand::Trend(c) => CommandSpec::HealthTrend {
+                    manifest: c.manifest,
+                    baseline: c.baseline,
+                    config_path: c.config,
+                    output: c.output,
+                },
+                HealthCommand::Report(c) => CommandSpec::HealthReport {
+                    results: c.results,
+                    output: c.output,
                 },
             },
         }

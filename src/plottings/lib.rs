@@ -7,8 +7,10 @@ pub mod calibration_plot;
 pub mod chi_plot;
 pub mod eis_plot;
 pub mod generic_plot;
+pub mod health_plot;
 pub mod mechanism_plot;
 pub mod plotting;
+pub mod signal_plot;
 pub mod transient_plot;
 
 pub use calibration_plot::plot_calibration_report;

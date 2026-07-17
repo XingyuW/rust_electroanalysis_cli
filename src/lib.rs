@@ -21,6 +21,8 @@ pub mod calibration_config;
 pub mod cli;
 pub mod domain;
 pub mod fitting;
+pub mod health;
+pub mod health_config;
 pub mod mechanism_config;
 pub mod plot_config;
 pub mod plot_runner;
@@ -30,6 +32,8 @@ pub mod results;
 pub mod runners;
 pub mod search_config;
 pub mod search_runner;
+pub mod signal;
+pub mod signal_config;
 pub mod transient_config;
 pub mod workspace;
 
@@ -47,6 +51,8 @@ pub use results::calibration::{
     CalibrationObservationSet, CalibrationPotentialSource, CalibrationPrediction,
     StoredCalibrationModel,
 };
+pub use results::health::{SensorHealthAssessment, SensorHealthBaseline};
+pub use results::signal::SignalAnalysisReport;
 pub use results::transient::{
     TransientAnalysisReport, TransientEventResult, TransientFeatures, TransientFitResult,
 };

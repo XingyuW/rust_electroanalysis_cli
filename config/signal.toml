@@ -1,0 +1,46 @@
+schema_version = 1
+
+[windowing]
+source = "stable_experiment_region"
+exclude_before_event_s = 10.0
+exclude_after_event_s = 300.0
+eligible_event_kinds = ["concentration_step", "flow_change", "temperature_change", "interferent_addition"]
+
+[sampling]
+policy = "require_regular"
+regularity_relative_tolerance = 0.01
+resample_interval_s = 1.0
+maximum_interpolation_gap_s = 5.0
+
+[statistics]
+confidence_level = 0.95
+
+[psd]
+enabled = true
+segment_points = 256
+overlap_fraction = 0.5
+window = "hann"
+detrend = "linear"
+parseval_tolerance = 0.10
+
+[allan]
+enabled = true
+minimum_clusters = 8
+tau_points = 30
+
+[drift]
+models = ["ordinary_linear", "theil_sen"]
+minimum_duration_s = 300.0
+
+[spikes]
+enabled = true
+method = "hampel"
+window_points = 11
+mad_threshold = 4.0
+
+[correlation]
+enabled = true
+maximum_lag_s = 60.0
+
+[plotting]
+enabled = true
