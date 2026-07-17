@@ -5,12 +5,19 @@
 )]
 
 use crate::{
+    calibration_config::ActivityConfig,
     domain::{ElectrochemicalExperiment, EnvironmentalSeries, ExperimentEventKind},
     estimation::{
         error::EstimationError,
         state::{EstimationWarning, EstimationWarningKind},
     },
-    estimation_config::{AlignmentKind, EnvironmentConfig},
+    estimation_config::{
+        AlignmentKind, EnvironmentConfig, PolarizationConfig, PolarizationInputModel,
+    },
+    potentiometry::{
+        calibration::activity::evaluate_activity,
+        units::{Quantity, QuantityUnit},
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -26,6 +33,14 @@ pub enum AlignmentMethod {
     Fallback,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StandardValueKind {
+    Activity,
+    MolarConcentration,
+    MassConcentration,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AlignedValue {
     pub value: f64,
@@ -35,6 +50,10 @@ pub struct AlignedValue {
     pub time_gap_s: f64,
     pub interpolated: bool,
     pub extrapolated: bool,
+    #[serde(default)]
+    pub source_unit: Option<String>,
+    #[serde(default)]
+    pub conversion: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -47,7 +66,23 @@ pub struct AlignedEnvironment {
     pub interferent_activities: BTreeMap<String, f64>,
     pub known_activity_log10: Option<f64>,
     pub known_standard: bool,
+    #[serde(default)]
+    pub known_standard_value_kind: Option<StandardValueKind>,
+    #[serde(default)]
+    pub known_standard_unit: Option<String>,
+    #[serde(default)]
+    pub known_standard_raw_value: Option<f64>,
+    #[serde(default)]
+    pub known_molar_concentration_mol_l: Option<f64>,
+    #[serde(default)]
+    pub known_standard_assumption: Option<String>,
+    #[serde(default)]
+    pub known_standard_provenance: Option<String>,
     pub polarization_input_v: Option<f64>,
+    #[serde(default)]
+    pub polarization_input_source: Option<String>,
+    #[serde(default)]
+    pub polarization_event_timestamp_s: Option<f64>,
     pub values: Vec<AlignedValue>,
     pub warnings: Vec<EstimationWarning>,
 }
@@ -60,6 +95,18 @@ pub struct AlignedEnvironmentSummary {
     pub flow: Option<f64>,
     pub known_activity_log10: Option<f64>,
     pub known_standard: bool,
+    #[serde(default)]
+    pub known_standard_value_kind: Option<StandardValueKind>,
+    #[serde(default)]
+    pub known_standard_unit: Option<String>,
+    #[serde(default)]
+    pub known_standard_assumption: Option<String>,
+    #[serde(default)]
+    pub known_standard_provenance: Option<String>,
+    #[serde(default)]
+    pub polarization_input_source: Option<String>,
+    #[serde(default)]
+    pub polarization_event_timestamp_s: Option<f64>,
     pub interferent_activities: BTreeMap<String, f64>,
     pub source_records: Vec<AlignedValueSummary>,
 }
@@ -71,6 +118,10 @@ pub struct AlignedValueSummary {
     pub time_gap_s: f64,
     pub interpolated: bool,
     pub extrapolated: bool,
+    #[serde(default)]
+    pub source_unit: Option<String>,
+    #[serde(default)]
+    pub conversion: Option<String>,
 }
 impl From<&AlignedEnvironment> for AlignedEnvironmentSummary {
     fn from(e: &AlignedEnvironment) -> Self {
@@ -81,6 +132,12 @@ impl From<&AlignedEnvironment> for AlignedEnvironmentSummary {
             flow: e.flow,
             known_activity_log10: e.known_activity_log10,
             known_standard: e.known_standard,
+            known_standard_value_kind: e.known_standard_value_kind,
+            known_standard_unit: e.known_standard_unit.clone(),
+            known_standard_assumption: e.known_standard_assumption.clone(),
+            known_standard_provenance: e.known_standard_provenance.clone(),
+            polarization_input_source: e.polarization_input_source.clone(),
+            polarization_event_timestamp_s: e.polarization_event_timestamp_s,
             interferent_activities: e.interferent_activities.clone(),
             source_records: e
                 .values
@@ -92,6 +149,8 @@ impl From<&AlignedEnvironment> for AlignedEnvironmentSummary {
                     time_gap_s: v.time_gap_s,
                     interpolated: v.interpolated,
                     extrapolated: v.extrapolated,
+                    source_unit: v.source_unit.clone(),
+                    conversion: v.conversion.clone(),
                 })
                 .collect(),
         }
@@ -103,6 +162,22 @@ pub fn align_experiment(
     timestamp_s: f64,
     config: &EnvironmentConfig,
     previous: Option<&AlignedEnvironment>,
+) -> Result<AlignedEnvironment, EstimationError> {
+    align_experiment_with_polarization(
+        experiment,
+        timestamp_s,
+        config,
+        previous,
+        &PolarizationConfig::default(),
+    )
+}
+
+pub fn align_experiment_with_polarization(
+    experiment: &ElectrochemicalExperiment,
+    timestamp_s: f64,
+    config: &EnvironmentConfig,
+    previous: Option<&AlignedEnvironment>,
+    polarization_config: &PolarizationConfig,
 ) -> Result<AlignedEnvironment, EstimationError> {
     if !timestamp_s.is_finite() {
         return Err(EstimationError::invalid(
@@ -125,8 +200,10 @@ pub fn align_experiment(
             .and_then(|n| experiment.environmental_data.iter().find(|s| s.name == n))
     };
     if let Some(series) = find(&config.temperature_series) {
-        if let Some(value) = align_series(series, timestamp_s, method, config)? {
+        if let Some(mut value) = align_series(series, timestamp_s, method, config)? {
             result.temperature_k = Some(to_kelvin(value.value, &series.unit)?);
+            value.source_unit = Some(series.unit.clone());
+            value.conversion = Some("converted to K".into());
             result.values.push(value);
         } else {
             result.warnings.push(EstimationWarning::at(
@@ -153,16 +230,30 @@ pub fn align_experiment(
         ));
     }
     if let Some(series) = find(&config.conductivity_series) {
-        if let Some(value) = align_series(series, timestamp_s, method, config)? {
-            result.conductivity_s_per_m = Some(to_conductivity(value.value, &series.unit));
+        if let Some(mut value) = align_series(series, timestamp_s, method, config)? {
+            result.conductivity_s_per_m = Some(to_conductivity(value.value, &series.unit)?);
+            value.source_unit = Some(series.unit.clone());
+            value.conversion = Some("converted to S/m".into());
             result.values.push(value);
         }
     } else if let Some(value) = config.fallback_conductivity_s_per_m {
         result.conductivity_s_per_m = Some(value);
     }
     if let Some(series) = find(&config.ionic_strength_series) {
-        if let Some(value) = align_series(series, timestamp_s, method, config)? {
-            result.ionic_strength_mol_l = Some(value.value);
+        if let Some(mut value) = align_series(series, timestamp_s, method, config)? {
+            let quantity = Quantity::parse(value.value, &series.unit).map_err(|error| {
+                EstimationError::invalid(format!(
+                    "ionic-strength series '{}' has unsupported unit '{}': {error}",
+                    series.name, series.unit
+                ))
+            })?;
+            result.ionic_strength_mol_l = Some(
+                quantity
+                    .to_molar_concentration(None)
+                    .map_err(|error| EstimationError::invalid(error.to_string()))?,
+            );
+            value.source_unit = Some(series.unit.clone());
+            value.conversion = Some("converted to mol/L".into());
             result.values.push(value);
         }
     } else {
@@ -202,12 +293,19 @@ pub fn align_experiment(
         .next_back();
     if let Some((_, event)) = latest_event {
         if event.kind == ExperimentEventKind::ConcentrationStep {
-            if let Some(value) = event.value.filter(|v| v.is_finite() && *v > 0.0) {
-                result.known_activity_log10 = Some(value.log10());
-                result.known_standard = event
+            if event.value.is_some_and(|v| v.is_finite() && v > 0.0) {
+                let metadata = event.metadata.as_ref();
+                let is_standard = event
                     .annotation
                     .as_deref()
-                    .is_some_and(|x| x.to_ascii_lowercase().contains("standard"));
+                    .is_some_and(|x| x.to_ascii_lowercase().contains("standard"))
+                    || metadata
+                        .and_then(|m| m.get("known_standard"))
+                        .is_some_and(|x| x.eq_ignore_ascii_case("true"));
+                result.known_standard = is_standard;
+                if is_standard {
+                    parse_standard_event(&mut result, event)?;
+                }
             }
         }
     }
@@ -223,6 +321,13 @@ pub fn align_experiment(
             result.ionic_strength_mol_l = p.ionic_strength_mol_l;
         }
     }
+    apply_polarization_input(
+        &mut result,
+        experiment,
+        timestamp_s,
+        previous,
+        polarization_config,
+    )?;
     Ok(result)
 }
 
@@ -312,27 +417,275 @@ fn align_series(
         time_gap_s: gap,
         interpolated,
         extrapolated: timestamp < pairs[0].0 || timestamp > pairs.last().unwrap().0,
+        source_unit: None,
+        conversion: None,
     }))
 }
 fn to_kelvin(value: f64, unit: &str) -> Result<f64, EstimationError> {
-    let k = if unit.to_ascii_lowercase().contains('k') {
-        value
-    } else {
-        value + 273.15
-    };
-    if k.is_finite() && k > 0.0 {
-        Ok(k)
-    } else {
-        Err(EstimationError::invalid("temperature is not physical"))
-    }
+    Quantity::parse(value, unit)
+        .and_then(|quantity| quantity.to_temperature_k())
+        .map_err(|error| EstimationError::invalid(error.to_string()))
 }
-fn to_conductivity(value: f64, unit: &str) -> f64 {
-    let u = unit.to_ascii_lowercase();
-    if u.contains("ms") {
-        value * 1e-3
-    } else if u.contains("us") {
-        value * 1e-6
-    } else {
-        value
+fn to_conductivity(value: f64, unit: &str) -> Result<f64, EstimationError> {
+    Quantity::parse(value, unit)
+        .and_then(|quantity| quantity.to_conductivity_s_per_m())
+        .map_err(|error| EstimationError::invalid(error.to_string()))
+}
+
+fn parse_standard_event(
+    result: &mut AlignedEnvironment,
+    event: &crate::domain::ExperimentEvent,
+) -> Result<(), EstimationError> {
+    let metadata = event.metadata.as_ref();
+    let unit_name = event
+        .unit
+        .as_deref()
+        .or_else(|| metadata.and_then(|m| m.get("standard_unit").map(String::as_str)));
+    let kind_name = metadata.and_then(|m| m.get("standard_value_kind").map(String::as_str));
+    let value = event
+        .value
+        .ok_or_else(|| EstimationError::invalid("known standard has no value"))?;
+    let kind_from_metadata = kind_name
+        .map(|kind| match kind.to_ascii_lowercase().as_str() {
+            "activity" => Ok(StandardValueKind::Activity),
+            "molar_concentration" | "molar concentration" => {
+                Ok(StandardValueKind::MolarConcentration)
+            }
+            "mass_concentration" | "mass concentration" => Ok(StandardValueKind::MassConcentration),
+            _ => Err(EstimationError::invalid(format!(
+                "unsupported standard value kind '{kind}'"
+            ))),
+        })
+        .transpose()?;
+    let quantity = unit_name
+        .map(|unit| Quantity::parse(value, unit))
+        .transpose()
+        .map_err(|error| {
+            EstimationError::invalid(format!("known standard unit is invalid: {error}"))
+        })?;
+    let kind = kind_from_metadata
+        .or_else(|| {
+            quantity.as_ref().map(|q| match q.unit {
+                QuantityUnit::Activity => StandardValueKind::Activity,
+                QuantityUnit::MolPerL | QuantityUnit::MmolPerL | QuantityUnit::MicromolPerL => {
+                    StandardValueKind::MolarConcentration
+                }
+                QuantityUnit::MgPerL | QuantityUnit::GPerL => StandardValueKind::MassConcentration,
+                _ => StandardValueKind::MassConcentration,
+            })
+        })
+        .ok_or_else(|| {
+            EstimationError::invalid("known standard requires an explicit unit or metadata kind")
+        })?;
+    result.known_standard_value_kind = Some(kind);
+    result.known_standard_unit = unit_name.map(str::to_string);
+    result.known_standard_raw_value = Some(value);
+    result.known_standard_provenance =
+        Some("concentration-step event with explicit standard metadata".into());
+    match kind {
+        StandardValueKind::Activity => {
+            let activity = quantity
+                .ok_or_else(|| {
+                    EstimationError::invalid("activity standard requires an activity unit")
+                })?
+                .to_activity()
+                .map_err(|error| EstimationError::invalid(error.to_string()))?;
+            result.known_activity_log10 = Some(activity.log10());
+            result.known_standard_assumption = Some("event explicitly declared activity".into());
+        }
+        StandardValueKind::MolarConcentration => {
+            let molar = quantity
+                .ok_or_else(|| {
+                    EstimationError::invalid("molar standard requires a concentration unit")
+                })?
+                .to_molar_concentration(None)
+                .map_err(|error| EstimationError::invalid(error.to_string()))?;
+            result.known_molar_concentration_mol_l = Some(molar);
+            result.known_activity_log10 = Some(molar.log10());
+            result.known_standard_assumption = Some("ideal activity (activity equals molar concentration) pending calibration-model correction".into());
+        }
+        StandardValueKind::MassConcentration => {
+            result.known_standard_assumption = Some(
+                "mass concentration conversion deferred until analyte molar mass is available"
+                    .into(),
+            );
+        }
     }
+    Ok(())
+}
+
+fn apply_polarization_input(
+    result: &mut AlignedEnvironment,
+    experiment: &ElectrochemicalExperiment,
+    timestamp_s: f64,
+    previous: Option<&AlignedEnvironment>,
+    config: &PolarizationConfig,
+) -> Result<(), EstimationError> {
+    if matches!(config.input_model, PolarizationInputModel::None) {
+        return Ok(());
+    }
+    let kind = config
+        .input_event_kind
+        .as_deref()
+        .unwrap_or("concentration_step");
+    let event = experiment
+        .ordered_events()
+        .iter()
+        .filter(|event| event.timestamp <= timestamp_s && event_kind_matches(event, kind))
+        .next_back();
+    let Some(event) = event else { return Ok(()) };
+    if previous.is_some_and(|prior| event.timestamp <= prior.timestamp_s) {
+        return Ok(());
+    }
+    let input = match config.input_model {
+        PolarizationInputModel::None => None,
+        PolarizationInputModel::ExplicitEventVoltage => {
+            let metadata = event.metadata.as_ref();
+            let value = metadata
+                .and_then(|m| m.get("polarization_input_v"))
+                .ok_or_else(|| {
+                    EstimationError::invalid(
+                        "explicit polarization event lacks metadata polarization_input_v",
+                    )
+                })?
+                .parse::<f64>()
+                .map_err(|_| {
+                    EstimationError::invalid("explicit polarization input is not numeric")
+                })?;
+            let unit = metadata
+                .and_then(|m| m.get("polarization_input_unit"))
+                .map(String::as_str)
+                .unwrap_or("V");
+            Some(
+                Quantity::parse(value, unit)
+                    .and_then(|q| q.to_potential_v())
+                    .map_err(|e| EstimationError::invalid(e.to_string()))?,
+            )
+        }
+        PolarizationInputModel::ActivityStepGain => {
+            let current = event_log10_activity(event)?;
+            let previous_log = event
+                .metadata
+                .as_ref()
+                .and_then(|m| m.get("previous_log10_activity"))
+                .and_then(|value| value.parse::<f64>().ok())
+                .or_else(|| {
+                    experiment
+                        .ordered_events()
+                        .iter()
+                        .rev()
+                        .filter(|candidate| {
+                            candidate.timestamp < event.timestamp && candidate.kind == event.kind
+                        })
+                        .find_map(|candidate| event_log10_activity(candidate).ok())
+                });
+            previous_log.map(|previous| config.gain_v_per_log10_activity * (current - previous))
+        }
+    };
+    if let Some(input) = input.filter(|value| value.is_finite()) {
+        result.polarization_input_v = Some(input);
+        result.polarization_event_timestamp_s = Some(event.timestamp);
+        result.polarization_input_source =
+            Some(format!("{:?} from {} event", config.input_model, kind));
+    }
+    Ok(())
+}
+
+fn event_kind_matches(event: &crate::domain::ExperimentEvent, configured: &str) -> bool {
+    let expected = configured.trim().to_ascii_lowercase();
+    format!("{:?}", event.kind).to_ascii_lowercase() == expected
+        || matches!(
+            (event.kind, expected.as_str()),
+            (ExperimentEventKind::ConcentrationStep, "concentration_step")
+                | (ExperimentEventKind::ConcentrationStep, "concentration-step")
+        )
+}
+
+fn event_log10_activity(event: &crate::domain::ExperimentEvent) -> Result<f64, EstimationError> {
+    let value = event
+        .value
+        .ok_or_else(|| EstimationError::invalid("activity-step event lacks a value"))?;
+    let unit = event
+        .unit
+        .as_deref()
+        .ok_or_else(|| EstimationError::invalid("activity-step event lacks an explicit unit"))?;
+    let quantity =
+        Quantity::parse(value, unit).map_err(|e| EstimationError::invalid(e.to_string()))?;
+    let activity = match quantity.unit {
+        QuantityUnit::Activity => quantity
+            .to_activity()
+            .map_err(|e| EstimationError::invalid(e.to_string()))?,
+        _ => quantity
+            .to_molar_concentration(None)
+            .map_err(|e| EstimationError::invalid(e.to_string()))?,
+    };
+    Ok(activity.log10())
+}
+
+/// Resolve the parsed standard against the same Phase 3 activity model used by
+/// calibration. Nonideal models require ionic strength explicitly.
+pub fn resolve_standard_activity(
+    environment: &mut AlignedEnvironment,
+    activity_config: &ActivityConfig,
+    molar_mass_g_per_mol: Option<f64>,
+    ion_charge: i32,
+) -> Result<(), EstimationError> {
+    if !environment.known_standard {
+        return Ok(());
+    }
+    if matches!(
+        environment.known_standard_value_kind,
+        Some(StandardValueKind::Activity)
+    ) {
+        return Ok(());
+    }
+    let quantity = if matches!(
+        environment.known_standard_value_kind,
+        Some(StandardValueKind::MassConcentration)
+    ) {
+        let unit = environment
+            .known_standard_unit
+            .as_deref()
+            .ok_or_else(|| EstimationError::invalid("mass standard has no unit"))?;
+        Quantity::parse(
+            environment.known_standard_raw_value.unwrap_or(f64::NAN),
+            unit,
+        )
+        .map_err(|error| EstimationError::invalid(error.to_string()))?
+    } else {
+        Quantity::new(
+            environment.known_molar_concentration_mol_l.ok_or_else(|| {
+                EstimationError::invalid("standard concentration was not converted")
+            })?,
+            QuantityUnit::MolPerL,
+        )
+        .map_err(|error| EstimationError::invalid(error.to_string()))?
+    };
+    let evaluation = evaluate_activity(
+        Some(&quantity),
+        molar_mass_g_per_mol,
+        None,
+        None,
+        ion_charge,
+        environment.ionic_strength_mol_l,
+        environment.conductivity_s_per_m,
+        activity_config,
+    )
+    .map_err(|error| EstimationError::Calibration(error.to_string()))?;
+    environment.known_activity_log10 = Some(evaluation.log10_activity);
+    environment.known_standard_assumption = Some(match activity_config.model {
+        crate::results::calibration::ActivityModelKind::Ideal => {
+            "ideal activity equals molar concentration".into()
+        }
+        _ => "activity coefficient calculated by the configured Phase 3 activity model".into(),
+    });
+    environment.known_standard_provenance = Some(format!(
+        "converted {} to mol/L and evaluated {:?} activity model",
+        environment
+            .known_standard_unit
+            .as_deref()
+            .unwrap_or("mol/L"),
+        activity_config.model
+    ));
+    Ok(())
 }

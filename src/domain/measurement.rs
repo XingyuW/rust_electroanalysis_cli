@@ -13,6 +13,9 @@ pub struct MeasurementChannel {
     pub name: String,
     pub unit: String,
     pub values: Vec<Option<f64>>,
+    /// Optional per-sample variance in the channel's declared unit squared.
+    #[serde(default)]
+    pub variance: Option<Vec<Option<f64>>>,
     #[serde(default)]
     pub sensor_id: Option<String>,
     #[serde(default)]
@@ -27,6 +30,7 @@ impl MeasurementChannel {
             name: name.into(),
             unit: unit.into(),
             values,
+            variance: None,
             sensor_id: None,
             analyte_id: None,
             metadata: None,
@@ -39,6 +43,11 @@ impl MeasurementChannel {
 
     pub fn with_sensor_id(mut self, sensor_id: impl Into<String>) -> Self {
         self.sensor_id = Some(sensor_id.into());
+        self
+    }
+
+    pub fn with_variance(mut self, variance: Vec<Option<f64>>) -> Self {
+        self.variance = Some(variance);
         self
     }
 
@@ -63,10 +72,32 @@ impl MeasurementChannel {
                 expected_len
             )));
         }
+        if self
+            .variance
+            .as_ref()
+            .is_some_and(|variance| variance.len() != expected_len)
+        {
+            return Err(DataParsingError::invalid(format!(
+                "channel '{}' variance has a different length than the shared time axis",
+                self.name
+            )));
+        }
 
         if self.values.iter().flatten().any(|value| !value.is_finite()) {
             return Err(DataParsingError::invalid(format!(
                 "channel '{}' contains a non-finite value",
+                self.name
+            )));
+        }
+        if self
+            .variance
+            .iter()
+            .flatten()
+            .flatten()
+            .any(|value| !value.is_finite() || *value < 0.0)
+        {
+            return Err(DataParsingError::invalid(format!(
+                "channel '{}' contains a non-finite or negative variance",
                 self.name
             )));
         }

@@ -114,7 +114,10 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             match observation_components(&predicted_state, &env, input.model, input.calibration) {
                 Ok((pred, h)) => {
                     predicted_measurement = Some(pred);
-                    let r = input.measurement_covariance.final_variance;
+                    let r = obs
+                        .observation_variance_v2
+                        .filter(|value| value.is_finite() && *value > 0.0)
+                        .unwrap_or(input.measurement_covariance.final_variance);
                     let s = (h.transpose() * &predicted_cov * &h)[(0, 0)] + r;
                     if !s.is_finite() || s <= 0.0 {
                         return Err(EstimationError::Covariance(

@@ -73,6 +73,26 @@ pub fn evaluate_potential(
     })
 }
 
+/// Analytical derivative of potential with respect to log10 primary activity.
+pub fn derivative_log10_activity(
+    primary_activity: f64,
+    primary_charge: i32,
+    temperature_k: f64,
+    interferents: &[InterferentModelInput],
+) -> Result<f64, CalibrationError> {
+    let effective = effective_activity(primary_activity, primary_charge, interferents)?;
+    let fraction = primary_activity / effective;
+    let derivative = GAS_CONSTANT_J_PER_MOL_K * temperature_k
+        / (f64::from(primary_charge) * FARADAY_C_PER_MOL)
+        * std::f64::consts::LN_10
+        * fraction;
+    derivative.is_finite().then_some(derivative).ok_or_else(|| {
+        CalibrationError::InvalidPrediction(
+            "Nicolsky-Eisenman derivative was non-finite".to_string(),
+        )
+    })
+}
+
 pub fn primary_activity_from_potential(
     potential_v: f64,
     standard_potential_v: f64,

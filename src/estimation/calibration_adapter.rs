@@ -242,16 +242,16 @@ impl CalibrationObservationModel for StoredCalibrationObservationModel {
     }
     fn jacobian_log10_activity(
         &self,
-        _log10_activity: f64,
+        log10_activity: f64,
         e: &AlignedEnvironment,
     ) -> Result<f64, EstimationError> {
         match self.model.model_kind {
             CalibrationModelKind::Nernst => self.slope(e),
             CalibrationModelKind::ConductivityEmpirical => self.slope(e),
             CalibrationModelKind::NicolskyEisenman => {
-                let step = 1e-6;
-                let y1 = self.predict_potential(-step, e)?;
-                let y2 = self.predict_potential(step, e)?;
+                let step = (f64::EPSILON.sqrt() * (1.0 + log10_activity.abs())).max(1e-7);
+                let y1 = self.predict_potential(log10_activity - step, e)?;
+                let y2 = self.predict_potential(log10_activity + step, e)?;
                 Ok((y2 - y1) / (2.0 * step))
             }
         }

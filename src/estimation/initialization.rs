@@ -8,6 +8,7 @@ use crate::{
         state::{EstimationWarning, EstimationWarningKind},
     },
     estimation_config::ResolvedEstimationConfig,
+    potentiometry::units::Quantity,
 };
 use nalgebra::{DMatrix, DVector};
 use serde::{Deserialize, Serialize};
@@ -48,7 +49,7 @@ pub fn initialize_state(
         sources.push("annotated known-activity standard event".into());
         environment.known_activity_log10.unwrap()
     } else if source.contains("configured") {
-        config.initialization.initial_activity.log10()
+        configured_log10_activity(config, calibration)?
     } else {
         match calibration.inverse_log10_activity(first, environment) {
             Ok(v) => {
@@ -62,7 +63,7 @@ pub fn initialize_state(
                         "initial calibration inversion failed: {error}; configured activity used"
                     ),
                 ));
-                config.initialization.initial_activity.log10()
+                configured_log10_activity(config, calibration)?
             }
         }
     };
@@ -129,4 +130,32 @@ pub fn initialize_state(
         warnings,
     };
     Ok((mean, covariance, report))
+}
+
+fn configured_log10_activity(
+    config: &ResolvedEstimationConfig,
+    calibration: &dyn CalibrationObservationModel,
+) -> Result<f64, EstimationError> {
+    let quantity = Quantity::parse(
+        config.initialization.initial_activity,
+        &config.initialization.initial_activity_unit,
+    )
+    .map_err(|error| {
+        EstimationError::invalid(format!("initial activity unit is invalid: {error}"))
+    })?;
+    let activity = if quantity.unit == crate::potentiometry::units::QuantityUnit::Activity {
+        quantity
+            .to_activity()
+            .map_err(|error| EstimationError::invalid(error.to_string()))?
+    } else {
+        if !calibration.activity_model_is_ideal() {
+            return Err(EstimationError::Calibration(
+                "configured concentration initial value requires an explicit activity for a nonideal calibration model".into(),
+            ));
+        }
+        quantity
+            .to_molar_concentration(None)
+            .map_err(|error| EstimationError::invalid(error.to_string()))?
+    };
+    Ok(activity.log10())
 }

@@ -1,6 +1,7 @@
 use crate::{
     domain::{AnalysisProvenance, MeasurementChannel, MultiChannelMeasurement},
     estimation::error::EstimationError,
+    estimation_config::PolarizationInputModel,
     results::{
         ActivityModelKind, CalibrationDomain, CalibrationFitStatistics, CalibrationModelKind,
         CalibrationParameter, NernstSlopeMode, ResponseSign, StoredCalibrationModel,
@@ -34,6 +35,8 @@ pub struct SimulationScenario {
     pub polarization_tau_s: f64,
     pub polarization_pulse_time_s: Option<f64>,
     pub polarization_pulse_v: f64,
+    pub polarization_input_model: PolarizationInputModel,
+    pub polarization_activity_step_gain_v_per_log10: f64,
     pub sensitivity_initial: f64,
     pub sensitivity_drift_per_s: f64,
     pub temperature_celsius: f64,
@@ -46,7 +49,7 @@ pub struct SimulationScenario {
 impl Default for SimulationScenario {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             seed: 42,
             sample_count: 200,
             start_time_s: 0.0,
@@ -66,6 +69,8 @@ impl Default for SimulationScenario {
             polarization_tau_s: 30.0,
             polarization_pulse_time_s: None,
             polarization_pulse_v: 0.0,
+            polarization_input_model: PolarizationInputModel::None,
+            polarization_activity_step_gain_v_per_log10: 0.0,
             sensitivity_initial: 1.0,
             sensitivity_drift_per_s: 0.0,
             temperature_celsius: 25.0,
@@ -135,7 +140,9 @@ pub fn simulate_scenario(
     let mut baseline = scenario.baseline_initial_v;
     let mut out = Vec::with_capacity(scenario.sample_count);
     let mut t = scenario.start_time_s;
+    let mut polarization_event_applied = false;
     for i in 0..scenario.sample_count {
+        let previous_t = t;
         if i > 0 {
             let dt = (scenario.interval_s
                 + if scenario.irregular_jitter_s > 0.0 {
@@ -150,11 +157,31 @@ pub fn simulate_scenario(
                 baseline += scenario.baseline_random_walk_sd_v * dt.sqrt() * normal(&mut rng);
             }
         }
-        if scenario
-            .polarization_pulse_time_s
-            .is_some_and(|pulse| (t - pulse).abs() <= scenario.interval_s.max(1e-9) / 2.0)
+        let crossed = |event_time: Option<f64>| {
+            event_time.is_some_and(|event| {
+                (i == 0 && (t - event).abs() <= 1e-12)
+                    || (i > 0 && previous_t < event && t >= event)
+            })
+        };
+        if !polarization_event_applied
+            && matches!(
+                scenario.polarization_input_model,
+                PolarizationInputModel::ExplicitEventVoltage
+            )
+            && crossed(scenario.polarization_pulse_time_s)
         {
             p += scenario.polarization_pulse_v;
+            polarization_event_applied = true;
+        } else if !polarization_event_applied
+            && matches!(
+                scenario.polarization_input_model,
+                PolarizationInputModel::ActivityStepGain
+            )
+            && crossed(scenario.activity_step_time_s)
+        {
+            p +=
+                scenario.polarization_activity_step_gain_v_per_log10 * scenario.activity_step_log10;
+            polarization_event_applied = true;
         }
         let mut loga = scenario.initial_log10_activity
             + scenario.activity_ramp_rate_log10_per_s * (t - scenario.start_time_s);
@@ -196,7 +223,7 @@ pub fn simulate_scenario(
         });
     }
     Ok(SimulationOutput {
-        schema_version: 1,
+        schema_version: 2,
         scenario: scenario.clone(),
         observations: out,
         provenance: None,

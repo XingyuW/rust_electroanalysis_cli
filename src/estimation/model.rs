@@ -153,7 +153,7 @@ pub fn apply_known_standard_constraint(
     }
     let value = environment.known_activity_log10.unwrap();
     let index = 0;
-    let variance = config.auxiliary.standard_variance_v2;
+    let variance = config.known_log10_activity_variance();
     if !value.is_finite() || !variance.is_finite() || variance <= 0.0 {
         return Err(EstimationError::Covariance(
             "known-standard auxiliary observation is invalid".into(),
@@ -182,6 +182,7 @@ pub fn apply_known_standard_constraint(
         value,
         variance: Some(variance),
         unit: "log10(activity)".into(),
+        variance_unit: Some("log10(activity)^2".into()),
         source: "annotated concentration-standard event".into(),
         comparability: FeatureComparability::Comparable,
     }))

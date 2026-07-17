@@ -799,7 +799,7 @@ near_boundary_fraction = 0.05
 condition_requires_auxiliary = true
 allow_known_standard_events = true
 allow_reference_activity = true
-standard_variance_v2 = 1.0e-8
+known_log10_activity_variance = 1.0e-8
 
 [plotting]
 enabled = true

@@ -1,6 +1,6 @@
 use crate::{
     domain::MultiChannelMeasurement, estimation::error::EstimationError,
-    results::FeatureComparability,
+    potentiometry::units::Quantity, results::FeatureComparability,
 };
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +21,8 @@ pub struct AuxiliaryObservation {
     pub observation_type: AuxiliaryObservationKind,
     pub value: f64,
     pub variance: Option<f64>,
+    #[serde(default)]
+    pub variance_unit: Option<String>,
     pub unit: String,
     pub source: String,
     pub comparability: FeatureComparability,
@@ -40,6 +42,20 @@ pub fn observations(
     let c = measurement.channel(channel).ok_or_else(|| {
         EstimationError::invalid(format!("selected channel '{channel}' does not exist"))
     })?;
+    let unit = c.unit.parse().map_err(|error| {
+        EstimationError::invalid(format!(
+            "selected channel '{}' has unsupported unit '{}': {error}",
+            c.name, c.unit
+        ))
+    })?;
+    let scale = Quantity::new(1.0, unit)
+        .and_then(|quantity| quantity.to_potential_v())
+        .map_err(|error| {
+            EstimationError::invalid(format!(
+                "selected channel '{}' is not a potential channel: {error}",
+                c.name
+            ))
+        })?;
     if measurement.time.iter().any(|t| !t.is_finite()) {
         return Err(EstimationError::invalid(
             "measurement contains a nonfinite timestamp",
@@ -57,10 +73,20 @@ pub fn observations(
         .iter()
         .copied()
         .zip(c.values.iter().copied())
-        .map(|(timestamp_s, potential_v)| MeasurementObservation {
-            timestamp_s,
-            potential_v,
-            observation_variance_v2: None,
-        })
+        .zip(
+            c.variance
+                .as_deref()
+                .unwrap_or(&[])
+                .iter()
+                .copied()
+                .chain(std::iter::repeat(None)),
+        )
+        .map(
+            |((timestamp_s, potential), variance)| MeasurementObservation {
+                timestamp_s,
+                potential_v: potential.map(|value| value * scale),
+                observation_variance_v2: variance.map(|value| value * scale * scale),
+            },
+        )
         .collect())
 }

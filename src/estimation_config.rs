@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub const ESTIMATION_CONFIG_SCHEMA_VERSION: u32 = 1;
+pub const ESTIMATION_CONFIG_SCHEMA_VERSION: u32 = 2;
 pub const DEFAULT_ESTIMATION_CONFIG_PATH: &str = "config/estimation.toml";
 
 #[derive(Debug, Clone)]
@@ -84,6 +84,18 @@ pub enum AggregationKind {
     Median,
     Mean,
     First,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PolarizationInputModel {
+    /// Do not create an input from event data.
+    #[default]
+    None,
+    /// Read a one-shot voltage impulse from event metadata.
+    ExplicitEventVoltage,
+    /// Convert a standard activity step into a configured voltage impulse.
+    ActivityStepGain,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -287,6 +299,8 @@ pub struct PolarizationConfig {
     pub tau_uncertainty_s: Option<f64>,
     pub gain: f64,
     pub input_event_kind: Option<String>,
+    pub input_model: PolarizationInputModel,
+    pub gain_v_per_log10_activity: f64,
 }
 impl Default for PolarizationConfig {
     fn default() -> Self {
@@ -298,6 +312,8 @@ impl Default for PolarizationConfig {
             tau_uncertainty_s: None,
             gain: 1.0,
             input_event_kind: Some("concentration_step".into()),
+            input_model: PolarizationInputModel::None,
+            gain_v_per_log10_activity: 0.0,
         }
     }
 }
@@ -421,7 +437,10 @@ pub struct AuxiliaryConfig {
     pub condition_requires_auxiliary: bool,
     pub allow_known_standard_events: bool,
     pub allow_reference_activity: bool,
-    pub standard_variance_v2: f64,
+    pub known_log10_activity_variance: f64,
+    /// Legacy field retained only for deserialization and explicit migration.
+    #[serde(default, rename = "standard_variance_v2")]
+    pub legacy_standard_variance_v2: Option<f64>,
 }
 impl Default for AuxiliaryConfig {
     fn default() -> Self {
@@ -429,7 +448,8 @@ impl Default for AuxiliaryConfig {
             condition_requires_auxiliary: true,
             allow_known_standard_events: true,
             allow_reference_activity: true,
-            standard_variance_v2: 1e-8,
+            known_log10_activity_variance: 1e-8,
+            legacy_standard_variance_v2: None,
         }
     }
 }
@@ -481,6 +501,11 @@ impl Default for EstimationExportConfig {
 }
 
 impl ResolvedEstimationConfig {
+    pub fn known_log10_activity_variance(&self) -> f64 {
+        self.auxiliary
+            .legacy_standard_variance_v2
+            .unwrap_or(self.auxiliary.known_log10_activity_variance)
+    }
     pub fn validate(&self) -> Result<(), ConfigurationError> {
         if self.schema_version != ESTIMATION_CONFIG_SCHEMA_VERSION {
             return Err(ConfigurationError::invalid(format!(
@@ -584,6 +609,11 @@ impl ResolvedEstimationConfig {
                 "polarization tau must be positive",
             ));
         }
+        if !self.polarization.gain_v_per_log10_activity.is_finite() {
+            return Err(ConfigurationError::invalid(
+                "polarization activity-step gain must be finite",
+            ));
+        }
         if !self.state_model.condition_lower.is_finite()
             || !self.state_model.condition_upper.is_finite()
             || self.state_model.condition_upper <= self.state_model.condition_lower
@@ -625,11 +655,30 @@ impl ResolvedEstimationConfig {
         let text = fs::read_to_string(&path).map_err(|e| ConfigurationError::io(&path, e))?;
         let mut config: Self =
             toml::from_str(&text).map_err(|e| ConfigurationError::parse(&path, e))?;
-        if config.schema_version != ESTIMATION_CONFIG_SCHEMA_VERSION {
+        if config.schema_version < ESTIMATION_CONFIG_SCHEMA_VERSION {
+            if let Some(legacy_variance) = config.auxiliary.legacy_standard_variance_v2 {
+                config.auxiliary.known_log10_activity_variance = legacy_variance;
+                warnings.push(
+                    "migrated legacy auxiliary.standard_variance_v2 to known_log10_activity_variance; the stored value is retained as log10(activity)^2, despite the legacy voltage-squared name".into(),
+                );
+            } else {
+                warnings.push(
+                    "migrated estimation configuration schema to version 2; verify known_log10_activity_variance semantics".into(),
+                );
+            }
+            config.schema_version = ESTIMATION_CONFIG_SCHEMA_VERSION;
+        } else if config.schema_version > ESTIMATION_CONFIG_SCHEMA_VERSION {
             warnings.push(format!(
                 "estimation config schema {} is unsupported",
                 config.schema_version
             ));
+        }
+        if config.auxiliary.legacy_standard_variance_v2.is_some()
+            && config.schema_version == ESTIMATION_CONFIG_SCHEMA_VERSION
+        {
+            warnings.push(
+                "legacy auxiliary.standard_variance_v2 is present; use known_log10_activity_variance and verify the value is in log10(activity)^2".into(),
+            );
         }
         config.source_path = Some(path.clone());
         config.validate()?;
@@ -672,5 +721,35 @@ mod tests {
     #[test]
     fn defaults_validate() {
         ResolvedEstimationConfig::default().validate().unwrap();
+    }
+
+    #[test]
+    fn legacy_auxiliary_variance_migrates_with_warning() {
+        let path = std::env::temp_dir().join(format!(
+            "rust-electroanalysis-estimation-{}.toml",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            "schema_version = 1\n[auxiliary]\nstandard_variance_v2 = 2.5e-7\n",
+        )
+        .unwrap();
+        let loaded = ResolvedEstimationConfig::load(
+            path.parent().unwrap(),
+            Some(std::path::Path::new(path.file_name().unwrap())),
+        )
+        .unwrap();
+        assert_eq!(
+            loaded.config.schema_version,
+            ESTIMATION_CONFIG_SCHEMA_VERSION
+        );
+        assert_eq!(loaded.config.known_log10_activity_variance(), 2.5e-7);
+        assert!(
+            loaded
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("standard_variance_v2"))
+        );
+        std::fs::remove_file(path).unwrap();
     }
 }

@@ -157,7 +157,13 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             ));
         }
         if let Some(measured) = obs.potential_v {
-            match sigma_measurement(&pred_state, &pred_cov, &input, &env) {
+            match sigma_measurement(
+                &pred_state,
+                &pred_cov,
+                &input,
+                &env,
+                obs.observation_variance_v2,
+            ) {
                 Ok((pred, s, hx, px, j)) => {
                     jitter_count += j;
                     predicted_measurement = Some(pred);
@@ -323,6 +329,7 @@ fn sigma_measurement(
     cov: &DMatrix<f64>,
     input: &FilterInput<'_>,
     env: &AlignedEnvironment,
+    observation_variance_v2: Option<f64>,
 ) -> Result<(f64, f64, DVector<f64>, DVector<f64>, usize), EstimationError> {
     let (points, wm, wc, j) = sigma_points(state, cov, input.config)?;
     let ys = points
@@ -337,7 +344,9 @@ fn sigma_measurement(
         variance += w * dy * dy;
         cross += &(p - state) * (*w * dy);
     }
-    variance += input.measurement_covariance.final_variance;
+    variance += observation_variance_v2
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(input.measurement_covariance.final_variance);
     if !variance.is_finite() || variance <= 0.0 {
         return Err(EstimationError::Covariance(
             "UKF innovation variance is invalid".into(),

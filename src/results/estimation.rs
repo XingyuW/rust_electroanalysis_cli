@@ -120,6 +120,10 @@ pub struct StateEstimationReport {
     pub experiment_id: String,
     pub sensor_id: Option<String>,
     pub channel: String,
+    #[serde(default)]
+    pub measurement_source_unit: String,
+    #[serde(default)]
+    pub measurement_conversion: String,
     pub filter: FilterKind,
     pub model: StateModelKind,
     pub state_definitions: Vec<StateDefinition>,

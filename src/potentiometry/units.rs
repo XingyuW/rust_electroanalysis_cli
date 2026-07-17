@@ -24,14 +24,17 @@ pub enum QuantityUnit {
     MolPerL,
     MmolPerL,
     MicromolPerL,
+    Activity,
     MolPerKg,
     MgPerL,
     GPerL,
     Volt,
     Millivolt,
+    Microvolt,
     Kelvin,
     Celsius,
     SiemensPerM,
+    SiemensPerCm,
     MillisiemensPerCm,
     MicrosiemensPerCm,
 }
@@ -45,11 +48,14 @@ impl QuantityUnit {
             | Self::MolPerKg
             | Self::MgPerL
             | Self::GPerL => QuantityDimension::Concentration,
+            Self::Activity => QuantityDimension::Activity,
             Self::Volt | Self::Millivolt => QuantityDimension::Potential,
+            Self::Microvolt => QuantityDimension::Potential,
             Self::Kelvin | Self::Celsius => QuantityDimension::Temperature,
-            Self::SiemensPerM | Self::MillisiemensPerCm | Self::MicrosiemensPerCm => {
-                QuantityDimension::Conductivity
-            }
+            Self::SiemensPerM
+            | Self::SiemensPerCm
+            | Self::MillisiemensPerCm
+            | Self::MicrosiemensPerCm => QuantityDimension::Conductivity,
         }
     }
 
@@ -58,14 +64,17 @@ impl QuantityUnit {
             Self::MolPerL => "mol/L",
             Self::MmolPerL => "mmol/L",
             Self::MicromolPerL => "µmol/L",
+            Self::Activity => "activity",
             Self::MolPerKg => "mol/kg",
             Self::MgPerL => "mg/L",
             Self::GPerL => "g/L",
             Self::Volt => "V",
             Self::Millivolt => "mV",
+            Self::Microvolt => "µV",
             Self::Kelvin => "K",
             Self::Celsius => "°C",
             Self::SiemensPerM => "S/m",
+            Self::SiemensPerCm => "S/cm",
             Self::MillisiemensPerCm => "mS/cm",
             Self::MicrosiemensPerCm => "µS/cm",
         }
@@ -81,14 +90,17 @@ impl FromStr for QuantityUnit {
             "mol/l" | "mol/litre" | "mol/liter" | "m" | "molar" => Self::MolPerL,
             "mmol/l" | "mmol/litre" | "mmol/liter" | "mm" => Self::MmolPerL,
             "umol/l" | "umol/litre" | "umol/liter" | "um" => Self::MicromolPerL,
+            "activity" | "dimensionless" | "unitless" | "1" => Self::Activity,
             "mol/kg" | "mol/kgsolvent" | "molal" => Self::MolPerKg,
             "mg/l" | "mg/litre" | "mg/liter" => Self::MgPerL,
             "g/l" | "g/litre" | "g/liter" => Self::GPerL,
             "v" | "volt" | "volts" => Self::Volt,
             "mv" | "millivolt" | "millivolts" => Self::Millivolt,
+            "uv" | "microvolt" | "microvolts" => Self::Microvolt,
             "k" | "kelvin" => Self::Kelvin,
             "c" | "°c" | "degc" | "celsius" => Self::Celsius,
             "s/m" | "siemens/m" => Self::SiemensPerM,
+            "s/cm" | "siemens/cm" => Self::SiemensPerCm,
             "ms/cm" | "millisiemens/cm" => Self::MillisiemensPerCm,
             "us/cm" | "microsiemens/cm" => Self::MicrosiemensPerCm,
             _ => return Err(UnitError::Unknown(value.trim().to_string())),
@@ -100,6 +112,7 @@ impl FromStr for QuantityUnit {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuantityDimension {
     Concentration,
+    Activity,
     Potential,
     Temperature,
     Conductivity,
@@ -109,6 +122,7 @@ impl QuantityDimension {
     fn name(self) -> &'static str {
         match self {
             Self::Concentration => "concentration",
+            Self::Activity => "activity (dimensionless)",
             Self::Potential => "potential",
             Self::Temperature => "temperature",
             Self::Conductivity => "conductivity",
@@ -172,11 +186,24 @@ impl Quantity {
         }
     }
 
+    pub fn to_activity(&self) -> Result<f64, UnitError> {
+        self.require_dimension(QuantityDimension::Activity)?;
+        if self.value.is_finite() && self.value > 0.0 {
+            Ok(self.value)
+        } else {
+            Err(UnitError::NonFinite {
+                value: self.value,
+                unit: self.unit.canonical_name().to_string(),
+            })
+        }
+    }
+
     pub fn to_potential_v(&self) -> Result<f64, UnitError> {
         self.require_dimension(QuantityDimension::Potential)?;
         Ok(match self.unit {
             QuantityUnit::Volt => self.value,
             QuantityUnit::Millivolt => self.value * 1e-3,
+            QuantityUnit::Microvolt => self.value * 1e-6,
             _ => unreachable!(),
         })
     }
@@ -201,6 +228,7 @@ impl Quantity {
         self.require_dimension(QuantityDimension::Conductivity)?;
         Ok(match self.unit {
             QuantityUnit::SiemensPerM => self.value,
+            QuantityUnit::SiemensPerCm => self.value * 100.0,
             QuantityUnit::MillisiemensPerCm => self.value * 0.1,
             QuantityUnit::MicrosiemensPerCm => self.value * 1e-4,
             _ => unreachable!(),
@@ -260,6 +288,34 @@ mod tests {
                 - 298.15)
                 .abs()
                 < 1e-12
+        );
+        assert_eq!(
+            Quantity::parse(100.0, "mV")
+                .unwrap()
+                .to_potential_v()
+                .unwrap(),
+            0.1
+        );
+        assert_eq!(
+            Quantity::parse(1000.0, "µV")
+                .unwrap()
+                .to_potential_v()
+                .unwrap(),
+            0.001
+        );
+        assert_eq!(
+            Quantity::parse(1.0, "S/cm")
+                .unwrap()
+                .to_conductivity_s_per_m()
+                .unwrap(),
+            100.0
+        );
+        assert_eq!(
+            Quantity::parse(1.0, "µS/cm")
+                .unwrap()
+                .to_conductivity_s_per_m()
+                .unwrap(),
+            1e-4
         );
         assert_eq!(
             QuantityUnit::from_str("uM").unwrap(),

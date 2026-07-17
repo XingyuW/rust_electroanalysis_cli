@@ -34,7 +34,9 @@ use crate::{
 };
 use calibration_adapter::StoredCalibrationObservationModel;
 use covariance::{resolve_measurement_covariance, resolve_process_covariance};
-use environment::{AlignedEnvironment, align_experiment};
+use environment::{
+    AlignedEnvironment, align_experiment_with_polarization, resolve_standard_activity,
+};
 use error::EstimationError;
 use initialization::initialize_state;
 use measurement::observations;
@@ -67,14 +69,26 @@ pub fn estimate_experiment(
     let tau = resolve_tau(config, context.transient)?;
     let model = StateModel::new(config, tau.0, tau.1)?;
     let obs = observations(experiment.measurement(), channel)?;
+    let measurement_source_unit = experiment
+        .measurement()
+        .channel(channel)
+        .map(|channel| channel.unit.clone())
+        .unwrap_or_default();
     let mut environments = Vec::with_capacity(obs.len());
     let mut previous: Option<AlignedEnvironment> = None;
     for o in &obs {
-        let e = align_experiment(
+        let mut e = align_experiment_with_polarization(
             experiment,
             o.timestamp_s,
             &config.environment,
             previous.as_ref(),
+            &config.polarization,
+        )?;
+        resolve_standard_activity(
+            &mut e,
+            &calibration.model.configuration.activity,
+            calibration.model.configuration.analyte.molar_mass_g_per_mol,
+            calibration.model.ion_charge,
         )?;
         previous = Some(e.clone());
         environments.push(e);
@@ -168,7 +182,7 @@ pub fn estimate_experiment(
         ));
     }
     Ok(StateEstimationReport {
-        schema_version: 1,
+        schema_version: 2,
         analysis_id: format!(
             "estimate:{}:{}",
             experiment.provenance.input_sha256, channel
@@ -176,6 +190,9 @@ pub fn estimate_experiment(
         experiment_id: experiment.experiment_id.clone(),
         sensor_id: experiment.sensor_metadata.sensor_id.clone(),
         channel: channel.into(),
+        measurement_source_unit,
+        measurement_conversion:
+            "potential converted to V; per-observation variance converted to V²".into(),
         filter,
         model: config.state_model.kind,
         state_definitions: model.definitions,
