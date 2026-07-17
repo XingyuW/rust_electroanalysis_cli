@@ -11,6 +11,18 @@ use super::{
     prepare_impedance_data, validate_input_lengths,
 };
 use crate::domain::FittingError;
+use serde::{Deserialize, Serialize};
+
+/// Scalar objective used consistently by ECM evolution, ranking, and reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EcmRankingCriterion {
+    #[default]
+    Bic,
+    Aic,
+    WeightedRmse,
+    LegacyPenalizedScore,
+}
 
 /// Full fit output used to rank and report one candidate circuit.
 #[derive(Debug, Clone)]
@@ -23,6 +35,8 @@ pub struct CandidateFitResult {
     pub weighted_residual_sum_of_squares: Option<f64>,
     /// Gaussian-residual BIC, or `None` when its inputs are invalid.
     pub bic: Option<f64>,
+    /// Gaussian-residual AIC using two scalar observations per frequency.
+    pub aic: Option<f64>,
     /// Former modulus-normalized score, retained under an explicit name.
     pub legacy_penalized_score: Option<f64>,
     pub weighted_rmse: f64,
@@ -59,15 +73,71 @@ pub fn legacy_penalized_score(
 ///
 /// `n_obs` must count scalar residuals, not complex frequency points.
 pub fn bic(residual_sum_of_squares: f64, parameter_count: usize, n_obs: usize) -> Option<f64> {
-    if n_obs == 0
-        || parameter_count == 0
-        || !residual_sum_of_squares.is_finite()
-        || residual_sum_of_squares <= 0.0
-    {
+    let rss = effective_rss(residual_sum_of_squares, n_obs)?;
+    if n_obs == 0 || parameter_count == 0 {
         return None;
     }
     let n = n_obs as f64;
-    Some(n * (residual_sum_of_squares / n).ln() + parameter_count as f64 * n.ln())
+    Some(n * (rss / n).ln() + parameter_count as f64 * n.ln())
+}
+
+/// Standard Gaussian-residual AIC using independent real and imaginary
+/// observations.
+pub fn aic(residual_sum_of_squares: f64, parameter_count: usize, n_obs: usize) -> Option<f64> {
+    let rss = effective_rss(residual_sum_of_squares, n_obs)?;
+    if n_obs == 0 || parameter_count == 0 {
+        return None;
+    }
+    let n = n_obs as f64;
+    Some(n * (rss / n).ln() + 2.0 * parameter_count as f64)
+}
+
+/// Exact zero RSS is a perfect fit, not a numerical failure. Nonfinite RSS
+/// remains unavailable so failed optimizations cannot rank as perfect fits.
+pub fn effective_rss(residual_sum_of_squares: f64, n_obs: usize) -> Option<f64> {
+    if n_obs == 0 || !residual_sum_of_squares.is_finite() || residual_sum_of_squares < 0.0 {
+        return None;
+    }
+    Some(residual_sum_of_squares.max(f64::EPSILON * n_obs as f64))
+}
+
+pub fn ranking_value(result: &CandidateFitResult, criterion: EcmRankingCriterion) -> Option<f64> {
+    match criterion {
+        EcmRankingCriterion::Bic => result.bic,
+        EcmRankingCriterion::Aic => result.aic,
+        EcmRankingCriterion::WeightedRmse => Some(result.weighted_rmse),
+        EcmRankingCriterion::LegacyPenalizedScore => result.legacy_penalized_score,
+    }
+    .filter(|value| value.is_finite())
+}
+
+/// Available finite objectives sort first, followed by the legacy score and
+/// canonical circuit string as deterministic tie-breakers.
+pub fn compare_candidates(
+    left: &CandidateFitResult,
+    right: &CandidateFitResult,
+    criterion: EcmRankingCriterion,
+) -> std::cmp::Ordering {
+    ranking_value(left, criterion)
+        .is_none()
+        .cmp(&ranking_value(right, criterion).is_none())
+        .then_with(|| {
+            ranking_value(left, criterion)
+                .zip(ranking_value(right, criterion))
+                .map_or(std::cmp::Ordering::Equal, |(a, b)| a.total_cmp(&b))
+        })
+        .then_with(|| {
+            left.legacy_penalized_score
+                .filter(|v| v.is_finite())
+                .unwrap_or(f64::INFINITY)
+                .total_cmp(
+                    &right
+                        .legacy_penalized_score
+                        .filter(|v| v.is_finite())
+                        .unwrap_or(f64::INFINITY),
+                )
+        })
+        .then_with(|| left.circuit_string.cmp(&right.circuit_string))
 }
 
 /// Weighted RMSE in complex-impedance space.
@@ -167,13 +237,16 @@ fn score_parsed_circuit(
     let legacy_penalized_score = legacy_penalized_score(z_real, z_imag, &fitted_z_re, &fitted_z_im);
     let weighted_residual_sum_of_squares = Some(legacy_penalized_score);
     let weighted_rmse = weighted_rmse(z_real, z_imag, &fitted_z_re, &fitted_z_im);
-    let bic = bic(residual_sum_of_squares, parameter_count, 2 * point_count);
+    let n_obs = 2 * point_count;
+    let bic = bic(residual_sum_of_squares, parameter_count, n_obs);
+    let aic = aic(residual_sum_of_squares, parameter_count, n_obs);
 
     Ok(CandidateFitResult {
         circuit_string: circuit_str.to_string(),
         residual_sum_of_squares,
         weighted_residual_sum_of_squares,
         bic,
+        aic,
         legacy_penalized_score: Some(legacy_penalized_score),
         weighted_rmse,
         parameter_count,
@@ -194,12 +267,12 @@ pub fn format_candidate_ranking_table(results: &[CandidateFitResult]) -> String 
 
     for (index, result) in results.iter().enumerate() {
         lines.push(format!(
-            "{} | {} | {:.6e} | {:.6e} | {:.6e} | {}",
+            "{} | {} | {} | {} | {} | {}",
             index + 1,
             result.circuit_string,
-            result.residual_sum_of_squares,
-            result.bic.unwrap_or(f64::NAN),
-            result.legacy_penalized_score.unwrap_or(f64::NAN),
+            format_metric(result.residual_sum_of_squares),
+            format_metric_option(result.bic),
+            format_metric_option(result.legacy_penalized_score),
             result.parameter_count
         ));
     }
@@ -207,9 +280,42 @@ pub fn format_candidate_ranking_table(results: &[CandidateFitResult]) -> String 
     lines.join("\n")
 }
 
+fn format_metric(value: f64) -> String {
+    format_metric_option(Some(value))
+}
+
+fn format_metric_option(value: Option<f64>) -> String {
+    value
+        .filter(|value| value.is_finite())
+        .map_or_else(|| "".to_string(), |value| format!("{value:.6e}"))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{bic, legacy_penalized_score};
+    use super::{
+        CandidateFitResult, EcmRankingCriterion, aic, bic, compare_candidates,
+        legacy_penalized_score,
+    };
+
+    fn candidate(name: &str, bic: Option<f64>, aic: Option<f64>) -> CandidateFitResult {
+        CandidateFitResult {
+            circuit_string: name.into(),
+            residual_sum_of_squares: 1.0,
+            weighted_residual_sum_of_squares: Some(1.0),
+            bic,
+            aic,
+            legacy_penalized_score: Some(1.0),
+            weighted_rmse: 1.0,
+            parameter_count: 1,
+            fitted_parameters: Vec::new(),
+            parameter_names: Vec::new(),
+            parameter_units: Vec::new(),
+            fitted_z_re: Vec::new(),
+            fitted_z_im: Vec::new(),
+            fitted_magnitude: Vec::new(),
+            fitted_phase: Vec::new(),
+        }
+    }
 
     #[test]
     fn legacy_score_is_zero_for_perfect_fit() {
@@ -232,7 +338,25 @@ mod tests {
         let value = bic(2.0, 3, 20).unwrap();
         let expected = 20.0 * (2.0_f64 / 20.0).ln() + 3.0 * 20.0_f64.ln();
         assert!((value - expected).abs() < 1e-12);
-        assert!(bic(0.0, 3, 20).is_none());
+        assert!(bic(0.0, 3, 20).unwrap().is_finite());
         assert!(bic(1.0, 0, 20).is_none());
+    }
+
+    #[test]
+    fn aic_uses_two_scalar_observations_and_perfect_fit_is_finite() {
+        let value = aic(2.0, 3, 20).unwrap();
+        let expected = 20.0 * (2.0_f64 / 20.0).ln() + 2.0 * 3.0;
+        assert!((value - expected).abs() < 1e-12);
+        assert!(aic(0.0, 3, 20).unwrap().is_finite());
+    }
+
+    #[test]
+    fn unavailable_objectives_sort_after_finite_values() {
+        let unavailable = candidate("bad", None, None);
+        let valid = candidate("good", Some(1.0), Some(1.0));
+        assert_eq!(
+            compare_candidates(&valid, &unavailable, EcmRankingCriterion::Bic),
+            std::cmp::Ordering::Less
+        );
     }
 }

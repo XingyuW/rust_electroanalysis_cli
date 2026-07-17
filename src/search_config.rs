@@ -1,7 +1,7 @@
 #![allow(clippy::collapsible_if)]
 
 use crate::domain::ConfigurationError;
-use crate::impedance::{EcmEvolutionConfig, EcmSearchConfig};
+use crate::impedance::{EcmEvolutionConfig, EcmRankingCriterion, EcmSearchConfig};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -41,6 +41,7 @@ pub struct RawEvolutionConfig {
     pub selection_ratio: Option<f64>,
     pub mutation_rate: Option<f64>,
     pub reinsertion_ratio: Option<f64>,
+    pub ranking_criterion: Option<EcmRankingCriterion>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -245,6 +246,10 @@ impl RuntimeEcmSearchConfig {
                     .evolution
                     .reinsertion_ratio
                     .unwrap_or(evolution_defaults.reinsertion_ratio),
+                ranking_criterion: self
+                    .evolution
+                    .ranking_criterion
+                    .unwrap_or(evolution_defaults.ranking_criterion),
             },
             max_ranked_results: cli_top
                 .or(self.max_ranked_results)

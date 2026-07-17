@@ -24,13 +24,16 @@ use super::ecm_candidate::{
     CircuitGenome, CircuitTopology, LeafKind, candidate_from_genome, genome_from_topology,
     normalize_genome, randles_topology, seed_genomes, topology_from_genome,
 };
-use super::ecm_scoring::{CandidateFitResult, bic, legacy_penalized_score, weighted_rmse};
+use super::ecm_scoring::{
+    CandidateFitResult, EcmRankingCriterion, aic, bic, compare_candidates, legacy_penalized_score,
+    ranking_value, weighted_rmse,
+};
 use super::fitting::{
     BorrowedImpedanceFitter, guess_parameters, sanitize_physical_params, transform_backward,
     transform_forward,
 };
 use super::parse_circuit_string;
-use super::pinn_optimizer::{PinnOptimizer, compute_aic};
+use super::pinn_optimizer::PinnOptimizer;
 use super::prepare_impedance_data;
 use crate::domain::FittingError;
 use genevo::genetic::{Children, Parents};
@@ -42,7 +45,6 @@ use genevo::selection::truncation::MaximizeSelector;
 use levenberg_marquardt::LevenbergMarquardt;
 use nalgebra::DVector;
 use rayon::prelude::*;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -60,6 +62,8 @@ pub struct EcmEvolutionConfig {
     pub selection_ratio: f64,
     pub mutation_rate: f64,
     pub reinsertion_ratio: f64,
+    /// Objective used by evolution and final candidate ranking.
+    pub ranking_criterion: EcmRankingCriterion,
 }
 
 impl Default for EcmEvolutionConfig {
@@ -71,6 +75,7 @@ impl Default for EcmEvolutionConfig {
             selection_ratio: 0.7,
             mutation_rate: 0.35,
             reinsertion_ratio: 0.75,
+            ranking_criterion: EcmRankingCriterion::Bic,
         }
     }
 }
@@ -166,12 +171,19 @@ struct CircuitFitnessEvaluator {
     phase_deg: Arc<Vec<f64>>,
     prepared: Option<Arc<PreparedImpedanceData>>,
     cache: Arc<SearchEvaluationCache>,
+    ranking_criterion: EcmRankingCriterion,
 }
 
 impl CircuitFitnessEvaluator {
     /// Construct an evaluator with optional prepared-data cache when input
     /// vectors are shape-compatible.
-    fn new(frequencies: &[f64], z_real: &[f64], z_imag: &[f64], phase_deg: &[f64]) -> Self {
+    fn new(
+        frequencies: &[f64],
+        z_real: &[f64],
+        z_imag: &[f64],
+        phase_deg: &[f64],
+        ranking_criterion: EcmRankingCriterion,
+    ) -> Self {
         let lengths_valid = frequencies.len() == z_real.len()
             && frequencies.len() == z_imag.len()
             && (phase_deg.is_empty() || frequencies.len() == phase_deg.len());
@@ -189,6 +201,7 @@ impl CircuitFitnessEvaluator {
             phase_deg: Arc::new(phase_deg.to_vec()),
             prepared,
             cache: Arc::new(SearchEvaluationCache::default()),
+            ranking_criterion,
         }
     }
 
@@ -209,8 +222,8 @@ impl FitnessFunction<CircuitGenome, i64> for CircuitFitnessEvaluator {
     /// 4. Polish the warm-start with Levenberg–Marquardt, which has
     ///    Jacobian-based convergence and matches the accuracy of the original
     ///    GA-only approach.
-    /// 5. Convert the AIC of the LM result to an integer fitness score.
-    ///    Lower AIC → better fit → higher fitness.
+    /// 5. Convert the configured ranking objective to an integer fitness
+    ///    score. Lower objective → better fit → higher fitness.
     fn fitness_of(&self, genome: &CircuitGenome) -> i64 {
         let candidate = candidate_from_genome(genome);
         let circuit_string = candidate.to_circuit_string();
@@ -335,7 +348,11 @@ impl FitnessFunction<CircuitGenome, i64> for CircuitFitnessEvaluator {
                     }
                 };
 
-                if final_params.is_empty() || final_z_re.iter().any(|v| !v.is_finite()) {
+                if final_params.is_empty()
+                    || final_params.iter().any(|v| !v.is_finite())
+                    || final_z_re.iter().any(|v| !v.is_finite())
+                    || final_z_im.iter().any(|v| !v.is_finite())
+                {
                     return EvaluationRecord {
                         fitness: 0,
                         fit: None,
@@ -346,9 +363,10 @@ impl FitnessFunction<CircuitGenome, i64> for CircuitFitnessEvaluator {
                 let legacy_score = legacy_penalized_score(z_real, z_imag, &final_z_re, &final_z_im);
                 let w_rmse = weighted_rmse(z_real, z_imag, &final_z_re, &final_z_im);
 
-                let n = frequencies.len();
+                let n = frequencies.len().min(z_real.len()).min(z_imag.len());
                 let k = final_params.len();
-                // Compute MSE from unweighted residuals for consistent AIC.
+                // Compute RSS from independent real and imaginary scalar
+                // observations; this is the convention used by AIC and BIC.
                 let sum_sq: f64 = (0..n.min(final_z_re.len()))
                     .map(|i| {
                         let re = final_z_re[i] - z_real[i];
@@ -356,17 +374,37 @@ impl FitnessFunction<CircuitGenome, i64> for CircuitFitnessEvaluator {
                         re * re + im * im
                     })
                     .sum();
-                let mse = (sum_sq / (2.0 * n.max(1) as f64)).max(1e-30);
-                let aic = compute_aic(n, k, mse);
                 let residual_sum_of_squares = sum_sq;
-                let bic_val = bic(residual_sum_of_squares, k, 2 * n);
+                let n_obs = 2 * n;
+                let bic_val = bic(residual_sum_of_squares, k, n_obs);
+                let aic_val = aic(residual_sum_of_squares, k, n_obs);
+                let ranking = ranking_value(
+                    &CandidateFitResult {
+                        circuit_string: circuit_string.clone(),
+                        residual_sum_of_squares,
+                        weighted_residual_sum_of_squares: Some(legacy_score),
+                        bic: bic_val,
+                        aic: aic_val,
+                        legacy_penalized_score: Some(legacy_score),
+                        weighted_rmse: w_rmse,
+                        parameter_count: k,
+                        fitted_parameters: Vec::new(),
+                        parameter_names: Vec::new(),
+                        parameter_units: Vec::new(),
+                        fitted_z_re: Vec::new(),
+                        fitted_z_im: Vec::new(),
+                        fitted_magnitude: Vec::new(),
+                        fitted_phase: Vec::new(),
+                    },
+                    self.ranking_criterion,
+                );
 
-                if !aic.is_finite() {
+                let Some(ranking) = ranking else {
                     return EvaluationRecord {
                         fitness: 0,
                         fit: None,
                     };
-                }
+                };
 
                 let fitted_magnitude: Vec<f64> = final_z_re
                     .iter()
@@ -384,6 +422,7 @@ impl FitnessFunction<CircuitGenome, i64> for CircuitFitnessEvaluator {
                     residual_sum_of_squares,
                     weighted_residual_sum_of_squares: Some(legacy_score),
                     bic: bic_val,
+                    aic: aic_val,
                     legacy_penalized_score: Some(legacy_score),
                     weighted_rmse: w_rmse,
                     parameter_count: k,
@@ -397,7 +436,7 @@ impl FitnessFunction<CircuitGenome, i64> for CircuitFitnessEvaluator {
                 };
 
                 EvaluationRecord {
-                    fitness: fitness_from_aic(aic),
+                    fitness: fitness_from_score(ranking),
                     fit: Some(fit),
                 }
             })
@@ -614,7 +653,13 @@ pub fn run_ecm_evolution(
         ));
     }
 
-    let evaluator = CircuitFitnessEvaluator::new(frequencies, z_real, z_imag, phase_deg);
+    let evaluator = CircuitFitnessEvaluator::new(
+        frequencies,
+        z_real,
+        z_imag,
+        phase_deg,
+        config.ranking_criterion,
+    );
 
     // Pre-warm the evaluation cache for all canonical seed genomes in parallel.
     // genevo calls `fitness_of` sequentially in its inner loop; by populating
@@ -667,17 +712,7 @@ pub fn run_ecm_evolution(
 
     // Final ranked artifacts are ordered for deterministic report output.
     let mut evaluated_candidates = evaluator.evaluated_candidates();
-    evaluated_candidates.par_sort_by(|a, b| {
-        a.bic
-            .partial_cmp(&b.bic)
-            .unwrap_or(Ordering::Equal)
-            .then_with(|| {
-                a.legacy_penalized_score
-                    .unwrap_or(f64::INFINITY)
-                    .partial_cmp(&b.legacy_penalized_score.unwrap_or(f64::INFINITY))
-                    .unwrap_or(Ordering::Equal)
-            })
-    });
+    evaluated_candidates.par_sort_by(|a, b| compare_candidates(a, b, config.ranking_criterion));
 
     Ok(EcmEvolutionOutcome {
         generations_processed,
@@ -691,7 +726,7 @@ pub fn run_ecm_evolution(
 // Fitness mapping
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Maps AIC to an integer fitness score.
+/// Maps a finite ranking objective to an integer fitness score.
 ///
 /// Uses a sigmoid-like transformation so that both very good fits (large
 /// negative AIC) and poor fits (large positive AIC) are well distinguished.
@@ -699,11 +734,11 @@ pub fn run_ecm_evolution(
 ///   AIC = -600 → fitness ≈ 997_500_000  (excellent)
 ///   AIC =    0 → fitness ≈ 500_000_000  (average)
 ///   AIC = +600 → fitness ≈     2_500_000 (poor)
-fn fitness_from_aic(aic: f64) -> i64 {
-    if !aic.is_finite() {
+fn fitness_from_score(score: f64) -> i64 {
+    if !score.is_finite() {
         return 0;
     }
-    let x = aic / 100.0;
+    let x = score / 100.0;
     let sigmoid = 1.0 / (1.0 + x.exp());
     let scaled = (FITNESS_SCALE * sigmoid).round();
     scaled.clamp(1.0, FITNESS_SCALE) as i64

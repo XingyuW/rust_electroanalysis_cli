@@ -35,7 +35,8 @@ pub use ecm_candidate::{
 };
 pub use ecm_evolution::{EcmEvolutionConfig, EcmEvolutionOutcome, run_ecm_evolution};
 pub use ecm_scoring::{
-    CandidateFitResult, bic, format_candidate_ranking_table, legacy_penalized_score,
+    CandidateFitResult, EcmRankingCriterion, aic, bic, compare_candidates,
+    format_candidate_ranking_table, legacy_penalized_score,
 };
 pub use ecm_search::{
     EcmSearchConfig, EcmSearchReport, RankedEcmCandidate, discover_equivalent_circuits,

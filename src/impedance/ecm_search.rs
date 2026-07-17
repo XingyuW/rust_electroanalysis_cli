@@ -7,7 +7,7 @@
 
 use super::ecm_candidate::RANDLES_SEED_CIRCUIT;
 use super::ecm_evolution::{EcmEvolutionConfig, run_ecm_evolution};
-use super::ecm_scoring::CandidateFitResult;
+use super::ecm_scoring::{CandidateFitResult, EcmRankingCriterion};
 use super::reporting::format_fitted_circuit_composition;
 use crate::domain::{FittingError, ReportingError};
 use std::fs;
@@ -40,6 +40,8 @@ pub struct RankedEcmCandidate {
     pub residual_sum_of_squares: f64,
     /// Standard Gaussian-residual BIC, with two scalar observations per EIS point.
     pub bic: Option<f64>,
+    /// Standard Gaussian-residual AIC, with two scalar observations per EIS point.
+    pub aic: Option<f64>,
     /// Former modulus-normalized objective; not a chi-square.
     pub legacy_penalized_score: Option<f64>,
     /// Weighted RMSE in impedance space.
@@ -69,6 +71,7 @@ impl RankedEcmCandidate {
             circuit_string: fit.circuit_string,
             residual_sum_of_squares: fit.residual_sum_of_squares,
             bic: fit.bic,
+            aic: fit.aic,
             legacy_penalized_score: fit.legacy_penalized_score,
             weighted_rmse: fit.weighted_rmse,
             parameter_count: fit.parameter_count,
@@ -95,6 +98,8 @@ pub struct EcmSearchReport {
     pub unique_candidates_evaluated: usize,
     /// Ranked candidate list exported to table/CSV/report views.
     pub ranked_candidates: Vec<RankedEcmCandidate>,
+    /// Objective used for both evolution fitness and this report ordering.
+    pub ranking_criterion: EcmRankingCriterion,
 }
 
 impl EcmSearchReport {
@@ -111,11 +116,12 @@ impl EcmSearchReport {
     /// Render run-level summary statistics.
     pub fn summary(&self) -> String {
         format!(
-            "Seed Circuit: {}\nGenerations Processed: {}\nBest Fitness: {}\nUnique Candidates Evaluated: {}",
+            "Seed Circuit: {}\nGenerations Processed: {}\nBest Fitness: {}\nUnique Candidates Evaluated: {}\nRanking Criterion: {:?}",
             self.seed_circuit,
             self.generations_processed,
             self.best_fitness,
             self.unique_candidates_evaluated,
+            self.ranking_criterion,
         )
     }
 
@@ -141,6 +147,7 @@ impl EcmSearchReport {
                 candidate.residual_sum_of_squares
             ));
             report.push_str(&format!("  BIC: {:?}\n", candidate.bic));
+            report.push_str(&format!("  AIC: {:?}\n", candidate.aic));
             report.push_str(&format!(
                 "  Legacy penalized score: {:?}\n",
                 candidate.legacy_penalized_score
@@ -245,23 +252,29 @@ pub fn discover_equivalent_circuits_with_config(
         best_fitness: outcome.best_fitness,
         unique_candidates_evaluated: outcome.unique_candidates_evaluated,
         ranked_candidates,
+        ranking_criterion: config.evolution.ranking_criterion,
     })
 }
 
 /// Format ranked candidates as a compact plain-text table.
 pub fn format_ranked_candidates_table(ranked_candidates: &[RankedEcmCandidate]) -> String {
     let mut lines = Vec::with_capacity(ranked_candidates.len() + 2);
-    lines.push("Rank | Circuit String | RSS | BIC | Legacy Score | Parameter Count".to_string());
-    lines.push("---- | -------------- | --- | --- | ------------ | ---------------".to_string());
+    lines.push(
+        "Rank | Circuit String | RSS | BIC | AIC | Legacy Score | Parameter Count".to_string(),
+    );
+    lines.push(
+        "---- | -------------- | --- | --- | --- | ------------ | ---------------".to_string(),
+    );
 
     for candidate in ranked_candidates {
         lines.push(format!(
-            "{} | {} | {:.6e} | {:.6e} | {:.6e} | {}",
+            "{} | {} | {} | {} | {} | {} | {}",
             candidate.rank,
             candidate.circuit_string,
-            candidate.residual_sum_of_squares,
-            candidate.bic.unwrap_or(f64::NAN),
-            candidate.legacy_penalized_score.unwrap_or(f64::NAN),
+            format_optional(Some(candidate.residual_sum_of_squares)),
+            format_optional(candidate.bic),
+            format_optional(candidate.aic),
+            format_optional(candidate.legacy_penalized_score),
             candidate.parameter_count,
         ));
     }
@@ -272,22 +285,29 @@ pub fn format_ranked_candidates_table(ranked_candidates: &[RankedEcmCandidate]) 
 /// Format ranked candidates as CSV.
 pub fn format_ranked_candidates_csv(ranked_candidates: &[RankedEcmCandidate]) -> String {
     let mut lines = Vec::with_capacity(ranked_candidates.len() + 1);
-    lines.push("rank,circuit_string,residual_sum_of_squares,bic,legacy_penalized_score,weighted_rmse,parameter_count".to_string());
+    lines.push("rank,circuit_string,residual_sum_of_squares,bic,aic,legacy_penalized_score,weighted_rmse,parameter_count".to_string());
 
     for candidate in ranked_candidates {
         lines.push(format!(
-            "{},{},{:.6e},{:.6e},{:.6e},{:.6e},{}",
+            "{},{},{},{},{},{},{},{}",
             candidate.rank,
             csv_escape(&candidate.circuit_string),
-            candidate.residual_sum_of_squares,
-            candidate.bic.unwrap_or(f64::NAN),
-            candidate.legacy_penalized_score.unwrap_or(f64::NAN),
-            candidate.weighted_rmse,
+            format_optional(Some(candidate.residual_sum_of_squares)),
+            format_optional(candidate.bic),
+            format_optional(candidate.aic),
+            format_optional(candidate.legacy_penalized_score),
+            format_optional(Some(candidate.weighted_rmse)),
             candidate.parameter_count,
         ));
     }
 
     lines.join("\n")
+}
+
+fn format_optional(value: Option<f64>) -> String {
+    value
+        .filter(|value| value.is_finite())
+        .map_or_else(String::new, |value| format!("{value:.6e}"))
 }
 
 fn csv_escape(value: &str) -> String {
@@ -306,7 +326,8 @@ mod tests {
         discover_equivalent_circuits_with_config, format_ranked_candidates_csv,
     };
     use crate::impedance::{
-        EcmEvolutionConfig, Impedance, RANDLES_SEED_CIRCUIT, parse_circuit_string,
+        EcmEvolutionConfig, EcmRankingCriterion, Impedance, RANDLES_SEED_CIRCUIT,
+        parse_circuit_string,
     };
     use std::f64::consts::PI;
 
@@ -363,6 +384,7 @@ mod tests {
             circuit_string: "R0-p(CPE1,R1)".to_string(),
             residual_sum_of_squares: 1.0,
             bic: Some(2.0),
+            aic: Some(1.0),
             legacy_penalized_score: Some(1.5),
             weighted_rmse: 3.0,
             parameter_count: 4,
@@ -385,11 +407,13 @@ mod tests {
             generations_processed: 3,
             best_fitness: 42,
             unique_candidates_evaluated: 5,
+            ranking_criterion: EcmRankingCriterion::Bic,
             ranked_candidates: vec![RankedEcmCandidate {
                 rank: 1,
                 circuit_string: "R0-p(CPE1,R1)".to_string(),
                 residual_sum_of_squares: 1.0,
                 bic: Some(2.0),
+                aic: Some(1.0),
                 legacy_penalized_score: Some(1.5),
                 weighted_rmse: 3.0,
                 parameter_count: 4,

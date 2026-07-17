@@ -456,10 +456,12 @@ impl<'a> PinnOptimizer<'a> {
 /// The AIC penalises extra parameters less heavily than the BIC, making it
 /// preferable when the true model order is uncertain.
 pub fn compute_aic(n: usize, k: usize, mse: f64) -> f64 {
-    if n == 0 || mse <= 0.0 || !mse.is_finite() {
+    if n == 0 || mse < 0.0 || !mse.is_finite() {
         return f64::INFINITY;
     }
-    n as f64 * mse.ln() + 2.0 * k as f64
+    let n_obs = (2 * n) as f64;
+    let effective_mse = mse.max(f64::EPSILON);
+    n_obs * effective_mse.ln() + 2.0 * k as f64
 }
 
 /// Gaussian-residual Bayesian Information Criterion.
@@ -468,11 +470,11 @@ pub fn compute_aic(n: usize, k: usize, mse: f64) -> f64 {
 /// residuals are independent scalar observations, so the scalar count is
 /// `2*n`.
 pub fn compute_bic(n: usize, k: usize, mse: f64) -> f64 {
-    if n == 0 || mse <= 0.0 || !mse.is_finite() {
+    if n == 0 || mse < 0.0 || !mse.is_finite() {
         return f64::INFINITY;
     }
     let n_obs = (2 * n) as f64;
-    n_obs * mse.ln() + k as f64 * n_obs.ln()
+    n_obs * mse.max(f64::EPSILON).ln() + k as f64 * n_obs.ln()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
