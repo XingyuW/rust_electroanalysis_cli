@@ -2395,6 +2395,23 @@ Phase 6 state estimation is available through:
 
 `electroanalysis estimate run`, `validate`, `simulate`, `compare`, and `report`.
 
+Phase 6 converts selected potential channels to volts using the typed unit
+system (`V`, `mV`, or `µV`) and records the source unit and variance conversion
+in the estimation artifact. Conductivity conversions include their length unit
+(`S/m`, `S/cm`, `mS/cm`, or `µS/cm`); a bare `mS` or `µS` is not interpreted as
+conductivity. Known standards require an explicit activity or concentration
+unit. Concentration standards are converted to mol/L and then evaluated with
+the configured Phase 3 activity model; Davies and extended Debye–Hückel
+standards require ionic strength. These assumptions and conversions are stored
+in the aligned environmental context.
+
+The estimation configuration schema is version 2. The auxiliary field
+`known_log10_activity_variance` is in `log10(activity)^2`. Schema-1 files using
+`standard_variance_v2` remain readable, are migrated with a warning, and retain
+the value under an explicit legacy field until rewritten. Polarization event
+inputs default to `none`; explicit voltage impulses and activity-step gains
+must be configured and are applied once at the event transition.
+
 New artifact fields use serde defaults where safe. The health schema version is
 incremented because the old minimum-domain field had incorrect semantics;
 legacy values are preserved under an explicit legacy name. Signal sampling
