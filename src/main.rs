@@ -7,7 +7,7 @@ use rust_electroanalysis_cli::cli::{CliError, CommandSpec, parse_cli_args, print
 use rust_electroanalysis_cli::domain::{ConfigurationError, WorkspaceError};
 use rust_electroanalysis_cli::plot_config::PlotConfig;
 use rust_electroanalysis_cli::runners::{
-    RunnerError, calibration, fit, health, mechanism, plot, search, signal, transient,
+    RunnerError, calibration, estimation, fit, health, mechanism, plot, search, signal, transient,
 };
 use rust_electroanalysis_cli::workspace::{self, LastRunMode};
 use thiserror::Error as ThisError;
@@ -407,6 +407,130 @@ fn run() -> Result<(), ApplicationError> {
         }
         CommandSpec::HealthReport { results, output } => {
             health::report(&workspace_dir, &results, output.as_deref())?;
+        }
+        CommandSpec::EstimateRun {
+            input,
+            metadata,
+            channel,
+            calibration_model,
+            signal_results,
+            transient_results,
+            calibration_results,
+            eis_fit,
+            mechanism_results,
+            health_baseline,
+            health_assessment,
+            config_path,
+            output,
+            filter,
+            model,
+            seed,
+        } => {
+            workspace_setup.record_last_run(
+                LastRunMode::EstimateRun,
+                None,
+                config_path.as_deref(),
+                output.as_deref(),
+                None,
+            )?;
+            estimation::run(
+                &workspace_dir,
+                estimation::RunOptions {
+                    input,
+                    metadata,
+                    channel,
+                    calibration_model,
+                    signal_results,
+                    transient_results,
+                    calibration_results,
+                    eis_fit,
+                    mechanism_results,
+                    health_baseline,
+                    health_assessment,
+                    config: config_path,
+                    output,
+                    filter,
+                    model,
+                    seed,
+                },
+            )?;
+        }
+        CommandSpec::EstimateValidate {
+            results,
+            truth,
+            output,
+        } => {
+            workspace_setup.record_last_run(
+                LastRunMode::EstimateValidate,
+                None,
+                None,
+                output.as_deref(),
+                None,
+            )?;
+            estimation::validate(&workspace_dir, &results, &truth, output.as_deref())?;
+        }
+        CommandSpec::EstimateSimulate {
+            scenario,
+            output,
+            seed,
+        } => {
+            workspace_setup.record_last_run(
+                LastRunMode::EstimateSimulate,
+                None,
+                None,
+                output.as_deref(),
+                None,
+            )?;
+            estimation::simulate(&workspace_dir, scenario.as_deref(), output.as_deref(), seed)?;
+        }
+        CommandSpec::EstimateCompare {
+            input,
+            metadata,
+            channel,
+            calibration_model,
+            filters,
+            config_path,
+            output,
+        } => {
+            workspace_setup.record_last_run(
+                LastRunMode::EstimateCompare,
+                None,
+                config_path.as_deref(),
+                output.as_deref(),
+                None,
+            )?;
+            estimation::compare(
+                &workspace_dir,
+                estimation::RunOptions {
+                    input,
+                    metadata,
+                    channel,
+                    calibration_model,
+                    signal_results: None,
+                    transient_results: None,
+                    calibration_results: None,
+                    eis_fit: None,
+                    mechanism_results: None,
+                    health_baseline: None,
+                    health_assessment: None,
+                    config: config_path,
+                    output,
+                    filter: None,
+                    model: None,
+                    seed: None,
+                },
+                filters.as_deref(),
+            )?;
+        }
+        CommandSpec::EstimateReport { results, output } => {
+            workspace_setup.record_last_run(
+                LastRunMode::EstimateReport,
+                None,
+                None,
+                output.as_deref(),
+                None,
+            )?;
+            estimation::report(&workspace_dir, &results, output.as_deref())?;
         }
     }
 

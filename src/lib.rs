@@ -20,6 +20,8 @@ pub mod mechanism;
 pub mod calibration_config;
 pub mod cli;
 pub mod domain;
+pub mod estimation;
+pub mod estimation_config;
 pub mod fitting;
 pub mod health;
 pub mod health_config;
@@ -51,6 +53,7 @@ pub use results::calibration::{
     CalibrationObservationSet, CalibrationPotentialSource, CalibrationPrediction,
     StoredCalibrationModel,
 };
+pub use results::estimation::{StateEstimatePoint, StateEstimationReport, StateValue};
 pub use results::health::{SensorHealthAssessment, SensorHealthBaseline};
 pub use results::signal::SignalAnalysisReport;
 pub use results::transient::{

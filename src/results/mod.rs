@@ -2,6 +2,7 @@
 
 pub mod calibration;
 pub mod eis;
+pub mod estimation;
 pub mod health;
 pub mod mechanism;
 pub mod signal;
@@ -13,6 +14,7 @@ pub use signal::*;
 pub use calibration::*;
 
 pub use eis::*;
+pub use estimation::*;
 pub use mechanism::*;
 pub use transient::{
     BaselineResult, ConcentrationContext, FitStatus, FittedTransientParameter,

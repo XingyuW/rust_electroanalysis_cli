@@ -13,6 +13,7 @@ use std::io;
 use thiserror::Error as ThisError;
 
 pub mod calibration;
+pub mod estimation;
 pub mod fit;
 pub mod health;
 pub mod mechanism;
@@ -42,6 +43,8 @@ pub enum RunnerError {
     Signal(#[from] crate::signal::error::SignalError),
     #[error(transparent)]
     Health(#[from] crate::health::error::HealthError),
+    #[error(transparent)]
+    Estimation(#[from] crate::estimation::error::EstimationError),
     #[error("workflow JSON error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("workflow TOML error: {0}")]

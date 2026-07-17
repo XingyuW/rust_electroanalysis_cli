@@ -6,6 +6,7 @@
 pub mod calibration_plot;
 pub mod chi_plot;
 pub mod eis_plot;
+pub mod estimation_plot;
 pub mod generic_plot;
 pub mod health_plot;
 pub mod mechanism_plot;

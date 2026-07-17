@@ -75,6 +75,99 @@ pub enum Command {
         #[command(subcommand)]
         command: HealthCommand,
     },
+    /// Estimate latent activity and sensor-response states from time-resolved measurements.
+    Estimate {
+        #[command(subcommand)]
+        command: EstimateCommand,
+    },
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Subcommand)]
+pub enum EstimateCommand {
+    Run(EstimateRunCommand),
+    Validate(EstimateValidateCommand),
+    Simulate(EstimateSimulateCommand),
+    Compare(EstimateCompareCommand),
+    Report(EstimateReportCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct EstimateRunCommand {
+    #[arg(long)]
+    pub input: PathBuf,
+    #[arg(long)]
+    pub metadata: PathBuf,
+    #[arg(long)]
+    pub channel: String,
+    #[arg(long = "calibration-model")]
+    pub calibration_model: PathBuf,
+    #[arg(long = "signal-results")]
+    pub signal_results: Option<PathBuf>,
+    #[arg(long = "transient-results")]
+    pub transient_results: Option<PathBuf>,
+    #[arg(long = "calibration-results")]
+    pub calibration_results: Option<PathBuf>,
+    #[arg(long = "eis-fit")]
+    pub eis_fit: Option<PathBuf>,
+    #[arg(long = "mechanism-results")]
+    pub mechanism_results: Option<PathBuf>,
+    #[arg(long = "health-baseline")]
+    pub health_baseline: Option<PathBuf>,
+    #[arg(long = "health-assessment")]
+    pub health_assessment: Option<PathBuf>,
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+    #[arg(long)]
+    pub filter: Option<String>,
+    #[arg(long)]
+    pub model: Option<String>,
+    #[arg(long)]
+    pub seed: Option<u64>,
+}
+#[derive(Debug, Args)]
+pub struct EstimateValidateCommand {
+    #[arg(long)]
+    pub results: PathBuf,
+    #[arg(long)]
+    pub truth: PathBuf,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+#[derive(Debug, Args)]
+pub struct EstimateSimulateCommand {
+    #[arg(long)]
+    pub scenario: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+    #[arg(long)]
+    pub seed: Option<u64>,
+}
+#[derive(Debug, Args)]
+pub struct EstimateCompareCommand {
+    #[arg(long)]
+    pub input: PathBuf,
+    #[arg(long)]
+    pub metadata: PathBuf,
+    #[arg(long)]
+    pub channel: String,
+    #[arg(long = "calibration-model")]
+    pub calibration_model: PathBuf,
+    #[arg(long)]
+    pub filters: Option<String>,
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+#[derive(Debug, Args)]
+pub struct EstimateReportCommand {
+    #[arg(long)]
+    pub results: PathBuf,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -639,6 +732,47 @@ pub enum CommandSpec {
         results: PathBuf,
         output: Option<PathBuf>,
     },
+    EstimateRun {
+        input: PathBuf,
+        metadata: PathBuf,
+        channel: String,
+        calibration_model: PathBuf,
+        signal_results: Option<PathBuf>,
+        transient_results: Option<PathBuf>,
+        calibration_results: Option<PathBuf>,
+        eis_fit: Option<PathBuf>,
+        mechanism_results: Option<PathBuf>,
+        health_baseline: Option<PathBuf>,
+        health_assessment: Option<PathBuf>,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+        filter: Option<String>,
+        model: Option<String>,
+        seed: Option<u64>,
+    },
+    EstimateValidate {
+        results: PathBuf,
+        truth: PathBuf,
+        output: Option<PathBuf>,
+    },
+    EstimateSimulate {
+        scenario: Option<PathBuf>,
+        output: Option<PathBuf>,
+        seed: Option<u64>,
+    },
+    EstimateCompare {
+        input: PathBuf,
+        metadata: PathBuf,
+        channel: String,
+        calibration_model: PathBuf,
+        filters: Option<String>,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    EstimateReport {
+        results: PathBuf,
+        output: Option<PathBuf>,
+    },
 }
 
 /// Errors raised while parsing or validating command-line arguments.
@@ -731,6 +865,11 @@ impl CliArgs {
             | Some(CommandSpec::HealthAssess { .. })
             | Some(CommandSpec::HealthTrend { .. })
             | Some(CommandSpec::HealthReport { .. }) => {}
+            Some(CommandSpec::EstimateRun { .. })
+            | Some(CommandSpec::EstimateValidate { .. })
+            | Some(CommandSpec::EstimateSimulate { .. })
+            | Some(CommandSpec::EstimateCompare { .. })
+            | Some(CommandSpec::EstimateReport { .. }) => {}
             None => {}
         }
 
@@ -935,6 +1074,49 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     output: c.output,
                 },
                 HealthCommand::Report(c) => CommandSpec::HealthReport {
+                    results: c.results,
+                    output: c.output,
+                },
+            },
+            Command::Estimate { command } => match command {
+                EstimateCommand::Run(c) => CommandSpec::EstimateRun {
+                    input: c.input,
+                    metadata: c.metadata,
+                    channel: c.channel,
+                    calibration_model: c.calibration_model,
+                    signal_results: c.signal_results,
+                    transient_results: c.transient_results,
+                    calibration_results: c.calibration_results,
+                    eis_fit: c.eis_fit,
+                    mechanism_results: c.mechanism_results,
+                    health_baseline: c.health_baseline,
+                    health_assessment: c.health_assessment,
+                    config_path: c.config,
+                    output: c.output,
+                    filter: c.filter,
+                    model: c.model,
+                    seed: c.seed,
+                },
+                EstimateCommand::Validate(c) => CommandSpec::EstimateValidate {
+                    results: c.results,
+                    truth: c.truth,
+                    output: c.output,
+                },
+                EstimateCommand::Simulate(c) => CommandSpec::EstimateSimulate {
+                    scenario: c.scenario,
+                    output: c.output,
+                    seed: c.seed,
+                },
+                EstimateCommand::Compare(c) => CommandSpec::EstimateCompare {
+                    input: c.input,
+                    metadata: c.metadata,
+                    channel: c.channel,
+                    calibration_model: c.calibration_model,
+                    filters: c.filters,
+                    config_path: c.config,
+                    output: c.output,
+                },
+                EstimateCommand::Report(c) => CommandSpec::EstimateReport {
                     results: c.results,
                     output: c.output,
                 },

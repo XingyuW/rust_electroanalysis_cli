@@ -20,6 +20,7 @@ pub const CALIBRATION_CONFIG_PATH: &str = "config/calibration.toml";
 pub const MECHANISM_CONFIG_PATH: &str = "config/mechanism.toml";
 pub const SIGNAL_CONFIG_PATH: &str = "config/signal.toml";
 pub const HEALTH_CONFIG_PATH: &str = "config/health.toml";
+pub const ESTIMATION_CONFIG_PATH: &str = "config/estimation.toml";
 
 const LEGACY_PLOTTING_CONFIG_PATH: &str = "plot_config.toml";
 const LEGACY_ANALYSIS_CONFIG_PATH: &str = "ecm_search.toml";
@@ -41,6 +42,7 @@ pub struct WorkspacePaths {
     pub mechanism_config_path: PathBuf,
     pub signal_config_path: PathBuf,
     pub health_config_path: PathBuf,
+    pub estimation_config_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +68,11 @@ pub enum LastRunMode {
     MechanismCompare,
     MechanismTrend,
     MechanismReport,
+    EstimateRun,
+    EstimateValidate,
+    EstimateSimulate,
+    EstimateCompare,
+    EstimateReport,
 }
 
 impl LastRunMode {
@@ -85,6 +92,11 @@ impl LastRunMode {
             Self::MechanismCompare => "mechanism-compare",
             Self::MechanismTrend => "mechanism-trend",
             Self::MechanismReport => "mechanism-report",
+            Self::EstimateRun => "estimate-run",
+            Self::EstimateValidate => "estimate-validate",
+            Self::EstimateSimulate => "estimate-simulate",
+            Self::EstimateCompare => "estimate-compare",
+            Self::EstimateReport => "estimate-report",
         }
     }
 }
@@ -191,6 +203,7 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         mechanism_config_path: root.join(MECHANISM_CONFIG_PATH),
         signal_config_path: root.join(SIGNAL_CONFIG_PATH),
         health_config_path: root.join(HEALTH_CONFIG_PATH),
+        estimation_config_path: root.join(ESTIMATION_CONFIG_PATH),
     };
     let mut warnings = Vec::new();
 
@@ -265,6 +278,14 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         "mechanism.toml",
         DEFAULT_MECHANISM_CONFIG,
         "mechanism config",
+        &mut warnings,
+    )?;
+    ensure_runtime_config_file(
+        root,
+        &paths.estimation_config_path,
+        "estimation.toml",
+        DEFAULT_ESTIMATION_CONFIG,
+        "estimation config",
         &mut warnings,
     )?;
 
@@ -690,4 +711,109 @@ minimum_replicates_for_strong = 3
 enabled = true
 minimum_records = 3
 independent_variable = "sensor_age_days"
+"#;
+
+const DEFAULT_ESTIMATION_CONFIG: &str = r#"schema_version = 1
+
+[filter]
+kind = "ukf"
+confidence_level = 0.95
+innovation_gate_probability = 0.997
+reject_outliers = true
+
+[state_model]
+kind = "activity_baseline_polarization"
+activity_transform = "identity_log10"
+include_condition_state = false
+
+[initialization]
+activity_source = "calibration_inversion"
+initial_activity = 0.001
+initial_activity_unit = "mol/L"
+baseline_v = 0.0
+polarization_v = 0.0
+
+[initial_covariance]
+log10_activity_variance = 0.25
+baseline_variance_v2 = 0.0001
+polarization_variance_v2 = 0.0001
+condition_variance = 0.01
+
+[process_noise]
+activity_variance_per_s = 1.0e-5
+baseline_variance_v2_per_s = 1.0e-10
+polarization_variance_v2_per_s = 1.0e-8
+condition_variance_per_s = 1.0e-9
+source = "configured"
+
+[measurement_noise]
+source = "signal_robust_variance"
+configured_variance_v2 = 1.0e-6
+minimum_variance_v2 = 1.0e-12
+maximum_variance_v2 = 1.0
+
+[polarization]
+tau_source = "transient"
+transient_parameter = "tau_slow"
+aggregation = "median"
+configured_tau_s = 30.0
+gain = 1.0
+
+[environment]
+temperature_series = "temperature"
+conductivity_series = "conductivity"
+ionic_strength_series = "ionic_strength"
+flow_series = "flow"
+alignment = "linear_interpolation"
+maximum_gap_s = 60.0
+window_half_width_s = 5.0
+allow_configured_fallback = true
+fallback_temperature_celsius = 25.0
+
+[observability]
+enabled = true
+horizon_steps = 20
+rank_tolerance = 1.0e-8
+maximum_condition_number = 1.0e10
+reject_unobservable_model = true
+
+[ekf]
+numerical_jacobian_relative_step = 1.0e-6
+use_joseph_update = true
+
+[ukf]
+alpha = 0.001
+beta = 2.0
+kappa = 0.0
+initial_jitter = 1.0e-12
+jitter_multiplier = 10.0
+maximum_jitter_attempts = 5
+
+[extrapolation]
+warn_outside_domain = true
+inflate_measurement_variance = false
+variance_inflation_factor = 4.0
+near_boundary_fraction = 0.05
+
+[auxiliary]
+condition_requires_auxiliary = true
+allow_known_standard_events = true
+allow_reference_activity = true
+standard_variance_v2 = 1.0e-8
+
+[plotting]
+enabled = true
+include_state_uncertainty = true
+include_innovations = true
+include_nis = true
+include_environment = true
+include_covariance = true
+
+[export]
+results_filename = "state_estimation.json"
+states_filename = "state_estimates.csv"
+innovations_filename = "state_innovations.csv"
+diagnostics_filename = "state_diagnostics.json"
+validation_filename = "state_validation.json"
+report_filename = "state_estimation_report.txt"
 "#;
