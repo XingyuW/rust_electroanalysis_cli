@@ -17,6 +17,7 @@ pub const ANALYSIS_CONFIG_PATH: &str = "config/analysis.toml";
 pub const PARSING_CONFIG_PATH: &str = "config/parsing.toml";
 pub const TRANSIENT_CONFIG_PATH: &str = "config/transient.toml";
 pub const CALIBRATION_CONFIG_PATH: &str = "config/calibration.toml";
+pub const MECHANISM_CONFIG_PATH: &str = "config/mechanism.toml";
 
 const LEGACY_PLOTTING_CONFIG_PATH: &str = "plot_config.toml";
 const LEGACY_ANALYSIS_CONFIG_PATH: &str = "ecm_search.toml";
@@ -35,6 +36,7 @@ pub struct WorkspacePaths {
     pub parsing_config_path: PathBuf,
     pub transient_config_path: PathBuf,
     pub calibration_config_path: PathBuf,
+    pub mechanism_config_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +59,9 @@ pub enum LastRunMode {
     CalibrationFit,
     CalibrationValidate,
     CalibrationPredict,
+    MechanismCompare,
+    MechanismTrend,
+    MechanismReport,
 }
 
 impl LastRunMode {
@@ -73,6 +78,9 @@ impl LastRunMode {
             Self::CalibrationFit => "calibration-fit",
             Self::CalibrationValidate => "calibration-validate",
             Self::CalibrationPredict => "calibration-predict",
+            Self::MechanismCompare => "mechanism-compare",
+            Self::MechanismTrend => "mechanism-trend",
+            Self::MechanismReport => "mechanism-report",
         }
     }
 }
@@ -176,6 +184,7 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         parsing_config_path: root.join(PARSING_CONFIG_PATH),
         transient_config_path: root.join(TRANSIENT_CONFIG_PATH),
         calibration_config_path: root.join(CALIBRATION_CONFIG_PATH),
+        mechanism_config_path: root.join(MECHANISM_CONFIG_PATH),
     };
     let mut warnings = Vec::new();
 
@@ -226,6 +235,14 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         "transient.toml",
         DEFAULT_TRANSIENT_CONFIG,
         "transient config",
+        &mut warnings,
+    )?;
+    ensure_runtime_config_file(
+        root,
+        &paths.mechanism_config_path,
+        "mechanism.toml",
+        DEFAULT_MECHANISM_CONFIG,
+        "mechanism config",
         &mut warnings,
     )?;
 
@@ -510,4 +527,43 @@ features_filename = "calibration_summary.csv"
 residuals_filename = "calibration_residuals.csv"
 validation_filename = "calibration_validation.csv"
 report_filename = "calibration_report.txt"
+"#;
+
+const DEFAULT_MECHANISM_CONFIG: &str = r#"schema_version = 1
+
+[eis]
+allow_warning_fits = true
+confidence_level = 0.95
+seed = 42
+
+[transient]
+allow_warning_fits = true
+selected_model_only = true
+
+[timescale]
+monte_carlo_samples = 10000
+seed = 42
+frequency_boundary_margin = 0.1
+
+[matching]
+require_experiment_id = true
+require_sensor_id = false
+
+[comparison]
+ratio_weak = 10.0
+ratio_moderate = 3.0
+ratio_strong = 1.5
+log_distance_weak = 1.0
+log_distance_moderate = 0.5
+log_distance_strong = 0.1761
+compatibility_ratio_lower = 0.5
+compatibility_ratio_upper = 2.0
+
+[evidence]
+minimum_replicates_for_strong = 3
+
+[trend]
+enabled = true
+minimum_records = 3
+independent_variable = "sensor_age_days"
 "#;

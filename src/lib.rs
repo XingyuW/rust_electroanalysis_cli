@@ -15,11 +15,13 @@ pub use plottings::plotting;
 
 #[path = "impedance/lib.rs"]
 pub mod impedance;
+pub mod mechanism;
 
 pub mod calibration_config;
 pub mod cli;
 pub mod domain;
 pub mod fitting;
+pub mod mechanism_config;
 pub mod plot_config;
 pub mod plot_runner;
 pub mod potentiometry;

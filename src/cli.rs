@@ -60,6 +60,11 @@ pub enum Command {
         #[command(subcommand)]
         command: CalibrationCommand,
     },
+    /// Compare EIS-derived and transient-derived characteristic timescales.
+    Mechanism {
+        #[command(subcommand)]
+        command: MechanismCommand,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -78,6 +83,15 @@ pub enum EisCommand {
     Fit(EisFitCommand),
     /// Search one EIS file or all supported EIS files in a directory.
     Search(EisSearchCommand),
+    /// Export a durable JSON artifact for one EIS fit.
+    ExportFit(EisExportFitCommand),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MechanismCommand {
+    Compare(MechanismCompareCommand),
+    Trend(MechanismTrendCommand),
+    Report(MechanismReportCommand),
 }
 
 #[derive(Debug, Subcommand)]
@@ -287,6 +301,63 @@ pub struct EisFitCommand {
     /// Write the fit report to this path instead of stdout.
     #[arg(short = 'o', long = "output", value_name = "PATH")]
     pub output: Option<PathBuf>,
+    /// Optional durable JSON artifact destination.
+    #[arg(long, value_name = "PATH")]
+    pub artifact: Option<PathBuf>,
+    /// Optional human-readable artifact report destination.
+    #[arg(long, value_name = "PATH")]
+    pub report: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct EisExportFitCommand {
+    #[arg(value_name = "INPUT")]
+    pub input: PathBuf,
+    #[arg(
+        short = 'c',
+        long = "circuit",
+        alias = "model",
+        value_name = "EXPRESSION"
+    )]
+    pub circuit_model: Option<String>,
+    #[arg(long, value_name = "PATH")]
+    pub artifact: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    pub report: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct MechanismCompareCommand {
+    #[arg(long, value_name = "PATH")]
+    pub eis_fit: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    pub transient_results: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    pub calibration_results: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub metadata: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub config: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub output: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct MechanismTrendCommand {
+    #[arg(long, value_name = "PATH")]
+    pub manifest: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    pub config: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub output: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct MechanismReportCommand {
+    #[arg(long, value_name = "PATH")]
+    pub results: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    pub output: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -339,6 +410,14 @@ pub enum CommandSpec {
         input: PathBuf,
         circuit_model: Option<String>,
         output: Option<PathBuf>,
+        artifact: Option<PathBuf>,
+        report: Option<PathBuf>,
+    },
+    EisExportFit {
+        input: PathBuf,
+        circuit_model: Option<String>,
+        artifact: PathBuf,
+        report: Option<PathBuf>,
     },
     EisSearch {
         input: PathBuf,
@@ -387,6 +466,23 @@ pub enum CommandSpec {
         temperature: Option<f64>,
         input: Option<PathBuf>,
         channel: Option<String>,
+        output: Option<PathBuf>,
+    },
+    MechanismCompare {
+        eis_fit: PathBuf,
+        transient_results: PathBuf,
+        calibration_results: Option<PathBuf>,
+        metadata: Option<PathBuf>,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    MechanismTrend {
+        manifest: PathBuf,
+        config_path: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    MechanismReport {
+        results: PathBuf,
         output: Option<PathBuf>,
     },
 }
@@ -445,10 +541,15 @@ impl CliArgs {
                 input,
                 circuit_model,
                 output,
+                artifact: _,
+                report: _,
             }) => {
                 result.fit_target = Some(input);
                 result.fit_circuit_model = circuit_model;
                 result.fit_output = output;
+            }
+            Some(CommandSpec::EisExportFit { input, .. }) => {
+                result.fit_target = Some(input);
             }
             Some(CommandSpec::EisSearch {
                 input,
@@ -466,6 +567,9 @@ impl CliArgs {
             | Some(CommandSpec::CalibrationFit { .. })
             | Some(CommandSpec::CalibrationValidate { .. })
             | Some(CommandSpec::CalibrationPredict { .. }) => {}
+            Some(CommandSpec::MechanismCompare { .. })
+            | Some(CommandSpec::MechanismTrend { .. })
+            | Some(CommandSpec::MechanismReport { .. }) => {}
             None => {}
         }
 
@@ -520,6 +624,14 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     input: command.input,
                     circuit_model: command.circuit_model,
                     output: command.output,
+                    artifact: command.artifact,
+                    report: command.report,
+                },
+                EisCommand::ExportFit(command) => CommandSpec::EisExportFit {
+                    input: command.input,
+                    circuit_model: command.circuit_model,
+                    artifact: command.artifact,
+                    report: command.report,
                 },
                 EisCommand::Search(command) => {
                     validate_search_top(command.search_top)?;
@@ -597,6 +709,25 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                         output: command.output,
                     }
                 }
+            },
+            Command::Mechanism { command } => match command {
+                MechanismCommand::Compare(command) => CommandSpec::MechanismCompare {
+                    eis_fit: command.eis_fit,
+                    transient_results: command.transient_results,
+                    calibration_results: command.calibration_results,
+                    metadata: command.metadata,
+                    config_path: command.config,
+                    output: command.output,
+                },
+                MechanismCommand::Trend(command) => CommandSpec::MechanismTrend {
+                    manifest: command.manifest,
+                    config_path: command.config,
+                    output: command.output,
+                },
+                MechanismCommand::Report(command) => CommandSpec::MechanismReport {
+                    results: command.results,
+                    output: command.output,
+                },
             },
         }
     } else if let Some(search_target) = legacy.search_eis {

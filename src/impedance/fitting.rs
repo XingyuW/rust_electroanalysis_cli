@@ -421,6 +421,79 @@ where
     jacobian
 }
 
+/// Estimate local physical-parameter covariance from the numerical residual
+/// Jacobian at a completed fit.  This is intentionally an additive diagnostic;
+/// the optimizer's legacy result does not depend on it.
+pub fn local_covariance(
+    circuit: &CircuitNode,
+    frequencies: &[f64],
+    z_real: &[f64],
+    z_imag: &[f64],
+    fitted_parameters: &[f64],
+    weights: &[f64],
+) -> (Option<Vec<Vec<f64>>>, Option<f64>, Option<usize>) {
+    let n = frequencies.len();
+    let p = fitted_parameters.len();
+    if n == 0 || p == 0 || z_real.len() != n || z_imag.len() != n || weights.len() != n {
+        return (None, None, None);
+    }
+    let residuals = |params: &[f64]| {
+        let mut values = DVector::zeros(2 * n);
+        for i in 0..n {
+            let z = circuit.calculate(2.0 * PI * frequencies[i], params);
+            let weight = weights[i].max(1e-12);
+            values[i] = (z.re - z_real[i]) / weight;
+            values[i + n] = (z.im - z_imag[i]) / weight;
+        }
+        values
+    };
+    let base = residuals(fitted_parameters);
+    let mut jacobian = DMatrix::zeros(2 * n, p);
+    for j in 0..p {
+        let step = fitted_parameters[j].abs().max(1.0) * 1e-5;
+        let mut plus = fitted_parameters.to_vec();
+        let mut minus = fitted_parameters.to_vec();
+        plus[j] += step;
+        minus[j] = (minus[j] - step).max(f64::MIN_POSITIVE);
+        let plus_residual = residuals(&plus);
+        let minus_residual = residuals(&minus);
+        for i in 0..2 * n {
+            jacobian[(i, j)] = (plus_residual[i] - minus_residual[i]) / (plus[j] - minus[j]);
+        }
+    }
+    let svd = jacobian.clone().svd(false, false);
+    let largest = svd.singular_values.iter().copied().fold(0.0, f64::max);
+    let threshold = largest * 1e-10;
+    let rank = svd
+        .singular_values
+        .iter()
+        .filter(|value| **value > threshold)
+        .count();
+    let smallest = svd
+        .singular_values
+        .iter()
+        .copied()
+        .filter(|value| *value > threshold)
+        .fold(f64::INFINITY, f64::min);
+    let condition = if smallest.is_finite() && smallest > 0.0 {
+        Some(largest / smallest)
+    } else {
+        Some(f64::INFINITY)
+    };
+    if rank < p {
+        return (None, condition, Some(rank));
+    }
+    let normal = jacobian.transpose() * jacobian;
+    let Some(inverse) = normal.try_inverse() else {
+        return (None, condition, Some(rank));
+    };
+    let sigma2 = base.dot(&base) / ((2 * n).saturating_sub(p).max(1) as f64);
+    let covariance = (0..p)
+        .map(|i| (0..p).map(|j| inverse[(i, j)] * sigma2).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    (Some(covariance), condition, Some(rank))
+}
+
 impl ImpedanceFitter {
     // Adapter around shared residual construction for owned-frequency storage.
     fn residual_vector_for_internal(&self, params: &DVector<f64>) -> DVector<f64> {

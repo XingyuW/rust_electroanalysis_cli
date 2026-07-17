@@ -1,10 +1,14 @@
 //! Stable result models returned by scientific workflows.
 
 pub mod calibration;
+pub mod eis;
+pub mod mechanism;
 pub mod transient;
 
 pub use calibration::*;
 
+pub use eis::*;
+pub use mechanism::*;
 pub use transient::{
     BaselineResult, ConcentrationContext, FitStatus, FittedTransientParameter,
     ParameterConfidenceInterval, SegmentSummary, TransientAnalysisReport, TransientEventResult,

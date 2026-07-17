@@ -14,6 +14,7 @@ use thiserror::Error as ThisError;
 
 pub mod calibration;
 pub mod fit;
+pub mod mechanism;
 pub mod plot;
 pub mod search;
 pub mod transient;
@@ -37,6 +38,8 @@ pub enum RunnerError {
     Calibration(#[from] CalibrationError),
     #[error("workflow I/O error: {0}")]
     Io(#[from] io::Error),
+    #[error("workflow CSV error: {0}")]
+    Csv(#[from] csv::Error),
     #[error("plotting workflow failed: {0}")]
     Backend(#[source] Box<dyn Error + 'static>),
     #[error("workflow error: {0}")]

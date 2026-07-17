@@ -7,6 +7,7 @@ pub mod calibration_plot;
 pub mod chi_plot;
 pub mod eis_plot;
 pub mod generic_plot;
+pub mod mechanism_plot;
 pub mod plotting;
 pub mod transient_plot;
 
@@ -28,6 +29,7 @@ pub use generic_plot::{
     load_generic_datasets_from_dir, plot_generic_datasets, plot_generic_directory,
     plot_generic_directory_with_configs,
 };
+pub use mechanism_plot::plot_mechanism_report;
 pub use plotting::{
     AxisScale, AxisScaleKind, FillBetweenMode, PieValueLabelMode, PlotAxisScale, PlotColor,
     PlotDataSeries, PlotLegendPosition, PlotLineStyle, PlotMarkerShape, PlotSeries, PlotSeriesKind,

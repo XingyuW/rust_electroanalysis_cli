@@ -6,7 +6,9 @@
 use rust_electroanalysis_cli::cli::{CliError, CommandSpec, parse_cli_args, print_usage};
 use rust_electroanalysis_cli::domain::{ConfigurationError, WorkspaceError};
 use rust_electroanalysis_cli::plot_config::PlotConfig;
-use rust_electroanalysis_cli::runners::{RunnerError, calibration, fit, plot, search, transient};
+use rust_electroanalysis_cli::runners::{
+    RunnerError, calibration, fit, mechanism, plot, search, transient,
+};
 use rust_electroanalysis_cli::workspace::{self, LastRunMode};
 use thiserror::Error as ThisError;
 
@@ -108,6 +110,8 @@ fn run() -> Result<(), ApplicationError> {
             input,
             circuit_model,
             output,
+            artifact,
+            report,
         } => {
             workspace_setup.record_last_run(LastRunMode::EisFit, None, None, None, None)?;
             fit::run(
@@ -115,6 +119,23 @@ fn run() -> Result<(), ApplicationError> {
                 &input,
                 circuit_model.as_deref(),
                 output.as_deref(),
+                artifact.as_deref(),
+                report.as_deref(),
+            )?;
+        }
+        CommandSpec::EisExportFit {
+            input,
+            circuit_model,
+            artifact,
+            report,
+        } => {
+            workspace_setup.record_last_run(LastRunMode::EisFit, None, None, None, None)?;
+            fit::export(
+                &workspace_dir,
+                &input,
+                circuit_model.as_deref(),
+                &artifact,
+                report.as_deref(),
             )?;
         }
         CommandSpec::TransientFit {
@@ -235,6 +256,60 @@ fn run() -> Result<(), ApplicationError> {
                 channel.as_deref(),
                 output.as_deref(),
             )?;
+        }
+        CommandSpec::MechanismCompare {
+            eis_fit,
+            transient_results,
+            calibration_results,
+            metadata,
+            config_path,
+            output,
+        } => {
+            workspace_setup.record_last_run(
+                LastRunMode::MechanismCompare,
+                None,
+                config_path.as_deref(),
+                output.as_deref(),
+                None,
+            )?;
+            mechanism::compare(
+                &workspace_dir,
+                &eis_fit,
+                &transient_results,
+                calibration_results.as_deref(),
+                metadata.as_deref(),
+                config_path.as_deref(),
+                output.as_deref(),
+            )?;
+        }
+        CommandSpec::MechanismTrend {
+            manifest,
+            config_path,
+            output,
+        } => {
+            workspace_setup.record_last_run(
+                LastRunMode::MechanismTrend,
+                None,
+                config_path.as_deref(),
+                output.as_deref(),
+                None,
+            )?;
+            mechanism::trend(
+                &workspace_dir,
+                &manifest,
+                config_path.as_deref(),
+                output.as_deref(),
+            )?;
+        }
+        CommandSpec::MechanismReport { results, output } => {
+            workspace_setup.record_last_run(
+                LastRunMode::MechanismReport,
+                None,
+                None,
+                output.as_deref(),
+                None,
+            )?;
+            mechanism::report(&workspace_dir, &results, output.as_deref())?;
         }
     }
 

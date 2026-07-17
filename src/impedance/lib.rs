@@ -41,8 +41,8 @@ pub use ecm_search::{
 };
 pub use elements::{Constraint, ElementType};
 pub use fitting::{
-    ImpedanceFitter, clamp_to_bounds, guess_parameters, lin_kk_solver, sanitize_physical_params,
-    transform_backward, transform_forward,
+    ImpedanceFitter, clamp_to_bounds, guess_parameters, lin_kk_solver, local_covariance,
+    sanitize_physical_params, transform_backward, transform_forward,
 };
 pub use pinn_optimizer::{PinnConfig, PinnOptimizer, PinnResult, compute_aic, compute_bic};
 pub use reporting::{
@@ -52,6 +52,45 @@ pub use reporting::{
 };
 
 pub type LinKkResult = (usize, f64, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
+
+/// Additive diagnostics surrounding the backward-compatible fit result.
+#[derive(Debug, Clone)]
+pub struct DetailedCircuitFit {
+    pub legacy_result: CircuitFitResult,
+    pub covariance: Option<Vec<Vec<f64>>>,
+    pub condition_number: Option<f64>,
+    pub jacobian_rank: Option<usize>,
+}
+
+pub fn fit_circuit_detailed(
+    circuit_str: &str,
+    frequencies: &[f64],
+    z_real: &[f64],
+    z_imag: &[f64],
+    phase_deg: &[f64],
+) -> Result<DetailedCircuitFit, FittingError> {
+    let legacy_result = fit_circuit(circuit_str, frequencies, z_real, z_imag, phase_deg)?;
+    let circuit = parse_circuit_string(circuit_str)?;
+    let weights = z_real
+        .iter()
+        .zip(z_imag)
+        .map(|(re, im)| re.hypot(*im).max(1.0))
+        .collect::<Vec<_>>();
+    let (covariance, condition_number, jacobian_rank) = local_covariance(
+        &circuit,
+        frequencies,
+        z_real,
+        z_imag,
+        &legacy_result.fitted_parameters,
+        &weights,
+    );
+    Ok(DetailedCircuitFit {
+        legacy_result,
+        covariance,
+        condition_number,
+        jacobian_rank,
+    })
+}
 
 /// Fit a circuit expression to measured impedance data.
 ///
