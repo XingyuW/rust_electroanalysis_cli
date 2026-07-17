@@ -16,7 +16,7 @@ use rust_electroanalysis_cli::{
     },
     estimation_config::{
         EnvironmentConfig, FilterKind, MeasurementNoiseSourceKind, PolarizationInputModel,
-        ResolvedEstimationConfig, StateModelKind,
+        ResolvedEstimationConfig, StateModelKind, StateTransformKind, TruthAlignmentPolicy,
     },
 };
 use std::{path::PathBuf, str::FromStr};
@@ -416,4 +416,335 @@ fn adapter_requires_nicolsky_interferent_activity() {
         .predict_potential(-3.0, &AlignedEnvironment::default())
         .unwrap_err();
     assert!(error.to_string().contains("interferent"));
+}
+
+#[test]
+fn per_observation_variance_is_applied_and_recorded() {
+    let measurement = MultiChannelMeasurement::new(
+        vec![0.0, 1.0, 2.0],
+        vec![
+            MeasurementChannel::new("E1", "mV", vec![Some(22.52), Some(22.52), Some(22.52)])
+                .with_variance(vec![Some(1.0), Some(4.0), Some(9.0)]),
+        ],
+    )
+    .unwrap();
+    let exp = ElectrochemicalExperiment::new(
+        "phase6-variance",
+        SensorMetadata::default(),
+        None,
+        measurement,
+        Vec::new(),
+        Vec::new(),
+        "buffer",
+        provenance(),
+    )
+    .unwrap();
+    let mut c = config(StateModelKind::Activity);
+    c.measurement_noise.source = MeasurementNoiseSourceKind::PerObservation;
+    let report = estimation::estimate_experiment(
+        &exp,
+        "E1/mV",
+        StoredCalibrationObservationModel::new(simulation::simulation_model()).unwrap(),
+        &c,
+        estimation::EstimationContext::default(),
+        FilterKind::Ekf,
+    )
+    .unwrap();
+    let records = &report.diagnostics.innovations;
+    assert_eq!(records.len(), 3);
+    assert_eq!(records[0].measurement_variance_source, "per_observation");
+    assert!((records[0].measurement_variance_v2 - 1.0e-6).abs() < 1.0e-15);
+    assert!((records[2].measurement_variance_v2 - 9.0e-6).abs() < 1.0e-15);
+    assert_eq!(
+        records[2].uninflated_measurement_variance_v2,
+        records[2].measurement_variance_v2
+    );
+}
+
+#[test]
+fn calibration_domain_inflation_is_deterministic_at_boundary_and_outside() {
+    let model = simulation::simulation_model();
+    let mut c = config(StateModelKind::Activity);
+    c.initialization.activity_source = "configured".into();
+    c.extrapolation.inflate_measurement_variance = true;
+    c.extrapolation.near_boundary_variance_inflation_factor = 1.25;
+    c.extrapolation.variance_inflation_factor = 4.0;
+    let boundary = 1.0e-8;
+    c.initialization.initial_activity = boundary;
+    let boundary_report = estimation::estimate_experiment(
+        &experiment(vec![Some(0.2 + 0.05916 * -8.0); 3], vec![0.0, 1.0, 2.0]),
+        "E1/V",
+        StoredCalibrationObservationModel::new(model.clone()).unwrap(),
+        &c,
+        estimation::EstimationContext::default(),
+        FilterKind::Ekf,
+    )
+    .unwrap();
+    assert_eq!(
+        boundary_report.diagnostics.innovations[0]
+            .variance_inflation_reason
+            .as_deref(),
+        Some("near calibration-domain boundary")
+    );
+    assert!(
+        (boundary_report.diagnostics.innovations[0].variance_inflation_factor - 1.25).abs() < 1e-12
+    );
+
+    c.initialization.initial_activity = 1.0e-9;
+    let outside_report = estimation::estimate_experiment(
+        &experiment(vec![Some(0.2 + 0.05916 * -9.0); 3], vec![0.0, 1.0, 2.0]),
+        "E1/V",
+        StoredCalibrationObservationModel::new(model).unwrap(),
+        &c,
+        estimation::EstimationContext::default(),
+        FilterKind::Ekf,
+    )
+    .unwrap();
+    assert_eq!(
+        outside_report.diagnostics.innovations[0]
+            .variance_inflation_reason
+            .as_deref(),
+        Some("outside calibration domain")
+    );
+    assert!(
+        (outside_report.diagnostics.innovations[0].variance_inflation_factor - 4.0).abs() < 1e-12
+    );
+}
+
+#[test]
+fn logistic_sensitivity_transform_exports_latent_and_physical_values() {
+    let mut c = config(StateModelKind::Activity);
+    c.state_model.include_condition_state = true;
+    c.state_model.activity_transform = StateTransformKind::LogisticBounded;
+    c.state_model.condition_lower = 0.5;
+    c.state_model.condition_upper = 1.5;
+    let mut exp = experiment(vec![Some(0.02252); 6], (0..6).map(|x| x as f64).collect());
+    exp.events.push(ExperimentEvent {
+        timestamp: 0.0,
+        kind: ExperimentEventKind::ConcentrationStep,
+        value: Some(1e-3),
+        unit: Some("mol/L".into()),
+        analyte: None,
+        annotation: Some("known standard".into()),
+        metadata: None,
+    });
+    let report = estimation::estimate_experiment(
+        &exp,
+        "E1/V",
+        StoredCalibrationObservationModel::new(simulation::simulation_model()).unwrap(),
+        &c,
+        estimation::EstimationContext::default(),
+        FilterKind::Ekf,
+    )
+    .unwrap();
+    let sensitivity = report
+        .estimates
+        .last()
+        .unwrap()
+        .filtered_state
+        .iter()
+        .find(|x| x.name == "sensitivity_scale")
+        .unwrap();
+    assert!(sensitivity.value.unwrap() > 0.5 && sensitivity.value.unwrap() < 1.5);
+    assert!(sensitivity.latent_value.unwrap().is_finite());
+    assert!(sensitivity.latent);
+}
+
+#[test]
+fn validation_uses_configured_linear_alignment_and_state_thresholds() {
+    let model = simulation::simulation_model();
+    let c = config(StateModelKind::Activity);
+    let report = estimation::estimate_experiment(
+        &experiment(vec![Some(0.02252); 3], vec![0.0, 1.0, 2.0]),
+        "E1/V",
+        StoredCalibrationObservationModel::new(model).unwrap(),
+        &c,
+        estimation::EstimationContext::default(),
+        FilterKind::Ekf,
+    )
+    .unwrap();
+    let mut validation_config = report.configuration.clone();
+    validation_config.validation.alignment_policy = TruthAlignmentPolicy::LinearInterpolation;
+    validation_config.validation.maximum_alignment_gap_s = 0.75;
+    validation_config
+        .validation
+        .states
+        .get_mut("log10_activity")
+        .unwrap()
+        .minimum_consecutive_converged_points = 2;
+    let report = rust_electroanalysis_cli::results::StateEstimationReport {
+        configuration: validation_config,
+        ..report
+    };
+    let truth = vec![
+        rust_electroanalysis_cli::estimation::validation::TruthPoint {
+            timestamp_s: 0.0,
+            log10_activity: Some(-3.0),
+            activity: Some(1e-3),
+            baseline_offset_v: None,
+            polarization_v: None,
+            sensitivity_scale: None,
+            outlier: false,
+        },
+        rust_electroanalysis_cli::estimation::validation::TruthPoint {
+            timestamp_s: 0.5,
+            log10_activity: Some(-3.0),
+            activity: Some(1e-3),
+            baseline_offset_v: None,
+            polarization_v: None,
+            sensitivity_scale: None,
+            outlier: false,
+        },
+        rust_electroanalysis_cli::estimation::validation::TruthPoint {
+            timestamp_s: 1.5,
+            log10_activity: Some(-3.0),
+            activity: Some(1e-3),
+            baseline_offset_v: None,
+            polarization_v: None,
+            sensitivity_scale: None,
+            outlier: false,
+        },
+        rust_electroanalysis_cli::estimation::validation::TruthPoint {
+            timestamp_s: 2.5,
+            log10_activity: Some(-3.0),
+            activity: Some(1e-3),
+            baseline_offset_v: None,
+            polarization_v: None,
+            sensitivity_scale: None,
+            outlier: false,
+        },
+    ];
+    let result =
+        rust_electroanalysis_cli::estimation::validation::validate_report(&report, &truth, None);
+    assert_eq!(
+        result.alignment_policy.as_deref(),
+        Some("LinearInterpolation")
+    );
+    assert_eq!(result.matched_sample_count, 2);
+    assert_eq!(result.alignment_methods.len(), 2);
+    assert!(
+        result
+            .alignment_methods
+            .iter()
+            .all(|method| method == "linear_interpolation")
+    );
+}
+
+#[test]
+fn deterministic_monte_carlo_fixture_is_reproducible() {
+    let scenario = simulation::SimulationScenario {
+        sample_count: 24,
+        seed: 1234,
+        irregular_jitter_s: 0.2,
+        measurement_noise_sd_v: 1.0e-4,
+        ..Default::default()
+    };
+    let first = simulation::simulate_scenario(&scenario).unwrap();
+    let second = simulation::simulate_scenario(&scenario).unwrap();
+    assert_eq!(first, second);
+    assert!(
+        first
+            .observations
+            .iter()
+            .all(|point| point.timestamp_s.is_finite())
+    );
+}
+
+#[test]
+fn ekf_ukf_comparison_reports_equivalent_input_metrics() {
+    let model = simulation::simulation_model();
+    let exp = experiment(
+        vec![Some(0.02252), Some(0.0226), Some(0.02245), Some(0.02255)],
+        vec![0.0, 0.7, 1.9, 3.0],
+    );
+    let c = config(StateModelKind::Activity);
+    let ekf = estimation::estimate_experiment(
+        &exp,
+        "E1/V",
+        StoredCalibrationObservationModel::new(model.clone()).unwrap(),
+        &c,
+        estimation::EstimationContext::default(),
+        FilterKind::Ekf,
+    )
+    .unwrap();
+    let ukf = estimation::estimate_experiment(
+        &exp,
+        "E1/V",
+        StoredCalibrationObservationModel::new(model).unwrap(),
+        &c,
+        estimation::EstimationContext::default(),
+        FilterKind::Ukf,
+    )
+    .unwrap();
+    let comparison = rust_electroanalysis_cli::estimation::comparison::compare_reports(
+        &[(FilterKind::Ekf, ekf), (FilterKind::Ukf, ukf)],
+        None,
+    );
+    assert_eq!(comparison.records.len(), 2);
+    assert!(
+        comparison
+            .records
+            .iter()
+            .all(|record| record.log_likelihood.is_some())
+    );
+    assert!(
+        comparison
+            .records
+            .iter()
+            .all(|record| record.nis_consistency.is_some())
+    );
+}
+
+#[test]
+fn state_transform_round_trips_and_reports_derivatives() {
+    use rust_electroanalysis_cli::estimation::state::StateTransform;
+    let log10 = StateTransform::Log10Positive;
+    assert!((log10.to_physical(-3.0, None, None).unwrap() - 1.0e-3).abs() < 1.0e-15);
+    assert!((log10.from_physical(1.0e-3, None, None).unwrap() + 3.0).abs() < 1.0e-12);
+    assert!(log10.derivative(-3.0, None, None).unwrap() > 0.0);
+    let logistic = StateTransform::LogisticBounded;
+    let physical = logistic.to_physical(0.0, Some(0.5), Some(1.5)).unwrap();
+    assert!((physical - 1.0).abs() < 1.0e-12);
+    assert!(
+        (logistic
+            .from_physical(physical, Some(0.5), Some(1.5))
+            .unwrap())
+        .abs()
+            < 1e-12
+    );
+    assert!(logistic.validate_bounds(Some(0.5), Some(1.5)).is_ok());
+    assert!(logistic.validate_bounds(None, Some(1.5)).is_err());
+}
+
+#[test]
+fn old_estimation_artifact_defaults_new_diagnostics_fields() {
+    let report = estimation::estimate_experiment(
+        &experiment(vec![Some(0.02252), Some(0.02252)], vec![0.0, 1.0]),
+        "E1/V",
+        StoredCalibrationObservationModel::new(simulation::simulation_model()).unwrap(),
+        &config(StateModelKind::Activity),
+        estimation::EstimationContext::default(),
+        FilterKind::Ekf,
+    )
+    .unwrap();
+    let mut json = serde_json::to_value(&report).unwrap();
+    if let Some(estimates) = json
+        .get_mut("estimates")
+        .and_then(|value| value.as_array_mut())
+    {
+        for estimate in estimates {
+            if let Some(object) = estimate.as_object_mut() {
+                object.remove("posterior_constrained");
+                object.remove("applied_measurement_variance_v2");
+                object.remove("uninflated_measurement_variance_v2");
+                object.remove("measurement_variance_source");
+                object.remove("variance_inflation_factor");
+                object.remove("variance_inflation_reason");
+            }
+        }
+    }
+    let decoded: rust_electroanalysis_cli::results::StateEstimationReport =
+        serde_json::from_value(json).unwrap();
+    assert!(!decoded.estimates[0].posterior_constrained);
+    assert!(decoded.estimates[0].measurement_variance_source.is_none());
 }

@@ -2397,15 +2397,36 @@ Phase 6 state estimation is available through:
 
 Phase 6 converts selected potential channels to volts using the typed unit
 system (`V`, `mV`, or `µV`) and records the source unit and variance conversion
-in the estimation artifact. Conductivity conversions include their length unit
-(`S/m`, `S/cm`, `mS/cm`, or `µS/cm`); a bare `mS` or `µS` is not interpreted as
-conductivity. Known standards require an explicit activity or concentration
-unit. Concentration standards are converted to mol/L and then evaluated with
-the configured Phase 3 activity model; Davies and extended Debye–Hückel
-standards require ionic strength. These assumptions and conversions are stored
-in the aligned environmental context.
+in the estimation artifact. Measurement variance is resolved for every
+observation from `configured`, `per_observation`, signal robust/stable-window
+artifacts, calibration residual scatter, or calibration-parameter prediction
+uncertainty. Residual scatter is explicitly not called prediction uncertainty.
+Each innovation records the source, effective variance, and any calibration
+domain inflation. Domain inflation is one inside the calibration domain,
+optional and mild near a boundary, and configured outside it.
 
-The estimation configuration schema is version 2. The auxiliary field
+State transforms report both latent and physical values. `IdentityLog10`
+preserves an interpretable log10(activity) state; positive-log transforms use
+the corresponding inverse and derivative; `LogisticBounded` is used for a
+bounded sensitivity proxy. Bound projection, when required for legacy models,
+also removes projected covariance and is marked as constrained.
+
+Local observability uses actual early timestamps and changing environments.
+Empirical identifiability is a separate finite-perturbation simulation and
+reports output sensitivity and state-pair confounding; matrix rank alone is not
+treated as empirical identification.
+
+Validation uses explicit `Exact`, `NearestWithinTolerance`, or
+`LinearInterpolation` truth alignment, a maximum gap, non-reuse by default,
+and records unmatched rows and the alignment method. State-specific convergence
+thresholds, consecutive-point requirements, step thresholds, and response
+fractions are configured under `[validation.states.<state>]`. NIS intervals are
+sample-count-aware diagnostics for scalar innovation consistency; NEES and
+coverage are reported only when truth and finite covariance are available.
+These diagnostics and synthetic tests do not constitute statistical validation
+of a real estimator or sensor.
+
+The estimation configuration schema is version 3. The auxiliary field
 `known_log10_activity_variance` is in `log10(activity)^2`. Schema-1 files using
 `standard_variance_v2` remain readable, are migrated with a warning, and retain
 the value under an explicit legacy field until rewritten. Polarization event

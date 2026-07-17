@@ -3,6 +3,13 @@
 //! Offline, uncertainty-aware state estimation for time-varying potentiometric
 //! measurements.  This module owns the state-space algorithms; runners and
 //! plotting adapters only orchestrate or render completed artifacts.
+//!
+//! Measurement uncertainty is resolved per scalar observation and records its
+//! source and calibration-domain inflation.  NIS/NEES and innovation
+//! diagnostics are consistency diagnostics with finite-sample limitations, not
+//! proof of statistical validity.  Truth validation uses an explicit alignment
+//! policy and state-specific tolerances; synthetic fixtures cannot replace
+//! independent experimental validation.
 
 pub mod calibration_adapter;
 pub mod comparison;
@@ -93,8 +100,13 @@ pub fn estimate_experiment(
         previous = Some(e.clone());
         environments.push(e);
     }
-    let measurement_covariance =
-        resolve_measurement_covariance(config, None, context.signal, context.calibration_results)?;
+    let measurement_covariance = resolve_measurement_covariance(
+        config,
+        obs.iter()
+            .find_map(|observation| observation.observation_variance_v2),
+        context.signal,
+        context.calibration_results,
+    )?;
     let (initial_state, initial_covariance, initialization) = initialize_state(
         experiment,
         channel,
@@ -108,7 +120,7 @@ pub fn estimate_experiment(
     let mut observability = diagnose(
         &model,
         &initial_state,
-        environments.first().unwrap(),
+        &environments,
         calibration.as_ref(),
         config,
     )?;
@@ -154,6 +166,8 @@ pub fn estimate_experiment(
         initial_state,
         initial_covariance,
         measurement_covariance: &measurement_covariance,
+        signal: context.signal,
+        calibration_results: context.calibration_results,
     };
     let run = match filter {
         FilterKind::Ekf => ekf::run(input)?,
