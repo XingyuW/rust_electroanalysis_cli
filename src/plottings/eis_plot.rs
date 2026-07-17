@@ -515,17 +515,30 @@ pub fn plot_eis_directory_with_configs<P: AsRef<Path>>(
             .unwrap_or("eis_plot");
         let output_base =
             output_dir.join(compose_output_base_name(output_prefix, stem, "eis_plot"));
-        let mut data = EISData::parse_file_with_resolver(&path, &resolver)?;
+        let mut data = match EISData::parse_file_with_resolver(&path, &resolver) {
+            Ok(data) => data,
+            Err(error) => {
+                eprintln!("Skipped EIS file: {} ({error})", path.display());
+                continue;
+            }
+        };
 
         if let Some(circuit_model) = circuit_model {
             data = data.with_circuit_model(circuit_model);
         }
         let candidate_models = candidate_circuit_models(&data.circuit_model);
-        let candidate_fits = candidate_models
+        let candidate_fits = match candidate_models
             .iter()
             .map(|model| data.fit_circuit_for_model(model))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| -> Box<dyn Error> { err.into() })?;
+            .map_err(|err| -> Box<dyn Error> { err.into() })
+        {
+            Ok(fits) => fits,
+            Err(error) => {
+                eprintln!("Skipped EIS file: {} ({error})", path.display());
+                continue;
+            }
+        };
         let ranked_fits = data.ranked_fits_by(&candidate_fits, ranking_metric);
         let preferred_idx =
             data.preferred_fit_index(&ranked_fits, ranking_metric, warburg_aic_threshold);

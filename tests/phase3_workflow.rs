@@ -285,6 +285,7 @@ mode = "none"
     ] {
         assert!(fit_output.join(filename).is_file(), "missing {filename}");
     }
+
     let fit_report: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(fit_output.join("calibration_results.json")).unwrap(),
     )
@@ -377,5 +378,86 @@ mode = "none"
             .unwrap()
             .contains("activity")
     );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn calibration_extract_allows_duplicate_timestamps_in_steady_state_windows() {
+    let root = temp_dir();
+    let input = root.join("sensor.csv");
+    let metadata = root.join("experiment.toml");
+    let config = root.join("calibration.toml");
+    let output = root.join("observations.json");
+
+    write(
+        &input,
+        "time/sec,E1/V\n0,0.30\n1,0.29\n1,0.28\n2,0.27\n3,0.26\n4,0.25\n",
+    );
+    write(
+        &metadata,
+        r#"experiment_id = "phase3-duplicates"
+sample_matrix = "aqueous buffer"
+
+[sensor]
+analyte = "Na+"
+
+[[events]]
+timestamp = 0.0
+kind = "concentration_step"
+value = 0.001
+unit = "mol/L"
+analyte = "Na+"
+"#,
+    );
+    write(
+        &config,
+        r#"schema_version = 1
+[analyte]
+name = "Na+"
+charge = 1
+
+[observation_extraction]
+preferred_source = "steady_state_median"
+fallback_source = "steady_state_median"
+steady_state_start_s = 0.0
+steady_state_end_s = 4.0
+minimum_points = 3
+maximum_missing_fraction = 1.0
+maximum_absolute_slope_v_per_s = 1.0
+
+[plotting]
+enabled = false
+
+[uncertainty]
+bootstrap_iterations = 0
+
+[validation]
+mode = "none"
+"#,
+    );
+
+    let cli = run_cli(
+        &root,
+        &[
+            "calibration",
+            "extract",
+            "--input",
+            input.to_str().unwrap(),
+            "--metadata",
+            metadata.to_str().unwrap(),
+            "--channel",
+            "E1/V",
+            "--config",
+            config.to_str().unwrap(),
+            "--output",
+            output.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        cli.status.success(),
+        "{}",
+        String::from_utf8_lossy(&cli.stderr)
+    );
+    assert!(output.is_file(), "missing calibration observations output");
     fs::remove_dir_all(root).ok();
 }

@@ -59,6 +59,11 @@ fallback_model = "R0-p(CPE1,R1)"
     .expect("write parsing config");
 
     fs::write(root.join("data/sample.csv"), eis_fixture()).expect("write EIS fixture");
+    fs::write(
+        root.join("data/sample_ecm_search.csv"),
+        "rank,circuit,rss\n1,R0-p(CPE1,R1),1.0\n",
+    )
+    .expect("write generated-search-like csv fixture");
     root
 }
 
@@ -114,6 +119,24 @@ fn structured_and_legacy_plot_commands_still_render_eis_outputs() {
     assert!(output_names.iter().any(|name| name.ends_with(".svg")));
     assert!(output_names.iter().any(|name| name.ends_with(".png")));
     assert!(output_names.iter().any(|name| name.contains("fit_report")));
+
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn eis_plot_directory_skips_non_eis_csv_without_aborting_batch() {
+    let root = test_workspace("plot_skip");
+    let output = run_binary(&root, &["plot", "eis"]);
+    assert!(
+        output.status.success(),
+        "plot failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Skipped EIS file"),
+        "expected skip message, got: {stderr}"
+    );
 
     fs::remove_dir_all(root).ok();
 }

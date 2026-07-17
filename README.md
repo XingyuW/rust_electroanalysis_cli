@@ -1,57 +1,76 @@
 # rust_electroanalysis_cli — Electrochemical Data Analysis CLI
 
-**rust_electroanalysis_cli** is a Rust CLI application for parsing, plotting, fitting, and searching equivalent-circuit models (ECMs) for electrochemical impedance spectroscopy (EIS) data. The command-line interface is exposed as `electroanalysis`; the former `rust_plots` flat flags remain supported for existing scripts.
+`rust_electroanalysis_cli` is a command-line tool for electrochemical data workflows, including EIS fitting/search and OCPT/sensor time-series analysis pipelines (`transient`, `calibration`, `mechanism`, `signal`, `health`, `estimate`).
 
 ---
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Repository Structure](#repository-structure)
-- [Architecture](#architecture)
-  - [Module Dependency Graph](#module-dependency-graph)
-  - [Data Flow](#data-flow)
-  - [Configuration Loading](#configuration-loading)
-- [Scientific Data Model](#scientific-data-model)
+- [1. Overview](#1-overview)
+  - [Supported Experiment Types](#supported-experiment-types)
+  - [Supported Input Formats](#supported-input-formats)
+  - [Runtime Requirements](#runtime-requirements)
+  - [Subsystems Overview](#subsystems-overview)
+  - [Key Capabilities](#key-capabilities)
+- [2. Scientific Data Model](#2-scientific-data-model)
   - [Core Types](#core-types)
   - [Experiment TOML Schema](#experiment-toml-schema)
   - [Data Validation and Diagnostics](#data-validation-and-diagnostics)
   - [PlotData Compatibility](#plotdata-compatibility)
-- [Transient Response Analysis](#transient-response-analysis)
-- [Equilibrium Potentiometric Calibration](#equilibrium-potentiometric-calibration)
-- [CLI Usage](#cli-usage)
-  - [Commands](#commands)
-  - [Examples](#examples)
-- [Configuration](#configuration)
+- [3. Installation and Build](#3-installation-and-build)
+  - [Prerequisites](#prerequisites)
+  - [Build](#build)
+  - [Development Workflow](#development-workflow)
+  - [Testing](#testing)
+  - [Release Build](#release-build)
+- [4. Input File Formats and Automatic Detection](#4-input-file-formats-and-automatic-detection)
+  - [Minimal Examples](#minimal-examples)
+- [5. General CLI Syntax](#5-general-cli-syntax)
+- [6. Configuration](#6-configuration)
   - [Workspace Layout](#workspace-layout)
   - [Plotting Configuration (`config/plotting.toml`)](#plotting-configuration-configplottingtoml)
   - [Analysis Configuration (`config/analysis.toml`)](#analysis-configuration-configanalysistoml)
   - [Circuit Model Configuration (`config/parsing.toml`)](#circuit-model-configuration-configparsingtoml)
-  - [Transient Configuration (`config/transient.toml`)](#transient-configuration-configtransienttoml)
   - [Application State (`config/app.toml`)](#application-state-configapptoml)
   - [Configuration Precedence](#configuration-precedence)
-- [Configuration Examples](#configuration-examples)
-  - [Example A: Minimal Setup](#example-a-minimal-setup)
-  - [Example B: Standard Setup](#example-b-standard-setup)
-  - [Example C: Advanced Setup](#example-c-advanced-setup)
-- [Migrating from Legacy Configuration](#migrating-from-legacy-configuration)
-- [Getting Started](#getting-started)
-- [Plot Types and Features](#plot-types-and-features)
+  - [Configuration Examples](#configuration-examples)
+  - [Migrating from Legacy Configuration](#migrating-from-legacy-configuration)
+- [7. Getting Started](#7-getting-started)
+  - [Step 1: Install the Application](#step-1-install-the-application)
+  - [Step 2: Locate or Generate Configuration Files](#step-2-locate-or-generate-configuration-files)
+  - [Step 3: Configure Input and Output Directories](#step-3-configure-input-and-output-directories)
+  - [Step 4: Validate the Configuration](#step-4-validate-the-configuration)
+  - [Step 5: Run the CLI](#step-5-run-the-cli)
+  - [Step 6: Verify Outputs](#step-6-verify-outputs)
+- [8. Command Compatibility Matrix](#8-command-compatibility-matrix)
+- [9. Verified Command Usage](#9-verified-command-usage)
+  - [9.1 `plot`](#91-plot)
+  - [9.2 `eis`](#92-eis)
+  - [9.3 `transient`](#93-transient)
+  - [9.4 `calibration`](#94-calibration)
+  - [9.5 `mechanism`](#95-mechanism)
+  - [9.6 `signal`](#96-signal)
+  - [9.7 `health`](#97-health)
+  - [9.8 `estimate`](#98-estimate)
+- [10. Equivalent-Circuit Model (ECM) Search](#10-equivalent-circuit-model-ecm-search)
+  - [Search Pipeline](#search-pipeline)
+  - [Evolutionary Algorithm](#evolutionary-algorithm)
+  - [Seed Circuits](#seed-circuits)
+  - [Scoring and Ranking](#scoring-and-ranking)
+  - [Reports](#reports)
+- [11. Circuit Model System](#11-circuit-model-system)
+  - [Circuit String Syntax](#circuit-string-syntax)
+  - [Supported Elements](#supported-elements)
+  - [Model Resolution](#model-resolution)
+- [12. Plot Types and Features](#12-plot-types-and-features)
   - [EIS Plots (Nyquist / Bode)](#eis-plots-nyquist--bode)
   - [Regular (CHI) Plots](#regular-chi-plots)
   - [Generic Plots](#generic-plots)
   - [Regression Overlays](#regression-overlays)
   - [Axis Transforms](#axis-transforms)
-- [Equivalent-Circuit Model (ECM) Search](#equivalent-circuit-model-ecm-search)
-  - [Search Pipeline](#search-pipeline)
-  - [Evolutionary Algorithm](#evolutionary-algorithm)
-  - [Scoring and Ranking](#scoring-and-ranking)
-  - [Reports](#reports)
-- [Circuit Model System](#circuit-model-system)
-  - [Circuit String Syntax](#circuit-string-syntax)
-  - [Supported Elements](#supported-elements)
-  - [Model Resolution](#model-resolution)
-- [Module Documentation](#module-documentation)
+- [13. Output Layout](#13-output-layout)
+  - [Legacy Compatibility](#legacy-compatibility)
+- [14. Module Documentation](#14-module-documentation)
   - [CLI Layer](#cli-layer)
   - [Configuration Layer](#configuration-layer)
   - [Data Layer (`data_file/`)](#data-layer-data_file)
@@ -59,38 +78,56 @@
   - [Plotting Backend (`plottings/`)](#plotting-backend-plottings)
   - [Orchestration Layer](#orchestration-layer)
   - [Regression Module](#regression-module)
-- [Dependencies](#dependencies)
-- [Build and Development](#build-and-development)
-  - [Prerequisites](#prerequisites)
-  - [Build](#build)
-  - [Development Workflow](#development-workflow)
-  - [Testing](#testing)
-  - [Release Build](#release-build)
-- [Usage Guide](#usage-guide)
+- [15. Dependencies](#15-dependencies)
+- [16. Usage Guide](#16-usage-guide)
   - [Quick Start](#quick-start)
   - [Plotting Workflows](#plotting-workflows)
   - [ECM Search Workflows](#ecm-search-workflows)
-  - [Troubleshooting](#troubleshooting)
-- [Developer Documentation](#developer-documentation)
+  - [Troubleshooting](#troubleshooting-1)
+- [17. Reproducibility and Limitations](#17-reproducibility-and-limitations)
+- [18. Current Documented Limitations](#18-current-documented-limitations)
+- [19. Developer Documentation](#19-developer-documentation)
   - [Adding a New Circuit Element](#adding-a-new-circuit-element)
   - [Adding a New Plot Type](#adding-a-new-plot-type)
   - [Adding a New Regression Model](#adding-a-new-regression-model)
   - [Adding a New File Format Parser](#adding-a-new-file-format-parser)
   - [Coding Conventions](#coding-conventions)
+- [20. Scientific Correctness and Artifact Migration](#20-scientific-correctness-and-artifact-migration)
+- [21. Troubleshooting](#21-troubleshooting)
+- [22. License](#22-license)
 
 ---
 
-## Overview
+## 1. Overview
 
-rust_electroanalysis_cli is designed for electrochemical researchers and analysts who need to:
+`rust_electroanalysis_cli` is a command-line tool for electrochemical data workflows, including EIS fitting/search and OCPT/sensor time-series analysis pipelines (`transient`, `calibration`, `mechanism`, `signal`, `health`, `estimate`).
+
+It is designed for electrochemical researchers and analysts who need to:
 
 - **Parse** CHI instrument electrochemical data files (EIS spectra, chronoamperometry, voltammetry, OCPT, etc.)
 - **Visualize** data through publication-quality plots rendered at configurable DPI in both SVG and PNG formats
 - **Fit** EIS data to equivalent-circuit models using nonlinear least-squares optimization (Levenberg–Marquardt) and PINN-based optimizers
 - **Discover** optimal circuit topologies automatically via a genetic algorithm that evolves circuit structures
-- **Score and rank** candidate circuits using scalar-residual RSS, Gaussian BIC,
-  an explicitly named legacy score, and weighted RMSE
+- **Score and rank** candidate circuits using scalar-residual RSS, Gaussian BIC, an explicitly named legacy score, and weighted RMSE
 - **Export** results as plain-text reports, CSV rankings, and high-resolution figures
+
+### Supported Experiment Types
+
+1. CHI EIS CSV (`Freq/Hz`, `Z'/ohm`, `Z"/ohm`)
+2. CHI OCPT/time-series CSV (`Time/sec`, `Potential/V`)
+3. General time-series sensor CSV (`time`/`timestamp` + numeric channels)
+
+### Supported Input Formats
+
+1. `.csv`, `.txt`, `.dat` (text)
+2. `.bin` and Excel files are currently unsupported by the parser
+
+### Runtime Requirements
+
+1. Rust toolchain (Cargo)
+2. macOS/Linux/Windows (validated on macOS in this run)
+
+### Subsystems Overview
 
 The application is organized into four major subsystems:
 
@@ -105,32 +142,19 @@ These are connected by typed workflow façades (`fitting/` and `runners/`) plus 
 
 ---
 
-## Scientific Data Model
+## 2. Scientific Data Model
 
-Phase 1 adds an experiment-oriented foundation without changing numerical
-fitting or the plotting renderer. Source data enters through `data_file`, is
-represented by the types in `domain`, and can still be projected into the
-existing `PlotData` type for current plotting workflows.
+Phase 1 adds an experiment-oriented foundation without changing numerical fitting or the plotting renderer. Source data enters through `data_file`, is represented by the types in `domain`, and can still be projected into the existing `PlotData` type for current plotting workflows.
 
 ### Core Types
 
-`MultiChannelMeasurement` stores a single shared `time` axis and one or more
-named `MeasurementChannel`s. Each channel has a unit, optional sensor/analyte
-identifiers, optional metadata, and `Vec<Option<f64>>` values. `None` preserves
-a missing reading at its original timestamp.
+`MultiChannelMeasurement` stores a single shared `time` axis and one or more named `MeasurementChannel`s. Each channel has a unit, optional sensor/analyte identifiers, optional metadata, and `Vec<Option<f64>>` values. `None` preserves a missing reading at its original timestamp.
 
-`ElectrochemicalExperiment` adds the context needed for future ion-selective
-membrane analysis: `SensorMetadata`, optional `ReferenceMetadata`, a sample
-matrix, environmental series, ordered `ExperimentEvent`s, and
-`AnalysisProvenance`. The event model currently includes concentration steps,
-flow/temperature/ionic-strength changes, interferent additions, flush and
-reading boundaries, and manual annotations.
+`ElectrochemicalExperiment` adds the context needed for future ion-selective membrane analysis: `SensorMetadata`, optional `ReferenceMetadata`, a sample matrix, environmental series, ordered `ExperimentEvent`s, and `AnalysisProvenance`. The event model currently includes concentration steps, flow/temperature/ionic-strength changes, interferent additions, flush and reading boundaries, and manual annotations.
 
 ### Experiment TOML Schema
 
-Experiment metadata is separate from plotting configuration and can be loaded
-with `load_experiment_metadata` or combined with a measurement using
-`data_file::load_experiment`:
+Experiment metadata is separate from plotting configuration and can be loaded with `load_experiment_metadata` or combined with a measurement using `data_file::load_experiment`:
 
 ```toml
 experiment_id = "exp-001"
@@ -167,623 +191,161 @@ kind = "reading_start"
 annotation = "baseline"
 ```
 
-Event records are validated and ordered by timestamp when an
-`ElectrochemicalExperiment` is constructed. The schema also accepts
-`environmental_series` as a compatibility alias for `environmental_data`.
+Event records are validated and ordered by timestamp when an `ElectrochemicalExperiment` is constructed. The schema also accepts `environmental_series` as a compatibility alias for `environmental_data`.
 
 ### Data Validation and Diagnostics
 
-The measurement constructor rejects an empty time axis, missing channels,
-non-finite timestamps, and channels whose value vectors do not align with the
-shared axis. Parsers retain valid rows and return `ParseDiagnostics` alongside
-the measurement. Diagnostics report total rows, successfully parsed rows,
-skipped and malformed rows, missing values, irregular sampling, duplicate
-timestamps, non-monotonic timestamps, and explanatory messages. These findings
-are visible to callers; malformed or incomplete input is not silently dropped.
+The measurement constructor rejects an empty time axis, missing channels, non-finite timestamps, and channels whose value vectors do not align with the shared axis. Parsers retain valid rows and return `ParseDiagnostics` alongside the measurement. Diagnostics report total rows, successfully parsed rows, skipped and malformed rows, missing values, irregular sampling, duplicate timestamps, non-monotonic timestamps, and explanatory messages. These findings are visible to callers; malformed or incomplete input is not silently dropped.
 
 ### PlotData Compatibility
 
-`data_file::measurement_to_plot_data` and `channel_to_plot_data` are one-way
-adapters from the scientific model to the existing `PlotData` container. They
-produce one plot series per measurement channel and include the channel unit
-in its label. Missing values are omitted only from this rendering projection;
-the original `MultiChannelMeasurement` and its diagnostics are unchanged. The
-plotting engine therefore remains unaware of all Phase 1 domain types.
+`data_file::measurement_to_plot_data` and `channel_to_plot_data` are one-way adapters from the scientific model to the existing `PlotData` container. They produce one plot series per measurement channel and include the channel unit in its label. Missing values are omitted only from this rendering projection; the original `MultiChannelMeasurement` and its diagnostics are unchanged. The plotting engine therefore remains unaware of all Phase 1 domain types.
 
-## Transient Response Analysis
+---
 
-Phase 2 adds an event-oriented potentiometric workflow. It consumes an
-`ElectrochemicalExperiment`, selects one `MeasurementChannel`, and analyzes
-the response after eligible timestamped events. The scientific core is under
-`potentiometry/transient/`; the runner only coordinates loading, fitting,
-export, and plotting. The existing `PlotData` and renderer are unchanged.
+## 3. Installation and Build
 
-### Command
+### Prerequisites
+
+- **Rust toolchain**: Edition 2024, stable channel
+- **git** (for version control)
+
+### Build
 
 ```bash
-electroanalysis transient fit \
-  --input data/sensor.csv \
-  --metadata data/experiment.toml \
-  --channel E1/V \
-  --config config/transient.toml \
-  --output output/transient/
+# Debug build
+cargo build
+
+# Optimized release build
+cargo build --release
 ```
 
-The command analyzes every `concentration_step` event by default. Use
-`--event-kind`, `--event-index` (zero-based among eligible events),
-`--model single|double|double-drift|stretched|all`, `--selection aic|bic`,
-`--bootstrap N`, and `--seed N` to override the resolved configuration. The
-channel selector accepts the channel name, `name/unit`, or `name [unit]`.
+Optional install:
 
-### Models and interpretation
+```bash
+cargo install --path .
+electroanalysis --help
+```
 
-The supported descriptive models are a single exponential, a two-component
-exponential, a two-component exponential with linear drift, and a stretched
-exponential. Positive time constants are fitted through logarithmic
-parameterizations; double models use an ordered fast/slow parameterization;
-the stretched exponent is bounded by `beta_min` and `beta_max`.
+Quality/test commands:
 
-Model selection uses the configured AIC or BIC value, not raw residual error.
-The report also contains AICc when the sample size permits it, criterion
-deltas, model weights, residual diagnostics, and residual-bootstrap intervals.
-All model-derived quantities are reported with neutral labels such as
-“fast fitted timescale” and “slow fitted timescale”. A fitted time constant is
-not automatically assigned an electrochemical mechanism.
+```bash
+cargo fmt --check
+cargo check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all
+```
 
-### Segmentation and validation behavior
-
-The event timestamp is local time zero. The configured pre-event window is
-used for baseline estimation, and the post-event window supplies the fitted
-observations. The default baseline is a median and the default response is
-baseline-relative; both can be changed to mean, linear, or absolute response.
-The source measurement is never modified.
-
-- Missing values remain in the domain measurement. Only missing time/value
-  pairs are omitted from a fit, and their count and fraction are exported.
-- Non-monotonic paired rows are sorted by timestamp by default; the values are
-  moved with their timestamps. The `error` policy rejects them.
-- Duplicate timestamps are an error by default. `average` explicitly replaces
-  duplicate finite values at a timestamp with their mean while preserving a
-  diagnostic count.
-- Irregular sampling is allowed by default. Fits use the actual timestamps;
-  no resampling or filtering is performed. The `error` policy rejects an
-  irregular segment.
-- Segments are rejected for too few finite points, too short finite duration,
-  excessive missing fraction, invalid timestamps under the selected policies,
-  or an event outside the data range. A failed event is recorded while other
-  eligible events continue when safe.
-
-### Outputs
-
-The output directory contains, by default:
-
-`transient_results.json` (complete serializable report),
-`transient_features.csv` (one selected-model row per event),
-`transient_model_comparison.csv` (one candidate row per event), and
-`transient_report.txt` (a researcher-readable report separating observations,
-model-derived values, warnings, failures, selection, and uncertainty).
-When plotting is enabled, selected events also produce publication-style SVG
-and PNG response, residual, and candidate-comparison figures. The transient
-plot adapter converts results to existing `PlotSeries` values before calling
-the renderer; the generic plotting code does not know about transient fit
-types.
-
-### Configuration schema
-
-`config/transient.toml` is independent of `config/analysis.toml`. It is
-created with workspace setup when absent and supports schema version 1:
+The release profile uses LTO (link-time optimization) and symbol stripping for minimal binary size:
 
 ```toml
-schema_version = 1
-
-[segmentation]
-pre_event_s = 30.0
-post_event_s = 300.0
-baseline_window_s = 20.0
-minimum_points = 20
-minimum_duration_s = 10.0
-maximum_missing_fraction = 0.20
-duplicate_timestamp_policy = "error" # or "average"
-non_monotonic_policy = "sort"        # or "error"
-irregular_sampling_policy = "allow"  # or "error"
-
-[baseline]
-method = "median"                    # mean, median, or linear
-response_mode = "baseline_relative"  # or absolute
-
-[models]
-enabled = ["single", "double", "double_drift", "stretched"]
-beta_min = 0.05
-beta_max = 1.0
-
-[selection]
-criterion = "aic"                    # or bic
-
-[uncertainty]
-bootstrap_iterations = 500
-confidence_level = 0.95
-seed = 42
-minimum_success_fraction = 0.80
+[profile.release]
+opt-level      = 3
+panic          = "abort"
+codegen-units  = 1
+lto            = "fat"
+strip          = "symbols"
+debug          = false
 ```
 
-The file also contains `[optimizer]`, `[validation]`, `[plotting]`, and
-`[export]` sections. CLI model, selection, bootstrap, and seed values override
-the TOML values. An explicit missing `--config` is fatal; an absent default
-config uses validated defaults. Unsupported schema versions produce a warning
-while the file is still validated and loaded.
-
-### Provenance
-
-The JSON report carries software version, input path and SHA-256, metadata/config
-path and SHA-256 where available, generation timestamp, and optional Git
-commit. Experimental metadata (sensor, sample matrix, environmental series,
-and events) remains separate from plotting configuration.
-
-## Equilibrium Potentiometric Calibration
-
-Phase 3 adds an equilibrium calibration workflow under
-src/potentiometry/calibration/. It extracts equilibrium potentials from valid
-selected transient fits, or uses a steady-state window only when
-[observation_extraction].fallback_source is explicitly configured. It then
-fits Nernst, fixed-theoretical-slope, Nicolsky-Eisenman, and explicitly
-empirical conductivity-corrected models.
-
-Concentration, molar concentration, molality, activity, activity coefficient,
-ionic strength, conductivity, potential, and temperature are separate typed
-quantities. Supported units include mol/L, mmol/L, µmol/L, mol/kg, mg/L, g/L,
-V, mV, K, °C, S/m, mS/cm, and µS/cm. Mass concentration requires a
-configured molar mass; mol/kg remains molal unless additional solvent-density
-information is supplied. Temperatures are converted to kelvin before
-scientific equations are evaluated.
-
-### Commands
-
-    electroanalysis calibration extract \
-      --input data/calibration.csv \
-      --metadata data/experiment.toml \
-      --channel E1/V \
-      --transient-results output/transient/transient_results.json \
-      --config config/calibration.toml \
-      --output output/calibration/calibration_observations.json
-
-    electroanalysis calibration fit \
-      --observations output/calibration/calibration_observations.json \
-      --config config/calibration.toml \
-      --output output/calibration/
-
-    electroanalysis calibration validate \
-      --model output/calibration/calibration_model.json \
-      --observations data/validation_observations.json \
-      --output output/calibration-validation/
-
-    electroanalysis calibration predict \
-      --model output/calibration/calibration_model.json \
-      --potential 0.184 --temperature 25.0 \
-      --output output/prediction.json
-
-Prediction can also consume a generic data file with --input and --channel,
-producing a CSV when the output name ends in .csv. Phase 3 does not add new
-flat legacy flags; existing plot, EIS, and transient commands and their legacy
-compatibility remain unchanged.
-
-### Calibration TOML schema
-
-config/calibration.toml is independent of config/transient.toml and
-config/analysis.toml. Workspace setup creates it when absent. A compact
-example is:
-
-    schema_version = 1
-
-    [observation_extraction]
-    preferred_source = "transient_equilibrium"
-    allow_warning_fits = true
-    fallback_source = "steady_state_median" # omit to disable fallback
-    steady_state_start_s = 180.0
-    steady_state_end_s = 300.0
-    minimum_points = 20
-    maximum_missing_fraction = 0.20
-    maximum_absolute_slope_v_per_s = 0.00001
-
-    [analyte]
-    name = "NH4+"
-    charge = 1
-    molar_mass_g_per_mol = 18.038
-
-    [temperature]
-    mode = "observation_specific"
-    default_celsius = 25.0
-    environmental_series = "temperature"
-    alignment = "linear_interpolation"
-    maximum_gap_s = 30.0
-
-    [activity]
-    model = "ideal" # ideal, davies, extended_debye_huckel, or conductivity_empirical
-
-    [nernst]
-    slope_mode = "free" # free, fixed_theoretical, or prior_constrained
-    response_sign = "auto"
-
-    [selection]
-    criterion = "aicc"
-    branch = "mixed"
-
-    [uncertainty]
-    bootstrap_iterations = 1000
-    confidence_level = 0.95
-    seed = 42
-    minimum_success_fraction = 0.80
-
-Davies activity coefficients require ionic strength and warn above the
-configured validity range. Extended Debye-Hückel additionally requires an
-explicit ion-size parameter; the configured default B constant uses Å and a
-nanometre ion-size input is converted to Å. Conductivity correction is a configured
-empirical relationship and is always labeled empirical; conductivity is not
-treated as a thermodynamic activity model. Nicolsky-Eisenman selectivity
-coefficients are positive and are reported as fixed literature/user-supplied
-or experimentally fitted for the tested matrix and range.
-
-### Validation, uncertainty, and outputs
-
-Calibration fitting uses weighted or unweighted stable least squares and
-reports RSS, weighted RSS, RMSE, MAE, R², adjusted R², AIC, AICc, BIC,
-residuals, covariance diagnostics, leverage-related fields, and warnings.
-AICc is used when available by default and is unavailable for small
-observation-to-parameter ratios. Residual bootstrap intervals are
-reproducible for a fixed seed; failed iterations are counted and intervals are
-suppressed when the configured success fraction is not met.
-
-The default output directory contains:
-
-calibration_observations.json, calibration_model.json,
-calibration_results.json, calibration_summary.csv,
-calibration_residuals.csv, calibration_validation.csv, and
-calibration_report.txt. Plot adapters produce SVG/PNG potential-vs-activity,
-potential-vs-molar-concentration, theoretical-slope comparison, residual,
-branch, hysteresis, and validation figures through the existing renderer.
-Confidence intervals and covariance diagnostics remain machine-readable in
-the JSON/report outputs; the current adapter does not draw shaded bands.
-The renderer remains unaware of calibration result types.
-
-Reports distinguish measured quantities, converted quantities, fitted
-quantities, empirical corrections, thermodynamic assumptions, validation
-metrics, uncertainty, and extrapolation warnings. A non-Nernstian slope is not
-automatically labeled sensor failure, and no fitted quantity is assigned an
-electrochemical mechanism.
-
----
-
-## Repository Structure
-
-```
-rust_electroanalysis_cli/
-├── Cargo.toml                          # Project manifest with dependencies
-├── Cargo.lock                          # Locked dependency versions
-├── .gitignore                          # Git ignore rules
-├── README.md                           # This file
-│
-├── plot_config.generic_plot_job_blocks_examples.toml  # Reference: example generic-plot job blocks
-├── plot_config.plot_type_examples.toml                # Reference: example plot-type style presets
-│
-├── config/                             # Runtime configuration directory (auto-created)
-│   ├── app.toml                        # Application state (schema version, last run mode)
-│   ├── plotting.toml                   # Plotting workflow configuration
-│   ├── analysis.toml                   # ECM search/evolution configuration
-│   ├── parsing.toml                    # Circuit model resolver configuration
-│   ├── transient.toml                  # Potentiometric transient configuration
-│   └── calibration.toml                # Independent equilibrium calibration configuration
-│
-├── data/                               # Input data directory (auto-created)
-├── output/                             # Output figures and reports directory (auto-created)
-├── logs/                               # Logs directory (auto-created)
-│
-└── src/
-    ├── main.rs                         # CLI binary entrypoint and workflow dispatch
-    ├── lib.rs                          # Crate root — re-exports all public modules
-    ├── cli.rs                          # clap derive CLI and legacy-flag normalization
-    ├── domain/                         # Scientific data, metadata, provenance, and typed errors
-    │   ├── measurement.rs               # Shared-axis multi-channel measurements
-    │   ├── experiment.rs                # Experiment metadata and timestamped events
-    │   ├── diagnostics.rs               # Parse and sampling diagnostics
-    │   ├── metadata.rs                  # Experiment TOML schema/loading
-    │   └── provenance.rs                # Input/config hashes and generation metadata
-    ├── fitting/                        # Stable façade over the impedance fit pipeline
-    ├── potentiometry/                  # Event-based potentiometric transient core
-    │   ├── units.rs                     # Centralized quantity/unit conversions
-    │   ├── error.rs                     # Typed potentiometry errors
-    │   ├── calibration/                 # Activity, Nernst, selectivity, fitting
-    │   └── transient/                   # Models, segmentation, fitting, diagnostics, selection
-    ├── transient_config.rs              # Independent transient TOML schema/resolution
-    ├── calibration_config.rs            # Independent calibration TOML schema/resolution
-    ├── results/                        # Named serializable scientific result structures
-    ├── runners/                        # Thin plot, fit, search, and transient boundaries
-    ├── workspace.rs                    # Workspace bootstrap, config lifecycle, atomic writes
-    ├── plot_config.rs                  # Plot-job TOML schema, loading, migration, resolution
-    ├── plot_runner.rs                  # Plot job orchestration (EIS, regular, generic)
-    ├── search_config.rs                # ECM search TOML schema, loading, validation
-    ├── search_runner.rs                # ECM search pipeline and export orchestration
-    ├── regression_mod.rs               # Regression models (linear OLS) for plot overlays
-    │
-    ├── data_file/                      # Data ingestion and normalization layer
-    │   ├── lib.rs                      # Module facade — re-exports parsers and types
-    │   ├── chi_file.rs                 # CHI-format file parser (ElectrochemData, EISData)
-    │   ├── measurement_parser.rs       # Generic/CHI parser into domain measurements
-    │   ├── measurement_adapter.rs      # Domain measurement → PlotData adapters
-    │   ├── data_op.rs                  # Generic PlotData container, PointSelection, IntoPlotData
-    │   └── value_transform.rs          # Axis transform resolution (log, neg-log, linear)
-    │
-    ├── impedance/                      # Scientific equivalent-circuit modeling core
-    │   ├── lib.rs                      # Module facade — fit_circuit, prepare_impedance_data, etc.
-    │   ├── elements.rs                 # Element equations, parameter names/units/constraints/bounds
-    │   ├── circuits.rs                 # Circuit string parser and AST (CircuitNode, Impedance trait)
-    │   ├── circuit_models.rs           # Model selection rules, resolver, CircuitModelContext
-    │   ├── fitting.rs                  # NLLS fitting, ImpedanceFitter, parameter transforms, Lin-KK
-    │   ├── ecm_candidate.rs           # Genetic encoding/decoding, CircuitTopology, seed circuits
-    │   ├── ecm_evolution.rs           # Genetic algorithm loop, crossover, mutation operators
-    │   ├── ecm_scoring.rs             # RSS, Gaussian BIC, legacy score, weighted RMSE
-    │   ├── ecm_search.rs              # Search report assembly, EcmSearchReport, ranking tables
-    │   ├── pinn_optimizer.rs          # PINN-based optimizer for advanced fitting
-    │   └── reporting.rs               # Fitted-circuit composition summaries (element breakdowns)
-    │
-    └── plottings/                      # Plotting backend and rendering
-        ├── lib.rs                      # Module facade — re-exports all plot types
-        ├── plotting.rs                 # Core renderer: PublicationConfig, plot_hq, draw_plot_area
-        ├── chi_plot.rs                 # Regular (CHI/Pb-sensor) plot pipeline
-        ├── eis_plot.rs                 # EIS Nyquist/Bode plot pipeline and ranked-search plots
-        ├── generic_plot.rs              # Domain-agnostic generic plot pipeline
-        ├── calibration_plot.rs          # Calibration-result to renderer adapter
-        └── transient_plot.rs            # Transient-result to PlotSeries adapter
-```
-
----
-
-## Architecture
-
-### Module Dependency Graph
-
-```mermaid
-flowchart TD
-    subgraph CLI["CLI Layer"]
-        main["main.rs"] --> cli["cli.rs"]
-        main --> workspace["workspace.rs"]
-    end
-
-    subgraph Config["Configuration Layer"]
-        workspace --> plot_config["plot_config.rs"]
-        workspace --> search_config["search_config.rs"]
-    end
-
-    subgraph Orchestration["Orchestration Layer"]
-        plot_runner["plot_runner.rs"] --> plot_config
-        plot_runner --> |EIS jobs| plottings
-        plot_runner --> |regular jobs| plottings
-        plot_runner --> |generic jobs| plottings
-        search_runner["search_runner.rs"] --> search_config
-        search_runner --> data_file
-        search_runner --> impedance
-        search_runner --> plottings
-    end
-
-    subgraph data_file["Data Layer (data_file/)"]
-        chi_file["chi_file.rs"]
-        data_op["data_op.rs"]
-        value_transform["value_transform.rs"]
-    end
-
-    subgraph impedance["Impedance Core (impedance/)"]
-        elements["elements.rs"]
-        circuits["circuits.rs"]
-        circuit_models["circuit_models.rs"]
-        fitting["fitting.rs"]
-        ecm_candidate["ecm_candidate.rs"]
-        ecm_evolution["ecm_evolution.rs"]
-        ecm_scoring["ecm_scoring.rs"]
-        ecm_search["ecm_search.rs"]
-        pinn_optimizer["pinn_optimizer.rs"]
-        reporting["reporting.rs"]
-        lib_imp["lib.rs"]
-    end
-
-    subgraph plottings["Plotting Backend (plottings/)"]
-        plotting["plotting.rs"]
-        chi_plot["chi_plot.rs"]
-        eis_plot["eis_plot.rs"]
-        generic_plot["generic_plot.rs"]
-        lib_plot["lib.rs"]
-    end
-
-    regression["regression_mod.rs"]
-
-    data_file --> impedance
-    data_file --> plottings
-    impedance --> regression
-    plottings --> regression
-```
-
-### Data Flow
-
-```mermaid
-flowchart LR
-    subgraph Input["Input"]
-        CHI["CHI files (.txt)"]
-        TOML["TOML configs"]
-        CLI["CLI arguments"]
-    end
-
-    subgraph Parse["Parse"]
-        chi_parse["chi_file.rs\n(ElectrochemData / EISData)"]
-        cfg_parse["plot_config.rs\nsearch_config.rs"]
-        cli_parse["cli.rs"]
-    end
-
-    subgraph Process["Process"]
-        direction TB
-        fit["fit_circuit (NLLS + PINN)"]
-        search["ECM evolution\n(genetic algorithm)"]
-        transform["value_transform.rs\n(axis transforms)"]
-        select["data_op.rs\n(PointSelection)"]
-    end
-
-    subgraph Render["Render"]
-        eis_plot["EIS Nyquist/Bode"]
-        chi_plot["CHI regular plots"]
-        generic_plot["Generic plots"]
-    end
-
-    subgraph Output["Output"]
-        SVG["SVG figures"]
-        PNG["PNG figures\n(supersampled)"]
-        TXT["Text reports\n(*_ecm_search.txt)"]
-        CSV["CSV rankings\n(*_ecm_search.csv)"]
-        TXT2["Fit reports\n(*_fit_report.txt)"]
-    end
-
-    CHI --> chi_parse
-    TOML --> cfg_parse
-    CLI --> cli_parse
-
-    chi_parse --> fit
-    chi_parse --> search
-    chi_parse --> transform
-    chi_parse --> select
-
-    fit --> eis_plot
-    search --> eis_plot
-    transform --> chi_plot
-    transform --> generic_plot
-    select --> generic_plot
-
-    eis_plot --> SVG
-    eis_plot --> PNG
-    eis_plot --> TXT2
-    chi_plot --> SVG
-    chi_plot --> PNG
-    generic_plot --> SVG
-    generic_plot --> PNG
-    search --> TXT
-    search --> CSV
-```
-
-### Configuration Loading
-
-```mermaid
-flowchart TD
-    subgraph Workspace["Workspace Bootstrap"]
-        w["workspace::prepare_workspace()"]
-        w --> create_dirs["Create config/ data/ output/ logs/"]
-        w --> migrate["Migrate legacy root configs"]
-        w --> app_cfg["Load/save config/app.toml"]
-    end
-
-    subgraph PlotConfig["Plot Config Loading"]
-        pc["PlotConfig::load()"]
-        pc --> file["Resolve path: CLI override\nor config/plotting.toml\nor plot_config.toml"]
-        file --> parse["TOMl parse + validate"]
-        parse --> merged["Merge: domain defaults\n→ [render] → [shared] →\njob styles → CLI"]
-        merged --> warnings["Collect migration & compatibility warnings"]
-    end
-
-    subgraph SearchConfig["Search Config Loading"]
-        sc["RuntimeEcmSearchConfig::load()"]
-        sc --> sfile["Resolve path: CLI override\nor config/analysis.toml\nor ecm_search.toml"]
-        sfile --> spars["TOML parse + validate ranges"]
-        spars --> sresolve["Merge: defaults → file → CLI top-N"]
-    end
-
-    subgraph ParsingConfig["Circuit Model Config"]
-        cmc["CircuitModelResolver::load_or_default()"]
-        cmc --> cmfile["config/parsing.toml\nor circuit_models.toml"]
-        cmfile --> cmparse["Parse rules, fallback, ranking metric"]
-    end
-
-    Workspace --> PlotConfig
-    Workspace --> SearchConfig
-    Workspace --> ParsingConfig
-```
-
----
-
-## CLI Usage
-
-The canonical interface uses derive-based subcommands. The CLI presents this
-interface as `electroanalysis`; with Cargo, use `cargo run --` before the same
-arguments. The release artifact remains `rust_electroanalysis_cli`.
-
-### Commands
-
-```text
-electroanalysis plot [all|eis|regular-plot|generic-plot]
-electroanalysis eis fit <input> [--circuit <expression>] [--output <path>]
-electroanalysis eis search <input> [--search-config <path>]
-                              [--search-output <path>] [--search-top <n>]
-electroanalysis transient fit --input <path> --metadata <path> --channel <name>
-                              [--config <path>] [--output <path>]
-electroanalysis calibration extract --input <path> --metadata <path> --channel <name>
-                                    [--transient-results <path>] [--config <path>] [--output <path>]
-electroanalysis calibration fit --observations <path> [--config <path>] [--output <path>]
-electroanalysis calibration validate --model <path> --observations <path> [--output <path>]
-electroanalysis calibration predict --model <path> (--potential <V> | --input <path> --channel <name>)
-                                    [--temperature <C>] [--output <path>]
-```
-
-`plot` defaults to `all`. `eis fit` fits one EIS file using its resolved
-circuit model (or `--circuit`) and prints a named-parameter report unless
-`--output` is supplied. `eis search` retains the existing genetic ECM search,
-ranking, report, CSV, and optional plotting behavior.
+### Development Workflow
 
 ```bash
-# Show the structured command help
-cargo run -- --help
+# Format code
+cargo fmt
 
-# Generate all plots, or EIS plots only
-cargo run -- plot
+# Run clippy lints
+cargo clippy --all-targets --all-features
+
+# Build and run with default config
+cargo run
+
+# Run with specific plot type
 cargo run -- plot eis
 
-# Use an alternative plotting configuration
-cargo run -- plot all --plot-config /path/to/alternative.toml
-
-# Fit one EIS file
-cargo run -- eis fit data/my_sample.txt
-cargo run -- eis fit data/my_sample.txt --circuit 'R0-p(CPE1,R1)' --output output/fit.txt
-
-# Search one file or a directory
-cargo run -- eis search data/my_sample.txt
-cargo run -- eis search data/eis_measurements/ --search-top 20 \
-  --search-config my_analysis.toml --search-output results/
-
-# Fit all eligible concentration-step transients
-cargo run -- transient fit --input data/sensor.csv \
-  --metadata data/experiment.toml --channel E1/V --output output/transient/
-
-# Extract and fit an equilibrium calibration
-cargo run -- calibration extract --input data/calibration.csv \
-  --metadata data/experiment.toml --channel E1/V \
-  --transient-results output/transient/transient_results.json \
-  --output output/calibration/calibration_observations.json
-cargo run -- calibration fit \
-  --observations output/calibration/calibration_observations.json \
-  --output output/calibration/
+# Run ECM search on test data
+cargo run -- eis search data/sample.txt
 ```
 
-### Legacy compatibility
+### Testing
 
-The pre-Phase-0 flat flags are normalized into the same command tree and
-retain their existing configuration defaults, precedence, output names, and
-locations:
+```bash
+# Run all tests
+cargo test
 
-| Existing invocation | Structured equivalent |
-|---|---|
-| `--plot eis` | `plot eis` |
-| `--plot all --plot-config <path>` | `plot all --plot-config <path>` |
-| `--search-eis <input>` | `eis search <input>` |
-| `--search-eis <input> --search-config <path> --search-output <path> --search-top <n>` | `eis search <input> --search-config <path> --search-output <path> --search-top <n>` |
+# Run tests with output
+cargo test -- --nocapture
 
-Legacy and structured options cannot be mixed in one invocation. Invalid
-combinations, such as `--plot` together with `--search-eis`, fail before any
-workspace or scientific work starts.
+# Run tests for a specific module
+cargo test impedance::ecm_scoring::tests
+
+# Run doctests
+cargo test --doc
+```
+
+The test suite includes:
+- **Parser tests**: CHI file parsing, header detection, multi-column extraction
+- **Circuit model tests**: Model resolution, filename matching, metadata matching
+- **Fitting tests**: NLLS convergence on synthetic data, CPE/capacitor equivalence, Warburg comparison
+- **Scoring tests**: Legacy-score perfect-fit behavior, scalar-observation BIC, and complexity penalties
+- **Search tests**: End-to-end GA search on synthetic data, CSV escaping
+- **Regression tests**: Perfect line fit, R² bounding, error handling
+- **Reporting tests**: Element composition breakdown and formatting
+- **Transform tests**: Log, neg-log, linear transforms, axis term formatting
+
+### Release Build
+
+```bash
+cargo build --release
+./target/release/rust_electroanalysis_cli --help
+```
+
+The release binary is self-contained and requires only the TOML configuration files and input data at runtime.
 
 ---
 
-## Configuration
+## 4. Input File Formats and Automatic Detection
+
+The unified loader (`load_data`) uses content detection:
+
+1. **CHI EIS**: detects `Freq/Hz` + impedance headers, parser `EISData::parse_file`, internal type `chi_eis`.
+2. **CHI OCPT**: detects time header + CHI preamble markers (instrument/data-source), parser `parse_measurement_file`, internal type `chi_export`.
+3. **General sensor CSV**: detects time header without CHI preamble, parser `parse_measurement_file`, internal type `sensor_csv`.
+
+Unsupported/ambiguous files return explicit errors (missing time/frequency header, missing EIS header, decode/IO errors).
+
+### Minimal Examples
+
+**CHI EIS**
+```csv
+Freq/Hz, Z'/ohm, Z"/ohm, Z/ohm, Phase/deg
+1000,10,-1,10.05,-5.7
+```
+
+**CHI/General OCPT**
+```csv
+Time/sec, Potential/V
+0,0.20
+1,0.21
+```
+
+---
+
+## 5. General CLI Syntax
+
+```bash
+electroanalysis <command> [subcommand] [OPTIONS]
+```
+
+Also supported from source:
+
+```bash
+cargo run -- <command> [subcommand] [OPTIONS]
+```
+
+---
+
+## 6. Configuration
 
 ### Workspace Layout
 
@@ -1026,16 +588,13 @@ search_top_override = 12
 6. **Domain defaults** — `eis_individual_publication_config()`, `chi_plot`/`generic_plot` defaults
 7. **`PublicationConfig::default()`** — Global sentinel defaults
 
-**ECM search resolution** keeps the existing priority: `--search-top` (or the
-legacy `--search-top`) overrides `max_ranked_results` in the selected analysis
-file, which overrides the library default. Individual evolution and search
-plotting settings follow the same file-over-default rule.
+**ECM search resolution** keeps the existing priority: `--search-top` (or the legacy `--search-top`) overrides `max_ranked_results` in the selected analysis file, which overrides the library default. Individual evolution and search plotting settings follow the same file-over-default rule.
 
 ---
 
-## Configuration Examples
+### Configuration Examples
 
-### Example A: Minimal Setup
+#### Example A: Minimal Setup
 
 A small local project with a single input folder and single output folder.
 
@@ -1078,7 +637,6 @@ warburg_aic_threshold = 4.0
 ```
 
 **How the application behaves with this setup:**
-
 - All CHI-format files in `data/` are processed.
 - Generated figures and reports are written to `output/`.
 - No search-result plots are generated (`top_n = 0`).
@@ -1086,7 +644,7 @@ warburg_aic_threshold = 4.0
 - Minimal style defaults are used for all plots (plotters library defaults).
 - Logging is set to `"info"` level by default.
 
-### Example B: Standard Setup
+#### Example B: Standard Setup
 
 Separate directories for data, figures, reports, and logs with explicit style configuration.
 
@@ -1160,14 +718,13 @@ equivalentcircuit = "R0-W1"
 ```
 
 **How the application behaves with this setup:**
-
 - Input files in `data/` are processed in batch mode (`input_is_directory = true`).
 - All outputs are written to `output/` with filenames prefixed by `experiment_2026_`.
 - EIS plots are rendered at 300 DPI, 7.2×5.2 inches, with blue experimental and orange fitted data.
 - ECM search keeps the top 12 ranked candidates and generates plots for the top 3 (`top_n = 3`).
 - Circuit model rules automatically select models based on filename patterns.
 
-### Example C: Advanced Setup
+#### Example C: Advanced Setup
 
 Multiple data sources, custom output locations, and customized analysis settings.
 
@@ -1199,11 +756,9 @@ png_scale_factor = 4
 show_points = true
 
 [shared.individual_style]
-# Override individual-plot defaults
 line_width = 2
 
 [shared.combined_style]
-# Override combined/overlay-plot defaults
 series_palette = ["#1a5276", "#e67e22", "#2ecc71", "#e74c3c"]
 legend_position = "lower_right"
 
@@ -1222,7 +777,6 @@ series_palette = [
 ]
 legend_position = "lower_right"
 
-# A generic plot job block (domain-agnostic)
 [generic_plot]
 style_preset = "calibration_curve"
 
@@ -1286,7 +840,6 @@ filename_contains = ["warburg"]
 ```
 
 **How the application behaves with this setup:**
-
 - Data is read from an absolute path (`/absolute/path/to/eis_measurements`).
 - Figures are output to a separate absolute path with the prefix `eis_campaign_2026_`.
 - Plots render at 600 DPI with 4× supersampling for publication-quality PNG output.
@@ -1298,9 +851,9 @@ filename_contains = ["warburg"]
 
 ---
 
-## Migrating from Legacy Configuration
+### Migrating from Legacy Configuration
 
-### What Changed
+#### What Changed
 
 The legacy configuration system stored settings in **root-level TOML files** directly in the project directory:
 
@@ -1315,7 +868,7 @@ The new configuration system consolidates all settings into the **`config/` subd
 - `config/parsing.toml` — circuit model resolution rules
 - `config/app.toml` — application state (auto-managed)
 
-### Why It Changed
+#### Why It Changed
 
 1. **Cleaner workspace root** — The project root is no longer cluttered with configuration files.
 2. **Logical separation** — Settings are organized by functional area (plotting, analysis, parsing, app state).
@@ -1323,7 +876,7 @@ The new configuration system consolidates all settings into the **`config/` subd
 4. **Consistent path resolution** — Relative paths in config files resolve from the `config/` directory, making path behavior predictable.
 5. **Schema versioning** — Each config file tracks its schema version for forward-compatibility.
 
-### Legacy File Locations → New File Locations
+#### Legacy File Locations → New File Locations
 
 | Legacy File | New File |
 |-------------|----------|
@@ -1331,7 +884,7 @@ The new configuration system consolidates all settings into the **`config/` subd
 | `./ecm_search.toml` | `config/analysis.toml` |
 | `./circuit_models.toml` | `config/parsing.toml` |
 
-### Setting Mapping Table
+#### Setting Mapping Table
 
 | Legacy Section/Key | New Section/Key | Notes |
 |---|---|---|
@@ -1354,7 +907,7 @@ The new configuration system consolidates all settings into the **`config/` subd
 | `[model_selection].*` | `[model_selection].*` in `config/parsing.toml` | All model selection fields preserved 1:1 |
 | `[[rules]]` | `[[rules]]` in `config/parsing.toml` | Same structure and semantics |
 
-### Common Migration Issues
+#### Common Migration Issues
 
 | Issue | Cause | Resolution |
 |-------|-------|------------|
@@ -1363,7 +916,7 @@ The new configuration system consolidates all settings into the **`config/` subd
 | Schema version mismatch | Legacy configs may lack `schema_version` field | The application auto-migrates schema versions and emits a warning. |
 | Per-job path fields lost | Legacy `[[plot_type]]` arrays had inline paths | Paths are consolidated into `[shared]`. Copy `input_dir` to `[shared].input_path` and `output_dir` to `[shared].output_path`. |
 
-### Troubleshooting
+#### Troubleshooting
 
 **Q: The application printed "migrated legacy ..." warnings — what does this mean?**
 
@@ -1387,7 +940,7 @@ A: Direct loading of legacy files via `--plot-config path` or `--search-config p
 
 ---
 
-## Getting Started
+## 7. Getting Started
 
 This section walks you through a complete first run — from installation to verified output.
 
@@ -1399,10 +952,7 @@ cd rust_electroanalysis_cli
 cargo build --release
 ```
 
-The compiled binary is placed at `target/release/rust_electroanalysis_cli`. It
-uses `electroanalysis` in its help and usage text; you can either run it with
-`cargo run -- <args>` from the project directory or copy the binary to your
-`PATH`.
+The compiled binary is placed at `target/release/rust_electroanalysis_cli`. It uses `electroanalysis` in its help and usage text; you can either run it with `cargo run -- <args>` from the project directory or copy the binary to your `PATH`.
 
 ### Step 2: Locate or Generate Configuration Files
 
@@ -1481,7 +1031,441 @@ ls -la data/my_eis_file.ecm_search.csv
 
 ---
 
-## Plot Types and Features
+## 8. Command Compatibility Matrix
+
+| Command | CHI EIS | CHI OCPT | General sensor CSV | Single file | Batch directory/manifest |
+|---|---:|---:|---:|---:|---:|
+| plot eis | Yes | No | No | Yes | Yes |
+| plot regular-plot | No | Yes | No* | Yes | Yes |
+| plot generic-plot | No | Yes | Yes | Yes | Yes |
+| eis fit/export-fit | Yes | No | No | Yes | No |
+| eis search | Yes | No | No | Yes | Yes |
+| transient fit | No | Yes (with metadata) | Yes (with metadata) | Yes | No |
+| calibration extract | No | Yes (with metadata/events) | Yes (with metadata/events) | Yes | No |
+| calibration fit/validate/predict | N/A artifact-driven | N/A artifact-driven | N/A artifact-driven | Yes | No |
+| mechanism compare/report | artifact-driven | artifact-driven | artifact-driven | Yes | No |
+| mechanism trend | artifact-driven | artifact-driven | artifact-driven | No | Yes (manifest) |
+| signal characterize | No | Yes | Yes | Yes | No |
+| signal compare | No | Yes | Yes | No | Yes (manifest) |
+| signal residuals | artifact-driven | artifact-driven | artifact-driven | Yes | No |
+| health assess/report | artifact-driven | artifact-driven | artifact-driven | Yes | No |
+| health baseline/trend | artifact-driven | artifact-driven | artifact-driven | No | Yes (manifest) |
+| estimate run/validate/report/compare/simulate | artifact + time-series driven | artifact + time-series driven | artifact + time-series driven | Yes | compare uses one input + multi-filter |
+
+\*`regular-plot` is CHI-focused.
+
+---
+
+## 9. Verified Command Usage
+
+### 9.1 `plot`
+
+Purpose: render EIS and time-domain plots.
+
+Verified examples:
+
+```bash
+cargo run -- plot eis --plot-config output/reports/plot_eis_review.toml
+cargo run -- plot regular-plot --plot-config output/reports/plot_ocpt_review.toml
+cargo run -- plot generic-plot --plot-config output/reports/plot_ocpt_review.toml
+```
+
+Behavior:
+1. Batch now skips non-EIS CSV files in EIS directories instead of aborting.
+2. Invalid CHI files are skipped with explicit reason.
+3. Outputs are written under configured output directories.
+
+### 9.2 `eis`
+
+Purpose: fit/search equivalent circuits on EIS files.
+
+Single-file:
+```bash
+cargo run -- eis fit "data/EIS/20260312/20260312_QD_EIS (0.1M).csv" \
+  --output output/review/eis_fit/fit_report.txt \
+  --artifact output/review/eis_fit/eis_fit_artifact.json \
+  --report output/review/eis_fit/eis_fit_report.txt
+```
+
+Batch:
+```bash
+cargo run -- eis search data/EIS/20260312 \
+  --search-output output/review/eis_search_20260312 \
+  --search-top 5
+```
+
+Incompatible OCPT input is rejected with clear error (`missing Freq/Hz header`).
+
+### 9.3 `transient`
+
+Purpose: fit transient models around metadata events.
+
+```bash
+cargo run -- transient fit \
+  --input "data/Shan/20260417/cn0326_log_20260413T202806Z_ch.csv" \
+  --metadata output/reports/ocpt_review_metadata.toml \
+  --channel "Potential/V" \
+  --config config/transient.toml \
+  --output output/review/transient_single \
+  --model single --bootstrap 0 --seed 42
+```
+
+EIS input is rejected (`missing time-series header`).
+
+### 9.4 `calibration`
+
+Purpose: extract observations and fit/validate/predict calibration models.
+
+```bash
+cargo run -- calibration extract \
+  --input "data/Shan/20260417/cn0326_log_20260413T202806Z_ch.csv" \
+  --metadata output/reports/ocpt_review_metadata.toml \
+  --channel "Potential/V" \
+  --config output/reports/calibration_relaxed.toml \
+  --output output/review/calibration_extract
+
+cargo run -- calibration fit \
+  --observations output/review/calibration_extract/calibration_observations.json \
+  --config output/reports/calibration_relaxed.toml \
+  --output output/review/calibration_fit
+
+cargo run -- calibration validate \
+  --model output/review/calibration_fit/calibration_model.json \
+  --observations output/review/calibration_extract/calibration_observations.json \
+  --output output/review/calibration_validate
+
+cargo run -- calibration predict \
+  --model output/review/calibration_fit/calibration_model.json \
+  --potential 0.2 \
+  --output output/review/calibration_predict/prediction.json
+```
+
+**CLI reference:**
+
+```bash
+electroanalysis calibration extract \
+  --input data/calibration.csv \
+  --metadata data/experiment.toml \
+  --channel E1/V \
+  --transient-results output/transient/transient_results.json \
+  --config config/calibration.toml \
+  --output output/calibration/calibration_observations.json
+
+electroanalysis calibration fit \
+  --observations output/calibration/calibration_observations.json \
+  --config config/calibration.toml \
+  --output output/calibration/
+
+electroanalysis calibration validate \
+  --model output/calibration/calibration_model.json \
+  --observations data/validation_observations.json \
+  --output output/calibration-validation/
+
+electroanalysis calibration predict \
+  --model output/calibration/calibration_model.json \
+  --potential 0.184 --temperature 25.0 \
+  --output output/prediction.json
+```
+
+Prediction can also consume a generic data file with `--input` and `--channel`, producing a CSV when the output name ends in `.csv`.
+
+#### Calibration TOML Schema
+
+`config/calibration.toml` is independent of `config/transient.toml` and `config/analysis.toml`. Workspace setup creates it when absent. A compact example is:
+
+```toml
+schema_version = 1
+
+[observation_extraction]
+preferred_source = "transient_equilibrium"
+allow_warning_fits = true
+fallback_source = "steady_state_median"
+steady_state_start_s = 180.0
+steady_state_end_s = 300.0
+minimum_points = 20
+maximum_missing_fraction = 0.20
+maximum_absolute_slope_v_per_s = 0.00001
+
+[analyte]
+name = "NH4+"
+charge = 1
+molar_mass_g_per_mol = 18.038
+
+[temperature]
+mode = "observation_specific"
+default_celsius = 25.0
+environmental_series = "temperature"
+alignment = "linear_interpolation"
+maximum_gap_s = 30.0
+
+[activity]
+model = "ideal"
+
+[nernst]
+slope_mode = "free"
+response_sign = "auto"
+
+[selection]
+criterion = "aicc"
+branch = "mixed"
+
+[uncertainty]
+bootstrap_iterations = 1000
+confidence_level = 0.95
+seed = 42
+minimum_success_fraction = 0.80
+```
+
+Davies activity coefficients require ionic strength and warn above the configured validity range. Extended Debye-Hückel additionally requires an explicit ion-size parameter. Nicolsky-Eisenman selectivity coefficients are positive and are reported as fixed literature/user-supplied or experimentally fitted for the tested matrix and range.
+
+#### Validation, Uncertainty, and Outputs
+
+Calibration fitting uses weighted or unweighted stable least squares and reports RSS, weighted RSS, RMSE, MAE, R², adjusted R², AIC, AICc, BIC, residuals, covariance diagnostics, leverage-related fields, and warnings. AICc is used when available by default. Residual bootstrap intervals are reproducible for a fixed seed.
+
+The default output directory contains: `calibration_observations.json`, `calibration_model.json`, `calibration_results.json`, `calibration_summary.csv`, `calibration_residuals.csv`, `calibration_validation.csv`, and `calibration_report.txt`. Plot adapters produce SVG/PNG figures through the existing renderer.
+
+### 9.5 `mechanism`
+
+Purpose: compare EIS and transient timescale evidence.
+
+The JSON report carries software version, input path and SHA-256, metadata/config path and SHA-256 where available, generation timestamp, and optional Git commit. Experimental metadata (sensor, sample matrix, environmental series, and events) remains separate from plotting configuration.
+
+```bash
+cargo run -- mechanism compare \
+  --eis-fit output/review/eis_fit/eis_fit_artifact.json \
+  --transient-results output/review/transient_single/transient_results.json \
+  --calibration-results output/review/calibration_fit/calibration_results.json \
+  --metadata output/reports/ocpt_review_metadata.toml \
+  --config config/mechanism.toml \
+  --output output/review/mechanism_compare
+
+cargo run -- mechanism trend \
+  --manifest output/reports/mechanism_manifest.toml \
+  --config config/mechanism.toml \
+  --output output/review/mechanism_trend
+```
+
+### 9.6 `signal`
+
+Purpose: descriptive signal diagnostics + residual analysis.
+
+Single-file:
+```bash
+cargo run -- signal characterize \
+  --input "data/Shan/20260417/cn0326_log_20260413T202806Z_ch.csv" \
+  --metadata output/reports/ocpt_review_metadata.toml \
+  --channel "Potential/V" \
+  --config output/reports/signal_relaxed.toml \
+  --output output/review/signal_ocpt_1
+```
+
+Batch/manifest:
+```bash
+cargo run -- signal compare \
+  --manifest output/reports/signal_compare_manifest.toml \
+  --config output/reports/signal_relaxed.toml \
+  --output output/review/signal_compare
+```
+
+Residuals:
+```bash
+cargo run -- signal residuals \
+  --transient-results output/review/transient_single/transient_results.json \
+  --calibration-results output/review/calibration_fit/calibration_results.json \
+  --eis-fit output/review/eis_fit/eis_fit_artifact.json \
+  --config output/reports/signal_relaxed.toml \
+  --output output/review/signal_residuals
+```
+
+### 9.7 `health`
+
+Purpose: baseline/assessment/trending of data health metrics.
+
+```bash
+cargo run -- health baseline \
+  --manifest output/reports/health_baseline_manifest.toml \
+  --config config/health.toml \
+  --output output/review/health_baseline.json
+
+cargo run -- health assess \
+  --signal-results output/review/signal_ocpt_1/signal_results.json \
+  --transient-results output/review/transient_single/transient_results.json \
+  --calibration-results output/review/calibration_fit/calibration_results.json \
+  --eis-fit output/review/eis_fit/eis_fit_artifact.json \
+  --mechanism-results output/review/mechanism_compare/mechanism_results.json \
+  --baseline output/review/health_baseline.json \
+  --metadata output/reports/ocpt_review_metadata.toml \
+  --config config/health.toml \
+  --output output/review/health_assess_1
+
+cargo run -- health trend \
+  --manifest output/reports/health_trend_manifest.toml \
+  --baseline output/review/health_baseline.json \
+  --config config/health.toml \
+  --output output/review/health_trend
+```
+
+### 9.8 `estimate`
+
+Purpose: state estimation (EKF/UKF), simulation, validation, filter comparison.
+
+Real OCPT files with unresolved duplicate timestamps are currently rejected in `estimate run`.
+
+Verified run path (simulation):
+```bash
+cargo run -- estimate simulate --output output/review/estimate_simulation --seed 42
+
+cargo run -- estimate run \
+  --input output/review/estimate_simulation/simulation_measurements.csv \
+  --metadata output/reports/simulation_metadata.toml \
+  --channel "E1/V" \
+  --calibration-model output/review/estimate_simulation/simulation_calibration_model.json \
+  --config config/estimation.toml \
+  --output output/review/estimate_sim_run \
+  --filter ukf --seed 42
+
+cargo run -- estimate compare \
+  --input output/review/estimate_simulation/simulation_measurements.csv \
+  --metadata output/reports/simulation_metadata.toml \
+  --channel "E1/V" \
+  --calibration-model output/review/estimate_simulation/simulation_calibration_model.json \
+  --filters ekf,ukf \
+  --config config/estimation.toml \
+  --output output/review/estimate_compare
+
+cargo run -- estimate validate \
+  --results output/review/estimate_sim_run/state_estimation.json \
+  --truth output/review/estimate_simulation/simulation_truth.csv \
+  --output output/review/estimate_validate
+```
+
+---
+
+## 10. Equivalent-Circuit Model (ECM) Search
+
+### Search Pipeline
+
+```mermaid
+flowchart TD
+    Input["EIS data file"] --> Parse["EISData::parse_file()"]
+    Parse --> Search["discover_equivalent_circuits_with_config()"]
+    Search --> Evolve["Genetic Algorithm\n(ecm_evolution.rs)"]
+    Evolve --> Score["Score candidates\n(ecm_scoring.rs)"]
+    Score --> Rank["Rank by metric\n(AIC / weighted RMSE)"]
+    Rank --> Report["EcmSearchReport"]
+    Report --> Text["Text report\n(*_ecm_search.txt)"]
+    Report --> CSV["CSV ranking\n(*_ecm_search.csv)"]
+    Report --> Plots["optional: top-N plots"]
+```
+
+### Evolutionary Algorithm
+
+The ECM search uses a genetic algorithm (via the `genevo` crate) to evolve circuit topologies:
+
+1. **Initialization**: Population seeded from a set of canonical seed circuits (Randles, double-arc, transmission-line, etc.) plus random mutations
+2. **Evaluation**: Each candidate circuit is fitted via NLLS and scored using scalar RSS and standard Gaussian BIC
+3. **Selection**: Tournament selection based on fitness (inverse AIC)
+4. **Crossover**: Subtree crossover — swaps random subtrees between two parent circuits
+5. **Mutation operators**:
+   - `mutate_leaf_kind` — change an element type
+   - `insert_series_element` — insert a new element in series
+   - `wrap_node_in_parallel` — wrap a node in parallel
+   - `subtree_swap_mutation` — swap two subtrees
+   - `node_insertion` — insert a random element
+   - `prune_leaf` — remove a leaf element
+6. **Reinsertion**: Combine parents and offspring with configurable ratio
+
+**Evaluation cache**: The search maintains a cache of circuit strings → fit results, so identical circuits are never re-evaluated.
+
+### Seed Circuits
+
+The search starts from 7 canonical topologies:
+
+| Seed | Circuit String | Description |
+|------|---------------|-------------|
+| Randles | `R0-p(R1,CPE1)` | Classic Randles cell |
+| Randles + Warburg | `R0-p(R1,CPE1)-W2` | Randles with Warburg diffusion |
+| Randles + Generalized Warburg | `R0-p(R1,CPE1)-Gw2` | Randles with generalized Warburg |
+| Double-arc | `R0-p(R1,CPE1)-p(R2,CPE2)` | Two time constants |
+| Double-arc + Warburg | `R0-p(R1,CPE1)-p(R2,CPE2)-W3` | Two time constants + diffusion |
+| Nested film | `R0-p(R1-p(R2,CPE2),CPE1)` | Coated electrode |
+| Transmission line | `TLMQ0` | Porous electrode model |
+
+### Scoring and Ranking
+
+| Metric | Formula | Description |
+|--------|---------|-------------|
+| **RSS** | Σ(ΔZ_re² + ΔZ_im²) | Unweighted scalar residual sum of squares |
+| **BIC** | n_obs·ln(RSS/n_obs) + k·ln(n_obs) | Gaussian residual BIC; n_obs = 2 × frequency points |
+| **Weighted RMSE** | √(Σ((ΔZ)/max(1, \|Z_exp\|))² / 2n) | Modulus-weighted root mean square error |
+
+The modulus-normalized former objective is retained only as `legacy_penalized_score`; without measurement variances it is not a chi-square. Ranking is ordered by standard BIC when available.
+
+### Reports
+
+Each search produces two files per input:
+
+- **`*.ecm_search.txt`** — Detailed human-readable report with:
+  - Run summary (seed circuit, generations, candidates evaluated)
+  - Ranking table (rank, circuit string, RSS, BIC, legacy score, parameter count)
+  - Per-candidate parameter breakdown with element composition
+- **`*.ecm_search.csv`** — Machine-readable CSV with columns: `rank`, `circuit_string`, `residual_sum_of_squares`, `bic`, `legacy_penalized_score`, `weighted_rmse`, `parameter_count`
+
+Additionally, when `[plotting] top_n > 0`:
+- Individual Nyquist plots for each ranked candidate
+- Combined overlay with experimental data + all top-N fits
+- Bode magnitude and phase overlays
+
+---
+
+## 11. Circuit Model System
+
+### Circuit String Syntax
+
+Circuits are expressed as compact string expressions:
+
+| Syntax | Meaning | Example | Impedance |
+|--------|---------|---------|-----------|
+| `A-B` | Series connection | `R0-CPE1` | Z = Z_A + Z_B |
+| `p(A,B)` | Parallel connection | `p(R1,CPE1)` | 1/Z = 1/Z_A + 1/Z_B |
+| `ElementN` | Element with label N | `R0` | Element-specific |
+
+**Example**: `R0-p(CPE1,R1)-Gw2`
+
+This represents: A resistor R0 in series with a parallel branch (CPE1 || R1), in series with a generalized Warburg element Gw2.
+
+### Supported Elements
+
+| Code | Element | Parameters | Units | Description |
+|------|---------|------------|-------|-------------|
+| `R` | Resistor | R | Ohm | Ideal resistor Z = R |
+| `C` | Capacitor | C | F | Ideal capacitor Z = 1/(jωC) |
+| `L` | Inductor | L | H | Ideal inductor Z = jωL |
+| `CPE` | Constant Phase Element | Q, α | Ω⁻¹s^α | Z = 1/(Q·(jω)^α) |
+| `W` | Warburg (finite) | σ | Ω·s⁻¹/² | Z = σ/√(jω)·tanh(δ√(jω/D)) |
+| `Wo` | Warburg open | σ | Ω·s⁻¹/² | Z = σ/√(jω)·coth(δ√(jω/D)) |
+| `Ws` | Warburg short | σ | Ω·s⁻¹/² | Z = σ/√(jω)·tanh(δ√(jω/D)) |
+| `Gw` | Generalized Warburg | σ, α | Ω·s^α | Fractional diffusion element |
+| `G` | Gerischer | — | — | Z = 1/(Y₀·√(k + jω)) |
+| `Gs` | Gerischer (short) | — | — | Short-circuit Gerischer variant |
+| `K` | Kohirausch | — | — | Stretched-exponential element |
+| `La` | Ladder | — | — | Ladder network element |
+| `Zarc` | Havriliak-Negami | — | — | ZARC (depressed semicircle) |
+| `TLMQ` | Transmission Line | — | — | Porous electrode model |
+| `T` | Transmission (generic) | — | — | General transmission element |
+
+### Model Resolution
+
+When fitting an EIS dataset, the circuit model is determined by:
+
+1. **Inline filename tag**: If the filename contains `circuit=...` or `model=...`, that expression is used
+2. **File metadata**: Keys `circuitmodel`, `equivalentcircuit`, `circuit`, or `model` are scanned case-insensitively
+3. **Configured rules**: `[[rules]]` in `config/parsing.toml` match against filename substrings and metadata key/value pairs
+4. **Fallback model**: `fallback_model` from config (default `R0-p(CPE1,R1)`)
+
+---
+
+## 12. Plot Types and Features
 
 ### EIS Plots (Nyquist / Bode)
 
@@ -1543,140 +1527,351 @@ Transforms are applied per-axis and affect both the data values and the axis lab
 
 ---
 
-## Equivalent-Circuit Model (ECM) Search
+## 13. Output Layout
 
-### Search Pipeline
+Verified output tree from this validation run:
+
+```text
+output/
+  review/
+    eis_fit/
+    eis_search_20260312/
+    transient_single/
+    calibration_extract/
+    calibration_fit/
+    calibration_validate/
+    calibration_predict/
+    mechanism_compare/
+    mechanism_trend/
+    signal_ocpt_1/ signal_ocpt_2/ signal_ocpt_3/
+    signal_compare/
+    signal_residuals/
+    health_assess_1/ health_assess_2/ health_trend/
+    estimate_simulation/ estimate_sim_run/ estimate_compare/ estimate_validate/
+  reports/
+    dataset_inventory.csv
+    dataset_inventory.json
+```
+
+### CLI Usage Reference
+
+```bash
+electroanalysis plot [all|eis|regular-plot|generic-plot]
+electroanalysis eis fit <input> [--circuit <expression>] [--output <path>]
+electroanalysis eis search <input> [--search-config <path>]
+                              [--search-output <path>] [--search-top <n>]
+electroanalysis transient fit --input <path> --metadata <path> --channel <name>
+                              [--config <path>] [--output <path>]
+electroanalysis calibration extract --input <path> --metadata <path> --channel <name>
+                                    [--transient-results <path>] [--config <path>] [--output <path>]
+electroanalysis calibration fit --observations <path> [--config <path>] [--output <path>]
+electroanalysis calibration validate --model <path> --observations <path> [--output <path>]
+electroanalysis calibration predict --model <path> (--potential <V> | --input <path> --channel <name>)
+                                    [--temperature <C>] [--output <path>]
+```
+
+`plot` defaults to `all`. `eis fit` fits one EIS file using its resolved circuit model (or `--circuit`) and prints a named-parameter report unless `--output` is supplied. `eis search` retains the existing genetic ECM search, ranking, report, CSV, and optional plotting behavior.
+
+```bash
+# Show the structured command help
+cargo run -- --help
+
+# Generate all plots, or EIS plots only
+cargo run -- plot
+cargo run -- plot eis
+
+# Use an alternative plotting configuration
+cargo run -- plot all --plot-config /path/to/alternative.toml
+
+# Fit one EIS file
+cargo run -- eis fit data/my_sample.txt
+cargo run -- eis fit data/my_sample.txt --circuit 'R0-p(CPE1,R1)' --output output/fit.txt
+
+# Search one file or a directory
+cargo run -- eis search data/my_sample.txt
+cargo run -- eis search data/eis_measurements/ --search-top 20 \
+  --search-config my_analysis.toml --search-output results/
+
+# Fit all eligible concentration-step transients
+cargo run -- transient fit --input data/sensor.csv \
+  --metadata data/experiment.toml --channel E1/V --output output/transient/
+
+# Extract and fit an equilibrium calibration
+cargo run -- calibration extract --input data/calibration.csv \
+  --metadata data/experiment.toml --channel E1/V \
+  --transient-results output/transient/transient_results.json \
+  --output output/calibration/calibration_observations.json
+cargo run -- calibration fit \
+  --observations output/calibration/calibration_observations.json \
+  --output output/calibration/
+```
+
+### Legacy Compatibility
+
+The pre-Phase-0 flat flags are normalized into the same command tree and retain their existing configuration defaults, precedence, output names, and locations:
+
+| Existing invocation | Structured equivalent |
+|---|---|
+| `--plot eis` | `plot eis` |
+| `--plot all --plot-config <path>` | `plot all --plot-config <path>` |
+| `--search-eis <input>` | `eis search <input>` |
+| `--search-eis <input> --search-config <path> --search-output <path> --search-top <n>` | `eis search <input> --search-config <path> --search-output <path> --search-top <n>` |
+
+Legacy and structured options cannot be mixed in one invocation. Invalid combinations, such as `--plot` together with `--search-eis`, fail before any workspace or scientific work starts.
+
+---
+
+## 14. Module Documentation
+
+### Repository Structure
+
+```
+rust_electroanalysis_cli/
+├── Cargo.toml                          # Project manifest with dependencies
+├── Cargo.lock                          # Locked dependency versions
+├── .gitignore                          # Git ignore rules
+├── README.md                           # This file
+│
+├── plot_config.generic_plot_job_blocks_examples.toml  # Reference: example generic-plot job blocks
+├── plot_config.plot_type_examples.toml                # Reference: example plot-type style presets
+│
+├── config/                             # Runtime configuration directory (auto-created)
+│   ├── app.toml                        # Application state (schema version, last run mode)
+│   ├── plotting.toml                   # Plotting workflow configuration
+│   ├── analysis.toml                   # ECM search/evolution configuration
+│   ├── parsing.toml                    # Circuit model resolver configuration
+│   ├── transient.toml                  # Potentiometric transient configuration
+│   └── calibration.toml                # Independent equilibrium calibration configuration
+│
+├── data/                               # Input data directory (auto-created)
+├── output/                             # Output figures and reports directory (auto-created)
+├── logs/                               # Logs directory (auto-created)
+│
+└── src/
+    ├── main.rs                         # CLI binary entrypoint and workflow dispatch
+    ├── lib.rs                          # Crate root — re-exports all public modules
+    ├── cli.rs                          # clap derive CLI and legacy-flag normalization
+    ├── domain/                         # Scientific data, metadata, provenance, and typed errors
+    │   ├── measurement.rs               # Shared-axis multi-channel measurements
+    │   ├── experiment.rs                # Experiment metadata and timestamped events
+    │   ├── diagnostics.rs               # Parse and sampling diagnostics
+    │   ├── metadata.rs                  # Experiment TOML schema/loading
+    │   └── provenance.rs                # Input/config hashes and generation metadata
+    ├── fitting/                        # Stable façade over the impedance fit pipeline
+    ├── potentiometry/                  # Event-based potentiometric transient core
+    │   ├── units.rs                     # Centralized quantity/unit conversions
+    │   ├── error.rs                     # Typed potentiometry errors
+    │   ├── calibration/                 # Activity, Nernst, selectivity, fitting
+    │   └── transient/                   # Models, segmentation, fitting, diagnostics, selection
+    ├── transient_config.rs              # Independent transient TOML schema/resolution
+    ├── calibration_config.rs            # Independent calibration TOML schema/resolution
+    ├── results/                        # Named serializable scientific result structures
+    ├── runners/                        # Thin plot, fit, search, and transient boundaries
+    ├── workspace.rs                    # Workspace bootstrap, config lifecycle, atomic writes
+    ├── plot_config.rs                  # Plot-job TOML schema, loading, migration, resolution
+    ├── plot_runner.rs                  # Plot job orchestration (EIS, regular, generic)
+    ├── search_config.rs                # ECM search TOML schema, loading, validation
+    ├── search_runner.rs                # ECM search pipeline and export orchestration
+    ├── regression_mod.rs               # Regression models (linear OLS) for plot overlays
+    │
+    ├── data_file/                      # Data ingestion and normalization layer
+    │   ├── lib.rs                      # Module facade — re-exports parsers and types
+    │   ├── chi_file.rs                 # CHI-format file parser (ElectrochemData, EISData)
+    │   ├── measurement_parser.rs       # Generic/CHI parser into domain measurements
+    │   ├── measurement_adapter.rs      # Domain measurement → PlotData adapters
+    │   ├── data_op.rs                  # Generic PlotData container, PointSelection, IntoPlotData
+    │   └── value_transform.rs          # Axis transform resolution (log, neg-log, linear)
+    │
+    ├── impedance/                      # Scientific equivalent-circuit modeling core
+    │   ├── lib.rs                      # Module facade — fit_circuit, prepare_impedance_data, etc.
+    │   ├── elements.rs                 # Element equations, parameter names/units/constraints/bounds
+    │   ├── circuits.rs                 # Circuit string parser and AST (CircuitNode, Impedance trait)
+    │   ├── circuit_models.rs           # Model selection rules, resolver, CircuitModelContext
+    │   ├── fitting.rs                  # NLLS fitting, ImpedanceFitter, parameter transforms, Lin-KK
+    │   ├── ecm_candidate.rs            # Genetic encoding/decoding, CircuitTopology, seed circuits
+    │   ├── ecm_evolution.rs            # Genetic algorithm loop, crossover, mutation operators
+    │   ├── ecm_scoring.rs              # RSS, Gaussian BIC, legacy score, weighted RMSE
+    │   ├── ecm_search.rs               # Search report assembly, EcmSearchReport, ranking tables
+    │   ├── pinn_optimizer.rs           # PINN-based optimizer for advanced fitting
+    │   └── reporting.rs                # Fitted-circuit composition summaries (element breakdowns)
+    │
+    └── plottings/                      # Plotting backend and rendering
+        ├── lib.rs                      # Module facade — re-exports all plot types
+        ├── plotting.rs                 # Core renderer: PublicationConfig, plot_hq, draw_plot_area
+        ├── chi_plot.rs                 # Regular (CHI/Pb-sensor) plot pipeline
+        ├── eis_plot.rs                 # EIS Nyquist/Bode plot pipeline and ranked-search plots
+        ├── generic_plot.rs              # Domain-agnostic generic plot pipeline
+        ├── calibration_plot.rs          # Calibration-result to renderer adapter
+        └── transient_plot.rs            # Transient-result to PlotSeries adapter
+```
+
+### Architecture
 
 ```mermaid
 flowchart TD
-    Input["EIS data file"] --> Parse["EISData::parse_file()"]
-    Parse --> Search["discover_equivalent_circuits_with_config()"]
-    Search --> Evolve["Genetic Algorithm\n(ecm_evolution.rs)"]
-    Evolve --> Score["Score candidates\n(ecm_scoring.rs)"]
-    Score --> Rank["Rank by metric\n(AIC / weighted RMSE)"]
-    Rank --> Report["EcmSearchReport"]
-    Report --> Text["Text report\n(*_ecm_search.txt)"]
-    Report --> CSV["CSV ranking\n(*_ecm_search.csv)"]
-    Report --> Plots["optional: top-N plots"]
+    subgraph CLI["CLI Layer"]
+        main["main.rs"] --> cli["cli.rs"]
+        main --> workspace["workspace.rs"]
+    end
+
+    subgraph Config["Configuration Layer"]
+        workspace --> plot_config["plot_config.rs"]
+        workspace --> search_config["search_config.rs"]
+    end
+
+    subgraph Orchestration["Orchestration Layer"]
+        plot_runner["plot_runner.rs"] --> plot_config
+        plot_runner --> |EIS jobs| plottings
+        plot_runner --> |regular jobs| plottings
+        plot_runner --> |generic jobs| plottings
+        search_runner["search_runner.rs"] --> search_config
+        search_runner --> data_file
+        search_runner --> impedance
+        search_runner --> plottings
+    end
+
+    subgraph data_file["Data Layer (data_file/)"]
+        chi_file["chi_file.rs"]
+        data_op["data_op.rs"]
+        value_transform["value_transform.rs"]
+    end
+
+    subgraph impedance["Impedance Core (impedance/)"]
+        elements["elements.rs"]
+        circuits["circuits.rs"]
+        circuit_models["circuit_models.rs"]
+        fitting["fitting.rs"]
+        ecm_candidate["ecm_candidate.rs"]
+        ecm_evolution["ecm_evolution.rs"]
+        ecm_scoring["ecm_scoring.rs"]
+        ecm_search["ecm_search.rs"]
+        pinn_optimizer["pinn_optimizer.rs"]
+        reporting["reporting.rs"]
+        lib_imp["lib.rs"]
+    end
+
+    subgraph plottings["Plotting Backend (plottings/)"]
+        plotting["plotting.rs"]
+        chi_plot["chi_plot.rs"]
+        eis_plot["eis_plot.rs"]
+        generic_plot["generic_plot.rs"]
+        lib_plot["lib.rs"]
+    end
+
+    regression["regression_mod.rs"]
+
+    data_file --> impedance
+    data_file --> plottings
+    impedance --> regression
+    plottings --> regression
 ```
 
-### Evolutionary Algorithm
+### Data Flow
 
-The ECM search uses a genetic algorithm (via the `genevo` crate) to evolve circuit topologies:
+```mermaid
+flowchart LR
+    subgraph Input["Input"]
+        CHI["CHI files (.txt)"]
+        TOML["TOML configs"]
+        CLI["CLI arguments"]
+    end
 
-1. **Initialization**: Population seeded from a set of canonical seed circuits (Randles, double-arc, transmission-line, etc.) plus random mutations
-2. **Evaluation**: Each candidate circuit is fitted via NLLS and scored using scalar RSS and standard Gaussian BIC
-3. **Selection**: Tournament selection based on fitness (inverse AIC)
-4. **Crossover**: Subtree crossover — swaps random subtrees between two parent circuits
-5. **Mutation operators**:
-   - `mutate_leaf_kind` — change an element type
-   - `insert_series_element` — insert a new element in series
-   - `wrap_node_in_parallel` — wrap a node in parallel
-   - `subtree_swap_mutation` — swap two subtrees
-   - `node_insertion` — insert a random element
-   - `prune_leaf` — remove a leaf element
-6. **Reinsertion**: Combine parents and offspring with configurable ratio
+    subgraph Parse["Parse"]
+        chi_parse["chi_file.rs\n(ElectrochemData / EISData)"]
+        cfg_parse["plot_config.rs\nsearch_config.rs"]
+        cli_parse["cli.rs"]
+    end
 
-**Evaluation cache**: The search maintains a cache of circuit strings → fit results, so identical circuits are never re-evaluated.
+    subgraph Process["Process"]
+        direction TB
+        fit["fit_circuit (NLLS + PINN)"]
+        search["ECM evolution\n(genetic algorithm)"]
+        transform["value_transform.rs\n(axis transforms)"]
+        select["data_op.rs\n(PointSelection)"]
+    end
 
-### Seed Circuits
+    subgraph Render["Render"]
+        eis_plot["EIS Nyquist/Bode"]
+        chi_plot["CHI regular plots"]
+        generic_plot["Generic plots"]
+    end
 
-The search starts from 7 canonical topologies:
+    subgraph Output["Output"]
+        SVG["SVG figures"]
+        PNG["PNG figures\n(supersampled)"]
+        TXT["Text reports\n(*_ecm_search.txt)"]
+        CSV["CSV rankings\n(*_ecm_search.csv)"]
+        TXT2["Fit reports\n(*_fit_report.txt)"]
+    end
 
-| Seed | Circuit String | Description |
-|------|---------------|-------------|
-| Randles | `R0-p(R1,CPE1)` | Classic Randles cell |
-| Randles + Warburg | `R0-p(R1,CPE1)-W2` | Randles with Warburg diffusion |
-| Randles + Generalized Warburg | `R0-p(R1,CPE1)-Gw2` | Randles with generalized Warburg |
-| Double-arc | `R0-p(R1,CPE1)-p(R2,CPE2)` | Two time constants |
-| Double-arc + Warburg | `R0-p(R1,CPE1)-p(R2,CPE2)-W3` | Two time constants + diffusion |
-| Nested film | `R0-p(R1-p(R2,CPE2),CPE1)` | Coated electrode |
-| Transmission line | `TLMQ0` | Porous electrode model |
+    CHI --> chi_parse
+    TOML --> cfg_parse
+    CLI --> cli_parse
 
-### Scoring and Ranking
+    chi_parse --> fit
+    chi_parse --> search
+    chi_parse --> transform
+    chi_parse --> select
 
-| Metric | Formula | Description |
-|--------|---------|-------------|
-| **RSS** | Σ(ΔZ_re² + ΔZ_im²) | Unweighted scalar residual sum of squares |
-| **BIC** | n_obs·ln(RSS/n_obs) + k·ln(n_obs) | Gaussian residual BIC; n_obs = 2 × frequency points |
-| **Weighted RMSE** | √(Σ((ΔZ)/max(1, |Z_exp|))² / 2n) | Modulus-weighted root mean square error |
+    fit --> eis_plot
+    search --> eis_plot
+    transform --> chi_plot
+    transform --> generic_plot
+    select --> generic_plot
 
-The modulus-normalized former objective is retained only as
-`legacy_penalized_score`; without measurement variances it is not a
-chi-square. Ranking is ordered by standard BIC when available.
+    eis_plot --> SVG
+    eis_plot --> PNG
+    eis_plot --> TXT2
+    chi_plot --> SVG
+    chi_plot --> PNG
+    generic_plot --> SVG
+    generic_plot --> PNG
+    search --> TXT
+    search --> CSV
+```
 
-### Reports
+### Configuration Loading
 
-Each search produces two files per input:
+```mermaid
+flowchart TD
+    subgraph Workspace["Workspace Bootstrap"]
+        w["workspace::prepare_workspace()"]
+        w --> create_dirs["Create config/ data/ output/ logs/"]
+        w --> migrate["Migrate legacy root configs"]
+        w --> app_cfg["Load/save config/app.toml"]
+    end
 
-- **`*.ecm_search.txt`** — Detailed human-readable report with:
-  - Run summary (seed circuit, generations, candidates evaluated)
-  - Ranking table (rank, circuit string, RSS, BIC, legacy score, parameter count)
-  - Per-candidate parameter breakdown with element composition
-- **`*.ecm_search.csv`** — Machine-readable CSV with columns: `rank`, `circuit_string`, `residual_sum_of_squares`, `bic`, `legacy_penalized_score`, `weighted_rmse`, `parameter_count`
+    subgraph PlotConfig["Plot Config Loading"]
+        pc["PlotConfig::load()"]
+        pc --> file["Resolve path: CLI override\nor config/plotting.toml\nor plot_config.toml"]
+        file --> parse["TOML parse + validate"]
+        parse --> merged["Merge: domain defaults\n→ [render] → [shared] →\njob styles → CLI"]
+        merged --> warnings["Collect migration & compatibility warnings"]
+    end
 
-Additionally, when `[plotting] top_n > 0`:
-- Individual Nyquist plots for each ranked candidate
-- Combined overlay with experimental data + all top-N fits
-- Bode magnitude and phase overlays
+    subgraph SearchConfig["Search Config Loading"]
+        sc["RuntimeEcmSearchConfig::load()"]
+        sc --> sfile["Resolve path: CLI override\nor config/analysis.toml\nor ecm_search.toml"]
+        sfile --> spars["TOML parse + validate ranges"]
+        spars --> sresolve["Merge: defaults → file → CLI top-N"]
+    end
 
----
+    subgraph ParsingConfig["Circuit Model Config"]
+        cmc["CircuitModelResolver::load_or_default()"]
+        cmc --> cmfile["config/parsing.toml\nor circuit_models.toml"]
+        cmfile --> cmparse["Parse rules, fallback, ranking metric"]
+    end
 
-## Circuit Model System
-
-### Circuit String Syntax
-
-Circuits are expressed as compact string expressions:
-
-| Syntax | Meaning | Example | Impedance |
-|--------|---------|---------|-----------|
-| `A-B` | Series connection | `R0-CPE1` | Z = Z_A + Z_B |
-| `p(A,B)` | Parallel connection | `p(R1,CPE1)` | 1/Z = 1/Z_A + 1/Z_B |
-| `ElementN` | Element with label N | `R0` | Element-specific |
-
-**Example**: `R0-p(CPE1,R1)-Gw2`
-
-This represents: A resistor R0 in series with a parallel branch (CPE1 || R1), in series with a generalized Warburg element Gw2.
-
-### Supported Elements
-
-| Code | Element | Parameters | Units | Description |
-|------|---------|------------|-------|-------------|
-| `R` | Resistor | R | Ohm | Ideal resistor Z = R |
-| `C` | Capacitor | C | F | Ideal capacitor Z = 1/(jωC) |
-| `L` | Inductor | L | H | Ideal inductor Z = jωL |
-| `CPE` | Constant Phase Element | Q, α | Ω⁻¹s^α | Z = 1/(Q·(jω)^α) |
-| `W` | Warburg (finite) | σ | Ω·s⁻¹/² | Z = σ/√(jω)·tanh(δ√(jω/D)) |
-| `Wo` | Warburg open | σ | Ω·s⁻¹/² | Z = σ/√(jω)·coth(δ√(jω/D)) |
-| `Ws` | Warburg short | σ | Ω·s⁻¹/² | Z = σ/√(jω)·tanh(δ√(jω/D)) |
-| `Gw` | Generalized Warburg | σ, α | Ω·s^α | Fractional diffusion element |
-| `G` | Gerischer | — | — | Z = 1/(Y₀·√(k + jω)) |
-| `Gs` | Gerischer (short) | — | — | Short-circuit Gerischer variant |
-| `K` | Kohirausch | — | — | Stretched-exponential element |
-| `La` | Ladder | — | — | Ladder network element |
-| `Zarc` | Havriliak-Negami | — | — | ZARC (depressed semicircle) |
-| `TLMQ` | Transmission Line | — | — | Porous electrode model |
-| `T` | Transmission (generic) | — | — | General transmission element |
-
-### Model Resolution
-
-When fitting an EIS dataset, the circuit model is determined by:
-
-1. **Inline filename tag**: If the filename contains `circuit=...` or `model=...`, that expression is used
-2. **File metadata**: Keys `circuitmodel`, `equivalentcircuit`, `circuit`, or `model` are scanned case-insensitively
-3. **Configured rules**: `[[rules]]` in `config/parsing.toml` match against filename substrings and metadata key/value pairs
-4. **Fallback model**: `fallback_model` from config (default `R0-p(CPE1,R1)`)
-
----
-
-## Module Documentation
+    Workspace --> PlotConfig
+    Workspace --> SearchConfig
+    Workspace --> ParsingConfig
+```
 
 ### CLI Layer
 
 #### `main.rs` — Binary Entrypoint
 
-Dispatches to plotting, single-file fitting, or ECM search after parsing the
-structured command tree. It:
+Dispatches to plotting, single-file fitting, or ECM search after parsing the structured command tree. It:
 1. Parses clap-derived arguments via `parse_cli_args()`
 2. Prepares the workspace (creates directories, migrates configs)
 3. Records the last-run mode in `config/app.toml`
@@ -1701,8 +1896,7 @@ Owns all knowledge about CLI flags. No I/O beyond writing usage text.
 
 **Cross-flag validation:**
 - Legacy `--plot` and `--search-eis` are mutually exclusive.
-- Legacy `--search-config`, `--search-output`, and `--search-top` require
-  `--search-eis`.
+- Legacy `--search-config`, `--search-output`, and `--search-top` require `--search-eis`.
 - Structured commands and legacy flags are not mixed in one invocation.
 
 ### Configuration Layer
@@ -1962,6 +2156,7 @@ Implements the evolutionary search loop using the `genevo` GA framework.
 - Parallel evaluation via `rayon`
 
 **Mutation strategies:**
+
 | Strategy | Description |
 |----------|-------------|
 | `mutate_leaf_kind` | Replace element type |
@@ -2150,7 +2345,7 @@ Provides OLS linear regression for plot overlays.
 
 ---
 
-## Dependencies
+## 15. Dependencies
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
@@ -2167,90 +2362,7 @@ Provides OLS linear regression for plot overlays.
 
 ---
 
-## Build and Development
-
-### Prerequisites
-
-- **Rust toolchain**: Edition 2024, stable channel
-- **git** (for version control)
-
-### Build
-
-```bash
-# Debug build
-cargo build
-
-# Optimized release build
-cargo build --release
-```
-
-The release profile uses LTO (link-time optimization) and symbol stripping for minimal binary size:
-
-```toml
-[profile.release]
-opt-level      = 3
-panic          = "abort"
-codegen-units  = 1
-lto            = "fat"
-strip          = "symbols"
-debug          = false
-```
-
-### Development Workflow
-
-```bash
-# Format code
-cargo fmt
-
-# Run clippy lints
-cargo clippy --all-targets --all-features
-
-# Build and run with default config
-cargo run
-
-# Run with specific plot type
-cargo run -- plot eis
-
-# Run ECM search on test data
-cargo run -- eis search data/sample.txt
-```
-
-### Testing
-
-```bash
-# Run all tests
-cargo test
-
-# Run tests with output
-cargo test -- --nocapture
-
-# Run tests for a specific module
-cargo test impedance::ecm_scoring::tests
-
-# Run doctests
-cargo test --doc
-```
-
-The test suite includes:
-- **Parser tests**: CHI file parsing, header detection, multi-column extraction
-- **Circuit model tests**: Model resolution, filename matching, metadata matching
-- **Fitting tests**: NLLS convergence on synthetic data, CPE/capacitor equivalence, Warburg comparison
-- **Scoring tests**: Legacy-score perfect-fit behavior, scalar-observation BIC, and complexity penalties
-- **Search tests**: End-to-end GA search on synthetic data, CSV escaping
-- **Regression tests**: Perfect line fit, R² bounding, error handling
-- **Reporting tests**: Element composition breakdown and formatting
-- **Transform tests**: Log, neg-log, linear transforms, axis term formatting
-
-### Release Build
-
-```bash
-cargo build --release
-./target/release/rust_electroanalysis_cli --help
-```
-
-The release binary is self-contained and requires only the TOML configuration files and input data at runtime.
-
-## Usage Guide
+## 16. Usage Guide
 
 ### Quick Start
 
@@ -2354,90 +2466,25 @@ cargo run -- eis search data/
 
 ---
 
-## Developer Documentation
+## 17. Reproducibility and Limitations
 
-## Scientific correctness and artifact migration
+1. Artifacts include configuration and provenance hashes.
+2. Deterministic seeds are supported in transient/calibration/estimate workflows.
+3. Mechanism conclusions are model-dependent and descriptive; not causal proof.
+4. Some workflows are artifact-chained and require prior command outputs.
+5. Automatic detection is deterministic for supported text formats; ambiguous layouts are rejected.
 
-ECM search reports use standard Gaussian-residual BIC:
+---
 
-`BIC = n_obs * ln(RSS / n_obs) + k * ln(n_obs)`
+## 18. Current Documented Limitations
 
-Real and imaginary residuals are treated as independent scalar observations,
-so `n_obs` is twice the number of complex frequency points. This assumes
-independent, identically distributed Gaussian residuals. The former modulus-
-normalized objective is exported only as `legacy_penalized_score`; it is not a
-chi-square unless measurement variances and statistically justified weights are
-provided.
+1. `estimate run` and `estimate compare` reject duplicate/non-monotonic timestamps (no duplicate-resolution policy yet in estimation input path).
+2. Binary CHI exports (`.bin`) and Excel sheets are not directly supported.
+3. Calibration quality depends on metadata event definitions; no automatic concentration-step inference from filenames.
 
-Health baselines require the manifest metadata paths to resolve when supplied.
-Each record retains sensor/analyte/matrix/design/temperature/experiment and
-metadata-source context. Conflicting context is represented as mixed context
-with typed warnings and the record IDs responsible for the conflict. Baseline
-schema 2 adds `minimum_required_records`, `represented_domains`, empirical
-feature values, and context-conflict details. Schema-1 artifacts retain the
-old minimum field as `legacy_minimum_required_domains` without reusing it as a
-record or domain count.
+---
 
-`NotComparable` health features retain their reason and receive no numerical
-comparison. A documented override must be supplied explicitly to enable one.
-Robust z-scores use `(current - median) / (1.4826 * MAD)` and are withheld below
-the configured minimum record count or when MAD is zero. Percentiles are
-empirical fractions of stored baseline values less than or equal to the current
-value; min-max range position is a separate field.
-
-Signal resampling requires explicit `Error`, `Average`, `First`, or `Last`
-duplicate handling and `Error` or paired `SortPaired` non-monotonic handling.
-The source measurement is never mutated. Sampling artifacts record sorting,
-duplicate resolution, interpolation counts, affected output indices, and gaps
-left missing when they exceed the configured maximum.
-
-Phase 6 state estimation is available through:
-
-`electroanalysis estimate run`, `validate`, `simulate`, `compare`, and `report`.
-
-Phase 6 converts selected potential channels to volts using the typed unit
-system (`V`, `mV`, or `µV`) and records the source unit and variance conversion
-in the estimation artifact. Measurement variance is resolved for every
-observation from `configured`, `per_observation`, signal robust/stable-window
-artifacts, calibration residual scatter, or calibration-parameter prediction
-uncertainty. Residual scatter is explicitly not called prediction uncertainty.
-Each innovation records the source, effective variance, and any calibration
-domain inflation. Domain inflation is one inside the calibration domain,
-optional and mild near a boundary, and configured outside it.
-
-State transforms report both latent and physical values. `IdentityLog10`
-preserves an interpretable log10(activity) state; positive-log transforms use
-the corresponding inverse and derivative; `LogisticBounded` is used for a
-bounded sensitivity proxy. Bound projection, when required for legacy models,
-also removes projected covariance and is marked as constrained.
-
-Local observability uses actual early timestamps and changing environments.
-Empirical identifiability is a separate finite-perturbation simulation and
-reports output sensitivity and state-pair confounding; matrix rank alone is not
-treated as empirical identification.
-
-Validation uses explicit `Exact`, `NearestWithinTolerance`, or
-`LinearInterpolation` truth alignment, a maximum gap, non-reuse by default,
-and records unmatched rows and the alignment method. State-specific convergence
-thresholds, consecutive-point requirements, step thresholds, and response
-fractions are configured under `[validation.states.<state>]`. NIS intervals are
-sample-count-aware diagnostics for scalar innovation consistency; NEES and
-coverage are reported only when truth and finite covariance are available.
-These diagnostics and synthetic tests do not constitute statistical validation
-of a real estimator or sensor.
-
-The estimation configuration schema is version 3. The auxiliary field
-`known_log10_activity_variance` is in `log10(activity)^2`. Schema-1 files using
-`standard_variance_v2` remain readable, are migrated with a warning, and retain
-the value under an explicit legacy field until rewritten. Polarization event
-inputs default to `none`; explicit voltage impulses and activity-step gains
-must be configured and are applied once at the event transition.
-
-New artifact fields use serde defaults where safe. The health schema version is
-incremented because the old minimum-domain field had incorrect semantics;
-legacy values are preserved under an explicit legacy name. Signal sampling
-fields are additive, and ECM CSV columns use explicit RSS/BIC/legacy-score
-names so old columns are not silently reinterpreted.
+## 19. Developer Documentation
 
 ### Adding a New Circuit Element
 
@@ -2486,7 +2533,51 @@ names so old columns are not silently reinterpreted.
 
 ---
 
-## License
+## 20. Scientific Correctness and Artifact Migration
+
+ECM search reports use standard Gaussian-residual BIC:
+
+`BIC = n_obs * ln(RSS / n_obs) + k * ln(n_obs)`
+
+Real and imaginary residuals are treated as independent scalar observations, so `n_obs` is twice the number of complex frequency points. This assumes independent, identically distributed Gaussian residuals. The former modulus-normalized objective is exported only as `legacy_penalized_score`; it is not a chi-square unless measurement variances and statistically justified weights are provided.
+
+Health baselines require the manifest metadata paths to resolve when supplied. Each record retains sensor/analyte/matrix/design/temperature/experiment and metadata-source context. Conflicting context is represented as mixed context with typed warnings and the record IDs responsible for the conflict. Baseline schema 2 adds `minimum_required_records`, `represented_domains`, empirical feature values, and context-conflict details. Schema-1 artifacts retain the old minimum field as `legacy_minimum_required_domains` without reusing it as a record or domain count.
+
+`NotComparable` health features retain their reason and receive no numerical comparison. A documented override must be supplied explicitly to enable one. Robust z-scores use `(current - median) / (1.4826 * MAD)` and are withheld below the configured minimum record count or when MAD is zero. Percentiles are empirical fractions of stored baseline values less than or equal to the current value; min-max range position is a separate field.
+
+Signal resampling requires explicit `Error`, `Average`, `First`, or `Last` duplicate handling and `Error` or paired `SortPaired` non-monotonic handling. The source measurement is never mutated. Sampling artifacts record sorting, duplicate resolution, interpolation counts, affected output indices, and gaps left missing when they exceed the configured maximum.
+
+Phase 6 state estimation is available through: `electroanalysis estimate run`, `validate`, `simulate`, `compare`, and `report`.
+
+Phase 6 converts selected potential channels to volts using the typed unit system (`V`, `mV`, or `µV`) and records the source unit and variance conversion in the estimation artifact. Measurement variance is resolved for every observation from `configured`, `per_observation`, signal robust/stable-window artifacts, calibration residual scatter, or calibration-parameter prediction uncertainty. Residual scatter is explicitly not called prediction uncertainty. Each innovation records the source, effective variance, and any calibration domain inflation. Domain inflation is one inside the calibration domain, optional and mild near a boundary, and configured outside it.
+
+State transforms report both latent and physical values. `IdentityLog10` preserves an interpretable log10(activity) state; positive-log transforms use the corresponding inverse and derivative; `LogisticBounded` is used for a bounded sensitivity proxy. Bound projection, when required for legacy models, also removes projected covariance and is marked as constrained.
+
+Local observability uses actual early timestamps and changing environments. Empirical identifiability is a separate finite-perturbation simulation and reports output sensitivity and state-pair confounding; matrix rank alone is not treated as empirical identification.
+
+Validation uses explicit `Exact`, `NearestWithinTolerance`, or `LinearInterpolation` truth alignment, a maximum gap, non-reuse by default, and records unmatched rows and the alignment method. State-specific convergence thresholds, consecutive-point requirements, step thresholds, and response fractions are configured under `[validation.states.<state>]`. NIS intervals are sample-count-aware diagnostics for scalar innovation consistency; NEES and coverage are reported only when truth and finite covariance are available. These diagnostics and synthetic tests do not constitute statistical validation of a real estimator or sensor.
+
+The estimation configuration schema is version 3. The auxiliary field `known_log10_activity_variance` is in `log10(activity)^2`. Schema-1 files using `standard_variance_v2` remain readable, are migrated with a warning, and retain the value under an explicit legacy field until rewritten. Polarization event inputs default to `none`; explicit voltage impulses and activity-step gains must be configured and are applied once at the event transition.
+
+New artifact fields use serde defaults where safe. The health schema version is incremented because the old minimum-domain field had incorrect semantics; legacy values are preserved under an explicit legacy name. Signal sampling fields are additive, and ECM CSV columns use explicit RSS/BIC/legacy-score names so old columns are not silently reinterpreted.
+
+---
+
+## 21. Troubleshooting
+
+1. **Unsupported file format**: `.bin`/Excel are not parsed by the current loader.
+2. **Missing EIS headers**: `eis fit` requires `Freq/Hz` + impedance columns.
+3. **Missing time header**: time-series workflows require `time`/`timestamp` columns.
+4. **Duplicate timestamps**:
+   - `signal` default strict config can reject duplicates; use suitable sampling policy config.
+   - `estimate run` currently requires strictly increasing timestamps.
+5. **Calibration extraction empty**: ensure concentration-step metadata events with concentration units are provided.
+6. **Output permission failure**: export commands return explicit IO path errors.
+7. **Mixed directory inputs**: plotting/search behavior differs by mode; use command-appropriate directories or filtering.
+
+---
+
+## 22. License
 
 This project is distributed as open source under the terms of the [MIT License](LICENSE).
 

@@ -38,9 +38,16 @@ pub fn compare(
             base.join(&r.input)
         };
         let parsed = parse_measurement_file(&input).map_err(|e| e.to_string())?;
-        let report =
-            crate::signal::analyze_measurement(&parsed.measurement, &r.channel, None, config, None)
-                .map_err(|e| e.to_string())?;
+        let record_provenance =
+            AnalysisProvenance::from_paths(&input, None).map_err(|e| e.to_string())?;
+        let report = crate::signal::analyze_measurement(
+            &parsed.measurement,
+            &r.channel,
+            None,
+            config,
+            Some(record_provenance),
+        )
+        .map_err(|e| e.to_string())?;
         provenance.get_or_insert(report.provenance.clone());
         out.push(SignalComparisonRecord {
             record_id: r.record_id.clone(),

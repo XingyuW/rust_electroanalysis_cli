@@ -713,13 +713,19 @@ fn statistics(
         .map(|row| (row.potential_v - mean_y).powi(2))
         .sum::<f64>();
     let r_squared = (total > 0.0).then_some(1.0 - rss / total);
-    let adjusted = (n > k + 1 && total > 0.0)
-        .then_some(1.0 - (1.0 - r_squared.unwrap_or(0.0)) * (n - 1) as f64 / (n - k - 1) as f64);
+    let adjusted = if n > k + 1 && total > 0.0 {
+        Some(1.0 - (1.0 - r_squared.unwrap_or(0.0)) * (n - 1) as f64 / (n - k - 1) as f64)
+    } else {
+        None
+    };
     let safe_rss = rss.max(f64::EPSILON);
     let n_f = n as f64;
     let aic = (n > 0).then_some(n_f * (safe_rss / n_f).ln() + 2.0 * k as f64);
-    let aicc = (n > k + 1)
-        .then_some(aic.unwrap_or(0.0) + 2.0 * k as f64 * (k as f64 + 1.0) / (n - k - 1) as f64);
+    let aicc = if n > k + 1 {
+        Some(aic.unwrap_or(0.0) + 2.0 * k as f64 * (k as f64 + 1.0) / (n - k - 1) as f64)
+    } else {
+        None
+    };
     let bic = (n > 0).then_some(n_f * (safe_rss / n_f).ln() + k as f64 * n_f.ln());
     CalibrationFitStatistics {
         observations: n,

@@ -176,6 +176,27 @@ fn report_bootstrap_is_reproducible_and_prediction_warns_on_extrapolation() {
 }
 
 #[test]
+fn fit_calibration_handles_small_observation_sets_without_panicking() {
+    let e0 = 0.20;
+    let slope = theoretical_slope_v_per_decade(298.15, 1).unwrap();
+    let observation_set = CalibrationObservationSet {
+        schema_version: 1,
+        observations: [1e-4, 1e-3, 1e-2]
+            .into_iter()
+            .map(|activity| observation(activity, e0 + slope * activity.log10()))
+            .collect(),
+        provenance: provenance(),
+        warnings: Vec::new(),
+    };
+    let mut cfg = config();
+    cfg.validation.mode = CrossValidationMode::None;
+
+    let run = std::panic::catch_unwind(|| fit_calibration(&observation_set, &cfg));
+    assert!(run.is_ok(), "fit_calibration panicked on a small dataset");
+    assert!(run.unwrap().is_ok(), "fit_calibration returned an error");
+}
+
+#[test]
 fn calibration_cli_parses_all_workflow_boundaries() {
     let args = |values: &[&str]| {
         let mut command = vec!["electroanalysis"];

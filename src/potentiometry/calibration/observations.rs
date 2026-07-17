@@ -443,14 +443,26 @@ fn steady_state_potential(
         )));
     }
     points.sort_by(|left, right| left.0.total_cmp(&right.0));
-    if points.windows(2).any(|window| window[0].0 == window[1].0) {
-        return Err(CalibrationError::InvalidSteadyStateWindow(
-            "duplicate timestamps are not valid for steady-state extraction".to_string(),
-        ));
-    }
-    let finite_points = points
+    // Average duplicate timestamps instead of rejecting the full steady-state window.
+    // Real CHI exports can contain repeated timestamps; collapsing duplicates keeps
+    // extraction deterministic while preserving one paired value per time point.
+    let mut grouped_points = Vec::<(f64, f64, usize)>::new();
+    for (time, value) in points
         .iter()
         .filter_map(|(time, value)| value.map(|value| (*time, value)))
+    {
+        if let Some((last_time, sum, count)) = grouped_points.last_mut()
+            && *last_time == time
+        {
+            *sum += value;
+            *count += 1;
+            continue;
+        }
+        grouped_points.push((time, value, 1));
+    }
+    let finite_points = grouped_points
+        .into_iter()
+        .map(|(time, sum, count)| (time, sum / count as f64))
         .collect::<Vec<_>>();
     let values = finite_points
         .iter()
