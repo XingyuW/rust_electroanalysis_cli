@@ -90,6 +90,14 @@ pub struct StateValidationResult {
     pub metrics: Vec<StateMetric>,
     pub vector_nees_mean: Option<f64>,
     pub vector_nees_count: usize,
+    #[serde(default)]
+    pub matched_sample_count: usize,
+    #[serde(default)]
+    pub alignment_tolerance_s: Option<f64>,
+    #[serde(default)]
+    pub unmatched_estimate_timestamps_s: Vec<f64>,
+    #[serde(default)]
+    pub unmatched_truth_timestamps_s: Vec<f64>,
     pub warnings: Vec<EstimationWarning>,
 }
 

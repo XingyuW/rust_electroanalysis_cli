@@ -1,5 +1,6 @@
 use crate::{
     estimation::state::MeasurementUpdateStatus,
+    estimation::state::{EstimationWarning, EstimationWarningKind},
     results::{StateEstimationReport, StateMetric, StateValidationResult},
 };
 use nalgebra::{DMatrix, DVector};
@@ -23,18 +24,37 @@ pub fn validate_report(
     source: Option<String>,
 ) -> StateValidationResult {
     let mut metrics = Vec::new();
-    let samples = report
-        .estimates
-        .iter()
-        .filter_map(|point| {
-            let truth = truth.iter().min_by(|a, b| {
-                (a.timestamp_s - point.timestamp_s)
-                    .abs()
-                    .total_cmp(&(b.timestamp_s - point.timestamp_s).abs())
-            })?;
-            Some((truth, point))
-        })
-        .collect::<Vec<_>>();
+    let confidence = report
+        .configuration
+        .filter
+        .confidence_level
+        .clamp(1e-6, 1.0 - 1e-6);
+    let z_score = standard_normal_quantile(0.5 + confidence / 2.0);
+    let alignment_tolerance_s =
+        resolve_alignment_tolerance_s(&report.estimates, truth).max(f64::EPSILON);
+    let matching = align_samples(report, truth, alignment_tolerance_s);
+    let samples = matching.samples;
+    let mut warnings = Vec::new();
+    if !matching.unmatched_estimate_timestamps_s.is_empty() {
+        warnings.push(EstimationWarning::new(
+            EstimationWarningKind::ModelDiscrepancy,
+            format!(
+                "{} estimate rows could not be aligned to truth within {:.6} s",
+                matching.unmatched_estimate_timestamps_s.len(),
+                alignment_tolerance_s
+            ),
+        ));
+    }
+    if !matching.unmatched_truth_timestamps_s.is_empty() {
+        warnings.push(EstimationWarning::new(
+            EstimationWarningKind::MissingMeasurement,
+            format!(
+                "{} truth rows were unmatched within {:.6} s",
+                matching.unmatched_truth_timestamps_s.len(),
+                alignment_tolerance_s
+            ),
+        ));
+    }
     let mut vector_nees = Vec::new();
     for (truth_point, estimate_point) in &samples {
         let actual = report
@@ -106,7 +126,7 @@ pub fn validate_report(
                     .and_then(|x| x.standard_error)
                 {
                     count += 1;
-                    if err.abs() <= 1.96 * s {
+                    if err.abs() <= z_score * s {
                         cover += 1;
                     }
                     if s > 0.0 {
@@ -128,7 +148,10 @@ pub fn validate_report(
             bias,
             interval_coverage: (count > 0).then_some(cover as f64 / count as f64),
             nees_mean: (!nees.is_empty()).then_some(nees.iter().sum::<f64>() / nees.len() as f64),
-            convergence_time_s: convergence_time(&samples_for_state),
+            convergence_time_s: convergence_time(
+                &samples_for_state,
+                convergence_threshold(&def.name),
+            ),
             step_response_delay_s: step_response_delay(&samples_for_state),
             maximum_transient_error: errors.iter().map(|x| x.abs()).reduce(f64::max),
             outlier_rejection_rate: (outlier_count > 0)
@@ -142,7 +165,74 @@ pub fn validate_report(
         vector_nees_mean: (!vector_nees.is_empty())
             .then_some(vector_nees.iter().sum::<f64>() / vector_nees.len() as f64),
         vector_nees_count: vector_nees.len(),
-        warnings: Vec::new(),
+        matched_sample_count: samples.len(),
+        alignment_tolerance_s: Some(alignment_tolerance_s),
+        unmatched_estimate_timestamps_s: matching.unmatched_estimate_timestamps_s,
+        unmatched_truth_timestamps_s: matching.unmatched_truth_timestamps_s,
+        warnings,
+    }
+}
+
+struct SampleAlignment<'a> {
+    samples: Vec<(&'a TruthPoint, &'a crate::results::StateEstimatePoint)>,
+    unmatched_estimate_timestamps_s: Vec<f64>,
+    unmatched_truth_timestamps_s: Vec<f64>,
+}
+
+fn align_samples<'a>(
+    report: &'a StateEstimationReport,
+    truth: &'a [TruthPoint],
+    tolerance_s: f64,
+) -> SampleAlignment<'a> {
+    let mut truth_indices = (0..truth.len()).collect::<Vec<_>>();
+    truth_indices.sort_by(|left, right| {
+        truth[*left]
+            .timestamp_s
+            .total_cmp(&truth[*right].timestamp_s)
+    });
+    let mut estimate_indices = (0..report.estimates.len()).collect::<Vec<_>>();
+    estimate_indices.sort_by(|left, right| {
+        report.estimates[*left]
+            .timestamp_s
+            .total_cmp(&report.estimates[*right].timestamp_s)
+    });
+    let mut used_truth = vec![false; truth.len()];
+    let mut samples = Vec::new();
+    let mut unmatched_estimate_timestamps_s = Vec::new();
+    for estimate_index in estimate_indices {
+        let estimate = &report.estimates[estimate_index];
+        let mut best_match: Option<(usize, f64)> = None;
+        for truth_index in &truth_indices {
+            if used_truth[*truth_index] {
+                continue;
+            }
+            let delta = (truth[*truth_index].timestamp_s - estimate.timestamp_s).abs();
+            if delta <= tolerance_s {
+                if let Some((_, current)) = best_match {
+                    if delta < current {
+                        best_match = Some((*truth_index, delta));
+                    }
+                } else {
+                    best_match = Some((*truth_index, delta));
+                }
+            }
+        }
+        if let Some((truth_index, _)) = best_match {
+            used_truth[truth_index] = true;
+            samples.push((&truth[truth_index], estimate));
+        } else {
+            unmatched_estimate_timestamps_s.push(estimate.timestamp_s);
+        }
+    }
+    let unmatched_truth_timestamps_s = truth_indices
+        .into_iter()
+        .filter(|index| !used_truth[*index])
+        .map(|index| truth[index].timestamp_s)
+        .collect::<Vec<_>>();
+    SampleAlignment {
+        samples,
+        unmatched_estimate_timestamps_s,
+        unmatched_truth_timestamps_s,
     }
 }
 
@@ -163,14 +253,105 @@ fn matrix(values: &[Vec<f64>]) -> DMatrix<f64> {
     DMatrix::from_fn(values.len(), values.len(), |i, j| values[i][j])
 }
 
-fn convergence_time(samples: &[(f64, f64, f64)]) -> Option<f64> {
+fn convergence_time(samples: &[(f64, f64, f64)], threshold: f64) -> Option<f64> {
     let first = samples.first()?.0;
     let last_bad = samples
         .iter()
-        .filter(|(_, actual, estimate)| (estimate - actual).abs() > 1.96e-3)
+        .filter(|(_, actual, estimate)| (estimate - actual).abs() > threshold)
         .map(|(time, _, _)| *time)
         .reduce(f64::max);
     Some((last_bad.unwrap_or(first) - first).max(0.0))
+}
+
+fn convergence_threshold(state: &str) -> f64 {
+    match state {
+        "log10_activity" => 5e-2,
+        "baseline_offset" | "polarization" => 1e-3,
+        "sensitivity_scale" => 1e-2,
+        _ => 1e-3,
+    }
+}
+
+fn resolve_alignment_tolerance_s(
+    estimates: &[crate::results::StateEstimatePoint],
+    truth: &[TruthPoint],
+) -> f64 {
+    let estimate_step = median_time_step(estimates.iter().map(|point| point.timestamp_s));
+    let truth_step = median_time_step(truth.iter().map(|point| point.timestamp_s));
+    match (estimate_step, truth_step) {
+        (Some(left), Some(right)) => 0.5 * left.min(right),
+        (Some(step), None) | (None, Some(step)) => 0.5 * step,
+        (None, None) => 1e-9,
+    }
+}
+
+fn median_time_step<I>(timestamps: I) -> Option<f64>
+where
+    I: Iterator<Item = f64>,
+{
+    let mut sorted = timestamps
+        .filter(|value| value.is_finite())
+        .collect::<Vec<_>>();
+    sorted.sort_by(f64::total_cmp);
+    let mut deltas = sorted
+        .windows(2)
+        .map(|pair| pair[1] - pair[0])
+        .filter(|delta| delta.is_finite() && *delta > 0.0)
+        .collect::<Vec<_>>();
+    if deltas.is_empty() {
+        return None;
+    }
+    deltas.sort_by(f64::total_cmp);
+    Some(deltas[deltas.len() / 2])
+}
+
+fn standard_normal_quantile(p: f64) -> f64 {
+    let p = p.clamp(1e-15, 1.0 - 1e-15);
+    let a: [f64; 6] = [
+        -3.969_683_028_665_376e1,
+        2.209_460_984_245_205e2,
+        -2.759_285_104_469_687e2,
+        1.383_577_518_672_69e2,
+        -3.066_479_806_614_716e1,
+        2.506_628_277_459_239,
+    ];
+    let b: [f64; 5] = [
+        -5.447_609_879_822_406e1,
+        1.615_858_368_580_409e2,
+        -1.556_989_798_598_866e2,
+        6.680_131_188_771_972e1,
+        -1.328_068_155_288_572e1,
+    ];
+    let c: [f64; 6] = [
+        -7.784_894_002_430_293e-3,
+        -3.223_964_580_411_365e-1,
+        -2.400_758_277_161_838,
+        -2.549_732_539_343_734,
+        4.374_664_141_464_968,
+        2.938_163_982_698_783,
+    ];
+    let d: [f64; 4] = [
+        7.784_695_709_041_462e-3,
+        3.224_671_290_700_398e-1,
+        2.445_134_137_142_996,
+        3.754_408_661_907_416,
+    ];
+    const P_LOW: f64 = 0.02425;
+    const P_HIGH: f64 = 1.0 - P_LOW;
+    if p < P_LOW {
+        let q = (-2.0 * p.ln()).sqrt();
+        (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
+            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0)
+    } else if p <= P_HIGH {
+        let q = p - 0.5;
+        let r = q * q;
+        (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q
+            / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1.0)
+    } else {
+        let q = (-2.0 * (1.0 - p).ln()).sqrt();
+        -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
+            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0)
+    }
 }
 
 fn step_response_delay(samples: &[(f64, f64, f64)]) -> Option<f64> {
