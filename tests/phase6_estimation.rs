@@ -651,6 +651,45 @@ fn deterministic_monte_carlo_fixture_is_reproducible() {
 }
 
 #[test]
+fn seeded_monte_carlo_nis_diagnostic_is_finite_with_broad_tolerance() {
+    let mut nis_means = Vec::new();
+    for seed in 1..=8 {
+        let scenario = simulation::SimulationScenario {
+            sample_count: 32,
+            seed,
+            activity_step_time_s: None,
+            measurement_noise_sd_v: 1.0e-4,
+            ..Default::default()
+        };
+        let simulated = simulation::simulate_scenario(&scenario).unwrap();
+        let values = simulated
+            .observations
+            .iter()
+            .map(|point| point.observed_potential_v)
+            .collect::<Vec<_>>();
+        let times = simulated
+            .observations
+            .iter()
+            .map(|point| point.timestamp_s)
+            .collect::<Vec<_>>();
+        let report = estimation::estimate_experiment(
+            &experiment(values, times),
+            "E1/V",
+            StoredCalibrationObservationModel::new(simulation::simulation_model()).unwrap(),
+            &config(StateModelKind::Activity),
+            estimation::EstimationContext::default(),
+            FilterKind::Ekf,
+        )
+        .unwrap();
+        let nis = report.diagnostics.nis_mean.unwrap();
+        assert!(nis.is_finite());
+        nis_means.push(nis);
+    }
+    let ensemble_mean = nis_means.iter().sum::<f64>() / nis_means.len() as f64;
+    assert!(ensemble_mean.is_finite() && ensemble_mean < 100.0);
+}
+
+#[test]
 fn ekf_ukf_comparison_reports_equivalent_input_metrics() {
     let model = simulation::simulation_model();
     let exp = experiment(
