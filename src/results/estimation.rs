@@ -25,6 +25,8 @@ pub struct StateValue {
     pub upper: Option<f64>,
     pub unit: String,
     pub latent: bool,
+    #[serde(default)]
+    pub latent_value: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -51,6 +53,18 @@ pub struct StateEstimatePoint {
     pub concentration_assumptions: Option<String>,
     pub auxiliary_observations: Vec<AuxiliaryObservation>,
     pub warnings: Vec<EstimationWarning>,
+    #[serde(default)]
+    pub posterior_constrained: bool,
+    #[serde(default)]
+    pub applied_measurement_variance_v2: Option<f64>,
+    #[serde(default)]
+    pub uninflated_measurement_variance_v2: Option<f64>,
+    #[serde(default)]
+    pub measurement_variance_source: Option<String>,
+    #[serde(default)]
+    pub variance_inflation_factor: Option<f64>,
+    #[serde(default)]
+    pub variance_inflation_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -68,6 +82,20 @@ pub struct FilterDiagnostics {
     pub covariance_jitter_count: usize,
     pub domain_excursion_count: usize,
     pub innovations: Vec<InnovationRecord>,
+    #[serde(default)]
+    pub nis_consistency_interval: Option<(f64, f64)>,
+    #[serde(default)]
+    pub nees_mean: Option<f64>,
+    #[serde(default)]
+    pub nees_consistency_interval: Option<(f64, f64)>,
+    #[serde(default)]
+    pub innovation_autocorrelation_confidence_bounds: Option<(f64, f64)>,
+    #[serde(default)]
+    pub filter_diverged: bool,
+    #[serde(default)]
+    pub covariance_collapse_count: usize,
+    #[serde(default)]
+    pub covariance_inflation_warning_count: usize,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateMetric {
@@ -83,6 +111,10 @@ pub struct StateMetric {
     pub maximum_transient_error: Option<f64>,
     pub outlier_rejection_rate: Option<f64>,
     pub calibration_domain_violations: usize,
+    #[serde(default)]
+    pub sample_count: usize,
+    #[serde(default)]
+    pub nees_consistency_interval: Option<(f64, f64)>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct StateValidationResult {
@@ -91,6 +123,8 @@ pub struct StateValidationResult {
     pub vector_nees_mean: Option<f64>,
     pub vector_nees_count: usize,
     #[serde(default)]
+    pub vector_nees_consistency_interval: Option<(f64, f64)>,
+    #[serde(default)]
     pub matched_sample_count: usize,
     #[serde(default)]
     pub alignment_tolerance_s: Option<f64>,
@@ -98,6 +132,10 @@ pub struct StateValidationResult {
     pub unmatched_estimate_timestamps_s: Vec<f64>,
     #[serde(default)]
     pub unmatched_truth_timestamps_s: Vec<f64>,
+    #[serde(default)]
+    pub alignment_policy: Option<String>,
+    #[serde(default)]
+    pub alignment_methods: Vec<String>,
     pub warnings: Vec<EstimationWarning>,
 }
 
@@ -113,6 +151,18 @@ pub struct FilterComparisonRecord {
     pub domain_excursions: usize,
     pub mean_activity_standard_error: Option<f64>,
     pub warnings: Vec<EstimationWarning>,
+    #[serde(default)]
+    pub log_likelihood: Option<f64>,
+    #[serde(default)]
+    pub nis_consistency: Option<bool>,
+    #[serde(default)]
+    pub nees_mean: Option<f64>,
+    #[serde(default)]
+    pub coverage: Option<f64>,
+    #[serde(default)]
+    pub activity_bias: Option<f64>,
+    #[serde(default)]
+    pub rejected_update_rate: Option<f64>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateFilterComparison {

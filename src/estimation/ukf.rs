@@ -2,11 +2,16 @@
 
 use crate::{
     estimation::{
-        covariance::{is_psd, resolve_process_covariance, symmetrize},
+        covariance::{
+            is_psd, resolve_observation_variance, resolve_process_covariance, symmetrize,
+        },
         ekf::{FilterInput, FilterRun},
         environment::{AlignedEnvironment, AlignedEnvironmentSummary},
         error::EstimationError,
-        innovation::{InnovationRecord, gating_threshold, residual_autocorrelation},
+        innovation::{
+            InnovationRecord, autocorrelation_confidence_bound, gating_threshold,
+            nis_consistency_interval, residual_autocorrelation,
+        },
         measurement::AuxiliaryObservation,
         model::{StateModel, apply_known_standard_constraint, observation_components},
         state::{
@@ -96,6 +101,8 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
     let mut predict_only = 0;
     let mut failures = 0;
     let mut domain_excursions = 0;
+    let mut covariance_collapse_count = 0;
+    let mut covariance_inflation_warning_count = 0;
     let mut previous = None;
     for (index, obs) in input.observations.iter().enumerate() {
         let env = input.environments.get(index).cloned().unwrap_or_default();
@@ -139,15 +146,11 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
         let mut standardized = None;
         let mut nis = None;
         let mut auxiliary_observations: Vec<AuxiliaryObservation> = Vec::new();
+        let mut posterior_constrained = false;
         let mut status = MeasurementUpdateStatus::Updated;
-        let domain = input.calibration.valid_domain_check(
-            pred_state[input.model.index("log10_activity").unwrap_or(0)],
-            &env,
-        );
-        let domain_distance = input.calibration.domain_distance(
-            pred_state[input.model.index("log10_activity").unwrap_or(0)],
-            &env,
-        );
+        let predicted_log10 = input.model.log10_activity(&pred_state)?;
+        let domain = input.calibration.valid_domain_check(predicted_log10, &env);
+        let domain_distance = input.calibration.domain_distance(predicted_log10, &env);
         if matches!(domain, CalibrationDomainStatus::Outside) {
             domain_excursions += 1;
             warnings.push(EstimationWarning::at(
@@ -157,12 +160,25 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             ));
         }
         if let Some(measured) = obs.potential_v {
+            let variance = resolve_observation_variance(
+                input.config,
+                obs,
+                input.signal,
+                input.calibration_results,
+                input.calibration,
+                predicted_log10,
+                &env,
+                domain,
+            )?;
+            if variance.inflation_factor > 1.0 {
+                covariance_inflation_warning_count += 1;
+            }
             match sigma_measurement(
                 &pred_state,
                 &pred_cov,
                 &input,
                 &env,
-                obs.observation_variance_v2,
+                variance.effective_variance_v2,
             ) {
                 Ok((pred, s, hx, px, j)) => {
                     jitter_count += j;
@@ -189,6 +205,11 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
                         log_likelihood: Some(
                             -0.5 * ((2.0 * std::f64::consts::PI * s).ln() + nu * nu / s),
                         ),
+                        measurement_variance_v2: variance.effective_variance_v2,
+                        uninflated_measurement_variance_v2: variance.uninflated_variance_v2,
+                        measurement_variance_source: variance.source.clone(),
+                        variance_inflation_factor: variance.inflation_factor,
+                        variance_inflation_reason: variance.inflation_reason.clone(),
                     });
                     if accepted_update {
                         filtered_state = &pred_state + &k * nu;
@@ -248,6 +269,12 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
                 && (filtered_state[i] < lo || filtered_state[i] > hi)
             {
                 filtered_state[i] = filtered_state[i].clamp(lo, hi);
+                for j in 0..filtered_cov.nrows() {
+                    filtered_cov[(i, j)] = 0.0;
+                    filtered_cov[(j, i)] = 0.0;
+                }
+                filtered_cov[(i, i)] = f64::EPSILON;
+                posterior_constrained = true;
                 warnings.push(EstimationWarning::at(
                     EstimationWarningKind::StateBoundApproached,
                     format!(
@@ -258,8 +285,15 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
                 ));
             }
         }
-        let activity =
-            activity_from_log10(filtered_state[input.model.index("log10_activity").unwrap_or(0)]);
+        let filtered_log10 = input.model.log10_activity(&filtered_state)?;
+        if filtered_cov
+            .diagonal()
+            .iter()
+            .any(|value| value.is_finite() && *value <= 1.0e-15)
+        {
+            covariance_collapse_count += 1;
+        }
+        let activity = activity_from_log10(filtered_log10);
         let aidx = input.model.index("log10_activity").unwrap_or(0);
         let ase = filtered_cov[(aidx, aidx)].max(0.0).sqrt();
         let concentration = input
@@ -292,6 +326,27 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             }),
             auxiliary_observations,
             warnings,
+            posterior_constrained,
+            applied_measurement_variance_v2: records
+                .last()
+                .filter(|r| r.timestamp_s == obs.timestamp_s)
+                .map(|r| r.measurement_variance_v2),
+            uninflated_measurement_variance_v2: records
+                .last()
+                .filter(|r| r.timestamp_s == obs.timestamp_s)
+                .map(|r| r.uninflated_measurement_variance_v2),
+            measurement_variance_source: records
+                .last()
+                .filter(|r| r.timestamp_s == obs.timestamp_s)
+                .map(|r| r.measurement_variance_source.clone()),
+            variance_inflation_factor: records
+                .last()
+                .filter(|r| r.timestamp_s == obs.timestamp_s)
+                .map(|r| r.variance_inflation_factor),
+            variance_inflation_reason: records
+                .last()
+                .filter(|r| r.timestamp_s == obs.timestamp_s)
+                .and_then(|r| r.variance_inflation_reason.clone()),
         });
         state = filtered_state;
         cov = filtered_cov;
@@ -315,6 +370,20 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
         numerical_failures: failures,
         covariance_jitter_count: jitter_count,
         domain_excursion_count: domain_excursions,
+        nis_consistency_interval: nis_consistency_interval(
+            nv.len(),
+            input.config.filter.confidence_level,
+        ),
+        nees_mean: None,
+        nees_consistency_interval: None,
+        innovation_autocorrelation_confidence_bounds: autocorrelation_confidence_bound(
+            iv.len(),
+            input.config.filter.confidence_level,
+        )
+        .map(|bound| (-bound, bound)),
+        filter_diverged: failures > 0,
+        covariance_collapse_count,
+        covariance_inflation_warning_count,
         innovations: records,
     };
     Ok(FilterRun {
@@ -329,7 +398,7 @@ fn sigma_measurement(
     cov: &DMatrix<f64>,
     input: &FilterInput<'_>,
     env: &AlignedEnvironment,
-    observation_variance_v2: Option<f64>,
+    observation_variance_v2: f64,
 ) -> Result<(f64, f64, DVector<f64>, DVector<f64>, usize), EstimationError> {
     let (points, wm, wc, j) = sigma_points(state, cov, input.config)?;
     let ys = points
@@ -344,9 +413,7 @@ fn sigma_measurement(
         variance += w * dy * dy;
         cross += &(p - state) * (*w * dy);
     }
-    variance += observation_variance_v2
-        .filter(|value| value.is_finite() && *value > 0.0)
-        .unwrap_or(input.measurement_covariance.final_variance);
+    variance += observation_variance_v2;
     if !variance.is_finite() || variance <= 0.0 {
         return Err(EstimationError::Covariance(
             "UKF innovation variance is invalid".into(),
@@ -363,14 +430,19 @@ fn values(s: &DVector<f64>, p: &DMatrix<f64>, m: &StateModel) -> Vec<StateValue>
     m.definitions
         .iter()
         .enumerate()
-        .map(|(i, d)| StateValue {
-            name: d.name.clone(),
-            value: Some(s[i]),
-            standard_error: Some(p[(i, i)].max(0.0).sqrt()),
-            lower: d.lower_bound,
-            upper: d.upper_bound,
-            unit: d.unit.clone(),
-            latent: true,
+        .map(|(i, d)| {
+            let physical = d.transform.to_physical(s[i], d.lower_bound, d.upper_bound);
+            let derivative = d.transform.derivative(s[i], d.lower_bound, d.upper_bound);
+            StateValue {
+                name: d.name.clone(),
+                value: physical,
+                standard_error: derivative.map(|scale| scale.abs() * p[(i, i)].max(0.0).sqrt()),
+                lower: d.lower_bound,
+                upper: d.upper_bound,
+                unit: d.unit.clone(),
+                latent: true,
+                latent_value: Some(s[i]),
+            }
         })
         .collect()
 }

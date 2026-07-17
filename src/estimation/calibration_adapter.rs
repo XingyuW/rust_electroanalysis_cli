@@ -37,6 +37,24 @@ pub trait CalibrationObservationModel {
         let _ = log10_activity;
         None
     }
+    fn near_boundary(
+        &self,
+        log10_activity: f64,
+        _environment: &AlignedEnvironment,
+        fraction: f64,
+    ) -> bool {
+        self.domain_distance(log10_activity, _environment)
+            .is_some_and(|distance| distance <= fraction)
+    }
+    /// Return voltage prediction variance from calibration-parameter
+    /// uncertainty.  This is deliberately separate from residual scatter.
+    fn prediction_uncertainty_v2(
+        &self,
+        _log10_activity: f64,
+        _environment: &AlignedEnvironment,
+    ) -> Option<f64> {
+        None
+    }
     fn activity_model_is_ideal(&self) -> bool {
         false
     }
@@ -187,6 +205,96 @@ impl CalibrationObservationModel for StoredCalibrationObservationModel {
         } else {
             (log10_activity - lo).min(hi - log10_activity)
         })
+    }
+    fn near_boundary(
+        &self,
+        log10_activity: f64,
+        environment: &AlignedEnvironment,
+        fraction: f64,
+    ) -> bool {
+        let Some((lo, hi)) = self
+            .model
+            .valid_domain
+            .log10_activity_min
+            .zip(self.model.valid_domain.log10_activity_max)
+        else {
+            return false;
+        };
+        if log10_activity < lo || log10_activity > hi {
+            return false;
+        }
+        let span = (hi - lo).abs().max(f64::EPSILON);
+        let distance = (log10_activity - lo).min(hi - log10_activity);
+        let conductivity_near =
+            if self.model.model_kind == CalibrationModelKind::ConductivityEmpirical {
+                self.model
+                    .valid_domain
+                    .conductivity_min_s_per_m
+                    .zip(self.model.valid_domain.conductivity_max_s_per_m)
+                    .zip(environment.conductivity_s_per_m)
+                    .is_some_and(|((low, high), value)| {
+                        let conductivity_span = (high - low).abs().max(f64::EPSILON);
+                        (value - low).min(high - value) / conductivity_span <= fraction
+                    })
+            } else {
+                false
+            };
+        distance / span <= fraction || conductivity_near
+    }
+    fn prediction_uncertainty_v2(
+        &self,
+        log10_activity: f64,
+        environment: &AlignedEnvironment,
+    ) -> Option<f64> {
+        if !log10_activity.is_finite() {
+            return None;
+        }
+        let covariance = self.model.training_statistics.parameter_covariance.as_ref();
+        let parameter_count = self.model.parameters.len();
+        let mut gradient = vec![0.0; parameter_count];
+        for (index, parameter) in self.model.parameters.iter().enumerate() {
+            gradient[index] = match parameter.name.as_str() {
+                "E0" => 1.0,
+                "slope" => log10_activity,
+                "conductivity_coefficient" => environment.conductivity_s_per_m.unwrap_or(0.0),
+                _ => 0.0,
+            };
+        }
+        let variance = covariance.and_then(|matrix| {
+            if matrix.len() != parameter_count
+                || matrix.iter().any(|row| row.len() != parameter_count)
+            {
+                return None;
+            }
+            let value = gradient
+                .iter()
+                .enumerate()
+                .flat_map(|(i, gi)| {
+                    gradient
+                        .iter()
+                        .enumerate()
+                        .map(move |(j, gj)| gi * matrix[i][j] * gj)
+                })
+                .sum::<f64>();
+            value.is_finite().then_some(value)
+        });
+        variance
+            .or_else(|| {
+                let value = self
+                    .model
+                    .parameters
+                    .iter()
+                    .zip(&gradient)
+                    .filter_map(|(parameter, derivative)| {
+                        parameter
+                            .standard_error
+                            .filter(|se| se.is_finite() && *se >= 0.0)
+                            .map(|se| derivative.powi(2) * se.powi(2))
+                    })
+                    .sum::<f64>();
+                (value > 0.0 && value.is_finite()).then_some(value)
+            })
+            .filter(|value| *value > 0.0 && value.is_finite())
     }
     fn predict_potential(
         &self,

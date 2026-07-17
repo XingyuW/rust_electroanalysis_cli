@@ -1,6 +1,12 @@
 use crate::{
-    estimation::{error::EstimationError, model::StateModel},
-    estimation_config::{CovarianceSourceKind, ProcessNoiseConfig, ResolvedEstimationConfig},
+    estimation::{
+        calibration_adapter::CalibrationObservationModel, error::EstimationError,
+        measurement::MeasurementObservation, model::StateModel, state::CalibrationDomainStatus,
+    },
+    estimation_config::{
+        CovarianceSourceKind, MeasurementNoiseSourceKind, ProcessNoiseConfig,
+        ResolvedEstimationConfig,
+    },
     results::{CalibrationAnalysisReport, SignalAnalysisReport},
 };
 use nalgebra::{DMatrix, DVector};
@@ -43,6 +49,19 @@ pub struct CovarianceResolution {
     pub combination_assumptions: Vec<String>,
     pub final_variance: f64,
     pub unit: String,
+}
+
+/// The variance actually supplied to one scalar voltage update.  Keeping the
+/// uninflated value and provenance separate is important: calibration-domain
+/// inflation is a model-risk allowance, not an additional instrument-noise
+/// observation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MeasurementVarianceResolution {
+    pub uninflated_variance_v2: f64,
+    pub effective_variance_v2: f64,
+    pub source: String,
+    pub inflation_factor: f64,
+    pub inflation_reason: Option<String>,
 }
 
 impl CovarianceResolution {
@@ -160,6 +179,130 @@ pub fn resolve_measurement_covariance(
     let result=CovarianceResolution { candidates, selected_source:source, rejected_sources, combination_assumptions:vec!["one primary voltage-variance source selected; candidate variances were not double-counted".into()], final_variance:value, unit:"V^2".into() };
     result.validate()?;
     Ok(result)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn resolve_observation_variance(
+    config: &ResolvedEstimationConfig,
+    observation: &MeasurementObservation,
+    signal: Option<&SignalAnalysisReport>,
+    calibration_report: Option<&CalibrationAnalysisReport>,
+    calibration: &dyn CalibrationObservationModel,
+    log10_activity: f64,
+    environment: &crate::estimation::environment::AlignedEnvironment,
+    domain: CalibrationDomainStatus,
+) -> Result<MeasurementVarianceResolution, EstimationError> {
+    let source = config.measurement_noise.source;
+    let (variance, source_name, reason) = match source {
+        MeasurementNoiseSourceKind::Configured => (
+            Some(config.measurement_noise.configured_variance_v2),
+            "configured".to_string(),
+            "explicit configured voltage variance".to_string(),
+        ),
+        MeasurementNoiseSourceKind::PerObservation => (
+            observation.observation_variance_v2,
+            "per_observation".to_string(),
+            "variance supplied with the selected measurement row".to_string(),
+        ),
+        MeasurementNoiseSourceKind::SignalRobustVariance => (
+            signal.and_then(|s| s.descriptive.robust_standard_deviation.map(|v| v * v)),
+            "signal_robust_variance".to_string(),
+            "robust standard deviation from the signal artifact squared".to_string(),
+        ),
+        MeasurementNoiseSourceKind::StableWindowVariance => (
+            signal.and_then(|s| s.descriptive.sample_variance),
+            "stable_window_variance".to_string(),
+            "sample variance from the selected signal window".to_string(),
+        ),
+        MeasurementNoiseSourceKind::CalibrationResidualVariance => (
+            calibration_report
+                .and_then(|c| c.selected_model)
+                .and_then(|kind| {
+                    calibration_report?.candidate_models.iter().find(|m| m.model_kind == kind)
+                })
+                .and_then(|m| m.statistics.rmse_v)
+                .map(|v| v * v),
+            "calibration_residual_variance".to_string(),
+            "calibration residual RMSE squared; this is residual scatter, not prediction uncertainty".to_string(),
+        ),
+        MeasurementNoiseSourceKind::CalibrationPredictionUncertainty => (
+            calibration.prediction_uncertainty_v2(log10_activity, environment),
+            "calibration_prediction_uncertainty".to_string(),
+            "delta-method prediction variance from calibration parameter covariance or documented diagonal approximation".to_string(),
+        ),
+    };
+    let mut source_name = source_name;
+    let mut reason = reason;
+    let variance = match variance {
+        Some(value) => value,
+        None if !matches!(source, MeasurementNoiseSourceKind::PerObservation)
+            && !matches!(
+                source,
+                MeasurementNoiseSourceKind::CalibrationPredictionUncertainty
+            ) =>
+        {
+            source_name.push_str("_fallback_configured");
+            reason
+                .push_str("; requested artifact was unavailable, so configured variance was used");
+            config.measurement_noise.configured_variance_v2
+        }
+        None => {
+            return Err(EstimationError::Covariance(format!(
+                "measurement variance source '{source_name}' is unavailable"
+            )));
+        }
+    };
+    if !variance.is_finite() || variance <= 0.0 {
+        return Err(EstimationError::Covariance(format!(
+            "measurement variance from '{source_name}' must be finite and positive"
+        )));
+    }
+    let uninflated = variance.clamp(
+        config.measurement_noise.minimum_variance_v2,
+        config.measurement_noise.maximum_variance_v2,
+    );
+    if !uninflated.is_finite() || uninflated <= 0.0 {
+        return Err(EstimationError::Covariance(
+            "effective uninflated measurement variance is invalid".into(),
+        ));
+    }
+    let (factor, inflation_reason) = match domain {
+        CalibrationDomainStatus::Outside
+            if config.measurement_noise.inflate_outside_domain
+                || config.extrapolation.inflate_measurement_variance =>
+        {
+            (
+                config.extrapolation.variance_inflation_factor,
+                Some("outside calibration domain".to_string()),
+            )
+        }
+        _ if config.extrapolation.inflate_measurement_variance
+            && calibration.near_boundary(
+                log10_activity,
+                environment,
+                config.extrapolation.near_boundary_fraction,
+            ) =>
+        {
+            (
+                config.extrapolation.near_boundary_variance_inflation_factor,
+                Some("near calibration-domain boundary".to_string()),
+            )
+        }
+        _ => (1.0, None),
+    };
+    let effective = (uninflated * factor).min(config.measurement_noise.maximum_variance_v2);
+    if !effective.is_finite() || effective <= 0.0 {
+        return Err(EstimationError::Covariance(
+            "inflated measurement variance is invalid".into(),
+        ));
+    }
+    Ok(MeasurementVarianceResolution {
+        uninflated_variance_v2: uninflated,
+        effective_variance_v2: effective,
+        source: source_name,
+        inflation_factor: effective / uninflated,
+        inflation_reason,
+    })
 }
 
 pub fn resolve_process_covariance(
