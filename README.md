@@ -116,13 +116,13 @@ It is designed for electrochemical researchers and analysts who need to:
 1. CHI EIS CSV (`Freq/Hz`, `Z'/ohm`, `Z"/ohm`)
 2. CHI OCPT/time-series CSV (`Time/sec`, `Potential/V`)
 3. General time-series sensor CSV or Excel (`.xlsx`) with `time`/`timestamp` + numeric channels
-4. Excel workbooks containing compatible OCPT, EIS, calibration, or general sensor tables
+4. Excel workbooks containing compatible OCPT/transient/calibration/general time-series tables (XLSX EIS ingestion is not supported)
 
 ### Supported Input Formats
 
 1. `.csv`, `.txt`, `.dat` (text-based, UTF-8 encoded)
-2. `.xlsx` (Excel workbook; parsed through the unified data pipeline)
-3. `.xls` may work on a best-effort basis but is not formally tested
+2. `.xlsx` (Excel workbook; parsed through the unified data pipeline for time-series tables)
+3. `.xls` is explicitly rejected
 
 **Not supported:**
 - Binary files such as `.bin`, `.raw` are intentionally unsupported.
@@ -316,7 +316,7 @@ The release binary is self-contained and requires only the TOML configuration fi
 The unified loader (`load_data`) uses extension classification followed by content detection:
 
 1. **Binary guard**: Files with `.bin` or `.raw` extensions are rejected before any parser attempt.
-2. **Excel (`.xlsx`)**: Routed through the `calamine`-based Excel parser, which normalises worksheet data to the shared text parsing pipeline.
+2. **Excel (`.xlsx`)**: Routed through the `calamine`-based Excel parser and parsed as structured tabular time-series data.
 3. **CHI EIS**: Content detection identifies `Freq/Hz` + impedance headers; parser `EISData::parse_file`, internal type `chi_eis`.
 4. **CHI OCPT**: Content detection identifies a time header with CHI preamble markers (instrument/data-source); parser `parse_measurement_file`, internal type `chi_export`.
 5. **General sensor CSV/Excel**: Time header without CHI preamble; parser `parse_measurement_file`, internal type `sensor_csv` or `excel_workbook`.
@@ -328,8 +328,9 @@ Unsupported/ambiguous files return explicit errors (missing time/frequency heade
 When loading an Excel workbook:
 
 1. If `--sheet` is specified, that worksheet is used.
-2. If only one non-empty worksheet exists, it is selected automatically.
-3. If multiple worksheets are present, an explicit `--sheet` selection is required (an ambiguity error is raised).
+2. If exactly one compatible time-series worksheet exists, it is selected automatically.
+3. If multiple compatible time-series worksheets exist, an explicit `--sheet` selection is required (an ambiguity error is raised).
+4. Workbooks containing only EIS-style worksheets are rejected for time-series workflows (XLSX EIS ingestion is intentionally unsupported).
 
 ### Binary File Behaviour
 
@@ -1155,11 +1156,12 @@ Provide one of:
 (3) a validated calibration manifest.
 ```
 
-**Metadata sources** (in precedence order):
+**Metadata sources**:
 1. Explicit `concentration_step` events in the experiment metadata TOML.
-2. A concentration column in the input data (if implemented).
-3. A structured external calibration manifest (if implemented).
-4. Filename extraction (only through explicit opt-in with a user-defined pattern — disabled by default).
+
+**Intentionally unsupported for extraction**:
+1. Filename-based concentration inference.
+2. Implicit concentration inference without explicit concentration-step metadata.
 
 ```bash
 cargo run -- calibration extract \
@@ -1282,7 +1284,7 @@ Mechanism output distinguishes three layers:
 2. **Model-derived quantities**: equivalent-circuit parameters, double-exponential fit parameters, estimated kinetic/transport indicators, derived activation or relaxation metrics.
 3. **Interpretive hypotheses**: behaviour consistent with interfacial charging, adsorption/relaxation, transport limitations, reference instability, or alternative explanations.
 
-Evidence levels (`supported`, `weakly_supported`, `indeterminate`, `not_evaluable`) are assigned based on numerical thresholds and parameter identifiability, not on causal inference. Failed fits, pinned parameters, and high-uncertainty parameters do not generate confident interpretations.
+Hypothesis assessments (`supported`, `weakly_supported`, `indeterminate`, `not_evaluable`) are assigned from reported evidence strength and identifiability context, not from causal inference. Failed fits, pinned parameters, and high-uncertainty parameters do not generate confident interpretations.
 
 The JSON report carries software version, input path and SHA-256, metadata/config path and SHA-256 where available, generation timestamp, and optional Git commit. Experimental metadata (sensor, sample matrix, environmental series, and events) remains separate from plotting configuration.
 
@@ -1365,7 +1367,7 @@ cargo run -- health trend \
 
 Purpose: state estimation (EKF/UKF), simulation, validation, filter comparison.
 
-**Timestamp handling**: `estimate run` no longer rejects datasets with duplicate or non-monotonic timestamps outright. Instead, timestamp diagnostics are collected and the estimation proceeds with the original ordering. Timestamp preprocessing (deduplication, segment splitting, stable sorting) is configurable through the estimation TOML file. Diagnostic information is included in the estimation report under the `timestamp_diagnostics` field.
+**Timestamp handling**: `estimate run`/`estimate compare` apply configurable timestamp preprocessing before filtering. This includes duplicate handling, reset-based segmentation, minor-reversal handling, non-finite timestamp policy, and minimum segment length checks. Estimation runs independently per valid segment, and outputs include `timestamp_diagnostics`, `timestamp_policy`, `timestamp_segments`, `skipped_timestamp_segments`, `was_preprocessed`, and per-point `segment_id`/`original_row_index`.
 
 Verified run path (simulation):
 ```bash
@@ -2534,8 +2536,8 @@ cargo run -- eis search data/
 
 ## 18. Current Documented Limitations
 
-1. `estimate run` and `estimate compare` reject duplicate/non-monotonic timestamps (no duplicate-resolution policy yet in estimation input path).
-2. Binary CHI exports (`.bin`) and Excel sheets are not directly supported.
+1. Binary CHI exports (`.bin`, `.raw`) are intentionally unsupported.
+2. XLSX EIS ingestion is intentionally unsupported (use CHI/text EIS inputs).
 3. Calibration quality depends on metadata event definitions; no automatic concentration-step inference from filenames.
 
 ---
@@ -2621,12 +2623,12 @@ New artifact fields use serde defaults where safe. The health schema version is 
 
 ## 21. Troubleshooting
 
-1. **Unsupported file format**: `.bin`/Excel are not parsed by the current loader.
+1. **Unsupported file format**: `.bin`/`.raw` are intentionally unsupported; `.xls` is rejected; XLSX EIS-only workbooks are rejected for time-series workflows.
 2. **Missing EIS headers**: `eis fit` requires `Freq/Hz` + impedance columns.
 3. **Missing time header**: time-series workflows require `time`/`timestamp` columns.
 4. **Duplicate timestamps**:
    - `signal` default strict config can reject duplicates; use suitable sampling policy config.
-   - `estimate run` currently requires strictly increasing timestamps.
+   - `estimate run` preprocesses timestamps according to `config/estimation.toml` `[timestamp_handling]`.
 5. **Calibration extraction empty**: ensure concentration-step metadata events with concentration units are provided.
 6. **Output permission failure**: export commands return explicit IO path errors.
 7. **Mixed directory inputs**: plotting/search behavior differs by mode; use command-appropriate directories or filtering.

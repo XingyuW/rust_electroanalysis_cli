@@ -1,6 +1,7 @@
 //! Configuration for offline, physics-informed state estimation.
 
 use crate::domain::ConfigurationError;
+use crate::estimation::timestamp::TimestampHandlingConfig;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -141,6 +142,7 @@ pub struct ResolvedEstimationConfig {
     pub auxiliary: AuxiliaryConfig,
     pub plotting: EstimationPlottingConfig,
     pub export: EstimationExportConfig,
+    pub timestamp_handling: TimestampHandlingConfig,
     #[serde(skip)]
     pub source_path: Option<PathBuf>,
 }
@@ -165,6 +167,7 @@ impl Default for ResolvedEstimationConfig {
             auxiliary: AuxiliaryConfig::default(),
             plotting: EstimationPlottingConfig::default(),
             export: EstimationExportConfig::default(),
+            timestamp_handling: TimestampHandlingConfig::default(),
             source_path: None,
         }
     }
@@ -661,6 +664,21 @@ impl ResolvedEstimationConfig {
                     "{name} must be finite and nonnegative"
                 )));
             }
+        }
+        if !self
+            .timestamp_handling
+            .minor_reversal_threshold_s
+            .is_finite()
+            || self.timestamp_handling.minor_reversal_threshold_s < 0.0
+            || !self.timestamp_handling.reset_threshold_s.is_finite()
+            || self.timestamp_handling.reset_threshold_s < 0.0
+            || !self.timestamp_handling.reset_threshold_fraction.is_finite()
+            || !(0.0..=1.0).contains(&self.timestamp_handling.reset_threshold_fraction)
+            || self.timestamp_handling.minimum_segment_points == 0
+        {
+            return Err(ConfigurationError::invalid(
+                "timestamp handling configuration is invalid",
+            ));
         }
         if self.measurement_noise.maximum_variance_v2 < self.measurement_noise.minimum_variance_v2 {
             return Err(ConfigurationError::invalid(

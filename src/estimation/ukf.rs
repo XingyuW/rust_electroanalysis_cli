@@ -103,7 +103,7 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
     let mut domain_excursions = 0;
     let mut covariance_collapse_count = 0;
     let mut covariance_inflation_warning_count = 0;
-    let mut previous = None;
+    let mut previous: Option<f64> = None;
     for (index, obs) in input.observations.iter().enumerate() {
         let env = input.environments.get(index).cloned().unwrap_or_default();
         let mut warnings = input.calibration.warnings(&env);
@@ -111,6 +111,12 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             (state.clone(), cov.clone())
         } else {
             let dt = obs.timestamp_s - previous.unwrap();
+            if !dt.is_finite() || dt <= 0.0 {
+                return Err(EstimationError::invalid(format!(
+                    "non-positive or non-finite Δt encountered at timestamp {} (Δt={})",
+                    obs.timestamp_s, dt
+                )));
+            }
             let (pts, wm, wc, j) = sigma_points(&state, &cov, input.config)?;
             jitter_count += j;
             let transformed = pts
@@ -302,7 +308,9 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             .then_some(activity)
             .flatten();
         estimates.push(StateEstimatePoint {
+            segment_id: 0,
             timestamp_s: obs.timestamp_s,
+            original_row_index: None,
             measurement_v: obs.potential_v,
             predicted_measurement_v: predicted_measurement,
             innovation_v: innovation,

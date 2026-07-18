@@ -1,6 +1,5 @@
 //! Orchestration for `electroanalysis transient fit`.
 
-use crate::data_file::load_experiment;
 use crate::domain::ExperimentEventKind;
 use crate::plottings::plot_transient_event;
 use crate::potentiometry::{TransientAnalysisOptions, analyze_experiment};
@@ -18,6 +17,7 @@ pub fn run(
     input_path: &Path,
     metadata_path: &Path,
     channel: &str,
+    sheet: Option<&str>,
     config_path: Option<&Path>,
     output_path: Option<&Path>,
     event_kind_name: &str,
@@ -42,7 +42,8 @@ pub fn run(
         )
         .into());
     }
-    let (experiment, parse_diagnostics) = load_experiment(&input, &metadata)?;
+    let (experiment, parse_diagnostics) =
+        crate::data_file::measurement_parser::load_experiment_with_sheet(&input, &metadata, sheet)?;
     if parse_diagnostics.has_issues() {
         eprintln!(
             "Warning: input diagnostics report {} malformed rows, {} missing values, and irregular_sampling={}",

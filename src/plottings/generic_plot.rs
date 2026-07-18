@@ -38,7 +38,7 @@
 //!
 //! No changes to `plotting.rs`, `plot_hq`, or anything else are needed.
 
-use crate::data_file::{PlotData, load_data, measurement_to_plot_data};
+use crate::data_file::{InputKind, PlotData, load_data, measurement_to_plot_data};
 use crate::plottings::plotting::{
     PlotColor, PlotLegendPosition, PublicationConfig, ResolvedPlotConfig, plot_hq,
 };
@@ -212,10 +212,18 @@ pub fn load_generic_datasets_from_dir<P: AsRef<Path>>(
         if !path.is_file() {
             continue;
         }
-        if !is_supported_path(&path) {
+        let kind = InputKind::classify_path(&path);
+        if kind.is_unsupported_binary() {
             skipped.push(GenericPlotSkip {
                 input_file: path,
-                reason: "Unsupported file type".to_string(),
+                reason: kind.skip_reason().to_string(),
+            });
+            continue;
+        }
+        if !kind.is_supported_text() && !kind.is_supported_spreadsheet() {
+            skipped.push(GenericPlotSkip {
+                input_file: path,
+                reason: "unsupported extension".to_string(),
             });
             continue;
         }
@@ -392,10 +400,18 @@ pub fn plot_generic_directory_with_configs<P: AsRef<Path>>(
             continue;
         }
 
-        if !is_supported_path(&path) {
+        let kind = InputKind::classify_path(&path);
+        if kind.is_unsupported_binary() {
             skipped.push(GenericPlotSkip {
                 input_file: path,
-                reason: "Unsupported file type".to_string(),
+                reason: kind.skip_reason().to_string(),
+            });
+            continue;
+        }
+        if !kind.is_supported_text() && !kind.is_supported_spreadsheet() {
+            skipped.push(GenericPlotSkip {
+                input_file: path,
+                reason: "unsupported extension".to_string(),
             });
             continue;
         }
@@ -450,15 +466,6 @@ pub fn plot_generic_directory_with_configs<P: AsRef<Path>>(
 // ─────────────────────────────────────────────────────────────────────────────
 // Private helpers (mirror chi_plot.rs naming)
 // ─────────────────────────────────────────────────────────────────────────────
-
-fn is_supported_path(path: &Path) -> bool {
-    matches!(
-        path.extension()
-            .and_then(|value| value.to_str())
-            .map(|value| value.to_ascii_lowercase()),
-        Some(ext) if matches!(ext.as_str(), "csv" | "txt" | "dat")
-    )
-}
 
 fn sanitize_output_component(value: &str) -> String {
     let mut out = String::with_capacity(value.len());

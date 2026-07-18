@@ -443,7 +443,7 @@ fn opt(v: Option<f64>) -> String {
 }
 fn human_report(report: &MechanismAnalysisReport) -> String {
     let mut s = String::from(
-        "Mechanism evidence report\n=========================\n\nNumerical agreement is reported as temporal compatibility or supporting evidence only; it does not prove a shared electrochemical mechanism, causal confirmation, or definitive identification.\n\n",
+        "Mechanism evidence report\n=========================\n\nThese interpretations are conditional on the selected models, preprocessing choices, parameter identifiability, and data quality. They do not establish a unique physical or chemical mechanism and should not be treated as causal proof.\n\nNumerical agreement is reported as temporal compatibility or supporting evidence only; it does not prove a shared electrochemical mechanism, causal confirmation, or definitive identification.\n\n",
     );
     s.push_str(&format!("Records: {}\nEIS-derived timescales: {}\nTransient-fitted timescales: {}\nComparisons: {}\n\n",report.records.len(),report.eis_timescales.len(),report.transient_timescales.len(),report.comparisons.len()));
     for c in &report.comparisons {
@@ -479,7 +479,23 @@ fn assess_hypotheses(
         let transient_matches = transient_timescales.iter().filter(|t| t.label.to_ascii_lowercase().contains(&hypothesis.transient_timescale.to_ascii_lowercase())).collect::<Vec<_>>();
         let eis_matches = eis_timescales.iter().filter(|t| t.semantic_role.as_deref() == Some(hypothesis.eis_role.as_str())).collect::<Vec<_>>();
         let relevant = comparisons.iter().filter(|c| transient_matches.iter().any(|t| t.timescale_id == c.transient_timescale_id) && eis_matches.iter().any(|e| e.timescale_id == c.eis_timescale_id)).collect::<Vec<_>>();
-        let assessment = if relevant.iter().any(|c| matches!(c.evidence_level, crate::results::EvidenceLevel::Strong | crate::results::EvidenceLevel::Moderate)) { "supported" } else if !relevant.is_empty() { "partially supported" } else { "insufficient evidence" };
+        let assessment = if relevant.is_empty() {
+            "not_evaluable"
+        } else if relevant.iter().any(|c| {
+            matches!(
+                c.evidence_level,
+                crate::results::EvidenceLevel::Strong | crate::results::EvidenceLevel::Moderate
+            )
+        }) {
+            "supported"
+        } else if relevant
+            .iter()
+            .any(|c| matches!(c.evidence_level, crate::results::EvidenceLevel::Weak))
+        {
+            "weakly_supported"
+        } else {
+            "indeterminate"
+        };
         crate::results::HypothesisAssessment { hypothesis_id: hypothesis.hypothesis_id.clone(), transient_timescale: hypothesis.transient_timescale.clone(), eis_role: hypothesis.eis_role.clone(), description: hypothesis.description.clone(), assessment: assessment.to_string(), supporting_observations: relevant.iter().flat_map(|c| c.supporting_evidence.clone()).collect(), contradictory_observations: relevant.iter().flat_map(|c| c.contradictory_evidence.clone()).collect(), missing_evidence: if eis_matches.is_empty() { vec!["no explicit EIS semantic-role annotation matched the hypothesis".to_string()] } else { Vec::new() }, assumptions: vec!["user-supplied hypothesis is evaluated against observations; it is not automatically discovered".to_string()], alternative_explanations: vec!["temporal compatibility alone does not identify a mechanism".to_string()] }
     }).collect()
 }

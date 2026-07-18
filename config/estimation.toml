@@ -124,3 +124,12 @@ innovations_filename = "state_innovations.csv"
 diagnostics_filename = "state_diagnostics.json"
 validation_filename = "state_validation.json"
 report_filename = "state_estimation_report.txt"
+
+[timestamp_handling]
+duplicate_policy = "deduplicate_identical"
+non_monotonic_policy = "segment_on_reset"
+non_finite_policy = "reject"
+minor_reversal_threshold_s = 1.0
+reset_threshold_s = 10.0
+reset_threshold_fraction = 0.5
+minimum_segment_points = 10

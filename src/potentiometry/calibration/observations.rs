@@ -412,9 +412,10 @@ fn steady_state_potential(
         .measurement_data
         .time
         .iter()
-        .copied()
+        .enumerate()
+        .map(|(index, time)| (index, *time))
         .zip(channel.values.iter().copied())
-        .filter(|(time, _)| *time >= start && *time <= end)
+        .filter(|((_, time), _)| *time >= start && *time <= end)
         .collect::<Vec<_>>();
     if points.is_empty()
         || start < *experiment.measurement_data.time.first().unwrap_or(&start)
@@ -422,6 +423,11 @@ fn steady_state_potential(
     {
         return Err(CalibrationError::InvalidSteadyStateWindow(
             "steady-state window lies outside the measurement range".to_string(),
+        ));
+    }
+    if window_crosses_timestamp_reset(&points, &experiment.measurement_data.time) {
+        return Err(CalibrationError::InvalidSteadyStateWindow(
+            "steady-state window crosses a timestamp reset segment boundary".to_string(),
         ));
     }
     let raw_count = points.len();
@@ -442,14 +448,14 @@ fn steady_state_potential(
             "missing fraction {missing_fraction:.3} exceeds configured maximum"
         )));
     }
-    points.sort_by(|left, right| left.0.total_cmp(&right.0));
+    points.sort_by(|left, right| left.0.1.total_cmp(&right.0.1));
     // Average duplicate timestamps instead of rejecting the full steady-state window.
     // Real CHI exports can contain repeated timestamps; collapsing duplicates keeps
     // extraction deterministic while preserving one paired value per time point.
     let mut grouped_points = Vec::<(f64, f64, usize)>::new();
     for (time, value) in points
         .iter()
-        .filter_map(|(time, value)| value.map(|value| (*time, value)))
+        .filter_map(|((_, time), value)| value.map(|value| (*time, value)))
     {
         if let Some((last_time, sum, count)) = grouped_points.last_mut()
             && *last_time == time
@@ -520,6 +526,23 @@ fn steady_state_potential(
         }),
         source_warnings,
     ))
+}
+
+fn window_crosses_timestamp_reset(points: &[((usize, f64), Option<f64>)], time: &[f64]) -> bool {
+    let (Some(first), Some(last)) = (points.first(), points.last()) else {
+        return false;
+    };
+    let start = first.0.0;
+    let end = last.0.0;
+    if end <= start {
+        return false;
+    }
+    for pair in time[start..=end].windows(2) {
+        if pair[1] < pair[0] {
+            return true;
+        }
+    }
+    false
 }
 
 fn branch_for_event(
@@ -817,5 +840,20 @@ fn median(values: &[f64]) -> f64 {
         (values[values.len() / 2 - 1] + values[values.len() / 2]) / 2.0
     } else {
         values[values.len() / 2]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::window_crosses_timestamp_reset;
+
+    #[test]
+    fn detects_reset_boundary_inside_window() {
+        let time = vec![0.0, 1.0, 2.0, 0.1, 1.1, 2.1];
+        let crossing = vec![((1, 1.0), Some(0.0)), ((4, 1.1), Some(0.0))];
+        assert!(window_crosses_timestamp_reset(&crossing, &time));
+
+        let non_crossing = vec![((0, 0.0), Some(0.0)), ((2, 2.0), Some(0.0))];
+        assert!(!window_crosses_timestamp_reset(&non_crossing, &time));
     }
 }

@@ -578,16 +578,11 @@ fn collect_eis_search_inputs(target: &Path) -> Result<SearchInputCollection, Run
 /// [`SearchInputDecision::Skip`] based on its extension, stem, and whether its
 /// header contains the `Freq/Hz` marker expected in CHI EIS exports.
 fn classify_eis_search_input(path: &Path) -> Result<SearchInputDecision, io::Error> {
-    let kind = crate::data_file::InputKind::classify_by_extension(path);
+    let kind = crate::data_file::InputKind::classify_path(path);
 
     // Reject known binary extensions before attempting to read the file.
     if kind.is_unsupported_binary() {
         return Ok(SearchInputDecision::Skip("unsupported binary extension"));
-    }
-
-    // Unknown or unsupported extensions are skipped.
-    if kind == crate::data_file::InputKind::Unknown {
-        return Ok(SearchInputDecision::Skip("unsupported extension"));
     }
 
     let stem = path

@@ -64,7 +64,7 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
     let mut domain_excursions = 0;
     let mut covariance_collapse_count = 0;
     let mut covariance_inflation_warning_count = 0;
-    let mut previous_time = None;
+    let mut previous_time: Option<f64> = None;
     for (index, obs) in input.observations.iter().enumerate() {
         let mut warnings = input
             .environments
@@ -76,6 +76,12 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             (state.clone(), cov.clone())
         } else {
             let dt = obs.timestamp_s - previous_time.unwrap();
+            if !dt.is_finite() || dt <= 0.0 {
+                return Err(EstimationError::invalid(format!(
+                    "non-positive or non-finite Δt encountered at timestamp {} (Δt={})",
+                    obs.timestamp_s, dt
+                )));
+            }
             let f = input.model.transition_matrix(dt);
             let propagated = input.model.process_state(&state, dt, &env);
             let (q, res) = resolve_process_covariance(input.config, input.model, dt)?;
@@ -271,7 +277,9 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             .then_some(activity)
             .flatten();
         points.push(StateEstimatePoint {
+            segment_id: 0,
             timestamp_s: obs.timestamp_s,
+            original_row_index: None,
             measurement_v: obs.potential_v,
             predicted_measurement_v: predicted_measurement,
             innovation_v: innovation,

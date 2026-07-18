@@ -1,6 +1,8 @@
 use rust_electroanalysis_cli::data_file::{DataFileType, load_data, measurement_to_plot_data};
 use rust_electroanalysis_cli::domain::ElectrochemicalExperiment;
+use std::fs;
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn repo_path(rel: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)
@@ -49,4 +51,31 @@ fn loads_chi_eis_chi_ocpt_and_sensor_csv_with_one_interface() {
     assert!(downstream_plot_series_count(&loaded_eis.experiment) >= 1);
     assert!(downstream_plot_series_count(&loaded_ocpt.experiment) >= 1);
     assert!(downstream_plot_series_count(&loaded_sensor.experiment) >= 1);
+}
+
+#[test]
+fn rejects_binary_content_with_csv_extension() {
+    let suffix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("unified-binary-{suffix}.csv"));
+    fs::write(&path, [0x00, 0xFE, 0x10, 0x20]).expect("write binary fixture");
+    let err = load_data(&path).expect_err("binary csv should be rejected");
+    let text = err.to_string();
+    assert!(text.contains("unsupported") || text.contains("binary"));
+    fs::remove_file(path).ok();
+}
+
+#[test]
+fn rejects_legacy_xls_inputs() {
+    let suffix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("unified-legacy-{suffix}.xls"));
+    fs::write(&path, b"legacy xls fixture").expect("write xls fixture");
+    let err = load_data(&path).expect_err("xls should be rejected");
+    assert!(err.to_string().contains(".xls"));
+    fs::remove_file(path).ok();
 }
