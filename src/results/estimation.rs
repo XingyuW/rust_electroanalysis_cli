@@ -195,6 +195,8 @@ pub struct StateEstimationReport {
     pub configuration: ResolvedEstimationConfig,
     pub provenance: AnalysisProvenance,
     pub warnings: Vec<EstimationWarning>,
+    #[serde(default)]
+    pub timestamp_diagnostics: Option<crate::estimation::timestamp::TimestampDiagnostics>,
 }
 
 pub fn finite_json<T: Serialize>(value: &T) -> Result<String, serde_json::Error> {

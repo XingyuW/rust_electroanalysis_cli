@@ -9,7 +9,9 @@ use thiserror::Error;
 pub enum CalibrationError {
     #[error("calibration unit error: {0}")]
     Unit(#[from] UnitError),
-    #[error("no calibration observations were available")]
+    #[error(
+        "calibration extraction requires explicit concentration information. No compatible concentration-step events or concentration column were found for the input data. Provide one of: (1) experiment metadata containing concentration-step events, (2) a concentration column in the input data, (3) a validated calibration manifest."
+    )]
     NoObservations,
     #[error("calibration observation error: {0}")]
     InvalidObservation(String),

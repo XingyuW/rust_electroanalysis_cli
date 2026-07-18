@@ -26,6 +26,7 @@ pub mod process;
 pub mod simulation;
 pub mod smoothing;
 pub mod state;
+pub mod timestamp;
 pub mod ukf;
 pub mod validation;
 
@@ -75,7 +76,7 @@ pub fn estimate_experiment(
     let calibration = Box::new(calibration);
     let tau = resolve_tau(config, context.transient)?;
     let model = StateModel::new(config, tau.0, tau.1)?;
-    let obs = observations(experiment.measurement(), channel)?;
+    let (obs, _timestamp_diagnostics) = observations(experiment.measurement(), channel)?;
     let measurement_source_unit = experiment
         .measurement()
         .channel(channel)
@@ -219,6 +220,7 @@ pub fn estimate_experiment(
         validation: None,
         configuration: config.clone(),
         provenance: experiment.provenance.clone(),
+        timestamp_diagnostics: Some(_timestamp_diagnostics),
         warnings,
     })
 }

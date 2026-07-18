@@ -4,4 +4,4 @@ schema_version = 1
 level = "info"
 
 [last_run]
-mode = "plot-all"
+mode = "estimate-run"

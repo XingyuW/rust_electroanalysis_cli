@@ -836,6 +836,8 @@ pub enum DataFileType {
     ChiEis,
     ChiOcpt,
     SensorCsv,
+    /// Excel workbook that was normalised to the same representation as CSV.
+    SensorExcel,
 }
 
 /// Unified loader result for all supported input formats.
@@ -847,14 +849,44 @@ pub struct LoadedExperimentData {
 }
 
 /// Unified, content-detected data loading entrypoint.
+///
+/// This function enforces the input‑support policy:
+/// - Binary files are rejected before any parsing attempt.
+/// - Excel workbooks are routed through the spreadsheet parser and then
+///   normalised to the same representation as CSV data.
 pub fn load_data(path: impl AsRef<Path>) -> Result<LoadedExperimentData, DataParsingError> {
     let path = path.as_ref();
+
+    // --- binary guard --------------------------------------------------
+    let kind = crate::data_file::InputKind::classify_by_extension(path);
+    if kind.is_unsupported_binary() {
+        return Err(DataParsingError::invalid_at(
+            path,
+            format!(
+                "Unsupported input file '{}': binary input is not supported. \
+                 Export the dataset as CSV, XLSX, or another documented text-based format.",
+                path.display()
+            ),
+        ));
+    }
+
+    // --- Excel dispatch ------------------------------------------------
+    if kind == crate::data_file::InputKind::ExcelXlsx
+        || kind == crate::data_file::InputKind::ExcelXls
+    {
+        return load_excel(path, None);
+    }
+
+    // --- text dispatch -------------------------------------------------
     let text = std::fs::read_to_string(path).map_err(|error| DataParsingError::io(path, error))?;
     let file_type = detect_file_type(path, &text)?;
     match file_type {
         DataFileType::ChiEis => load_chi_eis(path),
         DataFileType::ChiOcpt => load_time_series(path, DataFileType::ChiOcpt),
         DataFileType::SensorCsv => load_time_series(path, DataFileType::SensorCsv),
+        DataFileType::SensorExcel => {
+            unreachable!("Excel should be dispatched before text reading")
+        }
     }
 }
 
@@ -870,6 +902,7 @@ fn load_time_series(
         DataFileType::ChiOcpt => "chi_export".to_string(),
         DataFileType::SensorCsv => "sensor_csv".to_string(),
         DataFileType::ChiEis => "chi_eis".to_string(),
+        DataFileType::SensorExcel => "excel_workbook".to_string(),
     };
     let experiment = ElectrochemicalExperiment::new(
         experiment_id,
@@ -883,6 +916,31 @@ fn load_time_series(
     )?;
     Ok(LoadedExperimentData {
         file_type,
+        experiment,
+        diagnostics: parsed.diagnostics,
+    })
+}
+
+fn load_excel(
+    path: &Path,
+    sheet_name: Option<&str>,
+) -> Result<LoadedExperimentData, DataParsingError> {
+    let (parsed, sheet) = crate::data_file::excel_file::parse_excel_measurement(path, sheet_name)?;
+    let provenance = AnalysisProvenance::from_paths(path, None)?;
+    let experiment_id = file_stem_or_default(path);
+    let sensor_metadata = default_sensor_metadata(path, DataFileType::SensorExcel, None);
+    let experiment = ElectrochemicalExperiment::new(
+        experiment_id,
+        sensor_metadata,
+        None,
+        parsed.measurement,
+        Vec::new(),
+        Vec::new(),
+        format!("excel_workbook:{sheet}"),
+        provenance,
+    )?;
+    Ok(LoadedExperimentData {
+        file_type: DataFileType::SensorExcel,
         experiment,
         diagnostics: parsed.diagnostics,
     })
@@ -1015,6 +1073,7 @@ fn default_sensor_metadata(
             DataFileType::ChiEis => "chi_eis".to_string(),
             DataFileType::ChiOcpt => "chi_ocpt".to_string(),
             DataFileType::SensorCsv => "sensor_csv".to_string(),
+            DataFileType::SensorExcel => "excel_workbook".to_string(),
         },
     );
     metadata.insert(
@@ -1032,6 +1091,7 @@ fn default_sensor_metadata(
                 DataFileType::ChiEis => "chi_eis",
                 DataFileType::ChiOcpt => "chi_ocpt",
                 DataFileType::SensorCsv => "generic_sensor_csv",
+                DataFileType::SensorExcel => "generic_sensor_excel",
             }
             .to_string(),
         ),

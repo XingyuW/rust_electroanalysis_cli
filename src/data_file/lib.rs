@@ -8,6 +8,8 @@
 
 pub mod chi_file;
 pub mod data_op;
+pub mod excel_file;
+pub mod input_kind;
 pub mod measurement_adapter;
 pub mod measurement_parser;
 pub mod value_transform;
@@ -18,6 +20,7 @@ pub use data_op::{
     DataFileType, IntoPlotData, LoadedExperimentData, PlotData, PlotDataBuilder, PlotDataError,
     PointSelection, YSeries, load_data,
 };
+pub use input_kind::InputKind;
 pub use measurement_adapter::{channel_to_plot_data, measurement_to_plot_data, to_plot_data};
 pub use measurement_parser::{load_experiment, parse_measurement_file, parse_measurement_text};
 pub use value_transform::{
