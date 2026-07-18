@@ -578,14 +578,17 @@ fn collect_eis_search_inputs(target: &Path) -> Result<SearchInputCollection, Run
 /// [`SearchInputDecision::Skip`] based on its extension, stem, and whether its
 /// header contains the `Freq/Hz` marker expected in CHI EIS exports.
 fn classify_eis_search_input(path: &Path) -> Result<SearchInputDecision, io::Error> {
-    let extension = match path
-        .extension()
-        .and_then(|v| v.to_str())
-        .map(|v| v.to_ascii_lowercase())
-    {
-        Some(ext) if matches!(ext.as_str(), "csv" | "txt" | "dat") => ext,
-        _ => return Ok(SearchInputDecision::Skip("unsupported extension")),
-    };
+    let kind = crate::data_file::InputKind::classify_by_extension(path);
+
+    // Reject known binary extensions before attempting to read the file.
+    if kind.is_unsupported_binary() {
+        return Ok(SearchInputDecision::Skip("unsupported binary extension"));
+    }
+
+    // Unknown or unsupported extensions are skipped.
+    if kind == crate::data_file::InputKind::Unknown {
+        return Ok(SearchInputDecision::Skip("unsupported extension"));
+    }
 
     let stem = path
         .file_stem()
@@ -597,15 +600,20 @@ fn classify_eis_search_input(path: &Path) -> Result<SearchInputDecision, io::Err
     if stem.ends_with("_ecm_search") {
         return Ok(SearchInputDecision::Skip("generated search report"));
     }
-    if extension == "txt" && stem.contains("fit_report") {
+    if stem.contains("fit_report") {
         return Ok(SearchInputDecision::Skip("generated fit report"));
     }
 
-    if file_has_eis_header(path)? {
-        Ok(SearchInputDecision::Include)
-    } else {
-        Ok(SearchInputDecision::Skip("missing Freq/Hz header"))
+    // For text files, verify EIS header presence.
+    if kind.is_supported_text() || kind == crate::data_file::InputKind::Unknown {
+        if file_has_eis_header(path)? {
+            return Ok(SearchInputDecision::Include);
+        }
+        return Ok(SearchInputDecision::Skip("missing Freq/Hz header"));
     }
+
+    // Excel files are not EIS sources in this workflow.
+    Ok(SearchInputDecision::Skip("unsupported extension"))
 }
 
 /// Return `true` if the file's first 64 lines contain a `Freq/Hz` marker,

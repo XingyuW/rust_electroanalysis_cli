@@ -115,12 +115,19 @@ It is designed for electrochemical researchers and analysts who need to:
 
 1. CHI EIS CSV (`Freq/Hz`, `Z'/ohm`, `Z"/ohm`)
 2. CHI OCPT/time-series CSV (`Time/sec`, `Potential/V`)
-3. General time-series sensor CSV (`time`/`timestamp` + numeric channels)
+3. General time-series sensor CSV or Excel (`.xlsx`) with `time`/`timestamp` + numeric channels
+4. Excel workbooks containing compatible OCPT, EIS, calibration, or general sensor tables
 
 ### Supported Input Formats
 
-1. `.csv`, `.txt`, `.dat` (text)
-2. `.bin` and Excel files are currently unsupported by the parser
+1. `.csv`, `.txt`, `.dat` (text-based, UTF-8 encoded)
+2. `.xlsx` (Excel workbook; parsed through the unified data pipeline)
+3. `.xls` may work on a best-effort basis but is not formally tested
+
+**Not supported:**
+- Binary files such as `.bin`, `.raw` are intentionally unsupported.
+  - During batch/directory processing, binary files are **skipped with a warning** and do not cause the workflow to fail.
+  - When supplied as an explicit single-file input, binary files produce a **structured error** explaining that binary input is not supported and recommending export to CSV or `.xlsx`.
 
 ### Runtime Requirements
 
@@ -306,13 +313,34 @@ The release binary is self-contained and requires only the TOML configuration fi
 
 ## 4. Input File Formats and Automatic Detection
 
-The unified loader (`load_data`) uses content detection:
+The unified loader (`load_data`) uses extension classification followed by content detection:
 
-1. **CHI EIS**: detects `Freq/Hz` + impedance headers, parser `EISData::parse_file`, internal type `chi_eis`.
-2. **CHI OCPT**: detects time header + CHI preamble markers (instrument/data-source), parser `parse_measurement_file`, internal type `chi_export`.
-3. **General sensor CSV**: detects time header without CHI preamble, parser `parse_measurement_file`, internal type `sensor_csv`.
+1. **Binary guard**: Files with `.bin` or `.raw` extensions are rejected before any parser attempt.
+2. **Excel (`.xlsx`)**: Routed through the `calamine`-based Excel parser, which normalises worksheet data to the shared text parsing pipeline.
+3. **CHI EIS**: Content detection identifies `Freq/Hz` + impedance headers; parser `EISData::parse_file`, internal type `chi_eis`.
+4. **CHI OCPT**: Content detection identifies a time header with CHI preamble markers (instrument/data-source); parser `parse_measurement_file`, internal type `chi_export`.
+5. **General sensor CSV/Excel**: Time header without CHI preamble; parser `parse_measurement_file`, internal type `sensor_csv` or `excel_workbook`.
 
-Unsupported/ambiguous files return explicit errors (missing time/frequency header, missing EIS header, decode/IO errors).
+Unsupported/ambiguous files return explicit errors (missing time/frequency header, unsupported binary, missing EIS header, decode/IO errors).
+
+### Worksheet Selection (Excel)
+
+When loading an Excel workbook:
+
+1. If `--sheet` is specified, that worksheet is used.
+2. If only one non-empty worksheet exists, it is selected automatically.
+3. If multiple worksheets are present, an explicit `--sheet` selection is required (an ambiguity error is raised).
+
+### Binary File Behaviour
+
+- **Batch/directory input**: Binary files (`.bin`, `.raw`) are skipped before parsing, with a concise warning and a record in the batch summary.
+- **Explicit single-file input**: Supplying a binary file directly returns a structured error:
+  ```
+  Unsupported input file 'data/example.bin': binary input is not supported.
+  Export the dataset as CSV, XLSX, or another documented text-based format.
+  ```
+- Skipped binary files do **not** count as parser failures.
+- No output directories or partial artefacts are created for binary files.
 
 ### Minimal Examples
 
@@ -1116,6 +1144,23 @@ EIS input is rejected (`missing time-series header`).
 
 Purpose: extract observations and fit/validate/predict calibration models.
 
+**Concentration metadata requirement**: Calibration extraction depends on explicit concentration-step metadata or events. Concentrations are never guessed from filenames. When no compatible concentration-step events are found, a corrective error is returned:
+
+```
+calibration extraction requires explicit concentration information.
+No compatible concentration-step events or concentration column were found for the input data.
+Provide one of:
+(1) experiment metadata containing concentration-step events,
+(2) a concentration column in the input data,
+(3) a validated calibration manifest.
+```
+
+**Metadata sources** (in precedence order):
+1. Explicit `concentration_step` events in the experiment metadata TOML.
+2. A concentration column in the input data (if implemented).
+3. A structured external calibration manifest (if implemented).
+4. Filename extraction (only through explicit opt-in with a user-defined pattern — disabled by default).
+
 ```bash
 cargo run -- calibration extract \
   --input "data/Shan/20260417/cn0326_log_20260413T202806Z_ch.csv" \
@@ -1226,7 +1271,18 @@ The default output directory contains: `calibration_observations.json`, `calibra
 
 ### 9.5 `mechanism`
 
-Purpose: compare EIS and transient timescale evidence.
+Purpose: compare EIS and transient timescale evidence under explicitly stated model assumptions.
+
+**Interpretation disclaimer**: Mechanism analysis outputs are dependent on selected models and assumptions and must not be presented as causal proof. Every report includes a statement equivalent to:
+
+> "These interpretations are conditional on the selected models, preprocessing choices, parameter identifiability, and data quality. They do not establish a unique physical or chemical mechanism and should not be treated as causal proof."
+
+Mechanism output distinguishes three layers:
+1. **Observed quantities**: measured potential, current, impedance, frequency, drift, noise, response slope, empirical time constants.
+2. **Model-derived quantities**: equivalent-circuit parameters, double-exponential fit parameters, estimated kinetic/transport indicators, derived activation or relaxation metrics.
+3. **Interpretive hypotheses**: behaviour consistent with interfacial charging, adsorption/relaxation, transport limitations, reference instability, or alternative explanations.
+
+Evidence levels (`supported`, `weakly_supported`, `indeterminate`, `not_evaluable`) are assigned based on numerical thresholds and parameter identifiability, not on causal inference. Failed fits, pinned parameters, and high-uncertainty parameters do not generate confident interpretations.
 
 The JSON report carries software version, input path and SHA-256, metadata/config path and SHA-256 where available, generation timestamp, and optional Git commit. Experimental metadata (sensor, sample matrix, environmental series, and events) remains separate from plotting configuration.
 
@@ -1309,7 +1365,7 @@ cargo run -- health trend \
 
 Purpose: state estimation (EKF/UKF), simulation, validation, filter comparison.
 
-Real OCPT files with unresolved duplicate timestamps are currently rejected in `estimate run`.
+**Timestamp handling**: `estimate run` no longer rejects datasets with duplicate or non-monotonic timestamps outright. Instead, timestamp diagnostics are collected and the estimation proceeds with the original ordering. Timestamp preprocessing (deduplication, segment splitting, stable sorting) is configurable through the estimation TOML file. Diagnostic information is included in the estimation report under the `timestamp_diagnostics` field.
 
 Verified run path (simulation):
 ```bash

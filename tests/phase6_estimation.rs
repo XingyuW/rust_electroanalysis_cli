@@ -75,7 +75,7 @@ fn measurement_adapter_converts_potential_and_variance_to_volts() {
         ],
     )
     .unwrap();
-    let rows = observations(&measurement, "E").unwrap();
+    let (rows, _diag) = observations(&measurement, "E").unwrap();
     assert_eq!(rows[0].potential_v, Some(0.1));
     assert_eq!(rows[0].observation_variance_v2, Some(4e-6));
     assert!(

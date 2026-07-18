@@ -9,10 +9,28 @@ use std::path::Path;
 
 /// Parse a CSV/TXT/DAT time-series file with one time column and one or more
 /// named numeric channels.
+///
+/// Binary files are rejected by the centralized `load_data` entrypoint before
+/// reaching this function, but a content-level guard is added here as a
+/// defence-in-depth measure.
 pub fn parse_measurement_file(
     path: impl AsRef<Path>,
 ) -> Result<MeasurementParseResult, DataParsingError> {
     let path = path.as_ref();
+
+    // Defence-in-depth binary guard.
+    let kind = crate::data_file::InputKind::classify_by_extension(path);
+    if kind.is_unsupported_binary() {
+        return Err(DataParsingError::invalid_at(
+            path,
+            format!(
+                "Unsupported input file '{}': binary input is not supported. \
+                 Export the dataset as CSV, XLSX, or another documented text-based format.",
+                path.display()
+            ),
+        ));
+    }
+
     let text = fs::read_to_string(path).map_err(|error| DataParsingError::io(path, error))?;
     parse_measurement_text(&text, path)
 }
