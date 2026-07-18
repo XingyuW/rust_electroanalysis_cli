@@ -100,6 +100,8 @@ pub struct EstimateRunCommand {
     pub metadata: PathBuf,
     #[arg(long)]
     pub channel: String,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     #[arg(long = "calibration-model")]
     pub calibration_model: PathBuf,
     #[arg(long = "signal-results")]
@@ -153,6 +155,8 @@ pub struct EstimateCompareCommand {
     pub metadata: PathBuf,
     #[arg(long)]
     pub channel: String,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     #[arg(long = "calibration-model")]
     pub calibration_model: PathBuf,
     #[arg(long)]
@@ -212,6 +216,8 @@ pub struct SignalCharacterizeCommand {
     pub metadata: Option<PathBuf>,
     #[arg(long)]
     pub channel: String,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     #[arg(long)]
     pub config: Option<PathBuf>,
     #[arg(long)]
@@ -322,6 +328,8 @@ pub struct CalibrationExtractCommand {
     pub metadata: PathBuf,
     #[arg(long, value_name = "NAME")]
     pub channel: String,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     #[arg(long, value_name = "PATH")]
     pub transient_results: Option<PathBuf>,
     #[arg(long, value_name = "PATH")]
@@ -461,6 +469,8 @@ pub struct TransientFitCommand {
     /// Measurement channel name, for example `E1/V` or `potential`.
     #[arg(long, value_name = "NAME")]
     pub channel: String,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     /// Transient configuration override.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
@@ -631,6 +641,7 @@ pub enum CommandSpec {
         input: PathBuf,
         metadata: PathBuf,
         channel: String,
+        sheet: Option<String>,
         config_path: Option<PathBuf>,
         output: Option<PathBuf>,
         event_kind: String,
@@ -644,6 +655,7 @@ pub enum CommandSpec {
         input: PathBuf,
         metadata: PathBuf,
         channel: String,
+        sheet: Option<String>,
         transient_results: Option<PathBuf>,
         config_path: Option<PathBuf>,
         output: Option<PathBuf>,
@@ -691,6 +703,7 @@ pub enum CommandSpec {
         input: PathBuf,
         metadata: Option<PathBuf>,
         channel: String,
+        sheet: Option<String>,
         config_path: Option<PathBuf>,
         output: Option<PathBuf>,
     },
@@ -736,6 +749,7 @@ pub enum CommandSpec {
         input: PathBuf,
         metadata: PathBuf,
         channel: String,
+        sheet: Option<String>,
         calibration_model: PathBuf,
         signal_results: Option<PathBuf>,
         transient_results: Option<PathBuf>,
@@ -764,6 +778,7 @@ pub enum CommandSpec {
         input: PathBuf,
         metadata: PathBuf,
         channel: String,
+        sheet: Option<String>,
         calibration_model: PathBuf,
         filters: Option<String>,
         config_path: Option<PathBuf>,
@@ -948,6 +963,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     input: command.input,
                     metadata: command.metadata,
                     channel: command.channel,
+                    sheet: command.sheet,
                     config_path: command.config,
                     output: command.output,
                     event_kind: command.event_kind.as_str().to_string(),
@@ -965,6 +981,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     input: command.input,
                     metadata: command.metadata,
                     channel: command.channel,
+                    sheet: command.sheet,
                     transient_results: command.transient_results,
                     config_path: command.config,
                     output: command.output,
@@ -1034,6 +1051,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     input: c.input,
                     metadata: c.metadata,
                     channel: c.channel,
+                    sheet: c.sheet,
                     config_path: c.config,
                     output: c.output,
                 },
@@ -1083,6 +1101,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     input: c.input,
                     metadata: c.metadata,
                     channel: c.channel,
+                    sheet: c.sheet,
                     calibration_model: c.calibration_model,
                     signal_results: c.signal_results,
                     transient_results: c.transient_results,
@@ -1111,6 +1130,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     input: c.input,
                     metadata: c.metadata,
                     channel: c.channel,
+                    sheet: c.sheet,
                     calibration_model: c.calibration_model,
                     filters: c.filters,
                     config_path: c.config,

@@ -142,6 +142,7 @@ fn run() -> Result<(), ApplicationError> {
             input,
             metadata,
             channel,
+            sheet,
             config_path,
             output,
             event_kind,
@@ -164,6 +165,7 @@ fn run() -> Result<(), ApplicationError> {
                 &input,
                 &metadata,
                 &channel,
+                sheet.as_deref(),
                 config_path.as_deref(),
                 output.as_deref(),
                 &event_kind,
@@ -178,6 +180,7 @@ fn run() -> Result<(), ApplicationError> {
             input,
             metadata,
             channel,
+            sheet,
             transient_results,
             config_path,
             output,
@@ -189,12 +192,15 @@ fn run() -> Result<(), ApplicationError> {
             )?;
             calibration::extract(
                 &workspace_dir,
-                &input,
-                &metadata,
-                &channel,
-                transient_results.as_deref(),
-                config_path.as_deref(),
-                output.as_deref(),
+                calibration::ExtractOptions {
+                    input_path: &input,
+                    metadata_path: &metadata,
+                    channel: &channel,
+                    sheet: sheet.as_deref(),
+                    transient_results_path: transient_results.as_deref(),
+                    config_path: config_path.as_deref(),
+                    output_path: output.as_deref(),
+                },
             )?;
         }
         CommandSpec::CalibrationFit {
@@ -315,6 +321,7 @@ fn run() -> Result<(), ApplicationError> {
             input,
             metadata,
             channel,
+            sheet,
             config_path,
             output,
         } => {
@@ -323,6 +330,7 @@ fn run() -> Result<(), ApplicationError> {
                 &input,
                 metadata.as_deref(),
                 &channel,
+                sheet.as_deref(),
                 config_path.as_deref(),
                 output.as_deref(),
             )?;
@@ -412,6 +420,7 @@ fn run() -> Result<(), ApplicationError> {
             input,
             metadata,
             channel,
+            sheet,
             calibration_model,
             signal_results,
             transient_results,
@@ -439,6 +448,7 @@ fn run() -> Result<(), ApplicationError> {
                     input,
                     metadata,
                     channel,
+                    sheet,
                     calibration_model,
                     signal_results,
                     transient_results,
@@ -487,6 +497,7 @@ fn run() -> Result<(), ApplicationError> {
             input,
             metadata,
             channel,
+            sheet,
             calibration_model,
             filters,
             config_path,
@@ -505,6 +516,7 @@ fn run() -> Result<(), ApplicationError> {
                     input,
                     metadata,
                     channel,
+                    sheet,
                     calibration_model,
                     signal_results: None,
                     transient_results: None,

@@ -787,3 +787,45 @@ fn old_estimation_artifact_defaults_new_diagnostics_fields() {
     assert!(!decoded.estimates[0].posterior_constrained);
     assert!(decoded.estimates[0].measurement_variance_source.is_none());
 }
+
+#[test]
+fn estimation_report_records_timestamp_segments_and_row_mapping() {
+    let mut c = config(StateModelKind::Activity);
+    c.timestamp_handling.minimum_segment_points = 2;
+    c.timestamp_handling.reset_threshold_s = 1.0;
+    c.timestamp_handling.reset_threshold_fraction = 0.5;
+    let report = estimation::estimate_experiment(
+        &experiment(
+            vec![
+                Some(0.02252),
+                Some(0.02250),
+                Some(0.02248),
+                Some(0.02252),
+                Some(0.02250),
+                Some(0.02248),
+            ],
+            vec![0.0, 1.0, 2.0, 0.0, 1.0, 2.0],
+        ),
+        "E1/V",
+        StoredCalibrationObservationModel::new(simulation::simulation_model()).unwrap(),
+        &c,
+        estimation::EstimationContext::default(),
+        FilterKind::Ekf,
+    )
+    .unwrap();
+
+    assert!(report.was_preprocessed);
+    assert_eq!(report.timestamp_segments.len(), 2);
+    assert!(
+        report
+            .estimates
+            .iter()
+            .all(|point| point.original_row_index.is_some())
+    );
+    let segment_ids = report
+        .estimates
+        .iter()
+        .map(|point| point.segment_id)
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(segment_ids.len(), 2);
+}

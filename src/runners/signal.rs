@@ -1,6 +1,5 @@
 use crate::runners::RunnerError;
 use crate::{
-    data_file::parse_measurement_file,
     domain::{AnalysisProvenance, ExperimentEvent},
     results::{EisFitArtifact, ResidualAnalysisResult},
     signal::{self},
@@ -17,6 +16,7 @@ pub fn characterize(
     input: &Path,
     metadata: Option<&Path>,
     channel: &str,
+    sheet: Option<&str>,
     config_path: Option<&Path>,
     output: Option<&Path>,
 ) -> Result<(), RunnerError> {
@@ -25,7 +25,8 @@ pub fn characterize(
     for w in &loaded.warnings {
         eprintln!("Warning: {w}");
     }
-    let parsed = parse_measurement_file(&input)?;
+    let parsed =
+        crate::data_file::measurement_parser::parse_measurement_file_with_sheet(&input, sheet)?;
     let provenance = AnalysisProvenance::from_paths(&input, loaded.source_path.as_deref())
         .map_err(crate::domain::DataParsingError::from)?;
     let (events, experiment_id, sensor_id) = if let Some(m) = metadata {

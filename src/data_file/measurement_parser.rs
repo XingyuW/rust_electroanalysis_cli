@@ -7,6 +7,15 @@ use crate::domain::{
 use std::fs;
 use std::path::Path;
 
+#[derive(Debug, Clone, Default)]
+pub struct TableParseMetadata {
+    pub source_sheet: Option<String>,
+    pub header_row_index: Option<usize>,
+    pub skipped_leading_rows: usize,
+    pub unit_row_index: Option<usize>,
+    pub parser_kind: Option<String>,
+}
+
 /// Parse a CSV/TXT/DAT time-series file with one time column and one or more
 /// named numeric channels.
 ///
@@ -16,10 +25,17 @@ use std::path::Path;
 pub fn parse_measurement_file(
     path: impl AsRef<Path>,
 ) -> Result<MeasurementParseResult, DataParsingError> {
+    parse_measurement_file_with_sheet(path, None)
+}
+
+pub fn parse_measurement_file_with_sheet(
+    path: impl AsRef<Path>,
+    sheet_name: Option<&str>,
+) -> Result<MeasurementParseResult, DataParsingError> {
     let path = path.as_ref();
 
     // Defence-in-depth binary guard.
-    let kind = crate::data_file::InputKind::classify_by_extension(path);
+    let kind = crate::data_file::InputKind::classify_path(path);
     if kind.is_unsupported_binary() {
         return Err(DataParsingError::invalid_at(
             path,
@@ -29,6 +45,18 @@ pub fn parse_measurement_file(
                 path.display()
             ),
         ));
+    }
+
+    if matches!(kind, crate::data_file::InputKind::ExcelXls) {
+        return Err(DataParsingError::invalid_at(
+            path,
+            "legacy '.xls' workbooks are not supported in this workflow; save the workbook as '.xlsx' and retry",
+        ));
+    }
+
+    if matches!(kind, crate::data_file::InputKind::ExcelXlsx) {
+        let parsed = crate::data_file::excel_file::parse_excel_measurement(path, sheet_name)?;
+        return Ok(parsed.parsed);
     }
 
     let text = fs::read_to_string(path).map_err(|error| DataParsingError::io(path, error))?;
@@ -43,8 +71,52 @@ pub fn parse_measurement_text(
 ) -> Result<MeasurementParseResult, DataParsingError> {
     let source = source.as_ref();
     let lines = text.lines().map(str::trim).collect::<Vec<_>>();
-    let (header_index, time_index, headers) = find_time_header(&lines)
+    let (header_index, _time_index, headers) = find_time_header(&lines)
         .ok_or_else(|| DataParsingError::invalid_at(source, "missing time-series header"))?;
+    let header_strings = headers
+        .iter()
+        .map(|value| value.to_string())
+        .collect::<Vec<_>>();
+    let rows = lines
+        .iter()
+        .skip(header_index + 1)
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            split_csv(line)
+                .iter()
+                .map(|value| value.to_string())
+                .collect()
+        })
+        .collect::<Vec<Vec<String>>>();
+
+    parse_measurement_table(
+        source,
+        &header_strings,
+        &rows,
+        &TableParseMetadata {
+            header_row_index: Some(header_index + 1),
+            parser_kind: Some("csv_text".to_string()),
+            ..TableParseMetadata::default()
+        },
+    )
+}
+
+pub fn parse_measurement_table(
+    source: &Path,
+    headers: &[String],
+    rows: &[Vec<String>],
+    metadata: &TableParseMetadata,
+) -> Result<MeasurementParseResult, DataParsingError> {
+    let time_index = headers
+        .iter()
+        .position(|header| is_time_header(header))
+        .ok_or_else(|| {
+            DataParsingError::invalid_at(
+                source,
+                "time-series header does not contain a recognized time column",
+            )
+        })?;
+
     let channel_indices = headers
         .iter()
         .enumerate()
@@ -67,14 +139,14 @@ pub fn parse_measurement_text(
 
     let mut time = Vec::new();
     let mut channel_values = vec![Vec::new(); channel_headers.len()];
-    let mut diagnostics = ParseDiagnostics::default();
+    let mut diagnostics = ParseDiagnostics {
+        total_rows: rows.len(),
+        ..ParseDiagnostics::default()
+    };
 
-    for (line_number, line) in lines.iter().enumerate().skip(header_index + 1) {
-        if line.is_empty() {
-            continue;
-        }
-        diagnostics.total_rows += 1;
-        let fields = split_csv(line);
+    for (row_index, row) in rows.iter().enumerate() {
+        let line_number = metadata.header_row_index.unwrap_or(0) + row_index + 1;
+        let fields = row.iter().map(String::as_str).collect::<Vec<_>>();
         let timestamp = fields
             .get(time_index)
             .and_then(|value| parse_optional_number(value));
@@ -150,6 +222,32 @@ pub fn parse_measurement_text(
         .collect::<Vec<_>>();
     let measurement = MultiChannelMeasurement::new(time, channels)?;
     diagnostics.update_time_axis(&measurement.time);
+    if let Some(sheet) = &metadata.source_sheet {
+        diagnostics
+            .messages
+            .push(format!("worksheet selected: '{sheet}'"));
+    }
+    if let Some(header_row) = metadata.header_row_index {
+        diagnostics
+            .messages
+            .push(format!("detected header row: {header_row}"));
+    }
+    if metadata.skipped_leading_rows > 0 {
+        diagnostics.messages.push(format!(
+            "skipped {} leading non-data row(s) before header",
+            metadata.skipped_leading_rows
+        ));
+    }
+    if let Some(unit_row) = metadata.unit_row_index {
+        diagnostics
+            .messages
+            .push(format!("detected unit row: {unit_row}"));
+    }
+    if let Some(parser_kind) = &metadata.parser_kind {
+        diagnostics
+            .messages
+            .push(format!("parser kind: {parser_kind}"));
+    }
 
     Ok(MeasurementParseResult {
         measurement,
@@ -229,9 +327,17 @@ pub fn load_experiment(
     measurement_path: impl AsRef<Path>,
     metadata_path: impl AsRef<Path>,
 ) -> Result<(crate::domain::ElectrochemicalExperiment, ParseDiagnostics), DataParsingError> {
+    load_experiment_with_sheet(measurement_path, metadata_path, None)
+}
+
+pub fn load_experiment_with_sheet(
+    measurement_path: impl AsRef<Path>,
+    metadata_path: impl AsRef<Path>,
+    sheet_name: Option<&str>,
+) -> Result<(crate::domain::ElectrochemicalExperiment, ParseDiagnostics), DataParsingError> {
     let measurement_path = measurement_path.as_ref();
     let metadata_path = metadata_path.as_ref();
-    let parsed = parse_measurement_file(measurement_path)?;
+    let parsed = parse_measurement_file_with_sheet(measurement_path, sheet_name)?;
     let metadata = crate::domain::load_experiment_metadata(metadata_path)?;
     let diagnostics = parsed.diagnostics.clone();
     let experiment = crate::domain::metadata::build_experiment(

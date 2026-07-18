@@ -1,35 +1,65 @@
 //! Excel workbook parser integrated into the shared data-file architecture.
-//!
-//! This module is responsible only for opening a workbook, selecting a
-//! worksheet, and converting cells into a tabular intermediate form that is
-//! then passed into the existing schema-detection and normalization logic.
 
-use crate::domain::DataParsingError;
+use crate::domain::{DataParsingError, MeasurementParseResult};
 use calamine::{Data, Reader, open_workbook_auto};
+use std::collections::HashSet;
 use std::path::Path;
 
-/// Intermediate tabular data extracted from a worksheet, ready for shared
-/// schema recognition and domain normalization.
 #[derive(Debug, Clone)]
 pub struct ExcelTable {
-    /// The file-system path of the source workbook.
     pub source_path: String,
-    /// The name of the selected worksheet.
     pub sheet_name: String,
-    /// Header row, assembled from the first data-bearing row found.
+    pub header_row_index: usize,
     pub headers: Vec<String>,
-    /// Data rows, each with one string per column.
     pub rows: Vec<Vec<String>>,
-    /// Number of rows skipped before the header (e.g., blank rows).
     pub rows_skipped_before_header: usize,
-    /// Number of trailing rows identified as summary or non-data.
-    pub trailing_rows_skipped: usize,
+    pub unit_row_index: Option<usize>,
 }
 
-/// Open an Excel workbook and return a [`calamine::Range`] for a specific
-/// sheet.  When `sheet_name` is `None` the function applies the
-/// deterministic worksheet‑selection rules documented in the project
-/// README.
+#[derive(Debug, Clone)]
+pub struct ExcelMeasurementParseResult {
+    pub parsed: MeasurementParseResult,
+    pub sheet_name: String,
+    pub header_row_index: usize,
+    pub rows_skipped_before_header: usize,
+    pub unit_row_index: Option<usize>,
+}
+
+#[derive(Debug, Clone)]
+struct SheetCandidate {
+    name: String,
+    table: Option<ExcelTable>,
+    non_empty: bool,
+    eis_like_only: bool,
+}
+
+pub fn parse_excel_measurement(
+    path: impl AsRef<Path>,
+    sheet_name: Option<&str>,
+) -> Result<ExcelMeasurementParseResult, DataParsingError> {
+    let path = path.as_ref();
+    let table = read_worksheet(path, sheet_name)?;
+    let parsed = crate::data_file::measurement_parser::parse_measurement_table(
+        path,
+        &table.headers,
+        &table.rows,
+        &crate::data_file::measurement_parser::TableParseMetadata {
+            source_sheet: Some(table.sheet_name.clone()),
+            header_row_index: Some(table.header_row_index + 1),
+            skipped_leading_rows: table.rows_skipped_before_header,
+            unit_row_index: table.unit_row_index.map(|index| index + 1),
+            parser_kind: Some("excel_time_series".to_string()),
+        },
+    )?;
+    Ok(ExcelMeasurementParseResult {
+        parsed,
+        sheet_name: table.sheet_name,
+        header_row_index: table.header_row_index,
+        rows_skipped_before_header: table.rows_skipped_before_header,
+        unit_row_index: table.unit_row_index,
+    })
+}
+
 pub fn read_worksheet(
     path: impl AsRef<Path>,
     sheet_name: Option<&str>,
@@ -38,259 +68,390 @@ pub fn read_worksheet(
     let mut workbook = open_workbook_auto(path).map_err(|error| {
         DataParsingError::invalid_at(path, format!("failed to open Excel workbook: {error}"))
     })?;
-
     let sheet_names = workbook.sheet_names();
     if sheet_names.is_empty() {
         return Err(DataParsingError::invalid_at(
             path,
-            "workbook contains no worksheets",
+            "workbook contains no worksheets; expected at least one worksheet with a time/timestamp column and one measurement channel",
         ));
     }
 
-    let sheet = resolve_sheet(&sheet_names, sheet_name, path)?;
-    let range = workbook.worksheet_range(&sheet).map_err(|error| {
-        DataParsingError::invalid_at(path, format!("failed to read worksheet '{sheet}': {error}"))
-    })?;
-
-    convert_range_to_table(path, &sheet, range)
-}
-
-/// Deterministic worksheet selection.
-fn resolve_sheet(
-    sheet_names: &[String],
-    requested: Option<&str>,
-    path: &Path,
-) -> Result<String, DataParsingError> {
-    if let Some(name) = requested {
-        let exact = sheet_names.iter().find(|n| n.as_str() == name);
-        let case_insensitive = sheet_names.iter().find(|n| n.eq_ignore_ascii_case(name));
-        match (exact, case_insensitive) {
-            (Some(e), _) => return Ok(e.clone()),
-            (None, Some(ci)) => return Ok(ci.clone()),
-            (None, None) => {
-                return Err(DataParsingError::invalid_at(
-                    path,
-                    format!(
-                        "worksheet '{name}' not found; available sheets: {}",
-                        sheet_names.join(", ")
-                    ),
-                ));
-            }
-        }
+    if let Some(requested) = sheet_name {
+        let chosen = resolve_requested_sheet(&sheet_names, requested, path)?;
+        let range = workbook.worksheet_range(&chosen).map_err(|error| {
+            DataParsingError::invalid_at(
+                path,
+                format!("failed to read worksheet '{chosen}': {error}"),
+            )
+        })?;
+        return convert_range_to_table(path, &chosen, range);
     }
 
-    // No explicit sheet requested — try each sheet and return the first one
-    // that contains a recognised schema (time‑header, frequency‑header, or
-    // potential‑header).
-
-    // If there is exactly one non‑empty sheet, use it.
-    let non_empty: Vec<_> = sheet_names.to_vec();
-    if non_empty.len() == 1 {
-        return Ok(non_empty[0].clone());
+    let mut candidates = Vec::new();
+    for name in &sheet_names {
+        let range = workbook.worksheet_range(name).map_err(|error| {
+            DataParsingError::invalid_at(
+                path,
+                format!("failed to read worksheet '{name}': {error}"),
+            )
+        })?;
+        candidates.push(classify_sheet(path, name, range)?);
     }
 
-    // Ambiguous — require an explicit choice.
+    let non_empty_count = candidates
+        .iter()
+        .filter(|candidate| candidate.non_empty)
+        .count();
+    if non_empty_count == 0 {
+        return Err(DataParsingError::invalid_at(
+            path,
+            "all worksheets are empty; expected one worksheet containing a time-series table",
+        ));
+    }
+
+    let compatible = candidates
+        .iter()
+        .filter_map(|candidate| candidate.table.as_ref())
+        .collect::<Vec<_>>();
+
+    if compatible.len() == 1 {
+        return Ok(compatible[0].clone());
+    }
+    if compatible.len() > 1 {
+        let names = compatible
+            .iter()
+            .map(|candidate| candidate.sheet_name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(DataParsingError::invalid_at(
+            path,
+            format!(
+                "multiple compatible time-series worksheets were found ({names}); specify --sheet <NAME> to select one",
+            ),
+        ));
+    }
+
+    if candidates
+        .iter()
+        .any(|candidate| candidate.non_empty && candidate.eis_like_only)
+    {
+        return Err(DataParsingError::invalid_at(
+            path,
+            "no compatible time-series worksheet was found; workbook appears to contain only EIS-style sheets. XLSX EIS ingestion is not supported in this workflow. Export EIS data as CHI/text format.",
+        ));
+    }
+
+    let non_empty_names = candidates
+        .iter()
+        .filter(|candidate| candidate.non_empty)
+        .map(|candidate| candidate.name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
     Err(DataParsingError::invalid_at(
         path,
         format!(
-            "workbook contains multiple worksheets ({}); use --sheet to select one",
+            "no compatible time-series worksheet was found in non-empty sheets ({non_empty_names}); expected one time/timestamp column and at least one measurement channel",
+        ),
+    ))
+}
+
+fn resolve_requested_sheet(
+    sheet_names: &[String],
+    requested: &str,
+    path: &Path,
+) -> Result<String, DataParsingError> {
+    if let Some(exact) = sheet_names.iter().find(|name| name.as_str() == requested) {
+        return Ok(exact.clone());
+    }
+
+    let case_insensitive = sheet_names
+        .iter()
+        .filter(|name| name.eq_ignore_ascii_case(requested))
+        .collect::<Vec<_>>();
+    if case_insensitive.len() == 1 {
+        return Ok(case_insensitive[0].clone());
+    }
+
+    Err(DataParsingError::invalid_at(
+        path,
+        format!(
+            "worksheet '{requested}' was not found; available worksheets: {}",
             sheet_names.join(", ")
         ),
     ))
 }
 
-/// Convert a calamine `Range` into our generic [`ExcelTable`].
+fn classify_sheet(
+    path: &Path,
+    sheet_name: &str,
+    range: calamine::Range<Data>,
+) -> Result<SheetCandidate, DataParsingError> {
+    let rows = range.rows().map(|row| row.to_vec()).collect::<Vec<_>>();
+    if rows.is_empty() {
+        return Ok(SheetCandidate {
+            name: sheet_name.to_string(),
+            table: None,
+            non_empty: false,
+            eis_like_only: false,
+        });
+    }
+    let non_empty = rows.iter().any(|row| {
+        row.iter()
+            .any(|cell| !cell_to_string(cell).trim().is_empty())
+    });
+    if !non_empty {
+        return Ok(SheetCandidate {
+            name: sheet_name.to_string(),
+            table: None,
+            non_empty: false,
+            eis_like_only: false,
+        });
+    }
+
+    let table = convert_rows_to_table(path, sheet_name, &rows)?;
+    if let Some(table) = table {
+        return Ok(SheetCandidate {
+            name: sheet_name.to_string(),
+            table: Some(table),
+            non_empty: true,
+            eis_like_only: false,
+        });
+    }
+
+    let eis_like_only = rows.iter().any(|row| {
+        let headers = row.iter().map(cell_to_string).collect::<Vec<_>>();
+        looks_like_eis_header(&headers)
+    });
+    Ok(SheetCandidate {
+        name: sheet_name.to_string(),
+        table: None,
+        non_empty: true,
+        eis_like_only,
+    })
+}
+
 fn convert_range_to_table(
     path: &Path,
     sheet_name: &str,
     range: calamine::Range<Data>,
 ) -> Result<ExcelTable, DataParsingError> {
-    let rows: Vec<Vec<Data>> = range.rows().map(|r| r.to_vec()).collect();
-    if rows.is_empty() {
+    let rows = range.rows().map(|row| row.to_vec()).collect::<Vec<_>>();
+    let Some(table) = convert_rows_to_table(path, sheet_name, &rows)? else {
+        if rows
+            .iter()
+            .any(|row| looks_like_eis_header(&row.iter().map(cell_to_string).collect::<Vec<_>>()))
+        {
+            return Err(DataParsingError::invalid_at(
+                path,
+                format!(
+                    "worksheet '{sheet_name}' is EIS-like but XLSX EIS ingestion is not supported here; provide CHI/text EIS input instead"
+                ),
+            ));
+        }
         return Err(DataParsingError::invalid_at(
             path,
-            format!("worksheet '{sheet_name}' is empty"),
+            format!(
+                "worksheet '{sheet_name}' does not contain a compatible time-series header; expected one time/timestamp column and at least one measurement channel",
+            ),
         ));
-    }
-
-    // Skip leading blank rows.
-    let mut skipped = 0usize;
-    let mut header_idx = 0usize;
-    for (i, row) in rows.iter().enumerate() {
-        skipped = i;
-        if row.iter().any(|cell| !is_blank(cell)) {
-            header_idx = i;
-            break;
-        }
-    }
-    if header_idx >= rows.len() || rows[header_idx].iter().all(is_blank) {
-        return Err(DataParsingError::invalid_at(
-            path,
-            format!("worksheet '{sheet_name}' contains no visible data"),
-        ));
-    }
-
-    let header_original: Vec<String> = rows[header_idx].iter().map(cell_to_string).collect();
-    let headers = disambiguate_duplicate_headers(&header_original);
-
-    let data_start = header_idx + 1;
-    let mut data_rows: Vec<Vec<String>> = Vec::new();
-    for row in rows.iter().skip(data_start) {
-        let string_row: Vec<String> = row.iter().map(cell_to_string).collect();
-        // Skip completely blank rows.
-        if string_row.iter().all(|v| v.trim().is_empty()) {
-            continue;
-        }
-        // Pad to header width if the row is shorter.
-        let mut padded = string_row;
-        while padded.len() < headers.len() {
-            padded.push(String::new());
-        }
-        // Truncate to header width if the row is longer.
-        padded.truncate(headers.len());
-        data_rows.push(padded);
-    }
-
-    if data_rows.is_empty() {
-        return Err(DataParsingError::invalid_at(
-            path,
-            format!("worksheet '{sheet_name}' has a header but no data rows"),
-        ));
-    }
-
-    Ok(ExcelTable {
-        source_path: path.display().to_string(),
-        sheet_name: sheet_name.to_string(),
-        headers,
-        rows: data_rows,
-        rows_skipped_before_header: skipped,
-        trailing_rows_skipped: 0,
-    })
+    };
+    Ok(table)
 }
 
-/// Convert a calamine `Data` cell into a plain string.
+fn convert_rows_to_table(
+    path: &Path,
+    sheet_name: &str,
+    rows: &[Vec<Data>],
+) -> Result<Option<ExcelTable>, DataParsingError> {
+    let mut best_header_index = None;
+    let mut best_headers = Vec::new();
+    let mut best_time_index = None;
+
+    for (row_index, row) in rows.iter().enumerate() {
+        let headers = row.iter().map(cell_to_string).collect::<Vec<_>>();
+        let trimmed = headers
+            .iter()
+            .map(|header| header.trim().to_string())
+            .collect::<Vec<_>>();
+        if trimmed.iter().filter(|header| !header.is_empty()).count() < 2 {
+            continue;
+        }
+        let Some(time_index) = trimmed
+            .iter()
+            .position(|header| is_time_header_label(header))
+        else {
+            continue;
+        };
+        let channel_count = trimmed
+            .iter()
+            .enumerate()
+            .filter(|(index, header)| *index != time_index && !header.is_empty())
+            .count();
+        if channel_count == 0 {
+            continue;
+        }
+        let mut normalized = HashSet::new();
+        let mut has_duplicate = false;
+        for header in &trimmed {
+            if header.is_empty() {
+                continue;
+            }
+            let key = normalize_header(header);
+            if !normalized.insert(key) {
+                has_duplicate = true;
+                break;
+            }
+        }
+        if has_duplicate {
+            return Err(DataParsingError::invalid_at(
+                path,
+                format!(
+                    "worksheet '{sheet_name}' has duplicate header names that cannot be disambiguated safely; rename duplicate columns",
+                ),
+            ));
+        }
+        best_header_index = Some(row_index);
+        best_headers = trimmed;
+        best_time_index = Some(time_index);
+        break;
+    }
+
+    let Some(header_row_index) = best_header_index else {
+        return Ok(None);
+    };
+    let time_index = best_time_index.expect("time index exists with header");
+
+    let mut unit_row_index = None;
+    let mut data_start_index = header_row_index + 1;
+    if let Some(row) = rows.get(data_start_index) {
+        let values = row.iter().map(cell_to_string).collect::<Vec<_>>();
+        if looks_like_unit_row(&values, time_index) {
+            unit_row_index = Some(data_start_index);
+            data_start_index += 1;
+        }
+    }
+
+    let mut output_rows = Vec::new();
+    for (row_index, row) in rows.iter().enumerate().skip(data_start_index) {
+        let mut values = row.iter().map(cell_to_string).collect::<Vec<_>>();
+        if values.len() < best_headers.len() {
+            values.resize(best_headers.len(), String::new());
+        } else {
+            values.truncate(best_headers.len());
+        }
+        if values.iter().all(|value| value.trim().is_empty()) {
+            continue;
+        }
+
+        if values
+            .get(time_index)
+            .is_some_and(|value| value.starts_with("#CALC!("))
+        {
+            return Err(DataParsingError::invalid_at(
+                path,
+                format!(
+                    "worksheet '{sheet_name}' row {} has a formula error in the time column; store a cached numeric timestamp value before export",
+                    row_index + 1
+                ),
+            ));
+        }
+        output_rows.push(values);
+    }
+
+    if output_rows.is_empty() {
+        return Err(DataParsingError::invalid_at(
+            path,
+            format!("worksheet '{sheet_name}' has a compatible header but no valid data rows",),
+        ));
+    }
+
+    Ok(Some(ExcelTable {
+        source_path: path.display().to_string(),
+        sheet_name: sheet_name.to_string(),
+        header_row_index,
+        headers: best_headers,
+        rows: output_rows,
+        rows_skipped_before_header: header_row_index,
+        unit_row_index,
+    }))
+}
+
+fn is_time_header_label(value: &str) -> bool {
+    let normalized = normalize_header(value);
+    normalized == "time"
+        || normalized.starts_with("time/")
+        || normalized.starts_with("time(")
+        || normalized.starts_with("time[")
+        || normalized == "timestamp"
+        || normalized.starts_with("timestamp/")
+        || normalized.starts_with("timestamp(")
+        || normalized.starts_with("timestamp[")
+}
+
+fn looks_like_eis_header(headers: &[String]) -> bool {
+    let normalized = headers
+        .iter()
+        .map(|header| normalize_header(header))
+        .collect::<Vec<_>>();
+    let has_freq = normalized.iter().any(|header| header == "freq/hz");
+    let has_impedance = normalized
+        .iter()
+        .any(|header| header == "z'/ohm" || header == "z\"/ohm");
+    has_freq && has_impedance
+}
+
+fn looks_like_unit_row(values: &[String], time_index: usize) -> bool {
+    if values.is_empty() {
+        return false;
+    }
+    let mut non_time_non_empty = 0usize;
+    let mut likely_units = 0usize;
+    for (index, value) in values.iter().enumerate() {
+        if index == time_index {
+            continue;
+        }
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        non_time_non_empty += 1;
+        if trimmed.len() <= 12
+            && trimmed
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '/' | '%' | 'Ω' | '^'))
+        {
+            likely_units += 1;
+        }
+    }
+    non_time_non_empty > 0 && likely_units == non_time_non_empty
+}
+
 fn cell_to_string(cell: &Data) -> String {
     match cell {
         Data::Empty => String::new(),
-        Data::String(s) => s.clone(),
-        Data::Float(f) => {
-            if f.is_nan() {
+        Data::String(value) => value.clone(),
+        Data::Float(value) => {
+            if value.is_nan() {
                 String::new()
-            } else if *f == f.trunc() && f.is_finite() && f.abs() < 1e15 {
-                format!("{}", *f as i64)
             } else {
-                format!("{f}")
+                value.to_string()
             }
         }
-        Data::Int(i) => format!("{i}"),
-        Data::Bool(b) => b.to_string(),
-        Data::DateTime(d) => {
-            // Serialise as ISO-8601 string; numeric parsers downstream will
-            // either use this as a label or report an informative parse error.
-            d.to_string()
-        }
-        Data::DateTimeIso(s) => s.clone(),
-        Data::DurationIso(s) => s.clone(),
-        Data::Error(e) => {
-            // Formula cells without cached results produce an error string.
-            format!("#CALC!({e})")
-        }
+        Data::Int(value) => value.to_string(),
+        Data::Bool(value) => value.to_string(),
+        Data::DateTime(value) => value.to_string(),
+        Data::DateTimeIso(value) => value.clone(),
+        Data::DurationIso(value) => value.clone(),
+        Data::Error(error) => format!("#CALC!({error})"),
     }
 }
 
-fn is_blank(cell: &Data) -> bool {
-    matches!(cell, Data::Empty)
-        || match cell {
-            Data::String(s) => s.trim().is_empty(),
-            Data::Float(f) => f.is_nan(),
-            _ => false,
-        }
-}
-
-/// Disambiguate duplicate column names by appending a numeric suffix.
-fn disambiguate_duplicate_headers(headers: &[String]) -> Vec<String> {
-    let mut result = Vec::with_capacity(headers.len());
-    let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    for h in headers {
-        let key = h.trim().to_string();
-        let count = seen.entry(key.clone()).or_insert(0);
-        if *count == 0 {
-            result.push(key);
-        } else {
-            result.push(format!("{}__duplicate_{}", key, count));
-        }
-        *count += 1;
-    }
-    result
-}
-
-/// Convert an [`ExcelTable`] into CSV‑compatible text lines so that the
-/// existing [`super::measurement_parser::parse_measurement_text`] can process
-/// the data without duplicating schema detection.
-pub fn table_to_csv_lines(table: &ExcelTable) -> Vec<String> {
-    let mut lines = Vec::with_capacity(1 + table.rows.len());
-    lines.push(table.headers.join(","));
-    for row in &table.rows {
-        lines.push(row.join(","));
-    }
-    lines
-}
-
-/// Load an Excel workbook through the unified measurement parser flow.
-/// Returns `(MeasurementParseResult, sheet_name)`.
-pub fn parse_excel_measurement(
-    path: impl AsRef<Path>,
-    sheet_name: Option<&str>,
-) -> Result<(crate::domain::MeasurementParseResult, String), DataParsingError> {
-    let path = path.as_ref();
-    let table = read_worksheet(path, sheet_name)?;
-    let sheet = table.sheet_name.clone();
-    let csv_lines = table_to_csv_lines(&table);
-    let text = csv_lines.join("\n");
-    let parsed = crate::data_file::measurement_parser::parse_measurement_text(&text, path)?;
-    Ok((parsed, sheet))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use calamine::Data;
-
-    #[test]
-    fn disambiguate_duplicates_appends_suffix() {
-        let headers = vec!["Time/s".to_string(), "E/V".to_string(), "E/V".to_string()];
-        let result = disambiguate_duplicate_headers(&headers);
-        assert_eq!(result[0], "Time/s");
-        assert_eq!(result[1], "E/V");
-        assert_eq!(result[2], "E/V__duplicate_1");
-    }
-
-    #[test]
-    fn cell_to_string_handles_common_cases() {
-        assert_eq!(cell_to_string(&Data::Empty), "");
-        assert_eq!(cell_to_string(&Data::String("hello".into())), "hello");
-        assert_eq!(cell_to_string(&Data::Float(1.5)), "1.5");
-        assert_eq!(cell_to_string(&Data::Float(3.0)), "3");
-        assert_eq!(cell_to_string(&Data::Int(42)), "42");
-        assert_eq!(cell_to_string(&Data::Bool(true)), "true");
-        assert!(cell_to_string(&Data::Float(f64::NAN)).is_empty());
-    }
-
-    #[test]
-    fn table_to_csv_lines_produces_valid_csv() {
-        let table = ExcelTable {
-            source_path: "test.xlsx".into(),
-            sheet_name: "Sheet1".into(),
-            headers: vec!["Time/s".into(), "E/V".into()],
-            rows: vec![
-                vec!["0.0".into(), "0.5".into()],
-                vec!["1.0".into(), "0.6".into()],
-            ],
-            rows_skipped_before_header: 0,
-            trailing_rows_skipped: 0,
-        };
-        let lines = table_to_csv_lines(&table);
-        assert_eq!(lines.len(), 3);
-        assert_eq!(lines[0], "Time/s,E/V");
-    }
+fn normalize_header(value: &str) -> String {
+    value
+        .trim()
+        .trim_start_matches('\u{feff}')
+        .to_ascii_lowercase()
+        .chars()
+        .filter(|character| !character.is_ascii_whitespace())
+        .collect()
 }

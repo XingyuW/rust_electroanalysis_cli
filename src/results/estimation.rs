@@ -31,7 +31,11 @@ pub struct StateValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateEstimatePoint {
+    #[serde(default)]
+    pub segment_id: usize,
     pub timestamp_s: f64,
+    #[serde(default)]
+    pub original_row_index: Option<usize>,
     pub measurement_v: Option<f64>,
     pub predicted_measurement_v: Option<f64>,
     pub innovation_v: Option<f64>,
@@ -197,6 +201,14 @@ pub struct StateEstimationReport {
     pub warnings: Vec<EstimationWarning>,
     #[serde(default)]
     pub timestamp_diagnostics: Option<crate::estimation::timestamp::TimestampDiagnostics>,
+    #[serde(default)]
+    pub timestamp_policy: Option<crate::estimation::timestamp::TimestampHandlingConfig>,
+    #[serde(default)]
+    pub timestamp_segments: Vec<crate::estimation::timestamp::TimestampSegment>,
+    #[serde(default)]
+    pub skipped_timestamp_segments: Vec<crate::estimation::timestamp::SkippedTimestampSegment>,
+    #[serde(default)]
+    pub was_preprocessed: bool,
 }
 
 pub fn finite_json<T: Serialize>(value: &T) -> Result<String, serde_json::Error> {

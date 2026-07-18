@@ -1,86 +1,58 @@
-//! Timestamp preprocessing for time‑series measurements.
-//!
-//! This module separates validation from normalisation so that duplicate,
-//! non‑monotonic, and reset‑bearing timestamps can be handled with a
-//! documented, configurable policy rather than rejected outright.
+//! Timestamp diagnostics and preprocessing for state estimation.
 
+use crate::domain::{MeasurementChannel, MultiChannelMeasurement};
 use serde::{Deserialize, Serialize};
 
-/// Diagnostics produced when analysing a timestamp vector.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct TimestampDiagnostics {
-    /// Total number of timestamp entries.
     pub total_rows: usize,
-    /// Entries that are finite and usable.
     pub finite_timestamps: usize,
-    /// Non‑finite entries (NaN, ±Inf).
     pub non_finite_timestamps: usize,
-    /// Exact duplicate timestamp occurrences (count of extra copies).
     pub duplicate_count: usize,
-    /// Duplicate timestamps whose corresponding channel values differ.
+    pub identical_duplicate_count: usize,
     pub conflicting_duplicate_count: usize,
-    /// Number of timestamps that move backwards relative to the prior.
     pub local_reversal_count: usize,
-    /// Largest single backward jump (seconds).  None if all increasing.
-    pub largest_backward_jump_s: Option<f64>,
-    /// Number of detected timestamp resets to zero or near‑zero.
     pub reset_count: usize,
-    /// Number of independent acquisition segments identified.
-    pub segment_count: usize,
-    /// Minimum time difference between consecutive entries.
+    pub largest_backward_jump_s: Option<f64>,
     pub min_delta_s: Option<f64>,
-    /// Median time difference (None if fewer than 2 entries).
     pub median_delta_s: Option<f64>,
-    /// Maximum time difference.
     pub max_delta_s: Option<f64>,
-    /// Rows that were reordered by stable sort.
+    pub segment_count: usize,
     pub rows_reordered: usize,
-    /// Rows that were removed entirely.
     pub rows_removed: usize,
-    /// Rows aggregated (e.g., duplicate averaging — not used in default policy).
-    pub rows_aggregated: usize,
-    /// Human‑readable messages produced during preprocessing.
     pub messages: Vec<String>,
 }
 
-/// Policy for handling duplicate timestamps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DuplicatePolicy {
-    /// Remove exact duplicate rows (identical values) and warn about
-    /// conflicting duplicates without silently averaging them.
     DeduplicateIdentical,
-    /// Reject the entire measurement if any duplicate timestamps exist.
     Reject,
-    /// Keep duplicates (treated as replicates within a segment).
     Keep,
 }
 
-/// Policy for handling non‑monotonic timestamps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NonMonotonicPolicy {
-    /// Split the measurement into independent segments when a reset or
-    /// large backward jump is detected.
     SegmentOnReset,
-    /// Stable‑sort timestamps within a segment when reversals are minor
-    /// (no evidence of a reset).
     StableSortWithinSegment,
-    /// Reject the measurement if any non‑monotonic timestamps exist.
     Reject,
 }
 
-/// Configuration for timestamp preprocessing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NonFiniteTimestampPolicy {
+    Reject,
+    DropRows,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TimestampHandlingConfig {
     pub duplicate_policy: DuplicatePolicy,
     pub non_monotonic_policy: NonMonotonicPolicy,
-    /// Threshold (seconds) below which a backward jump is considered a
-    /// minor reversal rather than a reset.
+    pub non_finite_policy: NonFiniteTimestampPolicy,
     pub minor_reversal_threshold_s: f64,
-    /// Fraction of the current time value; a jump to a value less than or
-    /// equal to `reset_threshold_fraction * previous_time` is treated as
-    /// a reset.
+    pub reset_threshold_s: f64,
     pub reset_threshold_fraction: f64,
     pub minimum_segment_points: usize,
 }
@@ -90,477 +62,594 @@ impl Default for TimestampHandlingConfig {
         Self {
             duplicate_policy: DuplicatePolicy::DeduplicateIdentical,
             non_monotonic_policy: NonMonotonicPolicy::SegmentOnReset,
+            non_finite_policy: NonFiniteTimestampPolicy::Reject,
             minor_reversal_threshold_s: 1.0,
+            reset_threshold_s: 10.0,
             reset_threshold_fraction: 0.5,
-            minimum_segment_points: 10,
+            minimum_segment_points: 2,
         }
     }
 }
 
-/// A segment of preprocessed time‑series data with known provenance.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TimestampSegment {
-    /// Zero‑based segment index.
     pub segment_index: usize,
-    /// Start index into the reordered timestamp vector.
     pub start_index: usize,
-    /// Exclusive end index.
     pub end_index: usize,
-    /// Whether this segment was created by a reset split.
+    pub original_start_index: usize,
+    pub original_end_index: usize,
     pub created_by_reset: bool,
-    /// Number of points in this segment.
     pub point_count: usize,
-    /// Minimum timestamp in this segment.
     pub min_timestamp_s: f64,
-    /// Maximum timestamp in this segment.
     pub max_timestamp_s: f64,
 }
 
-/// Result of timestamp preprocessing.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PreprocessedTimestamps {
-    /// Preprocessed timestamp values (strictly increasing within each
-    /// segment; segments are separated by resets).
-    pub timestamps: Vec<f64>,
-    /// Indices mapping preprocessed rows back to original rows.
-    pub original_indices: Vec<usize>,
-    /// Identified segments.
+pub struct SkippedTimestampSegment {
+    pub original_start_index: usize,
+    pub original_end_index: usize,
+    pub point_count: usize,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PreprocessedMeasurement {
+    pub measurement: MultiChannelMeasurement,
     pub segments: Vec<TimestampSegment>,
-    /// Diagnostics collected during preprocessing.
+    pub skipped_segments: Vec<SkippedTimestampSegment>,
+    pub original_indices: Vec<usize>,
     pub diagnostics: TimestampDiagnostics,
-    /// Whether any transformation was applied.
+    pub applied_policy: TimestampHandlingConfig,
     pub was_transformed: bool,
 }
 
-/// Analyse a timestamp vector and produce diagnostics without modifying data.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PreprocessedTimestamps {
+    pub timestamps: Vec<f64>,
+    pub original_indices: Vec<usize>,
+    pub segments: Vec<TimestampSegment>,
+    pub diagnostics: TimestampDiagnostics,
+    pub was_transformed: bool,
+}
+
 pub fn diagnose_timestamps(
     timestamps: &[f64],
-    _values: &[Vec<Option<f64>>],
+    values: &[Vec<Option<f64>>],
+) -> TimestampDiagnostics {
+    diagnose_timestamps_with_config(timestamps, values, &TimestampHandlingConfig::default())
+}
+
+pub fn diagnose_timestamps_with_config(
+    timestamps: &[f64],
+    values: &[Vec<Option<f64>>],
+    config: &TimestampHandlingConfig,
 ) -> TimestampDiagnostics {
     let mut diag = TimestampDiagnostics {
         total_rows: timestamps.len(),
         ..Default::default()
     };
-
     if timestamps.is_empty() {
         return diag;
     }
 
-    let mut finite = 0usize;
-    let mut non_finite = 0usize;
-    for t in timestamps {
+    let mut finite_indices = Vec::new();
+    for (idx, t) in timestamps.iter().enumerate() {
         if t.is_finite() {
-            finite += 1;
+            finite_indices.push(idx);
+            diag.finite_timestamps += 1;
         } else {
-            non_finite += 1;
+            diag.non_finite_timestamps += 1;
         }
     }
-    diag.finite_timestamps = finite;
-    diag.non_finite_timestamps = non_finite;
-
-    let finite_ts: Vec<f64> = timestamps
-        .iter()
-        .copied()
-        .filter(|t| t.is_finite())
-        .collect();
-    if finite_ts.len() < 2 {
+    if finite_indices.len() < 2 {
         return diag;
     }
 
-    // Duplicates
-    let mut seen = std::collections::HashMap::new();
-    for t in &finite_ts {
-        *seen.entry(t.to_bits()).or_insert(0usize) += 1;
+    use std::collections::BTreeMap;
+    let mut groups: BTreeMap<u64, Vec<usize>> = BTreeMap::new();
+    for &idx in &finite_indices {
+        groups
+            .entry(timestamps[idx].to_bits())
+            .or_default()
+            .push(idx);
     }
-    diag.duplicate_count = seen.values().filter(|&&c| c > 1).map(|c| c - 1).sum();
 
-    // Reversals and resets
-    let mut reversals = 0usize;
-    let mut max_backward = 0.0f64;
-    let mut resets = 0usize;
-    let mut deltas = Vec::with_capacity(finite_ts.len() - 1);
-
-    for pair in finite_ts.windows(2) {
-        let delta = pair[1] - pair[0];
-        if delta < 0.0 {
-            reversals += 1;
-            let backward = -delta;
-            if backward > max_backward {
-                max_backward = backward;
-            }
-            if pair[1] < pair[0] * 0.5 {
-                resets += 1;
-            }
-        } else if delta.is_finite() {
-            deltas.push(delta);
+    for group in groups.values() {
+        if group.len() <= 1 {
+            continue;
+        }
+        let extra = group.len() - 1;
+        diag.duplicate_count += extra;
+        if rows_identical(group, values) {
+            diag.identical_duplicate_count += extra;
+        } else {
+            diag.conflicting_duplicate_count += extra;
         }
     }
 
-    diag.local_reversal_count = reversals;
-    diag.largest_backward_jump_s = if reversals > 0 {
-        Some(max_backward)
-    } else {
-        None
-    };
-    diag.reset_count = resets;
-    diag.segment_count = resets + 1;
+    let mut positive_deltas = Vec::new();
+    for pair in finite_indices.windows(2) {
+        let prev = timestamps[pair[0]];
+        let curr = timestamps[pair[1]];
+        let delta = curr - prev;
+        if delta < 0.0 {
+            let backward = -delta;
+            diag.largest_backward_jump_s = Some(
+                diag.largest_backward_jump_s
+                    .map(|existing| existing.max(backward))
+                    .unwrap_or(backward),
+            );
+            let is_reset = backward >= config.reset_threshold_s
+                || curr <= prev * config.reset_threshold_fraction;
+            if is_reset {
+                diag.reset_count += 1;
+            } else {
+                diag.local_reversal_count += 1;
+            }
+        } else if delta > 0.0 {
+            positive_deltas.push(delta);
+        }
+    }
 
-    if !deltas.is_empty() {
-        deltas.sort_by(f64::total_cmp);
-        diag.min_delta_s = Some(deltas[0]);
-        diag.max_delta_s = Some(deltas[deltas.len() - 1]);
-        let mid = deltas.len() / 2;
-        diag.median_delta_s = Some(if deltas.len() % 2 == 0 {
-            (deltas[mid - 1] + deltas[mid]) / 2.0
+    if !positive_deltas.is_empty() {
+        positive_deltas.sort_by(f64::total_cmp);
+        diag.min_delta_s = positive_deltas.first().copied();
+        diag.max_delta_s = positive_deltas.last().copied();
+        let mid = positive_deltas.len() / 2;
+        diag.median_delta_s = Some(if positive_deltas.len() % 2 == 0 {
+            (positive_deltas[mid - 1] + positive_deltas[mid]) / 2.0
         } else {
-            deltas[mid]
+            positive_deltas[mid]
         });
     }
 
+    diag.segment_count = diag.reset_count + 1;
     diag
 }
 
-/// Preprocess timestamps according to the given configuration.
-///
-/// Returns the preprocessed timestamps together with diagnostics and
-/// segment information.  This is a pure function that does not modify
-/// the original measurement.
+pub fn preprocess_measurement(
+    measurement: &MultiChannelMeasurement,
+    config: &TimestampHandlingConfig,
+) -> Result<PreprocessedMeasurement, String> {
+    if measurement.time.is_empty() {
+        return Err("timestamp array is empty".to_string());
+    }
+    validate_config(config)?;
+
+    let value_matrix: Vec<Vec<Option<f64>>> = measurement
+        .channels
+        .iter()
+        .map(|channel| channel.values.clone())
+        .collect();
+    let mut diagnostics = diagnose_timestamps_with_config(&measurement.time, &value_matrix, config);
+
+    let mut rows: Vec<usize> = (0..measurement.time.len()).collect();
+    let mut removed_rows = Vec::new();
+    if diagnostics.non_finite_timestamps > 0 {
+        match config.non_finite_policy {
+            NonFiniteTimestampPolicy::Reject => {
+                return Err(format!(
+                    "measurement contains {} non-finite timestamps; set non_finite_policy=drop_rows to continue",
+                    diagnostics.non_finite_timestamps
+                ));
+            }
+            NonFiniteTimestampPolicy::DropRows => {
+                rows.retain(|&idx| {
+                    let keep = measurement.time[idx].is_finite();
+                    if !keep {
+                        removed_rows.push(idx);
+                    }
+                    keep
+                });
+                diagnostics.rows_removed += removed_rows.len();
+                diagnostics.messages.push(format!(
+                    "dropped {} rows with non-finite timestamps",
+                    removed_rows.len()
+                ));
+            }
+        }
+    }
+
+    let segment_boundaries = detect_segment_boundaries(&measurement.time, &rows, config);
+    let mut final_rows = Vec::new();
+    let mut segments = Vec::new();
+    let mut skipped_segments = Vec::new();
+    let mut rows_reordered = 0usize;
+    let mut rows_removed = removed_rows.len();
+
+    for (seg_idx, (start, end, created_by_reset)) in segment_boundaries.into_iter().enumerate() {
+        let mut segment_rows = rows[start..end].to_vec();
+        if segment_rows.is_empty() {
+            continue;
+        }
+
+        let mut had_reversal = false;
+        for pair in segment_rows.windows(2) {
+            let prev = measurement.time[pair[0]];
+            let curr = measurement.time[pair[1]];
+            if curr < prev {
+                had_reversal = true;
+                let backward = prev - curr;
+                let is_reset = backward >= config.reset_threshold_s
+                    || curr <= prev * config.reset_threshold_fraction;
+                if is_reset {
+                    return Err(
+                        "internal reset segmentation error: reset remained inside segment".into(),
+                    );
+                }
+                if backward > config.minor_reversal_threshold_s {
+                    return Err(format!(
+                        "ambiguous backward jump {:.6}s within segment (larger than minor_reversal_threshold_s={:.6})",
+                        backward, config.minor_reversal_threshold_s
+                    ));
+                }
+            }
+        }
+
+        if had_reversal {
+            match config.non_monotonic_policy {
+                NonMonotonicPolicy::Reject => {
+                    return Err(
+                        "non-monotonic timestamps present and non_monotonic_policy=reject".into(),
+                    );
+                }
+                NonMonotonicPolicy::SegmentOnReset
+                | NonMonotonicPolicy::StableSortWithinSegment => {
+                    let before = segment_rows.clone();
+                    segment_rows
+                        .sort_by(|a, b| measurement.time[*a].total_cmp(&measurement.time[*b]));
+                    rows_reordered += before
+                        .iter()
+                        .zip(segment_rows.iter())
+                        .filter(|(left, right)| left != right)
+                        .count();
+                }
+            }
+        }
+
+        let deduplicated = deduplicate_segment_rows(&segment_rows, measurement, config)?;
+        rows_removed += segment_rows.len().saturating_sub(deduplicated.len());
+        if deduplicated.len() < config.minimum_segment_points {
+            skipped_segments.push(SkippedTimestampSegment {
+                original_start_index: *segment_rows.first().unwrap_or(&0),
+                original_end_index: *segment_rows.last().unwrap_or(&0),
+                point_count: deduplicated.len(),
+                reason: format!(
+                    "segment shorter than minimum_segment_points ({})",
+                    config.minimum_segment_points
+                ),
+            });
+            continue;
+        }
+        let start_index = final_rows.len();
+        final_rows.extend_from_slice(&deduplicated);
+        let end_index = final_rows.len();
+        let min_timestamp_s = deduplicated
+            .first()
+            .map(|row| measurement.time[*row])
+            .unwrap_or(0.0);
+        let max_timestamp_s = deduplicated
+            .last()
+            .map(|row| measurement.time[*row])
+            .unwrap_or(0.0);
+        segments.push(TimestampSegment {
+            segment_index: segments.len(),
+            start_index,
+            end_index,
+            original_start_index: *deduplicated.first().unwrap_or(&0),
+            original_end_index: *deduplicated.last().unwrap_or(&0),
+            created_by_reset: created_by_reset || seg_idx > 0,
+            point_count: deduplicated.len(),
+            min_timestamp_s,
+            max_timestamp_s,
+        });
+    }
+
+    if final_rows.is_empty() {
+        return Err("no valid segments remain after timestamp preprocessing".to_string());
+    }
+
+    diagnostics.rows_reordered += rows_reordered;
+    diagnostics.rows_removed = diagnostics.rows_removed.max(rows_removed);
+    diagnostics.segment_count = segments.len();
+    if !skipped_segments.is_empty() {
+        diagnostics.messages.push(format!(
+            "{} segment(s) skipped by minimum length rule",
+            skipped_segments.len()
+        ));
+    }
+
+    let transformed = final_rows
+        .iter()
+        .enumerate()
+        .any(|(idx, original)| idx != *original)
+        || !removed_rows.is_empty()
+        || rows_reordered > 0
+        || segments.len() > 1
+        || !skipped_segments.is_empty();
+
+    let measurement = select_rows(measurement, &final_rows)?;
+    Ok(PreprocessedMeasurement {
+        measurement,
+        segments,
+        skipped_segments,
+        original_indices: final_rows,
+        diagnostics,
+        applied_policy: config.clone(),
+        was_transformed: transformed,
+    })
+}
+
 pub fn preprocess_timestamps(
     timestamps: &[f64],
     values: &[Vec<Option<f64>>],
     config: &TimestampHandlingConfig,
 ) -> Result<PreprocessedTimestamps, String> {
-    if timestamps.is_empty() {
-        return Err("timestamp array is empty".to_string());
+    if values.iter().any(|series| series.len() != timestamps.len()) {
+        return Err("values length does not match timestamps length".into());
     }
-
-    let diagnostics = diagnose_timestamps(timestamps, values);
-
-    // Non-finite rejection
-    if diagnostics.non_finite_timestamps > 0 {
-        if matches!(config.duplicate_policy, DuplicatePolicy::Reject) {
-            return Err(format!(
-                "{} non-finite timestamps detected and policy is Reject",
-                diagnostics.non_finite_timestamps
-            ));
-        }
-        // Filter out non-finite timestamps
-        let filtered_ts: Vec<(usize, f64)> = timestamps
-            .iter()
-            .enumerate()
-            .filter(|(_, t)| t.is_finite())
-            .map(|(i, t)| (i, *t))
-            .collect();
-
-        if filtered_ts.len() < config.minimum_segment_points {
-            return Err(format!(
-                "only {} finite timestamps remain after filtering; minimum is {}",
-                filtered_ts.len(),
-                config.minimum_segment_points
-            ));
-        }
-
-        return preprocess_finite(&filtered_ts, values, config, diagnostics);
-    }
-
-    let indexed: Vec<(usize, f64)> = timestamps
+    let channels = values
         .iter()
         .enumerate()
-        .map(|(i, t)| (i, *t))
-        .collect();
-    preprocess_finite(&indexed, values, config, diagnostics)
+        .map(|(idx, series)| MeasurementChannel {
+            name: format!("channel_{idx}"),
+            unit: "a.u.".to_string(),
+            values: series.clone(),
+            variance: None,
+            sensor_id: None,
+            analyte_id: None,
+            metadata: None,
+        })
+        .collect::<Vec<_>>();
+    let measurement = MultiChannelMeasurement::new(timestamps.to_vec(), channels)
+        .map_err(|error| error.to_string())?;
+    let processed = preprocess_measurement(&measurement, config)?;
+    Ok(PreprocessedTimestamps {
+        timestamps: processed.measurement.time,
+        original_indices: processed.original_indices,
+        segments: processed.segments,
+        diagnostics: processed.diagnostics,
+        was_transformed: processed.was_transformed,
+    })
 }
 
-fn preprocess_finite(
-    indexed: &[(usize, f64)],
-    _values: &[Vec<Option<f64>>],
-    config: &TimestampHandlingConfig,
-    mut diagnostics: TimestampDiagnostics,
-) -> Result<PreprocessedTimestamps, String> {
-    // Check if already strictly increasing.
-    let is_strictly_increasing = indexed.windows(2).all(|w| w[1].1 > w[0].1);
+fn validate_config(config: &TimestampHandlingConfig) -> Result<(), String> {
+    for (name, value) in [
+        (
+            "minor_reversal_threshold_s",
+            config.minor_reversal_threshold_s,
+        ),
+        ("reset_threshold_s", config.reset_threshold_s),
+        ("reset_threshold_fraction", config.reset_threshold_fraction),
+    ] {
+        if !value.is_finite() {
+            return Err(format!("{name} must be finite"));
+        }
+    }
+    if config.minor_reversal_threshold_s < 0.0 || config.reset_threshold_s < 0.0 {
+        return Err("timestamp thresholds must be nonnegative".to_string());
+    }
+    if !(0.0..=1.0).contains(&config.reset_threshold_fraction) {
+        return Err("reset_threshold_fraction must be between 0 and 1".to_string());
+    }
+    if config.minimum_segment_points == 0 {
+        return Err("minimum_segment_points must be greater than zero".to_string());
+    }
+    Ok(())
+}
 
-    if is_strictly_increasing {
-        // Deduplicate identical rows if policy requires it.
-        if config.duplicate_policy == DuplicatePolicy::DeduplicateIdentical {
-            let msg = "timestamps are strictly increasing; no preprocessing applied";
-            if !diagnostics.messages.contains(&msg.to_string()) {
-                diagnostics.messages.push(msg.to_string());
+fn detect_segment_boundaries(
+    time: &[f64],
+    rows: &[usize],
+    config: &TimestampHandlingConfig,
+) -> Vec<(usize, usize, bool)> {
+    if rows.is_empty() {
+        return Vec::new();
+    }
+    let mut bounds = Vec::new();
+    let mut start = 0usize;
+    for i in 1..rows.len() {
+        let prev = time[rows[i - 1]];
+        let curr = time[rows[i]];
+        if curr >= prev {
+            continue;
+        }
+        let backward = prev - curr;
+        let is_reset =
+            backward >= config.reset_threshold_s || curr <= prev * config.reset_threshold_fraction;
+        if is_reset {
+            bounds.push((start, i, !bounds.is_empty()));
+            start = i;
+        }
+    }
+    bounds.push((start, rows.len(), !bounds.is_empty()));
+    bounds
+}
+
+fn deduplicate_segment_rows(
+    segment_rows: &[usize],
+    measurement: &MultiChannelMeasurement,
+    config: &TimestampHandlingConfig,
+) -> Result<Vec<usize>, String> {
+    if segment_rows.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut output = Vec::with_capacity(segment_rows.len());
+    let mut i = 0usize;
+    while i < segment_rows.len() {
+        let row = segment_rows[i];
+        let t = measurement.time[row];
+        let mut j = i + 1;
+        while j < segment_rows.len() && measurement.time[segment_rows[j]].to_bits() == t.to_bits() {
+            j += 1;
+        }
+        let group = &segment_rows[i..j];
+        if group.len() == 1 {
+            output.push(row);
+            i = j;
+            continue;
+        }
+
+        match config.duplicate_policy {
+            DuplicatePolicy::Reject => {
+                return Err(format!(
+                    "duplicate timestamp {} encountered and duplicate_policy=reject",
+                    t
+                ));
             }
-        }
-        return Ok(build_single_segment(indexed, diagnostics, false));
-    }
-
-    // Handle duplicates and non-monotonic timestamps.
-    match config.duplicate_policy {
-        DuplicatePolicy::Reject => {
-            return Err(format!(
-                "{} duplicate timestamps detected and duplicate policy is Reject",
-                diagnostics.duplicate_count
-            ));
-        }
-        DuplicatePolicy::DeduplicateIdentical | DuplicatePolicy::Keep => {
-            // Continue processing
-        }
-    }
-
-    match config.non_monotonic_policy {
-        NonMonotonicPolicy::Reject => Err(format!(
-            "{} non-monotonic timestamps detected and non-monotonic policy is Reject",
-            diagnostics.local_reversal_count
-        )),
-        NonMonotonicPolicy::SegmentOnReset => segment_on_reset(indexed, config, diagnostics),
-        NonMonotonicPolicy::StableSortWithinSegment => {
-            stable_sort_within_segment(indexed, config, diagnostics)
-        }
-    }
-}
-
-fn build_single_segment(
-    indexed: &[(usize, f64)],
-    diagnostics: TimestampDiagnostics,
-    was_transformed: bool,
-) -> PreprocessedTimestamps {
-    let timestamps: Vec<f64> = indexed.iter().map(|(_, t)| *t).collect();
-    let original_indices: Vec<usize> = indexed.iter().map(|(i, _)| *i).collect();
-    let min_t = timestamps.first().copied().unwrap_or(0.0);
-    let max_t = timestamps.last().copied().unwrap_or(0.0);
-
-    PreprocessedTimestamps {
-        segments: vec![TimestampSegment {
-            segment_index: 0,
-            start_index: 0,
-            end_index: timestamps.len(),
-            created_by_reset: false,
-            point_count: timestamps.len(),
-            min_timestamp_s: min_t,
-            max_timestamp_s: max_t,
-        }],
-        timestamps,
-        original_indices,
-        diagnostics,
-        was_transformed,
-    }
-}
-
-fn stable_sort_within_segment(
-    indexed: &[(usize, f64)],
-    config: &TimestampHandlingConfig,
-    diagnostics: TimestampDiagnostics,
-) -> Result<PreprocessedTimestamps, String> {
-    // Stable sort preserving original order for equal timestamps.
-    let mut sorted = indexed.to_vec();
-    sorted.sort_by(|a, b| a.1.total_cmp(&b.1));
-
-    // Check for large reversals that look like resets (skip those).
-    let mut segments = Vec::new();
-    let mut seg_start = 0usize;
-    for i in 1..sorted.len() {
-        let prev_orig_idx = sorted[i - 1].0;
-        let curr_orig_idx = sorted[i].0;
-        // If original order shows a large backward jump, split.
-        if curr_orig_idx < prev_orig_idx {
-            let orig_prev = sorted[i - 1].1;
-            let orig_curr = sorted[i].1;
-            if orig_curr < orig_prev * config.reset_threshold_fraction {
-                let seg = &sorted[seg_start..i];
-                if seg.len() >= config.minimum_segment_points {
-                    let min_t = seg.first().map(|(_, t)| *t).unwrap_or(0.0);
-                    let max_t = seg.last().map(|(_, t)| *t).unwrap_or(0.0);
-                    segments.push(TimestampSegment {
-                        segment_index: segments.len(),
-                        start_index: seg_start,
-                        end_index: i,
-                        created_by_reset: !segments.is_empty(),
-                        point_count: seg.len(),
-                        min_timestamp_s: min_t,
-                        max_timestamp_s: max_t,
-                    });
+            DuplicatePolicy::Keep => {
+                return Err(
+                    "duplicate_policy=keep is not allowed for state estimation because filters require strictly positive Δt"
+                        .to_string(),
+                );
+            }
+            DuplicatePolicy::DeduplicateIdentical => {
+                if !rows_identical(
+                    group,
+                    &measurement
+                        .channels
+                        .iter()
+                        .map(|channel| channel.values.clone())
+                        .collect::<Vec<_>>(),
+                ) || !variance_rows_identical(group, measurement)
+                {
+                    return Err(format!(
+                        "conflicting duplicate timestamp {} encountered; cannot deduplicate safely",
+                        t
+                    ));
                 }
-                seg_start = i;
+                output.push(group[0]);
             }
         }
+        i = j;
     }
 
-    // Final segment
-    let final_seg = &sorted[seg_start..];
-    if final_seg.len() >= config.minimum_segment_points {
-        let min_t = final_seg.first().map(|(_, t)| *t).unwrap_or(0.0);
-        let max_t = final_seg.last().map(|(_, t)| *t).unwrap_or(0.0);
-        segments.push(TimestampSegment {
-            segment_index: segments.len(),
-            start_index: seg_start,
-            end_index: sorted.len(),
-            created_by_reset: !segments.is_empty(),
-            point_count: final_seg.len(),
-            min_timestamp_s: min_t,
-            max_timestamp_s: max_t,
-        });
+    for pair in output.windows(2) {
+        if measurement.time[pair[1]] <= measurement.time[pair[0]] {
+            return Err("segment is not strictly increasing after preprocessing".to_string());
+        }
     }
-
-    if segments.is_empty() {
-        return Err("no valid segments after sorting".to_string());
-    }
-
-    let timestamps: Vec<f64> = sorted.iter().map(|(_, t)| *t).collect();
-    let original_indices: Vec<usize> = sorted.iter().map(|(i, _)| *i).collect();
-    let rows_reordered = (0..sorted.len()).filter(|&i| sorted[i].0 != i).count();
-
-    let mut diag = diagnostics;
-    diag.rows_reordered = rows_reordered;
-    diag.segment_count = segments.len();
-    diag.messages.push(format!(
-        "stable-sorted: {} rows reordered, {} segments",
-        rows_reordered,
-        segments.len()
-    ));
-
-    Ok(PreprocessedTimestamps {
-        segments,
-        timestamps,
-        original_indices,
-        diagnostics: diag,
-        was_transformed: true,
-    })
+    Ok(output)
 }
 
-fn segment_on_reset(
-    indexed: &[(usize, f64)],
-    config: &TimestampHandlingConfig,
-    diagnostics: TimestampDiagnostics,
-) -> Result<PreprocessedTimestamps, String> {
-    // Walk through original order and split at resets.
-    let mut segments = Vec::new();
-    let mut seg_start = 0usize;
+fn row_value_signature(values: &[Vec<Option<f64>>], row: usize) -> Vec<Option<u64>> {
+    values
+        .iter()
+        .map(|series| series.get(row).and_then(|value| value.map(f64::to_bits)))
+        .collect()
+}
 
-    for i in 1..indexed.len() {
-        let prev = indexed[i - 1].1;
-        let curr = indexed[i].1;
-        if curr < prev * config.reset_threshold_fraction {
-            let seg = &indexed[seg_start..i];
-            if seg.len() >= config.minimum_segment_points {
-                let min_t = seg.first().map(|(_, t)| *t).unwrap_or(0.0);
-                let max_t = seg.last().map(|(_, t)| *t).unwrap_or(0.0);
-                segments.push(TimestampSegment {
-                    segment_index: segments.len(),
-                    start_index: seg_start,
-                    end_index: i,
-                    created_by_reset: !segments.is_empty(),
-                    point_count: seg.len(),
-                    min_timestamp_s: min_t,
-                    max_timestamp_s: max_t,
-                });
+fn rows_identical(rows: &[usize], values: &[Vec<Option<f64>>]) -> bool {
+    if rows.len() <= 1 {
+        return true;
+    }
+    let base = row_value_signature(values, rows[0]);
+    rows.iter()
+        .skip(1)
+        .all(|row| row_value_signature(values, *row) == base)
+}
+
+fn variance_rows_identical(rows: &[usize], measurement: &MultiChannelMeasurement) -> bool {
+    if rows.len() <= 1 {
+        return true;
+    }
+    for channel in &measurement.channels {
+        let Some(variance) = channel.variance.as_ref() else {
+            continue;
+        };
+        let first = variance.get(rows[0]).copied().flatten().map(f64::to_bits);
+        for row in rows.iter().skip(1) {
+            let current = variance.get(*row).copied().flatten().map(f64::to_bits);
+            if current != first {
+                return false;
             }
-            seg_start = i;
         }
     }
+    true
+}
 
-    // Final segment
-    let final_seg = &indexed[seg_start..];
-    if final_seg.len() >= config.minimum_segment_points {
-        let min_t = final_seg.first().map(|(_, t)| *t).unwrap_or(0.0);
-        let max_t = final_seg.last().map(|(_, t)| *t).unwrap_or(0.0);
-        segments.push(TimestampSegment {
-            segment_index: segments.len(),
-            start_index: seg_start,
-            end_index: indexed.len(),
-            created_by_reset: !segments.is_empty(),
-            point_count: final_seg.len(),
-            min_timestamp_s: min_t,
-            max_timestamp_s: max_t,
-        });
-    }
-
-    if segments.is_empty() {
-        return Err(format!(
-            "no valid segments found; {} points available, minimum is {}",
-            indexed.len(),
-            config.minimum_segment_points
-        ));
-    }
-
-    let timestamps: Vec<f64> = indexed.iter().map(|(_, t)| *t).collect();
-    let original_indices: Vec<usize> = (0..indexed.len()).collect();
-
-    let mut diag = diagnostics;
-    diag.segment_count = segments.len();
-    diag.messages.push(format!(
-        "segmented on reset: {} segments identified",
-        segments.len()
-    ));
-
-    Ok(PreprocessedTimestamps {
-        segments,
-        timestamps,
-        original_indices,
-        diagnostics: diag,
-        was_transformed: true,
-    })
+fn select_rows(
+    measurement: &MultiChannelMeasurement,
+    rows: &[usize],
+) -> Result<MultiChannelMeasurement, String> {
+    let time = rows
+        .iter()
+        .map(|idx| measurement.time[*idx])
+        .collect::<Vec<_>>();
+    let channels = measurement
+        .channels
+        .iter()
+        .map(|channel| MeasurementChannel {
+            name: channel.name.clone(),
+            unit: channel.unit.clone(),
+            values: rows.iter().map(|idx| channel.values[*idx]).collect(),
+            variance: channel
+                .variance
+                .as_ref()
+                .map(|variance| rows.iter().map(|idx| variance[*idx]).collect()),
+            sensor_id: channel.sensor_id.clone(),
+            analyte_id: channel.analyte_id.clone(),
+            metadata: channel.metadata.clone(),
+        })
+        .collect::<Vec<_>>();
+    MultiChannelMeasurement::new(time, channels).map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn strictly_increasing_passes_through() {
-        let ts = vec![0.0, 1.0, 2.0, 3.0];
-        let result = preprocess_timestamps(&ts, &[], &TimestampHandlingConfig::default()).unwrap();
-        assert!(!result.was_transformed);
-        assert_eq!(result.timestamps, ts);
-        assert_eq!(result.segments.len(), 1);
+    fn measurement(time: Vec<f64>, values: Vec<Option<f64>>) -> MultiChannelMeasurement {
+        MultiChannelMeasurement::new(time, vec![MeasurementChannel::new("E1", "V", values)])
+            .expect("measurement")
     }
 
     #[test]
-    fn identical_duplicates_preserved_with_warning() {
-        let ts = vec![0.0, 1.0, 1.0, 2.0];
+    fn diagnoses_identical_vs_conflicting_duplicates() {
+        let diag = diagnose_timestamps(&[0.0, 1.0, 1.0], &[vec![Some(0.1), Some(0.2), Some(0.2)]]);
+        assert_eq!(diag.duplicate_count, 1);
+        assert_eq!(diag.identical_duplicate_count, 1);
+        assert_eq!(diag.conflicting_duplicate_count, 0);
+
+        let diag_conflict =
+            diagnose_timestamps(&[0.0, 1.0, 1.0], &[vec![Some(0.1), Some(0.2), Some(0.3)]]);
+        assert_eq!(diag_conflict.conflicting_duplicate_count, 1);
+    }
+
+    #[test]
+    fn preprocesses_reset_into_segments() {
+        let m = measurement(
+            vec![0.0, 1.0, 2.0, 0.1, 1.1, 2.1],
+            vec![
+                Some(0.1),
+                Some(0.2),
+                Some(0.3),
+                Some(0.4),
+                Some(0.5),
+                Some(0.6),
+            ],
+        );
         let config = TimestampHandlingConfig {
             minimum_segment_points: 2,
             ..Default::default()
         };
-        let result = preprocess_timestamps(&ts, &[], &config).unwrap();
-        // Default policy: deduplicate identical — timestamps alone means both kept.
-        assert_eq!(result.diagnostics.duplicate_count, 1);
+        let processed = preprocess_measurement(&m, &config).expect("processed");
+        assert_eq!(processed.segments.len(), 2);
+        assert_eq!(processed.measurement.time.len(), 6);
     }
 
     #[test]
-    fn timestamp_reset_creates_segments() {
-        let ts = vec![0.0, 1.0, 2.0, 0.1, 1.1, 2.1];
+    fn rejects_conflicting_duplicates_when_deduplicating() {
+        let m = measurement(
+            vec![0.0, 1.0, 1.0, 2.0],
+            vec![Some(0.1), Some(0.2), Some(0.3), Some(0.4)],
+        );
         let config = TimestampHandlingConfig {
             minimum_segment_points: 2,
             ..Default::default()
         };
-        let result = preprocess_timestamps(&ts, &[], &config).unwrap();
-        assert!(result.was_transformed);
-        assert_eq!(result.segments.len(), 2);
-    }
-
-    #[test]
-    fn non_finite_rejected_with_reject_policy() {
-        let ts = vec![0.0, f64::NAN, 2.0];
-        let config = TimestampHandlingConfig {
-            duplicate_policy: DuplicatePolicy::Reject,
-            ..Default::default()
-        };
-        assert!(preprocess_timestamps(&ts, &[], &config).is_err());
-    }
-
-    #[test]
-    fn constant_timestamps_with_reject_policy() {
-        let ts = vec![1.0, 1.0, 1.0];
-        let config = TimestampHandlingConfig {
-            non_monotonic_policy: NonMonotonicPolicy::Reject,
-            ..Default::default()
-        };
-        assert!(preprocess_timestamps(&ts, &[], &config).is_err());
-    }
-
-    #[test]
-    fn diagnose_reports_all_metrics() {
-        let ts = vec![0.0, 1.0, 3.0, 1.0, 0.5];
-        let diag = diagnose_timestamps(&ts, &[]);
-        assert!(diag.local_reversal_count > 0);
-        assert!(diag.largest_backward_jump_s.is_some());
-        assert!(diag.duplicate_count >= 1);
+        let err = preprocess_measurement(&m, &config).expect_err("must reject conflicts");
+        assert!(err.contains("conflicting duplicate"));
     }
 }

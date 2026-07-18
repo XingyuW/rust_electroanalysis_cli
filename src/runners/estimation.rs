@@ -1,6 +1,5 @@
 use super::RunnerError;
 use crate::{
-    data_file::measurement_parser::load_experiment,
     estimation::{
         self,
         calibration_adapter::StoredCalibrationObservationModel,
@@ -27,6 +26,7 @@ pub struct RunOptions {
     pub input: PathBuf,
     pub metadata: PathBuf,
     pub channel: String,
+    pub sheet: Option<String>,
     pub calibration_model: PathBuf,
     pub signal_results: Option<PathBuf>,
     pub transient_results: Option<PathBuf>,
@@ -53,7 +53,11 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         options.model.as_deref(),
         options.seed,
     )?;
-    let (experiment, _) = load_experiment(&input, &metadata)?;
+    let (experiment, _) = crate::data_file::measurement_parser::load_experiment_with_sheet(
+        &input,
+        &metadata,
+        options.sheet.as_deref(),
+    )?;
     let calibration = StoredCalibrationObservationModel::new(read_json(&resolve(
         workspace,
         &options.calibration_model,
@@ -185,7 +189,11 @@ pub fn compare(
     let metadata = resolve(workspace, &options.metadata);
     let loaded = load_config(workspace, options.config.as_deref())?;
     let config = loaded.config;
-    let (experiment, _) = load_experiment(&input, &metadata)?;
+    let (experiment, _) = crate::data_file::measurement_parser::load_experiment_with_sheet(
+        &input,
+        &metadata,
+        options.sheet.as_deref(),
+    )?;
     let calibration_model: crate::results::StoredCalibrationModel =
         read_json(&resolve(workspace, &options.calibration_model))?;
     let signal = read_optional::<SignalAnalysisReport>(workspace, options.signal_results.as_ref())?;
@@ -274,7 +282,9 @@ fn export_report(
     )?;
     let mut states = csv::Writer::from_path(dir.join(&c.states_filename))?;
     states.write_record([
+        "segment_id",
         "timestamp_s",
+        "original_row_index",
         "state",
         "value",
         "standard_error",
@@ -287,7 +297,12 @@ fn export_report(
     for point in &report.estimates {
         for value in &point.filtered_state {
             states.write_record([
+                point.segment_id.to_string(),
                 point.timestamp_s.to_string(),
+                point
+                    .original_row_index
+                    .map(|index| index.to_string())
+                    .unwrap_or_default(),
                 value.name.clone(),
                 fmt(value.value),
                 fmt(value.standard_error),
@@ -348,7 +363,11 @@ fn human_report(r: &StateEstimationReport) -> String {
         ));
     }
     s.push_str(&format!(
-        "\nModels\n- measurement model: stored calibration adapter + baseline offset + dynamic polarization; optional sensitivity scale\n- process model: actual timestamp intervals; random walks plus first-order polarization decay\n- initialization sources: {:?}\n- initialization assumptions: {:?}\n\nCovariance sources\n- process: {:?}, resolved variance {} {}\n- measurement: {:?}, resolved variance {} {}\n- measurement assumptions: {:?}\n\nInnovation diagnostics\n- mean: {:?}\n- standard deviation: {:?}\n- mean NIS: {:?}\n- NIS exceedance rate: {:?}\n- residual autocorrelation: {:?}\n- log likelihood: {:?}\n\nObservability and identifiability\n- rank: {}/{}\n- condition number: {:?}\n- weak states: {:?}\n- unobservable states: {:?}\n- empirical identifiability passed: {}\n\nCalibration domain and uncertainty\n- domain excursions: {}\n- state uncertainty is reported per point as standard error and covariance\n- molar concentration is emitted only for the ideal activity model\n\nValidation\n- {:?}\n\nWarnings\n{:?}\n",
+        "\nTimestamp preprocessing\n- was preprocessed: {}\n- segments: {}\n- skipped segments: {}\n- diagnostics: {:?}\n\nModels\n- measurement model: stored calibration adapter + baseline offset + dynamic polarization; optional sensitivity scale\n- process model: actual timestamp intervals; random walks plus first-order polarization decay\n- initialization sources: {:?}\n- initialization assumptions: {:?}\n\nCovariance sources\n- process: {:?}, resolved variance {} {}\n- measurement: {:?}, resolved variance {} {}\n- measurement assumptions: {:?}\n\nInnovation diagnostics\n- mean: {:?}\n- standard deviation: {:?}\n- mean NIS: {:?}\n- NIS exceedance rate: {:?}\n- residual autocorrelation: {:?}\n- log likelihood: {:?}\n\nObservability and identifiability\n- rank: {}/{}\n- condition number: {:?}\n- weak states: {:?}\n- unobservable states: {:?}\n- empirical identifiability passed: {}\n\nCalibration domain and uncertainty\n- domain excursions: {}\n- state uncertainty is reported per point as standard error and covariance\n- molar concentration is emitted only for the ideal activity model\n\nValidation\n- {:?}\n\nWarnings\n{:?}\n",
+        r.was_preprocessed,
+        r.timestamp_segments.len(),
+        r.skipped_timestamp_segments.len(),
+        r.timestamp_diagnostics,
         r.initialization.sources,
         r.initialization.assumptions,
         r.process_covariance.selected_source,

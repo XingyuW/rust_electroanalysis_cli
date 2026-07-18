@@ -858,7 +858,7 @@ pub fn load_data(path: impl AsRef<Path>) -> Result<LoadedExperimentData, DataPar
     let path = path.as_ref();
 
     // --- binary guard --------------------------------------------------
-    let kind = crate::data_file::InputKind::classify_by_extension(path);
+    let kind = crate::data_file::InputKind::classify_path(path);
     if kind.is_unsupported_binary() {
         return Err(DataParsingError::invalid_at(
             path,
@@ -871,9 +871,14 @@ pub fn load_data(path: impl AsRef<Path>) -> Result<LoadedExperimentData, DataPar
     }
 
     // --- Excel dispatch ------------------------------------------------
-    if kind == crate::data_file::InputKind::ExcelXlsx
-        || kind == crate::data_file::InputKind::ExcelXls
-    {
+    if kind == crate::data_file::InputKind::ExcelXls {
+        return Err(DataParsingError::invalid_at(
+            path,
+            "legacy '.xls' workbooks are not supported in this workflow; convert to '.xlsx' and retry",
+        ));
+    }
+
+    if kind == crate::data_file::InputKind::ExcelXlsx {
         return load_excel(path, None);
     }
 
@@ -925,10 +930,26 @@ fn load_excel(
     path: &Path,
     sheet_name: Option<&str>,
 ) -> Result<LoadedExperimentData, DataParsingError> {
-    let (parsed, sheet) = crate::data_file::excel_file::parse_excel_measurement(path, sheet_name)?;
+    let parsed_excel = crate::data_file::excel_file::parse_excel_measurement(path, sheet_name)?;
+    let parsed = parsed_excel.parsed;
+    let sheet = parsed_excel.sheet_name;
     let provenance = AnalysisProvenance::from_paths(path, None)?;
     let experiment_id = file_stem_or_default(path);
-    let sensor_metadata = default_sensor_metadata(path, DataFileType::SensorExcel, None);
+    let mut sensor_metadata = default_sensor_metadata(path, DataFileType::SensorExcel, None);
+    if let Some(metadata) = sensor_metadata.metadata.as_mut() {
+        metadata.insert("source_sheet".to_string(), sheet.clone());
+        metadata.insert(
+            "header_row_index".to_string(),
+            (parsed_excel.header_row_index + 1).to_string(),
+        );
+        if let Some(unit_row_index) = parsed_excel.unit_row_index {
+            metadata.insert(
+                "unit_row_index".to_string(),
+                (unit_row_index + 1).to_string(),
+            );
+        }
+        metadata.insert("parser_kind".to_string(), "excel_time_series".to_string());
+    }
     let experiment = ElectrochemicalExperiment::new(
         experiment_id,
         sensor_metadata,

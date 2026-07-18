@@ -3,8 +3,8 @@
 //! This module wraps `ElectrochemData` parsing and delegates figure generation
 //! to the shared high-quality plotting engine with CHI-specific defaults.
 
-use crate::data_file::ElectrochemData;
 use crate::data_file::value_transform::AxisTransforms;
+use crate::data_file::{ElectrochemData, InputKind};
 use crate::plottings::plotting::{PlotColor, PlotLegendPosition, PublicationConfig, plot_hq};
 
 use std::error::Error;
@@ -189,10 +189,18 @@ pub fn plot_chi_directory_with_configs_and_transforms<P: AsRef<Path>>(
             continue;
         }
 
-        if !is_supported_chi_path(&path) {
+        let kind = InputKind::classify_path(&path);
+        if kind.is_unsupported_binary() {
             skipped.push(ChiPlotSkip {
                 input_file: path,
-                reason: "Unsupported file type".to_string(),
+                reason: kind.skip_reason().to_string(),
+            });
+            continue;
+        }
+        if !kind.is_supported_text() {
+            skipped.push(ChiPlotSkip {
+                input_file: path,
+                reason: "unsupported extension".to_string(),
             });
             continue;
         }
@@ -271,15 +279,6 @@ fn apply_axis_transforms_to_electrochem(
             ty.apply_vec(&mut dataset.y_values);
         }
     }
-}
-
-fn is_supported_chi_path(path: &Path) -> bool {
-    matches!(
-        path.extension()
-            .and_then(|value| value.to_str())
-            .map(|value| value.to_ascii_lowercase()),
-        Some(extension) if matches!(extension.as_str(), "csv" | "txt" | "dat")
-    )
 }
 
 fn sanitize_output_component(value: &str) -> String {

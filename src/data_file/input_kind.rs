@@ -4,6 +4,7 @@
 //! whether a file is supported and which parser should handle it.
 
 use std::fmt;
+use std::fs;
 use std::path::Path;
 
 /// Classification of a candidate input file.
@@ -60,8 +61,7 @@ const EXCEL_EXTENSIONS: &[&str] = &["xlsx"];
 const LEGACY_EXCEL_EXTENSIONS: &[&str] = &["xls"];
 
 impl InputKind {
-    /// Classify a file by its extension alone.  Content‑based detection
-    /// (e.g., `Freq/Hz` vs time‑series header) must still follow.
+    /// Classify a file by its extension alone.
     pub fn classify_by_extension(path: &Path) -> Self {
         let extension = path
             .extension()
@@ -70,12 +70,53 @@ impl InputKind {
 
         match extension.as_deref() {
             Some(ext) if BINARY_EXTENSIONS.contains(&ext) => InputKind::UnsupportedBinary,
-            Some(ext) if TEXT_EXTENSIONS.contains(&ext) => InputKind::Unknown,
+            Some(ext) if TEXT_EXTENSIONS.contains(&ext) => InputKind::GeneralCsv,
             Some(ext) if EXCEL_EXTENSIONS.contains(&ext) => InputKind::ExcelXlsx,
             Some(ext) if LEGACY_EXCEL_EXTENSIONS.contains(&ext) => InputKind::ExcelXls,
             Some(_) => InputKind::Unknown,
             None => InputKind::Unknown,
         }
+    }
+
+    /// Classify a path using extension and lightweight content checks.
+    pub fn classify_path(path: &Path) -> Self {
+        let by_extension = Self::classify_by_extension(path);
+        if by_extension == InputKind::UnsupportedBinary {
+            return by_extension;
+        }
+
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(|value| value.to_ascii_lowercase());
+        let is_text_extension = extension
+            .as_deref()
+            .is_some_and(|ext| TEXT_EXTENSIONS.contains(&ext));
+        if !is_text_extension {
+            return by_extension;
+        }
+
+        if let Ok(bytes) = Self::read_prefix(path, 4096)
+            && Self::looks_binary(&bytes)
+        {
+            return InputKind::UnsupportedContentBinary;
+        }
+        by_extension
+    }
+
+    fn read_prefix(path: &Path, max_len: usize) -> Result<Vec<u8>, std::io::Error> {
+        let data = fs::read(path)?;
+        Ok(data.into_iter().take(max_len).collect())
+    }
+
+    fn looks_binary(bytes: &[u8]) -> bool {
+        if bytes.is_empty() {
+            return false;
+        }
+        if bytes.contains(&0) {
+            return true;
+        }
+        std::str::from_utf8(bytes).is_err()
     }
 
     /// Returns `true` when this classification means the file must be
@@ -136,13 +177,15 @@ impl InputKind {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::path::Path;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn classifies_text_extensions_as_unknown() {
+    fn classifies_text_extensions_as_general_csv() {
         for ext in ["csv", "txt", "dat"] {
             let kind = InputKind::classify_by_extension(Path::new(&format!("file.{ext}")));
-            assert_eq!(kind, InputKind::Unknown, "extension .{ext}");
+            assert_eq!(kind, InputKind::GeneralCsv, "extension .{ext}");
         }
     }
 
@@ -175,7 +218,7 @@ mod tests {
     #[test]
     fn classifies_uppercase_extensions() {
         let kind = InputKind::classify_by_extension(Path::new("DATA.CSV"));
-        assert_eq!(kind, InputKind::Unknown);
+        assert_eq!(kind, InputKind::GeneralCsv);
         let kind = InputKind::classify_by_extension(Path::new("DATA.BIN"));
         assert_eq!(kind, InputKind::UnsupportedBinary);
     }
@@ -184,5 +227,18 @@ mod tests {
     fn classifies_extensionless_as_unknown() {
         let kind = InputKind::classify_by_extension(Path::new("no_extension"));
         assert_eq!(kind, InputKind::Unknown);
+    }
+
+    #[test]
+    fn classifies_binary_content_with_text_extension() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("input-kind-binary-{suffix}.csv"));
+        fs::write(&path, [0x00, 0xFF, 0x10, 0x20]).expect("write fixture");
+        let kind = InputKind::classify_path(&path);
+        assert_eq!(kind, InputKind::UnsupportedContentBinary);
+        fs::remove_file(path).ok();
     }
 }

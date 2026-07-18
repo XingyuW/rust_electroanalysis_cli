@@ -51,7 +51,7 @@ use measurement::observations;
 use model::StateModel;
 use observability::diagnose;
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct EstimationContext<'a> {
     pub signal: Option<&'a SignalAnalysisReport>,
     pub transient: Option<&'a TransientAnalysisReport>,
@@ -73,10 +73,74 @@ pub fn estimate_experiment(
     config
         .validate()
         .map_err(|x| EstimationError::config(x.to_string()))?;
-    let calibration = Box::new(calibration);
+    let preprocessed =
+        timestamp::preprocess_measurement(experiment.measurement(), &config.timestamp_handling)
+            .map_err(EstimationError::invalid)?;
+    let mut segment_reports = Vec::with_capacity(preprocessed.segments.len());
+    for segment in &preprocessed.segments {
+        let segment_measurement = slice_measurement(
+            &preprocessed.measurement,
+            segment.start_index,
+            segment.end_index,
+        )?;
+        let mut segment_experiment = experiment.clone();
+        segment_experiment.measurement_data = segment_measurement;
+        let mut report = estimate_single_segment(
+            &segment_experiment,
+            channel,
+            &calibration,
+            config,
+            context,
+            filter,
+        )?;
+        for (index, point) in report.estimates.iter_mut().enumerate() {
+            point.segment_id = segment.segment_index;
+            point.original_row_index = preprocessed
+                .original_indices
+                .get(segment.start_index + index)
+                .copied();
+        }
+        segment_reports.push(report);
+    }
+
+    let mut reports_iter = segment_reports.into_iter();
+    let mut final_report = reports_iter.next().ok_or_else(|| {
+        EstimationError::invalid("no valid timestamp segments remain for estimation")
+    })?;
+    for report in reports_iter {
+        final_report.estimates.extend(report.estimates);
+        final_report
+            .diagnostics
+            .innovations
+            .extend(report.diagnostics.innovations);
+        final_report.diagnostics.accepted_update_count += report.diagnostics.accepted_update_count;
+        final_report.diagnostics.rejected_update_count += report.diagnostics.rejected_update_count;
+        final_report.diagnostics.predict_only_count += report.diagnostics.predict_only_count;
+        final_report.diagnostics.numerical_failures += report.diagnostics.numerical_failures;
+        final_report.diagnostics.domain_excursion_count +=
+            report.diagnostics.domain_excursion_count;
+        final_report.warnings.extend(report.warnings);
+    }
+    final_report.timestamp_diagnostics = Some(preprocessed.diagnostics.clone());
+    final_report.timestamp_policy = Some(preprocessed.applied_policy.clone());
+    final_report.timestamp_segments = preprocessed.segments;
+    final_report.skipped_timestamp_segments = preprocessed.skipped_segments;
+    final_report.was_preprocessed = preprocessed.was_transformed;
+    Ok(final_report)
+}
+
+fn estimate_single_segment(
+    experiment: &ElectrochemicalExperiment,
+    channel: &str,
+    calibration: &StoredCalibrationObservationModel,
+    config: &ResolvedEstimationConfig,
+    context: EstimationContext<'_>,
+    filter: FilterKind,
+) -> Result<StateEstimationReport, EstimationError> {
+    let calibration = Box::new(calibration.clone());
     let tau = resolve_tau(config, context.transient)?;
     let model = StateModel::new(config, tau.0, tau.1)?;
-    let (obs, _timestamp_diagnostics) = observations(experiment.measurement(), channel)?;
+    let (obs, timestamp_diagnostics) = observations(experiment.measurement(), channel)?;
     let measurement_source_unit = experiment
         .measurement()
         .channel(channel)
@@ -220,9 +284,39 @@ pub fn estimate_experiment(
         validation: None,
         configuration: config.clone(),
         provenance: experiment.provenance.clone(),
-        timestamp_diagnostics: Some(_timestamp_diagnostics),
+        timestamp_diagnostics: Some(timestamp_diagnostics),
+        timestamp_policy: None,
+        timestamp_segments: Vec::new(),
+        skipped_timestamp_segments: Vec::new(),
+        was_preprocessed: false,
         warnings,
     })
+}
+
+fn slice_measurement(
+    measurement: &crate::domain::MultiChannelMeasurement,
+    start: usize,
+    end: usize,
+) -> Result<crate::domain::MultiChannelMeasurement, EstimationError> {
+    let time = measurement.time[start..end].to_vec();
+    let channels = measurement
+        .channels
+        .iter()
+        .map(|channel| crate::domain::MeasurementChannel {
+            name: channel.name.clone(),
+            unit: channel.unit.clone(),
+            values: channel.values[start..end].to_vec(),
+            variance: channel
+                .variance
+                .as_ref()
+                .map(|variance| variance[start..end].to_vec()),
+            sensor_id: channel.sensor_id.clone(),
+            analyte_id: channel.analyte_id.clone(),
+            metadata: channel.metadata.clone(),
+        })
+        .collect::<Vec<_>>();
+    crate::domain::MultiChannelMeasurement::new(time, channels)
+        .map_err(|error| EstimationError::invalid(error.to_string()))
 }
 
 fn resolve_tau(
