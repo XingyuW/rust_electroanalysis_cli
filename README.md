@@ -87,6 +87,7 @@
 - [17. Reproducibility and Limitations](#17-reproducibility-and-limitations)
 - [18. Current Documented Limitations](#18-current-documented-limitations)
 - [19. Developer Documentation](#19-developer-documentation)
+  - [Documentation Authority and Conflict Resolution](#documentation-authority-and-conflict-resolution)
   - [Adding a New Circuit Element](#adding-a-new-circuit-element)
   - [Adding a New Plot Type](#adding-a-new-plot-type)
   - [Adding a New Regression Model](#adding-a-new-regression-model)
@@ -2543,6 +2544,16 @@ cargo run -- eis search data/
 ---
 
 ## 19. Developer Documentation
+
+### Documentation Authority and Conflict Resolution
+
+Use this precedence order whenever documentation conflicts:
+
+1. **Implementation (`src/`) is authoritative for current runtime behavior.**
+2. **Engineering specification (`docs/engineering_specification/*.md`) is authoritative for curated requirements/process and must be kept aligned with implementation.**
+3. **README is user-facing guidance and must be reconciled to the specification + implementation when drift is found.**
+
+Required action on conflict: **treat it as documentation drift, not a silent behavior change**. Update docs (and traceability) to match implementation, or explicitly approve and implement a behavior change with corresponding tests and spec updates.
 
 ### Adding a New Circuit Element
 
