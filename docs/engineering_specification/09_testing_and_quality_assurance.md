@@ -40,6 +40,7 @@
 | `tests/unified_data_loading.rs` | 3 | File format detection, binary rejection |
 | `tests/xlsx_ingestion.rs` | (inferred) | Excel file reading |
 | `tests/model_core.rs` | 02 | ISM graph compilation, schemas, decomposition, and legacy CLI surface |
+| `tests/model_builtins.rs` | 03 | Synthetic equilibrium, relaxation, disturbance, reconstruction, and validity coverage |
 
 ### Test Classification
 
@@ -92,6 +93,7 @@ Evidence classes:
 | GAP-010 | Plotting output is tested for file existence, not visual correctness | Low |
 | GAP-011 | No real Nernst, transport, transduction, reference, or external ISM component implementation yet | High (planned Phase 03) |
 | GAP-012 | Identifiability and equilibrium contracts intentionally report not-assessed rather than numerical conclusions | Medium (planned later validation phase) |
+| GAP-013 | Built-ins are reduced-order adapters; no high-fidelity Nernst-Planck transport or mechanism confirmation is implemented | High (deferred) |
 
 ## 4. Run Commands
 

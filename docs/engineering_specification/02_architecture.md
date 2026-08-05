@@ -276,3 +276,7 @@ decomposition, validity reporting, and non-claiming evidence/identifiability
 interfaces. It contains no Nernst, transient, EIS, or other numerical component
 implementation. `model_config` and `results::model` are outer adapters and do
 not reverse the core dependency direction.
+
+Phase 03 adds only static built-in adapters in `model/builtins.rs`; they call
+existing calibration/activity/unit/transient implementations and add no CLI or
+workflow dependency.

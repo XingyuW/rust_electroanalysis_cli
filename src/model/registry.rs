@@ -42,5 +42,7 @@ static BUILT_IN_REGISTRY: OnceLock<ComponentRegistry> = OnceLock::new();
 /// Global static registry for built-in production components. It is empty in
 /// Phase 02 because real scientific components are intentionally deferred.
 pub fn built_in_registry() -> &'static ComponentRegistry {
-    BUILT_IN_REGISTRY.get_or_init(ComponentRegistry::default)
+    BUILT_IN_REGISTRY.get_or_init(|| {
+        ComponentRegistry::from_static_factories(super::builtins::static_factories())
+    })
 }

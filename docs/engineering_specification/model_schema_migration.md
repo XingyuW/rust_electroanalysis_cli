@@ -25,3 +25,7 @@ earlier ISM model artifacts to migrate.
 
 Existing project configuration and result artifacts are untouched. The new
 model schema is not consumed by any CLI command or runner in Phase 02.
+
+Phase 03 adds built-in component kinds under the existing v1 definition
+schema. Their `equation_version`, assumptions, and evidence requirements are
+serialized in each descriptor; semantic changes require an explicit migration.

@@ -1,4 +1,7 @@
-use super::{error::ModelError, input::ModelInput, parameter::ParameterValues, state::ModelState};
+use super::{
+    error::ModelError, evidence::EvidenceRequirement, input::ModelInput,
+    parameter::ParameterValues, state::ModelState,
+};
 use serde::{Deserialize, Serialize};
 
 /// Scientific role of a component's explicit voltage contribution.
@@ -35,6 +38,14 @@ pub struct ComponentDescriptor {
     pub source: String,
     pub validity_domain: String,
     #[serde(default)]
+    pub equation: String,
+    #[serde(default)]
+    pub equation_version: u32,
+    #[serde(default)]
+    pub assumptions: Vec<String>,
+    #[serde(default)]
+    pub evidence_requirements: Vec<EvidenceRequirement>,
+    #[serde(default)]
     pub metadata: std::collections::BTreeMap<String, String>,
 }
 
@@ -53,6 +64,16 @@ impl ComponentDescriptor {
                 kind: "component source or validity domain",
             });
         }
+        if self.equation.trim().is_empty() || self.equation_version == 0 {
+            return Err(ModelError::EmptyIdentifier {
+                kind: "component equation or equation version",
+            });
+        }
+        if self.assumptions.is_empty() || self.evidence_requirements.is_empty() {
+            return Err(ModelError::EmptyIdentifier {
+                kind: "component assumptions or evidence requirements",
+            });
+        }
         if self.voltage_contribution_owner.is_some() && self.output_unit.is_none() {
             return Err(ModelError::InvalidUnit {
                 subject: format!("voltage component '{}'", self.id),
@@ -67,9 +88,19 @@ impl ComponentDescriptor {
 /// it to a particular estimation library.
 pub type Jacobian = Vec<Vec<f64>>;
 
+#[derive(Debug, Clone, Default)]
+pub struct ComponentBindings {
+    pub state_indices: std::collections::BTreeMap<String, usize>,
+    pub parameter_indices: std::collections::BTreeMap<String, usize>,
+}
+
 /// Runtime implementation created by a static component factory.
 pub trait IsmComponent: Send + Sync {
     fn descriptor(&self) -> &ComponentDescriptor;
+
+    fn bind(&mut self, _bindings: &ComponentBindings) -> Result<(), ModelError> {
+        Ok(())
+    }
 
     fn initialize(
         &self,
@@ -120,6 +151,15 @@ pub trait IsmComponent: Send + Sync {
         _input: &ModelInput,
     ) -> Result<Vec<f64>, ModelError> {
         Ok(vec![0.0; state_dimension])
+    }
+
+    fn validity_warnings(
+        &self,
+        _state: &ModelState,
+        _parameters: &ParameterValues,
+        _input: &ModelInput,
+    ) -> Result<Vec<String>, ModelError> {
+        Ok(Vec::new())
     }
 }
 

@@ -1,5 +1,5 @@
 use super::{
-    component::{ComponentDescriptor, IsmComponent, Jacobian, identity},
+    component::{ComponentBindings, ComponentDescriptor, IsmComponent, Jacobian, identity},
     definition::ModelDefinition,
     error::ModelError,
     graph::dependency_order,
@@ -206,11 +206,20 @@ impl CompiledIsmModel {
         if let Err(error) = self.validate_input(input) {
             violations.push(error.to_string());
         }
-        if violations.is_empty() {
+        let mut warnings = Vec::new();
+        for component in &self.components {
+            match component.validity_warnings(state, parameters, input) {
+                Ok(component_warnings) => warnings.extend(component_warnings),
+                Err(error) => violations.push(error.to_string()),
+            }
+        }
+        let mut report = if violations.is_empty() {
             ValidityReport::valid(self.definition.validity_domain.clone())
         } else {
             ValidityReport::invalid(self.definition.validity_domain.clone(), violations)
-        }
+        };
+        report.warnings = warnings;
+        report
     }
 
     pub fn identifiability_report(&self) -> IdentifiabilityReport {
@@ -351,7 +360,7 @@ pub fn compile_model(
                     kind: "component",
                     id: id.clone(),
                 })?;
-        let component = registry.create(descriptor)?;
+        let mut component = registry.create(descriptor)?;
         if component.descriptor().id != descriptor.id
             || component.descriptor().kind != descriptor.kind
         {
@@ -359,6 +368,10 @@ pub fn compile_model(
                 component: descriptor.id.clone(),
             });
         }
+        component.bind(&ComponentBindings {
+            state_indices: state_indices.clone(),
+            parameter_indices: parameter_indices.clone(),
+        })?;
         components.push(component);
     }
     Ok(CompiledIsmModel {

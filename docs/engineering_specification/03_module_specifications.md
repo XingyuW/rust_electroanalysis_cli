@@ -165,10 +165,12 @@
 | `src/model/identifiability.rs` | Non-claiming identifiability-report contract | ✅ |
 | `src/model/evidence.rs` | Mechanism-evidence requirement contract | ✅ |
 | `src/model/equilibrium_recognition.rs` | Evidence-preserving equilibrium-assessment contract | ✅ |
+| `src/model/builtins.rs` | Static reduced-order equilibrium/activity/transport/transduction/disturbance adapters | ✅ |
+| `src/model/defaults.rs` | Default reduced-order ISM definition | ✅ |
 | `src/plot_runner.rs` | (Legacy) Plot orchestration adapter | ✅ |
 | `src/search_runner.rs` | (Legacy) Search orchestration adapter | ✅ |
 
-**Coverage check:** 157/157 Rust source paths under `src/**/*.rs` are mapped above.
+**Coverage check:** 159/159 Rust source paths under `src/**/*.rs` are mapped above.
 
 ---
 

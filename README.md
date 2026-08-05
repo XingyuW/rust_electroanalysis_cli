@@ -145,7 +145,7 @@ The application is organized into four major subsystems:
 | **Scientific domain** (`domain/`) | Owns aligned multi-channel measurements, experiment metadata, diagnostics, and provenance |
 | **Impedance engine** (`impedance/`) | Circuit model AST, element equations, fitting, evolutionary search, scoring, and reporting |
 | **Plotting backend** (`plottings/`) | High-quality figure rendering in SVG + supersampled PNG, supporting 9 plot geometries |
-| **ISM model core** (`model/`) | Versioned, dependency-clean model definitions and graph compilation; no CLI workflow or numerical component yet |
+| **ISM model core** (`model/`) | Versioned reduced-order built-ins and graph compilation; no CLI workflow or high-fidelity transport solver |
 
 These are connected by typed workflow façades (`fitting/` and `runners/`) plus the existing orchestration layer (`plot_runner.rs`, `search_runner.rs`). TOML configuration and scientific algorithms remain in their existing modules.
 

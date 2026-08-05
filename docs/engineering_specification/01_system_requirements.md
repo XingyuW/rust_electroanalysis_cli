@@ -50,6 +50,8 @@ Verification confidence labels used in **Verified By**:
 | FR-031 | ISM compilation shall reject duplicate IDs/contribution owners, missing inputs/dependencies, circular dependencies, invalid units, and invalid model schemas with typed errors | High | `src/model/compiler.rs` | **Direct** — `model_core` invalid-model tests | ✅ Implemented |
 | FR-032 | ISM observations shall expose named voltage contributions and an explicit unexplained-residual status; mechanism evidence shall remain a non-automatic contract | High | `src/model/output.rs`, `src/model/evidence.rs` | **Direct** — contribution decomposition test; mechanism assignment deferred | ✅ Implemented |
 | FR-033 | ISM core shall not depend on CLI, runners, plotting, health, mechanism, or estimation modules | High | `src/model/` | Source inspection and dependency scan | ✅ Implemented |
+| FR-034 | System shall provide static reduced-order ISM component factories for equilibrium, activity, transport, transduction, and disturbances | High | `src/model/builtins.rs` | `model_builtins` synthetic tests | ✅ Implemented |
+| FR-035 | Built-in ISM components shall expose equation/version, bounds via parameter specs, assumptions, validity domain, evidence requirements, and Jacobians | High | `src/model/component.rs`, `src/model/builtins.rs` | `model_builtins` | ✅ Implemented |
 
 ## 2. Scientific Requirements
 
@@ -66,6 +68,7 @@ Verification confidence labels used in **Verified By**:
 | SCI-009 | Transient single-exponential shall be E(t) = E∞ + A·exp(−t/τ) | `src/potentiometry/transient/models.rs` | (Verified from code) |
 | SCI-010 | Transient stretched-exponential shall be E(t) = E∞ + A·exp(−(t/τ)^β) | `src/potentiometry/transient/models.rs` | (Verified from code) |
 | SCI-011 | ISM model contract shall preserve the decomposition E_pred = E_equilibrium + E_transport + E_transduction + E_reference + E_external, with residual reported separately | `src/model/output.rs` | `model_core` contribution test |
+| SCI-012 | Reduced-order ISM relaxation modes are phenomenological and shall not be assigned physical mechanism labels automatically | `src/model/builtins.rs` | Synthetic validity tests |
 
 ## 3. Numerical Requirements
 

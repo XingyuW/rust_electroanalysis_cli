@@ -371,3 +371,10 @@ does not implement a new state equation in Phase 02.
 `UnexplainedResidual` records either the residual or missing observed-voltage
 evidence. No component may own a residual and no fitted result receives a
 mechanism label from this contract alone.
+
+### EQ-ISM-003: Reduced-Order Built-In Adapters
+
+Phase 03 delegates Nernst, Nicolsky-Eisenman, activity, and relaxation
+evaluation to the existing calibration and transient modules. First/two-mode
+and stretched terms are phenomenological; candidate names are not mechanism
+assignments. High-fidelity Nernst-Planck transport is not implemented.

@@ -55,6 +55,7 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | FR-031 | `model/graph.rs`, `model/compiler.rs` | None | `model_core` | Typed ModelError | Direct | ✅ |
 | FR-032 | `model/output.rs`, `model/evidence.rs` | None | `model_core` | ObservationPrediction | Direct | ✅ |
 | FR-033 | `model/` | None | Source dependency scan | None | Direct | ✅ |
+| FR-034 to FR-035 | `model/builtins.rs`, `model/defaults.rs` | None | `model_builtins` | Built-in model definition | Direct | ✅ |
 
 ---
 
@@ -102,6 +103,7 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | EQ-EST-003 | UKF | `estimation/ukf.rs` | `phase6` | ✅ |
 | EQ-ISM-001 | ISM state-space interface | `model/` | `model_core` | ✅ (contract only) |
 | EQ-ISM-002 | ISM contribution/residual decomposition | `model/output.rs` | `model_core` | ✅ |
+| EQ-ISM-003 | Reduced-order built-in adapters | `model/builtins.rs` | `model_builtins` | ✅ |
 
 ---
 

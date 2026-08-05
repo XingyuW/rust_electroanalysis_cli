@@ -79,6 +79,18 @@ fn component(id: &str, role: ComponentRole, owner: &str, voltage_v: f64) -> Comp
         voltage_contribution_owner: Some(owner.into()),
         source: "test fixture".into(),
         validity_domain: "synthetic bounded fixture".into(),
+        equation: "test constant voltage".into(),
+        equation_version: 1,
+        assumptions: vec!["test-only component".into()],
+        evidence_requirements: vec![rust_electroanalysis_cli::EvidenceRequirement {
+            hypothesis_id: "test".into(),
+            proposed_mechanism_label: "unassigned".into(),
+            independent_evidence_types: vec!["test".into()],
+            minimum_independent_observations: 1,
+            validity_domain: "test".into(),
+            alternatives_to_consider: vec!["test".into()],
+            required_uncertainty_statement: "test".into(),
+        }],
         metadata: BTreeMap::from([("voltage_v".into(), voltage_v.to_string())]),
     }
 }

@@ -4,8 +4,10 @@
 //! validation, and explicit voltage decomposition. It intentionally contains
 //! no Nernst, transient, EIS, or other scientific equation implementation.
 
+mod builtins;
 mod compiler;
 mod component;
+mod defaults;
 mod definition;
 mod equilibrium_recognition;
 mod error;
@@ -20,7 +22,10 @@ mod state;
 mod validity;
 
 pub use compiler::{CompiledIsmModel, compile_model};
-pub use component::{ComponentDescriptor, ComponentRole, IsmComponent, Jacobian};
+pub use component::{
+    ComponentBindings, ComponentDescriptor, ComponentRole, IsmComponent, Jacobian,
+};
+pub use defaults::default_model_definition;
 pub use definition::{MODEL_DEFINITION_SCHEMA_VERSION, ModelDefinition};
 pub use equilibrium_recognition::EquilibriumAssessment;
 pub use error::ModelError;

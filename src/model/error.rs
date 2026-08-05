@@ -72,6 +72,8 @@ pub enum ModelError {
     NonFiniteContribution { component: String },
     #[error("component '{component}' emitted a voltage without a declared contribution owner")]
     UndeclaredVoltageContribution { component: String },
+    #[error("component '{component}' evaluation failed: {message}")]
+    ComponentEvaluation { component: String, message: String },
     #[error("model configuration I/O error: {0}")]
     Io(String),
     #[error("model configuration TOML error: {0}")]

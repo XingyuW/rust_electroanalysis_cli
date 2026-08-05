@@ -66,6 +66,10 @@ pub(crate) enum ModelUnitDimension {
     Conductivity,
     Time,
     PotentialRate,
+    Flow,
+    TemperatureSensitivity,
+    ConductivitySensitivity,
+    FlowSensitivity,
 }
 
 pub(crate) fn validate_unit(unit: &str, subject: String) -> Result<ModelUnitDimension, ModelError> {
@@ -83,6 +87,12 @@ fn unit_dimension(unit: &str) -> Option<ModelUnitDimension> {
     match unit.trim().to_ascii_lowercase().as_str() {
         "s" | "sec" | "second" | "seconds" => Some(ModelUnitDimension::Time),
         "v/s" | "volt/s" | "volts/s" => Some(ModelUnitDimension::PotentialRate),
+        "m/s" | "meter/s" | "metre/s" => Some(ModelUnitDimension::Flow),
+        "v/k" | "volt/k" => Some(ModelUnitDimension::TemperatureSensitivity),
+        "v/(s/m)" | "v/(s·m^-1)" | "v per s/m" => {
+            Some(ModelUnitDimension::ConductivitySensitivity)
+        }
+        "v/(m/s)" | "v per m/s" => Some(ModelUnitDimension::FlowSensitivity),
         _ => QuantityUnit::from_str(unit)
             .ok()
             .map(|unit| match unit.dimension() {

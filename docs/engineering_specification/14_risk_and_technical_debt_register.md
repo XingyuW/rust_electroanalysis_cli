@@ -54,6 +54,7 @@
 | RISK-022 | SCI | A future component could obscure unexplained voltage error | Core prevents residual ownership, but workflow-level reporting is deferred | `model/output.rs` | High | Low | Medium | P2 |
 | RISK-023 | ARCH | Future built-in component additions could introduce forbidden workflow dependencies | Phase 02 core is clean; dependency enforcement is currently source/test reviewed | `src/model/` | Medium | Low | Low | P3 |
 | RISK-024 | DATA | Model schema v1 has no historical artifact migration because it is newly introduced | `model_schema_migration.md` defines reject-and-migrate policy for future versions | `model_config.rs`, `results/model.rs` | Low | Low | Low | P4 |
+| RISK-025 | SCI | Reduced-order modes may be mistaken for specific physical mechanisms | Built-ins use neutral/candidate names and evidence requirements, but no independent confirmation workflow exists | `model/builtins.rs` | High | Medium | High | P1 |
 
 ---
 
