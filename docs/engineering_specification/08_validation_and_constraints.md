@@ -28,6 +28,10 @@
 | VAL-015 | --input without --channel in predict | CLI error | `cli.rs` | Error |
 | VAL-016 | Binary content in CSV file | Error: "unsupported" | `data_file/input_kind.rs` | Error |
 | VAL-017 | Legacy .xls file | Error: ".xls" reference | `data_file/excel_file.rs` | Error |
+| VAL-019 | Unsupported ISM model/config schema version | Typed `ModelError` | `model/definition.rs`, `model_config.rs` | Error |
+| VAL-020 | Duplicate ISM IDs or voltage contribution ownership | Typed `ModelError` | `model/compiler.rs` | Error |
+| VAL-021 | Missing/circular ISM component dependency or required input | Typed `ModelError` | `model/graph.rs`, `model/compiler.rs` | Error |
+| VAL-022 | Invalid or incompatible ISM unit | Typed `ModelError` | `model/input.rs`, `model/compiler.rs` | Error |
 
 ## 2. Parameter Bound Enforcement
 
@@ -42,6 +46,7 @@
 | BND-007 | Nernst temperature | T > 0 K | effective_temperature_k | `potentiometry/calibration/nernst.rs` |
 | BND-008 | Nernst ion charge | z ≠ 0 | theoretical_slope check | `potentiometry/calibration/nernst.rs` |
 | BND-009 | Nernst slope for inversion | |slope| ≥ 1e-15 | activity_from_potential | `potentiometry/calibration/nernst.rs` |
+| BND-010 | ISM state and parameter values | Declared finite closed bounds | Model compiler and runtime validation | `model/state.rs`, `model/parameter.rs`, `model/compiler.rs` |
 
 ## 3. Solver Convergence Validation
 
@@ -76,6 +81,8 @@
 - **DC limit fallbacks**: Large real values (1e6, 1e12 Ω) instead of infinity
 - **Division safeguards**: `norm_sqr() > 1e-16` checks before division in circuit impedance and admittance
 - **Non-finite optimization parameters**: Clamped to lower bounds
+- **ISM definitions/artifacts**: compiler rejects non-finite metadata values;
+  `ModelCompilationArtifact::to_json` validates the definition before serializing.
 
 ## 6. Missing-Data Handling
 

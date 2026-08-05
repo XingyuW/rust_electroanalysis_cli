@@ -349,3 +349,25 @@ P_k|k = (I − K_k·H_k)·P_k|k-1
 
 Unscented transform with sigma points.  
 **Source**: `src/estimation/ukf.rs`
+
+---
+
+## Part I: Unified ISM Model Contract
+
+### EQ-ISM-001: State-Space Interface
+
+`dx/dt = f(x, u, θ, t) + w`
+
+`src/model/` defines the interface and validates state/parameter metadata. It
+does not implement a new state equation in Phase 02.
+
+### EQ-ISM-002: Explicit Observation Decomposition
+
+`E_pred = E_equilibrium + E_transport + E_transduction + E_reference + E_external`
+
+`E_unexplained_residual = E_observed - E_pred`
+
+`ComponentContribution` records named contributions and
+`UnexplainedResidual` records either the residual or missing observed-voltage
+evidence. No component may own a residual and no fitted result receives a
+mechanism label from this contract alone.

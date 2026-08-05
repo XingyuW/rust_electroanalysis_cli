@@ -50,6 +50,10 @@
 | RISK-018 | NUM | Initial guess for Warburg α defaults to 0.5 when phase angle is non-finite; this may bias fits toward diffusion-like behaviour | `fitting.rs` L125-127 | `impedance/fitting.rs` | Low | Low | Low | P4 |
 | RISK-019 | ERR | Invariant-guarded `unreachable!()` branches remain in transient model destructuring and dimensional unit conversions | `transient/models.rs` (4 sites), `potentiometry/units.rs` (4 sites) rely on prior validation guards | `potentiometry/transient/models.rs`, `potentiometry/units.rs` | Low | Very Low | Low | P4 |
 | RISK-020 | MAINT | `plot_config.rs` has ~200 fields in `RawPlotStyle` — very large configuration surface | File size, field count | `plot_config.rs` | Medium | — | Low | P4 |
+| RISK-021 | SCI | Fitted modes could be over-interpreted as physical mechanisms when concrete ISM components arrive | A core evidence contract exists, but no independent-evidence evaluator exists yet | `model/evidence.rs`, `model/equilibrium_recognition.rs` | High | Medium | High | P1 |
+| RISK-022 | SCI | A future component could obscure unexplained voltage error | Core prevents residual ownership, but workflow-level reporting is deferred | `model/output.rs` | High | Low | Medium | P2 |
+| RISK-023 | ARCH | Future built-in component additions could introduce forbidden workflow dependencies | Phase 02 core is clean; dependency enforcement is currently source/test reviewed | `src/model/` | Medium | Low | Low | P3 |
+| RISK-024 | DATA | Model schema v1 has no historical artifact migration because it is newly introduced | `model_schema_migration.md` defines reject-and-migrate policy for future versions | `model_config.rs`, `results/model.rs` | Low | Low | Low | P4 |
 
 ---
 

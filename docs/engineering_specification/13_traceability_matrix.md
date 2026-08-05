@@ -50,6 +50,11 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | FR-026 | `impedance/reporting.rs` | `eis fit`, `eis export-fit --report` | `phase0`, `chi_file` tests | Human-readable EIS fit report | Direct | ✅ |
 | FR-027 | `results/`, `runners/` | All analysis commands (except `plot`) | Integration tests + source inspection | JSON artifacts | Partial | ✅ |
 | FR-028 | `runners/transient.rs`, `runners/calibration.rs` | `transient fit`, `calibration fit` | `phase2`, `phase3` | CSV feature tables | Partial | ✅ |
+| FR-029 | `model/definition.rs`, `model/registry.rs`, `model/compiler.rs` | None | `model_core` | CompiledIsmModel | Direct | ✅ |
+| FR-030 | `model/state.rs`, `model/parameter.rs` | None | `model_core` | Versioned ModelDefinition | Direct | ✅ |
+| FR-031 | `model/graph.rs`, `model/compiler.rs` | None | `model_core` | Typed ModelError | Direct | ✅ |
+| FR-032 | `model/output.rs`, `model/evidence.rs` | None | `model_core` | ObservationPrediction | Direct | ✅ |
+| FR-033 | `model/` | None | Source dependency scan | None | Direct | ✅ |
 
 ---
 
@@ -95,6 +100,8 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | EQ-EST-001 | EKF prediction | `estimation/ekf.rs` | `phase6` | ✅ |
 | EQ-EST-002 | EKF update | `estimation/ekf.rs` | `phase6` | ✅ |
 | EQ-EST-003 | UKF | `estimation/ukf.rs` | `phase6` | ✅ |
+| EQ-ISM-001 | ISM state-space interface | `model/` | `model_core` | ✅ (contract only) |
+| EQ-ISM-002 | ISM contribution/residual decomposition | `model/output.rs` | `model_core` | ✅ |
 
 ---
 

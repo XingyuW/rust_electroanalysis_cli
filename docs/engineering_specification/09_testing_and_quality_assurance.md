@@ -23,6 +23,7 @@
 | `src/regression_mod.rs` | 6 | Linear fit, error cases, curve generation |
 | `src/plot_config.rs` | 20 | Schema, migration, resolution, validation |
 | `src/results/mod.rs` | 1 | CircuitFitResult structure |
+| `src/model/` | (covered by integration fixture) | Core compilation, validation, and decomposition contracts |
 
 ### Integration Tests (`tests/`)
 
@@ -38,6 +39,7 @@
 | `tests/phase6_estimation.rs` | 6 | State estimation, EKF/UKF |
 | `tests/unified_data_loading.rs` | 3 | File format detection, binary rejection |
 | `tests/xlsx_ingestion.rs` | (inferred) | Excel file reading |
+| `tests/model_core.rs` | 02 | ISM graph compilation, schemas, decomposition, and legacy CLI surface |
 
 ### Test Classification
 
@@ -69,6 +71,7 @@ Evidence classes:
 | FR-024 | Direct | `phase6_estimation` asserts EKF/UKF runtime behavior and artifact outputs. |
 | FR-025 to FR-026 | Direct | Provenance hashing and EIS text reporting are directly asserted in unit/integration tests. |
 | FR-027 to FR-028 | Partial | Representative JSON/CSV exports are tested; full workflow-by-workflow artifact-name coverage is implementation-verified. |
+| FR-029 to FR-033 | Direct | `model_core` covers model compilation, graph/unit failures, bounds, deterministic indices, decomposition, versioned schemas, and CLI compatibility. |
 | SCI-001 to SCI-010 | Partial | Core scientific constants/formulas are directly tested; several equations remain code-verified rather than assertion-complete. |
 | NUM-001 to NUM-006 | Partial | Numerical safeguards and diagnostics are tested in representative paths; full edge-space coverage is incomplete. |
 | DAT-001 to DAT-007 | Partial | Data-model invariants are directly tested; cross-module schema compatibility and migration behavior remain partial. |
@@ -87,6 +90,8 @@ Evidence classes:
 | GAP-008 | No integration test for `estimate simulate` | Low |
 | GAP-009 | No deterministic reproducibility tests (fixed seed comparison) | Medium |
 | GAP-010 | Plotting output is tested for file existence, not visual correctness | Low |
+| GAP-011 | No real Nernst, transport, transduction, reference, or external ISM component implementation yet | High (planned Phase 03) |
+| GAP-012 | Identifiability and equilibrium contracts intentionally report not-assessed rather than numerical conclusions | Medium (planned later validation phase) |
 
 ## 4. Run Commands
 

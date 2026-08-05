@@ -258,3 +258,21 @@ Boundary mappings above were rebuilt from direct external-crate import usage in 
 - **Provenance**: Injected at the domain boundary (`ElectrochemicalExperiment`, `CalibrationObservationSet`) and threaded through results
 - **Configuration**: Each workflow has its own config module, resolved independently
 - **Serialization**: All result types implement `Serialize`/`Deserialize` via serde
+
+## 8. Unified ISM Model Core (Phase 02)
+
+`src/model/` is a dependency-clean scientific contract layer. It is public as
+`rust_electroanalysis_cli::model`, but no runner or CLI command consumes it in
+this phase.
+
+```text
+model_config / results::model ──> model core ──> potentiometry::units adapter
+CLI / runners / plotting / health / mechanism / estimation ──X──> model core
+```
+
+The core contains serializable definitions, a static factory registry,
+deterministic graph compilation, state/parameter validation, contribution
+decomposition, validity reporting, and non-claiming evidence/identifiability
+interfaces. It contains no Nernst, transient, EIS, or other numerical component
+implementation. `model_config` and `results::model` are outer adapters and do
+not reverse the core dependency direction.

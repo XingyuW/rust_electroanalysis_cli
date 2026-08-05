@@ -128,6 +128,7 @@
 | `src/results/health.rs` | Health assessment result types | ✅ |
 | `src/results/estimation.rs` | State estimation result types | ✅ |
 | `src/results/mechanism.rs` | Mechanism comparison result types | ✅ |
+| `src/results/model.rs` | Versioned compiled-model artifact schema | ✅ |
 | `src/runners/mod.rs` | Runner module root, RunnerError | ✅ |
 | `src/runners/plot.rs` | Plot workflow coordinator | ✅ |
 | `src/runners/fit.rs` | EIS fit workflow coordinator | ✅ |
@@ -148,10 +149,26 @@
 | `src/signal_config.rs` | Signal analysis TOML schema | ✅ |
 | `src/health_config.rs` | Health assessment TOML schema | ✅ |
 | `src/estimation_config.rs` | State estimation TOML schema | ✅ |
+| `src/model_config.rs` | ISM model TOML configuration wrapper | ✅ |
+| `src/model/mod.rs` | ISM core public façade and stable re-exports | ✅ |
+| `src/model/error.rs` | Typed ISM model errors | ✅ |
+| `src/model/definition.rs` | Versioned model definition schema | ✅ |
+| `src/model/component.rs` | Component descriptors, roles, and component trait | ✅ |
+| `src/model/registry.rs` | Immutable static component-factory registry | ✅ |
+| `src/model/graph.rs` | Deterministic dependency ordering and cycle detection | ✅ |
+| `src/model/compiler.rs` | Definition validation, index resolution, and compiled-model execution | ✅ |
+| `src/model/parameter.rs` | Parameter metadata, bounds, and compiled indices | ✅ |
+| `src/model/state.rs` | State metadata, bounds, and compiled indices | ✅ |
+| `src/model/input.rs` | Input schemas and existing-unit adapter | ✅ |
+| `src/model/output.rs` | Contributions, prediction, and explicit residual status | ✅ |
+| `src/model/validity.rs` | Validity-domain and validity-report contracts | ✅ |
+| `src/model/identifiability.rs` | Non-claiming identifiability-report contract | ✅ |
+| `src/model/evidence.rs` | Mechanism-evidence requirement contract | ✅ |
+| `src/model/equilibrium_recognition.rs` | Evidence-preserving equilibrium-assessment contract | ✅ |
 | `src/plot_runner.rs` | (Legacy) Plot orchestration adapter | ✅ |
 | `src/search_runner.rs` | (Legacy) Search orchestration adapter | ✅ |
 
-**Coverage check:** 140/140 Rust source paths under `src/**/*.rs` are mapped above.
+**Coverage check:** 157/157 Rust source paths under `src/**/*.rs` are mapped above.
 
 ---
 
@@ -206,6 +223,21 @@
 
 - **All result types are serializable** with `schema_version` for forward compatibility.
 - **Key types**: `CircuitFitResult`, `TransientAnalysisReport`, `CalibrationAnalysisReport`, `StoredCalibrationModel`, `SignalAnalysisReport`, `SensorHealthAssessment`, `StateEstimationReport`.
+
+### `model/` — Unified ISM Model Core
+
+- **Purpose**: Versioned, extensible model definitions and deterministic graph
+  compilation without implementing scientific equations in this phase.
+- **Public contracts**: `IsmModel`, `IsmComponent`, `ComponentDescriptor`,
+  `ComponentRole`, `StateSpec`, `ParameterSpec`, `ModelDefinition`,
+  `CompiledIsmModel`, `ModelInput`, `ModelState`, `ComponentContribution`,
+  `ValidityReport`, `IdentifiabilityReport`, `EvidenceRequirement`, and
+  `EquilibriumAssessment`.
+- **Dependencies**: only core Rust/serde/thiserror and a narrow adapter to the
+  existing potentiometry unit taxonomy; never CLI, runners, plotting, health,
+  mechanism, or estimation.
+- **Invariant**: components cannot own an unexplained residual; state/parameter
+  positions preserve definition order; factories are static and keyed by kind.
 
 ### Configuration Modules (8 modules)
 
