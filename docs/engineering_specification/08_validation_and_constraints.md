@@ -110,4 +110,4 @@ Related timestamp controls are separate from duplicate policy:
 
 ## 9. Cross-Workflow Input Validation
 
-When a workflow consumes results from another workflow (e.g., health consuming signal results), the input JSON is deserialized with serde. Missing fields use `Default` or `Option` types. Schema version mismatches are **not** currently checked at runtime — this is a deferred concern.
+When a workflow consumes results from another workflow, `domain::artifact::read_artifact` validates the JSON root, `schema_version`, and `artifact_kind` before payload deserialization. New Phase-00 artifacts use schema v2 and a required kind header; schema-v1 files without a kind are accepted only as documented typed legacy migrations. Mismatched kinds, unsupported schemas, malformed roots, and explicit non-finite numeric tokens return `ArtifactError`.

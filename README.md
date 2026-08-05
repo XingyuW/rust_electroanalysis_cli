@@ -2653,3 +2653,6 @@ This project is distributed as open source under the terms of the [MIT License](
 ---
 
 *Generated from codebase analysis. For questions, refer to the source code or open an issue.*
+# Phase-00 artifact compatibility
+
+Cross-workflow JSON files are versioned artifacts. New files include a root `schema_version` and `artifact_kind`; commands reject an artifact supplied to the wrong workflow before payload deserialization. Schema-v1 artifacts without the kind header remain readable through the expected typed workflow input for migration compatibility. Generated artifacts use schema v2.

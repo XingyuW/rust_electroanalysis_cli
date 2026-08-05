@@ -38,6 +38,7 @@
 | `tests/phase6_estimation.rs` | 6 | State estimation, EKF/UKF |
 | `tests/unified_data_loading.rs` | 3 | File format detection, binary rejection |
 | `tests/xlsx_ingestion.rs` | (inferred) | Excel file reading |
+| `tests/artifact_contract.rs` | 00 | Artifact headers, typed incompatibility rejection, legacy-schema migration, and exported-contract inventory |
 
 ### Test Classification
 
@@ -78,7 +79,7 @@ Evidence classes:
 | Gap | Description | Priority |
 |-----|-------------|----------|
 | GAP-001 | No performance regression tests | Low |
-| GAP-002 | No cross-version schema compatibility tests | Medium |
+| GAP-002 | Cross-version artifact compatibility is covered for the common contract; payload-specific migrations remain to be added as schemas evolve | Low |
 | GAP-003 | Many workflow tests validate artifact presence/shape but not full file-content semantics for every exported artifact variant | Medium |
 | GAP-004 | No fuzz testing of circuit parser | Low |
 | GAP-005 | No tests for NaN/Inf edge cases in all numerical paths | Medium |

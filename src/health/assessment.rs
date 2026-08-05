@@ -29,6 +29,13 @@ pub fn assemble(
         HealthDomain::Impedance,
         HealthDomain::MechanismEvidence,
     ];
+    if rules
+        .iter()
+        .any(|rule| !rule.contradictory_evidence.is_empty())
+        && !warnings.contains(&HealthWarning::ContradictoryEvidence)
+    {
+        warnings.push(HealthWarning::ContradictoryEvidence);
+    }
     let assessments = domains
         .iter()
         .filter_map(|d| {
@@ -41,11 +48,7 @@ pub fn assemble(
             } else {
                 Some(HealthDomainAssessment {
                     domain: *d,
-                    status: if fs.iter().any(|f| f.warning.is_some()) {
-                        OverallHealthStatus::Watch
-                    } else {
-                        OverallHealthStatus::WithinBaseline
-                    },
+                    status: domain_status(*d, &fs, &comparisons, &findings, missing.contains(d)),
                     confidence: if fs.iter().any(|f| f.value.is_some()) {
                         crate::results::HealthConfidence::Moderate
                     } else {
@@ -86,7 +89,7 @@ pub fn assemble(
         OverallHealthStatus::WithinBaseline
     };
     SensorHealthAssessment {
-        schema_version: 1,
+        schema_version: 2,
         assessment_id: id.into(),
         sensor_id: sensor,
         experiment_id: experiment,
@@ -100,5 +103,61 @@ pub fn assemble(
         configuration: config,
         provenance,
         warnings,
+    }
+}
+
+fn domain_status(
+    domain: HealthDomain,
+    features: &[&HealthFeature],
+    comparisons: &[BaselineComparison],
+    findings: &[HealthFinding],
+    missing: bool,
+) -> OverallHealthStatus {
+    if missing || features.iter().all(|feature| feature.value.is_none()) {
+        return OverallHealthStatus::DataQualityInsufficient;
+    }
+    let severity = findings
+        .iter()
+        .filter(|finding| {
+            finding
+                .supporting_evidence
+                .iter()
+                .any(|evidence| evidence.domain == domain)
+        })
+        .map(|finding| &finding.severity)
+        .max_by_key(|severity| match severity {
+            crate::health_config::HealthSeverity::Informational => 0,
+            crate::health_config::HealthSeverity::Minor => 1,
+            crate::health_config::HealthSeverity::Moderate => 2,
+            crate::health_config::HealthSeverity::Major => 3,
+            crate::health_config::HealthSeverity::Critical => 4,
+        });
+    match severity {
+        Some(crate::health_config::HealthSeverity::Critical) => OverallHealthStatus::Critical,
+        Some(crate::health_config::HealthSeverity::Major) => OverallHealthStatus::Degraded,
+        Some(_) => OverallHealthStatus::Watch,
+        None if comparisons
+            .iter()
+            .filter(|comparison| {
+                features
+                    .iter()
+                    .any(|feature| feature.name == comparison.feature)
+            })
+            .any(|comparison| {
+                comparison
+                    .robust_z_score
+                    .is_some_and(|value| value.abs() >= 3.0)
+                    || comparison.z_score.is_some_and(|value| value.abs() >= 3.0)
+                    || comparison
+                        .relative_difference
+                        .is_some_and(|value| value.abs() >= 0.20)
+            }) =>
+        {
+            OverallHealthStatus::Watch
+        }
+        None if features.iter().any(|feature| feature.warning.is_some()) => {
+            OverallHealthStatus::Watch
+        }
+        None => OverallHealthStatus::WithinBaseline,
     }
 }

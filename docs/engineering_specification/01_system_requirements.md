@@ -82,7 +82,7 @@ Verification confidence labels used in **Verified By**:
 | DAT-004 | Environmental series must have matching time/value lengths | `src/domain/experiment.rs` |
 | DAT-005 | Experiment events must have finite timestamps | `src/domain/experiment.rs` |
 | DAT-006 | Configuration files shall use TOML format with schema_version field | Various config modules |
-| DAT-007 | JSON results shall include schema_version for forward compatibility | All `src/results/` modules |
+| DAT-007 | Cross-workflow JSON artifacts shall include `schema_version` and `artifact_kind`; supported legacy schemas are migrated only through their typed contract | `domain/artifact.rs`, `results/`, runners |
 
 ## 5. Performance Requirements
 

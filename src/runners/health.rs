@@ -52,23 +52,28 @@ pub fn baseline(
     let mut provenance = None;
     for r in &man.records {
         let signal_path = resolve(base, &r.signal_results);
-        let signal: crate::results::SignalAnalysisReport = read_json(&signal_path)?;
+        let signal: crate::results::SignalAnalysisReport =
+            crate::domain::read_artifact(&signal_path)?;
         provenance.get_or_insert(signal.provenance.clone());
         let mut fs = health::features::from_signal(&signal);
         if let Some(p) = &r.transient_results {
-            let t: crate::results::TransientAnalysisReport = read_json(&resolve(base, p))?;
+            let t: crate::results::TransientAnalysisReport =
+                crate::domain::read_artifact(&resolve(base, p))?;
             fs.extend(health::features::from_transient(&t));
         }
         if let Some(p) = &r.calibration_results {
-            let c: crate::results::CalibrationAnalysisReport = read_json(&resolve(base, p))?;
+            let c: crate::results::CalibrationAnalysisReport =
+                crate::domain::read_artifact(&resolve(base, p))?;
             fs.extend(health::features::from_calibration(&c));
         }
         if let Some(p) = &r.eis_fit {
-            let e: crate::results::EisFitArtifact = read_json(&resolve(base, p))?;
+            let e: crate::results::EisFitArtifact =
+                crate::domain::read_artifact(&resolve(base, p))?;
             fs.extend(health::features::from_eis(&e));
         }
         if let Some(p) = &r.mechanism_results {
-            let m: crate::results::MechanismAnalysisReport = read_json(&resolve(base, p))?;
+            let m: crate::results::MechanismAnalysisReport =
+                crate::domain::read_artifact(&resolve(base, p))?;
             fs.extend(health::features::from_mechanism(&m));
         }
         let context = r
@@ -88,7 +93,7 @@ pub fn baseline(
         loaded.config.baseline.minimum_required_records,
     );
     let dest = output_file(workspace, output, &loaded.config.export.baseline_filename);
-    write_json(&dest, &b)?;
+    crate::domain::write_artifact(&dest, &b)?;
     println!("Health baseline written to {}", dest.display());
     Ok(())
 }
@@ -107,29 +112,33 @@ pub fn assess(
 ) -> Result<(), RunnerError> {
     let loaded = LoadedHealthConfig::load(workspace, config_path)?;
     let signal_path = resolve(workspace, signal_path);
-    let signal: crate::results::SignalAnalysisReport = read_json(&signal_path)?;
+    let signal: crate::results::SignalAnalysisReport = crate::domain::read_artifact(&signal_path)?;
     let mut features = health::features::from_signal(&signal);
     let mut missing = Vec::new();
     if let Some(p) = transient {
-        let r: crate::results::TransientAnalysisReport = read_json(&resolve(workspace, p))?;
+        let r: crate::results::TransientAnalysisReport =
+            crate::domain::read_artifact(&resolve(workspace, p))?;
         features.extend(health::features::from_transient(&r));
     } else {
         missing.push(HealthDomain::DynamicResponse);
     }
     if let Some(p) = calibration {
-        let r: crate::results::CalibrationAnalysisReport = read_json(&resolve(workspace, p))?;
+        let r: crate::results::CalibrationAnalysisReport =
+            crate::domain::read_artifact(&resolve(workspace, p))?;
         features.extend(health::features::from_calibration(&r));
     } else {
         missing.push(HealthDomain::Calibration);
     }
     if let Some(p) = eis {
-        let r: crate::results::EisFitArtifact = read_json(&resolve(workspace, p))?;
+        let r: crate::results::EisFitArtifact =
+            crate::domain::read_artifact(&resolve(workspace, p))?;
         features.extend(health::features::from_eis(&r));
     } else {
         missing.push(HealthDomain::Impedance);
     }
     if let Some(p) = mechanism {
-        let r: crate::results::MechanismAnalysisReport = read_json(&resolve(workspace, p))?;
+        let r: crate::results::MechanismAnalysisReport =
+            crate::domain::read_artifact(&resolve(workspace, p))?;
         features.extend(health::features::from_mechanism(&r));
     } else {
         missing.push(HealthDomain::MechanismEvidence);
@@ -141,7 +150,11 @@ pub fn assess(
         .collect::<Vec<_>>();
     let base = baseline_path.map(|p| resolve(workspace, p));
     let baseline: Option<SensorHealthBaseline> = if let Some(p) = base.as_deref() {
-        Some(read_json(p)?)
+        let baseline: SensorHealthBaseline = crate::domain::read_artifact(p)?;
+        if baseline.records.len() < loaded.config.baseline.minimum_required_records {
+            warnings.push(HealthWarning::InsufficientBaselineRecords);
+        }
+        Some(baseline)
     } else {
         warnings.push(HealthWarning::MissingBaseline);
         None
@@ -251,13 +264,14 @@ pub fn trend(
     }
     let base = path.parent().unwrap_or(workspace);
     let baseline = baseline_path
-        .map(|p| read_json::<SensorHealthBaseline>(&resolve(workspace, p)))
+        .map(|p| crate::domain::read_artifact::<SensorHealthBaseline>(&resolve(workspace, p)))
         .transpose()?;
     let mut all =
         std::collections::BTreeMap::<String, Vec<(String, Option<f64>, Option<f64>)>>::new();
     let mut provenance = None;
     for r in man.records {
-        let a: SensorHealthAssessment = read_json(&resolve(base, &r.assessment))?;
+        let a: SensorHealthAssessment =
+            crate::domain::read_artifact(&resolve(base, &r.assessment))?;
         provenance.get_or_insert(a.provenance.clone());
         for f in a.features {
             all.entry(f.name.clone()).or_default().push((
@@ -282,7 +296,7 @@ pub fn trend(
     let report = health::trend::report("health-trend", trends, p);
     let dir = output_dir(workspace, output, "health_trend");
     fs::create_dir_all(&dir)?;
-    write_json(&dir.join(&loaded.config.export.trends_filename), &report)?;
+    crate::domain::write_artifact(&dir.join(&loaded.config.export.trends_filename), &report)?;
     let mut w = csv::Writer::from_path(dir.join("health_trends.csv"))?;
     w.write_record([
         "feature",
@@ -310,7 +324,7 @@ pub fn trend(
     Ok(())
 }
 pub fn report(workspace: &Path, results: &Path, output: Option<&Path>) -> Result<(), RunnerError> {
-    let r: SensorHealthAssessment = read_json(&resolve(workspace, results))?;
+    let r: SensorHealthAssessment = crate::domain::read_artifact(&resolve(workspace, results))?;
     let dest = output_file(workspace, output, "health_report.txt");
     fs::write(&dest, human_report(&r))?;
     println!("Health report written to {}", dest.display());
@@ -324,7 +338,7 @@ fn export_assessment(
     let dir = output_dir(workspace, output, "health");
     fs::create_dir_all(&dir)?;
     let c = &r.configuration.export;
-    write_json(&dir.join(&c.assessment_filename), r)?;
+    crate::domain::write_artifact(&dir.join(&c.assessment_filename), r)?;
     let mut f = csv::Writer::from_path(dir.join(&c.features_filename))?;
     f.write_record(["feature", "domain", "value", "unit", "source"])?;
     for x in &r.features {
@@ -427,18 +441,8 @@ fn load_context(p: &Path) -> Result<Context, RunnerError> {
         metadata_source: Some(p.display().to_string()),
     })
 }
-fn read_json<T: DeserializeOwned>(p: &Path) -> Result<T, RunnerError> {
-    Ok(serde_json::from_str(&fs::read_to_string(p)?)?)
-}
 fn read_toml<T: DeserializeOwned>(p: &Path) -> Result<T, RunnerError> {
     Ok(toml::from_str(&fs::read_to_string(p)?)?)
-}
-fn write_json<T: serde::Serialize>(p: &Path, v: &T) -> Result<(), RunnerError> {
-    if let Some(parent) = p.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(p, serde_json::to_string_pretty(v)?)?;
-    Ok(())
 }
 fn resolve(w: &Path, p: &Path) -> PathBuf {
     if p.is_absolute() {

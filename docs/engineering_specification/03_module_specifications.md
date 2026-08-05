@@ -21,6 +21,7 @@
 | `src/domain/metadata.rs` | ExperimentMetadataDocument, TOML loading | ✅ |
 | `src/domain/provenance.rs` | AnalysisProvenance (SHA-256, timestamps) | ✅ |
 | `src/domain/diagnostics.rs` | ParseDiagnostics, MeasurementParseResult | ✅ |
+| `src/domain/artifact.rs` | VersionedArtifact contract, artifact-kind/schema validation, legacy migration, finite JSON guards | ✅ |
 | `src/data_file/lib.rs` | Data ingestion module root | ✅ |
 | `src/data_file/chi_file.rs` | CHI-format parser (EIS, OCPT) | ✅ |
 | `src/data_file/data_op.rs` | PlotData container, IntoPlotData trait | ✅ |
@@ -160,7 +161,7 @@
 ### `domain/` — Shared Application-Domain Contracts
 
 - **Purpose**: Type-safe shared contracts for measurements, experiments, errors, and provenance.
-- **Public types**: `ElectrochemicalExperiment`, `MultiChannelMeasurement`, `MeasurementChannel`, `AnalysisProvenance`, `ExperimentEvent`, 7 error enums.
+- **Public types**: `ElectrochemicalExperiment`, `MultiChannelMeasurement`, `MeasurementChannel`, `AnalysisProvenance`, `VersionedArtifact`, `ArtifactKind`, `ArtifactError`, `ExperimentEvent`, typed error enums.
 - **No dependencies on CLI, plotting, or scientific modules**.
 - **Invariant**: All constructed `ElectrochemicalExperiment` instances have validated measurements, events sorted by timestamp, and provenance attached.
 
@@ -204,7 +205,7 @@
 
 ### `results/` — Result Structures
 
-- **All result types are serializable** with `schema_version` for forward compatibility.
+- **Cross-workflow result types implement `VersionedArtifact`**. Serialized files carry both `schema_version` and `artifact_kind`; unsupported kind/schema combinations fail before serde payload deserialization.
 - **Key types**: `CircuitFitResult`, `TransientAnalysisReport`, `CalibrationAnalysisReport`, `StoredCalibrationModel`, `SignalAnalysisReport`, `SensorHealthAssessment`, `StateEstimationReport`.
 
 ### Configuration Modules (8 modules)

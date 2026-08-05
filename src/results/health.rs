@@ -139,6 +139,8 @@ pub struct BaselineComparison {
     #[serde(default, alias = "percentile_position")]
     pub range_position_percent: Option<f64>,
     pub override_reason: Option<String>,
+    #[serde(default)]
+    pub baseline_sample_count: usize,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct HealthEvidence {

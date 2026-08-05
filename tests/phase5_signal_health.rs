@@ -239,12 +239,73 @@ fn health_mechanism_rule_requires_independent_domains() {
         empirical_percentile: None,
         range_position_percent: None,
         override_reason: None,
+        baseline_sample_count: 3,
     }];
     let (evaluations, findings) = rules::evaluate(&[rule], &one_domain, &comparisons, 2);
     assert!(!evaluations[0].triggered);
     assert!(findings.is_empty());
     let _ = provenance();
     let _ = SignalWarning::RecordTooShort;
+}
+
+#[test]
+fn health_rules_use_explicit_trend_and_preserve_contradictory_evidence() {
+    let rule = HealthRule {
+        rule_id: "drift-trend".into(),
+        finding: HealthFindingKind::ExcessiveDrift,
+        severity: HealthSeverity::Moderate,
+        all_of: vec![FeatureCondition {
+            feature: "signal.robust_drift_rate".into(),
+            operator: FeatureOperator::TrendIncreasing,
+            value: Some(0.01),
+        }],
+        any_of: vec![
+            FeatureCondition {
+                feature: "signal.missing_fraction".into(),
+                operator: FeatureOperator::LessThan,
+                value: Some(0.1),
+            },
+            FeatureCondition {
+                feature: "signal.robust_drift_rate".into(),
+                operator: FeatureOperator::GreaterThan,
+                value: Some(0.1),
+            },
+        ],
+        minimum_evidence_domains: 1,
+        minimum_baseline_records: 0,
+        alternative_explanations: Vec::new(),
+    };
+    let features = vec![
+        HealthFeature {
+            name: "signal.robust_drift_rate".into(),
+            value: Some(0.2),
+            unit: "V/s".into(),
+            domain: HealthDomain::Drift,
+            source: "signal".into(),
+            warning: None,
+        },
+        HealthFeature {
+            name: "signal.missing_fraction".into(),
+            value: Some(0.2),
+            unit: "fraction".into(),
+            domain: HealthDomain::DataQuality,
+            source: "signal".into(),
+            warning: None,
+        },
+    ];
+    let trend = rust_electroanalysis_cli::results::HealthTrend {
+        feature: "signal.robust_drift_rate".into(),
+        points: Vec::new(),
+        ordinary_slope: Some(0.02),
+        theil_sen_slope: Some(0.02),
+        rank_correlation: None,
+        replicate_standard_deviation: None,
+        warnings: Vec::new(),
+    };
+    let (evaluations, findings) = rules::evaluate_with_trends(&[rule], &features, &[], &[trend], 1);
+    assert!(evaluations[0].triggered);
+    assert_eq!(findings.len(), 1);
+    assert_eq!(findings[0].contradictory_evidence.len(), 1);
 }
 
 #[test]
