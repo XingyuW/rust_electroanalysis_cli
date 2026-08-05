@@ -5,7 +5,8 @@
 //! and data/rendering implementations remain in their existing modules.
 
 use crate::domain::{
-    ConfigurationError, DataParsingError, FittingError, ReportingError, WorkspaceError,
+    ArtifactError, ConfigurationError, DataParsingError, FittingError, ReportingError,
+    WorkspaceError,
 };
 use crate::potentiometry::{PotentiometryError, calibration::CalibrationError};
 use std::error::Error;
@@ -25,6 +26,8 @@ pub mod transient;
 /// Errors crossing a workflow boundary into the CLI.
 #[derive(Debug, ThisError)]
 pub enum RunnerError {
+    #[error(transparent)]
+    Artifact(#[from] ArtifactError),
     #[error(transparent)]
     Configuration(#[from] ConfigurationError),
     #[error(transparent)]

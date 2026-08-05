@@ -128,7 +128,9 @@ pub fn evaluate(
     let components = match model {
         TransientModelKind::Single => {
             let [equilibrium, amplitude, tau] = parameters else {
-                unreachable!();
+                return Err(PotentiometryError::invalid(
+                    "single-exponential parameter count changed after validation",
+                ));
             };
             validate_tau(*tau)?;
             let fast = amplitude * (-time_local / tau).exp();
@@ -149,7 +151,9 @@ pub fn evaluate(
                 tau_slow,
             ] = parameters
             else {
-                unreachable!();
+                return Err(PotentiometryError::invalid(
+                    "double-exponential parameter count changed after validation",
+                ));
             };
             validate_ordered_taus(*tau_fast, *tau_slow)?;
             let fast = fast_amplitude * (-time_local / tau_fast).exp();
@@ -172,7 +176,9 @@ pub fn evaluate(
                 drift_rate,
             ] = parameters
             else {
-                unreachable!();
+                return Err(PotentiometryError::invalid(
+                    "double-with-drift parameter count changed after validation",
+                ));
             };
             validate_ordered_taus(*tau_fast, *tau_slow)?;
             let fast = fast_amplitude * (-time_local / tau_fast).exp();
@@ -188,7 +194,9 @@ pub fn evaluate(
         }
         TransientModelKind::Stretched => {
             let [equilibrium, amplitude, tau, beta] = parameters else {
-                unreachable!();
+                return Err(PotentiometryError::invalid(
+                    "stretched-exponential parameter count changed after validation",
+                ));
             };
             validate_tau(*tau)?;
             if !beta.is_finite() || *beta <= 0.0 {

@@ -113,7 +113,7 @@ pub fn fit_calibration(
         warnings.extend(validation.warnings.clone());
     }
     Ok(CalibrationAnalysisReport {
-        schema_version: 1,
+        schema_version: 2,
         calibration_id: format!("{analyte}-calibration"),
         analyte,
         ion_charge: config.analyte.charge,
@@ -149,7 +149,7 @@ pub fn stored_model_from_report(
         })
         .ok_or(CalibrationError::AllModelsFailed)?;
     Ok(StoredCalibrationModel {
-        schema_version: 1,
+        schema_version: 2,
         analyte: report.analyte.clone(),
         ion_charge: report.ion_charge,
         model_kind,

@@ -11,13 +11,12 @@ pub fn plot_estimation_report(
     if points.is_empty() {
         return Ok(());
     }
+    let (Some(first), Some(last)) = (points.first(), points.last()) else {
+        return Ok(());
+    };
     let (x0, x1) = (
-        points.first().unwrap().timestamp_s,
-        points
-            .last()
-            .unwrap()
-            .timestamp_s
-            .max(points.first().unwrap().timestamp_s + 1.0),
+        first.timestamp_s,
+        last.timestamp_s.max(first.timestamp_s + 1.0),
     );
     let potential = directory.join("estimated_potential.png");
     let root = BitMapBackend::new(&potential, (900, 500)).into_drawing_area();

@@ -104,7 +104,7 @@ pub fn analyze_experiment(
     }
 
     Ok(TransientAnalysisReport {
-        schema_version: 1,
+        schema_version: 2,
         experiment_id: experiment.experiment_id.clone(),
         channel: channel.name.clone(),
         channel_unit: channel.unit.clone(),

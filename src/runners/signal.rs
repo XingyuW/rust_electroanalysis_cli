@@ -5,7 +5,6 @@ use crate::{
     signal::{self},
     signal_config::LoadedSignalConfig,
 };
-use serde::de::DeserializeOwned;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -108,7 +107,7 @@ pub fn residuals(
     let mut results = Vec::new();
     if let Some(path) = transient {
         let p = resolve(workspace, path);
-        let r: crate::results::TransientAnalysisReport = read_json(&p)?;
+        let r: crate::results::TransientAnalysisReport = crate::domain::read_artifact(&p)?;
         for e in &r.events {
             if let Some(model) = e.selected_model
                 && let Some(fit) = e
@@ -132,7 +131,7 @@ pub fn residuals(
     }
     if let Some(path) = calibration {
         let p = resolve(workspace, path);
-        let r: crate::results::CalibrationAnalysisReport = read_json(&p)?;
+        let r: crate::results::CalibrationAnalysisReport = crate::domain::read_artifact(&p)?;
         if let Some(model) = r
             .selected_model
             .and_then(|k| r.candidate_models.iter().find(|m| m.model_kind == k))
@@ -154,7 +153,7 @@ pub fn residuals(
     }
     if let Some(path) = eis {
         let p = resolve(workspace, path);
-        let r: EisFitArtifact = read_json(&p)?;
+        let r: EisFitArtifact = crate::domain::read_artifact(&p)?;
         results.push(ResidualAnalysisResult::Eis {
             source: "eis".into(),
             summary: crate::signal::residuals::eis_summary(&r),
@@ -181,7 +180,7 @@ fn export_signal(
     let dir = output_dir(workspace, output, "signal");
     fs::create_dir_all(&dir)?;
     let c = &report.configuration.export;
-    write_json(&dir.join(&c.results_filename), report)?;
+    crate::domain::write_artifact(&dir.join(&c.results_filename), report)?;
     let mut w = csv::Writer::from_path(dir.join(&c.summary_filename))?;
     w.write_record(["feature", "value", "unit"])?;
     for (name, value, unit) in [
@@ -308,9 +307,6 @@ fn human_report(r: &crate::results::SignalAnalysisReport) -> String {
         fmt(r.spikes.flagged_fraction),
         r.warnings
     )
-}
-fn read_json<T: DeserializeOwned>(p: &Path) -> Result<T, RunnerError> {
-    Ok(serde_json::from_str(&fs::read_to_string(p)?)?)
 }
 fn write_json<T: serde::Serialize>(p: &Path, v: &T) -> Result<(), RunnerError> {
     fs::write(p, serde_json::to_string_pretty(v)?)?;

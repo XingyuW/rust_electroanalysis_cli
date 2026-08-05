@@ -4,6 +4,7 @@
 //! diagnostics, and provenance while keeping the existing `data_file`,
 //! `impedance`, and `plottings` implementation boundaries intact.
 
+pub mod artifact;
 pub mod diagnostics;
 pub mod errors;
 pub mod experiment;
@@ -11,6 +12,7 @@ pub mod measurement;
 pub mod metadata;
 pub mod provenance;
 
+pub use artifact::{ArtifactError, ArtifactKind, VersionedArtifact, read_artifact, write_artifact};
 pub use diagnostics::{MeasurementParseResult, ParseDiagnostics};
 pub use errors::{
     ConfigurationError, DataParsingError, FittingError, PlottingError, ProvenanceError,

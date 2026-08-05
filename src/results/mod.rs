@@ -23,6 +23,31 @@ pub use transient::{
     TransientWarning, TransientWarningKind,
 };
 
+use crate::domain::{ArtifactKind, VersionedArtifact};
+
+macro_rules! versioned_artifact {
+    ($type:ty, $kind:ident, $current:expr, [$($legacy:expr),* $(,)?]) => {
+        impl VersionedArtifact for $type {
+            const ARTIFACT_KIND: ArtifactKind = ArtifactKind::$kind;
+            const CURRENT_SCHEMA_VERSION: u32 = $current;
+            const LEGACY_SCHEMA_VERSIONS: &'static [u32] = &[$($legacy),*];
+            fn schema_version(&self) -> u32 { self.schema_version }
+        }
+    };
+}
+
+versioned_artifact!(EisFitArtifact, EisFit, 2, [1]);
+versioned_artifact!(TransientAnalysisReport, TransientAnalysis, 2, [1]);
+versioned_artifact!(CalibrationObservationSet, CalibrationObservations, 2, [1]);
+versioned_artifact!(StoredCalibrationModel, CalibrationModel, 2, [1]);
+versioned_artifact!(CalibrationAnalysisReport, CalibrationAnalysis, 2, [1]);
+versioned_artifact!(SignalAnalysisReport, SignalAnalysis, 2, [1]);
+versioned_artifact!(SensorHealthBaseline, HealthBaseline, 2, [1, 2]);
+versioned_artifact!(SensorHealthAssessment, HealthAssessment, 2, [1]);
+versioned_artifact!(HealthTrendReport, HealthTrend, 2, [1]);
+versioned_artifact!(MechanismAnalysisReport, MechanismAnalysis, 2, [1]);
+versioned_artifact!(StateEstimationReport, StateEstimation, 2, [1, 2]);
+
 /// Complete output of a circuit fit.
 ///
 /// The fields are deliberately named so callers do not need to rely on the

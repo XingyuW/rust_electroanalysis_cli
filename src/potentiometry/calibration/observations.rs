@@ -268,7 +268,7 @@ pub fn extract_observations(
         return Err(CalibrationError::NoObservations);
     }
     Ok(CalibrationObservationSet {
-        schema_version: 1,
+        schema_version: 2,
         observations,
         provenance: experiment.provenance.clone(),
         warnings,

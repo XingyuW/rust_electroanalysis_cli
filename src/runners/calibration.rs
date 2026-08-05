@@ -47,7 +47,11 @@ pub fn extract(workspace_dir: &Path, options: ExtractOptions<'_>) -> Result<(), 
     let transient = options
         .transient_results_path
         .map(|path| resolve_path(workspace_dir, path))
-        .map(|path| read_json::<crate::results::transient::TransientAnalysisReport>(&path))
+        .map(|path| {
+            crate::domain::read_artifact::<crate::results::transient::TransientAnalysisReport>(
+                &path,
+            )
+        })
         .transpose()?;
     let mut observation_set = extract_observations(
         &experiment,
@@ -63,7 +67,7 @@ pub fn extract(workspace_dir: &Path, options: ExtractOptions<'_>) -> Result<(), 
         options.output_path,
         &loaded.config.export.observations_filename,
     );
-    write_json(&destination, &observation_set)?;
+    crate::domain::write_artifact(&destination, &observation_set)?;
     println!(
         "Calibration observations written to {} ({} observation(s))",
         destination.display(),
@@ -90,7 +94,8 @@ pub fn fit(
     }
     let mut config = loaded.config;
     config.apply_cli_overrides(model, selection, bootstrap, seed)?;
-    let mut observation_set: CalibrationObservationSet = read_json(&observations_path)?;
+    let mut observation_set: CalibrationObservationSet =
+        crate::domain::read_artifact(&observations_path)?;
     observation_set.provenance =
         AnalysisProvenance::from_paths(&observations_path, loaded.source_path.as_deref())
             .map_err(DataParsingError::from)?;
@@ -101,8 +106,8 @@ pub fn fit(
         crate::potentiometry::calibration::error::CalibrationError::export(&output_dir, error)
     })?;
     let model = stored_model_from_report(&report)?;
-    write_json(&output_dir.join(&config.export.model_filename), &model)?;
-    write_json(&output_dir.join(&config.export.results_filename), &report)?;
+    crate::domain::write_artifact(&output_dir.join(&config.export.model_filename), &model)?;
+    crate::domain::write_artifact(&output_dir.join(&config.export.results_filename), &report)?;
     write_observation_csv(&output_dir.join(&config.export.features_filename), &report)?;
     write_residual_csv(&output_dir.join(&config.export.residuals_filename), &report)?;
     write_validation_csv(
@@ -134,8 +139,8 @@ pub fn validate(
 ) -> Result<(), RunnerError> {
     let model_path = resolve_path(workspace_dir, model_path);
     let observations_path = resolve_path(workspace_dir, observations_path);
-    let model: StoredCalibrationModel = read_json(&model_path)?;
-    let observations: CalibrationObservationSet = read_json(&observations_path)?;
+    let model: StoredCalibrationModel = crate::domain::read_artifact(&model_path)?;
+    let observations: CalibrationObservationSet = crate::domain::read_artifact(&observations_path)?;
     let validation = validate_stored_model(&model, &observations.observations)?;
     let output_dir = output_directory(workspace_dir, output_path);
     fs::create_dir_all(&output_dir).map_err(|error| {
@@ -173,7 +178,7 @@ pub fn predict(
     output_path: Option<&Path>,
 ) -> Result<(), RunnerError> {
     let model_path = resolve_path(workspace_dir, model_path);
-    let model: StoredCalibrationModel = read_json(&model_path)?;
+    let model: StoredCalibrationModel = crate::domain::read_artifact(&model_path)?;
     let temperature_k = temperature_celsius.map(|value| value + 273.15);
     let predictions = if let Some(potential) = potential {
         vec![prediction::predict_activity_from_potential(
@@ -474,19 +479,6 @@ fn validation_report(validation: &CalibrationValidationResult) -> String {
         validation.failed_predictions,
         validation.extrapolation_count
     )
-}
-
-fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, RunnerError> {
-    let text = fs::read_to_string(path).map_err(|error| {
-        crate::potentiometry::calibration::error::CalibrationError::export(path, error)
-    })?;
-    serde_json::from_str(&text).map_err(|error| {
-        crate::potentiometry::calibration::error::CalibrationError::InvalidObservation(format!(
-            "failed to parse JSON {}: {error}",
-            path.display()
-        ))
-        .into()
-    })
 }
 
 fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), RunnerError> {

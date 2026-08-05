@@ -363,7 +363,7 @@ impl EisFitArtifact {
             .collect();
         let _ = PI;
         Self {
-            schema_version: 1,
+            schema_version: 2,
             fit_id: format!("{}:{}", input.label, circuit_expression),
             experiment_id: input.metadata.get("experiment_id").cloned(),
             sensor_id: input.metadata.get("sensor_id").cloned(),
