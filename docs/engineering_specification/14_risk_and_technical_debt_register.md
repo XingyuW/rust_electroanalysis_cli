@@ -50,6 +50,10 @@
 | RISK-018 | NUM | Initial guess for Warburg α defaults to 0.5 when phase angle is non-finite; this may bias fits toward diffusion-like behaviour | `fitting.rs` L125-127 | `impedance/fitting.rs` | Low | Low | Low | P4 |
 | RISK-019 | ERR | Invariant-guarded `unreachable!()` branches remain in transient model destructuring and dimensional unit conversions | `transient/models.rs` (4 sites), `potentiometry/units.rs` (4 sites) rely on prior validation guards | `potentiometry/transient/models.rs`, `potentiometry/units.rs` | Low | Very Low | Low | P4 |
 | RISK-020 | MAINT | `plot_config.rs` has ~200 fields in `RawPlotStyle` — very large configuration surface | File size, field count | `plot_config.rs` | Medium | — | Low | P4 |
+| RISK-021 | SCI | A future unified model could over-interpret fitted modes as physical mechanisms | Multi-component fits and timescales are non-unique without independent evidence | ADR-0001; future `src/model/` | High | Medium | High | P1 |
+| RISK-022 | SCI | A future component graph could hide unexplained voltage error inside arbitrary offsets | Additive model contributions are otherwise difficult to audit | ADR-0001 residual policy | High | Medium | High | P1 |
+| RISK-023 | ARCH | A future model core could accidentally depend on workflow/UI modules and become non-reusable | Existing layers contain runners, plotting, health, and report dependencies | ADR-0001 dependency direction | Medium | Medium | Medium | P2 |
+| RISK-024 | DATA | Future model-definition semantics may drift without a dedicated schema version and migration policy | Current configuration/result schema policies are heterogeneous | ADR-0001 schema policy | Medium | Medium | Medium | P2 |
 
 ---
 

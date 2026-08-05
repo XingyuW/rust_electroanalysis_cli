@@ -349,3 +349,28 @@ P_k|k = (I − K_k·H_k)·P_k|k-1
 
 Unscented transform with sigma points.  
 **Source**: `src/estimation/ukf.rs`
+
+---
+
+## Part I: Planned Unified ISM Framework Contract (Not Implemented)
+
+### EQ-ISM-001: State Equation Contract
+
+`dx/dt = f(x, u, θ, t) + w`
+
+This declares the future ISM state-space interface only. It adds no numerical
+state equation in Phase 01 and must delegate existing science through adapters.
+
+### EQ-ISM-002: Observation Equation Contract
+
+`E_pred = h(x, u, θ, t) + v`
+
+The future observation must report:
+
+`E_pred = E_equilibrium + E_transport + E_transduction + E_reference + E_external`
+
+`E_unexplained_residual = E_observed - E_pred`
+
+The residual is diagnostic output, not an interchangeable component or a
+mechanism label. Units, uncertainty, source, validity domain, and evidence
+status are required for every contribution. ADR-0001 governs this contract.

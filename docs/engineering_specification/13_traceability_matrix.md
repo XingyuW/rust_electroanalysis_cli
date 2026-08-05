@@ -50,6 +50,10 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | FR-026 | `impedance/reporting.rs` | `eis fit`, `eis export-fit --report` | `phase0`, `chi_file` tests | Human-readable EIS fit report | Direct | ✅ |
 | FR-027 | `results/`, `runners/` | All analysis commands (except `plot`) | Integration tests + source inspection | JSON artifacts | Partial | ✅ |
 | FR-028 | `runners/transient.rs`, `runners/calibration.rs` | `transient fit`, `calibration fit` | `phase2`, `phase3` | CSV feature tables | Partial | ✅ |
+| FR-029 | ADR-0001; future `src/model/` | None in Phase 01 | ADR review; future contract tests | Component contributions + residual | Design | 📋 |
+| FR-030 | ADR-0001; future `StateSpec`/`ParameterSpec` | None in Phase 01 | Future contract validation | Versioned model definition | Design | 📋 |
+| FR-031 | ADR-0001; future `EvidenceRequirement` | None in Phase 01 | Future evidence-policy tests | Evidence/contradiction record | Design | 📋 |
+| FR-032 | ADR-0001; future model-core crate | None in Phase 01 | Future dependency-graph test | None | Design | 📋 |
 
 ---
 
@@ -95,6 +99,8 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | EQ-EST-001 | EKF prediction | `estimation/ekf.rs` | `phase6` | ✅ |
 | EQ-EST-002 | EKF update | `estimation/ekf.rs` | `phase6` | ✅ |
 | EQ-EST-003 | UKF | `estimation/ukf.rs` | `phase6` | ✅ |
+| EQ-ISM-001 | Planned ISM state equation contract | ADR-0001 | Future contract tests | 📋 |
+| EQ-ISM-002 | Planned ISM compositional observation/residual contract | ADR-0001 | Future contract tests | 📋 |
 
 ---
 

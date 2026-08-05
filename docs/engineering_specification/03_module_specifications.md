@@ -150,6 +150,7 @@
 | `src/estimation_config.rs` | State estimation TOML schema | ✅ |
 | `src/plot_runner.rs` | (Legacy) Plot orchestration adapter | ✅ |
 | `src/search_runner.rs` | (Legacy) Search orchestration adapter | ✅ |
+| `src/model/` | **Planned only** unified ISM scientific core; no source module exists in Phase 01 | 📋 |
 
 **Coverage check:** 140/140 Rust source paths under `src/**/*.rs` are mapped above.
 
@@ -214,3 +215,19 @@ Each workflow has its own TOML config schema with:
 - Workflow-specific sections
 - Default values embedded in the Rust struct (via `Default` impl)
 - CLI override resolution in the corresponding runner
+
+### Planned `model/` — Unified ISM Scientific Core
+
+- **Status**: Contract defined by ADR-0001 only; not implemented and not
+  exported in Phase 01.
+- **Future public contracts**: `IsmModel`, `IsmComponent`, `ComponentDescriptor`,
+  `ComponentRole`, `StateSpec`, `ParameterSpec`, `ModelDefinition`,
+  `CompiledIsmModel`, `ModelInput`, `ModelState`, `ComponentContribution`,
+  `ValidityReport`, `IdentifiabilityReport`, `EvidenceRequirement`, and
+  `EquilibriumAssessment`.
+- **Boundary**: may use domain contracts, units, and narrow adapters to existing
+  scientific modules; must not depend on CLI, runners, plotting, health, or
+  reporting.
+- **Invariant**: every state/parameter declares unit, bounds, source,
+  uncertainty, and validity domain; `E_pred` contributions are explicit and
+  unexplained residual cannot be represented as a component.

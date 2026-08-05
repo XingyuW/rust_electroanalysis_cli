@@ -258,3 +258,21 @@ Boundary mappings above were rebuilt from direct external-crate import usage in 
 - **Provenance**: Injected at the domain boundary (`ElectrochemicalExperiment`, `CalibrationObservationSet`) and threaded through results
 - **Configuration**: Each workflow has its own config module, resolved independently
 - **Serialization**: All result types implement `Serialize`/`Deserialize` via serde
+
+## 8. Planned Unified ISM Model Boundary (Phase 01 Contract)
+
+ADR-0001 reserves a future dependency-clean `src/model/` module. It is not
+present in the current runtime and no workflow currently calls it.
+
+```text
+CLI/runners/plotting/health/reporting → adapters → model core → domain + units
+estimation → estimation/ISM adapter → model core
+```
+
+The model core may adapt existing Nernst, Nicolsky-Eisenman, activity, unit,
+transient, EIS, signal, and estimation capabilities through narrow stable
+interfaces. It must not import application-layer modules, so the graph remains
+acyclic. Its observation contract will expose equilibrium, transport,
+transduction, reference, and external contributions plus a separately computed
+unexplained residual. See ADR-0001 for the contract and future extraction to
+`crates/ism-model-core`.

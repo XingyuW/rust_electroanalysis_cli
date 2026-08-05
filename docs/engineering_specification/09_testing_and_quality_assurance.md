@@ -69,6 +69,7 @@ Evidence classes:
 | FR-024 | Direct | `phase6_estimation` asserts EKF/UKF runtime behavior and artifact outputs. |
 | FR-025 to FR-026 | Direct | Provenance hashing and EIS text reporting are directly asserted in unit/integration tests. |
 | FR-027 to FR-028 | Partial | Representative JSON/CSV exports are tested; full workflow-by-workflow artifact-name coverage is implementation-verified. |
+| FR-029 to FR-032 | Design review / future unit tests | ADR-0001 specifies the ISM separation, metadata, evidence, residual, and dependency contracts; executable contract tests begin only when `src/model/` is introduced in Phase 02. |
 | SCI-001 to SCI-010 | Partial | Core scientific constants/formulas are directly tested; several equations remain code-verified rather than assertion-complete. |
 | NUM-001 to NUM-006 | Partial | Numerical safeguards and diagnostics are tested in representative paths; full edge-space coverage is incomplete. |
 | DAT-001 to DAT-007 | Partial | Data-model invariants are directly tested; cross-module schema compatibility and migration behavior remain partial. |
@@ -87,6 +88,7 @@ Evidence classes:
 | GAP-008 | No integration test for `estimate simulate` | Low |
 | GAP-009 | No deterministic reproducibility tests (fixed seed comparison) | Medium |
 | GAP-010 | Plotting output is tested for file existence, not visual correctness | Low |
+| GAP-011 | ISM model contract tests for required units, bounds, provenance, validity domains, visible residuals, and dependency direction | High (Phase 02) |
 
 ## 4. Run Commands
 

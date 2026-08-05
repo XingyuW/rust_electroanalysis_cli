@@ -45,6 +45,10 @@ Verification confidence labels used in **Verified By**:
 | FR-026 | System shall generate human-readable text reports for EIS fits | Medium | `src/impedance/reporting.rs` | **Direct** — `chi_file` tests, `phase0_regression` | ✅ Implemented |
 | FR-027 | System shall produce JSON artifacts for all major analysis results | Medium | `src/results/` | **Partial** — integration tests cover representative JSON artifacts; cross-workflow completeness is implementation-verified | ✅ Implemented |
 | FR-028 | System shall produce CSV feature tables for transient and calibration results | Medium | Various runners | **Partial** — `phase2_transient` and `phase3_calibration` cover core exports; configurable filename variants are implementation-verified | ✅ Implemented |
+| FR-029 | Future unified ISM model definitions shall separate equilibrium, transport, transduction, reference, external, and unexplained-residual concerns | High | ADR-0001; future `src/model/` | Design review and future contract tests | 📋 Specified; not implemented |
+| FR-030 | Every future ISM state and parameter shall declare unit, bounds, source/provenance, uncertainty, and validity domain | High | ADR-0001; future `StateSpec`/`ParameterSpec` | Contract validation tests | 📋 Specified; not implemented |
+| FR-031 | A fitted mode shall not receive a physical mechanism label without explicit independent evidence, alternatives, uncertainty, and validity-domain assessment | High | ADR-0001; future `EvidenceRequirement` | Evidence-policy tests | 📋 Specified; not implemented |
+| FR-032 | The future ISM core shall not depend on CLI, runners, plotting, health, or report-generation modules | High | ADR-0001; future `src/model/` | Dependency-graph test | 📋 Specified; not implemented |
 
 ## 2. Scientific Requirements
 
@@ -60,6 +64,7 @@ Verification confidence labels used in **Verified By**:
 | SCI-008 | Linear regression shall use ordinary least squares | `src/regression_mod.rs` | Unit tests |
 | SCI-009 | Transient single-exponential shall be E(t) = E∞ + A·exp(−t/τ) | `src/potentiometry/transient/models.rs` | (Verified from code) |
 | SCI-010 | Transient stretched-exponential shall be E(t) = E∞ + A·exp(−(t/τ)^β) | `src/potentiometry/transient/models.rs` | (Verified from code) |
+| SCI-011 | The future ISM observation contract shall expose named voltage contributions and an explicit unexplained residual; it shall reuse, not duplicate, existing equations | ADR-0001 | Design review; future contract tests |
 
 ## 3. Numerical Requirements
 
