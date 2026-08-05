@@ -1,0 +1,55 @@
+//! Dependency-clean contracts for future unified ion-selective-membrane models.
+//!
+//! This core owns model definitions, graph compilation, state/parameter
+//! validation, and explicit voltage decomposition. It intentionally contains
+//! no Nernst, transient, EIS, or other scientific equation implementation.
+
+mod compiler;
+mod component;
+mod definition;
+mod equilibrium_recognition;
+mod error;
+mod evidence;
+mod graph;
+mod identifiability;
+mod input;
+mod output;
+mod parameter;
+mod registry;
+mod state;
+mod validity;
+
+pub use compiler::{CompiledIsmModel, compile_model};
+pub use component::{ComponentDescriptor, ComponentRole, IsmComponent, Jacobian};
+pub use definition::{MODEL_DEFINITION_SCHEMA_VERSION, ModelDefinition};
+pub use equilibrium_recognition::EquilibriumAssessment;
+pub use error::ModelError;
+pub use evidence::EvidenceRequirement;
+pub use identifiability::{AssessmentStatus, IdentifiabilityReport};
+pub use input::{InputRequirement, InputSpec, InputValue, ModelInput};
+pub use output::{ComponentContribution, ObservationPrediction, UnexplainedResidual};
+pub use parameter::{CompiledParameterSpec, ParameterSpec, ParameterValues};
+pub use registry::{ComponentFactory, ComponentRegistry, built_in_registry};
+pub use state::{CompiledStateSpec, ModelState, StateSpec};
+pub use validity::{ValidityDomain, ValidityReport};
+
+/// Public name for the framework's model implementation contract.
+pub trait IsmModel {
+    fn definition(&self) -> &ModelDefinition;
+    fn state_definitions(&self) -> &[CompiledStateSpec];
+    fn parameter_definitions(&self) -> &[CompiledParameterSpec];
+}
+
+impl IsmModel for CompiledIsmModel {
+    fn definition(&self) -> &ModelDefinition {
+        self.definition()
+    }
+
+    fn state_definitions(&self) -> &[CompiledStateSpec] {
+        self.state_definitions()
+    }
+
+    fn parameter_definitions(&self) -> &[CompiledParameterSpec] {
+        self.parameter_definitions()
+    }
+}
