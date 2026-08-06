@@ -39,6 +39,8 @@ fn eis() -> rust_electroanalysis_cli::results::EisFitArtifact {
         z_im: vec![0.0],
         measured_magnitude: None,
         measured_phase: None,
+        derived_magnitude: vec![1.0],
+        derived_phase: vec![0.0],
         label: "test".into(),
         metadata: BTreeMap::new(),
         circuit_model: "R0".into(),

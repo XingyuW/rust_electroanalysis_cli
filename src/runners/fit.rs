@@ -113,6 +113,17 @@ fn human_artifact_report(artifact: &EisFitArtifact) -> String {
             parameter.name, parameter.value, parameter.unit
         ));
     }
+    text.push_str("\nInput Bode semantics:\n");
+    text.push_str(if artifact.source.source_measured_magnitude_ohm.is_some() {
+        "  Source-measured magnitude: preserved exactly\n"
+    } else {
+        "  Source-measured magnitude: absent; derived from Z' and Z\"\n"
+    });
+    text.push_str(if artifact.source.source_measured_phase_deg.is_some() {
+        "  Source-measured phase: preserved exactly\n"
+    } else {
+        "  Source-measured phase: absent; derived from Z' and Z\"\n"
+    });
     text.push_str("\nDerived quantities require topology-aware mechanism analysis. Numerical agreement is temporal compatibility, not proof of a mechanism.\n");
     if !artifact.warnings.is_empty() {
         text.push_str("\nWarnings:\n");

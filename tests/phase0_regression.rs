@@ -134,7 +134,7 @@ fn eis_plot_directory_skips_non_eis_csv_without_aborting_batch() {
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Skipped EIS file"),
+        stderr.contains("EIS plot input failure"),
         "expected skip message, got: {stderr}"
     );
 

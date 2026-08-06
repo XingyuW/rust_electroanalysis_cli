@@ -56,12 +56,15 @@ impl TryFrom<&Dataset> for MultiChannelMeasurement {
 
     fn try_from(dataset: &Dataset) -> Result<Self, Self::Error> {
         let view = dataset.time_series_view()?;
+        // The domain boundary preserves the decoded source coordinate exactly.
+        // Normalization to seconds belongs to the scientific algorithm that
+        // explicitly requires it, together with its recorded conversion.
         let time = view
-            .time_seconds
-            .into_iter()
+            .coordinate_values()
+            .iter()
             .enumerate()
             .map(|(row, value)| {
-                value.ok_or_else(|| {
+                (*value).ok_or_else(|| {
                     DataParsingError::invalid(format!(
                         "canonical time-series view retained a missing time value at row {}",
                         dataset.source_row(row).unwrap_or(row + 1)
@@ -69,12 +72,19 @@ impl TryFrom<&Dataset> for MultiChannelMeasurement {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let coordinate_unit = unit_label(view.coordinate_unit());
+        let coordinate_name = view.time.original_name.clone();
         let channels = view
             .measurements
             .into_iter()
             .map(channel_from_canonical)
             .collect::<Vec<_>>();
-        MultiChannelMeasurement::new(time, channels)
+        MultiChannelMeasurement::new_with_coordinate(
+            time,
+            coordinate_unit,
+            coordinate_name,
+            channels,
+        )
     }
 }
 
@@ -122,18 +132,27 @@ impl TryFrom<&Dataset> for EISData {
         let z_im = required_values(view.imaginary, "imaginary impedance")?;
         let measured_magnitude = view.measured_magnitude.map(|column| column.values.clone());
         let measured_phase = view.measured_phase.map(|column| column.values.clone());
+        let derived_magnitude: Vec<f64> = z_re
+            .iter()
+            .zip(&z_im)
+            .map(|(real, imaginary)| real.hypot(*imaginary))
+            .collect();
+        let derived_phase: Vec<f64> = z_re
+            .iter()
+            .zip(&z_im)
+            .map(|(real, imaginary)| imaginary.atan2(*real).to_degrees())
+            .collect();
         // The pre-existing fitting domain requires a complete phase vector.
         // Preserve source phase independently and derive only missing/absent
         // values for that legacy analysis convenience field.
-        let phase = z_re
+        let phase = derived_phase
             .iter()
-            .zip(&z_im)
             .enumerate()
-            .map(|(index, (real, imaginary))| {
+            .map(|(index, derived)| {
                 measured_phase
                     .as_ref()
                     .and_then(|values| values.get(index).copied().flatten())
-                    .unwrap_or_else(|| imaginary.atan2(*real).to_degrees())
+                    .unwrap_or(*derived)
             })
             .collect();
         let metadata = metadata_entries(dataset);
@@ -162,6 +181,8 @@ impl TryFrom<&Dataset> for EISData {
             z_im,
             measured_magnitude,
             measured_phase,
+            derived_magnitude,
+            derived_phase,
             label: dataset.metadata.provenance.source_name.clone(),
             metadata,
             circuit_model: String::new(),

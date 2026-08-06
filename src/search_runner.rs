@@ -6,7 +6,6 @@
 //! * orchestrating the ECM search and writing text / CSV reports, and
 //! * rendering optional ranked-model plots via the plotting layer.
 
-use crate::runners::RunnerError;
 use crate::{
     data_file::chi_file::EISData,
     impedance::discover_equivalent_circuits_with_config,
@@ -17,27 +16,20 @@ use crate::{
     },
     search_config::{LoadedEcmSearchConfig, RuntimeEcmSearchConfig},
 };
+use crate::{domain::BatchFileFailure, runners::RunnerError};
 use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
 
 // ---------------------------------------------------------------------------
 // Supporting types
 // ---------------------------------------------------------------------------
 
-/// Files that will be passed to the search together with those that were
-/// skipped (each paired with a human-readable reason string).
-#[derive(Debug, Clone)]
+/// Files accepted by canonical ingestion together with typed per-file
+/// failures. The underlying `electrodata_io::Error` is never flattened.
+#[derive(Debug)]
 pub struct SearchInputCollection {
     pub files: Vec<PathBuf>,
-    pub skipped: Vec<(PathBuf, String)>,
-}
-
-/// Per-file classification result used by [`collect_eis_search_inputs`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum SearchInputDecision {
-    Include,
-    Skip(&'static str),
+    pub failures: Vec<BatchFileFailure>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,6 +87,7 @@ where
     let target = resolve_cli_path(workspace_dir, search_target);
     let input_collection = collect_eis_search_inputs(&target)?;
     let input_files = input_collection.files;
+    let mut failures = input_collection.failures;
     let output_path = search_output.map(|path| resolve_cli_path(workspace_dir, path));
     let search_config = loaded_search_config
         .config
@@ -124,34 +117,41 @@ where
     }
 
     // Report skipped files when processing a whole directory.
-    if target.is_dir() && !input_collection.skipped.is_empty() {
+    if target.is_dir() && !failures.is_empty() {
         emit_info(
             &mut log,
             format!(
                 "Skipping {} ignored file(s) in {}:",
-                input_collection.skipped.len(),
+                failures.len(),
                 target.display()
             ),
         );
-        for (path, reason) in input_collection.skipped.iter().take(8) {
-            let name = path
+        for failure in failures.iter().take(8) {
+            let name = failure
+                .path()
                 .file_name()
                 .and_then(|v| v.to_str())
                 .map(|v| v.to_string())
-                .unwrap_or_else(|| path.to_string_lossy().into_owned());
-            emit_info(&mut log, format!("  {} ({})", name, reason));
+                .unwrap_or_else(|| failure.path().to_string_lossy().into_owned());
+            emit_info(&mut log, format!("  {} ({failure})", name));
         }
-        if input_collection.skipped.len() > 8 {
-            emit_info(
-                &mut log,
-                format!("  ... and {} more", input_collection.skipped.len() - 8),
-            );
+        if failures.len() > 8 {
+            emit_info(&mut log, format!("  ... and {} more", failures.len() - 8));
         }
         emit_info(&mut log, "");
     }
 
+    let mut processed_files = 0usize;
     for input_file in input_files {
-        let data = EISData::parse_file(&input_file)?;
+        let data = match EISData::parse_file(&input_file) {
+            Ok(data) => data,
+            Err(error) => {
+                let failure = BatchFileFailure::canonical(input_file, error);
+                emit_warning(&mut log, format!("EIS search input failure: {failure}"));
+                failures.push(failure);
+                continue;
+            }
+        };
         let report = discover_equivalent_circuits_with_config(
             &data.freq,
             &data.z_re,
@@ -181,6 +181,7 @@ where
             &mut log,
             format!("Search CSV written to: {}", csv_export_path.display()),
         );
+        processed_files += 1;
 
         // Optionally render plots for the top-N candidates.
         if plot_top_n > 0 {
@@ -225,6 +226,10 @@ where
             }
         }
         emit_info(&mut log, "");
+    }
+
+    if processed_files == 0 {
+        return Err(RunnerError::BatchInput { failures });
     }
 
     if plot_top_n > 0 && combined_search_nyquist_series.len() > 1 {
@@ -521,11 +526,8 @@ fn apply_render_config_to_publication(
 // Private helpers – file discovery
 // ---------------------------------------------------------------------------
 
-/// Walk `target` (a single file **or** a directory) and return the files that
-/// are eligible for EIS search together with those that were skipped.
-///
-/// Returns an error when the target does not exist or when no eligible files
-/// are found inside a directory.
+/// Walk `target` (a single file **or** a directory), read every non-artifact
+/// file through the canonical reader, then accept only impedance datasets.
 fn collect_eis_search_inputs(target: &Path) -> Result<SearchInputCollection, RunnerError> {
     if !target.exists() {
         return Err(format!("Search target does not exist: {}", target.display()).into());
@@ -535,7 +537,7 @@ fn collect_eis_search_inputs(target: &Path) -> Result<SearchInputCollection, Run
     if target.is_file() {
         return Ok(SearchInputCollection {
             files: vec![target.to_path_buf()],
-            skipped: Vec::new(),
+            failures: Vec::new(),
         });
     }
 
@@ -552,67 +554,54 @@ fn collect_eis_search_inputs(target: &Path) -> Result<SearchInputCollection, Run
     entries.sort_by_key(|entry| entry.path());
 
     let mut files = Vec::new();
-    let mut skipped = Vec::new();
+    let mut failures = Vec::new();
 
     for path in entries
         .into_iter()
         .map(|entry| entry.path())
         .filter(|path| path.is_file())
     {
-        match classify_eis_search_input(&path) {
-            Ok(SearchInputDecision::Include) => files.push(path),
-            Ok(SearchInputDecision::Skip(reason)) => skipped.push((path, reason.to_string())),
-            Err(error) => skipped.push((path, error.to_string())),
+        if is_generated_search_artifact(&path) {
+            failures.push(BatchFileFailure::rejected(
+                path,
+                "application-generated search artifact",
+            ));
+            continue;
+        }
+        match crate::data_file::read_dataset(&path) {
+            Ok(dataset) if dataset.kind() == electrodata_io::DatasetKind::ImpedanceSpectrum => {
+                files.push(path)
+            }
+            Ok(dataset) => failures.push(BatchFileFailure::rejected(
+                path,
+                format!(
+                    "canonical dataset kind {:?} is not an impedance spectrum",
+                    dataset.kind()
+                ),
+            )),
+            Err(error) => failures.push(BatchFileFailure::canonical(path, error)),
         }
     }
 
-    if files.is_empty() {
-        return Err(format!("No supported EIS files found in {}", target.display()).into());
-    }
-
-    Ok(SearchInputCollection { files, skipped })
+    Ok(SearchInputCollection { files, failures })
 }
 
-/// Classify a single file as [`SearchInputDecision::Include`] or
-/// [`SearchInputDecision::Skip`] based on its extension, stem, and whether its
-/// header contains the `Freq/Hz` marker expected in CHI EIS exports.
-fn classify_eis_search_input(path: &Path) -> Result<SearchInputDecision, io::Error> {
-    let kind = crate::data_file::InputKind::classify_path(path);
-
-    // Reject known binary extensions before attempting to read the file.
-    if kind.is_unsupported_binary() {
-        return Ok(SearchInputDecision::Skip("unsupported binary extension"));
-    }
-
+/// Application artifacts can be excluded without interpreting physical raw
+/// formats. All other regular files proceed to canonical ingestion.
+fn is_generated_search_artifact(path: &Path) -> bool {
     let stem = path
         .file_stem()
         .and_then(|v| v.to_str())
         .unwrap_or_default()
         .to_ascii_lowercase();
 
-    // Skip files that were themselves generated by a previous search run.
     if stem.ends_with("_ecm_search") {
-        return Ok(SearchInputDecision::Skip("generated search report"));
+        return true;
     }
     if stem.contains("fit_report") {
-        return Ok(SearchInputDecision::Skip("generated fit report"));
+        return true;
     }
-
-    // Let the shared electrodata reader identify the scientific format.
-    if kind.is_supported_text() || kind == crate::data_file::InputKind::Unknown {
-        return Ok(
-            match crate::data_file::electrodata_domain_adapter::read_dataset(path) {
-                Ok(dataset) if dataset.kind() == electrodata_io::DatasetKind::ImpedanceSpectrum => {
-                    SearchInputDecision::Include
-                }
-                Ok(_) => SearchInputDecision::Skip("missing EIS frequency role"),
-                Err(_) => SearchInputDecision::Skip("unsupported scientific data format"),
-            },
-        );
-    }
-
-    // Excel files are not EIS sources in this workflow.
-    Ok(SearchInputDecision::Skip("unsupported extension"))
+    false
 }
 
 #[cfg(test)]

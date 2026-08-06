@@ -7,6 +7,16 @@ use std::collections::BTreeMap;
 
 pub type ChannelMetadata = BTreeMap<String, String>;
 
+/// Provenance for an explicit coordinate normalization performed after input
+/// ingestion. The raw coordinate values and source unit remain available on
+/// the unconverted measurement at the domain boundary.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CoordinateConversion {
+    pub source_unit: String,
+    pub target_unit: String,
+    pub scale: f64,
+}
+
 /// One named signal sharing a measurement time axis.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeasurementChannel {
@@ -109,7 +119,19 @@ impl MeasurementChannel {
 /// Multiple named channels measured against one shared time axis.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MultiChannelMeasurement {
+    /// Source coordinate values as decoded by canonical ingestion.
     pub time: Vec<f64>,
+    /// Source coordinate unit. Empty means the provider reported an unknown
+    /// or headerless unit; it is never silently assumed to be seconds.
+    #[serde(default)]
+    pub time_unit: String,
+    /// Original source header/name for the coordinate, when available.
+    #[serde(default)]
+    pub time_coordinate_name: Option<String>,
+    /// Set only by an explicit downstream conversion for an algorithm that
+    /// requires seconds.
+    #[serde(default)]
+    pub time_conversion: Option<CoordinateConversion>,
     pub channels: Vec<MeasurementChannel>,
 }
 
@@ -118,9 +140,59 @@ impl MultiChannelMeasurement {
         time: Vec<f64>,
         channels: Vec<MeasurementChannel>,
     ) -> Result<Self, DataParsingError> {
-        let measurement = Self { time, channels };
+        let measurement = Self {
+            time,
+            time_unit: String::new(),
+            time_coordinate_name: None,
+            time_conversion: None,
+            channels,
+        };
         measurement.validate()?;
         Ok(measurement)
+    }
+
+    pub fn new_with_coordinate(
+        time: Vec<f64>,
+        time_unit: impl Into<String>,
+        time_coordinate_name: Option<String>,
+        channels: Vec<MeasurementChannel>,
+    ) -> Result<Self, DataParsingError> {
+        let measurement = Self {
+            time,
+            time_unit: time_unit.into(),
+            time_coordinate_name,
+            time_conversion: None,
+            channels,
+        };
+        measurement.validate()?;
+        Ok(measurement)
+    }
+
+    /// Returns a copy explicitly normalized to seconds for downstream
+    /// scientific algorithms that require SI time. Unknown units are rejected
+    /// rather than guessed.
+    pub fn normalized_to_seconds(&self) -> Result<Self, DataParsingError> {
+        let scale = match self.time_unit.as_str() {
+            "s" | "sec" | "second" | "seconds" => 1.0,
+            "h" | "hr" | "hour" | "hours" => 3_600.0,
+            "d" | "day" | "days" => 86_400.0,
+            _ => {
+                return Err(DataParsingError::invalid(format!(
+                    "cannot normalize source coordinate '{}' with unknown or unsupported unit '{}' to seconds",
+                    self.time_coordinate_name.as_deref().unwrap_or("time"),
+                    self.time_unit
+                )));
+            }
+        };
+        let mut normalized = self.clone();
+        normalized.time = self.time.iter().map(|value| value * scale).collect();
+        normalized.time_conversion = Some(CoordinateConversion {
+            source_unit: self.time_unit.clone(),
+            target_unit: "s".to_string(),
+            scale,
+        });
+        normalized.time_unit = "s".to_string();
+        Ok(normalized)
     }
 
     pub fn validate(&self) -> Result<(), DataParsingError> {

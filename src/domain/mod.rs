@@ -15,13 +15,15 @@ pub mod provenance;
 pub use artifact::{ArtifactError, ArtifactKind, VersionedArtifact, read_artifact, write_artifact};
 pub use diagnostics::{MeasurementParseResult, ParseDiagnostics};
 pub use errors::{
-    ConfigurationError, DataParsingError, FittingError, PlottingError, ProvenanceError,
-    ReportingError, WorkspaceError,
+    BatchFileFailure, ConfigurationError, DataParsingError, FittingError, PlottingError,
+    ProvenanceError, ReportingError, WorkspaceError,
 };
 pub use experiment::{
     ElectrochemicalExperiment, EnvironmentalSeries, ExperimentEvent, ExperimentEventKind,
     ReferenceMetadata, SensorMetadata,
 };
-pub use measurement::{ChannelMetadata, MeasurementChannel, MultiChannelMeasurement};
+pub use measurement::{
+    ChannelMetadata, CoordinateConversion, MeasurementChannel, MultiChannelMeasurement,
+};
 pub use metadata::{ExperimentMetadataDocument, build_experiment, load_experiment_metadata};
 pub use provenance::AnalysisProvenance;

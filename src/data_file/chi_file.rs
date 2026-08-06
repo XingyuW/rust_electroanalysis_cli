@@ -151,7 +151,9 @@ impl ElectrochemData {
             .instrument_model
             .clone()
             .unwrap_or_default();
-        let x_values = view.time_seconds;
+        // Preserve source coordinates for plotting. A scientific caller that
+        // needs seconds must request and record that conversion explicitly.
+        let x_values = view.coordinate_values().to_vec();
         let y_descriptors = view.measurements;
         let y_headers = y_descriptors
             .iter()
@@ -169,9 +171,8 @@ impl ElectrochemData {
             let y_values = descriptor.values.clone();
             let (x_values, y_values): (Vec<_>, Vec<_>) = x_values
                 .iter()
-                .copied()
                 .zip(y_values)
-                .filter_map(|(x, y)| x.zip(y))
+                .filter_map(|(x, y)| (*x).zip(y))
                 .unzip();
             if x_values.is_empty() || y_values.is_empty() {
                 continue;
@@ -276,6 +277,10 @@ pub struct EISData {
     /// Source-measured phase. `phase` remains a complete analysis vector and
     /// derives only where the supplied source phase is missing.
     pub measured_phase: Option<Vec<Option<f64>>>,
+    /// Magnitude calculated from the source real/imaginary components.
+    pub derived_magnitude: Vec<f64>,
+    /// Phase calculated from the source real/imaginary components.
+    pub derived_phase: Vec<f64>,
     pub label: String,
     pub metadata: BTreeMap<String, String>,
     pub circuit_model: String,
@@ -617,14 +622,21 @@ impl EISData {
     }
 
     pub fn bode_magnitude_series_for_fits(&self, fits: &[EISFitResult]) -> Vec<PlotSeries> {
-        let experimental_points = sorted_frequency_points(
-            self.freq
-                .iter()
-                .zip(self.z_re.iter().zip(self.z_im.iter()))
-                .map(|(freq, (re, im))| (*freq, re.hypot(*im))),
-        );
+        let source_magnitude = self.measured_magnitude.as_ref();
+        let experimental_points =
+            sorted_frequency_points(self.freq.iter().enumerate().filter_map(|(index, freq)| {
+                source_magnitude
+                    .and_then(|values| values.get(index).copied().flatten())
+                    .or_else(|| self.derived_magnitude.get(index).copied())
+                    .map(|magnitude| (*freq, magnitude))
+            }));
+        let experimental_label = if source_magnitude.is_some() {
+            self.label().to_string()
+        } else {
+            format!("{} derived |Z|", self.label())
+        };
         let mut series = vec![PlotSeries::experimental(
-            self.label().to_string(),
+            experimental_label,
             experimental_points,
         )];
 
@@ -655,8 +667,13 @@ impl EISData {
                 .zip(self.phase.iter())
                 .map(|(freq, phase)| (*freq, *phase)),
         );
+        let experimental_label = if self.measured_phase.is_some() {
+            self.label().to_string()
+        } else {
+            format!("{} derived phase", self.label())
+        };
         let mut series = vec![PlotSeries::experimental(
-            self.label().to_string(),
+            experimental_label,
             experimental_points,
         )];
 
@@ -1011,6 +1028,8 @@ instrumentmodel = "chi760f"
             z_im,
             measured_magnitude: None,
             measured_phase: None,
+            derived_magnitude: Vec::new(),
+            derived_phase: Vec::new(),
             label: "synthetic".to_string(),
             metadata: Default::default(),
             circuit_model: DEFAULT_EIS_CIRCUIT_MODEL.to_string(),
@@ -1037,6 +1056,8 @@ instrumentmodel = "chi760f"
             z_im: vec![-1.0, -5.0, -12.0],
             measured_magnitude: None,
             measured_phase: None,
+            derived_magnitude: Vec::new(),
+            derived_phase: Vec::new(),
             label: "synthetic".to_string(),
             metadata: Default::default(),
             circuit_model: DEFAULT_EIS_CIRCUIT_MODEL.to_string(),

@@ -312,7 +312,18 @@ pub fn load_experiment_with_sheet(
 ) -> Result<(crate::domain::ElectrochemicalExperiment, ParseDiagnostics), DataParsingError> {
     let measurement_path = measurement_path.as_ref();
     let metadata_path = metadata_path.as_ref();
-    let parsed = parse_measurement_file_with_sheet(measurement_path, sheet_name)?;
+    let mut parsed = parse_measurement_file_with_sheet(measurement_path, sheet_name)?;
+    // Experiment workflows feed transient, calibration, and estimation
+    // algorithms whose time constants are defined in seconds. This is an
+    // explicit post-ingestion conversion; raw `parse_measurement_file` keeps
+    // the original coordinate untouched.
+    parsed.measurement = parsed.measurement.normalized_to_seconds()?;
+    if let Some(conversion) = &parsed.measurement.time_conversion {
+        parsed.diagnostics.messages.push(format!(
+            "time coordinate normalized for scientific analysis: {} -> {} (scale {})",
+            conversion.source_unit, conversion.target_unit, conversion.scale
+        ));
+    }
     let metadata = crate::domain::load_experiment_metadata(metadata_path)?;
     let diagnostics = parsed.diagnostics.clone();
     let experiment = crate::domain::metadata::build_experiment(

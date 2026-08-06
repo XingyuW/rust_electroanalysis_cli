@@ -4,8 +4,8 @@
 //! to the shared high-quality plotting engine with CHI-specific defaults.
 
 use crate::data_file::value_transform::AxisTransforms;
-use crate::data_file::{ElectrochemData, InputKind};
 use crate::plottings::plotting::{PlotColor, PlotLegendPosition, PublicationConfig, plot_hq};
+use crate::{data_file::ElectrochemData, domain::BatchFileFailure};
 
 use std::error::Error;
 use std::fs::read_dir;
@@ -20,14 +20,14 @@ pub struct ChiPlotOutcome {
 }
 
 /// One skipped input encountered during directory-mode plotting.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ChiPlotSkip {
     pub input_file: PathBuf,
-    pub reason: String,
+    pub failure: BatchFileFailure,
 }
 
 /// Aggregated summary for a directory regular-plot run.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ChiDirectoryPlotOutcome {
     pub plotted: Vec<ChiPlotOutcome>,
     pub skipped: Vec<ChiPlotSkip>,
@@ -189,22 +189,6 @@ pub fn plot_chi_directory_with_configs_and_transforms<P: AsRef<Path>>(
             continue;
         }
 
-        let kind = InputKind::classify_path(&path);
-        if kind.is_unsupported_binary() {
-            skipped.push(ChiPlotSkip {
-                input_file: path,
-                reason: kind.skip_reason().to_string(),
-            });
-            continue;
-        }
-        if !kind.is_supported_text() {
-            skipped.push(ChiPlotSkip {
-                input_file: path,
-                reason: "unsupported extension".to_string(),
-            });
-            continue;
-        }
-
         match ElectrochemData::parse_file_series(&path) {
             Ok(parsed_series) => {
                 for data in parsed_series {
@@ -221,14 +205,18 @@ pub fn plot_chi_directory_with_configs_and_transforms<P: AsRef<Path>>(
                 }
             }
             Err(err) => skipped.push(ChiPlotSkip {
-                input_file: path,
-                reason: err.to_string(),
+                input_file: path.clone(),
+                failure: BatchFileFailure::canonical(path, err),
             }),
         }
     }
 
     if datasets.is_empty() {
-        return Err(format!("No valid CHI datasets found in {}", input_dir.display()).into());
+        return Err(format!(
+            "No accepted time-series datasets found in {}",
+            input_dir.display()
+        )
+        .into());
     }
 
     let mut individual_datasets = datasets.clone();

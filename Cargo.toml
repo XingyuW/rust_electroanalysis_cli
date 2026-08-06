@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-electrodata-io = { path = "/Users/xingyuwang/ProjectOngoing/electrodata-io" }
+# Reviewed provider revision. Keep this as an exact Git commit so a clean
+# consumer checkout never resolves against a mutable sibling working tree.
+electrodata-io = { git = "https://github.com/XingyuW/electrodata-io.git", rev = "dbb6b7d063972114c4208980723e12c807ab199e" }
 clap = { version = "4", features = ["derive"] }
 csv = "1"
 plotters = "0.3"
@@ -22,6 +24,10 @@ genevo = "0.7.1"
 rayon = "1.12.0"
 rand = "0.8"
 rustfft = "6"
+
+[dev-dependencies]
+# Test-only dependency for the archived cc6f283 XLSX reference reader.
+calamine = "0.36.1"
 
 [profile.release]
 opt-level      = 3

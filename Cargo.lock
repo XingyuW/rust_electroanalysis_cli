@@ -908,6 +908,7 @@ checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 [[package]]
 name = "electrodata-io"
 version = "0.1.0"
+source = "git+https://github.com/XingyuW/electrodata-io.git?rev=dbb6b7d063972114c4208980723e12c807ab199e#dbb6b7d063972114c4208980723e12c807ab199e"
 dependencies = [
  "calamine",
  "chrono",
@@ -3640,6 +3641,7 @@ dependencies = [
 name = "rust_electroanalysis_cli"
 version = "0.1.0"
 dependencies = [
+ "calamine",
  "clap",
  "csv",
  "electrodata-io",

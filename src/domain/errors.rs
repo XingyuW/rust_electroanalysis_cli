@@ -72,6 +72,45 @@ pub enum DataParsingError {
     Provenance(#[from] ProvenanceError),
 }
 
+/// A per-file outcome for a batch raw-data workflow.
+///
+/// Canonical reader failures are retained as typed sources instead of being
+/// flattened into an "unsupported" or "skipped" display string. Workflow
+/// rejections occur only after a canonical dataset has been read successfully.
+#[derive(Debug, Error)]
+pub enum BatchFileFailure {
+    #[error("canonical input failure for {path}: {source}")]
+    Canonical {
+        path: PathBuf,
+        #[source]
+        source: DataParsingError,
+    },
+    #[error("workflow rejected {path}: {reason}")]
+    Rejected { path: PathBuf, reason: String },
+}
+
+impl BatchFileFailure {
+    pub fn canonical(path: impl Into<PathBuf>, source: DataParsingError) -> Self {
+        Self::Canonical {
+            path: path.into(),
+            source,
+        }
+    }
+
+    pub fn rejected(path: impl Into<PathBuf>, reason: impl Into<String>) -> Self {
+        Self::Rejected {
+            path: path.into(),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn path(&self) -> &PathBuf {
+        match self {
+            Self::Canonical { path, .. } | Self::Rejected { path, .. } => path,
+        }
+    }
+}
+
 /// Errors raised while hashing input/configuration files for provenance.
 #[derive(Debug, Error)]
 pub enum ProvenanceError {

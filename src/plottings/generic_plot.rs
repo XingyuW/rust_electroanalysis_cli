@@ -38,9 +38,12 @@
 //!
 //! No changes to `plotting.rs`, `plot_hq`, or anything else are needed.
 
-use crate::data_file::{InputKind, PlotData, load_data, measurement_to_plot_data};
 use crate::plottings::plotting::{
     PlotColor, PlotLegendPosition, PublicationConfig, ResolvedPlotConfig, plot_hq,
+};
+use crate::{
+    data_file::{PlotData, load_data, measurement_to_plot_data},
+    domain::BatchFileFailure,
 };
 
 use std::error::Error;
@@ -64,19 +67,19 @@ pub struct GenericPlotOutcome {
 }
 
 /// A file that was skipped during a directory scan.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct GenericPlotSkip {
     /// The file that was skipped.
     pub input_file: PathBuf,
-    /// Human-readable reason (unsupported extension, parse error, …).
-    pub reason: String,
+    /// Typed canonical reader or post-ingestion workflow failure.
+    pub failure: BatchFileFailure,
 }
 
 /// Aggregate outcome from a directory-level generic plot job.
 ///
 /// Mirrors [`crate::plottings::ChiDirectoryPlotOutcome`] to keep the caller
 /// interface uniform across plot types.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct GenericDirectoryPlotOutcome {
     /// One entry for every file that was successfully plotted.
     pub plotted: Vec<GenericPlotOutcome>,
@@ -212,21 +215,6 @@ pub fn load_generic_datasets_from_dir<P: AsRef<Path>>(
         if !path.is_file() {
             continue;
         }
-        let kind = InputKind::classify_path(&path);
-        if kind.is_unsupported_binary() {
-            skipped.push(GenericPlotSkip {
-                input_file: path,
-                reason: kind.skip_reason().to_string(),
-            });
-            continue;
-        }
-        if !kind.is_supported_text() && !kind.is_supported_spreadsheet() {
-            skipped.push(GenericPlotSkip {
-                input_file: path,
-                reason: "unsupported extension".to_string(),
-            });
-            continue;
-        }
         match load_data(&path) {
             Ok(parsed) => {
                 for data in measurement_to_plot_data(parsed.experiment.measurement()) {
@@ -237,8 +225,8 @@ pub fn load_generic_datasets_from_dir<P: AsRef<Path>>(
                 }
             }
             Err(err) => skipped.push(GenericPlotSkip {
-                input_file: path,
-                reason: err.to_string(),
+                input_file: path.clone(),
+                failure: BatchFileFailure::canonical(path, err),
             }),
         }
     }
@@ -400,22 +388,6 @@ pub fn plot_generic_directory_with_configs<P: AsRef<Path>>(
             continue;
         }
 
-        let kind = InputKind::classify_path(&path);
-        if kind.is_unsupported_binary() {
-            skipped.push(GenericPlotSkip {
-                input_file: path,
-                reason: kind.skip_reason().to_string(),
-            });
-            continue;
-        }
-        if !kind.is_supported_text() && !kind.is_supported_spreadsheet() {
-            skipped.push(GenericPlotSkip {
-                input_file: path,
-                reason: "unsupported extension".to_string(),
-            });
-            continue;
-        }
-
         match load_data(&path) {
             Ok(parsed) => {
                 for plot_data in measurement_to_plot_data(parsed.experiment.measurement()) {
@@ -432,14 +404,14 @@ pub fn plot_generic_directory_with_configs<P: AsRef<Path>>(
                 }
             }
             Err(err) => skipped.push(GenericPlotSkip {
-                input_file: path,
-                reason: err.to_string(),
+                input_file: path.clone(),
+                failure: BatchFileFailure::canonical(path, err),
             }),
         }
     }
 
     if datasets.is_empty() {
-        return Err(format!("No valid datasets found in {}", input_dir.display()).into());
+        return Err(format!("No accepted datasets found in {}", input_dir.display()).into());
     }
 
     // Create subdirectories only after we know there is something to write.

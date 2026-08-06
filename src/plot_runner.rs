@@ -179,6 +179,10 @@ where
             );
         }
 
+        for failure in plotted.failures {
+            emit_plot_warning(&mut log, format!("EIS plot input failure: {failure}"));
+        }
+
         emit_plot_info(
             &mut log,
             format!(
@@ -435,7 +439,7 @@ where
                 format!(
                     "Skipped regular-plot file: {} ({})",
                     skipped.input_file.display(),
-                    skipped.reason
+                    skipped.failure
                 ),
             );
         }
@@ -653,7 +657,7 @@ where
                 format!(
                     "Skipped generic-plot file: {} ({})",
                     s.input_file.display(),
-                    s.reason
+                    s.failure
                 ),
             );
         }

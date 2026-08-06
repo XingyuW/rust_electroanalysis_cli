@@ -317,6 +317,9 @@ fn duplicate_policy_is_explicit_and_non_monotonic_rows_are_paired() {
     values.swap(3, 4);
     let measurement = MultiChannelMeasurement {
         time,
+        time_unit: String::new(),
+        time_coordinate_name: None,
+        time_conversion: None,
         channels: vec![MeasurementChannel::new("E1", "V", values)],
     };
     let mut custom = config(TransientModelKind::Single);

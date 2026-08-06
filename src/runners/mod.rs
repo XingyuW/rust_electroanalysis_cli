@@ -5,7 +5,8 @@
 //! and data/rendering implementations remain in their existing modules.
 
 use crate::domain::{
-    ConfigurationError, DataParsingError, FittingError, ReportingError, WorkspaceError,
+    BatchFileFailure, ConfigurationError, DataParsingError, FittingError, ReportingError,
+    WorkspaceError,
 };
 use crate::potentiometry::{PotentiometryError, calibration::CalibrationError};
 use std::error::Error;
@@ -31,6 +32,8 @@ pub enum RunnerError {
     Configuration(#[from] ConfigurationError),
     #[error(transparent)]
     Data(#[from] DataParsingError),
+    #[error("raw-data batch input failures: {failures:?}")]
+    BatchInput { failures: Vec<BatchFileFailure> },
     #[error(transparent)]
     Fitting(#[from] FittingError),
     #[error(transparent)]
@@ -43,6 +46,8 @@ pub enum RunnerError {
     Calibration(#[from] CalibrationError),
     #[error(transparent)]
     Signal(#[from] crate::signal::error::SignalError),
+    #[error(transparent)]
+    SignalComparison(#[from] Box<crate::signal::comparison::SignalComparisonError>),
     #[error(transparent)]
     Health(#[from] crate::health::error::HealthError),
     #[error(transparent)]
