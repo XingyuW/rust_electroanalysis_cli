@@ -34,6 +34,7 @@ pub struct FilterInput<'a> {
     pub measurement_covariance: &'a CovarianceResolution,
     pub signal: Option<&'a crate::results::SignalAnalysisReport>,
     pub calibration_results: Option<&'a crate::results::CalibrationAnalysisReport>,
+    pub observability: &'a crate::estimation::observability::ObservabilityReport,
 }
 pub struct FilterRun {
     pub estimates: Vec<StateEstimatePoint>,
@@ -65,6 +66,10 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
     let mut covariance_collapse_count = 0;
     let mut covariance_inflation_warning_count = 0;
     let mut previous_time: Option<f64> = None;
+    let start_time = input.observations[0].timestamp_s;
+    let mut previous_equilibrium_state: Option<DVector<f64>> = None;
+    let mut previous_equilibrium_environment: Option<AlignedEnvironment> = None;
+    let mut last_dynamic_event_time: Option<f64> = None;
     for (index, obs) in input.observations.iter().enumerate() {
         let mut warnings = input
             .environments
@@ -72,18 +77,24 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             .map(|e| input.calibration.warnings(e))
             .unwrap_or_default();
         let env = input.environments.get(index).cloned().unwrap_or_default();
+        let evidence_dt = previous_time.map(|previous| obs.timestamp_s - previous);
+        if let Some(event_time) = env.polarization_event_timestamp_s {
+            last_dynamic_event_time = Some(event_time);
+        }
         let (predicted_state, predicted_cov) = if index == 0 {
             (state.clone(), cov.clone())
         } else {
-            let dt = obs.timestamp_s - previous_time.unwrap();
+            let previous = previous_time
+                .ok_or_else(|| EstimationError::invalid("previous EKF timestamp is unavailable"))?;
+            let dt = obs.timestamp_s - previous;
             if !dt.is_finite() || dt <= 0.0 {
                 return Err(EstimationError::invalid(format!(
                     "non-positive or non-finite Δt encountered at timestamp {} (Δt={})",
                     obs.timestamp_s, dt
                 )));
             }
-            let f = input.model.transition_matrix(dt);
-            let propagated = input.model.process_state(&state, dt, &env);
+            let f = input.model.transition_matrix_for(&state, dt, &env)?;
+            let propagated = input.model.try_process_state(&state, dt, &env)?;
             let (q, res) = resolve_process_covariance(input.config, input.model, dt)?;
             process_resolution.get_or_insert(res);
             let mut p = &f * &cov * f.transpose() + q;
@@ -276,12 +287,55 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             .activity_model_is_ideal()
             .then_some(activity)
             .flatten();
+        let innovation_history = records
+            .iter()
+            .map(|record| record.innovation_v)
+            .collect::<Vec<_>>();
+        let equilibrium_evidence = crate::estimation::model_output::equilibrium_evidence(
+            &input.config.equilibrium_recognition,
+            &filtered_state,
+            previous_equilibrium_state.as_ref(),
+            &filtered_cov,
+            &env,
+            previous_equilibrium_environment.as_ref(),
+            evidence_dt,
+            Some(obs.timestamp_s - last_dynamic_event_time.unwrap_or(start_time)),
+            residual_autocorrelation(&innovation_history),
+            index + 1,
+            input.model,
+            input.observability,
+        );
+        let decomposition = crate::estimation::model_output::decompose_legacy_observation(
+            &predicted_state,
+            &env,
+            input.model,
+            input.calibration,
+            obs.potential_v,
+            standardized,
+            Some(&equilibrium_evidence),
+        )?;
+        if predicted_measurement
+            .is_some_and(|value| (value - decomposition.predicted_voltage_v).abs() > 1e-10)
+        {
+            return Err(EstimationError::Numerical(
+                "EKF component contributions do not reconstruct the observation prediction".into(),
+            ));
+        }
+        predicted_measurement = Some(decomposition.predicted_voltage_v);
         points.push(StateEstimatePoint {
             segment_id: 0,
             timestamp_s: obs.timestamp_s,
             original_row_index: None,
             measurement_v: obs.potential_v,
             predicted_measurement_v: predicted_measurement,
+            component_contributions: decomposition.contributions,
+            equilibrium_potential_v: Some(decomposition.equilibrium_potential_v),
+            transport_potential_v: Some(decomposition.transport_potential_v),
+            transduction_potential_v: Some(decomposition.transduction_potential_v),
+            reference_potential_v: Some(decomposition.reference_potential_v),
+            external_disturbance_potential_v: Some(decomposition.external_disturbance_potential_v),
+            unexplained_residual_v: decomposition.unexplained_residual_v,
+            equilibrium_assessment: Some(decomposition.equilibrium),
             innovation_v: innovation,
             innovation_variance_v2: innovation_variance,
             standardized_innovation: standardized,
@@ -325,6 +379,8 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
                 .filter(|r| r.timestamp_s == obs.timestamp_s)
                 .and_then(|r| r.variance_inflation_reason.clone()),
         });
+        previous_equilibrium_state = Some(filtered_state.clone());
+        previous_equilibrium_environment = Some(env);
         state = filtered_state;
         cov = filtered_cov;
     }

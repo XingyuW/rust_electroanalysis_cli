@@ -135,6 +135,7 @@ pub struct ResolvedEstimationConfig {
     pub polarization: PolarizationConfig,
     pub environment: EnvironmentConfig,
     pub observability: ObservabilityConfig,
+    pub equilibrium_recognition: EquilibriumRecognitionConfig,
     pub ekf: EkfConfig,
     pub ukf: UkfConfig,
     pub extrapolation: ExtrapolationConfig,
@@ -160,6 +161,7 @@ impl Default for ResolvedEstimationConfig {
             polarization: PolarizationConfig::default(),
             environment: EnvironmentConfig::default(),
             observability: ObservabilityConfig::default(),
+            equilibrium_recognition: EquilibriumRecognitionConfig::default(),
             ekf: EkfConfig::default(),
             ukf: UkfConfig::default(),
             extrapolation: ExtrapolationConfig::default(),
@@ -390,6 +392,43 @@ impl Default for ObservabilityConfig {
             reject_unobservable_model: true,
             empirical_perturbation: 1.0e-3,
             empirical_sensitivity_tolerance: 1.0e-8,
+        }
+    }
+}
+
+/// Conservative evidence thresholds for timestamp-level equilibrium
+/// recognition. Rates are normalized by each state's declared finite span so
+/// states with different units are never compared directly.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EquilibriumRecognitionConfig {
+    pub enabled: bool,
+    pub minimum_history_points: usize,
+    pub minimum_elapsed_time_constants: f64,
+    pub maximum_normalized_state_rate_per_s: f64,
+    pub maximum_dynamic_potential_v: f64,
+    pub maximum_equilibrium_gap_v: f64,
+    pub maximum_absolute_standardized_innovation: f64,
+    pub maximum_absolute_residual_autocorrelation: f64,
+    pub maximum_environment_change_fraction: f64,
+    pub maximum_state_uncertainty_fraction: f64,
+    pub require_observable: bool,
+}
+
+impl Default for EquilibriumRecognitionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            minimum_history_points: 5,
+            minimum_elapsed_time_constants: 5.0,
+            maximum_normalized_state_rate_per_s: 1.0e-4,
+            maximum_dynamic_potential_v: 1.0e-4,
+            maximum_equilibrium_gap_v: 1.0e-4,
+            maximum_absolute_standardized_innovation: 2.0,
+            maximum_absolute_residual_autocorrelation: 0.2,
+            maximum_environment_change_fraction: 0.01,
+            maximum_state_uncertainty_fraction: 0.05,
+            require_observable: true,
         }
     }
 }
@@ -716,6 +755,33 @@ impl ResolvedEstimationConfig {
         {
             return Err(ConfigurationError::invalid(
                 "observability empirical perturbation settings are invalid",
+            ));
+        }
+        let equilibrium = &self.equilibrium_recognition;
+        if equilibrium.minimum_history_points < 2
+            || !equilibrium.minimum_elapsed_time_constants.is_finite()
+            || equilibrium.minimum_elapsed_time_constants < 0.0
+            || !equilibrium.maximum_normalized_state_rate_per_s.is_finite()
+            || equilibrium.maximum_normalized_state_rate_per_s < 0.0
+            || !equilibrium.maximum_dynamic_potential_v.is_finite()
+            || equilibrium.maximum_dynamic_potential_v < 0.0
+            || !equilibrium.maximum_equilibrium_gap_v.is_finite()
+            || equilibrium.maximum_equilibrium_gap_v < 0.0
+            || !equilibrium
+                .maximum_absolute_standardized_innovation
+                .is_finite()
+            || equilibrium.maximum_absolute_standardized_innovation < 0.0
+            || !equilibrium
+                .maximum_absolute_residual_autocorrelation
+                .is_finite()
+            || equilibrium.maximum_absolute_residual_autocorrelation < 0.0
+            || !equilibrium.maximum_environment_change_fraction.is_finite()
+            || equilibrium.maximum_environment_change_fraction < 0.0
+            || !equilibrium.maximum_state_uncertainty_fraction.is_finite()
+            || equilibrium.maximum_state_uncertainty_fraction < 0.0
+        {
+            return Err(ConfigurationError::invalid(
+                "equilibrium-recognition thresholds are invalid",
             ));
         }
         if !self.extrapolation.near_boundary_fraction.is_finite()

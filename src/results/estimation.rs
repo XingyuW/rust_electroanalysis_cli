@@ -38,6 +38,22 @@ pub struct StateEstimatePoint {
     pub original_row_index: Option<usize>,
     pub measurement_v: Option<f64>,
     pub predicted_measurement_v: Option<f64>,
+    #[serde(default)]
+    pub component_contributions: Vec<crate::model::ComponentContribution>,
+    #[serde(default)]
+    pub equilibrium_potential_v: Option<f64>,
+    #[serde(default)]
+    pub transport_potential_v: Option<f64>,
+    #[serde(default)]
+    pub transduction_potential_v: Option<f64>,
+    #[serde(default)]
+    pub reference_potential_v: Option<f64>,
+    #[serde(default)]
+    pub external_disturbance_potential_v: Option<f64>,
+    #[serde(default)]
+    pub unexplained_residual_v: Option<f64>,
+    #[serde(default)]
+    pub equilibrium_assessment: Option<crate::model::EquilibriumAssessment>,
     pub innovation_v: Option<f64>,
     pub innovation_variance_v2: Option<f64>,
     pub standardized_innovation: Option<f64>,
@@ -188,6 +204,8 @@ pub struct StateEstimationReport {
     pub measurement_conversion: String,
     pub filter: FilterKind,
     pub model: StateModelKind,
+    #[serde(default)]
+    pub model_definition: Option<crate::model::ModelDefinition>,
     pub state_definitions: Vec<StateDefinition>,
     pub initialization: InitializationReport,
     pub process_covariance: CovarianceResolution,
