@@ -146,6 +146,7 @@ pub fn from_transient(r: &TransientAnalysisReport) -> Vec<HealthFeature> {
             .or_default()
             .push(fit);
     }
+    let single_context = groups.len() == 1;
     let add = |v: &mut Vec<HealthFeature>, n: String, x: Option<f64>, u: &str| {
         let domain = if n.ends_with("drift_rate") {
             HealthDomain::Drift
@@ -237,6 +238,28 @@ pub fn from_transient(r: &TransientAnalysisReport) -> Vec<HealthFeature> {
             ),
             "fraction",
         );
+    }
+    // Preserve legacy feature names only when every event belongs to exactly
+    // one scientifically comparable context. With multiple contexts there is
+    // deliberately no aggregate alias to prevent cross-context averaging.
+    if single_context {
+        let aliases = f
+            .iter()
+            .filter_map(|feature| {
+                feature
+                    .name
+                    .rsplit_once('.')
+                    .map(|(_, field)| HealthFeature {
+                        name: format!("transient.{field}"),
+                        value: feature.value,
+                        unit: feature.unit.clone(),
+                        domain: feature.domain,
+                        source: feature.source.clone(),
+                        warning: feature.warning.clone(),
+                    })
+            })
+            .collect::<Vec<_>>();
+        f.extend(aliases);
     }
     f
 }
