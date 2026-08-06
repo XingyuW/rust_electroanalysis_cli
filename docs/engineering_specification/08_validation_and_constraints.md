@@ -130,3 +130,7 @@ require the configured independent-domain and baseline-record minima.
 Model workflows reject unsupported model-config and analysis-artifact schemas,
 compile graph/unit/parameter/input constraints before evaluation, and reject
 non-finite report values before JSON serialization.
+
+Validation manifests must declare category, sensor, analysis artifact, and
+whether the experiment is real. Reference-state and parameter recovery metrics
+are unavailable when reference data are absent; this absence is recorded.

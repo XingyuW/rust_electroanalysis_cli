@@ -121,3 +121,6 @@ model residual health features, and multi-domain mechanistic health guards.
 `phase06_model_workflow` covers model CLI parsing, invalid configuration,
 deterministic simulation, decomposition exports, JSON compatibility, finite
 JSON output, report regeneration, and estimate-command parsing compatibility.
+
+`phase07_validation` verifies manifest evaluation, contribution reconstruction,
+reproducible result contracts, and the synthetic-data non-validation boundary.

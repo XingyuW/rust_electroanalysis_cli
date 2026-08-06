@@ -55,6 +55,7 @@ Verification confidence labels used in **Verified By**:
 | FR-036 | Mechanism workflow adapters shall map legacy artifacts to model parameters only through explicit stable component IDs and source paths | High | `src/mechanism/model_mapping.rs` | `phase05_model_health` | ✅ Implemented |
 | FR-037 | Health features shall retain transient scientific context and expose model residual, validity, identifiability, calibration-domain, state, and parameter evidence | High | `src/health/features.rs` | `phase05_model_health` | ✅ Implemented |
 | FR-038 | System shall expose model validate, simulate, decompose, and report workflows with finite schema-versioned outputs | High | `src/runners/model.rs` | `phase06_model_workflow` | ✅ Implemented |
+| FR-039 | System shall evaluate declared model-validation manifests and export reproducible recovery, coverage, reconstruction, identifiability, and comparison evidence | High | `src/model_validation.rs` | `phase07_validation` | ✅ Implemented |
 
 ## 2. Scientific Requirements
 

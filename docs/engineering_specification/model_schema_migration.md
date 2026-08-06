@@ -15,6 +15,11 @@ or mechanism assignment rather than a guessed conversion.
 `ism_model_analysis`. Consumers reject a different version or kind rather than
 silently treating a non-model JSON artifact as a model analysis.
 
+### Phase 07 validation artifacts
+
+`ValidationResults` is schema version 1 with artifact kind
+`ism_model_validation`. A reader must reject an incompatible schema or kind.
+
 Phase 02 introduces `ModelDefinition` and `ModelConfig` schema version `1`,
 and the `ism_model_compilation` result artifact schema version `1`. There are no
 earlier ISM model artifacts to migrate.

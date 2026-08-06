@@ -392,3 +392,10 @@ The unexplained-residual RMS remains a separate quality feature.
 Phase 06 evaluates compiled component equations already supplied by the core.
 Deterministic simulation is synthetic rather than calibration or physical
 validation; equilibrium remains indeterminate without dynamic and innovation evidence.
+
+### EQ-ISM-006: Validation Metrics
+
+Parameter/state recovery, contribution reconstruction, coverage, calibration
+transfer, cross-sensor comparisons, and model criteria are computed only from
+manifest-declared observations. Synthetic-only scenarios are reported as such
+and cannot substantiate physical validation.

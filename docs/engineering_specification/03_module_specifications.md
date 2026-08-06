@@ -265,3 +265,10 @@ domain status. These adapters do not introduce a new CLI command.
 registry, performs deterministic evaluation, and exports contributions,
 states, validity, equilibrium evidence, and a report. It rejects unsupported
 analysis artifact schema/kind values and validates finite values before JSON.
+
+### Phase 07 Validation Infrastructure
+
+`results/validation.rs` declares a versioned manifest spanning stable standards,
+steps, environmental variation, interferents, flow, reference, construction,
+fouling, aging, and paired EIS/transient studies. `model_validation.rs` records
+missing state/profile-likelihood evidence instead of fabricating validation.

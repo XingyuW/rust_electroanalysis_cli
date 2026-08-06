@@ -349,3 +349,6 @@ the prior behavior of receiving no model-component assignment.
 
 Phase 06 introduces additive model-analysis artifacts. Readers verify both
 `schema_version` and `artifact_kind`; old workflows remain unaffected.
+
+Phase 07 validation artifacts are additive. Consumers reject a mismatched
+validation schema rather than treating unknown experiment evidence as valid.

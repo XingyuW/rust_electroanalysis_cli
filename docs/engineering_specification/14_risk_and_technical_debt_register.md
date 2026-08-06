@@ -58,6 +58,7 @@
 | RISK-026 | SCI | Explicit mapping prevents name/order inference, but mapping applicability and independent replication remain user-supplied scientific evidence | Phase 05 mappings preserve missing/contradictory evidence and cap unreplicated matches at weak | `mechanism/model_mapping.rs` | Medium | Medium | Medium | P2 |
 | RISK-027 | DATA | Legacy transient events can omit matrix or temperature metadata; such events remain partitioned as `unknown` rather than being treated as comparable | Context-preserving feature keys | `health/features.rs` | Medium | Medium | Medium | P2 |
 | RISK-028 | SCI | Deterministic model workflow outputs can be mistaken for fitted validation | Reports label synthetic outputs and preserve indeterminate equilibrium/identifiability evidence | `runners/model.rs` | Medium | Medium | Medium | P2 |
+| RISK-029 | SCI | A validation manifest can reference synthetic or incomplete reference data | Results label non-real experiments and preserve unavailable profile-likelihood/state-recovery evidence | `model_validation.rs` | High | Medium | High | P1 |
 
 ---
 

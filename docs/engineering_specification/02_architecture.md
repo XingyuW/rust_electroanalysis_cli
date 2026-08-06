@@ -295,3 +295,10 @@ residual, validity, and identifiability evidence without assigning a failure mec
 `cli` → `runners/model` → `model_config`/`model`/`results::model`/plot adapter.
 The runner is the only new layer that consumes CLI paths, artifacts, and output
 directories; no dependency is introduced from `model/` to a workflow module.
+
+## Phase 07 Validation Boundary
+
+`model_validation` and its runner are outer study-evaluation adapters. They
+consume declared reference data and model-analysis artifacts; the model core
+does not import them. Synthetic datasets are retained as evidence but are
+explicitly insufficient for physical validation claims.
