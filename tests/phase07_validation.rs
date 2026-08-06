@@ -49,9 +49,14 @@ fn validation_manifest_exports_reproducible_metrics_without_physical_claim() {
             .iter()
             .any(|warning| warning.contains("not marked as a real experiment"))
     );
-    assert_eq!(
-        results.identifiability_report["profile_likelihood"],
-        "missing: fitted likelihood evaluations required"
-    );
+    assert!(results.identifiability_report["limitations"].is_array());
+    assert!(results.metrics.iter().any(|metric| {
+        metric.metric == "prediction_coverage"
+            && metric.value.is_none()
+            && metric.evidence_status == "missing_prediction_intervals"
+    }));
+    assert!(results.metrics.iter().any(|metric| {
+        metric.metric == "calibration_transfer_validation" && metric.value.is_none()
+    }));
     fs::remove_dir_all(root).ok();
 }

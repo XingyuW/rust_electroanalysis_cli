@@ -19,15 +19,15 @@ pub fn run(
     };
     let manifest: ValidationManifest = serde_json::from_str(&fs::read_to_string(&manifest_path)?)?;
     let results = evaluate_manifest(&manifest, manifest_path.parent().unwrap_or(workspace))
-        .map_err(RunnerError::Message)?;
+        .map_err(|error| RunnerError::Message(error.to_string()))?;
     let directory = output
         .map(PathBuf::from)
         .unwrap_or_else(|| workspace.join("output/model_validation"));
     fs::create_dir_all(&directory)?;
-    fs::write(
-        directory.join("validation_results.json"),
-        results.to_json()?,
-    )?;
+    results
+        .to_json()
+        .map_err(|error| RunnerError::Message(error.to_string()))?;
+    crate::domain::write_artifact(&directory.join("validation_results.json"), &results)?;
     fs::write(
         directory.join("identifiability_report.json"),
         serde_json::to_string_pretty(&results.identifiability_report)?,

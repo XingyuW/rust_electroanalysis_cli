@@ -82,7 +82,36 @@ pub struct ValidationResults {
 }
 
 impl ValidationResults {
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string_pretty(self)
+    pub fn to_json(&self) -> Result<String, ValidationSerializationError> {
+        for metric in &self.metrics {
+            if metric.value.is_some_and(|value| !value.is_finite()) {
+                return Err(ValidationSerializationError::NonFinite(
+                    metric.metric.clone(),
+                ));
+            }
+        }
+        for row in &self.model_comparison {
+            for (name, value) in [
+                ("rmse_v", row.rmse_v),
+                ("prediction_coverage", row.prediction_coverage),
+                (
+                    "contribution_reconstruction_error_v",
+                    row.contribution_reconstruction_error_v,
+                ),
+            ] {
+                if value.is_some_and(|value| !value.is_finite()) {
+                    return Err(ValidationSerializationError::NonFinite(name.into()));
+                }
+            }
+        }
+        Ok(serde_json::to_string_pretty(self)?)
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ValidationSerializationError {
+    #[error("validation result contains a non-finite value for {0}")]
+    NonFinite(String),
+    #[error("validation JSON error: {0}")]
+    Json(#[from] serde_json::Error),
 }

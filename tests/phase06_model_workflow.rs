@@ -84,10 +84,16 @@ fn validate_simulate_decompose_and_report_generate_finite_artifacts() {
     let input = root.join("inputs.json");
     fs::write(
         &input,
-        serde_json::to_string(&vec![ModelInput {
-            time_s: 0.0,
-            values,
-        }])
+        serde_json::to_string(&vec![
+            ModelInput {
+                time_s: 0.0,
+                values: values.clone(),
+            },
+            ModelInput {
+                time_s: 1.0,
+                values,
+            },
+        ])
         .expect("serialize"),
     )
     .expect("write");
@@ -106,6 +112,15 @@ fn validate_simulate_decompose_and_report_generate_finite_artifacts() {
         Some(&out),
     )
     .expect("decompose");
+    let decomposed: ModelAnalysisReport = serde_json::from_str(
+        &fs::read_to_string(out.join("model_analysis.json")).expect("decomposition artifact"),
+    )
+    .expect("decomposition schema");
+    assert_eq!(decomposed.points.len(), 2);
+    assert_ne!(
+        decomposed.points[0].state_values,
+        decomposed.points[1].state_values
+    );
     for file in [
         "model_states.csv",
         "model_contributions.csv",
@@ -131,4 +146,17 @@ fn invalid_model_configuration_is_rejected() {
     fs::write(&invalid, "schema_version = 99\n[model]\nschema_version = 1\nmodel_id = 'x'\ndescription = 'x'\nvalidity_domain = 'x'\nstates=[]\nparameters=[]\ninputs=[]\ncomponents=[]\n").expect("write");
     assert!(model::validate(&root, Some(&invalid), None).is_err());
     fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn checked_in_model_configuration_is_complete_and_compilable() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/model.toml");
+    let config = rust_electroanalysis_cli::model_config::ModelConfig::load(path)
+        .expect("checked-in model configuration");
+    assert!(!config.model.components.is_empty());
+    rust_electroanalysis_cli::model::compile_model(
+        config.model,
+        rust_electroanalysis_cli::model::built_in_registry(),
+    )
+    .expect("checked-in model compiles");
 }

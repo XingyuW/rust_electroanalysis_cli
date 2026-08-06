@@ -7,8 +7,10 @@ use crate::{
     },
     model_config::ModelConfig,
     results::{
-        MODEL_ANALYSIS_ARTIFACT_KIND, MODEL_RESULT_SCHEMA_VERSION, ModelAnalysisPoint,
-        ModelAnalysisReport, ModelCompilationArtifact,
+        EisFitArtifact, MODEL_ANALYSIS_ARTIFACT_KIND, MODEL_RESULT_SCHEMA_VERSION,
+        MechanismAnalysisReport, ModelAnalysisPoint, ModelAnalysisReport, ModelCompilationArtifact,
+        SensorHealthAssessment, SignalAnalysisReport, StoredCalibrationModel,
+        TransientAnalysisReport,
     },
     runners::RunnerError,
 };
@@ -31,13 +33,16 @@ pub fn validate(
     fs::create_dir_all(&directory)?;
     fs::write(
         directory.join("model_definition_resolved.json"),
-        artifact
-            .to_json()
-            .map_err(|error| RunnerError::Message(error.to_string()))?,
+        serde_json::to_string_pretty(&artifact.model_definition)?,
     )?;
+    artifact
+        .to_json()
+        .map_err(|error| RunnerError::Message(error.to_string()))?;
+    crate::domain::write_artifact(&directory.join("model_compilation.json"), &artifact)
+        .map_err(|error| RunnerError::Message(error.to_string()))?;
     fs::write(
         directory.join("model_validity.csv"),
-        "is_valid,checked_domain\ntrue,definition_compiled\n",
+        "is_valid,checked_domain,warnings\ntrue,definition_compiled,structural and practical identifiability not assessed\n",
     )?;
     fs::write(
         directory.join("model_evidence.json"),
@@ -96,61 +101,87 @@ pub fn decompose(
     model_path: Option<&Path>,
     input_path: Option<&Path>,
     measurement: Option<&Path>,
-    _metadata: Option<&Path>,
-    _calibration: Option<&Path>,
-    _transient: Option<&Path>,
-    _eis: Option<&Path>,
-    _signal: Option<&Path>,
-    _mechanism: Option<&Path>,
-    _health: Option<&Path>,
+    metadata: Option<&Path>,
+    calibration: Option<&Path>,
+    transient: Option<&Path>,
+    eis: Option<&Path>,
+    signal: Option<&Path>,
+    mechanism: Option<&Path>,
+    health: Option<&Path>,
     output: Option<&Path>,
 ) -> Result<(), RunnerError> {
     let (config, _) = load_config(workspace, model_path)?;
     let compiled = compile_model(config.model, built_in_registry())
         .map_err(|error| RunnerError::Message(error.to_string()))?;
-    let parameters = compiled.default_parameters();
-    let state = compiled
+    let mut parameters = compiled.default_parameters();
+    let mut evidence = Vec::new();
+    if let Some(path) = calibration {
+        let artifact: StoredCalibrationModel = read_cross_workflow_artifact(workspace, path)?;
+        apply_calibration_parameters(&compiled, &mut parameters, &artifact)?;
+        evidence.push(format!(
+            "Calibration model for '{}' supplied explicit equilibrium parameter values.",
+            artifact.analyte
+        ));
+    }
+    validate_optional_artifact::<TransientAnalysisReport>(workspace, transient, &mut evidence)?;
+    validate_optional_artifact::<EisFitArtifact>(workspace, eis, &mut evidence)?;
+    validate_optional_artifact::<SignalAnalysisReport>(workspace, signal, &mut evidence)?;
+    validate_optional_artifact::<MechanismAnalysisReport>(workspace, mechanism, &mut evidence)?;
+    validate_optional_artifact::<SensorHealthAssessment>(workspace, health, &mut evidence)?;
+    let mut state = compiled
         .initialize(&parameters)
         .map_err(|error| RunnerError::Message(error.to_string()))?;
-    let inputs = if let Some(path) = input_path {
-        let text = fs::read_to_string(path)?;
+    let mut inputs = if let Some(path) = input_path {
+        let text = fs::read_to_string(resolve(workspace, path))?;
         serde_json::from_str::<Vec<ModelInput>>(&text)
             .or_else(|_| serde_json::from_str::<ModelInput>(&text).map(|value| vec![value]))?
     } else {
-        let mut input = default_input(0.0);
-        if measurement.is_some() {
-            input.values.insert(
-                "observed_voltage_v".into(),
-                crate::model::InputValue {
-                    value: 0.0,
-                    unit: "V".into(),
-                },
-            );
+        if measurement.is_some() || metadata.is_some() {
+            return Err(RunnerError::Message(
+                "measurement decomposition requires --input with explicit scientific model inputs; concentration/activity is never inferred from voltage alone".into(),
+            ));
         }
-        vec![input]
+        vec![default_input(0.0)]
     };
-    let points = inputs
-        .iter()
-        .map(|input| {
-            let observed = input
-                .values
-                .get("observed_voltage_v")
-                .map(|value| value.value);
-            evaluate(&compiled, &state, &parameters, input, observed)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    export(workspace, output, ModelAnalysisReport { schema_version: MODEL_RESULT_SCHEMA_VERSION, artifact_kind: MODEL_ANALYSIS_ARTIFACT_KIND.into(), model_definition: compiled.definition().clone(), points, identifiability: compiled.identifiability_report(), evidence: vec!["Optional legacy artifacts were retained as external evidence; no mechanism identity was inferred.".into()] })
+    attach_measurements(workspace, measurement, metadata, &mut inputs)?;
+    let mut points = Vec::with_capacity(inputs.len());
+    for (index, input) in inputs.iter().enumerate() {
+        if index > 0 {
+            let previous = &inputs[index - 1];
+            let dt_s = input.time_s - previous.time_s;
+            if !dt_s.is_finite() || dt_s < 0.0 {
+                return Err(RunnerError::Message(
+                    "model inputs must have finite, nondecreasing timestamps".into(),
+                ));
+            }
+            state = compiled
+                .process_transition(&state, &parameters, previous, dt_s)
+                .map_err(|error| RunnerError::Message(error.to_string()))?;
+        }
+        let observed = input
+            .values
+            .get("observed_voltage_v")
+            .map(|value| value.value);
+        points.push(evaluate(&compiled, &state, &parameters, input, observed)?);
+    }
+    evidence.push("Optional artifacts were schema-validated and retained as evidence; no physical mechanism identity was inferred.".into());
+    export(
+        workspace,
+        output,
+        ModelAnalysisReport {
+            schema_version: MODEL_RESULT_SCHEMA_VERSION,
+            artifact_kind: MODEL_ANALYSIS_ARTIFACT_KIND.into(),
+            model_definition: compiled.definition().clone(),
+            points,
+            identifiability: compiled.identifiability_report(),
+            evidence,
+        },
+    )
 }
 
 pub fn report(workspace: &Path, results: &Path, output: Option<&Path>) -> Result<(), RunnerError> {
-    let report: ModelAnalysisReport = serde_json::from_str(&fs::read_to_string(results)?)?;
-    if report.schema_version != MODEL_RESULT_SCHEMA_VERSION
-        || report.artifact_kind != MODEL_ANALYSIS_ARTIFACT_KIND
-    {
-        return Err(RunnerError::Message(
-            "unsupported model-analysis artifact schema or kind".into(),
-        ));
-    }
+    let report: ModelAnalysisReport = crate::domain::read_artifact(&resolve(workspace, results))
+        .map_err(|error| RunnerError::Message(error.to_string()))?;
     let text = format!(
         "ISM Model Analysis Report\nmodel: {}\npoints: {}\nstructural identifiability: {:?}\n\nEvidence\n{}\n",
         report.model_definition.model_id,
@@ -173,9 +204,9 @@ fn load_config(
     path: Option<&Path>,
 ) -> Result<(ModelConfig, PathBuf), RunnerError> {
     let path = path
-        .map(PathBuf::from)
+        .map(|path| resolve(workspace, path))
         .unwrap_or_else(|| workspace.join("config/model.toml"));
-    let mut config = if path.exists() {
+    let config = if path.exists() {
         ModelConfig::load(&path).map_err(|error| RunnerError::Message(error.to_string()))?
     } else {
         ModelConfig {
@@ -183,12 +214,120 @@ fn load_config(
             model: default_model_definition(),
         }
     };
-    // The checked-in config is intentionally a documented template; resolving
-    // it uses the versioned reduced-order default rather than an empty model.
-    if config.model.components.is_empty() {
-        config.model = default_model_definition();
-    }
     Ok((config, path))
+}
+
+fn resolve(workspace: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        workspace.join(path)
+    }
+}
+
+fn read_cross_workflow_artifact<T: crate::domain::VersionedArtifact>(
+    workspace: &Path,
+    path: &Path,
+) -> Result<T, RunnerError> {
+    let path = resolve(workspace, path);
+    crate::domain::read_artifact(&path).map_err(|error| RunnerError::Message(error.to_string()))
+}
+
+fn validate_optional_artifact<T: crate::domain::VersionedArtifact>(
+    workspace: &Path,
+    path: Option<&Path>,
+    evidence: &mut Vec<String>,
+) -> Result<(), RunnerError> {
+    if let Some(path) = path {
+        let _: T = read_cross_workflow_artifact(workspace, path)?;
+        evidence.push(format!("Validated optional {} artifact.", T::ARTIFACT_KIND));
+    }
+    Ok(())
+}
+
+fn apply_calibration_parameters(
+    compiled: &crate::model::CompiledIsmModel,
+    parameters: &mut crate::model::ParameterValues,
+    calibration: &StoredCalibrationModel,
+) -> Result<(), RunnerError> {
+    if let Some(index) = compiled.parameter_index("standard_potential_v")
+        && let Some(value) = calibration
+            .parameters
+            .iter()
+            .find(|parameter| parameter.name == "E0" && parameter.unit == "V")
+            .map(|parameter| parameter.value)
+    {
+        parameters.values[index] = value;
+    }
+    if let Some(index) = compiled.parameter_index("ion_charge") {
+        parameters.values[index] = f64::from(calibration.ion_charge);
+    }
+    compiled
+        .validate_parameters(parameters)
+        .map_err(|error| RunnerError::Message(error.to_string()))
+}
+
+fn attach_measurements(
+    workspace: &Path,
+    measurement: Option<&Path>,
+    metadata: Option<&Path>,
+    inputs: &mut [ModelInput],
+) -> Result<(), RunnerError> {
+    let Some(measurement) = measurement else {
+        if metadata.is_some() {
+            return Err(RunnerError::Message(
+                "--metadata requires --measurement".into(),
+            ));
+        }
+        return Ok(());
+    };
+    let metadata =
+        metadata.ok_or_else(|| RunnerError::Message("--measurement requires --metadata".into()))?;
+    let (experiment, _) = crate::data_file::measurement_parser::load_experiment_with_sheet(
+        resolve(workspace, measurement),
+        resolve(workspace, metadata),
+        None,
+    )?;
+    let measured = experiment.measurement();
+    if measured.time.len() != inputs.len() {
+        return Err(RunnerError::Message(format!(
+            "measurement has {} rows but model input has {} rows",
+            measured.time.len(),
+            inputs.len()
+        )));
+    }
+    let channel = measured
+        .channels
+        .iter()
+        .find(|channel| {
+            channel
+                .unit
+                .parse::<crate::potentiometry::units::QuantityUnit>()
+                .is_ok_and(|unit| {
+                    unit.dimension() == crate::potentiometry::units::QuantityDimension::Potential
+                })
+        })
+        .ok_or_else(|| RunnerError::Message("measurement has no potential channel".into()))?;
+    for (index, input) in inputs.iter_mut().enumerate() {
+        if (input.time_s - measured.time[index]).abs() > 1e-9 {
+            return Err(RunnerError::Message(format!(
+                "measurement and model-input timestamps differ at row {index}"
+            )));
+        }
+        if let Some(value) = channel.values[index] {
+            let voltage = crate::potentiometry::units::Quantity::parse(value, &channel.unit)
+                .and_then(|quantity| quantity.to_potential_v())
+                .map_err(|error| RunnerError::Message(error.to_string()))?;
+            input.values.insert(
+                "observed_voltage_v".into(),
+                crate::model::InputValue {
+                    value: voltage,
+                    unit: "V".into(),
+                },
+            );
+        }
+    }
+    Ok(())
 }
 fn output_directory(workspace: &Path, output: Option<&Path>) -> PathBuf {
     output
@@ -243,12 +382,11 @@ fn export(
 ) -> Result<(), RunnerError> {
     let directory = output_directory(workspace, output);
     fs::create_dir_all(&directory)?;
-    fs::write(
-        directory.join("model_analysis.json"),
-        report
-            .to_json()
-            .map_err(|error| RunnerError::Message(error.to_string()))?,
-    )?;
+    report
+        .to_json()
+        .map_err(|error| RunnerError::Message(error.to_string()))?;
+    crate::domain::write_artifact(&directory.join("model_analysis.json"), &report)
+        .map_err(|error| RunnerError::Message(error.to_string()))?;
     fs::write(
         directory.join("model_definition_resolved.json"),
         serde_json::to_string_pretty(&report.model_definition)?,
