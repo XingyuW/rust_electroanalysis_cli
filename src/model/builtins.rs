@@ -46,6 +46,7 @@ pub(crate) fn static_factories() -> Vec<(&'static str, ComponentFactory)> {
 }
 
 fn create_builtin(descriptor: &ComponentDescriptor) -> Result<Box<dyn IsmComponent>, ModelError> {
+    validate_builtin_shape(descriptor)?;
     Ok(Box::new(BuiltinComponent {
         descriptor: descriptor.clone(),
         bindings: ComponentBindings::default(),
@@ -91,7 +92,11 @@ impl BuiltinComponent {
             })
     }
 
-    fn activity(&self, input: &ModelInput) -> Result<(f64, Vec<String>), ModelError> {
+    fn activity(
+        &self,
+        input: &ModelInput,
+        parameters: &ParameterValues,
+    ) -> Result<(f64, Vec<String>), ModelError> {
         let concentration =
             input
                 .values
@@ -111,11 +116,7 @@ impl BuiltinComponent {
             .map(String::as_str)
             .unwrap_or("ideal");
         let ionic_strength = input.values.get("ionic_strength").map(|value| value.value);
-        let charge = self
-            .parameter(input_parameters_placeholder(), "ion_charge")
-            .unwrap_or(1.0);
-        // The activity law requires ion charge; components that do not declare
-        // it use a documented monovalent default and never infer a mechanism.
+        let charge = self.parameter(parameters, &self.descriptor.parameter_ids[1])?;
         let charge = if charge.is_finite() {
             charge.round() as i32
         } else {
@@ -168,8 +169,8 @@ impl BuiltinComponent {
     ) -> Result<(), ModelError> {
         let index = self.state_index(state_id)?;
         let decay = self.decay(self.parameter(parameters, tau_id)?, dt_s, beta)?;
-        state.values[index] = decay * state.values[index]
-            + self.parameter(parameters, gain_id)? * self.input(input, "driving_step_v")?;
+        let target = self.parameter(parameters, gain_id)? * self.input(input, "driving_step_v")?;
+        state.values[index] = decay * state.values[index] + (1.0 - decay) * target;
         Ok(())
     }
 }
@@ -318,7 +319,7 @@ impl IsmComponent for BuiltinComponent {
     ) -> Result<Option<f64>, ModelError> {
         let value = match self.descriptor.kind.as_str() {
             "equilibrium.nernst" => {
-                let (activity, _) = self.activity(input)?;
+                let (activity, _) = self.activity(input, parameters)?;
                 evaluate_nernst_auto(
                     self.parameter(parameters, &self.descriptor.parameter_ids[0])?,
                     activity,
@@ -329,7 +330,7 @@ impl IsmComponent for BuiltinComponent {
                 .map_err(|error| evaluation(&self.descriptor.id, error))?
             }
             "equilibrium.nicolsky_eisenman" => {
-                let (activity, _) = self.activity(input)?;
+                let (activity, _) = self.activity(input, parameters)?;
                 let interferents = parse_interferents(&self.descriptor, parameters, input)?;
                 evaluate_potential(
                     self.parameter(parameters, &self.descriptor.parameter_ids[0])?,
@@ -420,7 +421,7 @@ impl IsmComponent for BuiltinComponent {
             | "equilibrium.nicolsky_eisenman"
             | "activity.ideal"
             | "activity.davies"
-            | "activity.extended_debye_huckel" => self.activity(input)?.1,
+            | "activity.extended_debye_huckel" => self.activity(input, parameters)?.1,
             "transport.two_mode_relaxation" => {
                 let fast = self.parameter(parameters, &self.descriptor.parameter_ids[0])?;
                 let slow = self.parameter(parameters, &self.descriptor.parameter_ids[2])?;
@@ -448,9 +449,73 @@ impl IsmComponent for BuiltinComponent {
     }
 }
 
-fn input_parameters_placeholder() -> &'static ParameterValues {
-    static EMPTY: std::sync::OnceLock<ParameterValues> = std::sync::OnceLock::new();
-    EMPTY.get_or_init(|| ParameterValues::new(Vec::new()))
+fn validate_builtin_shape(descriptor: &ComponentDescriptor) -> Result<(), ModelError> {
+    let (states, parameters) = match descriptor.kind.as_str() {
+        "equilibrium.nernst" | "equilibrium.nicolsky_eisenman" => (0, 2),
+        "activity.ideal" | "activity.davies" | "activity.extended_debye_huckel" => (0, 2),
+        "transport.first_order_relaxation"
+        | "transduction.solid_contact_rc_candidate"
+        | "transduction.interfacial_polarization_candidate" => (1, 2),
+        "transport.two_mode_relaxation" => (2, 4),
+        "transport.stretched_relaxation" => (1, 3),
+        "transport.partition_delay" => (1, 1),
+        "transduction.ideal" => (0, 2),
+        "disturbance.baseline_random_walk" => (1, 0),
+        "disturbance.linear_drift" => (0, 1),
+        "disturbance.temperature_covariate"
+        | "disturbance.conductivity_covariate"
+        | "disturbance.flow_covariate" => (0, 2),
+        "disturbance.stochastic_observation_noise" => (0, 1),
+        _ => {
+            return Err(ModelError::UnknownComponentKind {
+                component: descriptor.id.clone(),
+                kind: descriptor.kind.clone(),
+            });
+        }
+    };
+    if descriptor.state_ids.len() != states || descriptor.parameter_ids.len() < parameters {
+        return Err(ModelError::InvalidComponentShape {
+            component: descriptor.id.clone(),
+            message: format!(
+                "kind '{}' requires {states} state IDs and at least {parameters} parameter IDs; found {} and {}",
+                descriptor.kind,
+                descriptor.state_ids.len(),
+                descriptor.parameter_ids.len()
+            ),
+        });
+    }
+    let required_runtime_input = match descriptor.kind.as_str() {
+        "transport.first_order_relaxation"
+        | "transport.two_mode_relaxation"
+        | "transport.stretched_relaxation"
+        | "transport.partition_delay"
+        | "transduction.solid_contact_rc_candidate"
+        | "transduction.interfacial_polarization_candidate" => Some("driving_step_v"),
+        "disturbance.baseline_random_walk" => Some("baseline_increment_v"),
+        "transduction.ideal" => Some("transduction_drive_v"),
+        "disturbance.temperature_covariate"
+        | "disturbance.conductivity_covariate"
+        | "disturbance.flow_covariate" => descriptor
+            .required_inputs
+            .first()
+            .map(|input| input.id.as_str()),
+        _ => None,
+    };
+    if let Some(input) = required_runtime_input
+        && !descriptor
+            .required_inputs
+            .iter()
+            .any(|item| item.id == input)
+    {
+        return Err(ModelError::InvalidComponentShape {
+            component: descriptor.id.clone(),
+            message: format!(
+                "kind '{}' must declare required input '{input}'",
+                descriptor.kind
+            ),
+        });
+    }
+    Ok(())
 }
 fn missing(component: &str, kind: &'static str, id: &str) -> ModelError {
     ModelError::MissingReference {

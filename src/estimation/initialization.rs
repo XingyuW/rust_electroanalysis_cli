@@ -47,7 +47,9 @@ pub fn initialize_state(
         && environment.known_activity_log10.is_some();
     let log_activity = if standard_source {
         sources.push("annotated known-activity standard event".into());
-        environment.known_activity_log10.unwrap()
+        environment.known_activity_log10.ok_or_else(|| {
+            EstimationError::invalid("known-standard initialization lacks known activity")
+        })?
     } else if source.contains("configured") {
         configured_log10_activity(config, calibration)?
     } else {

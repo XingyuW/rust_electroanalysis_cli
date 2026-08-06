@@ -133,6 +133,51 @@ fn single_relaxation_after_activity_step() {
 }
 
 #[test]
+fn relaxation_transition_is_timestep_invariant_at_equal_elapsed_time() {
+    let model = compiled();
+    let parameters = model.default_parameters();
+    let initial = model.initialize(&parameters).unwrap();
+    let one_step = model
+        .process_transition(&initial, &parameters, &input(0.0), 1.0)
+        .unwrap();
+    let half = model
+        .process_transition(&initial, &parameters, &input(0.0), 0.5)
+        .unwrap();
+    let two_steps = model
+        .process_transition(&half, &parameters, &input(0.5), 0.5)
+        .unwrap();
+    assert!((one_step.values[0] - two_steps.values[0]).abs() < 1e-12);
+    assert!((one_step.values[1] - two_steps.values[1]).abs() < 1e-12);
+}
+
+#[test]
+fn nernst_activity_uses_declared_ion_charge() {
+    let model = compiled();
+    let mut monovalent = model.default_parameters();
+    let state = model.initialize(&monovalent).unwrap();
+    let mono = model
+        .observation_prediction(&state, &monovalent, &input(0.0), None)
+        .unwrap()
+        .predicted_voltage_v;
+    monovalent.values[1] = 2.0;
+    let divalent = model
+        .observation_prediction(&state, &monovalent, &input(0.0), None)
+        .unwrap()
+        .predicted_voltage_v;
+    assert!((mono / divalent - 2.0).abs() < 1e-10);
+}
+
+#[test]
+fn malformed_builtin_descriptor_is_rejected_without_panicking() {
+    let mut definition = default_model_definition();
+    definition.components[1].state_ids.clear();
+    assert!(matches!(
+        compile_model(definition, built_in_registry()),
+        Err(rust_electroanalysis_cli::model::ModelError::InvalidComponentShape { .. })
+    ));
+}
+
+#[test]
 fn two_separated_relaxation_modes_are_distinct() {
     let model = compiled();
     let mut parameters = model.default_parameters();

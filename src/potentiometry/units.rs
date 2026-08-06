@@ -182,7 +182,10 @@ impl Quantity {
                 expected: "molar concentration (mol/L); solvent density is required for mol/kg"
                     .to_string(),
             }),
-            _ => unreachable!("dimension was checked above"),
+            _ => Err(UnitError::Incompatible {
+                unit: self.unit.canonical_name().to_string(),
+                expected: "molar concentration".into(),
+            }),
         }
     }
 
@@ -204,7 +207,12 @@ impl Quantity {
             QuantityUnit::Volt => self.value,
             QuantityUnit::Millivolt => self.value * 1e-3,
             QuantityUnit::Microvolt => self.value * 1e-6,
-            _ => unreachable!(),
+            _ => {
+                return Err(UnitError::Incompatible {
+                    unit: self.unit.canonical_name().to_string(),
+                    expected: "potential".into(),
+                });
+            }
         })
     }
 
@@ -213,7 +221,12 @@ impl Quantity {
         let kelvin = match self.unit {
             QuantityUnit::Kelvin => self.value,
             QuantityUnit::Celsius => self.value + 273.15,
-            _ => unreachable!(),
+            _ => {
+                return Err(UnitError::Incompatible {
+                    unit: self.unit.canonical_name().to_string(),
+                    expected: "temperature".into(),
+                });
+            }
         };
         if !kelvin.is_finite() || kelvin <= 0.0 {
             return Err(UnitError::NonPhysicalTemperature {
@@ -231,7 +244,12 @@ impl Quantity {
             QuantityUnit::SiemensPerCm => self.value * 100.0,
             QuantityUnit::MillisiemensPerCm => self.value * 0.1,
             QuantityUnit::MicrosiemensPerCm => self.value * 1e-4,
-            _ => unreachable!(),
+            _ => {
+                return Err(UnitError::Incompatible {
+                    unit: self.unit.canonical_name().to_string(),
+                    expected: "conductivity".into(),
+                });
+            }
         })
     }
 }

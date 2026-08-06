@@ -12,17 +12,13 @@ pub fn evaluate(
     comparisons: &[BaselineComparison],
     minimum_mechanistic_domains: usize,
 ) -> (Vec<RuleEvaluation>, Vec<HealthFinding>) {
-    evaluate_with_baseline_records(
-        rules,
-        features,
-        comparisons,
-        minimum_mechanistic_domains,
-        usize::MAX,
-    )
+    evaluate_with_baseline_records(rules, features, comparisons, minimum_mechanistic_domains, 0)
 }
 
 /// Evaluate rules while enforcing each rule's stated baseline-record minimum.
-/// The compatibility wrapper above retains the public API used by legacy callers.
+/// The compatibility wrapper above cannot establish a baseline-record count and
+/// therefore conservatively supplies zero; rules that require baseline history
+/// must use this explicit API.
 pub fn evaluate_with_baseline_records(
     rules: &[HealthRule],
     features: &[HealthFeature],

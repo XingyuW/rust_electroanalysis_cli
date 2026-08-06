@@ -42,12 +42,14 @@ pub mod signal_config;
 pub mod transient_config;
 pub mod workspace;
 
+pub use domain::VersionedArtifact;
 pub use domain::{
-    AnalysisProvenance, ChannelMetadata, ConfigurationError, DataParsingError,
-    ElectrochemicalExperiment, EnvironmentalSeries, ExperimentEvent, ExperimentEventKind,
-    ExperimentMetadataDocument, FittingError, MeasurementChannel, MeasurementParseResult,
-    MultiChannelMeasurement, ParseDiagnostics, PlottingError, ProvenanceError, ReferenceMetadata,
-    ReportingError, SensorMetadata, WorkspaceError, load_experiment_metadata,
+    AnalysisProvenance, ArtifactError, ArtifactKind, ChannelMetadata, ConfigurationError,
+    DataParsingError, ElectrochemicalExperiment, EnvironmentalSeries, ExperimentEvent,
+    ExperimentEventKind, ExperimentMetadataDocument, FittingError, MeasurementChannel,
+    MeasurementParseResult, MultiChannelMeasurement, ParseDiagnostics, PlottingError,
+    ProvenanceError, ReferenceMetadata, ReportingError, SensorMetadata, WorkspaceError,
+    load_experiment_metadata,
 };
 pub use model::{
     CompiledIsmModel, ComponentContribution, ComponentDescriptor, ComponentRole,

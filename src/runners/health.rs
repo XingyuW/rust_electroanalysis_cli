@@ -431,18 +431,14 @@ fn load_context(p: &Path) -> Result<Context, RunnerError> {
         metadata_source: Some(p.display().to_string()),
     })
 }
-fn read_json<T: DeserializeOwned>(p: &Path) -> Result<T, RunnerError> {
-    Ok(serde_json::from_str(&fs::read_to_string(p)?)?)
+fn read_json<T: crate::domain::VersionedArtifact>(p: &Path) -> Result<T, RunnerError> {
+    Ok(crate::domain::read_artifact(p)?)
 }
 fn read_toml<T: DeserializeOwned>(p: &Path) -> Result<T, RunnerError> {
     Ok(toml::from_str(&fs::read_to_string(p)?)?)
 }
-fn write_json<T: serde::Serialize>(p: &Path, v: &T) -> Result<(), RunnerError> {
-    if let Some(parent) = p.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(p, serde_json::to_string_pretty(v)?)?;
-    Ok(())
+fn write_json<T: crate::domain::VersionedArtifact>(p: &Path, v: &T) -> Result<(), RunnerError> {
+    Ok(crate::domain::write_artifact(p, v)?)
 }
 fn resolve(w: &Path, p: &Path) -> PathBuf {
     if p.is_absolute() {

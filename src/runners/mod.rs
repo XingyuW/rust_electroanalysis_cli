@@ -47,6 +47,8 @@ pub enum RunnerError {
     Health(#[from] crate::health::error::HealthError),
     #[error(transparent)]
     Estimation(#[from] crate::estimation::error::EstimationError),
+    #[error(transparent)]
+    Artifact(#[from] crate::domain::ArtifactError),
     #[error("workflow JSON error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("workflow TOML error: {0}")]

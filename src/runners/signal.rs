@@ -5,7 +5,6 @@ use crate::{
     signal::{self},
     signal_config::LoadedSignalConfig,
 };
-use serde::de::DeserializeOwned;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -181,7 +180,7 @@ fn export_signal(
     let dir = output_dir(workspace, output, "signal");
     fs::create_dir_all(&dir)?;
     let c = &report.configuration.export;
-    write_json(&dir.join(&c.results_filename), report)?;
+    crate::domain::write_artifact(&dir.join(&c.results_filename), report)?;
     let mut w = csv::Writer::from_path(dir.join(&c.summary_filename))?;
     w.write_record(["feature", "value", "unit"])?;
     for (name, value, unit) in [
@@ -309,8 +308,8 @@ fn human_report(r: &crate::results::SignalAnalysisReport) -> String {
         r.warnings
     )
 }
-fn read_json<T: DeserializeOwned>(p: &Path) -> Result<T, RunnerError> {
-    Ok(serde_json::from_str(&fs::read_to_string(p)?)?)
+fn read_json<T: crate::domain::VersionedArtifact>(p: &Path) -> Result<T, RunnerError> {
+    Ok(crate::domain::read_artifact(p)?)
 }
 fn write_json<T: serde::Serialize>(p: &Path, v: &T) -> Result<(), RunnerError> {
     fs::write(p, serde_json::to_string_pretty(v)?)?;

@@ -264,10 +264,7 @@ fn export_report(
         .map(|p| resolve_path(workspace, &p.to_string_lossy()))
         .unwrap_or_else(|| workspace.join("output/mechanism"));
     fs::create_dir_all(&dir)?;
-    fs::write(
-        dir.join("mechanism_results.json"),
-        serde_json::to_string_pretty(report).map_err(|e| RunnerError::Message(e.to_string()))?,
-    )?;
+    crate::domain::write_artifact(&dir.join("mechanism_results.json"), report)?;
     write_timescales(&dir.join("characteristic_timescales.csv"), report)?;
     write_comparisons(&dir.join("timescale_comparisons.csv"), report)?;
     write_trends(&dir.join("mechanism_trends.csv"), report)?;
@@ -276,9 +273,8 @@ fn export_report(
     println!("Mechanism outputs written to {}", dir.display());
     Ok(())
 }
-fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, RunnerError> {
-    serde_json::from_str(&fs::read_to_string(path)?)
-        .map_err(|e| RunnerError::Message(format!("{}: {e}", path.display())))
+fn read_json<T: crate::domain::VersionedArtifact>(path: &Path) -> Result<T, RunnerError> {
+    Ok(crate::domain::read_artifact(path)?)
 }
 fn load_context(path: &Path) -> Option<BTreeMap<String, String>> {
     let text = fs::read_to_string(path).ok()?;

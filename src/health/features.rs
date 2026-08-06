@@ -275,12 +275,24 @@ fn transient_context_key(event: &crate::results::TransientEventResult) -> String
     let before = event
         .concentration_before
         .as_ref()
-        .map(|value| value.value.to_string())
+        .map(|value| {
+            format!(
+                "{} {}",
+                value.value,
+                value.unit.as_deref().unwrap_or("unknown_unit")
+            )
+        })
         .unwrap_or_else(|| "unknown".to_string());
     let after = event
         .concentration_after
         .as_ref()
-        .map(|value| value.value.to_string())
+        .map(|value| {
+            format!(
+                "{} {}",
+                value.value,
+                value.unit.as_deref().unwrap_or("unknown_unit")
+            )
+        })
         .unwrap_or_else(|| "unknown".to_string());
     let direction = match (
         event.concentration_before.as_ref().map(|x| x.value),
@@ -290,15 +302,38 @@ fn transient_context_key(event: &crate::results::TransientEventResult) -> String
         (Some(before), Some(after)) if after < before => "decreasing",
         _ => "unknown",
     };
+    let analyte = event
+        .event
+        .analyte
+        .clone()
+        .or_else(|| {
+            event
+                .concentration_after
+                .as_ref()
+                .and_then(|value| value.analyte.clone())
+        })
+        .or_else(|| {
+            event
+                .concentration_before
+                .as_ref()
+                .and_then(|value| value.analyte.clone())
+        });
+    let matrix = get("sample_matrix");
+    let temperature = get("temperature_k");
+    let incomplete = analyte.is_none()
+        || before.contains("unknown")
+        || after.contains("unknown")
+        || direction == "unknown"
+        || matrix == "unknown"
+        || temperature == "unknown";
     format!(
-        "analyte={};step={before}->{after};direction={direction};matrix={};temperature_k={}",
-        event
-            .event
-            .analyte
-            .clone()
-            .unwrap_or_else(|| "unknown".to_string()),
-        get("sample_matrix"),
-        get("temperature_k")
+        "analyte={};step={before}->{after};direction={direction};matrix={matrix};temperature_k={temperature}{}",
+        analyte.unwrap_or_else(|| "unknown".to_string()),
+        if incomplete {
+            format!(";unresolved_event={}", event.event_index)
+        } else {
+            String::new()
+        }
     )
 }
 
@@ -466,6 +501,7 @@ pub fn from_calibration(r: &CalibrationAnalysisReport) -> Vec<HealthFeature> {
     );
     f
 }
+
 pub fn from_eis(r: &EisFitArtifact) -> Vec<HealthFeature> {
     let mut f = Vec::new();
     let add = |v: &mut Vec<HealthFeature>, n: &str, x: Option<f64>, u: &str| {
@@ -563,4 +599,64 @@ pub fn from_mechanism(r: &MechanismAnalysisReport) -> Vec<HealthFeature> {
         ),
     );
     f
+}
+
+#[cfg(test)]
+mod context_tests {
+    use super::transient_context_key;
+    use crate::{
+        domain::{ExperimentEvent, ExperimentEventKind},
+        results::{BaselineResult, ConcentrationContext, SegmentSummary, TransientEventResult},
+    };
+
+    fn event(index: usize, unit: &str) -> TransientEventResult {
+        TransientEventResult {
+            event_index: index,
+            event: ExperimentEvent {
+                timestamp: index as f64,
+                kind: ExperimentEventKind::ConcentrationStep,
+                value: Some(2.0),
+                unit: Some(unit.into()),
+                analyte: Some("K+".into()),
+                annotation: None,
+                metadata: None,
+            },
+            concentration_before: Some(ConcentrationContext {
+                value: 1.0,
+                unit: Some(unit.into()),
+                analyte: Some("K+".into()),
+            }),
+            concentration_after: Some(ConcentrationContext {
+                value: 2.0,
+                unit: Some(unit.into()),
+                analyte: Some("K+".into()),
+            }),
+            segment: SegmentSummary::default(),
+            baseline: BaselineResult::default(),
+            candidate_fits: Vec::new(),
+            selected_model: None,
+            warnings: Vec::new(),
+            failure: None,
+        }
+    }
+
+    #[test]
+    fn incomplete_or_unit_incompatible_transient_contexts_do_not_share_a_key() {
+        assert_ne!(
+            transient_context_key(&event(1, "mol/L")),
+            transient_context_key(&event(2, "mol/L"))
+        );
+        let mut complete_a = event(1, "mol/L");
+        complete_a.event.metadata = Some(std::collections::BTreeMap::from([
+            ("sample_matrix".into(), "water".into()),
+            ("temperature_k".into(), "298.15".into()),
+        ]));
+        let mut complete_b = complete_a.clone();
+        complete_b.event_index = 2;
+        complete_b.concentration_before.as_mut().unwrap().unit = Some("mmol/L".into());
+        assert_ne!(
+            transient_context_key(&complete_a),
+            transient_context_key(&complete_b)
+        );
+    }
 }

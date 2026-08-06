@@ -1,5 +1,6 @@
 //! Stable result models returned by scientific workflows.
 
+mod artifact_contracts;
 pub mod calibration;
 pub mod eis;
 pub mod estimation;

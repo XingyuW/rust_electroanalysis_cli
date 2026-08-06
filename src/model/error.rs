@@ -74,6 +74,8 @@ pub enum ModelError {
     UndeclaredVoltageContribution { component: String },
     #[error("component '{component}' evaluation failed: {message}")]
     ComponentEvaluation { component: String, message: String },
+    #[error("component '{component}' has an invalid descriptor shape: {message}")]
+    InvalidComponentShape { component: String, message: String },
     #[error("model configuration I/O error: {0}")]
     Io(String),
     #[error("model configuration TOML error: {0}")]

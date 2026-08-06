@@ -309,8 +309,9 @@ pub fn align_experiment_with_polarization(
             }
         }
     }
-    if matches!(config.alignment, AlignmentKind::HoldPrevious) && previous.is_some() {
-        let p = previous.unwrap();
+    if matches!(config.alignment, AlignmentKind::HoldPrevious)
+        && let Some(p) = previous
+    {
         if result.temperature_k.is_none() {
             result.temperature_k = p.temperature_k;
         }
@@ -352,7 +353,7 @@ fn align_series(
         .iter()
         .min_by(|a, b| (a.0 - timestamp).abs().total_cmp(&(b.0 - timestamp).abs()))
         .copied()
-        .unwrap();
+        .ok_or_else(|| EstimationError::invalid("environment series has no finite values"))?;
     let gap = (nearest.0 - timestamp).abs();
     if gap > config.maximum_gap_s {
         return Ok(None);
@@ -416,7 +417,12 @@ fn align_series(
         alignment: method,
         time_gap_s: gap,
         interpolated,
-        extrapolated: timestamp < pairs[0].0 || timestamp > pairs.last().unwrap().0,
+        extrapolated: timestamp < pairs[0].0
+            || timestamp
+                > pairs
+                    .last()
+                    .map(|pair| pair.0)
+                    .ok_or_else(|| EstimationError::invalid("environment series is empty"))?,
         source_unit: None,
         conversion: None,
     }))

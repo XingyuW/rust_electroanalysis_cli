@@ -120,14 +120,7 @@ fn export_report(
     fs::create_dir_all(output_dir)
         .map_err(|error| crate::potentiometry::PotentiometryError::export(output_dir, error))?;
     let json_path = output_dir.join(&config.export.json_filename);
-    let json_file = File::create(&json_path)
-        .map_err(|error| crate::potentiometry::PotentiometryError::export(&json_path, error))?;
-    serde_json::to_writer_pretty(json_file, report).map_err(|source| {
-        crate::potentiometry::PotentiometryError::Serialization {
-            path: json_path.clone(),
-            source,
-        }
-    })?;
+    crate::domain::write_artifact(&json_path, report)?;
 
     write_features_csv(report, &output_dir.join(&config.export.features_filename))?;
     write_model_comparison_csv(

@@ -1,0 +1,75 @@
+use super::*;
+use crate::domain::{ArtifactKind, VersionedArtifact};
+
+macro_rules! contract {
+    ($type:ty, $kind:expr, $current:expr, $legacy:expr) => {
+        impl VersionedArtifact for $type {
+            const ARTIFACT_KIND: ArtifactKind = $kind;
+            const CURRENT_SCHEMA_VERSION: u32 = $current;
+            const LEGACY_SCHEMA_VERSIONS: &'static [u32] = $legacy;
+            fn schema_version(&self) -> u32 {
+                self.schema_version
+            }
+        }
+    };
+}
+
+contract!(EisFitArtifact, ArtifactKind::EisFit, 1, &[1]);
+contract!(
+    TransientAnalysisReport,
+    ArtifactKind::TransientAnalysis,
+    1,
+    &[1]
+);
+contract!(
+    CalibrationObservationSet,
+    ArtifactKind::CalibrationObservations,
+    1,
+    &[1]
+);
+contract!(
+    StoredCalibrationModel,
+    ArtifactKind::CalibrationModel,
+    1,
+    &[1]
+);
+contract!(
+    CalibrationAnalysisReport,
+    ArtifactKind::CalibrationAnalysis,
+    1,
+    &[1]
+);
+contract!(SignalAnalysisReport, ArtifactKind::SignalAnalysis, 1, &[1]);
+contract!(
+    SensorHealthBaseline,
+    ArtifactKind::HealthBaseline,
+    2,
+    &[1, 2]
+);
+contract!(
+    SensorHealthAssessment,
+    ArtifactKind::HealthAssessment,
+    1,
+    &[1]
+);
+contract!(HealthTrendReport, ArtifactKind::HealthTrend, 1, &[1]);
+contract!(
+    MechanismAnalysisReport,
+    ArtifactKind::MechanismAnalysis,
+    1,
+    &[1]
+);
+contract!(
+    StateEstimationReport,
+    ArtifactKind::StateEstimation,
+    2,
+    &[1, 2]
+);
+contract!(
+    ModelCompilationArtifact,
+    ArtifactKind::ModelCompilation,
+    1,
+    &[1]
+);
+contract!(ModelAnalysisReport, ArtifactKind::ModelAnalysis, 1, &[1]);
+contract!(ValidationResults, ArtifactKind::ModelValidation, 1, &[1]);

@@ -63,7 +63,7 @@ pub fn extract(workspace_dir: &Path, options: ExtractOptions<'_>) -> Result<(), 
         options.output_path,
         &loaded.config.export.observations_filename,
     );
-    write_json(&destination, &observation_set)?;
+    crate::domain::write_artifact(&destination, &observation_set)?;
     println!(
         "Calibration observations written to {} ({} observation(s))",
         destination.display(),
@@ -101,8 +101,8 @@ pub fn fit(
         crate::potentiometry::calibration::error::CalibrationError::export(&output_dir, error)
     })?;
     let model = stored_model_from_report(&report)?;
-    write_json(&output_dir.join(&config.export.model_filename), &model)?;
-    write_json(&output_dir.join(&config.export.results_filename), &report)?;
+    crate::domain::write_artifact(&output_dir.join(&config.export.model_filename), &model)?;
+    crate::domain::write_artifact(&output_dir.join(&config.export.results_filename), &report)?;
     write_observation_csv(&output_dir.join(&config.export.features_filename), &report)?;
     write_residual_csv(&output_dir.join(&config.export.residuals_filename), &report)?;
     write_validation_csv(
@@ -476,17 +476,8 @@ fn validation_report(validation: &CalibrationValidationResult) -> String {
     )
 }
 
-fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, RunnerError> {
-    let text = fs::read_to_string(path).map_err(|error| {
-        crate::potentiometry::calibration::error::CalibrationError::export(path, error)
-    })?;
-    serde_json::from_str(&text).map_err(|error| {
-        crate::potentiometry::calibration::error::CalibrationError::InvalidObservation(format!(
-            "failed to parse JSON {}: {error}",
-            path.display()
-        ))
-        .into()
-    })
+fn read_json<T: crate::domain::VersionedArtifact>(path: &Path) -> Result<T, RunnerError> {
+    Ok(crate::domain::read_artifact(path)?)
 }
 
 fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), RunnerError> {
