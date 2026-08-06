@@ -338,3 +338,9 @@ Follow Section 4 "For circuit elements specifically."
 - [ ] Breaking changes documented
 - [ ] New features added to `00_project_overview.md`
 - [ ] `13_traceability_matrix.md` updated
+
+### Phase 05 migration note
+
+No existing emitted artifact schema is changed. New serializable adapter
+contracts are additive; callers that do not provide an explicit mapping retain
+the prior behavior of receiving no model-component assignment.

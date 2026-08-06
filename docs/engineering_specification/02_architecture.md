@@ -280,3 +280,12 @@ not reverse the core dependency direction.
 Phase 03 adds only static built-in adapters in `model/builtins.rs`; they call
 existing calibration/activity/unit/transient implementations and add no CLI or
 workflow dependency.
+
+## Phase 05 Mechanism and Health Adapters
+
+`mechanism/model_mapping.rs` and `health/features.rs` are outer adapters: they
+may consume model identifiers and legacy artifacts, while `model/` continues to
+import neither workflow. Mappings contain stable component IDs plus explicit
+source paths. They never infer a component from parameter order, a label, or a
+single timescale. Health compares only like transient contexts and reports
+residual, validity, and identifiability evidence without assigning a failure mechanism.

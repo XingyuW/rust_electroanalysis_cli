@@ -52,6 +52,8 @@ Verification confidence labels used in **Verified By**:
 | FR-033 | ISM core shall not depend on CLI, runners, plotting, health, mechanism, or estimation modules | High | `src/model/` | Source inspection and dependency scan | ✅ Implemented |
 | FR-034 | System shall provide static reduced-order ISM component factories for equilibrium, activity, transport, transduction, and disturbances | High | `src/model/builtins.rs` | `model_builtins` synthetic tests | ✅ Implemented |
 | FR-035 | Built-in ISM components shall expose equation/version, bounds via parameter specs, assumptions, validity domain, evidence requirements, and Jacobians | High | `src/model/component.rs`, `src/model/builtins.rs` | `model_builtins` | ✅ Implemented |
+| FR-036 | Mechanism workflow adapters shall map legacy artifacts to model parameters only through explicit stable component IDs and source paths | High | `src/mechanism/model_mapping.rs` | `phase05_model_health` | ✅ Implemented |
+| FR-037 | Health features shall retain transient scientific context and expose model residual, validity, identifiability, calibration-domain, state, and parameter evidence | High | `src/health/features.rs` | `phase05_model_health` | ✅ Implemented |
 
 ## 2. Scientific Requirements
 

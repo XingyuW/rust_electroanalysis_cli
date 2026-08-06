@@ -118,3 +118,11 @@ Related timestamp controls are separate from duplicate policy:
 ## 9. Cross-Workflow Input Validation
 
 When a workflow consumes results from another workflow (e.g., health consuming signal results), the input JSON is deserialized with serde. Missing fields use `Default` or `Option` types. Schema version mismatches are **not** currently checked at runtime — this is a deferred concern.
+
+### Phase 05 evidence constraints
+
+Mechanism-to-model mapping requires an explicit stable component ID and source
+path. A missing source path yields no prior or assignment. Health baseline
+scores require comparable context; transient feature aggregation partitions
+analyte, step, direction, matrix, and temperature. Mechanistic findings also
+require the configured independent-domain and baseline-record minima.

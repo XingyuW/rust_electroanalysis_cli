@@ -2,6 +2,13 @@
 
 ## Version 1
 
+### Phase 05 adapter contracts
+
+Phase 05 adds serializable mapping and component-hypothesis contracts without
+changing an existing emitted artifact schema or CLI output. Existing health and
+mechanism artifacts remain readable. Missing explicit mappings produce no prior
+or mechanism assignment rather than a guessed conversion.
+
 Phase 02 introduces `ModelDefinition` and `ModelConfig` schema version `1`,
 and the `ism_model_compilation` result artifact schema version `1`. There are no
 earlier ISM model artifacts to migrate.

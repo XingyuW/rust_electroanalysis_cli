@@ -55,6 +55,8 @@
 | RISK-023 | ARCH | Future built-in component additions could introduce forbidden workflow dependencies | Phase 02 core is clean; dependency enforcement is currently source/test reviewed | `src/model/` | Medium | Low | Low | P3 |
 | RISK-024 | DATA | Model schema v1 has no historical artifact migration because it is newly introduced | `model_schema_migration.md` defines reject-and-migrate policy for future versions | `model_config.rs`, `results/model.rs` | Low | Low | Low | P4 |
 | RISK-025 | SCI | Reduced-order modes may be mistaken for specific physical mechanisms | Built-ins use neutral/candidate names and evidence requirements, but no independent confirmation workflow exists | `model/builtins.rs` | High | Medium | High | P1 |
+| RISK-026 | SCI | Explicit mapping prevents name/order inference, but mapping applicability and independent replication remain user-supplied scientific evidence | Phase 05 mappings preserve missing/contradictory evidence and cap unreplicated matches at weak | `mechanism/model_mapping.rs` | Medium | Medium | Medium | P2 |
+| RISK-027 | DATA | Legacy transient events can omit matrix or temperature metadata; such events remain partitioned as `unknown` rather than being treated as comparable | Context-preserving feature keys | `health/features.rs` | Medium | Medium | Medium | P2 |
 
 ---
 

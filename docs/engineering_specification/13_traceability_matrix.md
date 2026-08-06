@@ -165,3 +165,5 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | `estimate simulate` | `runners/estimation.rs` | `main.rs` L482-495 | (inferred) |
 | `estimate compare` | `runners/estimation.rs` | `main.rs` L496-536 | (inferred) |
 | `estimate report` | `runners/estimation.rs` | `main.rs` L537-546 | (inferred) |
+| FR-036 / SCI-013 | `mechanism/model_mapping.rs` | `phase05_model_health` | Explicit stable-ID mapping and weak-evidence guard |
+| FR-037 | `health/features.rs`, `health/assessment.rs` | `phase05_model_health` | Context-aware/model-derived health features |

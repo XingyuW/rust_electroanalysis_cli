@@ -248,3 +248,13 @@ Each workflow has its own TOML config schema with:
 - Workflow-specific sections
 - Default values embedded in the Rust struct (via `Default` impl)
 - CLI override resolution in the corresponding runner
+
+### Phase 05 Adapter Contracts
+
+`mechanism/model_mapping.rs` exposes explicit EIS, transient, calibration, and
+signal mappings to model priors. Every mapping carries a stable component ID
+and explicit source path; an unavailable path produces no assignment.
+`health/features.rs` creates context-partitioned transient and model-derived
+health features. `health/rules.rs` retains contradictory evidence, and
+`health/assessment.rs` incorporates findings and baseline deviations into
+domain status. These adapters do not introduce a new CLI command.

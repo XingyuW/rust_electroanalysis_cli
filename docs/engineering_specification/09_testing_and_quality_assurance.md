@@ -111,3 +111,9 @@ Evidence classes:
 - **Triggers**: push, pull_request
 - **Matrix**: ubuntu-latest, macos-latest
 - **Steps**: checkout, cache, rust-toolchain (stable + rustfmt + clippy), cargo fmt --check, cargo clippy -- -D warnings, cargo test --all, cargo build --release
+
+## Phase 05 Regression Coverage
+
+`tests/phase05_model_health.rs` covers explicit EIS component-ID mapping,
+missing mappings, unreplicated timescale evidence, contradictory evidence,
+model residual health features, and multi-domain mechanistic health guards.

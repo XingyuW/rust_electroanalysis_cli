@@ -2,6 +2,12 @@
 
 `rust_electroanalysis_cli` is a command-line tool for electrochemical data workflows, including EIS fitting/search and OCPT/sensor time-series analysis pipelines (`transient`, `calibration`, `mechanism`, `signal`, `health`, `estimate`).
 
+Mechanism and health integrations use explicit stable ISM component IDs. A fitted
+timescale, circuit parameter, or health feature is evidence only: it never
+automatically diagnoses fouling, reference failure, contact failure, or a
+physical mechanism. Transient health features retain analyte, step, direction,
+matrix, and temperature context and are not averaged across incompatible events.
+
 ---
 
 ## Table of Contents

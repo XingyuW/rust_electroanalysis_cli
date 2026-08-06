@@ -378,3 +378,11 @@ Phase 03 delegates Nernst, Nicolsky-Eisenman, activity, and relaxation
 evaluation to the existing calibration and transient modules. First/two-mode
 and stretched terms are phenomenological; candidate names are not mechanism
 assignments. High-fidelity Nernst-Planck transport is not implemented.
+
+### EQ-ISM-004: Evidence and Health Integration
+
+Legacy fitted parameters are not new equations. They may form a prior only
+through an explicit component-ID/source-path mapping. A numerical timescale
+match without independent replication is weak evidence and no health or
+mechanism adapter changes a phenomenological mode into a physical diagnosis.
+The unexplained-residual RMS remains a separate quality feature.
