@@ -206,7 +206,7 @@ pub fn assess(
         }
         comparisons.push(c);
     }
-    let (evaluations, findings) = health::rules::evaluate(
+    let (evaluations, findings) = health::rules::evaluate_with_baseline_records(
         &loaded.config.rules,
         &features,
         &comparisons,
@@ -214,6 +214,10 @@ pub fn assess(
             .config
             .assessment
             .minimum_domains_for_mechanistic_finding,
+        baseline
+            .as_ref()
+            .map(|baseline| baseline.records.len())
+            .unwrap_or(0),
     );
     let domains = features.iter().map(|f| f.domain).collect::<BTreeSet<_>>();
     if domains.len() < loaded.config.assessment.minimum_domains_for_assessment {
