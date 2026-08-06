@@ -289,3 +289,9 @@ import neither workflow. Mappings contain stable component IDs plus explicit
 source paths. They never infer a component from parameter order, a label, or a
 single timescale. Health compares only like transient contexts and reports
 residual, validity, and identifiability evidence without assigning a failure mechanism.
+
+## Phase 06 Model Workflow Boundary
+
+`cli` → `runners/model` → `model_config`/`model`/`results::model`/plot adapter.
+The runner is the only new layer that consumes CLI paths, artifacts, and output
+directories; no dependency is introduced from `model/` to a workflow module.

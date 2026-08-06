@@ -344,3 +344,8 @@ Follow Section 4 "For circuit elements specifically."
 No existing emitted artifact schema is changed. New serializable adapter
 contracts are additive; callers that do not provide an explicit mapping retain
 the prior behavior of receiving no model-component assignment.
+
+### Phase 06 migration note
+
+Phase 06 introduces additive model-analysis artifacts. Readers verify both
+`schema_version` and `artifact_kind`; old workflows remain unaffected.

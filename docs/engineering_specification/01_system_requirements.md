@@ -54,6 +54,7 @@ Verification confidence labels used in **Verified By**:
 | FR-035 | Built-in ISM components shall expose equation/version, bounds via parameter specs, assumptions, validity domain, evidence requirements, and Jacobians | High | `src/model/component.rs`, `src/model/builtins.rs` | `model_builtins` | ✅ Implemented |
 | FR-036 | Mechanism workflow adapters shall map legacy artifacts to model parameters only through explicit stable component IDs and source paths | High | `src/mechanism/model_mapping.rs` | `phase05_model_health` | ✅ Implemented |
 | FR-037 | Health features shall retain transient scientific context and expose model residual, validity, identifiability, calibration-domain, state, and parameter evidence | High | `src/health/features.rs` | `phase05_model_health` | ✅ Implemented |
+| FR-038 | System shall expose model validate, simulate, decompose, and report workflows with finite schema-versioned outputs | High | `src/runners/model.rs` | `phase06_model_workflow` | ✅ Implemented |
 
 ## 2. Scientific Requirements
 

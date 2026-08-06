@@ -126,3 +126,7 @@ path. A missing source path yields no prior or assignment. Health baseline
 scores require comparable context; transient feature aggregation partitions
 analyte, step, direction, matrix, and temperature. Mechanistic findings also
 require the configured independent-domain and baseline-record minima.
+
+Model workflows reject unsupported model-config and analysis-artifact schemas,
+compile graph/unit/parameter/input constraints before evaluation, and reject
+non-finite report values before JSON serialization.

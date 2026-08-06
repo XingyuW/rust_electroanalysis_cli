@@ -117,3 +117,7 @@ Evidence classes:
 `tests/phase05_model_health.rs` covers explicit EIS component-ID mapping,
 missing mappings, unreplicated timescale evidence, contradictory evidence,
 model residual health features, and multi-domain mechanistic health guards.
+
+`phase06_model_workflow` covers model CLI parsing, invalid configuration,
+deterministic simulation, decomposition exports, JSON compatibility, finite
+JSON output, report regeneration, and estimate-command parsing compatibility.

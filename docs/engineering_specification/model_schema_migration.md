@@ -9,6 +9,12 @@ changing an existing emitted artifact schema or CLI output. Existing health and
 mechanism artifacts remain readable. Missing explicit mappings produce no prior
 or mechanism assignment rather than a guessed conversion.
 
+### Phase 06 analysis artifacts
+
+`ModelAnalysisReport` is schema version 1 with artifact kind
+`ism_model_analysis`. Consumers reject a different version or kind rather than
+silently treating a non-model JSON artifact as a model analysis.
+
 Phase 02 introduces `ModelDefinition` and `ModelConfig` schema version `1`,
 and the `ism_model_compilation` result artifact schema version `1`. There are no
 earlier ISM model artifacts to migrate.

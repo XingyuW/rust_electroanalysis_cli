@@ -386,3 +386,9 @@ through an explicit component-ID/source-path mapping. A numerical timescale
 match without independent replication is weak evidence and no health or
 mechanism adapter changes a phenomenological mode into a physical diagnosis.
 The unexplained-residual RMS remains a separate quality feature.
+
+### EQ-ISM-005: Workflow Evaluation
+
+Phase 06 evaluates compiled component equations already supplied by the core.
+Deterministic simulation is synthetic rather than calibration or physical
+validation; equilibrium remains indeterminate without dynamic and innovation evidence.

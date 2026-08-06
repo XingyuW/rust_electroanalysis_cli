@@ -258,3 +258,10 @@ and explicit source path; an unavailable path produces no assignment.
 health features. `health/rules.rs` retains contradictory evidence, and
 `health/assessment.rs` incorporates findings and baseline deviations into
 domain status. These adapters do not introduce a new CLI command.
+
+### Phase 06 Model Runner
+
+`runners/model.rs` resolves a versioned definition, compiles the static model
+registry, performs deterministic evaluation, and exports contributions,
+states, validity, equilibrium evidence, and a report. It rejects unsupported
+analysis artifact schema/kind values and validates finite values before JSON.
