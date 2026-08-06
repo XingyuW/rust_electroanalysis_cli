@@ -28,6 +28,7 @@ pub mod fitting;
 pub mod health;
 pub mod health_config;
 pub mod mechanism_config;
+pub mod model_validation;
 pub mod plot_config;
 pub mod plot_runner;
 pub mod potentiometry;

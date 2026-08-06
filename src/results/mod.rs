@@ -8,6 +8,7 @@ pub mod mechanism;
 pub mod model;
 pub mod signal;
 pub mod transient;
+pub mod validation;
 
 pub use health::*;
 pub use signal::*;
@@ -24,6 +25,7 @@ pub use transient::{
     TransientFeatures, TransientFitFailure, TransientFitResult, TransientFitStatistics,
     TransientWarning, TransientWarningKind,
 };
+pub use validation::*;
 
 /// Complete output of a circuit fit.
 ///

@@ -18,6 +18,7 @@ pub mod fit;
 pub mod health;
 pub mod mechanism;
 pub mod model;
+pub mod model_validation;
 pub mod plot;
 pub mod search;
 pub mod signal;

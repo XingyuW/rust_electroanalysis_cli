@@ -100,6 +100,8 @@ pub struct ModelValidateCommand {
     #[arg(long)]
     pub model: Option<PathBuf>,
     #[arg(long)]
+    pub manifest: Option<PathBuf>,
+    #[arg(long)]
     pub output: Option<PathBuf>,
 }
 #[derive(Debug, Args)]
@@ -855,6 +857,7 @@ pub enum CommandSpec {
     },
     ModelValidate {
         model: Option<PathBuf>,
+        manifest: Option<PathBuf>,
         output: Option<PathBuf>,
     },
     ModelSimulate {
@@ -1240,6 +1243,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
             Command::Model { command } => match command {
                 ModelCommand::Validate(c) => CommandSpec::ModelValidate {
                     model: c.model,
+                    manifest: c.manifest,
                     output: c.output,
                 },
                 ModelCommand::Simulate(c) => CommandSpec::ModelSimulate {

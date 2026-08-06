@@ -7,8 +7,8 @@ use rust_electroanalysis_cli::cli::{CliError, CommandSpec, parse_cli_args, print
 use rust_electroanalysis_cli::domain::{ConfigurationError, WorkspaceError};
 use rust_electroanalysis_cli::plot_config::PlotConfig;
 use rust_electroanalysis_cli::runners::{
-    RunnerError, calibration, estimation, fit, health, mechanism, model, plot, search, signal,
-    transient,
+    RunnerError, calibration, estimation, fit, health, mechanism, model, model_validation, plot,
+    search, signal, transient,
 };
 use rust_electroanalysis_cli::workspace::{self, LastRunMode};
 use thiserror::Error as ThisError;
@@ -547,9 +547,14 @@ fn run() -> Result<(), ApplicationError> {
         }
         CommandSpec::ModelValidate {
             model: model_path,
+            manifest,
             output,
         } => {
-            model::validate(&workspace_dir, model_path.as_deref(), output.as_deref())?;
+            if let Some(manifest) = manifest {
+                model_validation::run(&workspace_dir, &manifest, output.as_deref())?;
+            } else {
+                model::validate(&workspace_dir, model_path.as_deref(), output.as_deref())?;
+            }
         }
         CommandSpec::ModelSimulate {
             model: model_path,
