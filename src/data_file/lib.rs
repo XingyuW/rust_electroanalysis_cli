@@ -8,6 +8,7 @@
 
 pub mod chi_file;
 pub mod data_op;
+pub(crate) mod electrodata_adapter;
 pub mod excel_file;
 pub mod input_kind;
 pub mod measurement_adapter;

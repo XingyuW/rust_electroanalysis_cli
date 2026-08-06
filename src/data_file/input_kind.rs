@@ -4,7 +4,6 @@
 //! whether a file is supported and which parser should handle it.
 
 use std::fmt;
-use std::fs;
 use std::path::Path;
 
 /// Classification of a candidate input file.
@@ -96,27 +95,16 @@ impl InputKind {
             return by_extension;
         }
 
-        if let Ok(bytes) = Self::read_prefix(path, 4096)
-            && Self::looks_binary(&bytes)
-        {
-            return InputKind::UnsupportedContentBinary;
+        match electrodata_io::detect_format(path) {
+            Ok(detection) => match detection.format {
+                electrodata_io::ElectroDataFormat::ChiEis => InputKind::ChiEisCsv,
+                electrodata_io::ElectroDataFormat::ChiOcpt
+                | electrodata_io::ElectroDataFormat::ChiMultichannelOcpt => InputKind::ChiOcptCsv,
+                electrodata_io::ElectroDataFormat::Regular => InputKind::GeneralCsv,
+            },
+            Err(electrodata_io::Error::InvalidUtf8 { .. }) => InputKind::UnsupportedContentBinary,
+            Err(_) => by_extension,
         }
-        by_extension
-    }
-
-    fn read_prefix(path: &Path, max_len: usize) -> Result<Vec<u8>, std::io::Error> {
-        let data = fs::read(path)?;
-        Ok(data.into_iter().take(max_len).collect())
-    }
-
-    fn looks_binary(bytes: &[u8]) -> bool {
-        if bytes.is_empty() {
-            return false;
-        }
-        if bytes.contains(&0) {
-            return true;
-        }
-        std::str::from_utf8(bytes).is_err()
     }
 
     /// Returns `true` when this classification means the file must be

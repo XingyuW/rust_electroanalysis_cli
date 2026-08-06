@@ -4,7 +4,6 @@ use crate::domain::{
     DataParsingError, MeasurementChannel, MeasurementParseResult, MultiChannelMeasurement,
     ParseDiagnostics,
 };
-use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Clone, Default)]
@@ -34,8 +33,7 @@ pub fn parse_measurement_file_with_sheet(
 ) -> Result<MeasurementParseResult, DataParsingError> {
     let path = path.as_ref();
 
-    // Defence-in-depth binary guard.
-    let kind = crate::data_file::InputKind::classify_path(path);
+    let kind = crate::data_file::InputKind::classify_by_extension(path);
     if kind.is_unsupported_binary() {
         return Err(DataParsingError::invalid_at(
             path,
@@ -54,13 +52,8 @@ pub fn parse_measurement_file_with_sheet(
         ));
     }
 
-    if matches!(kind, crate::data_file::InputKind::ExcelXlsx) {
-        let parsed = crate::data_file::excel_file::parse_excel_measurement(path, sheet_name)?;
-        return Ok(parsed.parsed);
-    }
-
-    let text = fs::read_to_string(path).map_err(|error| DataParsingError::io(path, error))?;
-    parse_measurement_text(&text, path)
+    let dataset = crate::data_file::electrodata_adapter::read_dataset(path, sheet_name)?;
+    crate::data_file::electrodata_adapter::measurement_from_dataset(&dataset, path)
 }
 
 /// Parse a CHI-style or generic time-series text buffer.  Metadata/preamble

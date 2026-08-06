@@ -14,52 +14,9 @@ use crate::impedance::{
 };
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 
 use crate::plottings::{PlotDataSeries, PlotSeries};
-
-fn read_nonempty_lines<P: AsRef<Path>>(path: P) -> Result<Vec<String>, DataParsingError> {
-    // Accept common delimited text exports from CHI instruments.
-    let path = path.as_ref();
-    if let Some(extension) = path.extension().and_then(|value| value.to_str())
-        && !matches!(
-            extension.to_ascii_lowercase().as_str(),
-            "csv" | "txt" | "dat"
-        )
-    {
-        return Err(DataParsingError::invalid_at(path, "unsupported file type"));
-    }
-
-    let file = File::open(path).map_err(|error| DataParsingError::io(path, error))?;
-    let reader = BufReader::new(file);
-
-    let lines = reader
-        .lines()
-        .collect::<io::Result<Vec<_>>>()
-        .map_err(|error| DataParsingError::io(path, error))?;
-    Ok(lines
-        .into_iter()
-        .map(|line| line.trim().to_string())
-        .collect())
-}
-
-fn extract_metadata(lines: &[String]) -> (String, String, String) {
-    let date = lines.first().cloned().unwrap_or_default();
-    let test_type = lines.get(1).cloned().unwrap_or_default();
-    let instrument_model = lines
-        .iter()
-        .find_map(|line| line.strip_prefix("Instrument Model:"))
-        .map(|value| value.trim().to_string())
-        .unwrap_or_default();
-
-    (date, test_type, instrument_model)
-}
-
-fn split_csv_fields(line: &str) -> Vec<&str> {
-    line.split(',').map(|field| field.trim()).collect()
-}
 
 fn normalize_header_name(name: &str) -> String {
     name.trim()
@@ -69,38 +26,10 @@ fn normalize_header_name(name: &str) -> String {
         .collect()
 }
 
-fn is_time_header(name: &str) -> bool {
-    matches!(name, "time/sec" | "time/s" | "time(sec)" | "time")
-}
-
-fn is_potential_header(name: &str) -> bool {
-    matches!(
-        name,
-        "potential/v"
-            | "potential"
-            | "potential(v)"
-            | "e/v"
-            | "voltage/v"
-            | "voltage"
-            | "E1/V"
-            | "E1"
-            | "V1/v"
-            | "V1"
-            | "E5/V"
-            | "E6/V"
-            | "E7/V"
-            | "E8/V"
-    )
-}
-
-fn find_header_index(lines: &[String], prefix: &str) -> Option<usize> {
-    lines.iter().position(|line| line.starts_with(prefix))
-}
-
-fn parse_metadata_entries(lines: &[String], stop_index: usize) -> BTreeMap<String, String> {
+fn parse_metadata_entries(dataset: &electrodata_io::Dataset) -> BTreeMap<String, String> {
     let mut metadata = BTreeMap::new();
-
-    for line in lines.iter().take(stop_index) {
+    for row in &dataset.metadata.raw_rows {
+        let line = row.reconstructed_text.trim();
         if line.is_empty() {
             continue;
         }
@@ -114,7 +43,6 @@ fn parse_metadata_entries(lines: &[String], stop_index: usize) -> BTreeMap<Strin
             metadata.insert(normalized_key, value.to_string());
         }
     }
-
     metadata
 }
 
@@ -130,160 +58,9 @@ fn split_metadata_line(line: &str) -> Option<(&str, &str)> {
     None
 }
 
-fn find_electrochem_header(lines: &[String]) -> Option<(usize, usize, usize)> {
-    lines.iter().enumerate().find_map(|(index, line)| {
-        let parts = split_csv_fields(line);
-        if parts.len() < 2 {
-            return None;
-        }
-
-        let normalized_fields: Vec<_> = parts
-            .iter()
-            .map(|field| normalize_header_name(field))
-            .collect();
-
-        let x_index = normalized_fields
-            .iter()
-            .position(|field| is_time_header(field.as_str()));
-        let y_index = normalized_fields
-            .iter()
-            .position(|field| is_potential_header(field.as_str()));
-
-        match (x_index, y_index) {
-            (Some(x_index), Some(y_index)) if x_index != y_index => Some((index, x_index, y_index)),
-            _ => None,
-        }
-    })
-}
-
-#[derive(Debug, Clone)]
-struct ElectrochemHeaderLayout {
-    header_index: usize,
-    x_index: usize,
-    y_indices: Vec<usize>,
-    y_headers: Vec<String>,
-}
-
-fn find_electrochem_header_layout(lines: &[String]) -> Option<ElectrochemHeaderLayout> {
-    lines.iter().enumerate().find_map(|(index, line)| {
-        let parts = split_csv_fields(line);
-        if parts.len() < 2 {
-            return None;
-        }
-
-        let normalized_fields: Vec<_> = parts
-            .iter()
-            .map(|field| normalize_header_name(field))
-            .collect();
-
-        if parts.len() > 2
-            && normalized_fields
-                .first()
-                .is_some_and(|field| is_time_header(field.as_str()))
-        {
-            return Some(ElectrochemHeaderLayout {
-                header_index: index,
-                x_index: 0,
-                y_indices: (1..parts.len()).collect(),
-                y_headers: parts[1..].iter().map(|field| field.to_string()).collect(),
-            });
-        }
-
-        let x_index = normalized_fields
-            .iter()
-            .position(|field| is_time_header(field.as_str()));
-        let y_index = normalized_fields
-            .iter()
-            .position(|field| is_potential_header(field.as_str()));
-
-        match (x_index, y_index) {
-            (Some(x_index), Some(y_index)) if x_index != y_index => Some(ElectrochemHeaderLayout {
-                header_index: index,
-                x_index,
-                y_indices: vec![y_index],
-                y_headers: vec![parts[y_index].to_string()],
-            }),
-            _ => None,
-        }
-    })
-}
-
-fn parse_numeric_columns(
-    lines: &[String],
-    start_index: usize,
-    x_index: usize,
-    y_index: usize,
-) -> (Vec<f64>, Vec<f64>) {
-    let mut x_values = Vec::new();
-    let mut y_values = Vec::new();
-
-    for line in lines.iter().skip(start_index) {
-        if line.is_empty() {
-            continue;
-        }
-
-        let parts = split_csv_fields(line);
-        let max_index = x_index.max(y_index);
-        if parts.len() <= max_index {
-            continue;
-        }
-
-        if let (Ok(x), Ok(y)) = (parts[x_index].parse::<f64>(), parts[y_index].parse::<f64>()) {
-            x_values.push(x);
-            y_values.push(y);
-        }
-    }
-
-    (x_values, y_values)
-}
-
-fn parse_numeric_series_columns(
-    lines: &[String],
-    start_index: usize,
-    x_index: usize,
-    y_indices: &[usize],
-) -> Vec<(Vec<f64>, Vec<f64>)> {
-    let mut series = vec![(Vec::new(), Vec::new()); y_indices.len()];
-    let max_index = y_indices
-        .iter()
-        .copied()
-        .chain(std::iter::once(x_index))
-        .max();
-
-    for line in lines.iter().skip(start_index) {
-        if line.is_empty() {
-            continue;
-        }
-
-        let parts = split_csv_fields(line);
-        let Some(max_index) = max_index else {
-            continue;
-        };
-        if parts.len() <= max_index {
-            continue;
-        }
-
-        let Ok(x) = parts[x_index].parse::<f64>() else {
-            continue;
-        };
-
-        for (series_index, &y_index) in y_indices.iter().enumerate() {
-            if let Ok(y) = parts[y_index].parse::<f64>() {
-                series[series_index].0.push(x);
-                series[series_index].1.push(y);
-            }
-        }
-    }
-
-    series
-}
-
-fn build_electrochem_series_labels(
-    base_label: &str,
-    y_headers: &[String],
-    y_indices: &[usize],
-) -> Vec<String> {
-    if y_indices.len() <= 1 {
+fn build_electrochem_series_labels(base_label: &str, y_headers: &[String]) -> Vec<String> {
+    let y_indices = 1..=y_headers.len();
+    if y_headers.len() <= 1 {
         return vec![base_label.to_string()];
     }
 
@@ -300,9 +77,9 @@ fn build_electrochem_series_labels(
 
     y_headers
         .iter()
-        .zip(y_indices.iter())
+        .zip(y_indices)
         .zip(normalized_headers.iter())
-        .map(|((header, &y_index), normalized)| {
+        .map(|((header, y_index), normalized)| {
             let trimmed = header.trim();
             let is_duplicate =
                 !normalized.is_empty() && header_counts.get(normalized).copied().unwrap_or(0) > 1;
@@ -377,48 +154,78 @@ impl ElectrochemData {
 
     pub fn series_count<P: AsRef<Path>>(path: P) -> Result<usize, DataParsingError> {
         let path = path.as_ref();
-        let lines = read_nonempty_lines(path)?;
-        find_electrochem_header_layout(&lines)
-            .map(|layout| layout.y_indices.len())
+        let dataset = crate::data_file::electrodata_adapter::read_dataset(path, None)?;
+        let count = dataset
+            .columns
+            .iter()
+            .filter(|column| {
+                !matches!(
+                    column.role,
+                    electrodata_io::ColumnRole::Time | electrodata_io::ColumnRole::X
+                )
+            })
+            .count();
+        (count > 0)
+            .then_some(count)
             .ok_or_else(|| DataParsingError::invalid_at(path, "missing time/potential header"))
     }
 
     pub fn parse_file_series<P: AsRef<Path>>(path: P) -> Result<Vec<Self>, DataParsingError> {
         let path = path.as_ref();
-        let lines = read_nonempty_lines(path)?;
-        let (date, test_type, instrument_model) = extract_metadata(&lines);
-        let layout = find_electrochem_header_layout(&lines)
-            .ok_or_else(|| DataParsingError::invalid_at(path, "missing time/potential header"))?;
-        let parsed_series = parse_numeric_series_columns(
-            &lines,
-            layout.header_index + 1,
-            layout.x_index,
-            &layout.y_indices,
-        );
-        let labels = build_electrochem_series_labels(
-            &file_label(path),
-            &layout.y_headers,
-            &layout.y_indices,
-        );
-
-        let datasets: Vec<Self> = parsed_series
-            .into_iter()
-            .zip(labels)
-            .filter_map(|((x_values, y_values), label)| {
-                if x_values.is_empty() || y_values.is_empty() {
-                    return None;
-                }
-
-                Some(Self {
-                    date: date.clone(),
-                    test_type: test_type.clone(),
-                    instrument_model: instrument_model.clone(),
-                    x_values,
-                    y_values,
-                    label,
-                })
+        let dataset = crate::data_file::electrodata_adapter::read_dataset(path, None)?;
+        let (date, test_type, instrument_model) =
+            crate::data_file::electrodata_adapter::metadata_preamble(&dataset);
+        let x_descriptor = dataset
+            .columns
+            .iter()
+            .find(|column| {
+                matches!(
+                    column.role,
+                    electrodata_io::ColumnRole::Time | electrodata_io::ColumnRole::X
+                )
             })
-            .collect();
+            .ok_or_else(|| DataParsingError::invalid_at(path, "missing time/potential header"))?;
+        let x_values =
+            crate::data_file::electrodata_adapter::descriptor_values(&dataset, x_descriptor, path)?;
+        let y_descriptors = dataset
+            .columns
+            .iter()
+            .filter(|column| {
+                !matches!(
+                    column.role,
+                    electrodata_io::ColumnRole::Time | electrodata_io::ColumnRole::X
+                )
+            })
+            .collect::<Vec<_>>();
+        let y_headers = y_descriptors
+            .iter()
+            .map(|column| column.source_name.clone())
+            .collect::<Vec<_>>();
+        let labels = build_electrochem_series_labels(&file_label(path), &y_headers);
+
+        let mut datasets = Vec::new();
+        for (descriptor, label) in y_descriptors.into_iter().zip(labels) {
+            let y_values = crate::data_file::electrodata_adapter::descriptor_values(
+                &dataset, descriptor, path,
+            )?;
+            let (x_values, y_values): (Vec<_>, Vec<_>) = x_values
+                .iter()
+                .copied()
+                .zip(y_values)
+                .filter_map(|(x, y)| x.zip(y))
+                .unzip();
+            if x_values.is_empty() || y_values.is_empty() {
+                continue;
+            }
+            datasets.push(Self {
+                date: date.clone(),
+                test_type: test_type.clone(),
+                instrument_model: instrument_model.clone(),
+                x_values,
+                y_values,
+                label,
+            });
+        }
 
         if datasets.is_empty() {
             return Err(DataParsingError::invalid_at(
@@ -433,30 +240,12 @@ impl ElectrochemData {
     #[allow(dead_code)]
     pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Self, DataParsingError> {
         let path = path.as_ref();
-        let lines = read_nonempty_lines(path)?;
-        let (date, test_type, instrument_model) = extract_metadata(&lines);
-        let (header_index, x_index, y_index) = find_electrochem_header(&lines)
-            .ok_or_else(|| DataParsingError::invalid_at(path, "missing time/potential header"))?;
-        let (x_values, y_values) =
-            parse_numeric_columns(&lines, header_index + 1, x_index, y_index);
-
-        if x_values.is_empty() || y_values.is_empty() {
-            return Err(DataParsingError::invalid_at(
-                path,
-                "no numeric time/potential data rows found",
-            ));
-        }
-
-        let label = file_label(path);
-
-        Ok(Self {
-            date,
-            test_type,
-            instrument_model,
-            x_values,
-            y_values,
-            label,
-        })
+        Self::parse_file_series(path)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| {
+                DataParsingError::invalid_at(path, "no numeric time/potential data rows found")
+            })
     }
 }
 
@@ -541,53 +330,30 @@ impl EISData {
         resolver: &CircuitModelResolver,
     ) -> Result<Self, DataParsingError> {
         let path = path.as_ref();
-        let lines = read_nonempty_lines(path)?;
-        let (date, test_type, instrument_model) = extract_metadata(&lines);
-        let header_index = find_header_index(&lines, "Freq/Hz")
-            .ok_or_else(|| DataParsingError::invalid_at(path, "missing Freq/Hz header"))?;
-        let metadata = parse_metadata_entries(&lines, header_index);
-
-        let header_fields = split_csv_fields(&lines[header_index]);
-        // Create a mapping of normalized header names to their indices for flexible column access
-        let find_column = |target: &str| {
-            header_fields
-                .iter()
-                .position(|field| normalize_header_name(field) == target)
-        };
-
-        let freq_idx = find_column("freq/hz").unwrap_or(0);
-        let z_re_idx = find_column("z'/ohm").unwrap_or(1);
-        let z_im_idx = find_column("z\"/ohm").unwrap_or(2);
-        let phase_idx = find_column("phase/deg").unwrap_or(4);
-
-        let mut freq = Vec::new();
-        let mut phase = Vec::new();
-        let mut z_re = Vec::new();
-        let mut z_im = Vec::new();
-
-        for line in lines.iter().skip(header_index + 1) {
-            if line.is_empty() {
-                continue;
-            }
-
-            let parts = split_csv_fields(line);
-            let max_index = freq_idx.max(z_re_idx).max(z_im_idx).max(phase_idx);
-            if parts.len() <= max_index {
-                continue;
-            }
-
-            if let (Ok(f), Ok(re), Ok(im), Ok(p)) = (
-                parts[freq_idx].parse::<f64>(),
-                parts[z_re_idx].parse::<f64>(),
-                parts[z_im_idx].parse::<f64>(),
-                parts[phase_idx].parse::<f64>(),
-            ) {
-                freq.push(f);
-                phase.push(p);
-                z_re.push(re);
-                z_im.push(im);
-            }
-        }
+        let dataset = crate::data_file::electrodata_adapter::read_dataset(path, None)?;
+        let (date, test_type, instrument_model) =
+            crate::data_file::electrodata_adapter::metadata_preamble(&dataset);
+        let metadata = parse_metadata_entries(&dataset);
+        let freq = crate::data_file::electrodata_adapter::role_values(
+            &dataset,
+            &electrodata_io::ColumnRole::Frequency,
+            path,
+        )?;
+        let z_re = crate::data_file::electrodata_adapter::role_values(
+            &dataset,
+            &electrodata_io::ColumnRole::ImpedanceReal,
+            path,
+        )?;
+        let z_im = crate::data_file::electrodata_adapter::role_values(
+            &dataset,
+            &electrodata_io::ColumnRole::ImpedanceImaginary,
+            path,
+        )?;
+        let phase = crate::data_file::electrodata_adapter::role_values(
+            &dataset,
+            &electrodata_io::ColumnRole::Phase,
+            path,
+        )?;
 
         let label = file_label(path);
         let context = CircuitModelContext {

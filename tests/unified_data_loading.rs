@@ -13,20 +13,32 @@ fn downstream_plot_series_count(experiment: &ElectrochemicalExperiment) -> usize
 }
 
 #[test]
-fn loads_chi_eis_chi_ocpt_and_sensor_csv_with_one_interface() {
+fn loads_eis_ocpt_multichannel_ocpt_and_regular_data_with_one_interface() {
     let eis = repo_path("data/EIS/20260317/20260312_QD-5_EIS (0.1M).csv");
-    let ocpt = repo_path(
+    let ocpt = repo_path("data/Sensor-AI Data/Calibration/NH4/NH4Clibration2_02052024.csv");
+    let multichannel_ocpt = repo_path(
         "data/Shan/20260430/20260430_(20260429-NH4-ISM-1_20260429-NH4-ISM-2)_(NH4)2SO4.csv",
     );
     let sensor = repo_path("data/Sensor-AI Data/Sensor Reading/NH4.csv");
 
     let loaded_eis = load_data(&eis).expect("load EIS");
     let loaded_ocpt = load_data(&ocpt).expect("load OCPT");
+    let loaded_multichannel_ocpt = load_data(&multichannel_ocpt).expect("load multichannel OCPT");
     let loaded_sensor = load_data(&sensor).expect("load sensor CSV");
 
     assert_eq!(loaded_eis.file_type, DataFileType::ChiEis);
     assert_eq!(loaded_ocpt.file_type, DataFileType::ChiOcpt);
+    assert_eq!(loaded_multichannel_ocpt.file_type, DataFileType::ChiOcpt);
     assert_eq!(loaded_sensor.file_type, DataFileType::SensorCsv);
+    assert_eq!(loaded_ocpt.experiment.measurement().channels.len(), 1);
+    assert!(
+        loaded_multichannel_ocpt
+            .experiment
+            .measurement()
+            .channels
+            .len()
+            >= 2
+    );
 
     fn as_experiment(
         loaded: &rust_electroanalysis_cli::data_file::LoadedExperimentData,
@@ -50,6 +62,7 @@ fn loads_chi_eis_chi_ocpt_and_sensor_csv_with_one_interface() {
 
     assert!(downstream_plot_series_count(&loaded_eis.experiment) >= 1);
     assert!(downstream_plot_series_count(&loaded_ocpt.experiment) >= 1);
+    assert!(downstream_plot_series_count(&loaded_multichannel_ocpt.experiment) >= 2);
     assert!(downstream_plot_series_count(&loaded_sensor.experiment) >= 1);
 }
 

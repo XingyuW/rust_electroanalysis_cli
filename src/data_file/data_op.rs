@@ -119,7 +119,7 @@
 //! materialized configuration with no `Option` fields — that is passed
 //! directly into `plot_hq()`.
 
-use crate::data_file::{EISData, ElectrochemData, parse_measurement_file};
+use crate::data_file::{EISData, ElectrochemData};
 use crate::domain::{
     AnalysisProvenance, DataParsingError, ElectrochemicalExperiment, MeasurementChannel,
     MultiChannelMeasurement, ParseDiagnostics, PlottingError, SensorMetadata,
@@ -855,8 +855,7 @@ pub struct LoadedExperimentData {
 pub fn load_data(path: impl AsRef<Path>) -> Result<LoadedExperimentData, DataParsingError> {
     let path = path.as_ref();
 
-    // --- binary guard --------------------------------------------------
-    let kind = crate::data_file::InputKind::classify_path(path);
+    let kind = crate::data_file::InputKind::classify_by_extension(path);
     if kind.is_unsupported_binary() {
         return Err(DataParsingError::invalid_at(
             path,
@@ -868,7 +867,6 @@ pub fn load_data(path: impl AsRef<Path>) -> Result<LoadedExperimentData, DataPar
         ));
     }
 
-    // --- Excel dispatch ------------------------------------------------
     if kind == crate::data_file::InputKind::ExcelXls {
         return Err(DataParsingError::invalid_at(
             path,
@@ -876,37 +874,79 @@ pub fn load_data(path: impl AsRef<Path>) -> Result<LoadedExperimentData, DataPar
         ));
     }
 
-    if kind == crate::data_file::InputKind::ExcelXlsx {
-        return load_excel(path, None);
-    }
+    let dataset = crate::data_file::electrodata_adapter::read_dataset(path, None)?;
+    let is_excel = !matches!(
+        dataset.metadata.provenance.container,
+        electrodata_io::ContainerFormat::Csv
+    );
+    let file_type = if dataset
+        .columns
+        .iter()
+        .any(|column| column.role == electrodata_io::ColumnRole::Frequency)
+    {
+        DataFileType::ChiEis
+    } else if matches!(
+        dataset.format,
+        electrodata_io::FormatId::ChiOcpt | electrodata_io::FormatId::ChiMultichannelOcpt
+    ) || dataset
+        .metadata
+        .acquisition
+        .technique
+        .as_deref()
+        .is_some_and(|technique| {
+            let technique = technique.to_ascii_lowercase();
+            technique.contains("open circuit") || technique.contains("ocpt")
+        })
+    {
+        DataFileType::ChiOcpt
+    } else if is_excel {
+        DataFileType::SensorExcel
+    } else {
+        DataFileType::SensorCsv
+    };
 
-    // --- text dispatch -------------------------------------------------
-    let text = std::fs::read_to_string(path).map_err(|error| DataParsingError::io(path, error))?;
-    let file_type = detect_file_type(path, &text)?;
     match file_type {
         DataFileType::ChiEis => load_chi_eis(path),
-        DataFileType::ChiOcpt => load_time_series(path, DataFileType::ChiOcpt),
-        DataFileType::SensorCsv => load_time_series(path, DataFileType::SensorCsv),
-        DataFileType::SensorExcel => Err(DataParsingError::invalid_at(
-            path,
-            "Excel input reached the text loader; use the workbook parser",
-        )),
+        DataFileType::ChiOcpt | DataFileType::SensorCsv | DataFileType::SensorExcel => {
+            load_time_series_dataset(path, file_type, &dataset)
+        }
     }
 }
 
-fn load_time_series(
+fn load_time_series_dataset(
     path: &Path,
     file_type: DataFileType,
+    dataset: &electrodata_io::Dataset,
 ) -> Result<LoadedExperimentData, DataParsingError> {
-    let parsed = parse_measurement_file(path)?;
+    let parsed = crate::data_file::electrodata_adapter::measurement_from_dataset(dataset, path)?;
     let provenance = AnalysisProvenance::from_paths(path, None)?;
     let experiment_id = file_stem_or_default(path);
-    let sensor_metadata = default_sensor_metadata(path, file_type, None);
+    let mut sensor_metadata = default_sensor_metadata(
+        path,
+        file_type,
+        dataset.metadata.acquisition.instrument_model.as_deref(),
+    );
+    if file_type == DataFileType::SensorExcel
+        && let Some(metadata) = sensor_metadata.metadata.as_mut()
+    {
+        if let Some(sheet) = &dataset.metadata.provenance.worksheet {
+            metadata.insert("source_sheet".to_string(), sheet.clone());
+        }
+        metadata.insert("parser_kind".to_string(), "electrodata-io".to_string());
+    }
     let sample_matrix = match file_type {
         DataFileType::ChiOcpt => "chi_export".to_string(),
         DataFileType::SensorCsv => "sensor_csv".to_string(),
         DataFileType::ChiEis => "chi_eis".to_string(),
-        DataFileType::SensorExcel => "excel_workbook".to_string(),
+        DataFileType::SensorExcel => format!(
+            "excel_workbook:{}",
+            dataset
+                .metadata
+                .provenance
+                .worksheet
+                .as_deref()
+                .unwrap_or_default()
+        ),
     };
     let experiment = ElectrochemicalExperiment::new(
         experiment_id,
@@ -920,47 +960,6 @@ fn load_time_series(
     )?;
     Ok(LoadedExperimentData {
         file_type,
-        experiment,
-        diagnostics: parsed.diagnostics,
-    })
-}
-
-fn load_excel(
-    path: &Path,
-    sheet_name: Option<&str>,
-) -> Result<LoadedExperimentData, DataParsingError> {
-    let parsed_excel = crate::data_file::excel_file::parse_excel_measurement(path, sheet_name)?;
-    let parsed = parsed_excel.parsed;
-    let sheet = parsed_excel.sheet_name;
-    let provenance = AnalysisProvenance::from_paths(path, None)?;
-    let experiment_id = file_stem_or_default(path);
-    let mut sensor_metadata = default_sensor_metadata(path, DataFileType::SensorExcel, None);
-    if let Some(metadata) = sensor_metadata.metadata.as_mut() {
-        metadata.insert("source_sheet".to_string(), sheet.clone());
-        metadata.insert(
-            "header_row_index".to_string(),
-            (parsed_excel.header_row_index + 1).to_string(),
-        );
-        if let Some(unit_row_index) = parsed_excel.unit_row_index {
-            metadata.insert(
-                "unit_row_index".to_string(),
-                (unit_row_index + 1).to_string(),
-            );
-        }
-        metadata.insert("parser_kind".to_string(), "excel_time_series".to_string());
-    }
-    let experiment = ElectrochemicalExperiment::new(
-        experiment_id,
-        sensor_metadata,
-        None,
-        parsed.measurement,
-        Vec::new(),
-        Vec::new(),
-        format!("excel_workbook:{sheet}"),
-        provenance,
-    )?;
-    Ok(LoadedExperimentData {
-        file_type: DataFileType::SensorExcel,
         experiment,
         diagnostics: parsed.diagnostics,
     })
@@ -997,82 +996,6 @@ fn load_chi_eis(path: &Path) -> Result<LoadedExperimentData, DataParsingError> {
             ..ParseDiagnostics::default()
         },
     })
-}
-
-fn detect_file_type(path: &Path, text: &str) -> Result<DataFileType, DataParsingError> {
-    let lines = text.lines().map(str::trim).collect::<Vec<_>>();
-    let mut time_header_index = None;
-    for (index, line) in lines.iter().enumerate() {
-        let fields = split_csv_fields(line);
-        if fields.len() < 2 {
-            continue;
-        }
-        let normalized_headers = fields
-            .iter()
-            .map(|header| normalize_header(header))
-            .collect::<Vec<_>>();
-        let has_freq = normalized_headers.iter().any(|header| header == "freq/hz");
-        let has_impedance = normalized_headers
-            .iter()
-            .any(|header| header == "z'/ohm" || header == "z\"/ohm");
-        if has_freq && has_impedance {
-            return Ok(DataFileType::ChiEis);
-        }
-        if normalized_headers
-            .iter()
-            .any(|header| is_time_header(header.as_str()))
-        {
-            time_header_index.get_or_insert(index);
-        }
-    }
-
-    let Some(header_index) = time_header_index else {
-        return Err(DataParsingError::invalid_at(
-            path,
-            "unsupported file structure: expected a time or frequency header",
-        ));
-    };
-
-    let preamble = lines
-        .iter()
-        .take(header_index)
-        .map(|line| normalize_header(line))
-        .collect::<Vec<_>>();
-    let is_chi = preamble.iter().any(|line| {
-        line.starts_with("instrumentmodel:")
-            || line.starts_with("datasource:")
-            || line.starts_with("file:")
-            || line.contains("opencircuitpotential-time")
-            || line.contains("open-circuitpotential-time")
-    });
-    Ok(if is_chi {
-        DataFileType::ChiOcpt
-    } else {
-        DataFileType::SensorCsv
-    })
-}
-
-fn split_csv_fields(line: &str) -> Vec<&str> {
-    line.split(',').map(str::trim).collect()
-}
-
-fn normalize_header(value: &str) -> String {
-    value
-        .trim()
-        .trim_start_matches('\u{feff}')
-        .to_ascii_lowercase()
-        .chars()
-        .filter(|ch| !ch.is_ascii_whitespace())
-        .collect()
-}
-
-fn is_time_header(value: &str) -> bool {
-    value == "time"
-        || value.starts_with("time/")
-        || value.starts_with("time(")
-        || value.starts_with("time[")
-        || value == "timestamp"
-        || value.starts_with("timestamp/")
 }
 
 fn file_stem_or_default(path: &Path) -> String {

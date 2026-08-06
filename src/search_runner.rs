@@ -19,7 +19,6 @@ use crate::{
 };
 use std::fs;
 use std::io;
-use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 // ---------------------------------------------------------------------------
@@ -599,32 +598,26 @@ fn classify_eis_search_input(path: &Path) -> Result<SearchInputDecision, io::Err
         return Ok(SearchInputDecision::Skip("generated fit report"));
     }
 
-    // For text files, verify EIS header presence.
+    // Let the shared electrodata reader identify the scientific format.
     if kind.is_supported_text() || kind == crate::data_file::InputKind::Unknown {
-        if file_has_eis_header(path)? {
-            return Ok(SearchInputDecision::Include);
-        }
-        return Ok(SearchInputDecision::Skip("missing Freq/Hz header"));
+        return Ok(
+            match crate::data_file::electrodata_adapter::read_dataset(path, None) {
+                Ok(dataset)
+                    if dataset
+                        .columns
+                        .iter()
+                        .any(|column| column.role == electrodata_io::ColumnRole::Frequency) =>
+                {
+                    SearchInputDecision::Include
+                }
+                Ok(_) => SearchInputDecision::Skip("missing EIS frequency role"),
+                Err(_) => SearchInputDecision::Skip("unsupported scientific data format"),
+            },
+        );
     }
 
     // Excel files are not EIS sources in this workflow.
     Ok(SearchInputDecision::Skip("unsupported extension"))
-}
-
-/// Return `true` if the file's first 64 lines contain a `Freq/Hz` marker,
-/// which is the standard column header in CHI EIS data exports.
-fn file_has_eis_header(path: &Path) -> Result<bool, io::Error> {
-    let file = fs::File::open(path)?;
-    let reader = BufReader::new(file);
-
-    for line in reader.lines().take(64) {
-        let line = line?;
-        if line.to_ascii_lowercase().contains("freq/hz") {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
 }
 
 #[cfg(test)]
