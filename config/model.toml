@@ -1,0 +1,11 @@
+schema_version = 1
+
+[model]
+schema_version = 1
+model_id = "ism-reduced-order-v1"
+description = "Workspace-generated model configuration. Run `electroanalysis model validate` before use."
+validity_domain = "Aqueous potentiometric steps within declared calibration/activity domains."
+states = []
+parameters = []
+inputs = []
+components = []

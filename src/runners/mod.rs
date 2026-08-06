@@ -17,6 +17,7 @@ pub mod estimation;
 pub mod fit;
 pub mod health;
 pub mod mechanism;
+pub mod model;
 pub mod plot;
 pub mod search;
 pub mod signal;

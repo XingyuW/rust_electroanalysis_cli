@@ -21,6 +21,7 @@ pub const MECHANISM_CONFIG_PATH: &str = "config/mechanism.toml";
 pub const SIGNAL_CONFIG_PATH: &str = "config/signal.toml";
 pub const HEALTH_CONFIG_PATH: &str = "config/health.toml";
 pub const ESTIMATION_CONFIG_PATH: &str = "config/estimation.toml";
+pub const MODEL_CONFIG_PATH: &str = "config/model.toml";
 
 const LEGACY_PLOTTING_CONFIG_PATH: &str = "plot_config.toml";
 const LEGACY_ANALYSIS_CONFIG_PATH: &str = "ecm_search.toml";
@@ -43,6 +44,7 @@ pub struct WorkspacePaths {
     pub signal_config_path: PathBuf,
     pub health_config_path: PathBuf,
     pub estimation_config_path: PathBuf,
+    pub model_config_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -204,6 +206,7 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         signal_config_path: root.join(SIGNAL_CONFIG_PATH),
         health_config_path: root.join(HEALTH_CONFIG_PATH),
         estimation_config_path: root.join(ESTIMATION_CONFIG_PATH),
+        model_config_path: root.join(MODEL_CONFIG_PATH),
     };
     let mut warnings = Vec::new();
 
@@ -224,6 +227,7 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         "plotting config",
         &mut warnings,
     )?;
+    ensure_model_config_file(&paths.model_config_path)?;
     ensure_runtime_config_file(
         root,
         &paths.signal_config_path,
@@ -297,6 +301,19 @@ pub fn prepare_workspace(root: &Path) -> Result<WorkspaceSetup, WorkspaceError> 
         warnings,
         app_config,
     })
+}
+
+fn ensure_model_config_file(path: &Path) -> Result<(), WorkspaceError> {
+    if path.exists() {
+        return Ok(());
+    }
+    let config = crate::model_config::ModelConfig {
+        schema_version: crate::model_config::MODEL_CONFIG_SCHEMA_VERSION,
+        model: crate::model::default_model_definition(),
+    };
+    let text = toml::to_string_pretty(&config)
+        .map_err(|error| WorkspaceError::invalid(error.to_string()))?;
+    atomic_write(path, &text)
 }
 
 fn load_app_config(path: &Path, warnings: &mut Vec<String>) -> Result<AppConfig, WorkspaceError> {

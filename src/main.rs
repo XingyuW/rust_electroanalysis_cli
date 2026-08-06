@@ -7,7 +7,8 @@ use rust_electroanalysis_cli::cli::{CliError, CommandSpec, parse_cli_args, print
 use rust_electroanalysis_cli::domain::{ConfigurationError, WorkspaceError};
 use rust_electroanalysis_cli::plot_config::PlotConfig;
 use rust_electroanalysis_cli::runners::{
-    RunnerError, calibration, estimation, fit, health, mechanism, plot, search, signal, transient,
+    RunnerError, calibration, estimation, fit, health, mechanism, model, plot, search, signal,
+    transient,
 };
 use rust_electroanalysis_cli::workspace::{self, LastRunMode};
 use thiserror::Error as ThisError;
@@ -543,6 +544,57 @@ fn run() -> Result<(), ApplicationError> {
                 None,
             )?;
             estimation::report(&workspace_dir, &results, output.as_deref())?;
+        }
+        CommandSpec::ModelValidate {
+            model: model_path,
+            output,
+        } => {
+            model::validate(&workspace_dir, model_path.as_deref(), output.as_deref())?;
+        }
+        CommandSpec::ModelSimulate {
+            model: model_path,
+            output,
+            steps,
+            dt_s,
+        } => {
+            model::simulate(
+                &workspace_dir,
+                model_path.as_deref(),
+                output.as_deref(),
+                steps,
+                dt_s,
+            )?;
+        }
+        CommandSpec::ModelDecompose {
+            model: model_path,
+            input,
+            measurement,
+            metadata,
+            calibration_model,
+            transient_results,
+            eis_fit,
+            signal_results,
+            mechanism_results,
+            health_assessment,
+            output,
+        } => {
+            model::decompose(
+                &workspace_dir,
+                model_path.as_deref(),
+                input.as_deref(),
+                measurement.as_deref(),
+                metadata.as_deref(),
+                calibration_model.as_deref(),
+                transient_results.as_deref(),
+                eis_fit.as_deref(),
+                signal_results.as_deref(),
+                mechanism_results.as_deref(),
+                health_assessment.as_deref(),
+                output.as_deref(),
+            )?;
+        }
+        CommandSpec::ModelReport { results, output } => {
+            model::report(&workspace_dir, &results, output.as_deref())?;
         }
     }
 
