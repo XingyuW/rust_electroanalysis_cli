@@ -316,3 +316,7 @@ a versioned `ModelDefinition`, compiles it through the static registry, and
 retains `StateModel` as an outer compatibility facade. Both EKF and UKF call
 that same compiled instance. The core never imports estimation, CLI, runners,
 plotting, health, or mechanism modules.
+
+## Canonical physical-input boundary
+
+`electrodata-io` owns input detection, containers, CSV/TXT/DAT/XLSX parsing, worksheet selection, raw units, schemas, diagnostics, provenance, and structured errors. `data_file/electrodata_domain_adapter.rs` is the only production conversion boundary from `Dataset` to project domains; it uses typed time-series/EIS views and never accesses Polars. Legacy parser modules remain compatibility/parity-only pending independent review.

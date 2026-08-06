@@ -48,6 +48,11 @@ impl ConfigurationError {
 /// Errors raised while reading or structurally interpreting instrument data.
 #[derive(Debug, Error)]
 pub enum DataParsingError {
+    /// Structured physical-input error emitted by the canonical reader.  This
+    /// remains transparent so path, worksheet, row, column, role, diagnostic,
+    /// and underlying-source context are available to CLI callers.
+    #[error(transparent)]
+    ElectrodataIo(#[from] Box<electrodata_io::Error>),
     #[error("data I/O error for {path}: {source}")]
     Io {
         path: PathBuf,
@@ -115,6 +120,12 @@ impl DataParsingError {
 impl From<io::Error> for DataParsingError {
     fn from(source: io::Error) -> Self {
         Self::io("<input>", source)
+    }
+}
+
+impl From<electrodata_io::Error> for DataParsingError {
+    fn from(source: electrodata_io::Error) -> Self {
+        Self::ElectrodataIo(Box::new(source))
     }
 }
 

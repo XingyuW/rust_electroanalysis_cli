@@ -220,3 +220,7 @@ For plotting styles specifically:
 3. Named `style_preset`
 4. `[shared.style]` / `[shared.individual_style]` / `[shared.combined_style]`
 5. Global `[render]` settings
+
+## Input-domain conversion
+
+Raw units and missing cells are retained by `electrodata-io`. Time-series conversion uses its seconds-normalized typed time view, while measurement channels retain their source names, source units, order, and `Option<f64>` cells. EIS conversion requires frequency, real impedance, and imaginary impedance; measured magnitude and phase are retained separately when supplied, while the legacy complete phase vector derives only absent source values.

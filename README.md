@@ -2691,3 +2691,7 @@ This project is distributed as open source under the terms of the [MIT License](
 ---
 
 *Generated from codebase analysis. For questions, refer to the source code or open an issue.*
+
+## Canonical physical input boundary
+
+`electrodata-io` is the canonical physical/scientific input boundary. It owns file and container detection, parsing, worksheet selection, raw schema/units, recovery policies, provenance, diagnostics, and structured input errors. This project owns scientific domain conversion and enrichment, analysis, state estimation, modeling, health, mechanism interpretation, reporting, and plots. Legacy readers remain temporarily for parity verification; they are not the production raw-data path.

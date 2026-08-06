@@ -9,6 +9,7 @@
 pub mod chi_file;
 pub mod data_op;
 pub(crate) mod electrodata_adapter;
+pub mod electrodata_domain_adapter;
 pub mod excel_file;
 pub mod input_kind;
 pub mod measurement_adapter;
@@ -20,6 +21,9 @@ pub use chi_file::{EISData, EISFitResult, ElectrochemData};
 pub use data_op::{
     DataFileType, IntoPlotData, LoadedExperimentData, PlotData, PlotDataBuilder, PlotDataError,
     PointSelection, YSeries, load_data,
+};
+pub use electrodata_domain_adapter::{
+    project_compatibility_read_options, read_dataset, read_dataset_with_sheet,
 };
 pub use input_kind::InputKind;
 pub use measurement_adapter::{channel_to_plot_data, measurement_to_plot_data, to_plot_data};

@@ -1,4 +1,4 @@
-//! Centralized input classification for parser dispatch and batch filtering.
+//! Legacy compatibility classification for batch filtering.
 //!
 //! Every runner that accepts file inputs must use this module to determine
 //! whether a file is supported and which parser should handle it.
@@ -7,6 +7,9 @@ use std::fmt;
 use std::path::Path;
 
 /// Classification of a candidate input file.
+///
+/// This is retained for legacy batch/parity paths only; canonical physical
+/// input interpretation belongs to `electrodata-io`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputKind {
     /// CHI-format CSV with `Freq/Hz` impedance columns.
@@ -93,6 +96,16 @@ impl InputKind {
             .is_some_and(|ext| TEXT_EXTENSIONS.contains(&ext));
         if !is_text_extension {
             return by_extension;
+        }
+
+        // Compatibility-only fast rejection for callers still using this
+        // legacy classifier. Production loading delegates binary handling to
+        // electrodata-io's structured reader error.
+        if std::fs::read(path)
+            .ok()
+            .is_some_and(|bytes| bytes.iter().take(8192).any(|byte| *byte == 0))
+        {
+            return InputKind::UnsupportedContentBinary;
         }
 
         match electrodata_io::detect_format(path) {

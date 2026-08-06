@@ -26,38 +26,6 @@ fn normalize_header_name(name: &str) -> String {
         .collect()
 }
 
-fn parse_metadata_entries(dataset: &electrodata_io::Dataset) -> BTreeMap<String, String> {
-    let mut metadata = BTreeMap::new();
-    for row in &dataset.metadata.raw_rows {
-        let line = row.reconstructed_text.trim();
-        if line.is_empty() {
-            continue;
-        }
-
-        let Some((key, value)) = split_metadata_line(line) else {
-            continue;
-        };
-
-        let normalized_key = normalize_header_name(key);
-        if !normalized_key.is_empty() && !value.is_empty() {
-            metadata.insert(normalized_key, value.to_string());
-        }
-    }
-    metadata
-}
-
-fn split_metadata_line(line: &str) -> Option<(&str, &str)> {
-    if let Some((key, value)) = line.split_once(':') {
-        return Some((key.trim(), value.trim()));
-    }
-
-    if let Some((key, value)) = line.split_once('=') {
-        return Some((key.trim(), value.trim()));
-    }
-
-    None
-}
-
 fn build_electrochem_series_labels(base_label: &str, y_headers: &[String]) -> Vec<String> {
     let y_indices = 1..=y_headers.len();
     if y_headers.len() <= 1 {
@@ -154,17 +122,8 @@ impl ElectrochemData {
 
     pub fn series_count<P: AsRef<Path>>(path: P) -> Result<usize, DataParsingError> {
         let path = path.as_ref();
-        let dataset = crate::data_file::electrodata_adapter::read_dataset(path, None)?;
-        let count = dataset
-            .columns
-            .iter()
-            .filter(|column| {
-                !matches!(
-                    column.role,
-                    electrodata_io::ColumnRole::Time | electrodata_io::ColumnRole::X
-                )
-            })
-            .count();
+        let dataset = crate::data_file::electrodata_domain_adapter::read_dataset(path)?;
+        let count = dataset.measurement_channels().len();
         (count > 0)
             .then_some(count)
             .ok_or_else(|| DataParsingError::invalid_at(path, "missing time/potential header"))
@@ -172,42 +131,42 @@ impl ElectrochemData {
 
     pub fn parse_file_series<P: AsRef<Path>>(path: P) -> Result<Vec<Self>, DataParsingError> {
         let path = path.as_ref();
-        let dataset = crate::data_file::electrodata_adapter::read_dataset(path, None)?;
-        let (date, test_type, instrument_model) =
-            crate::data_file::electrodata_adapter::metadata_preamble(&dataset);
-        let x_descriptor = dataset
-            .columns
-            .iter()
-            .find(|column| {
-                matches!(
-                    column.role,
-                    electrodata_io::ColumnRole::Time | electrodata_io::ColumnRole::X
-                )
-            })
-            .ok_or_else(|| DataParsingError::invalid_at(path, "missing time/potential header"))?;
-        let x_values =
-            crate::data_file::electrodata_adapter::descriptor_values(&dataset, x_descriptor, path)?;
-        let y_descriptors = dataset
-            .columns
-            .iter()
-            .filter(|column| {
-                !matches!(
-                    column.role,
-                    electrodata_io::ColumnRole::Time | electrodata_io::ColumnRole::X
-                )
-            })
-            .collect::<Vec<_>>();
+        let dataset = crate::data_file::electrodata_domain_adapter::read_dataset(path)?;
+        let view = dataset.time_series_view()?;
+        let date = dataset
+            .metadata
+            .acquisition
+            .recorded_at
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+        let test_type = dataset
+            .metadata
+            .acquisition
+            .technique
+            .clone()
+            .unwrap_or_default();
+        let instrument_model = dataset
+            .metadata
+            .acquisition
+            .instrument_model
+            .clone()
+            .unwrap_or_default();
+        let x_values = view.time_seconds;
+        let y_descriptors = view.measurements;
         let y_headers = y_descriptors
             .iter()
-            .map(|column| column.source_name.clone())
+            .map(|column| {
+                column
+                    .original_name
+                    .clone()
+                    .unwrap_or_else(|| column.name.clone())
+            })
             .collect::<Vec<_>>();
         let labels = build_electrochem_series_labels(&file_label(path), &y_headers);
 
         let mut datasets = Vec::new();
         for (descriptor, label) in y_descriptors.into_iter().zip(labels) {
-            let y_values = crate::data_file::electrodata_adapter::descriptor_values(
-                &dataset, descriptor, path,
-            )?;
+            let y_values = descriptor.values.clone();
             let (x_values, y_values): (Vec<_>, Vec<_>) = x_values
                 .iter()
                 .copied()
@@ -312,6 +271,11 @@ pub struct EISData {
     pub phase: Vec<f64>,
     pub z_re: Vec<f64>,
     pub z_im: Vec<f64>,
+    /// Source-measured magnitude, including source null positions.
+    pub measured_magnitude: Option<Vec<Option<f64>>>,
+    /// Source-measured phase. `phase` remains a complete analysis vector and
+    /// derives only where the supplied source phase is missing.
+    pub measured_phase: Option<Vec<Option<f64>>>,
     pub label: String,
     pub metadata: BTreeMap<String, String>,
     pub circuit_model: String,
@@ -330,49 +294,16 @@ impl EISData {
         resolver: &CircuitModelResolver,
     ) -> Result<Self, DataParsingError> {
         let path = path.as_ref();
-        let dataset = crate::data_file::electrodata_adapter::read_dataset(path, None)?;
-        let (date, test_type, instrument_model) =
-            crate::data_file::electrodata_adapter::metadata_preamble(&dataset);
-        let metadata = parse_metadata_entries(&dataset);
-        let freq = crate::data_file::electrodata_adapter::role_values(
-            &dataset,
-            &electrodata_io::ColumnRole::Frequency,
-            path,
-        )?;
-        let z_re = crate::data_file::electrodata_adapter::role_values(
-            &dataset,
-            &electrodata_io::ColumnRole::ImpedanceReal,
-            path,
-        )?;
-        let z_im = crate::data_file::electrodata_adapter::role_values(
-            &dataset,
-            &electrodata_io::ColumnRole::ImpedanceImaginary,
-            path,
-        )?;
-        let phase = crate::data_file::electrodata_adapter::role_values(
-            &dataset,
-            &electrodata_io::ColumnRole::Phase,
-            path,
-        )?;
-
+        let dataset = crate::data_file::electrodata_domain_adapter::read_dataset(path)?;
+        let mut data = Self::try_from(&dataset)?;
         let label = file_label(path);
         let context = CircuitModelContext {
             filename: label.clone(),
-            metadata: metadata.clone(),
+            metadata: data.metadata.clone(),
         };
-
-        Ok(Self {
-            date,
-            test_type,
-            instrument_model,
-            freq,
-            phase,
-            z_re,
-            z_im,
-            label,
-            metadata,
-            circuit_model: resolver.resolve(&context),
-        })
+        data.label = label;
+        data.circuit_model = resolver.resolve(&context);
+        Ok(data)
     }
 
     pub fn with_circuit_model(mut self, circuit_model: impl Into<String>) -> Self {
@@ -900,7 +831,7 @@ mod tests {
 
     #[test]
     fn parses_multi_column_ocpt_into_independent_series() {
-        let sample = "Mar. 6, 2026   13:55:19\nOpen Circuit Potential - Time\nFile: test.csv\nData Source:  Experiment\nInstrument Model:  CHI760F\n\nTime/sec, Probe A, Probe B\n\n1.000e-1, 2.482e-1, 2.300e-1\n2.000e-1, 2.469e-1, 2.280e-1\n";
+        let sample = "Mar. 6, 2026   13:55:19\nOpen Circuit Potential - Time\nFile: test.csv\nData Source:  Experiment\nInstrument Model:  CHI760F\n\nTime/sec, E1/V, E2/V\n\n1.000e-1, 2.482e-1, 2.300e-1\n2.000e-1, 2.469e-1, 2.280e-1\n";
         let path = write_temp_file("ocpt_parse_multi", sample);
 
         let parsed = ElectrochemData::parse_file_series(&path)
@@ -909,8 +840,8 @@ mod tests {
 
         let stem = file_label(&path);
         assert_eq!(parsed.len(), 2);
-        assert_eq!(parsed[0].label, format!("{stem} - Probe A"));
-        assert_eq!(parsed[1].label, format!("{stem} - Probe B"));
+        assert_eq!(parsed[0].label, format!("{stem} - E1/V"));
+        assert_eq!(parsed[1].label, format!("{stem} - E2/V"));
         assert_eq!(parsed[0].x_values, vec![0.1, 0.2]);
         assert_eq!(parsed[0].y_values, vec![0.2482, 0.2469]);
         assert_eq!(parsed[1].x_values, vec![0.1, 0.2]);
@@ -918,17 +849,14 @@ mod tests {
     }
 
     #[test]
-    fn disambiguates_duplicate_multi_column_headers() {
-        let sample = "Mar. 6, 2026   13:55:19\nOpen Circuit Potential - Time\nFile: test.csv\nData Source:  Experiment\nInstrument Model:  CHI760F\n\nTime/sec, Potential/V, Potential/V\n\n1.000e-1, 2.482e-1, 2.300e-1\n2.000e-1, 2.469e-1, 2.280e-1\n";
+    fn rejects_duplicate_canonical_channel_roles_with_structured_context() {
+        let sample = "Mar. 6, 2026   13:55:19\nOpen Circuit Potential - Time\nFile: test.csv\nData Source:  Experiment\nInstrument Model:  CHI760F\n\nTime/sec, E1/V, E1/V\n\n1.000e-1, 2.482e-1, 2.300e-1\n2.000e-1, 2.469e-1, 2.280e-1\n";
         let path = write_temp_file("ocpt_parse_multi_dupe", sample);
 
-        let parsed = ElectrochemData::parse_file_series(&path)
-            .expect("failed to parse duplicate-header multi-column OCPT sample");
+        let error = ElectrochemData::parse_file_series(&path)
+            .expect_err("duplicate canonical channel roles must remain structured input errors");
         fs::remove_file(path.clone()).ok();
-
-        let stem = file_label(&path);
-        assert_eq!(parsed[0].label, format!("{stem} - Potential/V (col 2)"));
-        assert_eq!(parsed[1].label, format!("{stem} - Potential/V (col 3)"));
+        assert!(error.to_string().contains("ch1_v"));
     }
 
     #[test]
@@ -1081,6 +1009,8 @@ instrumentmodel = "chi760f"
             phase,
             z_re,
             z_im,
+            measured_magnitude: None,
+            measured_phase: None,
             label: "synthetic".to_string(),
             metadata: Default::default(),
             circuit_model: DEFAULT_EIS_CIRCUIT_MODEL.to_string(),
@@ -1105,6 +1035,8 @@ instrumentmodel = "chi760f"
             phase: vec![-5.0, -15.0, -30.0],
             z_re: vec![4.0, 8.0, 20.0],
             z_im: vec![-1.0, -5.0, -12.0],
+            measured_magnitude: None,
+            measured_phase: None,
             label: "synthetic".to_string(),
             metadata: Default::default(),
             circuit_model: DEFAULT_EIS_CIRCUIT_MODEL.to_string(),

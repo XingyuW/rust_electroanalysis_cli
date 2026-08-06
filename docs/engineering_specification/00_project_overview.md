@@ -143,3 +143,7 @@
 ## 11. System in One Page
 
 > **rust_electroanalysis_cli** reads electrochemical instrument files and configuration TOML files, then runs analysis commands selected by the user: fitting equivalent-circuit models to EIS data, searching for new circuit models with a genetic algorithm, analysing potentiometric transients with exponential models, building calibration curves with Nernst/Nicolsky-Eisenman equations, characterizing signal quality with PSD/Allan/drift analysis, assessing sensor health from multi-sensor data, comparing EIS and transient timescales, and estimating latent states with Kalman filters. All results are written as JSON/CSV/TXT reports and publication-quality PNG figures to a configurable output directory. A provenance record (SHA-256 + timestamp) is stored with every result for reproducibility.
+
+## Canonical input boundary
+
+`electrodata-io` is the canonical physical/scientific input boundary. This repository converts its typed datasets to enriched scientific domain objects and owns analysis, estimation, modeling, health, mechanism, reporting, and plots. Legacy readers are retained only for Phase 3A parity verification.

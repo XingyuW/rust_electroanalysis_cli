@@ -1,5 +1,12 @@
-//! Compatibility adapters between `electrodata-io` and the project's stable
-//! domain-facing data structures.
+#![allow(dead_code)]
+
+//! Legacy raw-reader compatibility implementation retained only for parity
+//! verification during the electrodata-io migration.
+//!
+//! Production workflows must use `electrodata_domain_adapter`, whose typed
+//! conversion path never accesses `Dataset::data` or registers local format
+//! detection.  This module deliberately remains until parity review authorizes
+//! removal of the historical project parser.
 
 use crate::domain::{
     DataParsingError, MeasurementChannel, MeasurementParseResult, MultiChannelMeasurement,
@@ -270,6 +277,7 @@ pub(crate) fn descriptor_values(
     Ok((0..values.len()).map(|index| values.get(index)).collect())
 }
 
+#[allow(dead_code)]
 pub(crate) fn role_values(
     dataset: &Dataset,
     role: &ColumnRole,
@@ -296,6 +304,7 @@ pub(crate) fn role_values(
         })
 }
 
+#[allow(dead_code)]
 pub(crate) fn metadata_preamble(dataset: &Dataset) -> (String, String, String) {
     let date = dataset
         .metadata
@@ -418,11 +427,113 @@ fn parse_channel_header(header: &str) -> (String, Option<String>) {
 
 fn unit_label(unit: &Unit) -> String {
     match unit {
+        Unit::Unknown => String::new(),
         Unit::Second => "s".to_string(),
+        Unit::Hour => "h".to_string(),
+        Unit::Day => "day".to_string(),
         Unit::Volt => "V".to_string(),
+        Unit::Millivolt => "mV".to_string(),
+        Unit::Ampere => "A".to_string(),
+        Unit::Milliampere => "mA".to_string(),
+        Unit::Microampere => "uA".to_string(),
         Unit::Hertz => "Hz".to_string(),
         Unit::Ohm => "ohm".to_string(),
         Unit::Degree => "deg".to_string(),
         Unit::Other(value) => value.clone(),
+    }
+}
+
+#[cfg(test)]
+mod parity_tests {
+    use super::{descriptor_values, measurement_from_dataset, read_dataset};
+    use crate::data_file::electrodata_domain_adapter::{
+        measurement_parse_result, read_dataset as read_canonical_dataset,
+    };
+    use electrodata_io::ColumnRole;
+    use std::path::Path;
+
+    fn fixture(name: &str) -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/phase2")
+            .join(name)
+    }
+
+    #[test]
+    fn legacy_and_canonical_time_series_adapters_preserve_domain_values() {
+        let path = fixture("sensor.csv");
+        let legacy_dataset = read_dataset(&path, None).expect("legacy compatibility read");
+        let canonical_dataset = read_canonical_dataset(&path).expect("canonical read");
+        let legacy =
+            measurement_from_dataset(&legacy_dataset, &path).expect("legacy domain conversion");
+        let canonical =
+            measurement_parse_result(&canonical_dataset).expect("canonical domain conversion");
+
+        assert_eq!(legacy.measurement.time, canonical.measurement.time);
+        assert_eq!(
+            legacy.measurement.channels.len(),
+            canonical.measurement.channels.len()
+        );
+        for (left, right) in legacy
+            .measurement
+            .channels
+            .iter()
+            .zip(&canonical.measurement.channels)
+        {
+            // Legacy conversion stripped the unit from the source header;
+            // canonical conversion intentionally preserves it.
+            assert_eq!(left.name, right.name.split('/').next().unwrap());
+            assert_eq!(left.unit, right.unit);
+            assert_eq!(left.values, right.values);
+        }
+    }
+
+    #[test]
+    fn legacy_and_canonical_eis_reads_preserve_required_complex_components() {
+        let path = fixture("eis.csv");
+        let legacy = read_dataset(&path, None).expect("legacy compatibility read");
+        let canonical = read_canonical_dataset(&path).expect("canonical read");
+        let canonical_view = canonical.eis_view().expect("canonical EIS view");
+        for (role, values) in [
+            (ColumnRole::Frequency, &canonical_view.frequency.values),
+            (ColumnRole::ImpedanceReal, &canonical_view.real.values),
+            (
+                ColumnRole::ImpedanceImaginary,
+                &canonical_view.imaginary.values,
+            ),
+        ] {
+            let descriptor = legacy
+                .columns
+                .iter()
+                .find(|column| column.role == role)
+                .expect("legacy EIS role");
+            assert_eq!(
+                descriptor_values(&legacy, descriptor, &path).unwrap(),
+                *values
+            );
+        }
+        assert_eq!(
+            canonical_view
+                .measured_magnitude
+                .map(|column| column.values.clone()),
+            Some(vec![
+                Some(10.05),
+                Some(13.0),
+                Some(20.5913),
+                Some(26.5707),
+                Some(30.4138)
+            ])
+        );
+        assert_eq!(
+            canonical_view
+                .measured_phase
+                .map(|column| column.values.clone()),
+            Some(vec![
+                Some(-5.7106),
+                Some(-22.6199),
+                Some(-29.0546),
+                Some(-19.7989),
+                Some(-9.4623)
+            ])
+        );
     }
 }

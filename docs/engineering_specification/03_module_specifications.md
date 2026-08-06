@@ -287,3 +287,7 @@ missing state/profile-likelihood evidence instead of fabricating validation.
 Malformed built-in descriptors, parameter/state arity errors, and missing
 runtime inputs return `ModelError`; a factory may not index user-controlled
 descriptor content before validating its shape.
+
+## `data_file/electrodata_domain_adapter.rs`
+
+This module owns no raw parsing. It applies the explicit project compatibility `ReadOptions`, calls `electrodata_io::read_with_options`, converts typed time-series/EIS views into project types, preserves source channel names, units, ordering and null cells, and passes `electrodata_io::Error` transparently through `DataParsingError`.

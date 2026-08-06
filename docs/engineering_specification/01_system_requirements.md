@@ -169,3 +169,6 @@ Verification confidence labels used in **Verified By**:
 | ISM-002 | Component voltage contributions shall reconstruct predicted potential and shall not own unexplained residual | Enforced by compiled observation evaluation and regression tests |
 | EST-ISM-001 | EKF and UKF shall use one compiled scientific model for transition, Jacobian, observation, and contribution equations | Implemented through the legacy-to-ISM compatibility adapter |
 | VAL-ISM-001 | Missing reference, uncertainty, or grouping evidence shall remain unavailable rather than be replaced by proxy metrics | Implemented in experimental validation evaluation |
+
+| IO-CANON-001 | All production physical-data workflows shall use `electrodata-io` typed datasets and structured errors | `data_file/electrodata_domain_adapter.rs` |
+| IO-CANON-002 | Compatibility reads shall skip invalid coordinate rows, retain invalid measurements as nulls, pad ragged rows, and preserve ordering with diagnostics | `project_compatibility_read_options()` |

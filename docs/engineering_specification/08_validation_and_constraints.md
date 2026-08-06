@@ -145,3 +145,7 @@ configuration load. State derivatives and uncertainties are normalized by each
 state's declared finite span before comparison; voltage, innovation,
 autocorrelation, and environmental evidence retain separate thresholds and are
 never averaged into one score. Insufficient history remains indeterminate.
+
+## Input validation and recovery
+
+Strict `electrodata-io` defaults are not changed. The project compatibility profile explicitly uses `InvalidTimePolicy::SkipRow`, `InvalidCellPolicy::Null`, `RaggedRowPolicy::PadNulls`, and preserved coordinate order. Recovery is retained in the reader diagnostics; scientific timestamp validation, resampling, and deduplication occur downstream.

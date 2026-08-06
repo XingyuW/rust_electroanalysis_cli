@@ -913,6 +913,7 @@ dependencies = [
  "chrono",
  "csv",
  "polars",
+ "sha2",
  "thiserror",
 ]
 

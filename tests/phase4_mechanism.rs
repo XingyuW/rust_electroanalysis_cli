@@ -38,6 +38,8 @@ fn artifact(circuit: &str, params: Vec<f64>) -> EisFitArtifact {
         phase: vec![-1.0; 4],
         z_re: vec![1.0; 4],
         z_im: vec![-1.0; 4],
+        measured_magnitude: None,
+        measured_phase: None,
         label: "synthetic".to_string(),
         metadata: BTreeMap::new(),
         circuit_model: circuit.to_string(),

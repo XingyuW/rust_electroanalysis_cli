@@ -33,27 +33,9 @@ pub fn parse_measurement_file_with_sheet(
 ) -> Result<MeasurementParseResult, DataParsingError> {
     let path = path.as_ref();
 
-    let kind = crate::data_file::InputKind::classify_by_extension(path);
-    if kind.is_unsupported_binary() {
-        return Err(DataParsingError::invalid_at(
-            path,
-            format!(
-                "Unsupported input file '{}': binary input is not supported. \
-                 Export the dataset as CSV, XLSX, or another documented text-based format.",
-                path.display()
-            ),
-        ));
-    }
-
-    if matches!(kind, crate::data_file::InputKind::ExcelXls) {
-        return Err(DataParsingError::invalid_at(
-            path,
-            "legacy '.xls' workbooks are not supported in this workflow; save the workbook as '.xlsx' and retry",
-        ));
-    }
-
-    let dataset = crate::data_file::electrodata_adapter::read_dataset(path, sheet_name)?;
-    crate::data_file::electrodata_adapter::measurement_from_dataset(&dataset, path)
+    let dataset =
+        crate::data_file::electrodata_domain_adapter::read_dataset_with_sheet(path, sheet_name)?;
+    crate::data_file::electrodata_domain_adapter::measurement_parse_result(&dataset)
 }
 
 /// Parse a CHI-style or generic time-series text buffer.  Metadata/preamble

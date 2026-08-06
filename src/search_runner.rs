@@ -601,13 +601,8 @@ fn classify_eis_search_input(path: &Path) -> Result<SearchInputDecision, io::Err
     // Let the shared electrodata reader identify the scientific format.
     if kind.is_supported_text() || kind == crate::data_file::InputKind::Unknown {
         return Ok(
-            match crate::data_file::electrodata_adapter::read_dataset(path, None) {
-                Ok(dataset)
-                    if dataset
-                        .columns
-                        .iter()
-                        .any(|column| column.role == electrodata_io::ColumnRole::Frequency) =>
-                {
+            match crate::data_file::electrodata_domain_adapter::read_dataset(path) {
+                Ok(dataset) if dataset.kind() == electrodata_io::DatasetKind::ImpedanceSpectrum => {
                     SearchInputDecision::Include
                 }
                 Ok(_) => SearchInputDecision::Skip("missing EIS frequency role"),

@@ -93,3 +93,7 @@ scientific extension, not hidden debt in the reduced-order release.
 | P2 (Medium) | 5 | Consider addressing in next release cycle |
 | P3 (Low-Medium) | 1 | Address when touching related code |
 | P4 (Low) | 14 | Documented; no immediate action required |
+
+## Phase 3A migration debt
+
+Legacy `ProjectTabularHandler`, measurement/EIS parsers, Excel wrappers, and `InputKind` remain present for compatibility/parity verification and must not be treated as production raw-input dispatch. Delete them only after independent parity review covers the full consumer-fixture corpus, including headerless/ragged recovery and all EIS layouts.

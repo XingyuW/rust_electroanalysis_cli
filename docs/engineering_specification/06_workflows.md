@@ -309,3 +309,7 @@ Config-driven filenames are shown with their default values from each resolved c
 | Calibration | All models failed | AllModelsFailed error |
 | Signal | Duplicate timestamps with policy `error` | Sampling error |
 | Signal | Empty window | EmptyWindow error |
+
+## Input loading
+
+Plot time-series/EIS, EIS fit/search, transient fitting, calibration extraction, signal characterization, and estimate run/compare use the canonical `electrodata-io` boundary. `--sheet <NAME>` remains available for supported XLSX time-series workflows; automatic selection succeeds only for one compatible worksheet and otherwise returns the reader's structured ambiguity/failure.
