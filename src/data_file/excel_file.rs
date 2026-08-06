@@ -319,7 +319,12 @@ fn convert_rows_to_table(
     let Some(header_row_index) = best_header_index else {
         return Ok(None);
     };
-    let time_index = best_time_index.expect("time index exists with header");
+    let Some(time_index) = best_time_index else {
+        return Err(DataParsingError::invalid_at(
+            path,
+            format!("worksheet '{sheet_name}' has a header but no time column"),
+        ));
+    };
 
     let mut unit_row_index = None;
     let mut data_start_index = header_row_index + 1;

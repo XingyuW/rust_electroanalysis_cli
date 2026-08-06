@@ -338,3 +338,17 @@ Follow Section 4 "For circuit elements specifically."
 - [ ] Breaking changes documented
 - [ ] New features added to `00_project_overview.md`
 - [ ] `13_traceability_matrix.md` updated
+
+### Phase 05 migration note
+
+No existing emitted artifact schema is changed. New serializable adapter
+contracts are additive; callers that do not provide an explicit mapping retain
+the prior behavior of receiving no model-component assignment.
+
+### Phase 06 migration note
+
+Phase 06 introduces additive model-analysis artifacts. Readers verify both
+`schema_version` and `artifact_kind`; old workflows remain unaffected.
+
+Phase 07 validation artifacts are additive. Consumers reject a mismatched
+validation schema rather than treating unknown experiment evidence as valid.

@@ -12,6 +12,20 @@ pub fn evaluate(
     comparisons: &[BaselineComparison],
     minimum_mechanistic_domains: usize,
 ) -> (Vec<RuleEvaluation>, Vec<HealthFinding>) {
+    evaluate_with_baseline_records(rules, features, comparisons, minimum_mechanistic_domains, 0)
+}
+
+/// Evaluate rules while enforcing each rule's stated baseline-record minimum.
+/// The compatibility wrapper above cannot establish a baseline-record count and
+/// therefore conservatively supplies zero; rules that require baseline history
+/// must use this explicit API.
+pub fn evaluate_with_baseline_records(
+    rules: &[HealthRule],
+    features: &[HealthFeature],
+    comparisons: &[BaselineComparison],
+    minimum_mechanistic_domains: usize,
+    baseline_records: usize,
+) -> (Vec<RuleEvaluation>, Vec<HealthFinding>) {
     let mut evaluations = Vec::new();
     let mut findings = Vec::new();
     for rule in rules {
@@ -53,7 +67,15 @@ pub fn evaluate(
                 0
             },
         );
-        let triggered = all_ok && any_ok && unavailable.is_empty() && domains.len() >= required;
+        let baseline_ok = baseline_records >= rule.minimum_baseline_records;
+        if !baseline_ok {
+            unavailable.push(format!(
+                "baseline records: required {}, available {}",
+                rule.minimum_baseline_records, baseline_records
+            ));
+        }
+        let triggered =
+            all_ok && any_ok && unavailable.is_empty() && domains.len() >= required && baseline_ok;
         let evidence = ok
             .iter()
             .filter_map(|name| features.iter().find(|f| &f.name == name))
@@ -69,6 +91,17 @@ pub fn evaluate(
                 source: f.source.clone(),
             })
             .collect::<Vec<_>>();
+        let contradictory_evidence = no
+            .iter()
+            .filter_map(|name| features.iter().find(|feature| &feature.name == name))
+            .map(|feature| HealthEvidence {
+                domain: feature.domain,
+                feature: feature.name.clone(),
+                statement: format!("{} contradicts the configured rule condition", feature.name),
+                strength: HealthConfidence::Low,
+                source: feature.source.clone(),
+            })
+            .collect::<Vec<_>>();
         let eval = RuleEvaluation {
             rule_id: rule.rule_id.clone(),
             conditions_satisfied: ok.clone(),
@@ -76,7 +109,7 @@ pub fn evaluate(
             conditions_unavailable: unavailable.clone(),
             evidence_domains: domains.iter().copied().collect(),
             supporting_evidence: evidence.clone(),
-            contradictory_evidence: Vec::new(),
+            contradictory_evidence: contradictory_evidence.clone(),
             severity: rule.severity.clone(),
             confidence: if triggered {
                 if domains.len() >= 3 {
@@ -95,7 +128,7 @@ pub fn evaluate(
                 severity: rule.severity.clone(),
                 confidence: eval.confidence,
                 supporting_evidence: evidence,
-                contradictory_evidence: Vec::new(),
+                contradictory_evidence,
                 unavailable_evidence: unavailable,
                 alternative_explanations: rule.alternative_explanations.clone(),
                 triggered_rules: vec![rule.rule_id.clone()],
@@ -133,6 +166,15 @@ fn condition(
             .and_then(|x| x.robust_z_score)
             .zip(c.value)
             .map(|(x, v)| x.abs() > v),
-        FeatureOperator::TrendIncreasing | FeatureOperator::TrendDecreasing => None,
+        FeatureOperator::TrendIncreasing => features
+            .iter()
+            .find(|feature| feature.name == format!("trend.{}", c.feature))
+            .and_then(|feature| feature.value)
+            .map(|value| value > 0.0),
+        FeatureOperator::TrendDecreasing => features
+            .iter()
+            .find(|feature| feature.name == format!("trend.{}", c.feature))
+            .and_then(|feature| feature.value)
+            .map(|value| value < 0.0),
     }
 }

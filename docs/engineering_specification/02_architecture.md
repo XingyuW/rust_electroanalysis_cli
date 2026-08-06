@@ -258,3 +258,61 @@ Boundary mappings above were rebuilt from direct external-crate import usage in 
 - **Provenance**: Injected at the domain boundary (`ElectrochemicalExperiment`, `CalibrationObservationSet`) and threaded through results
 - **Configuration**: Each workflow has its own config module, resolved independently
 - **Serialization**: All result types implement `Serialize`/`Deserialize` via serde
+
+## 8. Unified ISM Model Core (Phase 02)
+
+`src/model/` is a dependency-clean scientific contract layer. It is public as
+`rust_electroanalysis_cli::model`, but no runner or CLI command consumes it in
+this phase.
+
+```text
+model_config / results::model ──> model core ──> potentiometry::units adapter
+CLI / runners / plotting / health / mechanism / estimation ──X──> model core
+```
+
+The core contains serializable definitions, a static factory registry,
+deterministic graph compilation, state/parameter validation, contribution
+decomposition, validity reporting, and non-claiming evidence/identifiability
+interfaces. It contains no Nernst, transient, EIS, or other numerical component
+implementation. `model_config` and `results::model` are outer adapters and do
+not reverse the core dependency direction.
+
+Phase 03 adds only static built-in adapters in `model/builtins.rs`; they call
+existing calibration/activity/unit/transient implementations and add no CLI or
+workflow dependency.
+
+## Phase 05 Mechanism and Health Adapters
+
+`mechanism/model_mapping.rs` and `health/features.rs` are outer adapters: they
+may consume model identifiers and legacy artifacts, while `model/` continues to
+import neither workflow. Mappings contain stable component IDs plus explicit
+source paths. They never infer a component from parameter order, a label, or a
+single timescale. Health compares only like transient contexts and reports
+residual, validity, and identifiability evidence without assigning a failure mechanism.
+
+## Phase 06 Model Workflow Boundary
+
+`cli` → `runners/model` → `model_config`/`model`/`results::model`/plot adapter.
+The runner is the only new layer that consumes CLI paths, artifacts, and output
+directories; no dependency is introduced from `model/` to a workflow module.
+
+## Phase 07 Validation Boundary
+
+`model_validation` and its runner are outer study-evaluation adapters. They
+consume declared reference data and model-analysis artifacts; the model core
+does not import them. Synthetic datasets are retained as evidence but are
+explicitly insufficient for physical validation claims.
+
+## Hardened Artifact and Estimation Boundaries
+
+`domain::artifact` is the common cross-workflow boundary. A consumer validates
+`schema_version` and `artifact_kind` before deserializing scientific content;
+only contract-listed legacy versions may omit a kind. Result-specific trait
+implementations live in `results`, avoiding a domain dependency on workflows.
+
+The Phase 04 compatibility direction is strictly `estimation -> model`.
+`estimation::ism_adapter` converts the existing calibration/state semantics to
+a versioned `ModelDefinition`, compiles it through the static registry, and
+retains `StateModel` as an outer compatibility facade. Both EKF and UKF call
+that same compiled instance. The core never imports estimation, CLI, runners,
+plotting, health, or mechanism modules.

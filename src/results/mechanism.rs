@@ -60,6 +60,63 @@ pub enum EvidenceLevel {
     Insufficient,
 }
 
+/// A prior proposed by an existing workflow for one explicitly named ISM
+/// component parameter.  The target is always a stable component ID; callers
+/// must never infer it from parameter position or display labels.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ComponentParameterPrior {
+    pub component_id: String,
+    pub parameter_id: String,
+    pub value: f64,
+    pub unit: String,
+    pub standard_error: Option<f64>,
+    pub source_artifact: String,
+    pub source_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ComponentPriorSource {
+    TransientParameter,
+    EisCircuitPath,
+    CalibrationParameter,
+    SignalDiagnostic,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComponentPriorMapping {
+    pub mapping_id: String,
+    pub source: ComponentPriorSource,
+    pub component_id: String,
+    pub component_parameter_id: String,
+    /// Stable source location such as an EIS element ID or a calibration
+    /// parameter ID. This is supplied by the caller, not guessed by name.
+    pub source_path: String,
+}
+
+/// A component-targeted hypothesis. Its assessment remains an evidence
+/// statement; it is not a mechanism assignment.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComponentHypothesisDefinition {
+    pub hypothesis_id: String,
+    pub component_ids: Vec<String>,
+    pub description: String,
+    pub applicability_domain: String,
+    pub minimum_independent_replicates: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ComponentHypothesisAssessment {
+    pub hypothesis_id: String,
+    pub component_ids: Vec<String>,
+    pub evidence_level: EvidenceLevel,
+    pub supporting_evidence: Vec<String>,
+    pub contradictory_evidence: Vec<String>,
+    pub missing_evidence: Vec<String>,
+    pub alternative_explanations: Vec<String>,
+    pub applicability_domain: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TimescaleComparison {
     pub comparison_id: String,

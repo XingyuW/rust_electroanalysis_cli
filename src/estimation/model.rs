@@ -11,13 +11,15 @@ use crate::{
 };
 use nalgebra::{DMatrix, DVector};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct StateModel {
     pub kind: StateModelKind,
     pub definitions: Vec<StateDefinition>,
     pub tau_p_s: f64,
     pub tau_uncertainty_s: Option<f64>,
     pub gain: f64,
+    compiled: Option<std::sync::Arc<crate::model::CompiledIsmModel>>,
+    compiled_parameters: Option<crate::model::ParameterValues>,
 }
 
 impl StateModel {
@@ -50,7 +52,26 @@ impl StateModel {
             tau_p_s,
             tau_uncertainty_s,
             gain: config.polarization.gain,
+            compiled: None,
+            compiled_parameters: None,
         })
+    }
+    pub fn new_compiled(
+        config: &ResolvedEstimationConfig,
+        tau_p_s: f64,
+        tau_uncertainty_s: Option<f64>,
+        calibration: &crate::results::StoredCalibrationModel,
+    ) -> Result<Self, EstimationError> {
+        let mut model = Self::new(config, tau_p_s, tau_uncertainty_s)?;
+        let compiled = super::ism_adapter::compile_legacy_model(
+            config,
+            &model.definitions,
+            tau_p_s,
+            calibration,
+        )?;
+        model.compiled_parameters = Some(compiled.default_parameters());
+        model.compiled = Some(std::sync::Arc::new(compiled));
+        Ok(model)
     }
     pub fn dimension(&self) -> usize {
         self.definitions.len()
@@ -126,6 +147,32 @@ impl StateModel {
         }
         f
     }
+    pub fn transition_matrix_for(
+        &self,
+        state: &DVector<f64>,
+        dt_s: f64,
+        environment: &AlignedEnvironment,
+    ) -> Result<DMatrix<f64>, EstimationError> {
+        let Some(compiled) = &self.compiled else {
+            return Ok(self.transition_matrix(dt_s));
+        };
+        let parameters = self.compiled_parameters.as_ref().ok_or_else(|| {
+            EstimationError::Numerical("compiled model parameters are unavailable".into())
+        })?;
+        let jacobian = compiled
+            .process_jacobian(
+                &crate::model::ModelState::new(state.iter().copied().collect()),
+                parameters,
+                &super::ism_adapter::model_input(environment),
+                dt_s,
+            )
+            .map_err(|error| EstimationError::Numerical(error.to_string()))?;
+        Ok(DMatrix::from_fn(
+            jacobian.len(),
+            jacobian.len(),
+            |row, column| jacobian[row][column],
+        ))
+    }
     pub fn process_state(
         &self,
         state: &DVector<f64>,
@@ -138,6 +185,54 @@ impl StateModel {
             next[i] = (-dt_s / self.tau_p_s).exp() * state[i] + self.gain * input;
         }
         next
+    }
+    pub fn try_process_state(
+        &self,
+        state: &DVector<f64>,
+        dt_s: f64,
+        environment: &AlignedEnvironment,
+    ) -> Result<DVector<f64>, EstimationError> {
+        let Some(compiled) = &self.compiled else {
+            return Ok(self.process_state(state, dt_s, environment));
+        };
+        let parameters = self.compiled_parameters.as_ref().ok_or_else(|| {
+            EstimationError::Numerical("compiled model parameters are unavailable".into())
+        })?;
+        let next = compiled
+            .process_transition(
+                &crate::model::ModelState::new(state.iter().copied().collect()),
+                parameters,
+                &super::ism_adapter::model_input(environment),
+                dt_s,
+            )
+            .map_err(|error| EstimationError::Numerical(error.to_string()))?;
+        Ok(DVector::from_vec(next.values))
+    }
+
+    pub fn compiled_model(&self) -> Option<&crate::model::CompiledIsmModel> {
+        self.compiled.as_deref()
+    }
+    pub fn compiled_observation_prediction(
+        &self,
+        state: &DVector<f64>,
+        environment: &AlignedEnvironment,
+        observed_voltage_v: Option<f64>,
+    ) -> Result<Option<crate::model::ObservationPrediction>, EstimationError> {
+        let Some(compiled) = &self.compiled else {
+            return Ok(None);
+        };
+        let parameters = self.compiled_parameters.as_ref().ok_or_else(|| {
+            EstimationError::Numerical("compiled model parameters are unavailable".into())
+        })?;
+        compiled
+            .observation_prediction(
+                &crate::model::ModelState::new(state.iter().copied().collect()),
+                parameters,
+                &super::ism_adapter::model_input(environment),
+                observed_voltage_v,
+            )
+            .map(Some)
+            .map_err(|error| EstimationError::Numerical(error.to_string()))
     }
     pub fn process_covariance(&self, dt_s: f64, noise: &ProcessNoiseConfig) -> DMatrix<f64> {
         let mut q = DMatrix::zeros(self.dimension(), self.dimension());
@@ -163,6 +258,20 @@ pub fn observation_components(
     model: &StateModel,
     calibration: &dyn CalibrationObservationModel,
 ) -> Result<(f64, DVector<f64>), EstimationError> {
+    if let Some(compiled) = model.compiled_model() {
+        let parameters = model.compiled_parameters.as_ref().ok_or_else(|| {
+            EstimationError::Numerical("compiled model parameters are unavailable".into())
+        })?;
+        let state = crate::model::ModelState::new(state.iter().copied().collect());
+        let input = super::ism_adapter::model_input(env);
+        let prediction = compiled
+            .observation_prediction(&state, parameters, &input, None)
+            .map_err(|error| EstimationError::Numerical(error.to_string()))?;
+        let jacobian = compiled
+            .observation_jacobian(&state, parameters, &input)
+            .map_err(|error| EstimationError::Numerical(error.to_string()))?;
+        return Ok((prediction.predicted_voltage_v, DVector::from_vec(jacobian)));
+    }
     let activity = model.log10_activity(state)?;
     let h_activity = calibration.predict_potential(activity, env)?;
     let h_zero = calibration.predict_potential(0.0, env)?;
@@ -212,7 +321,9 @@ pub fn apply_known_standard_constraint(
     {
         return Ok(None);
     }
-    let value = environment.known_activity_log10.unwrap();
+    let value = environment
+        .known_activity_log10
+        .ok_or_else(|| EstimationError::config("known-standard event has no known activity"))?;
     let index = 0;
     let variance = config.known_log10_activity_variance();
     if !value.is_finite() || !variance.is_finite() || variance <= 0.0 {

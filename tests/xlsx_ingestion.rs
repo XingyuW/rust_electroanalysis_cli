@@ -116,7 +116,7 @@ fn cli_signal_characterize_supports_sheet_selection_for_xlsx() {
             "--output",
             output_dir.to_str().expect("output path"),
         ])
-        .current_dir(repo_path(""))
+        .current_dir(&workspace)
         .output()
         .expect("run signal characterize");
     assert!(
@@ -144,7 +144,7 @@ fn cli_signal_characterize_supports_sheet_selection_for_xlsx() {
             "--output",
             output_dir.to_str().expect("output path"),
         ])
-        .current_dir(repo_path(""))
+        .current_dir(&workspace)
         .output()
         .expect("run signal characterize without sheet");
     assert!(!fail.status.success());
@@ -198,7 +198,7 @@ fn cli_estimate_run_accepts_xlsx_time_series() {
             "--seed",
             "42",
         ])
-        .current_dir(repo_path(""))
+        .current_dir(&workspace)
         .output()
         .expect("run estimate run");
     assert!(

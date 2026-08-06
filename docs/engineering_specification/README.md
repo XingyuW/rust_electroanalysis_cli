@@ -58,6 +58,7 @@ This specification covers every major aspect of the system:
 | `14_risk_and_technical_debt_register.md` | Risk Register | Categorized risks with evidence and remediation guidance |
 | `15_glossary.md` | Glossary | Software, Rust, electrochemistry, and domain terminology |
 | `16_open_questions.md` | Open Questions | Unresolved issues requiring project-owner decisions |
+| `model_schema_migration.md` | ISM Model Schema Migration | Versioning, rejection, and future migration rules for model artifacts |
 | `adr/README.md` | ADR Template | How to record future architecture decisions |
 
 ## 4. Source-of-Truth Policy

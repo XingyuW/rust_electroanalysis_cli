@@ -263,6 +263,8 @@ fn missing_measurements_are_predict_only_and_covariance_grows() {
         report.estimates[2].filtered_covariance[0][0]
             >= report.estimates[0].filtered_covariance[0][0]
     );
+    assert!(report.estimates[1].predicted_measurement_v.is_some());
+    assert!(report.estimates[1].unexplained_residual_v.is_none());
     c.filter.kind = FilterKind::Ukf;
     let _ = c;
 }
@@ -715,6 +717,29 @@ fn ekf_ukf_comparison_reports_equivalent_input_metrics() {
         FilterKind::Ukf,
     )
     .unwrap();
+    for report in [&ekf, &ukf] {
+        for point in &report.estimates {
+            let sum = point
+                .component_contributions
+                .iter()
+                .map(|component| component.voltage_v)
+                .sum::<f64>();
+            assert!((sum - point.predicted_measurement_v.unwrap()).abs() < 1e-9);
+            assert!(
+                point
+                    .component_contributions
+                    .iter()
+                    .any(|component| component.component_id == "legacy.equilibrium")
+            );
+            assert!(!matches!(
+                point
+                    .equilibrium_assessment
+                    .as_ref()
+                    .map(|item| item.status),
+                Some(rust_electroanalysis_cli::model::AssessmentStatus::Supported)
+            ));
+        }
+    }
     let comparison = rust_electroanalysis_cli::estimation::comparison::compare_reports(
         &[(FilterKind::Ekf, ekf), (FilterKind::Ukf, ukf)],
         None,
@@ -732,6 +757,54 @@ fn ekf_ukf_comparison_reports_equivalent_input_metrics() {
             .iter()
             .all(|record| record.nis_consistency.is_some())
     );
+}
+
+#[test]
+fn compiled_legacy_adapter_reproduces_legacy_process_and_observation_equations() {
+    let stored = simulation::simulation_model();
+    let calibration = StoredCalibrationObservationModel::new(stored.clone()).unwrap();
+    let config = config(StateModelKind::ActivityBaselinePolarization);
+    let legacy =
+        rust_electroanalysis_cli::estimation::model::StateModel::new(&config, 7.0, None).unwrap();
+    let compiled = rust_electroanalysis_cli::estimation::model::StateModel::new_compiled(
+        &config, 7.0, None, &stored,
+    )
+    .unwrap();
+    assert!(compiled.compiled_model().is_some());
+    let state = nalgebra::DVector::from_vec(vec![-3.0, 0.01, 0.02]);
+    let environment = AlignedEnvironment {
+        timestamp_s: 1.0,
+        temperature_k: Some(298.15),
+        polarization_input_v: Some(0.03),
+        ..Default::default()
+    };
+    let legacy_observation = rust_electroanalysis_cli::estimation::model::observation_components(
+        &state,
+        &environment,
+        &legacy,
+        &calibration,
+    )
+    .unwrap();
+    let compiled_observation = rust_electroanalysis_cli::estimation::model::observation_components(
+        &state,
+        &environment,
+        &compiled,
+        &calibration,
+    )
+    .unwrap();
+    assert!((legacy_observation.0 - compiled_observation.0).abs() < 1e-12);
+    for (legacy, compiled) in legacy_observation
+        .1
+        .iter()
+        .zip(compiled_observation.1.iter())
+    {
+        assert!((legacy - compiled).abs() < 1e-12);
+    }
+    let legacy_next = legacy.process_state(&state, 0.5, &environment);
+    let compiled_next = compiled
+        .try_process_state(&state, 0.5, &environment)
+        .unwrap();
+    assert!((&legacy_next - &compiled_next).norm() < 1e-12);
 }
 
 #[test]

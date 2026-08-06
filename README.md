@@ -2,6 +2,12 @@
 
 `rust_electroanalysis_cli` is a command-line tool for electrochemical data workflows, including EIS fitting/search and OCPT/sensor time-series analysis pipelines (`transient`, `calibration`, `mechanism`, `signal`, `health`, `estimate`).
 
+Mechanism and health integrations use explicit stable ISM component IDs. A fitted
+timescale, circuit parameter, or health feature is evidence only: it never
+automatically diagnoses fouling, reference failure, contact failure, or a
+physical mechanism. Transient health features retain analyte, step, direction,
+matrix, and temperature context and are not averaged across incompatible events.
+
 ---
 
 ## Table of Contents
@@ -145,6 +151,7 @@ The application is organized into four major subsystems:
 | **Scientific domain** (`domain/`) | Owns aligned multi-channel measurements, experiment metadata, diagnostics, and provenance |
 | **Impedance engine** (`impedance/`) | Circuit model AST, element equations, fitting, evolutionary search, scoring, and reporting |
 | **Plotting backend** (`plottings/`) | High-quality figure rendering in SVG + supersampled PNG, supporting 9 plot geometries |
+| **ISM model core** (`model/`) | Versioned reduced-order built-ins and graph compilation; no CLI workflow or high-fidelity transport solver |
 
 These are connected by typed workflow façades (`fitting/` and `runners/`) plus the existing orchestration layer (`plot_runner.rs`, `search_runner.rs`). TOML configuration and scientific algorithms remain in their existing modules.
 
@@ -2629,6 +2636,37 @@ Validation uses explicit `Exact`, `NearestWithinTolerance`, or `LinearInterpolat
 The estimation configuration schema is version 3. The auxiliary field `known_log10_activity_variance` is in `log10(activity)^2`. Schema-1 files using `standard_variance_v2` remain readable, are migrated with a warning, and retain the value under an explicit legacy field until rewritten. Polarization event inputs default to `none`; explicit voltage impulses and activity-step gains must be configured and are applied once at the event transition.
 
 New artifact fields use serde defaults where safe. The health schema version is incremented because the old minimum-domain field had incorrect semantics; legacy values are preserved under an explicit legacy name. Signal sampling fields are additive, and ECM CSV columns use explicit RSS/BIC/legacy-score names so old columns are not silently reinterpreted.
+
+Cross-workflow JSON now uses a common typed artifact contract. Readers reject
+the wrong artifact kind or unsupported future schema before scientific use;
+explicitly listed kind-less legacy schemas are migrated in memory. The Rust
+toolchain is pinned and CI uses `Cargo.lock` for lint, test, and release jobs.
+
+The legacy estimator is retained as a compatibility facade but is compiled into
+the unified ISM graph. EKF and UKF therefore share process, Jacobian,
+observation, and contribution equations. Estimation reports add stable named
+component contributions, the five voltage categories, conservative equilibrium
+evidence, the resolved model definition, and a visible optional unexplained
+residual; old reports remain readable through additive defaults.
+
+Experimental-validation output does not substitute sensor counts, group
+labels, defaults, or residual presence for recovery, transfer, generalization,
+or coverage metrics. Those values remain unavailable until a manifest supplies
+the corresponding reference data and uncertainty evidence. Synthetic studies
+are never described as physical validation.
+
+Timestamp-level equilibrium recognition is evidence-gated rather than
+permanently indeterminate. It requires stable normalized state rates, small
+dynamic and total nonequilibrium voltage, sufficient elapsed time constants,
+acceptable innovation/autocorrelation, stable environment, in-domain
+calibration, bounded state uncertainty, observability, empirical
+identifiability, and adequate history. Missing evidence remains explicit, and
+the classification never assigns a physical mechanism.
+
+The release intentionally provides reduced-order transport components, not a
+high-fidelity Nernst–Planck solver. Such a solver is a separately reviewed
+scientific extension with boundary-condition and real-experiment validation;
+its absence does not change the reduced-order model's claims.
 
 ---
 

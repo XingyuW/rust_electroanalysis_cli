@@ -127,9 +127,9 @@ pub fn evaluate(
 
     let components = match model {
         TransientModelKind::Single => {
-            let [equilibrium, amplitude, tau] = parameters else {
-                unreachable!();
-            };
+            let [equilibrium, amplitude, tau]: &[f64; 3] = parameters.try_into().map_err(|_| {
+                PotentiometryError::invalid("single transient model requires 3 parameters")
+            })?;
             validate_tau(*tau)?;
             let fast = amplitude * (-time_local / tau).exp();
             ModelComponents {
@@ -147,10 +147,9 @@ pub fn evaluate(
                 slow_amplitude,
                 tau_fast,
                 tau_slow,
-            ] = parameters
-            else {
-                unreachable!();
-            };
+            ]: &[f64; 5] = parameters.try_into().map_err(|_| {
+                PotentiometryError::invalid("double transient model requires 5 parameters")
+            })?;
             validate_ordered_taus(*tau_fast, *tau_slow)?;
             let fast = fast_amplitude * (-time_local / tau_fast).exp();
             let slow = slow_amplitude * (-time_local / tau_slow).exp();
@@ -170,10 +169,9 @@ pub fn evaluate(
                 tau_fast,
                 tau_slow,
                 drift_rate,
-            ] = parameters
-            else {
-                unreachable!();
-            };
+            ]: &[f64; 6] = parameters.try_into().map_err(|_| {
+                PotentiometryError::invalid("double-drift transient model requires 6 parameters")
+            })?;
             validate_ordered_taus(*tau_fast, *tau_slow)?;
             let fast = fast_amplitude * (-time_local / tau_fast).exp();
             let slow = slow_amplitude * (-time_local / tau_slow).exp();
@@ -187,9 +185,10 @@ pub fn evaluate(
             }
         }
         TransientModelKind::Stretched => {
-            let [equilibrium, amplitude, tau, beta] = parameters else {
-                unreachable!();
-            };
+            let [equilibrium, amplitude, tau, beta]: &[f64; 4] =
+                parameters.try_into().map_err(|_| {
+                    PotentiometryError::invalid("stretched transient model requires 4 parameters")
+                })?;
             validate_tau(*tau)?;
             if !beta.is_finite() || *beta <= 0.0 {
                 return Err(PotentiometryError::invalid(

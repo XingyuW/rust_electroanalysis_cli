@@ -14,7 +14,6 @@ use crate::{
         StateValidationResult, TransientAnalysisReport,
     },
 };
-use serde::de::DeserializeOwned;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -58,7 +57,7 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         &metadata,
         options.sheet.as_deref(),
     )?;
-    let calibration = StoredCalibrationObservationModel::new(read_json(&resolve(
+    let calibration = StoredCalibrationObservationModel::new(read_versioned(&resolve(
         workspace,
         &options.calibration_model,
     ))?)?;
@@ -101,7 +100,7 @@ pub fn validate(
     truth_path: &Path,
     output: Option<&Path>,
 ) -> Result<(), RunnerError> {
-    let report: StateEstimationReport = read_json(&resolve(workspace, results))?;
+    let report: StateEstimationReport = read_versioned(&resolve(workspace, results))?;
     let truth = validation::read_truth_csv(&resolve(workspace, truth_path))?;
     let result = validation::validate_report(
         &report,
@@ -195,7 +194,7 @@ pub fn compare(
         options.sheet.as_deref(),
     )?;
     let calibration_model: crate::results::StoredCalibrationModel =
-        read_json(&resolve(workspace, &options.calibration_model))?;
+        read_versioned(&resolve(workspace, &options.calibration_model))?;
     let signal = read_optional::<SignalAnalysisReport>(workspace, options.signal_results.as_ref())?;
     let transient =
         read_optional::<TransientAnalysisReport>(workspace, options.transient_results.as_ref())?;
@@ -253,7 +252,7 @@ pub fn compare(
 }
 
 pub fn report(workspace: &Path, results: &Path, output: Option<&Path>) -> Result<(), RunnerError> {
-    let report: StateEstimationReport = read_json(&resolve(workspace, results))?;
+    let report: StateEstimationReport = read_versioned(&resolve(workspace, results))?;
     let dest = output_file(workspace, output, "state_estimation_report.txt");
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
@@ -271,10 +270,8 @@ fn export_report(
     let dir = output_dir(workspace, output, "estimation");
     fs::create_dir_all(&dir)?;
     let c = &report.configuration.export;
-    fs::write(
-        dir.join(&c.results_filename),
-        crate::results::estimation::finite_json(report).map_err(RunnerError::Json)?,
-    )?;
+    crate::results::estimation::finite_json(report).map_err(RunnerError::Json)?;
+    crate::domain::write_artifact(&dir.join(&c.results_filename), report)?;
     write_json(&dir.join(&c.diagnostics_filename), &report.diagnostics)?;
     write_json(
         &dir.join(&c.validation_filename),
@@ -439,14 +436,15 @@ fn apply_overrides(
         .map_err(|x| RunnerError::Message(x.to_string()))?;
     Ok(())
 }
-fn read_optional<T: DeserializeOwned>(
+fn read_optional<T: crate::domain::VersionedArtifact>(
     workspace: &Path,
     path: Option<&PathBuf>,
 ) -> Result<Option<T>, RunnerError> {
-    path.map(|p| read_json(&resolve(workspace, p))).transpose()
+    path.map(|p| read_versioned(&resolve(workspace, p)))
+        .transpose()
 }
-fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, RunnerError> {
-    Ok(serde_json::from_str(&fs::read_to_string(path)?)?)
+fn read_versioned<T: crate::domain::VersionedArtifact>(path: &Path) -> Result<T, RunnerError> {
+    Ok(crate::domain::read_artifact(path)?)
 }
 fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), RunnerError> {
     fs::write(path, serde_json::to_string_pretty(value)?)?;

@@ -48,12 +48,8 @@ pub fn run(
         }
         let artifact_value = artifact_value
             .as_ref()
-            .expect("artifact constructed when requested");
-        fs::write(
-            &path,
-            serde_json::to_string_pretty(artifact_value)
-                .map_err(|e| RunnerError::Message(e.to_string()))?,
-        )?;
+            .ok_or_else(|| RunnerError::Message("EIS artifact was not constructed".into()))?;
+        crate::domain::write_artifact(&path, artifact_value)?;
         println!("EIS fit artifact written to: {}", path.display());
     }
     if let Some(path) = report {
@@ -63,7 +59,7 @@ pub fn run(
         }
         let artifact_value = artifact_value
             .as_ref()
-            .expect("artifact constructed when requested");
+            .ok_or_else(|| RunnerError::Message("EIS artifact was not constructed".into()))?;
         fs::write(&path, human_artifact_report(artifact_value))?;
         println!("EIS artifact report written to: {}", path.display());
     }

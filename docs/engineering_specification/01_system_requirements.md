@@ -45,6 +45,17 @@ Verification confidence labels used in **Verified By**:
 | FR-026 | System shall generate human-readable text reports for EIS fits | Medium | `src/impedance/reporting.rs` | **Direct** — `chi_file` tests, `phase0_regression` | ✅ Implemented |
 | FR-027 | System shall produce JSON artifacts for all major analysis results | Medium | `src/results/` | **Partial** — integration tests cover representative JSON artifacts; cross-workflow completeness is implementation-verified | ✅ Implemented |
 | FR-028 | System shall produce CSV feature tables for transient and calibration results | Medium | Various runners | **Partial** — `phase2_transient` and `phase3_calibration` cover core exports; configurable filename variants are implementation-verified | ✅ Implemented |
+| FR-029 | System shall compile versioned ISM model definitions with stable component IDs, deterministic state/parameter indices, and static component factories | High | `src/model/` | **Direct** — `model_core` compilation tests | ✅ Implemented |
+| FR-030 | Every ISM state and parameter shall declare unit, finite bounds, source, uncertainty (parameters), and validity domain | High | `src/model/state.rs`, `src/model/parameter.rs` | **Direct** — `model_core` bound and artifact tests | ✅ Implemented |
+| FR-031 | ISM compilation shall reject duplicate IDs/contribution owners, missing inputs/dependencies, circular dependencies, invalid units, and invalid model schemas with typed errors | High | `src/model/compiler.rs` | **Direct** — `model_core` invalid-model tests | ✅ Implemented |
+| FR-032 | ISM observations shall expose named voltage contributions and an explicit unexplained-residual status; mechanism evidence shall remain a non-automatic contract | High | `src/model/output.rs`, `src/model/evidence.rs` | **Direct** — contribution decomposition test; mechanism assignment deferred | ✅ Implemented |
+| FR-033 | ISM core shall not depend on CLI, runners, plotting, health, mechanism, or estimation modules | High | `src/model/` | Source inspection and dependency scan | ✅ Implemented |
+| FR-034 | System shall provide static reduced-order ISM component factories for equilibrium, activity, transport, transduction, and disturbances | High | `src/model/builtins.rs` | `model_builtins` synthetic tests | ✅ Implemented |
+| FR-035 | Built-in ISM components shall expose equation/version, bounds via parameter specs, assumptions, validity domain, evidence requirements, and Jacobians | High | `src/model/component.rs`, `src/model/builtins.rs` | `model_builtins` | ✅ Implemented |
+| FR-036 | Mechanism workflow adapters shall map legacy artifacts to model parameters only through explicit stable component IDs and source paths | High | `src/mechanism/model_mapping.rs` | `phase05_model_health` | ✅ Implemented |
+| FR-037 | Health features shall retain transient scientific context and expose model residual, validity, identifiability, calibration-domain, state, and parameter evidence | High | `src/health/features.rs` | `phase05_model_health` | ✅ Implemented |
+| FR-038 | System shall expose model validate, simulate, decompose, and report workflows with finite schema-versioned outputs | High | `src/runners/model.rs` | `phase06_model_workflow` | ✅ Implemented |
+| FR-039 | System shall evaluate declared model-validation manifests and export reproducible recovery, coverage, reconstruction, identifiability, and comparison evidence | High | `src/model_validation.rs` | `phase07_validation` | ✅ Implemented |
 
 ## 2. Scientific Requirements
 
@@ -60,6 +71,8 @@ Verification confidence labels used in **Verified By**:
 | SCI-008 | Linear regression shall use ordinary least squares | `src/regression_mod.rs` | Unit tests |
 | SCI-009 | Transient single-exponential shall be E(t) = E∞ + A·exp(−t/τ) | `src/potentiometry/transient/models.rs` | (Verified from code) |
 | SCI-010 | Transient stretched-exponential shall be E(t) = E∞ + A·exp(−(t/τ)^β) | `src/potentiometry/transient/models.rs` | (Verified from code) |
+| SCI-011 | ISM model contract shall preserve the decomposition E_pred = E_equilibrium + E_transport + E_transduction + E_reference + E_external, with residual reported separately | `src/model/output.rs` | `model_core` contribution test |
+| SCI-012 | Reduced-order ISM relaxation modes are phenomenological and shall not be assigned physical mechanism labels automatically | `src/model/builtins.rs` | Synthetic validity tests |
 
 ## 3. Numerical Requirements
 
@@ -145,3 +158,14 @@ Verification confidence labels used in **Verified By**:
 - **REQ-UNC-002**: No explicit requirements exist for numerical precision beyond IEEE 754 f64.
 - **REQ-UNC-003**: No formal specification of acceptable fitting residual thresholds exists; these are configuration-driven.
 - **REQ-UNC-004**: Estimation module (EKF/UKF) requirements are the least mature; process/measurement noise models are not fully verified from the source.
+
+## 12. Platform-hardening and Unified-model Requirements
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| ART-001 | Every cross-workflow JSON result shall declare a stable artifact kind and supported schema version before use | Implemented by `VersionedArtifact` readers/writers; legacy kind-less versions are accepted only when explicitly listed |
+| ART-002 | Incompatible artifact kinds and future schema versions shall return typed errors | Implemented and migration-tested |
+| ISM-001 | Every state and parameter shall declare units, finite bounds, source, and validity domain | Enforced during model compilation |
+| ISM-002 | Component voltage contributions shall reconstruct predicted potential and shall not own unexplained residual | Enforced by compiled observation evaluation and regression tests |
+| EST-ISM-001 | EKF and UKF shall use one compiled scientific model for transition, Jacobian, observation, and contribution equations | Implemented through the legacy-to-ISM compatibility adapter |
+| VAL-ISM-001 | Missing reference, uncertainty, or grouping evidence shall remain unavailable rather than be replaced by proxy metrics | Implemented in experimental validation evaluation |

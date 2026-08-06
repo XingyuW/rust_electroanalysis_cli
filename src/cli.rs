@@ -80,6 +80,73 @@ pub enum Command {
         #[command(subcommand)]
         command: EstimateCommand,
     },
+    /// Validate, simulate, decompose, and report unified ISM models.
+    Model {
+        #[command(subcommand)]
+        command: ModelCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ModelCommand {
+    Validate(ModelValidateCommand),
+    Simulate(ModelSimulateCommand),
+    Decompose(ModelDecomposeCommand),
+    Report(ModelReportCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct ModelValidateCommand {
+    #[arg(long)]
+    pub model: Option<PathBuf>,
+    #[arg(long)]
+    pub manifest: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+#[derive(Debug, Args)]
+pub struct ModelSimulateCommand {
+    #[arg(long)]
+    pub model: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+    #[arg(long, default_value_t = 10)]
+    pub steps: usize,
+    #[arg(long, default_value_t = 1.0)]
+    pub dt_s: f64,
+}
+#[derive(Debug, Args)]
+pub struct ModelDecomposeCommand {
+    #[arg(long)]
+    pub model: Option<PathBuf>,
+    /// JSON `ModelInput` records; this is the deterministic measurement adapter.
+    #[arg(long)]
+    pub input: Option<PathBuf>,
+    #[arg(long)]
+    pub measurement: Option<PathBuf>,
+    #[arg(long)]
+    pub metadata: Option<PathBuf>,
+    #[arg(long = "calibration-model")]
+    pub calibration_model: Option<PathBuf>,
+    #[arg(long = "transient-results")]
+    pub transient_results: Option<PathBuf>,
+    #[arg(long = "eis-fit")]
+    pub eis_fit: Option<PathBuf>,
+    #[arg(long = "signal-results")]
+    pub signal_results: Option<PathBuf>,
+    #[arg(long = "mechanism-results")]
+    pub mechanism_results: Option<PathBuf>,
+    #[arg(long = "health-assessment")]
+    pub health_assessment: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+#[derive(Debug, Args)]
+pub struct ModelReportCommand {
+    #[arg(long)]
+    pub results: PathBuf,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -788,6 +855,34 @@ pub enum CommandSpec {
         results: PathBuf,
         output: Option<PathBuf>,
     },
+    ModelValidate {
+        model: Option<PathBuf>,
+        manifest: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    ModelSimulate {
+        model: Option<PathBuf>,
+        output: Option<PathBuf>,
+        steps: usize,
+        dt_s: f64,
+    },
+    ModelDecompose {
+        model: Option<PathBuf>,
+        input: Option<PathBuf>,
+        measurement: Option<PathBuf>,
+        metadata: Option<PathBuf>,
+        calibration_model: Option<PathBuf>,
+        transient_results: Option<PathBuf>,
+        eis_fit: Option<PathBuf>,
+        signal_results: Option<PathBuf>,
+        mechanism_results: Option<PathBuf>,
+        health_assessment: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    ModelReport {
+        results: PathBuf,
+        output: Option<PathBuf>,
+    },
 }
 
 /// Errors raised while parsing or validating command-line arguments.
@@ -885,6 +980,10 @@ impl CliArgs {
             | Some(CommandSpec::EstimateSimulate { .. })
             | Some(CommandSpec::EstimateCompare { .. })
             | Some(CommandSpec::EstimateReport { .. }) => {}
+            Some(CommandSpec::ModelValidate { .. })
+            | Some(CommandSpec::ModelSimulate { .. })
+            | Some(CommandSpec::ModelDecompose { .. })
+            | Some(CommandSpec::ModelReport { .. }) => {}
             None => {}
         }
 
@@ -1137,6 +1236,36 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     output: c.output,
                 },
                 EstimateCommand::Report(c) => CommandSpec::EstimateReport {
+                    results: c.results,
+                    output: c.output,
+                },
+            },
+            Command::Model { command } => match command {
+                ModelCommand::Validate(c) => CommandSpec::ModelValidate {
+                    model: c.model,
+                    manifest: c.manifest,
+                    output: c.output,
+                },
+                ModelCommand::Simulate(c) => CommandSpec::ModelSimulate {
+                    model: c.model,
+                    output: c.output,
+                    steps: c.steps,
+                    dt_s: c.dt_s,
+                },
+                ModelCommand::Decompose(c) => CommandSpec::ModelDecompose {
+                    model: c.model,
+                    input: c.input,
+                    measurement: c.measurement,
+                    metadata: c.metadata,
+                    calibration_model: c.calibration_model,
+                    transient_results: c.transient_results,
+                    eis_fit: c.eis_fit,
+                    signal_results: c.signal_results,
+                    mechanism_results: c.mechanism_results,
+                    health_assessment: c.health_assessment,
+                    output: c.output,
+                },
+                ModelCommand::Report(c) => CommandSpec::ModelReport {
                     results: c.results,
                     output: c.output,
                 },

@@ -19,8 +19,10 @@ pub mod environment;
 pub mod error;
 pub mod initialization;
 pub mod innovation;
+pub mod ism_adapter;
 pub mod measurement;
 pub mod model;
+pub mod model_output;
 pub mod observability;
 pub mod process;
 pub mod simulation;
@@ -139,7 +141,7 @@ fn estimate_single_segment(
 ) -> Result<StateEstimationReport, EstimationError> {
     let calibration = Box::new(calibration.clone());
     let tau = resolve_tau(config, context.transient)?;
-    let model = StateModel::new(config, tau.0, tau.1)?;
+    let model = StateModel::new_compiled(config, tau.0, tau.1, &calibration.model)?;
     let (obs, timestamp_diagnostics) = observations(experiment.measurement(), channel)?;
     let measurement_source_unit = experiment
         .measurement()
@@ -233,16 +235,16 @@ fn estimate_single_segment(
         measurement_covariance: &measurement_covariance,
         signal: context.signal,
         calibration_results: context.calibration_results,
+        observability: &observability,
     };
     let run = match filter {
         FilterKind::Ekf => ekf::run(input)?,
         FilterKind::Ukf => ukf::run(input)?,
     };
-    let process = run.process_covariance.unwrap_or_else(|| {
-        resolve_process_covariance(config, &model, 1.0)
-            .expect("validated default process covariance")
-            .1
-    });
+    let process = match run.process_covariance {
+        Some(process) => process,
+        None => resolve_process_covariance(config, &model, 1.0)?.1,
+    };
     let mut warnings = initialization.warnings.clone();
     warnings.extend(observability.warnings.clone());
     if matches!(config.state_model.kind, StateModelKind::Activity) {
@@ -274,6 +276,9 @@ fn estimate_single_segment(
             "potential converted to V; per-observation variance converted to V²".into(),
         filter,
         model: config.state_model.kind,
+        model_definition: model
+            .compiled_model()
+            .map(|compiled| compiled.definition().clone()),
         state_definitions: model.definitions,
         initialization,
         process_covariance: process,

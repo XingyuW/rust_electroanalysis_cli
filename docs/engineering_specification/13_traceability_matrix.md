@@ -50,6 +50,12 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | FR-026 | `impedance/reporting.rs` | `eis fit`, `eis export-fit --report` | `phase0`, `chi_file` tests | Human-readable EIS fit report | Direct | ✅ |
 | FR-027 | `results/`, `runners/` | All analysis commands (except `plot`) | Integration tests + source inspection | JSON artifacts | Partial | ✅ |
 | FR-028 | `runners/transient.rs`, `runners/calibration.rs` | `transient fit`, `calibration fit` | `phase2`, `phase3` | CSV feature tables | Partial | ✅ |
+| FR-029 | `model/definition.rs`, `model/registry.rs`, `model/compiler.rs` | None | `model_core` | CompiledIsmModel | Direct | ✅ |
+| FR-030 | `model/state.rs`, `model/parameter.rs` | None | `model_core` | Versioned ModelDefinition | Direct | ✅ |
+| FR-031 | `model/graph.rs`, `model/compiler.rs` | None | `model_core` | Typed ModelError | Direct | ✅ |
+| FR-032 | `model/output.rs`, `model/evidence.rs` | None | `model_core` | ObservationPrediction | Direct | ✅ |
+| FR-033 | `model/` | None | Source dependency scan | None | Direct | ✅ |
+| FR-034 to FR-035 | `model/builtins.rs`, `model/defaults.rs` | None | `model_builtins` | Built-in model definition | Direct | ✅ |
 
 ---
 
@@ -95,6 +101,9 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | EQ-EST-001 | EKF prediction | `estimation/ekf.rs` | `phase6` | ✅ |
 | EQ-EST-002 | EKF update | `estimation/ekf.rs` | `phase6` | ✅ |
 | EQ-EST-003 | UKF | `estimation/ukf.rs` | `phase6` | ✅ |
+| EQ-ISM-001 | ISM state-space interface | `model/` | `model_core` | ✅ (contract only) |
+| EQ-ISM-002 | ISM contribution/residual decomposition | `model/output.rs` | `model_core` | ✅ |
+| EQ-ISM-003 | Reduced-order built-in adapters | `model/builtins.rs` | `model_builtins` | ✅ |
 
 ---
 
@@ -156,3 +165,12 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | `estimate simulate` | `runners/estimation.rs` | `main.rs` L482-495 | (inferred) |
 | `estimate compare` | `runners/estimation.rs` | `main.rs` L496-536 | (inferred) |
 | `estimate report` | `runners/estimation.rs` | `main.rs` L537-546 | (inferred) |
+| FR-036 / SCI-013 | `mechanism/model_mapping.rs` | `phase05_model_health` | Explicit stable-ID mapping and weak-evidence guard |
+| FR-037 | `health/features.rs`, `health/assessment.rs` | `phase05_model_health` | Context-aware/model-derived health features |
+| FR-038 | `cli.rs`, `runners/model.rs`, `results/model.rs` | `phase06_model_workflow` | Model workflow and finite artifact exports |
+| FR-039 | `model_validation.rs`, `results/validation.rs` | `phase07_validation` | Reproducible experimental validation evidence |
+| ART-001 / ART-002 | `domain/artifact.rs`, `results/artifact_contracts.rs` | all cross-workflow runners | `artifact_contract` kind/version/migration tests |
+| ISM-001 / ISM-002 | `model/compiler.rs`, `model/builtins.rs`, `model/output.rs` | static model compiler | `model_core`, `model_builtins` |
+| EST-ISM-001 | `estimation/ism_adapter.rs`, `estimation/model.rs`, `estimation/model_output.rs` | EKF and UKF compatibility facade | `phase6_estimation` compiled-equivalence and contribution tests |
+| VAL-ISM-001 | `model_validation.rs`, `results/validation.rs` | `runners/model_validation.rs` | `phase07_validation` missing-evidence assertions |
+| EST-EQ-001 | `estimation/model_output.rs`, `estimation_config.rs` | EKF and UKF timestamp outputs | equilibrium unit tests and `phase6_estimation` |

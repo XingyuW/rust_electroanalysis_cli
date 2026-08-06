@@ -349,3 +349,84 @@ P_k|k = (I − K_k·H_k)·P_k|k-1
 
 Unscented transform with sigma points.  
 **Source**: `src/estimation/ukf.rs`
+
+---
+
+## Part I: Unified ISM Model Contract
+
+### EQ-ISM-001: State-Space Interface
+
+`dx/dt = f(x, u, θ, t) + w`
+
+`src/model/` defines the interface and validates state/parameter metadata. It
+does not implement a new state equation in Phase 02.
+
+### EQ-ISM-002: Explicit Observation Decomposition
+
+`E_pred = E_equilibrium + E_transport + E_transduction + E_reference + E_external`
+
+`E_unexplained_residual = E_observed - E_pred`
+
+`ComponentContribution` records named contributions and
+`UnexplainedResidual` records either the residual or missing observed-voltage
+evidence. No component may own a residual and no fitted result receives a
+mechanism label from this contract alone.
+
+### EQ-ISM-003: Reduced-Order Built-In Adapters
+
+Phase 03 delegates Nernst, Nicolsky-Eisenman, activity, and relaxation
+evaluation to the existing calibration and transient modules. First/two-mode
+and stretched terms are phenomenological; candidate names are not mechanism
+assignments. High-fidelity Nernst-Planck transport is not implemented.
+
+### EQ-ISM-004: Evidence and Health Integration
+
+Legacy fitted parameters are not new equations. They may form a prior only
+through an explicit component-ID/source-path mapping. A numerical timescale
+match without independent replication is weak evidence and no health or
+mechanism adapter changes a phenomenological mode into a physical diagnosis.
+The unexplained-residual RMS remains a separate quality feature.
+
+### EQ-ISM-005: Workflow Evaluation
+
+Phase 06 evaluates compiled component equations already supplied by the core.
+Deterministic simulation is synthetic rather than calibration or physical
+validation; equilibrium remains indeterminate without dynamic and innovation evidence.
+
+### EQ-ISM-006: Validation Metrics
+
+Parameter/state recovery, contribution reconstruction, coverage, calibration
+transfer, cross-sensor comparisons, and model criteria are computed only from
+manifest-declared observations. Synthetic-only scenarios are reported as such
+and cannot substantiate physical validation.
+
+### EQ-ISM-007: Discrete Relaxation and Legacy Estimation Adapter
+
+For a constant target over a time interval, the first-order reduced state uses
+the exact recurrence
+
+`x(t + dt) = exp(-dt/tau) x(t) + (1 - exp(-dt/tau)) target`.
+
+This makes a fixed elapsed-time prediction invariant to numerical subdivision;
+it is not a physical-mechanism assignment. The compiled legacy estimation
+adapter preserves the pre-existing equilibrium, polarization, baseline, and
+sensitivity equations and exposes them as stable contribution IDs. Their sum
+is `E_pred`; `E_observed - E_pred` remains a separate unexplained residual and
+is absent rather than zero when no measurement exists.
+
+### EQ-ISM-008: Operational Equilibrium Recognition
+
+A timestamp may be classified as operationally supported equilibrium only when
+all configured evidence gates are available and pass: normalized state-rate
+stability, dynamic-potential magnitude, full equilibrium gap, elapsed time in
+units of the fitted dynamic time constant, standardized innovation, residual
+autocorrelation, environmental stability, calibration-domain status,
+normalized state uncertainty, local observability, empirical identifiability,
+and minimum history length. A failed gate produces contradictory evidence; a
+missing gate produces an indeterminate assessment. The result is not physical
+mechanism validation.
+
+High-fidelity Nernst–Planck transport remains outside the reduced-order model
+contract. Adding it requires a separate scientific phase with new state,
+boundary-condition, numerical-stability, unit, identifiability, and experimental
+validation requirements; it is not a release blocker for this framework.

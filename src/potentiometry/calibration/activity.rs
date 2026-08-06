@@ -220,6 +220,44 @@ pub fn evaluate_activity(
     )
 }
 
+/// Stable adapter for reduced-order model components. It reuses the configured
+/// activity equations while keeping result-layer enums out of the model core.
+pub fn evaluate_model_activity(
+    concentration: &Quantity,
+    charge: i32,
+    ionic_strength_mol_l: Option<f64>,
+    adapter_kind: &str,
+    ion_size_angstrom: Option<f64>,
+) -> Result<ActivityEvaluation, CalibrationError> {
+    let model = match adapter_kind {
+        "ideal" => ActivityModelKind::Ideal,
+        "davies" => ActivityModelKind::Davies,
+        "extended_debye_huckel" => ActivityModelKind::ExtendedDebyeHuckel,
+        other => {
+            return Err(CalibrationError::ActivityModel(format!(
+                "unsupported model activity adapter '{other}'"
+            )));
+        }
+    };
+    let mut config = ActivityConfig {
+        model,
+        ..ActivityConfig::default()
+    };
+    if matches!(model, ActivityModelKind::ExtendedDebyeHuckel) {
+        config.extended_debye_huckel.ion_size_parameter = ion_size_angstrom;
+    }
+    evaluate_activity(
+        Some(concentration),
+        None,
+        None,
+        None,
+        charge,
+        ionic_strength_mol_l,
+        None,
+        &config,
+    )
+}
+
 fn finite_activity(
     activity: f64,
     activity_coefficient: Option<f64>,

@@ -128,6 +128,7 @@
 | `src/results/health.rs` | Health assessment result types | ✅ |
 | `src/results/estimation.rs` | State estimation result types | ✅ |
 | `src/results/mechanism.rs` | Mechanism comparison result types | ✅ |
+| `src/results/model.rs` | Versioned compiled-model artifact schema | ✅ |
 | `src/runners/mod.rs` | Runner module root, RunnerError | ✅ |
 | `src/runners/plot.rs` | Plot workflow coordinator | ✅ |
 | `src/runners/fit.rs` | EIS fit workflow coordinator | ✅ |
@@ -148,10 +149,28 @@
 | `src/signal_config.rs` | Signal analysis TOML schema | ✅ |
 | `src/health_config.rs` | Health assessment TOML schema | ✅ |
 | `src/estimation_config.rs` | State estimation TOML schema | ✅ |
+| `src/model_config.rs` | ISM model TOML configuration wrapper | ✅ |
+| `src/model/mod.rs` | ISM core public façade and stable re-exports | ✅ |
+| `src/model/error.rs` | Typed ISM model errors | ✅ |
+| `src/model/definition.rs` | Versioned model definition schema | ✅ |
+| `src/model/component.rs` | Component descriptors, roles, and component trait | ✅ |
+| `src/model/registry.rs` | Immutable static component-factory registry | ✅ |
+| `src/model/graph.rs` | Deterministic dependency ordering and cycle detection | ✅ |
+| `src/model/compiler.rs` | Definition validation, index resolution, and compiled-model execution | ✅ |
+| `src/model/parameter.rs` | Parameter metadata, bounds, and compiled indices | ✅ |
+| `src/model/state.rs` | State metadata, bounds, and compiled indices | ✅ |
+| `src/model/input.rs` | Input schemas and existing-unit adapter | ✅ |
+| `src/model/output.rs` | Contributions, prediction, and explicit residual status | ✅ |
+| `src/model/validity.rs` | Validity-domain and validity-report contracts | ✅ |
+| `src/model/identifiability.rs` | Non-claiming identifiability-report contract | ✅ |
+| `src/model/evidence.rs` | Mechanism-evidence requirement contract | ✅ |
+| `src/model/equilibrium_recognition.rs` | Evidence-preserving equilibrium-assessment contract | ✅ |
+| `src/model/builtins.rs` | Static reduced-order equilibrium/activity/transport/transduction/disturbance adapters | ✅ |
+| `src/model/defaults.rs` | Default reduced-order ISM definition | ✅ |
 | `src/plot_runner.rs` | (Legacy) Plot orchestration adapter | ✅ |
 | `src/search_runner.rs` | (Legacy) Search orchestration adapter | ✅ |
 
-**Coverage check:** 140/140 Rust source paths under `src/**/*.rs` are mapped above.
+**Coverage check:** 159/159 Rust source paths under `src/**/*.rs` are mapped above.
 
 ---
 
@@ -207,6 +226,21 @@
 - **All result types are serializable** with `schema_version` for forward compatibility.
 - **Key types**: `CircuitFitResult`, `TransientAnalysisReport`, `CalibrationAnalysisReport`, `StoredCalibrationModel`, `SignalAnalysisReport`, `SensorHealthAssessment`, `StateEstimationReport`.
 
+### `model/` — Unified ISM Model Core
+
+- **Purpose**: Versioned, extensible model definitions and deterministic graph
+  compilation without implementing scientific equations in this phase.
+- **Public contracts**: `IsmModel`, `IsmComponent`, `ComponentDescriptor`,
+  `ComponentRole`, `StateSpec`, `ParameterSpec`, `ModelDefinition`,
+  `CompiledIsmModel`, `ModelInput`, `ModelState`, `ComponentContribution`,
+  `ValidityReport`, `IdentifiabilityReport`, `EvidenceRequirement`, and
+  `EquilibriumAssessment`.
+- **Dependencies**: only core Rust/serde/thiserror and a narrow adapter to the
+  existing potentiometry unit taxonomy; never CLI, runners, plotting, health,
+  mechanism, or estimation.
+- **Invariant**: components cannot own an unexplained residual; state/parameter
+  positions preserve definition order; factories are static and keyed by kind.
+
 ### Configuration Modules (8 modules)
 
 Each workflow has its own TOML config schema with:
@@ -214,3 +248,42 @@ Each workflow has its own TOML config schema with:
 - Workflow-specific sections
 - Default values embedded in the Rust struct (via `Default` impl)
 - CLI override resolution in the corresponding runner
+
+### Phase 05 Adapter Contracts
+
+`mechanism/model_mapping.rs` exposes explicit EIS, transient, calibration, and
+signal mappings to model priors. Every mapping carries a stable component ID
+and explicit source path; an unavailable path produces no assignment.
+`health/features.rs` creates context-partitioned transient and model-derived
+health features. `health/rules.rs` retains contradictory evidence, and
+`health/assessment.rs` incorporates findings and baseline deviations into
+domain status. These adapters do not introduce a new CLI command.
+
+### Phase 06 Model Runner
+
+`runners/model.rs` resolves a versioned definition, compiles the static model
+registry, performs deterministic evaluation, and exports contributions,
+states, validity, equilibrium evidence, and a report. It rejects unsupported
+analysis artifact schema/kind values and validates finite values before JSON.
+
+### Phase 07 Validation Infrastructure
+
+`results/validation.rs` declares a versioned manifest spanning stable standards,
+steps, environmental variation, interferents, flow, reference, construction,
+fouling, aging, and paired EIS/transient studies. `model_validation.rs` records
+missing state/profile-likelihood evidence instead of fabricating validation.
+
+### Platform and Estimation Adapters
+
+- `domain/artifact.rs`: `VersionedArtifact`, typed kind/schema errors, and the
+  generic read/write boundary for cross-workflow JSON.
+- `results/artifact_contracts.rs`: explicit artifact contracts and permitted
+  legacy versions for every exported cross-workflow result.
+- `estimation/ism_adapter.rs`: compiles the legacy state/calibration contract
+  into stable component IDs without moving legacy equations into the core.
+- `estimation/model_output.rs`: common contribution categories, visible
+  residual, and conservative equilibrium assessment shared by EKF and UKF.
+
+Malformed built-in descriptors, parameter/state arity errors, and missing
+runtime inputs return `ModelError`; a factory may not index user-controlled
+descriptor content before validating its shape.

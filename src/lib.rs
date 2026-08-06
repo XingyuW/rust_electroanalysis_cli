@@ -16,6 +16,8 @@ pub use plottings::plotting;
 #[path = "impedance/lib.rs"]
 pub mod impedance;
 pub mod mechanism;
+pub mod model;
+pub mod model_config;
 
 pub mod calibration_config;
 pub mod cli;
@@ -26,6 +28,7 @@ pub mod fitting;
 pub mod health;
 pub mod health_config;
 pub mod mechanism_config;
+pub mod model_validation;
 pub mod plot_config;
 pub mod plot_runner;
 pub mod potentiometry;
@@ -39,12 +42,19 @@ pub mod signal_config;
 pub mod transient_config;
 pub mod workspace;
 
+pub use domain::VersionedArtifact;
 pub use domain::{
-    AnalysisProvenance, ChannelMetadata, ConfigurationError, DataParsingError,
-    ElectrochemicalExperiment, EnvironmentalSeries, ExperimentEvent, ExperimentEventKind,
-    ExperimentMetadataDocument, FittingError, MeasurementChannel, MeasurementParseResult,
-    MultiChannelMeasurement, ParseDiagnostics, PlottingError, ProvenanceError, ReferenceMetadata,
-    ReportingError, SensorMetadata, WorkspaceError, load_experiment_metadata,
+    AnalysisProvenance, ArtifactError, ArtifactKind, ChannelMetadata, ConfigurationError,
+    DataParsingError, ElectrochemicalExperiment, EnvironmentalSeries, ExperimentEvent,
+    ExperimentEventKind, ExperimentMetadataDocument, FittingError, MeasurementChannel,
+    MeasurementParseResult, MultiChannelMeasurement, ParseDiagnostics, PlottingError,
+    ProvenanceError, ReferenceMetadata, ReportingError, SensorMetadata, WorkspaceError,
+    load_experiment_metadata,
+};
+pub use model::{
+    CompiledIsmModel, ComponentContribution, ComponentDescriptor, ComponentRole,
+    EquilibriumAssessment, EvidenceRequirement, IdentifiabilityReport, IsmComponent, IsmModel,
+    ModelDefinition, ModelInput, ModelState, ParameterSpec, StateSpec, ValidityReport,
 };
 pub use potentiometry::units::{Quantity, QuantityUnit};
 pub use results::CircuitFitResult;

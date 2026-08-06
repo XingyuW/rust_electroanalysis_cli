@@ -10,6 +10,7 @@ pub mod estimation_plot;
 pub mod generic_plot;
 pub mod health_plot;
 pub mod mechanism_plot;
+pub mod model_plot;
 pub mod plotting;
 pub mod signal_plot;
 pub mod transient_plot;

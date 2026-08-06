@@ -28,6 +28,10 @@
 | VAL-015 | --input without --channel in predict | CLI error | `cli.rs` | Error |
 | VAL-016 | Binary content in CSV file | Error: "unsupported" | `data_file/input_kind.rs` | Error |
 | VAL-017 | Legacy .xls file | Error: ".xls" reference | `data_file/excel_file.rs` | Error |
+| VAL-019 | Unsupported ISM model/config schema version | Typed `ModelError` | `model/definition.rs`, `model_config.rs` | Error |
+| VAL-020 | Duplicate ISM IDs or voltage contribution ownership | Typed `ModelError` | `model/compiler.rs` | Error |
+| VAL-021 | Missing/circular ISM component dependency or required input | Typed `ModelError` | `model/graph.rs`, `model/compiler.rs` | Error |
+| VAL-022 | Invalid or incompatible ISM unit | Typed `ModelError` | `model/input.rs`, `model/compiler.rs` | Error |
 
 ## 2. Parameter Bound Enforcement
 
@@ -42,6 +46,7 @@
 | BND-007 | Nernst temperature | T > 0 K | effective_temperature_k | `potentiometry/calibration/nernst.rs` |
 | BND-008 | Nernst ion charge | z ≠ 0 | theoretical_slope check | `potentiometry/calibration/nernst.rs` |
 | BND-009 | Nernst slope for inversion | |slope| ≥ 1e-15 | activity_from_potential | `potentiometry/calibration/nernst.rs` |
+| BND-010 | ISM state and parameter values | Declared finite closed bounds | Model compiler and runtime validation | `model/state.rs`, `model/parameter.rs`, `model/compiler.rs` |
 
 ## 3. Solver Convergence Validation
 
@@ -76,6 +81,8 @@
 - **DC limit fallbacks**: Large real values (1e6, 1e12 Ω) instead of infinity
 - **Division safeguards**: `norm_sqr() > 1e-16` checks before division in circuit impedance and admittance
 - **Non-finite optimization parameters**: Clamped to lower bounds
+- **ISM definitions/artifacts**: compiler rejects non-finite metadata values;
+  `ModelCompilationArtifact::to_json` validates the definition before serializing.
 
 ## 6. Missing-Data Handling
 
@@ -110,4 +117,31 @@ Related timestamp controls are separate from duplicate policy:
 
 ## 9. Cross-Workflow Input Validation
 
-When a workflow consumes results from another workflow (e.g., health consuming signal results), the input JSON is deserialized with serde. Missing fields use `Default` or `Option` types. Schema version mismatches are **not** currently checked at runtime — this is a deferred concern.
+When a workflow consumes results from another workflow, it first validates the
+common `VersionedArtifact` contract. Unsupported versions, mismatched kinds,
+malformed headers, and non-finite model/estimation/validation values return
+typed errors. Kind-less legacy artifacts are accepted only for explicitly
+listed historical schemas; additive fields may use defaults only when the old
+scientific meaning is retained.
+
+### Phase 05 evidence constraints
+
+Mechanism-to-model mapping requires an explicit stable component ID and source
+path. A missing source path yields no prior or assignment. Health baseline
+scores require comparable context; transient feature aggregation partitions
+analyte, step, direction, matrix, and temperature. Mechanistic findings also
+require the configured independent-domain and baseline-record minima.
+
+Model workflows reject unsupported model-config and analysis-artifact schemas,
+compile graph/unit/parameter/input constraints before evaluation, and reject
+non-finite report values before JSON serialization.
+
+Validation manifests must declare category, sensor, analysis artifact, and
+whether the experiment is real. Reference-state and parameter recovery metrics
+are unavailable when reference data are absent; this absence is recorded.
+
+Equilibrium-recognition thresholds are finite, non-negative, and validated at
+configuration load. State derivatives and uncertainties are normalized by each
+state's declared finite span before comparison; voltage, innovation,
+autocorrelation, and environmental evidence retain separate thresholds and are
+never averaged into one score. Insufficient history remains indeterminate.

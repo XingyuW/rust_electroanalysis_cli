@@ -64,6 +64,19 @@ reject_unobservable_model = true
 empirical_perturbation = 1.0e-3
 empirical_sensitivity_tolerance = 1.0e-8
 
+[equilibrium_recognition]
+enabled = true
+minimum_history_points = 5
+minimum_elapsed_time_constants = 5.0
+maximum_normalized_state_rate_per_s = 1.0e-4
+maximum_dynamic_potential_v = 1.0e-4
+maximum_equilibrium_gap_v = 1.0e-4
+maximum_absolute_standardized_innovation = 2.0
+maximum_absolute_residual_autocorrelation = 0.2
+maximum_environment_change_fraction = 0.01
+maximum_state_uncertainty_fraction = 0.05
+require_observable = true
+
 [ekf]
 numerical_jacobian_relative_step = 1.0e-6
 use_joseph_update = true

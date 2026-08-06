@@ -17,6 +17,8 @@ pub mod estimation;
 pub mod fit;
 pub mod health;
 pub mod mechanism;
+pub mod model;
+pub mod model_validation;
 pub mod plot;
 pub mod search;
 pub mod signal;
@@ -45,6 +47,8 @@ pub enum RunnerError {
     Health(#[from] crate::health::error::HealthError),
     #[error(transparent)]
     Estimation(#[from] crate::estimation::error::EstimationError),
+    #[error(transparent)]
+    Artifact(#[from] crate::domain::ArtifactError),
     #[error("workflow JSON error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("workflow TOML error: {0}")]

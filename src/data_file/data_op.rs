@@ -434,11 +434,9 @@ impl PlotData {
                         da.partial_cmp(db).unwrap_or(std::cmp::Ordering::Equal)
                     })
                     .map(|(i, _)| i)
-                    // Safety: x_values is non-empty (checked above), so
-                    // min_by always returns Some.
-                    .expect("x_values is non-empty")
+                    .ok_or(PlotDataError::EmptyDataset)
             })
-            .collect();
+            .collect::<Result<_, _>>()?;
 
         Ok(self.extract_indices(&indices))
     }
@@ -889,9 +887,10 @@ pub fn load_data(path: impl AsRef<Path>) -> Result<LoadedExperimentData, DataPar
         DataFileType::ChiEis => load_chi_eis(path),
         DataFileType::ChiOcpt => load_time_series(path, DataFileType::ChiOcpt),
         DataFileType::SensorCsv => load_time_series(path, DataFileType::SensorCsv),
-        DataFileType::SensorExcel => {
-            unreachable!("Excel should be dispatched before text reading")
-        }
+        DataFileType::SensorExcel => Err(DataParsingError::invalid_at(
+            path,
+            "Excel input reached the text loader; use the workbook parser",
+        )),
     }
 }
 

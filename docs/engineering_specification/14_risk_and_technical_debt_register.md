@@ -50,6 +50,38 @@
 | RISK-018 | NUM | Initial guess for Warburg α defaults to 0.5 when phase angle is non-finite; this may bias fits toward diffusion-like behaviour | `fitting.rs` L125-127 | `impedance/fitting.rs` | Low | Low | Low | P4 |
 | RISK-019 | ERR | Invariant-guarded `unreachable!()` branches remain in transient model destructuring and dimensional unit conversions | `transient/models.rs` (4 sites), `potentiometry/units.rs` (4 sites) rely on prior validation guards | `potentiometry/transient/models.rs`, `potentiometry/units.rs` | Low | Very Low | Low | P4 |
 | RISK-020 | MAINT | `plot_config.rs` has ~200 fields in `RawPlotStyle` — very large configuration surface | File size, field count | `plot_config.rs` | Medium | — | Low | P4 |
+| RISK-021 | SCI | Fitted modes could be over-interpreted as physical mechanisms when concrete ISM components arrive | A core evidence contract exists, but no independent-evidence evaluator exists yet | `model/evidence.rs`, `model/equilibrium_recognition.rs` | High | Medium | High | P1 |
+| RISK-022 | SCI | A future component could obscure unexplained voltage error | Core prevents residual ownership, but workflow-level reporting is deferred | `model/output.rs` | High | Low | Medium | P2 |
+| RISK-023 | ARCH | Future built-in component additions could introduce forbidden workflow dependencies | Phase 02 core is clean; dependency enforcement is currently source/test reviewed | `src/model/` | Medium | Low | Low | P3 |
+| RISK-024 | DATA | Model schema v1 has no historical artifact migration because it is newly introduced | `model_schema_migration.md` defines reject-and-migrate policy for future versions | `model_config.rs`, `results/model.rs` | Low | Low | Low | P4 |
+| RISK-025 | SCI | Reduced-order modes may be mistaken for specific physical mechanisms | Built-ins use neutral/candidate names and evidence requirements, but no independent confirmation workflow exists | `model/builtins.rs` | High | Medium | High | P1 |
+| RISK-026 | SCI | Explicit mapping prevents name/order inference, but mapping applicability and independent replication remain user-supplied scientific evidence | Phase 05 mappings preserve missing/contradictory evidence and cap unreplicated matches at weak | `mechanism/model_mapping.rs` | Medium | Medium | Medium | P2 |
+| RISK-027 | DATA | Legacy transient events can omit matrix or temperature metadata; such events remain partitioned as `unknown` rather than being treated as comparable | Context-preserving feature keys | `health/features.rs` | Medium | Medium | Medium | P2 |
+| RISK-028 | SCI | Deterministic model workflow outputs can be mistaken for fitted validation | Reports label synthetic outputs and preserve indeterminate equilibrium/identifiability evidence | `runners/model.rs` | Medium | Medium | Medium | P2 |
+| RISK-029 | SCI | A validation manifest can reference synthetic or incomplete reference data | Results label non-real experiments and preserve unavailable profile-likelihood/state-recovery evidence | `model_validation.rs` | High | Medium | High | P1 |
+
+### 2026-08-05 Adversarial Review Disposition
+
+Operational equilibrium recognition now consumes every Phase 04 evidence
+category and can return supported, contradicted, or indeterminate. Its
+thresholds are configuration-defined and do not establish a physical mechanism.
+High-fidelity Nernst–Planck transport is an explicitly unsupported future
+scientific extension, not hidden debt in the reduced-order release.
+
+- RISK-006 is mitigated: the Rust toolchain is pinned and CI uses the lockfile
+  for lint, tests, and release builds.
+- RISK-009 and RISK-015 are mitigated by the common typed artifact contract and
+  explicit legacy migration tests.
+- RISK-019 is mitigated for user-data-adjacent transient, unit, spreadsheet,
+  fit, and estimation paths; malformed data now returns typed errors.
+- RISK-022 is mitigated in model and estimation results: contribution sums are
+  checked and unexplained residual remains separate and optional.
+- RISK-027 is reduced: incomplete transient context receives an event-specific
+  unresolved key and cannot be averaged with another incomplete event.
+- RISK-029 remains scientifically important. Coverage, transfer,
+  cross-sensor, parameter-recovery, and profile-likelihood metrics are now
+  explicitly unavailable unless their required evidence is present; this does
+  not itself provide physical validation.
 
 ---
 

@@ -23,6 +23,7 @@
 | `src/regression_mod.rs` | 6 | Linear fit, error cases, curve generation |
 | `src/plot_config.rs` | 20 | Schema, migration, resolution, validation |
 | `src/results/mod.rs` | 1 | CircuitFitResult structure |
+| `src/model/` | (covered by integration fixture) | Core compilation, validation, and decomposition contracts |
 
 ### Integration Tests (`tests/`)
 
@@ -38,6 +39,8 @@
 | `tests/phase6_estimation.rs` | 6 | State estimation, EKF/UKF |
 | `tests/unified_data_loading.rs` | 3 | File format detection, binary rejection |
 | `tests/xlsx_ingestion.rs` | (inferred) | Excel file reading |
+| `tests/model_core.rs` | 02 | ISM graph compilation, schemas, decomposition, and legacy CLI surface |
+| `tests/model_builtins.rs` | 03 | Synthetic equilibrium, relaxation, disturbance, reconstruction, and validity coverage |
 
 ### Test Classification
 
@@ -69,6 +72,7 @@ Evidence classes:
 | FR-024 | Direct | `phase6_estimation` asserts EKF/UKF runtime behavior and artifact outputs. |
 | FR-025 to FR-026 | Direct | Provenance hashing and EIS text reporting are directly asserted in unit/integration tests. |
 | FR-027 to FR-028 | Partial | Representative JSON/CSV exports are tested; full workflow-by-workflow artifact-name coverage is implementation-verified. |
+| FR-029 to FR-033 | Direct | `model_core` covers model compilation, graph/unit failures, bounds, deterministic indices, decomposition, versioned schemas, and CLI compatibility. |
 | SCI-001 to SCI-010 | Partial | Core scientific constants/formulas are directly tested; several equations remain code-verified rather than assertion-complete. |
 | NUM-001 to NUM-006 | Partial | Numerical safeguards and diagnostics are tested in representative paths; full edge-space coverage is incomplete. |
 | DAT-001 to DAT-007 | Partial | Data-model invariants are directly tested; cross-module schema compatibility and migration behavior remain partial. |
@@ -87,6 +91,9 @@ Evidence classes:
 | GAP-008 | No integration test for `estimate simulate` | Low |
 | GAP-009 | No deterministic reproducibility tests (fixed seed comparison) | Medium |
 | GAP-010 | Plotting output is tested for file existence, not visual correctness | Low |
+| GAP-011 | No real Nernst, transport, transduction, reference, or external ISM component implementation yet | High (planned Phase 03) |
+| GAP-012 | Identifiability and equilibrium contracts intentionally report not-assessed rather than numerical conclusions | Medium (planned later validation phase) |
+| GAP-013 | Built-ins are reduced-order adapters; no high-fidelity Nernst-Planck transport or mechanism confirmation is implemented | High (deferred) |
 
 ## 4. Run Commands
 
@@ -103,4 +110,30 @@ Evidence classes:
 
 - **Triggers**: push, pull_request
 - **Matrix**: ubuntu-latest, macos-latest
-- **Steps**: checkout, cache, rust-toolchain (stable + rustfmt + clippy), cargo fmt --check, cargo clippy -- -D warnings, cargo test --all, cargo build --release
+- **Toolchain**: pinned by `rust-toolchain.toml`, including rustfmt and clippy
+- **Locked steps**: cargo clippy, test, and release build use `--locked`; format is checked before compilation
+
+## Phase 05 Regression Coverage
+
+`tests/phase05_model_health.rs` covers explicit EIS component-ID mapping,
+missing mappings, unreplicated timescale evidence, contradictory evidence,
+model residual health features, and multi-domain mechanistic health guards.
+
+`phase06_model_workflow` covers model CLI parsing, invalid configuration,
+deterministic simulation, decomposition exports, JSON compatibility, finite
+JSON output, report regeneration, and estimate-command parsing compatibility.
+
+`phase07_validation` verifies manifest evaluation, contribution reconstruction,
+reproducible result contracts, and the synthetic-data non-validation boundary.
+
+`artifact_contract` verifies typed kind/version rejection, legacy kind-less
+migration, write-time headers, and semantic contracts for every exported
+cross-workflow result. `model_builtins` verifies malformed-descriptor rejection,
+runtime ion charge, exact relaxation subdivision invariance, and contribution
+reconstruction. `phase6_estimation` verifies that the compiled compatibility
+adapter reproduces legacy equations and that EKF/UKF expose identical named
+scientific contributions.
+
+`estimation::model_output::equilibrium_tests` covers a fully evidenced stable
+timestamp, rejection of slow reference drift, and indeterminate classification
+when history or residual evidence is missing.
