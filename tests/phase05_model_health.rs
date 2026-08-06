@@ -117,6 +117,10 @@ fn residual_deterioration_is_a_health_warning_feature() {
     let snapshot = ModelHealthSnapshot {
         unexplained_residual_rms_v: Some(0.025),
         component_validity_failures: BTreeMap::from([("slow_mode".into(), 1)]),
+        component_parameter_values: BTreeMap::from([(
+            ("baseline".into(), "drift_rate_v_per_s".into()),
+            1.0e-6,
+        )]),
         ..Default::default()
     };
     let features = from_model(&snapshot);
@@ -127,6 +131,11 @@ fn residual_deterioration_is_a_health_warning_feature() {
                 && feature.value == Some(0.025))
     );
     assert!(features.iter().any(|feature| feature.warning.is_some()));
+    assert!(
+        features
+            .iter()
+            .any(|feature| feature.domain == HealthDomain::Drift)
+    );
 }
 
 #[test]

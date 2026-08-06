@@ -69,16 +69,18 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         "s",
         "signal",
     );
-    add(
-        &mut f,
-        "signal.robust_drift_rate",
-        r.drift
+    f.push(HealthFeature {
+        name: "signal.robust_drift_rate".into(),
+        value: r
+            .drift
             .iter()
             .find(|d| matches!(d.model, crate::results::DriftModelKind::TheilSen))
             .and_then(|d| d.slope_v_per_s),
-        format!("{}/s", r.unit).as_str(),
-        "signal",
-    );
+        unit: format!("{}/s", r.unit),
+        domain: HealthDomain::Drift,
+        source: "signal".into(),
+        warning: None,
+    });
     add(
         &mut f,
         "signal.spike_fraction",
@@ -145,11 +147,16 @@ pub fn from_transient(r: &TransientAnalysisReport) -> Vec<HealthFeature> {
             .push(fit);
     }
     let add = |v: &mut Vec<HealthFeature>, n: String, x: Option<f64>, u: &str| {
+        let domain = if n.ends_with("drift_rate") {
+            HealthDomain::Drift
+        } else {
+            HealthDomain::DynamicResponse
+        };
         v.push(HealthFeature {
             name: n,
             value: x,
             unit: u.into(),
-            domain: HealthDomain::DynamicResponse,
+            domain,
             source: "transient".into(),
             warning: None,
         })
