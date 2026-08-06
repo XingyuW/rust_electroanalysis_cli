@@ -302,3 +302,17 @@ directories; no dependency is introduced from `model/` to a workflow module.
 consume declared reference data and model-analysis artifacts; the model core
 does not import them. Synthetic datasets are retained as evidence but are
 explicitly insufficient for physical validation claims.
+
+## Hardened Artifact and Estimation Boundaries
+
+`domain::artifact` is the common cross-workflow boundary. A consumer validates
+`schema_version` and `artifact_kind` before deserializing scientific content;
+only contract-listed legacy versions may omit a kind. Result-specific trait
+implementations live in `results`, avoiding a domain dependency on workflows.
+
+The Phase 04 compatibility direction is strictly `estimation -> model`.
+`estimation::ism_adapter` converts the existing calibration/state semantics to
+a versioned `ModelDefinition`, compiles it through the static registry, and
+retains `StateModel` as an outer compatibility facade. Both EKF and UKF call
+that same compiled instance. The core never imports estimation, CLI, runners,
+plotting, health, or mechanism modules.

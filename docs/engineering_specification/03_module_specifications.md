@@ -272,3 +272,18 @@ analysis artifact schema/kind values and validates finite values before JSON.
 steps, environmental variation, interferents, flow, reference, construction,
 fouling, aging, and paired EIS/transient studies. `model_validation.rs` records
 missing state/profile-likelihood evidence instead of fabricating validation.
+
+### Platform and Estimation Adapters
+
+- `domain/artifact.rs`: `VersionedArtifact`, typed kind/schema errors, and the
+  generic read/write boundary for cross-workflow JSON.
+- `results/artifact_contracts.rs`: explicit artifact contracts and permitted
+  legacy versions for every exported cross-workflow result.
+- `estimation/ism_adapter.rs`: compiles the legacy state/calibration contract
+  into stable component IDs without moving legacy equations into the core.
+- `estimation/model_output.rs`: common contribution categories, visible
+  residual, and conservative equilibrium assessment shared by EKF and UKF.
+
+Malformed built-in descriptors, parameter/state arity errors, and missing
+runtime inputs return `ModelError`; a factory may not index user-controlled
+descriptor content before validating its shape.

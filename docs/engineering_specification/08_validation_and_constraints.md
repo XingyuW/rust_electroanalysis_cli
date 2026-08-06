@@ -117,7 +117,12 @@ Related timestamp controls are separate from duplicate policy:
 
 ## 9. Cross-Workflow Input Validation
 
-When a workflow consumes results from another workflow (e.g., health consuming signal results), the input JSON is deserialized with serde. Missing fields use `Default` or `Option` types. Schema version mismatches are **not** currently checked at runtime — this is a deferred concern.
+When a workflow consumes results from another workflow, it first validates the
+common `VersionedArtifact` contract. Unsupported versions, mismatched kinds,
+malformed headers, and non-finite model/estimation/validation values return
+typed errors. Kind-less legacy artifacts are accepted only for explicitly
+listed historical schemas; additive fields may use defaults only when the old
+scientific meaning is retained.
 
 ### Phase 05 evidence constraints
 
@@ -134,3 +139,9 @@ non-finite report values before JSON serialization.
 Validation manifests must declare category, sensor, analysis artifact, and
 whether the experiment is real. Reference-state and parameter recovery metrics
 are unavailable when reference data are absent; this absence is recorded.
+
+Equilibrium-recognition thresholds are finite, non-negative, and validated at
+configuration load. State derivatives and uncertainties are normalized by each
+state's declared finite span before comparison; voltage, innovation,
+autocorrelation, and environmental evidence retain separate thresholds and are
+never averaged into one score. Insufficient history remains indeterminate.

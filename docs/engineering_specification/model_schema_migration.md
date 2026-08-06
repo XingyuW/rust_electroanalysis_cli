@@ -41,9 +41,25 @@ earlier ISM model artifacts to migrate.
 
 ## Current Migration Behavior
 
-Existing project configuration and result artifacts are untouched. The new
-model schema is not consumed by any CLI command or runner in Phase 02.
+Model configuration schema 1 is consumed by the Phase 06 model commands. Empty
+or partial checked-in model definitions are rejected; they are not silently
+replaced with a default model. `model_definition_resolved.json` contains the
+resolved definition itself, while compilation diagnostics use the distinct
+`ism_model_compilation` artifact contract.
 
 Phase 03 adds built-in component kinds under the existing v1 definition
 schema. Their `equation_version`, assumptions, and evidence requirements are
 serialized in each descriptor; semantic changes require an explicit migration.
+
+All cross-workflow result readers now use `VersionedArtifact`. A historical
+artifact may omit `artifact_kind` only when its schema is listed by that
+specific result contract. On successful read it is migrated in memory by
+stamping the expected kind; writers always emit both kind and current schema.
+Future schemas and mismatched kinds are rejected with `ArtifactError`, never
+coerced. Additive Phase 04 estimation fields default only for old schema-1/2
+reports, preserving existing `StateEstimationReport` deserialization.
+
+The additive `[equilibrium_recognition]` estimation configuration section uses
+documented defaults under schema version 3, so existing schema-3 files require
+no migration. Timestamp-level result fields were already optional; no result
+schema increment is required.

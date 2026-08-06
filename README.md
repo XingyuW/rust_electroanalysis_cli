@@ -2637,6 +2637,37 @@ The estimation configuration schema is version 3. The auxiliary field `known_log
 
 New artifact fields use serde defaults where safe. The health schema version is incremented because the old minimum-domain field had incorrect semantics; legacy values are preserved under an explicit legacy name. Signal sampling fields are additive, and ECM CSV columns use explicit RSS/BIC/legacy-score names so old columns are not silently reinterpreted.
 
+Cross-workflow JSON now uses a common typed artifact contract. Readers reject
+the wrong artifact kind or unsupported future schema before scientific use;
+explicitly listed kind-less legacy schemas are migrated in memory. The Rust
+toolchain is pinned and CI uses `Cargo.lock` for lint, test, and release jobs.
+
+The legacy estimator is retained as a compatibility facade but is compiled into
+the unified ISM graph. EKF and UKF therefore share process, Jacobian,
+observation, and contribution equations. Estimation reports add stable named
+component contributions, the five voltage categories, conservative equilibrium
+evidence, the resolved model definition, and a visible optional unexplained
+residual; old reports remain readable through additive defaults.
+
+Experimental-validation output does not substitute sensor counts, group
+labels, defaults, or residual presence for recovery, transfer, generalization,
+or coverage metrics. Those values remain unavailable until a manifest supplies
+the corresponding reference data and uncertainty evidence. Synthetic studies
+are never described as physical validation.
+
+Timestamp-level equilibrium recognition is evidence-gated rather than
+permanently indeterminate. It requires stable normalized state rates, small
+dynamic and total nonequilibrium voltage, sufficient elapsed time constants,
+acceptable innovation/autocorrelation, stable environment, in-domain
+calibration, bounded state uncertainty, observability, empirical
+identifiability, and adequate history. Missing evidence remains explicit, and
+the classification never assigns a physical mechanism.
+
+The release intentionally provides reduced-order transport components, not a
+high-fidelity Nernst–Planck solver. Such a solver is a separately reviewed
+scientific extension with boundary-condition and real-experiment validation;
+its absence does not change the reduced-order model's claims.
+
 ---
 
 ## 21. Troubleshooting

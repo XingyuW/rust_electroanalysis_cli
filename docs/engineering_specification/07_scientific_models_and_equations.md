@@ -399,3 +399,34 @@ Parameter/state recovery, contribution reconstruction, coverage, calibration
 transfer, cross-sensor comparisons, and model criteria are computed only from
 manifest-declared observations. Synthetic-only scenarios are reported as such
 and cannot substantiate physical validation.
+
+### EQ-ISM-007: Discrete Relaxation and Legacy Estimation Adapter
+
+For a constant target over a time interval, the first-order reduced state uses
+the exact recurrence
+
+`x(t + dt) = exp(-dt/tau) x(t) + (1 - exp(-dt/tau)) target`.
+
+This makes a fixed elapsed-time prediction invariant to numerical subdivision;
+it is not a physical-mechanism assignment. The compiled legacy estimation
+adapter preserves the pre-existing equilibrium, polarization, baseline, and
+sensitivity equations and exposes them as stable contribution IDs. Their sum
+is `E_pred`; `E_observed - E_pred` remains a separate unexplained residual and
+is absent rather than zero when no measurement exists.
+
+### EQ-ISM-008: Operational Equilibrium Recognition
+
+A timestamp may be classified as operationally supported equilibrium only when
+all configured evidence gates are available and pass: normalized state-rate
+stability, dynamic-potential magnitude, full equilibrium gap, elapsed time in
+units of the fitted dynamic time constant, standardized innovation, residual
+autocorrelation, environmental stability, calibration-domain status,
+normalized state uncertainty, local observability, empirical identifiability,
+and minimum history length. A failed gate produces contradictory evidence; a
+missing gate produces an indeterminate assessment. The result is not physical
+mechanism validation.
+
+High-fidelity Nernst–Planck transport remains outside the reduced-order model
+contract. Adding it requires a separate scientific phase with new state,
+boundary-condition, numerical-stability, unit, identifiability, and experimental
+validation requirements; it is not a release blocker for this framework.

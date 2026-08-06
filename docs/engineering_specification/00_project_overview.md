@@ -56,6 +56,9 @@
 | Validate state estimates | `estimate validate` | Validation report |
 | Simulate estimation scenarios | `estimate simulate` | Simulation output |
 | Compare estimation filters | `estimate compare` | Comparison report |
+| Validate a unified ISM model | `model validate` | Resolved definition and compilation evidence |
+| Simulate/decompose an ISM model | `model simulate`, `model decompose` | State, contribution, validity, and equilibrium artifacts |
+| Regenerate a model report | `model report` | Human-readable model report |
 
 ## 5. Current Capabilities (Verified)
 
@@ -68,6 +71,9 @@
 - **5 activity models**: Ideal, Davies, Extended Debye-Hückel, Conductivity-empirical, User-provided.
 - **5 signal analysis domains**: Sampling statistics, Descriptive statistics, PSD (Welch method via FFT), Allan variance, Drift analysis.
 - **2 Kalman filter variants**: EKF and UKF.
+- **Unified ISM model framework**: static component registry, compiled graph,
+  exact contribution decomposition, validity/identifiability interfaces, model
+  CLI workflows, and evidence-gated equilibrium recognition.
 - **Provence tracking**: SHA-256 hashing of input and configuration files with timestamps.
 - **Configurable plotting**: DPI, figure size, font size, line width, marker size, colors, palettes, axis transforms, scientific notation, regression overlays.
 - **Workspace management**: Auto-creation of `config/`, `data/`, `output/`, `logs/` directories; legacy config migration warnings.
@@ -87,6 +93,8 @@
 - No 3D or interactive plots
 - No Windows-specific testing (CI only runs Linux + macOS)
 - No GPU acceleration
+- No high-fidelity Nernst–Planck transport solver; reduced-order transport
+  modes are intentionally phenomenological and receive no automatic mechanism label
 
 ## 8. Major Inputs and Outputs
 

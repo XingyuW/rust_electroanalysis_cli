@@ -169,3 +169,8 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | FR-037 | `health/features.rs`, `health/assessment.rs` | `phase05_model_health` | Context-aware/model-derived health features |
 | FR-038 | `cli.rs`, `runners/model.rs`, `results/model.rs` | `phase06_model_workflow` | Model workflow and finite artifact exports |
 | FR-039 | `model_validation.rs`, `results/validation.rs` | `phase07_validation` | Reproducible experimental validation evidence |
+| ART-001 / ART-002 | `domain/artifact.rs`, `results/artifact_contracts.rs` | all cross-workflow runners | `artifact_contract` kind/version/migration tests |
+| ISM-001 / ISM-002 | `model/compiler.rs`, `model/builtins.rs`, `model/output.rs` | static model compiler | `model_core`, `model_builtins` |
+| EST-ISM-001 | `estimation/ism_adapter.rs`, `estimation/model.rs`, `estimation/model_output.rs` | EKF and UKF compatibility facade | `phase6_estimation` compiled-equivalence and contribution tests |
+| VAL-ISM-001 | `model_validation.rs`, `results/validation.rs` | `runners/model_validation.rs` | `phase07_validation` missing-evidence assertions |
+| EST-EQ-001 | `estimation/model_output.rs`, `estimation_config.rs` | EKF and UKF timestamp outputs | equilibrium unit tests and `phase6_estimation` |

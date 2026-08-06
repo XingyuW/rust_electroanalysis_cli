@@ -60,6 +60,29 @@
 | RISK-028 | SCI | Deterministic model workflow outputs can be mistaken for fitted validation | Reports label synthetic outputs and preserve indeterminate equilibrium/identifiability evidence | `runners/model.rs` | Medium | Medium | Medium | P2 |
 | RISK-029 | SCI | A validation manifest can reference synthetic or incomplete reference data | Results label non-real experiments and preserve unavailable profile-likelihood/state-recovery evidence | `model_validation.rs` | High | Medium | High | P1 |
 
+### 2026-08-05 Adversarial Review Disposition
+
+Operational equilibrium recognition now consumes every Phase 04 evidence
+category and can return supported, contradicted, or indeterminate. Its
+thresholds are configuration-defined and do not establish a physical mechanism.
+High-fidelity Nernst–Planck transport is an explicitly unsupported future
+scientific extension, not hidden debt in the reduced-order release.
+
+- RISK-006 is mitigated: the Rust toolchain is pinned and CI uses the lockfile
+  for lint, tests, and release builds.
+- RISK-009 and RISK-015 are mitigated by the common typed artifact contract and
+  explicit legacy migration tests.
+- RISK-019 is mitigated for user-data-adjacent transient, unit, spreadsheet,
+  fit, and estimation paths; malformed data now returns typed errors.
+- RISK-022 is mitigated in model and estimation results: contribution sums are
+  checked and unexplained residual remains separate and optional.
+- RISK-027 is reduced: incomplete transient context receives an event-specific
+  unresolved key and cannot be averaged with another incomplete event.
+- RISK-029 remains scientifically important. Coverage, transfer,
+  cross-sensor, parameter-recovery, and profile-likelihood metrics are now
+  explicitly unavailable unless their required evidence is present; this does
+  not itself provide physical validation.
+
 ---
 
 ## Priority Summary

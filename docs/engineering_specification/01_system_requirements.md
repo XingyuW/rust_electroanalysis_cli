@@ -158,3 +158,14 @@ Verification confidence labels used in **Verified By**:
 - **REQ-UNC-002**: No explicit requirements exist for numerical precision beyond IEEE 754 f64.
 - **REQ-UNC-003**: No formal specification of acceptable fitting residual thresholds exists; these are configuration-driven.
 - **REQ-UNC-004**: Estimation module (EKF/UKF) requirements are the least mature; process/measurement noise models are not fully verified from the source.
+
+## 12. Platform-hardening and Unified-model Requirements
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| ART-001 | Every cross-workflow JSON result shall declare a stable artifact kind and supported schema version before use | Implemented by `VersionedArtifact` readers/writers; legacy kind-less versions are accepted only when explicitly listed |
+| ART-002 | Incompatible artifact kinds and future schema versions shall return typed errors | Implemented and migration-tested |
+| ISM-001 | Every state and parameter shall declare units, finite bounds, source, and validity domain | Enforced during model compilation |
+| ISM-002 | Component voltage contributions shall reconstruct predicted potential and shall not own unexplained residual | Enforced by compiled observation evaluation and regression tests |
+| EST-ISM-001 | EKF and UKF shall use one compiled scientific model for transition, Jacobian, observation, and contribution equations | Implemented through the legacy-to-ISM compatibility adapter |
+| VAL-ISM-001 | Missing reference, uncertainty, or grouping evidence shall remain unavailable rather than be replaced by proxy metrics | Implemented in experimental validation evaluation |

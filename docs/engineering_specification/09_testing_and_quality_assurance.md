@@ -110,7 +110,8 @@ Evidence classes:
 
 - **Triggers**: push, pull_request
 - **Matrix**: ubuntu-latest, macos-latest
-- **Steps**: checkout, cache, rust-toolchain (stable + rustfmt + clippy), cargo fmt --check, cargo clippy -- -D warnings, cargo test --all, cargo build --release
+- **Toolchain**: pinned by `rust-toolchain.toml`, including rustfmt and clippy
+- **Locked steps**: cargo clippy, test, and release build use `--locked`; format is checked before compilation
 
 ## Phase 05 Regression Coverage
 
@@ -124,3 +125,15 @@ JSON output, report regeneration, and estimate-command parsing compatibility.
 
 `phase07_validation` verifies manifest evaluation, contribution reconstruction,
 reproducible result contracts, and the synthetic-data non-validation boundary.
+
+`artifact_contract` verifies typed kind/version rejection, legacy kind-less
+migration, write-time headers, and semantic contracts for every exported
+cross-workflow result. `model_builtins` verifies malformed-descriptor rejection,
+runtime ion charge, exact relaxation subdivision invariance, and contribution
+reconstruction. `phase6_estimation` verifies that the compiled compatibility
+adapter reproduces legacy equations and that EKF/UKF expose identical named
+scientific contributions.
+
+`estimation::model_output::equilibrium_tests` covers a fully evidenced stable
+timestamp, rejection of slow reference drift, and indeterminate classification
+when history or residual evidence is missing.
