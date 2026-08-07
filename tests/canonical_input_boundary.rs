@@ -15,7 +15,7 @@ use rust_electroanalysis_cli::{
 };
 use std::{
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -143,6 +143,70 @@ fn canonical_time_series_fixture_uses_typed_domain_access() {
     assert_eq!(view.time_seconds.as_ref().map(Vec::len), Some(121));
     assert_eq!(view.measurements.len(), 1);
     assert_eq!(view.measurements[0].original_name.as_deref(), Some("E1/V"));
+}
+
+#[test]
+fn canonical_channel_identity_preserves_source_header_and_historical_selector() {
+    let input = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase2/sensor.csv");
+    let parsed = parse_measurement_file(&input).expect("canonical parse");
+    let channel = parsed.measurement.channel("E1").expect("logical selector");
+
+    assert!(std::ptr::eq(
+        channel,
+        parsed
+            .measurement
+            .channel("E1/V")
+            .expect("source-header selector")
+    ));
+    assert_eq!(channel.name, "E1");
+    assert_eq!(channel.unit, "V");
+    assert_eq!(channel.source_header(), Some("E1/V"));
+    let serialized = serde_json::to_value(channel).expect("serialize channel");
+    assert_eq!(serialized["name"], "E1");
+    assert_eq!(serialized["unit"], "V");
+    assert_eq!(serialized["metadata"]["source_header"], "E1/V");
+}
+
+#[test]
+fn executable_sources_do_not_reference_developer_absolute_paths() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let slash = '/';
+    let forbidden = [
+        format!("{slash}{}{}", "Users", slash),
+        format!("{slash}{}{}", "home", slash),
+        ["Project", "Ongoing"].concat(),
+    ];
+
+    for source in rust_sources_under(&root.join("src"))
+        .into_iter()
+        .chain(rust_sources_under(&root.join("tests")))
+    {
+        let text = fs::read_to_string(&source).expect("read Rust source");
+        for marker in &forbidden {
+            assert!(
+                !text.contains(marker),
+                "executable source must not reference developer-local path marker {marker:?}: {}",
+                source.display()
+            );
+        }
+    }
+}
+
+fn rust_sources_under(directory: &Path) -> Vec<PathBuf> {
+    let mut sources = Vec::new();
+    let mut directories = vec![directory.to_path_buf()];
+    while let Some(directory) = directories.pop() {
+        for entry in fs::read_dir(directory).expect("read source directory") {
+            let entry = entry.expect("read directory entry");
+            let path = entry.path();
+            if path.is_dir() {
+                directories.push(path);
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                sources.push(path);
+            }
+        }
+    }
+    sources
 }
 
 #[test]

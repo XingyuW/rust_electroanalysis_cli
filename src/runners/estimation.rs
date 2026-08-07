@@ -151,9 +151,7 @@ fn validate_ingestion(
     }
     let selected = experiment
         .measurement_data
-        .channels
-        .iter()
-        .find(|candidate| candidate.name == channel)
+        .channel(channel)
         .ok_or_else(|| RunnerError::Message(format!("estimation channel '{channel}' is absent")))?;
     let missing = selected.missing_value_count();
     let fraction = missing as f64 / selected.values.len().max(1) as f64;

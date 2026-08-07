@@ -7,6 +7,11 @@ use std::collections::BTreeMap;
 
 pub type ChannelMetadata = BTreeMap<String, String>;
 
+/// Metadata key used to retain the exact column header supplied by the input
+/// provider.  The channel's `name` is its logical, analysis-facing identity;
+/// the source header remains available for provenance and selector aliases.
+pub const SOURCE_HEADER_METADATA_KEY: &str = "source_header";
+
 /// Provenance for an explicit coordinate normalization performed after input
 /// ingestion. The raw coordinate values and source unit remain available on
 /// the unconverted measurement at the domain boundary.
@@ -64,6 +69,23 @@ impl MeasurementChannel {
     pub fn with_analyte_id(mut self, analyte_id: impl Into<String>) -> Self {
         self.analyte_id = Some(analyte_id.into());
         self
+    }
+
+    /// Retains the exact source column header independently of the logical
+    /// channel name.  Canonical ingestion uses this after removing a verified
+    /// unit suffix from the logical identity.
+    pub fn with_source_header(mut self, source_header: impl Into<String>) -> Self {
+        self.metadata
+            .get_or_insert_default()
+            .insert(SOURCE_HEADER_METADATA_KEY.to_string(), source_header.into());
+        self
+    }
+
+    pub fn source_header(&self) -> Option<&str> {
+        self.metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get(SOURCE_HEADER_METADATA_KEY))
+            .map(String::as_str)
     }
 
     pub fn missing_value_count(&self) -> usize {
@@ -220,7 +242,11 @@ impl MultiChannelMeasurement {
     pub fn channel(&self, name: &str) -> Option<&MeasurementChannel> {
         self.channels.iter().find(|channel| {
             channel.name == name
-                || (!channel.unit.is_empty()
+                || channel
+                    .source_header()
+                    .is_some_and(|source_header| source_header == name)
+                || (channel.source_header().is_none()
+                    && !channel.unit.is_empty()
                     && format!("{}/{}", channel.name, channel.unit) == name)
                 || (!channel.unit.is_empty()
                     && format!("{} [{}]", channel.name, channel.unit) == name)
@@ -248,7 +274,7 @@ impl MultiChannelMeasurement {
 
 #[cfg(test)]
 mod tests {
-    use super::{MeasurementChannel, MultiChannelMeasurement};
+    use super::{MeasurementChannel, MultiChannelMeasurement, SOURCE_HEADER_METADATA_KEY};
 
     #[test]
     fn validates_shared_axis_alignment_and_reports_missing_values() {
@@ -293,5 +319,33 @@ mod tests {
         assert!(diagnostics.irregular_sampling);
         assert_eq!(diagnostics.duplicate_timestamps, 1);
         assert_eq!(diagnostics.non_monotonic_timestamps, 1);
+    }
+
+    #[test]
+    fn resolves_logical_name_and_source_header_alias_to_the_same_channel() {
+        let measurement = MultiChannelMeasurement::new(
+            vec![0.0, 1.0],
+            vec![
+                MeasurementChannel::from_values("E1", "V", vec![0.1, 0.2])
+                    .with_source_header("E1/V"),
+            ],
+        )
+        .expect("valid measurement");
+
+        assert!(std::ptr::eq(
+            measurement.channel("E1").expect("logical selector"),
+            measurement.channel("E1/V").expect("source header selector")
+        ));
+    }
+
+    #[test]
+    fn serializes_logical_name_unit_and_source_header_separately() {
+        let channel =
+            MeasurementChannel::from_values("E1", "V", vec![0.1]).with_source_header("E1/V");
+        let serialized = serde_json::to_value(&channel).expect("serialize channel");
+
+        assert_eq!(serialized["name"], "E1");
+        assert_eq!(serialized["unit"], "V");
+        assert_eq!(serialized["metadata"][SOURCE_HEADER_METADATA_KEY], "E1/V");
     }
 }

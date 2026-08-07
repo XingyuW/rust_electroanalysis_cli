@@ -217,14 +217,37 @@ impl TryFrom<&Dataset> for EISData {
 }
 
 fn channel_from_canonical(column: &Column) -> MeasurementChannel {
-    MeasurementChannel::new(
-        column
-            .original_name
-            .clone()
-            .unwrap_or_else(|| column.name.clone()),
-        unit_label(column.unit.as_ref()),
-        column.values.clone(),
-    )
+    let source_header = column
+        .original_name
+        .clone()
+        .unwrap_or_else(|| column.name.clone());
+    let unit = unit_label(column.unit.as_ref());
+    let logical_name = logical_channel_name(&source_header, &unit);
+    MeasurementChannel::new(logical_name, unit, column.values.clone())
+        .with_source_header(source_header)
+}
+
+/// Derives the analysis-facing channel identity only when the canonical unit
+/// metadata verifies that the final slash-delimited token is a known unit
+/// annotation.  This deliberately does not split arbitrary source headers.
+fn logical_channel_name(source_header: &str, canonical_unit: &str) -> String {
+    let Some((name, suffix)) = source_header.rsplit_once('/') else {
+        return source_header.to_string();
+    };
+    let name = name.trim();
+    let suffix = suffix.trim();
+    if !name.is_empty() && is_verified_unit_suffix(suffix, canonical_unit) {
+        name.to_string()
+    } else {
+        source_header.to_string()
+    }
+}
+
+fn is_verified_unit_suffix(suffix: &str, canonical_unit: &str) -> bool {
+    matches!(
+        canonical_unit,
+        "s" | "h" | "day" | "Hz" | "ohm" | "deg" | "V" | "mV" | "A" | "mA" | "uA"
+    ) && suffix.eq_ignore_ascii_case(canonical_unit)
 }
 
 fn required_values(column: &Column, field: &str) -> Result<Vec<f64>, DataParsingError> {
@@ -303,4 +326,19 @@ pub fn is_eis(dataset: &Dataset) -> bool {
         dataset.kind(),
         electrodata_io::DatasetKind::ImpedanceSpectrum
     ) || dataset.canonical_column(&ColumnRole::Frequency).is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::logical_channel_name;
+
+    #[test]
+    fn strips_only_a_verified_canonical_unit_suffix() {
+        assert_eq!(logical_channel_name("E1/V", "V"), "E1");
+        assert_eq!(logical_channel_name("NH4/mV", "mV"), "NH4");
+        assert_eq!(logical_channel_name("ORP", "V"), "ORP");
+        assert_eq!(logical_channel_name("NO3_sensor/A", "A"), "NO3_sensor");
+        assert_eq!(logical_channel_name("NO3_sensor/A", "V"), "NO3_sensor/A");
+        assert_eq!(logical_channel_name("path/segment", ""), "path/segment");
+    }
 }
