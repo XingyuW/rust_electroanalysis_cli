@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn test_workspace(name: &str) -> PathBuf {
+fn workspace(name: &str) -> PathBuf {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system time should be after epoch")
@@ -58,12 +58,34 @@ fallback_model = "R0-p(CPE1,R1)"
     )
     .expect("write parsing config");
 
+    root
+}
+
+fn clean_eis_workspace(name: &str) -> PathBuf {
+    let root = workspace(name);
     fs::write(root.join("data/sample.csv"), eis_fixture()).expect("write EIS fixture");
+    root
+}
+
+fn workspace_with_generated_artifacts(name: &str) -> PathBuf {
+    let root = clean_eis_workspace(name);
     fs::write(
         root.join("data/sample_ecm_search.csv"),
         "rank,circuit,rss\n1,R0-p(CPE1,R1),1.0\n",
     )
     .expect("write generated-search-like csv fixture");
+    root
+}
+
+fn mixed_physical_input_workspace(name: &str) -> PathBuf {
+    let root = clean_eis_workspace(name);
+    fs::write(root.join("data/unsupported.bin"), [0x00, 0xFE, 0x10, 0x20])
+        .expect("write unsupported binary fixture");
+    fs::write(
+        root.join("data/unknown.csv"),
+        "not an electrochemical dataset\ntext only\n",
+    )
+    .expect("write unknown physical input fixture");
     root
 }
 
@@ -96,7 +118,7 @@ fn run_binary(root: &Path, args: &[&str]) -> std::process::Output {
 
 #[test]
 fn structured_and_legacy_plot_commands_still_render_eis_outputs() {
-    let root = test_workspace("plot");
+    let root = clean_eis_workspace("plot");
     let legacy = run_binary(&root, &["--plot", "eis"]);
     assert!(
         legacy.status.success(),
@@ -125,7 +147,7 @@ fn structured_and_legacy_plot_commands_still_render_eis_outputs() {
 
 #[test]
 fn eis_plot_directory_preserves_outputs_but_reports_partial_batch_failure() {
-    let root = test_workspace("plot_skip");
+    let root = mixed_physical_input_workspace("plot_skip");
     let output = run_binary(&root, &["plot", "eis"]);
     assert!(
         !output.status.success(),
@@ -141,14 +163,56 @@ fn eis_plot_directory_preserves_outputs_but_reports_partial_batch_failure() {
         stderr.contains("batch completed"),
         "expected partial batch: {stderr}"
     );
+    assert!(
+        stderr.contains("unsupported.bin"),
+        "missing binary failure: {stderr}"
+    );
+    assert!(
+        stderr.contains("unknown.csv"),
+        "missing unknown-input failure: {stderr}"
+    );
     assert!(root.join("output").read_dir().unwrap().next().is_some());
 
     fs::remove_dir_all(root).ok();
 }
 
 #[test]
+fn generated_search_artifacts_are_rejected_without_canonical_ingestion() {
+    let root = workspace_with_generated_artifacts("search_artifact");
+    let output = run_binary(
+        &root,
+        &[
+            "eis",
+            "search",
+            "data",
+            "--search-output",
+            "output/search",
+            "--search-top",
+            "1",
+        ],
+    );
+    assert!(
+        !output.status.success(),
+        "rejected generated artifact must preserve partial-batch status"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("batch completed 1 input(s) but 1 input(s) failed"));
+    assert!(
+        !root.join("output/search/sample_ecm_search.txt").exists(),
+        "generated artifact must not receive an EIS search report"
+    );
+    assert!(
+        root.join("output/search/sample__csv_ecm_search.txt")
+            .is_file(),
+        "physical EIS input must still produce its report"
+    );
+
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn structured_and_legacy_search_commands_still_export_reports() {
-    let root = test_workspace("search");
+    let root = clean_eis_workspace("search");
     let structured = run_binary(
         &root,
         &[
@@ -193,7 +257,7 @@ fn structured_and_legacy_search_commands_still_export_reports() {
 
 #[test]
 fn eis_search_directory_keeps_same_stem_csv_and_xlsx_artifacts_distinct() {
-    let root = test_workspace("search_same_stem");
+    let root = clean_eis_workspace("search_same_stem");
     fs::write(root.join("data/eis.csv"), eis_fixture()).expect("write CSV EIS fixture");
     fs::copy(
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/xlsx/eis_only.xlsx"),
@@ -213,10 +277,10 @@ fn eis_search_directory_keeps_same_stem_csv_and_xlsx_artifacts_distinct() {
         ],
     );
     assert!(
-        !output.status.success(),
-        "mixed batch must report partial failure"
+        output.status.success(),
+        "clean physical EIS batch failed: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
-    assert!(String::from_utf8_lossy(&output.stderr).contains("batch completed"));
     for extension in ["csv", "xlsx"] {
         let base = root
             .join("output/same_stem")
@@ -230,7 +294,7 @@ fn eis_search_directory_keeps_same_stem_csv_and_xlsx_artifacts_distinct() {
 
 #[test]
 fn structured_fit_command_writes_named_report() {
-    let root = test_workspace("fit");
+    let root = clean_eis_workspace("fit");
     let output = run_binary(
         &root,
         &[
@@ -255,7 +319,7 @@ fn structured_fit_command_writes_named_report() {
 
 #[test]
 fn invalid_command_combination_fails_clearly() {
-    let root = test_workspace("invalid");
+    let root = clean_eis_workspace("invalid");
     let output = run_binary(&root, &["plot", "eis", "--search-eis", "data/sample.csv"]);
     assert!(!output.status.success());
     let diagnostics = String::from_utf8_lossy(&output.stderr);
