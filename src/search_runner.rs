@@ -847,6 +847,28 @@ mod tests {
     }
 
     #[test]
+    fn generated_search_artifacts_are_rejected_before_canonical_ingestion() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!("generated-search-artifact-{nonce}"));
+        fs::create_dir_all(&directory).expect("create directory");
+        let artifact = directory.join("sample_ecm_search.csv");
+        fs::write(&artifact, "this is deliberately not a physical input")
+            .expect("write generated artifact fixture");
+
+        let collection = collect_eis_search_inputs(&directory, None).expect("discovery");
+        assert!(collection.files.is_empty());
+        assert!(matches!(
+            collection.failures.as_slice(),
+            [BatchFileFailure::Rejected { path, reason }]
+                if path == &artifact && reason == "application-generated search artifact"
+        ));
+        fs::remove_dir_all(directory).ok();
+    }
+
+    #[test]
     fn mixed_search_batch_returns_typed_partial_error_after_writing_outputs() {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
