@@ -224,3 +224,5 @@ For plotting styles specifically:
 ## Input-domain conversion
 
 Raw units and missing cells are retained by `electrodata-io`. Time-series conversion preserves source coordinate values, coordinate names, and source units; seconds normalization is an explicit recorded downstream conversion. EIS conversion requires frequency, real impedance, and imaginary impedance; measured magnitude and phase are retained separately when supplied, while the legacy complete phase vector derives only absent source values.
+
+`chi_file.rs` and `measurement_parser.rs` consume canonical typed datasets to create project domains. `excel_file.rs` and `InputKind` remain compatibility/reference surfaces and do not own physical XLSX/format detection.

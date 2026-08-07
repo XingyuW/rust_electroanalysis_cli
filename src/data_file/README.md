@@ -15,6 +15,8 @@ domain, plotting, and analysis structures.
   - Converts canonical time-series datasets into
     `MultiChannelMeasurement`.
   - Returns `MeasurementParseResult` with explicit `ParseDiagnostics`.
+  - Its file API is a domain adapter; `parse_measurement_text` is deprecated
+    compatibility/testing surface, not a second raw-input reader.
 - `measurement_adapter.rs`
   - Projects scientific measurements into the existing `PlotData` type.
   - Keeps missing scientific values out of rendered point pairs without
@@ -25,6 +27,9 @@ domain, plotting, and analysis structures.
 - `value_transform.rs`
   - Resolves axis transforms (none, log, linear, legacy negative-log).
   - Builds transform terms used in regression annotation equations.
+- `excel_file.rs` and `InputKind`
+  - Compatibility/reference helpers; neither owns production XLSX reading nor
+    local physical-format detection.
 
 ## Integration points
 

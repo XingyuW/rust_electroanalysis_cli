@@ -22,11 +22,11 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 
 | Requirement | Module | CLI Command | Tests | Output | Evidence Class | Status |
 |------------|--------|------------|-------|--------|----------------|--------|
-| FR-001 | `data_file/chi_file.rs` | (implicit via all commands) | `chi_file` tests, `unified` test | Parsed EISData | Direct | ✅ |
-| FR-002 | `data_file/chi_file.rs` | (implicit) | `chi_file` tests | Parsed ElectrochemData | Direct | ✅ |
-| FR-003 | `data_file/chi_file.rs` | (implicit) | `chi_file` tests | Multi-series data | Direct | ✅ |
-| FR-004 | `data_file/measurement_parser.rs` | (implicit) | `phase1_domain` tests | MeasurementParseResult | Direct | ✅ |
-| FR-005 | `data_file/excel_file.rs` | (implicit via --sheet) | `xlsx_ingestion` tests | MeasurementParseResult | Direct | ✅ |
+| FR-001 | `electrodata-io` → `data_file/chi_file.rs` domain adapter | (implicit via all commands) | `chi_file` tests, `unified` test | Parsed EISData | Direct | ✅ |
+| FR-002 | `electrodata-io` → project domain adapter | (implicit) | `chi_file` tests | Parsed ElectrochemData | Direct | ✅ |
+| FR-003 | `electrodata-io` → project domain adapter | (implicit) | `chi_file` tests | Multi-series data | Direct | ✅ |
+| FR-004 | `electrodata-io` → `data_file/measurement_parser.rs` domain adapter | (implicit) | `phase1_domain` tests | MeasurementParseResult | Direct | ✅ |
+| FR-005 | `electrodata-io` → `data_file/excel_file.rs` compatibility wrapper | (implicit via --sheet) | `xlsx_ingestion` tests | MeasurementParseResult | Direct | ✅ |
 | FR-006 | `data_file/excel_file.rs` | (implicit) | `unified_data_loading` test | Error message | Direct | ✅ |
 | FR-007 | `data_file/input_kind.rs` | (implicit) | `unified_data_loading` test | Error message | Direct | ✅ |
 | FR-008 | `domain/metadata.rs` | All commands with --metadata | `phase1_domain` tests | ExperimentMetadataDocument | Direct | ✅ |

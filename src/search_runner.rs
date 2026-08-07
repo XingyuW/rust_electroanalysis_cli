@@ -16,7 +16,10 @@ use crate::{
     },
     search_config::{LoadedEcmSearchConfig, RuntimeEcmSearchConfig},
 };
-use crate::{domain::BatchFileFailure, runners::RunnerError};
+use crate::{
+    domain::BatchFileFailure,
+    runners::{BatchRunSummary, RunnerError},
+};
 use std::fs;
 use std::{
     collections::BTreeMap,
@@ -148,7 +151,7 @@ where
         emit_info(&mut log, "");
     }
 
-    let mut processed_files = 0usize;
+    let mut successful_inputs = Vec::new();
     let mut resolved_outputs = BTreeMap::new();
     for input_file in input_files {
         let data = match EISData::parse_file_with_sheet(&input_file, sheet) {
@@ -205,7 +208,7 @@ where
             &mut log,
             format!("Search CSV written to: {}", csv_export_path.display()),
         );
-        processed_files += 1;
+        successful_inputs.push(input_file.clone());
 
         // Optionally render plots for the top-N candidates.
         if plot_top_n > 0 {
@@ -248,7 +251,7 @@ where
         emit_info(&mut log, "");
     }
 
-    if processed_files == 0 {
+    if successful_inputs.is_empty() {
         return Err(RunnerError::BatchInput { failures });
     }
 
@@ -283,7 +286,14 @@ where
         emit_info(&mut log, "");
     }
 
-    Ok(())
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(RunnerError::partial_batch(BatchRunSummary {
+            successful_inputs,
+            failures,
+        }))
+    }
 }
 
 fn emit_info(log: &mut dyn FnMut(SearchLogLevel, &str), message: impl Into<String>) {
@@ -614,12 +624,12 @@ fn collect_eis_search_inputs(
             }
             Ok(dataset) => Ok(SearchInputCollection {
                 files: Vec::new(),
-                failures: vec![BatchFileFailure::rejected(
+                failures: vec![BatchFileFailure::canonical(
                     target,
-                    format!(
-                        "canonical dataset kind {:?} is not an impedance spectrum",
-                        dataset.kind()
-                    ),
+                    dataset
+                        .eis_view()
+                        .expect_err("non-EIS dataset must reject EIS view")
+                        .into(),
                 )],
             }),
             Err(error) => Ok(SearchInputCollection {
@@ -660,12 +670,12 @@ fn collect_eis_search_inputs(
             Ok(dataset) if dataset.kind() == electrodata_io::DatasetKind::ImpedanceSpectrum => {
                 files.push(path)
             }
-            Ok(dataset) => failures.push(BatchFileFailure::rejected(
+            Ok(dataset) => failures.push(BatchFileFailure::canonical(
                 path,
-                format!(
-                    "canonical dataset kind {:?} is not an impedance spectrum",
-                    dataset.kind()
-                ),
+                dataset
+                    .eis_view()
+                    .expect_err("non-EIS dataset must reject EIS view")
+                    .into(),
             )),
             Err(error) => failures.push(BatchFileFailure::canonical(path, error)),
         }
@@ -700,10 +710,16 @@ mod tests {
         resolve_search_plot_output_base,
     };
     use crate::{
+        domain::{BatchFileFailure, DataParsingError},
         plottings::{PlotSeries, PlotSeriesKind},
         runners::RunnerError,
+        search_config::RuntimeEcmSearchConfig,
     };
-    use std::path::Path;
+    use std::{
+        fs,
+        path::Path,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     #[test]
     fn paired_color_helper_keeps_experimental_and_converts_fitted_series_kind() {
@@ -775,18 +791,160 @@ mod tests {
         assert_eq!(without_sheet.failures.len(), 1);
         let with_sheet = collect_eis_search_inputs(&fixture, Some("SheetA")).expect("discovery");
         assert_eq!(with_sheet.failures.len(), 1);
-        let text = format!("{:?}", with_sheet.failures);
         assert!(
-            text.contains("TimeSeries"),
-            "explicit sheet was not applied: {text}"
+            matches!(
+                with_sheet.failures.as_slice(),
+                [BatchFileFailure::Canonical {
+                    source: DataParsingError::ElectrodataIo(source),
+                    ..
+                }] if provider_contains(source.as_ref(), is_wrong_view)
+            ),
+            "unexpected typed wrong-view failure: {:?}",
+            with_sheet.failures
         );
 
         // The no-sheet path retains the provider's ambiguity rather than
         // probing workbook content locally.
-        let text = format!("{:?}", without_sheet.failures);
-        assert!(
-            text.contains("AmbiguousWorksheet"),
-            "missing canonical ambiguity: {text}"
-        );
+        assert!(matches!(
+            without_sheet.failures.as_slice(),
+            [BatchFileFailure::Canonical {
+                source: DataParsingError::ElectrodataIo(source),
+                ..
+            }] if provider_contains(source.as_ref(), is_ambiguous_worksheet)
+        ));
+    }
+
+    #[test]
+    fn discovery_retains_typed_binary_and_unknown_format_provider_errors() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!("batch-provider-errors-{nonce}"));
+        fs::create_dir_all(&directory).expect("create directory");
+        fs::write(directory.join("binary.csv"), [0_u8, 159, 146, 150])
+            .expect("write binary fixture");
+        fs::write(directory.join("unknown.txt"), "not a scientific table")
+            .expect("write text fixture");
+
+        let collection = collect_eis_search_inputs(&directory, None).expect("discovery");
+        assert!(collection.files.is_empty());
+        assert!(collection.failures.iter().any(|failure| matches!(
+            failure,
+            BatchFileFailure::Canonical {
+                source: DataParsingError::ElectrodataIo(source),
+                ..
+            } if provider_contains(source.as_ref(), is_unsupported_binary)
+        )));
+        assert!(collection.failures.iter().any(|failure| matches!(
+            failure,
+            BatchFileFailure::Canonical {
+                source: DataParsingError::ElectrodataIo(source),
+                ..
+            } if provider_contains(source.as_ref(), is_unknown_format)
+        )));
+        fs::remove_dir_all(directory).ok();
+    }
+
+    #[test]
+    fn mixed_search_batch_returns_typed_partial_error_after_writing_outputs() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("mixed-search-batch-{nonce}"));
+        let input = root.join("input");
+        let output = root.join("output");
+        fs::create_dir_all(&input).expect("create input directory");
+        fs::write(
+            input.join("valid.csv"),
+            "Freq/Hz,Z'/ohm,Z\"/ohm,Phase/deg\n1000,10,-1,-5.7\n100,15,-5,-18.4\n10,20,-10,-26.6\n",
+        )
+        .expect("write EIS fixture");
+        fs::write(input.join("binary.csv"), [0_u8, 159, 146, 150]).expect("write binary");
+        let config = RuntimeEcmSearchConfig {
+            max_ranked_results: Some(1),
+            evolution: crate::search_config::RawEvolutionConfig {
+                population_size: Some(8),
+                generation_limit: Some(1),
+                num_individuals_per_parents: Some(2),
+                selection_ratio: Some(0.7),
+                mutation_rate: Some(0.2),
+                reinsertion_ratio: Some(0.75),
+                ranking_criterion: None,
+            },
+            ..Default::default()
+        };
+        let loaded = crate::search_config::LoadedEcmSearchConfig {
+            config,
+            base_dir: root.clone(),
+            source_path: None,
+            warnings: Vec::new(),
+        };
+        let error = super::run_eis_search_with_loaded_config(
+            &root,
+            &input,
+            None,
+            loaded,
+            Some(&output),
+            Some(1),
+            None,
+            |_, _| {},
+        )
+        .expect_err("mixed batch must not report full success");
+        match error {
+            RunnerError::PartialBatch {
+                successful_count,
+                failure_count,
+                summary,
+            } => {
+                assert_eq!(successful_count, 1);
+                assert_eq!(failure_count, 1);
+                assert_eq!(summary.successful_inputs, vec![input.join("valid.csv")]);
+                assert!(summary.failures.iter().any(|failure| matches!(
+                    failure,
+                    BatchFileFailure::Canonical {
+                        source: DataParsingError::ElectrodataIo(source),
+                        ..
+                    } if provider_contains(source.as_ref(), is_unsupported_binary)
+                )));
+            }
+            other => panic!("expected typed partial batch error, got {other:?}"),
+        }
+        assert!(output.join("valid__csv_ecm_search.txt").is_file());
+        assert!(output.join("valid__csv_ecm_search.csv").is_file());
+        fs::remove_dir_all(root).ok();
+    }
+
+    fn provider_contains(
+        error: &electrodata_io::Error,
+        predicate: fn(&electrodata_io::Error) -> bool,
+    ) -> bool {
+        predicate(error)
+            || matches!(error, electrodata_io::Error::ReadContext { source, .. } if provider_contains(source, predicate))
+    }
+
+    fn is_wrong_view(error: &electrodata_io::Error) -> bool {
+        matches!(
+            error,
+            electrodata_io::Error::InvalidDatasetView { .. }
+                | electrodata_io::Error::WrongDatasetKind { .. }
+        )
+    }
+
+    fn is_ambiguous_worksheet(error: &electrodata_io::Error) -> bool {
+        matches!(error, electrodata_io::Error::AmbiguousWorksheet { .. })
+    }
+
+    fn is_unsupported_binary(error: &electrodata_io::Error) -> bool {
+        matches!(error, electrodata_io::Error::UnsupportedBinary { .. })
+    }
+
+    fn is_unknown_format(error: &electrodata_io::Error) -> bool {
+        matches!(
+            error,
+            electrodata_io::Error::UnknownFormat { .. }
+                | electrodata_io::Error::UnknownFormatDetailed { .. }
+        )
     }
 }

@@ -321,3 +321,5 @@ plotting, health, or mechanism modules.
 ## Canonical physical-input boundary
 
 `electrodata-io` owns physical/raw data detection, parsing, worksheet handling, scientific input roles, recovery diagnostics, and raw input errors. `rust_electroanalysis_cli` owns domain conversion, scientific calculations, modeling, estimation, mechanism, health, plotting, reporting, and analysis artifacts. `data_file/electrodata_domain_adapter.rs` is the only production conversion boundary from `Dataset` to project domains; it uses typed time-series/EIS views and never accesses Polars. Legacy parser modules remain compatibility/parity-only pending independent review.
+
+`chi_file.rs` and `measurement_parser.rs` are consumer-domain adapters over that boundary; `parse_measurement_text` is a deprecated compatibility surface. `excel_file.rs` and `InputKind` are compatibility/reference helpers, not local production detection or workbook parsers.

@@ -104,6 +104,8 @@ reporting, and analysis artifacts.
 
 Legacy `ProjectTabularHandler`, measurement/EIS parsers, Excel wrappers, and `InputKind` remain present for compatibility/parity verification and must not be treated as production raw-input dispatch. Delete them only after independent parity review covers the full consumer-fixture corpus, including headerless/ragged recovery and all EIS layouts.
 
+`chi_file.rs` and file-based `measurement_parser.rs` are canonical Dataset-to-domain adapters; only `parse_measurement_text` is deprecated compatibility code. Excel wrappers and `InputKind` are legacy/reference helpers, while `electrodata-io` remains the sole owner of physical workbook and format detection.
+
 The pinned provider does not currently expose a public canonical in-memory
 text/buffer read API. `parse_measurement_text` is therefore deprecated and
 restricted to compatibility/tests; file-based `electrodata-io` ingestion is the

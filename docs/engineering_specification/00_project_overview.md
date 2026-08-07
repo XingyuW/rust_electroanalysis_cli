@@ -102,9 +102,9 @@
 
 | Format | Extension | Parser |
 |--------|-----------|--------|
-| CHI EIS | `.csv`, `.txt` | `data_file::chi_file` |
-| CHI OCPT | `.csv`, `.txt` | `data_file::chi_file` |
-| Generic sensor CSV | `.csv` | `data_file::measurement_parser` |
+| CHI EIS | `.csv`, `.txt` | `electrodata-io` → `data_file::chi_file` domain adapter |
+| CHI OCPT | `.csv`, `.txt` | `electrodata-io` → project domain adapter |
+| Generic sensor CSV | `.csv` | `electrodata-io` → `measurement_parser` domain adapter |
 | Excel workbook | `.xlsx` | `electrodata-io` canonical reader → domain adapter |
 | Experiment metadata | `.toml` | `domain::metadata` |
 | Configuration | `.toml` | Various config modules |

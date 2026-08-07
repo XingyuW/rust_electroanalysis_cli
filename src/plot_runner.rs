@@ -6,8 +6,7 @@
 //! * **Regular plots** – CHI timeseries / Pb-sensor diagrams produced by
 //!   `chi_plot`.
 
-use crate::plottings::chi_plot::coordinate_plot_config;
-use crate::runners::RunnerError;
+use crate::plottings::{chi_plot::coordinate_plot_config, eis_plot::EISPlotFailure};
 use crate::{
     data_file::{
         ElectrochemData, PlotData, load_data, measurement_to_plot_data,
@@ -21,6 +20,10 @@ use crate::{
         pb_sensor_individual_publication_config, plot_chi_directory_with_configs_and_transforms,
         plot_eis_directory_with_configs, plot_eis_file, plot_generic_datasets, plot_hq,
     },
+};
+use crate::{
+    domain::BatchFileFailure,
+    runners::{BatchRunSummary, RunnerError},
 };
 use std::fs;
 use std::path::Path;
@@ -62,6 +65,7 @@ where
     // Resolve only EIS jobs, then process each with shared render defaults.
     let jobs = resolve_jobs(plot_config, PlotJobKind::Eis, workspace_dir)?;
     let render = plot_config.render_config();
+    let mut batch = BatchRunSummary::default();
 
     for (idx, job) in jobs.iter().enumerate() {
         fs::create_dir_all(&job.output_dir)?;
@@ -107,6 +111,7 @@ where
             fs::create_dir_all(&job.output_dir)?;
 
             let outcome = plot_eis_file(file_path, &output_base, &combined_config, None)?;
+            batch.successful_inputs.push(outcome.input_file.clone());
             emit_plot_info(
                 &mut log,
                 format!("Processed file: {}", outcome.input_file.display()),
@@ -148,7 +153,8 @@ where
             None,
         )?;
 
-        for outcome in plotted.plotted {
+        for outcome in &plotted.plotted {
+            batch.successful_inputs.push(outcome.input_file.clone());
             emit_plot_info(
                 &mut log,
                 format!("Processed file: {}", outcome.input_file.display()),
@@ -182,6 +188,7 @@ where
 
         for failure in plotted.failures {
             emit_plot_warning(&mut log, format!("EIS plot input failure: {failure}"));
+            batch.failures.push(eis_failure_into_batch_failure(failure));
         }
 
         emit_plot_info(
@@ -193,7 +200,7 @@ where
         );
     }
 
-    Ok(())
+    finish_batch(batch)
 }
 
 // ---------------------------------------------------------------------------
@@ -227,6 +234,7 @@ where
     // overlays before dispatching each job.
     let jobs = resolve_jobs(plot_config, PlotJobKind::RegularPlot, workspace_dir)?;
     let render = plot_config.render_config();
+    let mut batch = BatchRunSummary::default();
 
     for (idx, job) in jobs.iter().enumerate() {
         fs::create_dir_all(&job.output_dir)?;
@@ -309,6 +317,7 @@ where
                     &individual_plot_config,
                     false,
                 )?;
+                batch.successful_inputs.push(file_path.clone());
                 plot_hq(
                     combined_output_base.to_string_lossy().as_ref(),
                     &combined_datasets,
@@ -368,6 +377,7 @@ where
                 &plot_config,
                 true,
             )?;
+            batch.successful_inputs.push(file_path.clone());
             emit_plot_info(
                 &mut log,
                 format!("Processed regular-plot file: {}", file_path.display()),
@@ -402,7 +412,8 @@ where
             &job.combined_transforms,
         )?;
 
-        for outcome in pb_sensor_plotted.plotted {
+        for outcome in &pb_sensor_plotted.plotted {
+            batch.successful_inputs.push(outcome.input_file.clone());
             emit_plot_info(
                 &mut log,
                 format!(
@@ -438,6 +449,7 @@ where
                     skipped.failure
                 ),
             );
+            batch.failures.push(skipped.failure);
         }
 
         emit_plot_info(
@@ -449,7 +461,7 @@ where
         );
     }
 
-    Ok(())
+    finish_batch(batch)
 }
 
 // ---------------------------------------------------------------------------
@@ -516,6 +528,7 @@ where
     }
 
     let render = plot_config.render_config();
+    let mut batch = BatchRunSummary::default();
 
     for (idx, job) in jobs.iter().enumerate() {
         fs::create_dir_all(&job.output_dir)?;
@@ -612,6 +625,7 @@ where
                 &individual_config,
                 &combined_config,
             )?;
+            batch.successful_inputs.push(file_path.clone());
 
             emit_plot_info(
                 &mut log,
@@ -657,6 +671,9 @@ where
                 ),
             );
         }
+        batch
+            .failures
+            .extend(skipped.into_iter().map(|skipped| skipped.failure));
 
         if loaded.is_empty() {
             emit_plot_warning(
@@ -669,6 +686,9 @@ where
             );
             continue;
         }
+        batch
+            .successful_inputs
+            .extend(loaded.iter().map(|dataset| dataset.source_file.clone()));
 
         // ── Step 2: build output paths ────────────────────────────────────
         // Paths are needed by both aggregation mode and standard mode;
@@ -928,7 +948,35 @@ where
         );
     }
 
-    Ok(())
+    finish_batch(batch)
+}
+
+fn eis_failure_into_batch_failure(failure: EISPlotFailure) -> BatchFileFailure {
+    match failure {
+        EISPlotFailure::Input(failure) => failure,
+        EISPlotFailure::Fitting { path, source } => {
+            BatchFileFailure::rejected(path, source.to_string())
+        }
+    }
+}
+
+fn finish_batch(mut batch: BatchRunSummary) -> Result<(), RunnerError> {
+    batch.successful_inputs.sort();
+    batch.successful_inputs.dedup();
+    if batch.successful_inputs.is_empty() {
+        return if batch.failures.is_empty() {
+            Ok(())
+        } else {
+            Err(RunnerError::BatchInput {
+                failures: batch.failures,
+            })
+        };
+    }
+    if batch.failures.is_empty() {
+        Ok(())
+    } else {
+        Err(RunnerError::partial_batch(batch))
+    }
 }
 
 fn emit_plot_info(log: &mut dyn FnMut(PlotRunLogLevel, &str), message: impl Into<String>) {

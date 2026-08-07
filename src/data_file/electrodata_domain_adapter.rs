@@ -246,7 +246,7 @@ fn logical_channel_name(source_header: &str, canonical_unit: &str) -> String {
 fn is_verified_unit_suffix(suffix: &str, canonical_unit: &str) -> bool {
     matches!(
         canonical_unit,
-        "s" | "h" | "day" | "Hz" | "ohm" | "deg" | "V" | "mV" | "A" | "mA" | "uA"
+        "s" | "h" | "day" | "Hz" | "ohm" | "deg" | "V" | "mV" | "A" | "mA" | "uA" | "C"
     ) && suffix.eq_ignore_ascii_case(canonical_unit)
 }
 

@@ -22,12 +22,12 @@
 | `src/domain/provenance.rs` | AnalysisProvenance (SHA-256, timestamps) | ✅ |
 | `src/domain/diagnostics.rs` | ParseDiagnostics, MeasurementParseResult | ✅ |
 | `src/data_file/lib.rs` | Data ingestion module root | ✅ |
-| `src/data_file/chi_file.rs` | CHI-format parser (EIS, OCPT) | ✅ |
+| `src/data_file/chi_file.rs` | Canonical Dataset → EIS/plot domain adapter | ✅ |
 | `src/data_file/data_op.rs` | PlotData container, IntoPlotData trait | ✅ |
 | `src/data_file/excel_file.rs` | Compatibility wrapper over canonical XLSX ingestion | ✅ |
-| `src/data_file/input_kind.rs` | File format detection | ✅ |
+| `src/data_file/input_kind.rs` | Legacy/reference batch classification only | ✅ |
 | `src/data_file/measurement_adapter.rs` | Conversion from domain measurements to PlotData | ✅ |
-| `src/data_file/measurement_parser.rs` | Generic CSV measurement parser | ✅ |
+| `src/data_file/measurement_parser.rs` | Canonical file-to-measurement domain adapter; deprecated text compatibility API | ✅ |
 | `src/data_file/value_transform.rs` | Axis transform resolution for plotting | ✅ |
 | `src/impedance/lib.rs` | Impedance module root, fit_circuit, lin_kk | ✅ |
 | `src/impedance/elements.rs` | 15 circuit element types with impedance equations | ✅ |

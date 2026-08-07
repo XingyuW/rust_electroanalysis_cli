@@ -124,12 +124,12 @@ fn structured_and_legacy_plot_commands_still_render_eis_outputs() {
 }
 
 #[test]
-fn eis_plot_directory_skips_non_eis_csv_without_aborting_batch() {
+fn eis_plot_directory_preserves_outputs_but_reports_partial_batch_failure() {
     let root = test_workspace("plot_skip");
     let output = run_binary(&root, &["plot", "eis"]);
     assert!(
-        output.status.success(),
-        "plot failed: {}",
+        !output.status.success(),
+        "mixed physical-input batch must be non-successful: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -137,6 +137,11 @@ fn eis_plot_directory_skips_non_eis_csv_without_aborting_batch() {
         stderr.contains("EIS plot input failure"),
         "expected skip message, got: {stderr}"
     );
+    assert!(
+        stderr.contains("batch completed"),
+        "expected partial batch: {stderr}"
+    );
+    assert!(root.join("output").read_dir().unwrap().next().is_some());
 
     fs::remove_dir_all(root).ok();
 }
@@ -208,10 +213,10 @@ fn eis_search_directory_keeps_same_stem_csv_and_xlsx_artifacts_distinct() {
         ],
     );
     assert!(
-        output.status.success(),
-        "same-stem directory search failed: {}",
-        String::from_utf8_lossy(&output.stderr)
+        !output.status.success(),
+        "mixed batch must report partial failure"
     );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("batch completed"));
     for extension in ["csv", "xlsx"] {
         let base = root
             .join("output/same_stem")

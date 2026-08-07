@@ -329,8 +329,8 @@ tests, not production ingestion.
 1. **Binary handling**: `electrodata-io` detects unsupported binary content and returns its structured error; the CLI does not pre-classify physical formats.
 2. **Excel (`.xlsx`)**: Read and worksheet-selected by `electrodata-io`.
 3. **CHI EIS**: Recognized by `electrodata-io` and converted through `EISData::parse_file`.
-4. **CHI OCPT**: Content detection identifies a time header with CHI preamble markers (instrument/data-source); parser `parse_measurement_file`, internal type `chi_export`.
-5. **General sensor CSV/Excel**: Time header without CHI preamble; parser `parse_measurement_file`, internal type `sensor_csv` or `excel_workbook`.
+4. **CHI OCPT**: `electrodata-io` recognizes the physical time-series roles; `parse_measurement_file` is the project domain-adapter entry point, not a raw parser.
+5. **General sensor CSV/Excel**: `electrodata-io` owns detection, worksheet choice, recovery, and diagnostics; this project converts its typed view into `MeasurementParseResult`.
 
 Unsupported/ambiguous files return explicit errors (missing time/frequency header, unsupported binary, missing EIS header, decode/IO errors).
 
@@ -1745,8 +1745,8 @@ rust_electroanalysis_cli/
     │
     ├── data_file/                      # Data ingestion and normalization layer
     │   ├── lib.rs                      # Module facade — re-exports parsers and types
-    │   ├── chi_file.rs                 # CHI-format file parser (ElectrochemData, EISData)
-    │   ├── measurement_parser.rs       # Generic/CHI parser into domain measurements
+    │   ├── chi_file.rs                 # Canonical-domain adapters (ElectrochemData, EISData)
+    │   ├── measurement_parser.rs       # Canonical file-to-domain adapter; text API is deprecated compatibility only
     │   ├── measurement_adapter.rs      # Domain measurement → PlotData adapters
     │   ├── data_op.rs                  # Generic PlotData container, PointSelection, IntoPlotData
     │   └── value_transform.rs          # Axis transform resolution (log, neg-log, linear)
@@ -2029,12 +2029,13 @@ Defines the ECM search TOML schema with validation.
 
 ### Data Layer (`data_file/`)
 
-#### `chi_file.rs` — CHI Format Parser
+#### `chi_file.rs` — Canonical EIS and time-series domain adapter
 
-Parses CHI Instruments electrochemical data files. The binary format is a text/CSV hybrid with:
-- Optional metadata header lines (key: value pairs)
-- Column header row with hyphen separator
-- Numeric data rows
+Converts `electrodata-io` typed physical input into the legacy-consumer
+`ElectrochemData` and `EISData` domains. Physical CHI/CSV/TXT/DAT/XLSX
+detection, reading, worksheet handling, recovery, and source diagnostics are
+owned by `electrodata-io`; this module does not implement a production raw
+format parser.
 
 **Key types:**
 - `ElectrochemData` — General electrochemical dataset with date, test_type, instrument_model, x_values, multiple y_values series
@@ -2044,7 +2045,7 @@ Parses CHI Instruments electrochemical data files. The binary format is a text/C
 - `RankedEISFit` — Fit result + metrics pair
 
 **Key functions:**
-- `ElectrochemData::parse_file(path)` — Parse any CHI file
+- `ElectrochemData::parse_file(path)` — Canonically read then project to the plotting domain
 - `ElectrochemData::parse_file_series(path)` — Parse multi-column files into separate series
 - `EISData::parse_file(path)` — Parse EIS-specific files
 - `EISData::fit_circuit(circuit_str)` — Fit a circuit to this data
@@ -2590,10 +2591,10 @@ Required action on conflict: **treat it as documentation drift, not a silent beh
 4. Add the dispatch branch in `compute_regression()` and `compute_regression_with_fit()`
 5. Update the documentation table in the module-level doc comment
 
-### Adding a New File Format Parser
+### Adding a New Consumer Domain Projection
 
-1. Create a new module in `data_file/`
-2. Implement a struct representing the parsed data
+1. Extend or configure `electrodata-io` for physical input detection and reading.
+2. Create a project-domain conversion for the provider's typed dataset.
 3. Implement `IntoPlotData` for your new type to integrate with the generic plotting pipeline
 4. If EIS-specific, implement the `PlotDataSeries` trait for integration with EIS plotting
 5. Add a public re-export in `data_file/lib.rs`

@@ -9,8 +9,8 @@ use crate::domain::{
     WorkspaceError,
 };
 use crate::potentiometry::{PotentiometryError, calibration::CalibrationError};
-use std::error::Error;
 use std::io;
+use std::{error::Error, path::PathBuf};
 use thiserror::Error as ThisError;
 
 pub mod calibration;
@@ -25,6 +25,17 @@ pub mod search;
 pub mod signal;
 pub mod transient;
 
+/// Preserved outcome of a directory-level physical-input workflow.
+///
+/// Callers receive this inside [`RunnerError::PartialBatch`] when some
+/// artifacts were written but one or more inputs failed canonical ingestion
+/// or were explicitly rejected by the workflow.
+#[derive(Debug, Default)]
+pub struct BatchRunSummary {
+    pub successful_inputs: Vec<PathBuf>,
+    pub failures: Vec<BatchFileFailure>,
+}
+
 /// Errors crossing a workflow boundary into the CLI.
 #[derive(Debug, ThisError)]
 pub enum RunnerError {
@@ -34,6 +45,14 @@ pub enum RunnerError {
     Data(#[from] DataParsingError),
     #[error("raw-data batch input failures: {failures:?}")]
     BatchInput { failures: Vec<BatchFileFailure> },
+    #[error(
+        "batch completed {successful_count} input(s) but {failure_count} input(s) failed; completed artifacts were preserved"
+    )]
+    PartialBatch {
+        successful_count: usize,
+        failure_count: usize,
+        summary: BatchRunSummary,
+    },
     #[error("search output collision at {output}: {first_input} and {second_input}")]
     OutputCollision {
         output: std::path::PathBuf,
@@ -72,6 +91,18 @@ pub enum RunnerError {
     Backend(#[source] Box<dyn Error + 'static>),
     #[error("workflow error: {0}")]
     Message(String),
+}
+
+impl RunnerError {
+    /// Converts a mixed batch outcome into the automation-visible error that
+    /// retains completed artifacts and every typed per-file failure.
+    pub fn partial_batch(summary: BatchRunSummary) -> Self {
+        Self::PartialBatch {
+            successful_count: summary.successful_inputs.len(),
+            failure_count: summary.failures.len(),
+            summary,
+        }
+    }
 }
 
 impl From<Box<dyn Error + 'static>> for RunnerError {

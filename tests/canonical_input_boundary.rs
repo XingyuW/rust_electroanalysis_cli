@@ -192,6 +192,45 @@ fn executable_sources_do_not_reference_developer_absolute_paths() {
     }
 }
 
+#[test]
+fn ownership_documentation_does_not_restore_local_raw_parser_claims() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let documents = [
+        "README.md",
+        "src/data_file/README.md",
+        "docs/engineering_specification/00_project_overview.md",
+        "docs/engineering_specification/01_system_requirements.md",
+        "docs/engineering_specification/02_architecture.md",
+        "docs/engineering_specification/03_module_specifications.md",
+        "docs/engineering_specification/04_data_models_and_units.md",
+        "docs/engineering_specification/06_workflows.md",
+        "docs/engineering_specification/13_traceability_matrix.md",
+        "docs/engineering_specification/14_risk_and_technical_debt_register.md",
+    ];
+    let stale_claims = [
+        "chi format parser",
+        "local xlsx parser",
+        "local format detection owns",
+        "measurement_parser reads raw physical csv",
+    ];
+
+    for document in documents {
+        let text = fs::read_to_string(root.join(document))
+            .expect("read ownership documentation")
+            .to_ascii_lowercase();
+        for stale_claim in stale_claims {
+            assert!(
+                !text.contains(stale_claim),
+                "stale input-ownership claim {stale_claim:?} in {document}"
+            );
+        }
+        assert!(
+            text.contains("electrodata-io"),
+            "canonical owner is not documented in {document}"
+        );
+    }
+}
+
 fn rust_sources_under(directory: &Path) -> Vec<PathBuf> {
     let mut sources = Vec::new();
     let mut directories = vec![directory.to_path_buf()];
