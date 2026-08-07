@@ -24,7 +24,7 @@
 | `src/data_file/lib.rs` | Data ingestion module root | ✅ |
 | `src/data_file/chi_file.rs` | CHI-format parser (EIS, OCPT) | ✅ |
 | `src/data_file/data_op.rs` | PlotData container, IntoPlotData trait | ✅ |
-| `src/data_file/excel_file.rs` | Excel .xlsx reader (calamine) | ✅ |
+| `src/data_file/excel_file.rs` | Compatibility wrapper over canonical XLSX ingestion | ✅ |
 | `src/data_file/input_kind.rs` | File format detection | ✅ |
 | `src/data_file/measurement_adapter.rs` | Conversion from domain measurements to PlotData | ✅ |
 | `src/data_file/measurement_parser.rs` | Generic CSV measurement parser | ✅ |
@@ -216,10 +216,8 @@
 
 ### `data_file/` — Data Ingestion
 
-- **CHI parser**: Header-based detection of EIS vs OCPT, multi-column handling.
-- **Generic CSV**: Automatic delimiter detection, header parsing, channel name/unit extraction.
-- **Excel**: calamine-based `.xlsx` reading with worksheet selection.
-- **Format detection**: `InputKind` discriminates CHI, generic CSV, Excel, and rejects binary/legacy `.xls`.
+- **Canonical boundary**: `electrodata-io` owns raw CSV/DAT/XLSX interpretation, worksheet selection, headers, recovery, units, and diagnostics.
+- **Domain adapter**: converts typed datasets to project scientific domains; legacy parsers remain compatibility/parity-only.
 
 ### `results/` — Result Structures
 

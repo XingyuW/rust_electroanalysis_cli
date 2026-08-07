@@ -40,6 +40,13 @@ pub fn parse_measurement_file_with_sheet(
 
 /// Parse a CHI-style or generic time-series text buffer.  Metadata/preamble
 /// lines are ignored until a time-oriented header is found.
+/// Deprecated compatibility parser. `electrodata-io` currently exposes the
+/// canonical file API but no public in-memory text/buffer entry point; use
+/// `parse_measurement_file` for production raw input. This parser remains for
+/// compatibility tests only and must not become a second canonical reader.
+#[deprecated(
+    note = "use parse_measurement_file; canonical in-memory buffer ingestion is provider follow-up debt"
+)]
 pub fn parse_measurement_text(
     text: &str,
     source: impl AsRef<Path>,
@@ -76,7 +83,8 @@ pub fn parse_measurement_text(
     )
 }
 
-pub fn parse_measurement_table(
+#[doc(hidden)]
+pub(crate) fn parse_measurement_table(
     source: &Path,
     headers: &[String],
     rows: &[Vec<String>],
@@ -336,6 +344,7 @@ pub fn load_experiment_with_sheet(
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::parse_measurement_text;
 

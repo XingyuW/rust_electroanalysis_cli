@@ -14,12 +14,13 @@ pub fn run(
     workspace_dir: &Path,
     input: &Path,
     circuit_model: Option<&str>,
+    sheet: Option<&str>,
     output: Option<&Path>,
     artifact: Option<&Path>,
     report: Option<&Path>,
 ) -> Result<(), RunnerError> {
     let input = resolve_path(workspace_dir, input);
-    let data = EISData::parse_file(&input)?;
+    let data = EISData::parse_file_with_sheet(&input, sheet)?;
     let model = circuit_model.unwrap_or(&data.circuit_model);
     let detailed = fit_circuit_detailed(model, &data.freq, &data.z_re, &data.z_im, &data.phase)?;
     let result = detailed.legacy_result.clone();
@@ -82,6 +83,7 @@ pub fn export(
     workspace_dir: &Path,
     input: &Path,
     circuit_model: Option<&str>,
+    sheet: Option<&str>,
     artifact: &Path,
     report: Option<&Path>,
 ) -> Result<(), RunnerError> {
@@ -89,6 +91,7 @@ pub fn export(
         workspace_dir,
         input,
         circuit_model,
+        sheet,
         None,
         Some(artifact),
         report,

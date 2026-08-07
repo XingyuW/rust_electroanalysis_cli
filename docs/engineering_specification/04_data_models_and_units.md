@@ -91,7 +91,7 @@
 | CHI EIS CSV | Header contains "A.C. Impedance" or "Freq/Hz" column | `chi_file.rs` → `EISData` |
 | CHI OCPT CSV | Header contains "Technique" metadata or time/potential columns | `chi_file.rs` → `ElectrochemData` |
 | Generic sensor CSV | CSV with header row containing time column + value columns | `measurement_parser.rs` → `MeasurementParseResult` |
-| Excel .xlsx | File extension `.xlsx` | `excel_file.rs` (calamine) → `MeasurementParseResult` |
+| Excel .xlsx | Canonical workbook probing | `electrodata-io` → domain adapter → `MeasurementParseResult` |
 | Experiment metadata | TOML file with `experiment_id`, `sensor`, `events` | `metadata.rs` → `ExperimentMetadataDocument` |
 
 ### 3.2 Output Formats

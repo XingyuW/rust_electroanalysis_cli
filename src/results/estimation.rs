@@ -227,6 +227,10 @@ pub struct StateEstimationReport {
     pub skipped_timestamp_segments: Vec<crate::estimation::timestamp::SkippedTimestampSegment>,
     #[serde(default)]
     pub was_preprocessed: bool,
+    /// Canonical physical-input recovery evidence used by this estimate.
+    /// Kept separately from downstream timestamp preprocessing diagnostics.
+    #[serde(default)]
+    pub ingestion_diagnostics: crate::domain::ParseDiagnostics,
 }
 
 pub fn finite_json<T: Serialize>(value: &T) -> Result<String, serde_json::Error> {

@@ -227,7 +227,7 @@ flowchart TD
 | `genevo` | Genetic algorithm for ECM | `impedance/ecm_evolution.rs` only |
 | `rayon` | Parallel candidate evaluation | `impedance/ecm_evolution.rs`, `impedance/pinn_optimizer.rs`, `impedance/lib.rs` |
 | `rustfft` | FFT for signal PSD | `signal/psd.rs` only |
-| `calamine` | Excel .xlsx reading | `data_file/excel_file.rs` only |
+| `calamine` | Provider-internal XLSX implementation detail | `electrodata-io` boundary |
 | `sha2` | File hashing for provenance | `domain/provenance.rs` only |
 | `serde` / `serde_json` | Serialization and artifact I/O | Domain, config, runners, scientific modules, `results/` |
 | `thiserror` | Error derive macros | CLI, domain, runners, scientific modules |

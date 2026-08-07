@@ -13,7 +13,7 @@ pub mod metadata;
 pub mod provenance;
 
 pub use artifact::{ArtifactError, ArtifactKind, VersionedArtifact, read_artifact, write_artifact};
-pub use diagnostics::{MeasurementParseResult, ParseDiagnostics};
+pub use diagnostics::{IngestionDiagnostic, MeasurementParseResult, ParseDiagnostics};
 pub use errors::{
     BatchFileFailure, ConfigurationError, DataParsingError, FittingError, PlottingError,
     ProvenanceError, ReportingError, WorkspaceError,

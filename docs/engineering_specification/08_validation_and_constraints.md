@@ -149,3 +149,5 @@ never averaged into one score. Insufficient history remains indeterminate.
 ## Input validation and recovery
 
 Strict `electrodata-io` defaults are not changed. The project compatibility profile explicitly uses `InvalidTimePolicy::SkipRow`, `InvalidCellPolicy::Null`, `RaggedRowPolicy::PadNulls`, and preserved coordinate order. Recovery is retained in the reader diagnostics; scientific timestamp validation, resampling, and deduplication occur downstream.
+
+The consumer also explicitly locks `HeaderPolicy::Auto`, canonical column naming, automatic worksheet selection, structural validation, and lossless UTF-8 decoding. Estimation artifacts retain structured provider diagnostics and reject data exceeding configured skipped-timestamp or selected-channel missingness limits.

@@ -294,6 +294,7 @@ fn estimate_single_segment(
         timestamp_segments: Vec::new(),
         skipped_timestamp_segments: Vec::new(),
         was_preprocessed: false,
+        ingestion_diagnostics: crate::domain::ParseDiagnostics::default(),
         warnings,
     })
 }

@@ -66,10 +66,7 @@ fn parser_auto_selects_single_compatible_sheet() {
 fn parser_requires_sheet_when_multiple_compatible_sheets_exist() {
     let err = parse_measurement_file_with_sheet(fixture("multi_timeseries.xlsx"), None)
         .expect_err("ambiguous workbook should fail without --sheet");
-    assert!(
-        err.to_string()
-            .contains("multiple compatible time-series worksheets")
-    );
+    assert!(err.to_string().contains("ambiguous compatible worksheets"));
 
     let parsed =
         parse_measurement_file_with_sheet(fixture("multi_timeseries.xlsx"), Some("SheetA"))
@@ -81,10 +78,7 @@ fn parser_requires_sheet_when_multiple_compatible_sheets_exist() {
 fn parser_rejects_eis_only_workbook_for_time_series_ingestion() {
     let err = parse_measurement_file_with_sheet(fixture("eis_only.xlsx"), None)
         .expect_err("EIS-only workbook must be rejected");
-    assert!(
-        err.to_string()
-            .contains("XLSX EIS ingestion is not supported")
-    );
+    assert!(err.to_string().contains("cannot be viewed as TimeSeries"));
 }
 
 #[test]
@@ -148,10 +142,7 @@ fn cli_signal_characterize_supports_sheet_selection_for_xlsx() {
         .output()
         .expect("run signal characterize without sheet");
     assert!(!fail.status.success());
-    assert!(
-        String::from_utf8_lossy(&fail.stderr)
-            .contains("multiple compatible time-series worksheets")
-    );
+    assert!(String::from_utf8_lossy(&fail.stderr).contains("ambiguous compatible worksheets"));
 
     fs::remove_dir_all(workspace).ok();
 }

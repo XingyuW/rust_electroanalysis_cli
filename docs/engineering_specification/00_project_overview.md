@@ -105,7 +105,7 @@
 | CHI EIS | `.csv`, `.txt` | `data_file::chi_file` |
 | CHI OCPT | `.csv`, `.txt` | `data_file::chi_file` |
 | Generic sensor CSV | `.csv` | `data_file::measurement_parser` |
-| Excel workbook | `.xlsx` | `data_file::excel_file` (calamine) |
+| Excel workbook | `.xlsx` | `electrodata-io` canonical reader → domain adapter |
 | Experiment metadata | `.toml` | `domain::metadata` |
 | Configuration | `.toml` | Various config modules |
 | JSON results | `.json` | Cross-workflow inputs |

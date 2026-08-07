@@ -1,5 +1,9 @@
 //! Compile-time/public-boundary coverage for the canonical physical-input path.
 
+use electrodata_io::{
+    ColumnNamePolicy, CoordinateOrderPolicy, HeaderPolicy, InvalidCellPolicy, InvalidTimePolicy,
+    RaggedRowPolicy, ReadProfile, SheetSelector, ValidationLevel,
+};
 use rust_electroanalysis_cli::data_file::{
     EISData, parse_measurement_file, project_compatibility_read_options, read_dataset,
     read_dataset_with_sheet,
@@ -44,6 +48,90 @@ fn public_raw_input_boundary_is_the_canonical_reader() {
     assert_eq!(
         options.ragged_row_policy,
         electrodata_io::RaggedRowPolicy::PadNulls
+    );
+}
+
+#[test]
+fn compatibility_profile_is_fully_locked() {
+    let options = project_compatibility_read_options();
+    assert_eq!(options.profile, ReadProfile::Compatibility);
+    assert_eq!(options.invalid_time_policy, InvalidTimePolicy::SkipRow);
+    assert_eq!(options.invalid_cell_policy, InvalidCellPolicy::Null);
+    assert_eq!(options.ragged_row_policy, RaggedRowPolicy::PadNulls);
+    assert_eq!(options.header_policy, HeaderPolicy::Auto);
+    assert_eq!(
+        options.coordinate_order_policy,
+        CoordinateOrderPolicy::Preserve
+    );
+    assert_eq!(options.column_name_policy, ColumnNamePolicy::Canonical);
+    assert_eq!(options.sheet, SheetSelector::Auto);
+    assert_eq!(options.validation, ValidationLevel::Structural);
+    assert!(!options.allow_lossy_utf8);
+}
+
+#[test]
+fn compatibility_recoveries_keep_structured_provider_evidence() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/io_migration");
+    for (fixture, expected_code, expected_recovery) in [
+        (
+            "regular_invalid_numeric.csv",
+            "ValueReplacedWithMissing",
+            "ValueReplacedWithMissing",
+        ),
+        (
+            "regular_malformed_timestamp.csv",
+            "MalformedTimestamp",
+            "RowSkipped",
+        ),
+        ("regular_ragged_rows.csv", "RaggedRow", "None"),
+    ] {
+        let parsed = parse_measurement_file(root.join(fixture)).expect("compatibility parse");
+        let diagnostic = parsed
+            .diagnostics
+            .ingestion_diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == expected_code)
+            .expect("diagnostic must be retained");
+        assert_eq!(diagnostic.recovery, expected_recovery, "{fixture}");
+        assert!(diagnostic.row.is_some(), "{fixture}");
+        if fixture != "regular_ragged_rows.csv" {
+            assert!(diagnostic.column_index.is_some(), "{fixture}");
+        }
+    }
+    let ragged = parse_measurement_file(root.join("regular_ragged_rows.csv"))
+        .expect("ragged compatibility parse");
+    assert!(
+        ragged
+            .diagnostics
+            .ingestion_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "RowPadded" && diagnostic.recovery == "RowPadded")
+    );
+    let clean = parse_measurement_file(root.join("regular_two_column.csv")).expect("clean parse");
+    assert!(
+        clean
+            .diagnostics
+            .ingestion_diagnostics
+            .iter()
+            .all(|diagnostic| {
+                !matches!(
+                    diagnostic.code.as_str(),
+                    "MalformedTimestamp" | "ValueReplacedWithMissing" | "RaggedRow" | "RowPadded"
+                )
+            })
+    );
+}
+
+#[test]
+fn public_eis_construction_preserves_source_and_derived_semantics() {
+    let data = EISData::from_impedance(vec![1.0], vec![3.0], vec![4.0])
+        .with_source_bode(Some(vec![Some(99.0)]), Some(vec![Some(-12.0)]));
+    assert_eq!(data.source_measured_magnitude(), Some(&[Some(99.0)][..]));
+    assert_eq!(data.source_measured_phase(), Some(&[Some(-12.0)][..]));
+    assert_eq!(data.derived_magnitude(), &[5.0]);
+    assert_ne!(
+        data.source_measured_phase().unwrap()[0],
+        Some(data.derived_phase()[0])
     );
 }
 

@@ -52,11 +52,12 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         options.model.as_deref(),
         options.seed,
     )?;
-    let (experiment, _) = crate::data_file::measurement_parser::load_experiment_with_sheet(
-        &input,
-        &metadata,
-        options.sheet.as_deref(),
-    )?;
+    let (experiment, ingestion_diagnostics) =
+        crate::data_file::measurement_parser::load_experiment_with_sheet(
+            &input,
+            &metadata,
+            options.sheet.as_deref(),
+        )?;
     let calibration = StoredCalibrationObservationModel::new(read_versioned(&resolve(
         workspace,
         &options.calibration_model,
@@ -75,7 +76,13 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         read_optional::<SensorHealthBaseline>(workspace, options.health_baseline.as_ref())?;
     let assessment =
         read_optional::<SensorHealthAssessment>(workspace, options.health_assessment.as_ref())?;
-    let report = estimation::estimate_experiment(
+    validate_ingestion(
+        &experiment,
+        &options.channel,
+        &ingestion_diagnostics,
+        &config,
+    )?;
+    let mut report = estimation::estimate_experiment(
         &experiment,
         &options.channel,
         calibration,
@@ -91,7 +98,55 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         },
         config.filter.kind,
     )?;
+    if ingestion_diagnostics.has_issues() {
+        report.warnings.push(crate::estimation::state::EstimationWarning::new(
+            crate::estimation::state::EstimationWarningKind::IngestionRecovery,
+            format!(
+                "canonical ingestion recovery retained: {} skipped row(s), {} missing measurement cell(s), {} provider diagnostic(s)",
+                ingestion_diagnostics.skipped_rows,
+                ingestion_diagnostics.missing_values,
+                ingestion_diagnostics.ingestion_diagnostics.len()
+            ),
+        ));
+    }
+    report.ingestion_diagnostics = ingestion_diagnostics;
     export_report(workspace, options.output.as_deref(), &report)
+}
+
+fn validate_ingestion(
+    experiment: &crate::domain::ElectrochemicalExperiment,
+    channel: &str,
+    diagnostics: &crate::domain::ParseDiagnostics,
+    config: &ResolvedEstimationConfig,
+) -> Result<(), RunnerError> {
+    let policy = &config.ingestion;
+    if diagnostics.skipped_rows > policy.max_skipped_timestamp_rows {
+        return Err(RunnerError::Message(format!(
+            "estimation rejected: {} timestamp row(s) were skipped during canonical ingestion (limit {})",
+            diagnostics.skipped_rows, policy.max_skipped_timestamp_rows
+        )));
+    }
+    let selected = experiment
+        .measurement_data
+        .channels
+        .iter()
+        .find(|candidate| candidate.name == channel)
+        .ok_or_else(|| RunnerError::Message(format!("estimation channel '{channel}' is absent")))?;
+    let missing = selected.missing_value_count();
+    let fraction = missing as f64 / selected.values.len().max(1) as f64;
+    if policy.reject_missing_required_channel && missing == selected.values.len() {
+        return Err(RunnerError::Message(format!(
+            "estimation rejected: required channel '{channel}' has no usable measurements after canonical ingestion"
+        )));
+    }
+    if fraction > policy.max_missing_measurement_fraction {
+        return Err(RunnerError::Message(format!(
+            "estimation rejected: channel '{channel}' has {:.1}% missing measurements after canonical ingestion (limit {:.1}%)",
+            fraction * 100.0,
+            policy.max_missing_measurement_fraction * 100.0
+        )));
+    }
+    Ok(())
 }
 
 pub fn validate(

@@ -27,6 +27,7 @@ pub use electrodata_domain_adapter::{
 };
 pub use input_kind::InputKind;
 pub use measurement_adapter::{channel_to_plot_data, measurement_to_plot_data, to_plot_data};
+#[allow(deprecated)]
 pub use measurement_parser::{load_experiment, parse_measurement_file, parse_measurement_text};
 pub use value_transform::{
     AxisTransforms, TransformKind, TransformWarning, ValueTransform, resolve_axis_transforms,

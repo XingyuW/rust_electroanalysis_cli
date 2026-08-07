@@ -97,3 +97,8 @@ scientific extension, not hidden debt in the reduced-order release.
 ## Phase 3A migration debt
 
 Legacy `ProjectTabularHandler`, measurement/EIS parsers, Excel wrappers, and `InputKind` remain present for compatibility/parity verification and must not be treated as production raw-input dispatch. Delete them only after independent parity review covers the full consumer-fixture corpus, including headerless/ragged recovery and all EIS layouts.
+
+The pinned provider does not currently expose a public canonical in-memory
+text/buffer read API. `parse_measurement_text` is therefore deprecated and
+restricted to compatibility/tests; file-based `electrodata-io` ingestion is the
+supported production path. This is non-blocking provider follow-up debt.

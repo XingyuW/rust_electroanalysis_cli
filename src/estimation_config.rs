@@ -144,6 +144,7 @@ pub struct ResolvedEstimationConfig {
     pub plotting: EstimationPlottingConfig,
     pub export: EstimationExportConfig,
     pub timestamp_handling: TimestampHandlingConfig,
+    pub ingestion: IngestionValidationConfig,
     #[serde(skip)]
     pub source_path: Option<PathBuf>,
 }
@@ -170,7 +171,27 @@ impl Default for ResolvedEstimationConfig {
             plotting: EstimationPlottingConfig::default(),
             export: EstimationExportConfig::default(),
             timestamp_handling: TimestampHandlingConfig::default(),
+            ingestion: IngestionValidationConfig::default(),
             source_path: None,
+        }
+    }
+}
+
+/// Explicit acceptance limits for compatibility recovery before estimation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct IngestionValidationConfig {
+    pub max_skipped_timestamp_rows: usize,
+    pub max_missing_measurement_fraction: f64,
+    pub reject_missing_required_channel: bool,
+}
+
+impl Default for IngestionValidationConfig {
+    fn default() -> Self {
+        Self {
+            max_skipped_timestamp_rows: 0,
+            max_missing_measurement_fraction: 0.20,
+            reject_missing_required_channel: true,
         }
     }
 }
@@ -647,6 +668,13 @@ impl ResolvedEstimationConfig {
                     "{name} must be between 0 and 1"
                 )));
             }
+        }
+        if !self.ingestion.max_missing_measurement_fraction.is_finite()
+            || !(0.0..=1.0).contains(&self.ingestion.max_missing_measurement_fraction)
+        {
+            return Err(ConfigurationError::invalid(
+                "ingestion.max_missing_measurement_fraction must be between 0 and 1",
+            ));
         }
         for (name, value) in [
             (

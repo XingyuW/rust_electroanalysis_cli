@@ -53,6 +53,7 @@ pub enum SearchLogLevel {
 pub fn run_eis_search(
     workspace_dir: &Path,
     search_target: &Path,
+    sheet: Option<&str>,
     search_config_path: Option<&Path>,
     search_output: Option<&Path>,
     search_top: Option<usize>,
@@ -61,6 +62,7 @@ pub fn run_eis_search(
     run_eis_search_with_loaded_config(
         workspace_dir,
         search_target,
+        sheet,
         loaded_search_config,
         search_output,
         search_top,
@@ -72,9 +74,11 @@ pub fn run_eis_search(
     )
 }
 
+#[allow(clippy::too_many_arguments)] // stable workflow API; sheet is canonical provider selection.
 pub fn run_eis_search_with_loaded_config<F>(
     workspace_dir: &Path,
     search_target: &Path,
+    sheet: Option<&str>,
     loaded_search_config: LoadedEcmSearchConfig,
     search_output: Option<&Path>,
     search_top: Option<usize>,
@@ -143,7 +147,7 @@ where
 
     let mut processed_files = 0usize;
     for input_file in input_files {
-        let data = match EISData::parse_file(&input_file) {
+        let data = match EISData::parse_file_with_sheet(&input_file, sheet) {
             Ok(data) => data,
             Err(error) => {
                 let failure = BatchFileFailure::canonical(input_file, error);

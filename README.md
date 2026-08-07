@@ -321,11 +321,14 @@ The release binary is self-contained and requires only the TOML configuration fi
 
 ## 4. Input File Formats and Automatic Detection
 
-The unified loader (`load_data`) uses extension classification followed by content detection:
+Physical/raw electrochemical input is interpreted only by `electrodata-io`; this
+project converts its typed `Dataset` into scientific domains and owns analysis
+and artifacts. Legacy/reference parsers remain for compatibility and parity
+tests, not production ingestion.
 
 1. **Binary guard**: Files with `.bin` or `.raw` extensions are rejected before any parser attempt.
-2. **Excel (`.xlsx`)**: Routed through the `calamine`-based Excel parser and parsed as structured tabular time-series data.
-3. **CHI EIS**: Content detection identifies `Freq/Hz` + impedance headers; parser `EISData::parse_file`, internal type `chi_eis`.
+2. **Excel (`.xlsx`)**: Read and worksheet-selected by `electrodata-io`.
+3. **CHI EIS**: Recognized by `electrodata-io` and converted through `EISData::parse_file`.
 4. **CHI OCPT**: Content detection identifies a time header with CHI preamble markers (instrument/data-source); parser `parse_measurement_file`, internal type `chi_export`.
 5. **General sensor CSV/Excel**: Time header without CHI preamble; parser `parse_measurement_file`, internal type `sensor_csv` or `excel_workbook`.
 
@@ -336,9 +339,9 @@ Unsupported/ambiguous files return explicit errors (missing time/frequency heade
 When loading an Excel workbook:
 
 1. If `--sheet` is specified, that worksheet is used.
-2. If exactly one compatible time-series worksheet exists, it is selected automatically.
-3. If multiple compatible time-series worksheets exist, an explicit `--sheet` selection is required (an ambiguity error is raised).
-4. Workbooks containing only EIS-style worksheets are rejected for time-series workflows (XLSX EIS ingestion is intentionally unsupported).
+2. If exactly one compatible time-series or EIS worksheet exists, it is selected automatically.
+3. If multiple compatible worksheets exist, an explicit `--sheet` selection is required (the provider returns structured ambiguity).
+4. EIS commands use the same provider selection policy; a time-series-only workflow still rejects an EIS dataset as a domain mismatch.
 
 ### Binary File Behaviour
 
@@ -2545,7 +2548,7 @@ cargo run -- eis search data/
 ## 18. Current Documented Limitations
 
 1. Binary CHI exports (`.bin`, `.raw`) are intentionally unsupported.
-2. XLSX EIS ingestion is intentionally unsupported (use CHI/text EIS inputs).
+2. The legacy `parse_measurement_text` compatibility entry point cannot use an in-memory provider API because the pinned provider exposes file-based canonical ingestion only.
 3. Calibration quality depends on metadata event definitions; no automatic concentration-step inference from filenames.
 
 ---
@@ -2672,8 +2675,8 @@ its absence does not change the reduced-order model's claims.
 
 ## 21. Troubleshooting
 
-1. **Unsupported file format**: `.bin`/`.raw` are intentionally unsupported; `.xls` is rejected; XLSX EIS-only workbooks are rejected for time-series workflows.
-2. **Missing EIS headers**: `eis fit` requires `Freq/Hz` + impedance columns.
+1. **Unsupported file format**: unsupported containers are returned as structured `electrodata-io` errors; XLSX EIS is supported when the provider recognizes a compatible worksheet.
+2. **Missing EIS roles**: `eis fit` returns the provider's structured schema error.
 3. **Missing time header**: time-series workflows require `time`/`timestamp` columns.
 4. **Duplicate timestamps**:
    - `signal` default strict config can reject duplicates; use suitable sampling policy config.

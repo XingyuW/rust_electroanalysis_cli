@@ -265,6 +265,10 @@ pub struct RankedEISFit {
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct EISData {
+    /// Public fields are retained for pre-1.0 source compatibility. New code
+    /// should use `from_impedance`, `with_source_bode`, and the accessors
+    /// below so source-measured and derived Bode quantities cannot be
+    /// accidentally conflated.
     pub date: String,
     pub test_type: String,
     pub instrument_model: String,
@@ -287,6 +291,77 @@ pub struct EISData {
 }
 
 impl EISData {
+    /// Supported public construction path for EIS data derived from complex
+    /// impedance. Source magnitude/phase are absent until `with_source_bode`
+    /// is explicitly called.
+    pub fn from_impedance(freq: Vec<f64>, z_re: Vec<f64>, z_im: Vec<f64>) -> Self {
+        let derived_magnitude = z_re
+            .iter()
+            .zip(&z_im)
+            .map(|(real, imaginary)| real.hypot(*imaginary))
+            .collect::<Vec<_>>();
+        let derived_phase = z_re
+            .iter()
+            .zip(&z_im)
+            .map(|(real, imaginary)| imaginary.atan2(*real).to_degrees())
+            .collect::<Vec<_>>();
+        Self {
+            date: String::new(),
+            test_type: String::new(),
+            instrument_model: String::new(),
+            freq,
+            phase: derived_phase.clone(),
+            z_re,
+            z_im,
+            measured_magnitude: None,
+            measured_phase: None,
+            derived_magnitude,
+            derived_phase,
+            label: String::new(),
+            metadata: BTreeMap::new(),
+            circuit_model: String::new(),
+        }
+    }
+
+    /// Attaches optional source Bode columns without changing the complex-
+    /// impedance-derived quantities. The complete legacy analysis `phase`
+    /// vector uses a source value only where it is present.
+    pub fn with_source_bode(
+        mut self,
+        measured_magnitude: Option<Vec<Option<f64>>>,
+        measured_phase: Option<Vec<Option<f64>>>,
+    ) -> Self {
+        self.measured_magnitude = measured_magnitude;
+        self.measured_phase = measured_phase;
+        self.phase = self
+            .derived_phase
+            .iter()
+            .enumerate()
+            .map(|(index, derived)| {
+                self.measured_phase
+                    .as_ref()
+                    .and_then(|values| values.get(index).copied().flatten())
+                    .unwrap_or(*derived)
+            })
+            .collect();
+        self
+    }
+
+    pub fn source_measured_magnitude(&self) -> Option<&[Option<f64>]> {
+        self.measured_magnitude.as_deref()
+    }
+
+    pub fn source_measured_phase(&self) -> Option<&[Option<f64>]> {
+        self.measured_phase.as_deref()
+    }
+
+    pub fn derived_magnitude(&self) -> &[f64] {
+        &self.derived_magnitude
+    }
+
+    pub fn derived_phase(&self) -> &[f64] {
+        &self.derived_phase
+    }
     #[allow(dead_code)]
     pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Self, DataParsingError> {
         let resolver =
@@ -298,8 +373,19 @@ impl EISData {
         path: P,
         resolver: &CircuitModelResolver,
     ) -> Result<Self, DataParsingError> {
+        Self::parse_file_with_resolver_and_sheet(path, resolver, None)
+    }
+
+    /// Canonical EIS ingestion with an optional provider worksheet selector.
+    pub fn parse_file_with_resolver_and_sheet<P: AsRef<Path>>(
+        path: P,
+        resolver: &CircuitModelResolver,
+        sheet_name: Option<&str>,
+    ) -> Result<Self, DataParsingError> {
         let path = path.as_ref();
-        let dataset = crate::data_file::electrodata_domain_adapter::read_dataset(path)?;
+        let dataset = crate::data_file::electrodata_domain_adapter::read_dataset_with_sheet(
+            path, sheet_name,
+        )?;
         let mut data = Self::try_from(&dataset)?;
         let label = file_label(path);
         let context = CircuitModelContext {
@@ -309,6 +395,15 @@ impl EISData {
         data.label = label;
         data.circuit_model = resolver.resolve(&context);
         Ok(data)
+    }
+
+    pub fn parse_file_with_sheet<P: AsRef<Path>>(
+        path: P,
+        sheet_name: Option<&str>,
+    ) -> Result<Self, DataParsingError> {
+        let resolver =
+            CircuitModelResolver::load_or_default().map_err(DataParsingError::Configuration)?;
+        Self::parse_file_with_resolver_and_sheet(path, &resolver, sheet_name)
     }
 
     pub fn with_circuit_model(mut self, circuit_model: impl Into<String>) -> Self {

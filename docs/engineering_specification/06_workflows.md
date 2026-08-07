@@ -312,4 +312,4 @@ Config-driven filenames are shown with their default values from each resolved c
 
 ## Input loading
 
-Plot time-series/EIS, EIS fit/search, transient fitting, calibration extraction, signal characterization, and estimate run/compare use the canonical `electrodata-io` boundary. `--sheet <NAME>` remains available for supported XLSX time-series workflows; automatic selection succeeds only for one compatible worksheet and otherwise returns the reader's structured ambiguity/failure.
+Plot time-series/EIS, EIS fit/search, transient fitting, calibration extraction, signal characterization, and estimate run/compare use the canonical `electrodata-io` boundary. `--sheet <NAME>` is passed without local probing for XLSX time-series and EIS workflows; automatic selection succeeds only for one compatible worksheet and otherwise returns the reader's structured ambiguity/failure. Estimation retains provider diagnostic code, source row/column, recovery action, skipped-row count, and recovered-null count in its artifact, and enforces `[ingestion]` limits before filtering.

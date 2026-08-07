@@ -7,12 +7,13 @@
 
 use crate::data_file::chi_file::EISData;
 use crate::domain::{
-    DataParsingError, MeasurementChannel, MeasurementParseResult, MultiChannelMeasurement,
-    ParseDiagnostics,
+    DataParsingError, IngestionDiagnostic, MeasurementChannel, MeasurementParseResult,
+    MultiChannelMeasurement, ParseDiagnostics,
 };
 use electrodata_io::{
-    Column, ColumnRole, Dataset, InvalidCellPolicy, InvalidTimePolicy, RaggedRowPolicy,
-    ReadOptions, SheetSelector,
+    Column, ColumnNamePolicy, ColumnRole, CoordinateOrderPolicy, Dataset, HeaderPolicy,
+    InvalidCellPolicy, InvalidTimePolicy, RaggedRowPolicy, ReadOptions, ReadProfile, SheetSelector,
+    ValidationLevel,
 };
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -24,10 +25,23 @@ use std::path::Path;
 /// measurement cells become null, ragged rows are padded/null-trimmed, and
 /// source coordinate ordering is retained for downstream scientific handling.
 pub fn project_compatibility_read_options() -> ReadOptions {
-    ReadOptions::compatibility()
+    // Do not inherit scientifically relevant compatibility behavior from the
+    // provider profile: every recovery and interpretation policy is locked
+    // here as part of the consumer migration contract.
+    let mut options = ReadOptions::new()
+        .with_profile(ReadProfile::Compatibility)
         .with_invalid_time_policy(InvalidTimePolicy::SkipRow)
         .with_invalid_cell_policy(InvalidCellPolicy::Null)
         .with_ragged_row_policy(RaggedRowPolicy::PadNulls)
+        .with_coordinate_order_policy(CoordinateOrderPolicy::Preserve)
+        .with_header_policy(HeaderPolicy::Auto)
+        .with_column_name_policy(ColumnNamePolicy::Canonical)
+        .with_sheet(SheetSelector::Auto)
+        .with_validation(ValidationLevel::Structural);
+    // Lossy decoding is a scientific-input decision: reject undecodable text
+    // rather than silently replacing bytes.
+    options.allow_lossy_utf8 = false;
+    options
 }
 
 /// Reads with the project's explicit compatibility profile.
@@ -106,6 +120,18 @@ pub fn measurement_parse_result(
             .iter()
             .map(|diagnostic| diagnostic.message.clone()),
     );
+    diagnostics.ingestion_diagnostics = dataset
+        .diagnostics
+        .iter()
+        .map(|diagnostic| IngestionDiagnostic {
+            code: format!("{:?}", diagnostic.code),
+            recovery: format!("{:?}", diagnostic.recovery),
+            message: diagnostic.message.clone(),
+            row: diagnostic.row,
+            column: diagnostic.column.clone(),
+            column_index: diagnostic.column_index,
+        })
+        .collect();
     if let Some(sheet) = &dataset.metadata.provenance.worksheet {
         diagnostics
             .messages

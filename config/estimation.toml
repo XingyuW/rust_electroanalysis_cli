@@ -1,5 +1,13 @@
 schema_version = 3
 
+[ingestion]
+# Canonical compatibility recovery is retained in every estimate artifact.
+# Reject skipped coordinate rows by default; allow at most 20% missing values
+# in the selected measurement channel, and reject a wholly missing channel.
+max_skipped_timestamp_rows = 0
+max_missing_measurement_fraction = 0.20
+reject_missing_required_channel = true
+
 [filter]
 kind = "ukf"
 confidence_level = 0.95
