@@ -410,8 +410,15 @@ pub fn plot_generic_directory_with_configs<P: AsRef<Path>>(
         }
     }
 
+    // Retain typed skips for the runner boundary. The empty case is a
+    // structured outcome, not a generic error that loses canonical evidence.
     if datasets.is_empty() {
-        return Err(format!("No accepted datasets found in {}", input_dir.display()).into());
+        return Ok(GenericDirectoryPlotOutcome {
+            plotted,
+            skipped,
+            combined_output_base,
+            individual_output_base,
+        });
     }
 
     // Create subdirectories only after we know there is something to write.

@@ -660,8 +660,15 @@ pub fn plot_eis_directory_with_configs<P: AsRef<Path>>(
         outcomes.push(outcome);
     }
 
+    // Keep all typed per-file failures in the outcome, including when no
+    // source was accepted. The runner, rather than this rendering module,
+    // owns the complete/partial/failed batch policy.
     if outcomes.is_empty() {
-        return Err(format!("No accepted EIS datasets found in {}", input_dir.display()).into());
+        return Ok(EISDirectoryPlotOutcome {
+            plotted: outcomes,
+            failures,
+            combined_output_base,
+        });
     }
 
     let nyquist_combined_config = nyquist_plot_config(combined_config);

@@ -12,6 +12,8 @@ use rust_electroanalysis_cli::{
     CircuitFitResult,
     domain::{AnalysisProvenance, DataParsingError},
     results::EisFitArtifact,
+    signal::analyze_measurement,
+    signal_config::ResolvedSignalConfig,
 };
 use std::{
     fs,
@@ -168,6 +170,65 @@ fn canonical_channel_identity_preserves_source_header_and_historical_selector() 
 }
 
 #[test]
+fn canonical_channel_aliases_cover_custom_synonym_and_parenthetical_units() {
+    for (name, header, bare, full) in [
+        ("custom", "Signal/ppm", "Signal", "Signal/ppm"),
+        ("synonym", "Signal/volts", "Signal", "Signal/volts"),
+        ("parenthetical", "Signal(ppm)", "Signal", "Signal(ppm)"),
+    ] {
+        let path = temporary_csv(name, &format!("Time/sec,{header}\n0,1\n1,2\n"));
+        let parsed = parse_measurement_file(&path).expect("canonical parse");
+        assert!(std::ptr::eq(
+            parsed.measurement.channel(bare).expect("bare selector"),
+            parsed.measurement.channel(full).expect("full selector")
+        ));
+        fs::remove_file(path).ok();
+    }
+
+    let path = temporary_csv("slash-name", "Time/sec,NH4/NO3\n0,1\n1,2\n");
+    let parsed = parse_measurement_file(&path).expect("canonical parse");
+    assert_eq!(parsed.measurement.channels[0].name, "NH4/NO3");
+    assert!(parsed.measurement.channel("NH4").is_none());
+    fs::remove_file(path).ok();
+}
+
+#[test]
+fn signal_workflow_selects_custom_unit_channel_by_bare_or_source_header_name() {
+    let path = temporary_csv(
+        "signal-custom-selector",
+        "Time/sec,Signal/ppm\n0,1\n1,2\n2,3\n",
+    );
+    let parsed = parse_measurement_file(&path).expect("canonical parse");
+    let provenance = || AnalysisProvenance {
+        software_version: "test".to_string(),
+        input_path: path.clone(),
+        input_sha256: "fixture".to_string(),
+        configuration_path: None,
+        configuration_sha256: None,
+        generation_timestamp: 1,
+        git_commit: None,
+    };
+    let bare = analyze_measurement(
+        &parsed.measurement,
+        "Signal",
+        None,
+        &ResolvedSignalConfig::default(),
+        Some(provenance()),
+    )
+    .expect("signal workflow with bare selector");
+    let full = analyze_measurement(
+        &parsed.measurement,
+        "Signal/ppm",
+        None,
+        &ResolvedSignalConfig::default(),
+        Some(provenance()),
+    )
+    .expect("signal workflow with source-header selector");
+    assert_eq!(bare, full);
+    fs::remove_file(path).ok();
+}
+
+#[test]
 fn executable_sources_do_not_reference_developer_absolute_paths() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let slash = '/';
@@ -206,12 +267,16 @@ fn ownership_documentation_does_not_restore_local_raw_parser_claims() {
         "docs/engineering_specification/06_workflows.md",
         "docs/engineering_specification/13_traceability_matrix.md",
         "docs/engineering_specification/14_risk_and_technical_debt_register.md",
+        "docs/io_migration_validation.md",
     ];
     let stale_claims = [
         "chi format parser",
         "local xlsx parser",
         "local format detection owns",
         "measurement_parser reads raw physical csv",
+        "chi_file parses physical csv",
+        "search_runner parses raw csv",
+        "calamine | provider-internal xlsx implementation detail",
     ];
 
     for document in documents {

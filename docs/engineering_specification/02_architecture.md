@@ -14,7 +14,7 @@ The system follows a **layered CLI-application architecture** with clear separat
 2. **Runner Layer** — Workflow coordination, configuration loading, output writing
 3. **Domain Layer** — Shared data structures, errors, provenance, experiment model
 4. **Scientific Core** — Equations, fitting, optimization, signal processing
-5. **Data Layer** — File parsing, format detection, measurement construction
+5. **Data Layer** — Canonical Dataset adaptation, compatibility façades, measurement construction
 6. **Rendering Layer** — Plot generation via plotters
 
 **Direction of dependency**: CLI → Runners → Domain + Scientific Core + Data → Rendering. Domain does **not** depend on rendering.
@@ -228,7 +228,7 @@ flowchart TD
 | `genevo` | Genetic algorithm for ECM | `impedance/ecm_evolution.rs` only |
 | `rayon` | Parallel candidate evaluation | `impedance/ecm_evolution.rs`, `impedance/pinn_optimizer.rs`, `impedance/lib.rs` |
 | `rustfft` | FFT for signal PSD | `signal/psd.rs` only |
-| `calamine` | Provider-internal XLSX implementation detail | `electrodata-io` boundary |
+| `calamine` | Test-only archived parity reader; not production ingestion | `tests/legacy_snapshot/` only |
 | `sha2` | File hashing for provenance | `domain/provenance.rs` only |
 | `serde` / `serde_json` | Serialization and artifact I/O | Domain, config, runners, scientific modules, `results/` |
 | `thiserror` | Error derive macros | CLI, domain, runners, scientific modules |
@@ -322,4 +322,4 @@ plotting, health, or mechanism modules.
 
 `electrodata-io` owns physical/raw data detection, parsing, worksheet handling, scientific input roles, recovery diagnostics, and raw input errors. `rust_electroanalysis_cli` owns domain conversion, scientific calculations, modeling, estimation, mechanism, health, plotting, reporting, and analysis artifacts. `data_file/electrodata_domain_adapter.rs` is the only production conversion boundary from `Dataset` to project domains; it uses typed time-series/EIS views and never accesses Polars. Legacy parser modules remain compatibility/parity-only pending independent review.
 
-`chi_file.rs` and `measurement_parser.rs` are consumer-domain adapters over that boundary; `parse_measurement_text` is a deprecated compatibility surface. `excel_file.rs` and `InputKind` are compatibility/reference helpers, not local production detection or workbook parsers.
+`data_file` is the canonical Dataset-to-domain adaptation layer and compatibility façade. `chi_file.rs` provides scientific EIS/OCPT domain types and canonical-provider adapters; it does not parse physical CSV/TXT/DAT files or recognize CHI/EIS formats. `search_runner.rs` performs filesystem enumeration, canonical-ingestion orchestration, scientific candidate selection, and analysis. `parse_measurement_text` is a deprecated compatibility surface, while `excel_file.rs` and `InputKind` are compatibility/reference helpers. `calamine` is restricted to the archived test-only parity reader and is not a production workbook parser.

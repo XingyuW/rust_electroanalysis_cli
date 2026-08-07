@@ -1,10 +1,10 @@
 //! EIS equivalent-circuit search pipeline.
 //!
-//! This module is responsible for:
-//! * discovering eligible EIS data files in a file-system target,
-//! * validating each file against the expected CHI EIS header,
-//! * orchestrating the ECM search and writing text / CSV reports, and
-//! * rendering optional ranked-model plots via the plotting layer.
+//! This module is responsible for filesystem enumeration, canonical ingestion
+//! orchestration, scientific candidate selection, ECM search/reporting, and
+//! optional ranked-model plots. `electrodata-io`—not this consumer—owns raw
+//! CSV/TXT/DAT/XLSX parsing, CHI/EIS detection, physical-binary detection,
+//! and malformed-row recovery.
 
 use crate::{
     data_file::chi_file::EISData,
@@ -252,7 +252,14 @@ where
     }
 
     if successful_inputs.is_empty() {
-        return Err(RunnerError::BatchInput { failures });
+        return if failures.is_empty() {
+            Err(RunnerError::NoInputCandidates {
+                workflow: "EIS search",
+                input_dir: target,
+            })
+        } else {
+            Err(RunnerError::BatchInput { failures })
+        };
     }
 
     if plot_top_n > 0 && combined_search_nyquist_series.len() > 1 {

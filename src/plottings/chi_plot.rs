@@ -209,12 +209,16 @@ pub fn plot_chi_directory_with_configs_and_transforms<P: AsRef<Path>>(
         }
     }
 
+    // Preserve typed canonical failures for the runner's batch policy. An
+    // empty directory is represented by an empty outcome, never by a
+    // fabricated physical-input parsing failure.
     if datasets.is_empty() {
-        return Err(format!(
-            "No accepted time-series datasets found in {}",
-            input_dir.display()
-        )
-        .into());
+        return Ok(ChiDirectoryPlotOutcome {
+            plotted,
+            skipped,
+            combined_output_base,
+            individual_output_base,
+        });
     }
 
     let mut individual_datasets = datasets.clone();

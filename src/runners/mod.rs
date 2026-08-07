@@ -45,6 +45,11 @@ pub enum RunnerError {
     Data(#[from] DataParsingError),
     #[error("raw-data batch input failures: {failures:?}")]
     BatchInput { failures: Vec<BatchFileFailure> },
+    #[error("{workflow} found no candidate input files in {input_dir}")]
+    NoInputCandidates {
+        workflow: &'static str,
+        input_dir: PathBuf,
+    },
     #[error(
         "batch completed {successful_count} input(s) but {failure_count} input(s) failed; completed artifacts were preserved"
     )]

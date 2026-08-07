@@ -14,18 +14,19 @@ dependency or sibling checkout is required.
 
 ## Independent legacy reference
 
-`tests/legacy_snapshot/mod.rs` is a test-only, deliberately minimal reference
-implementation copied near-verbatim from consumer commit `cc6f283`. Its module
-header is the provenance notice: “Reference implementation copied from commit
-cc6f283 for migration parity only. Never used by production.” It has no
-`electrodata-io` dependency and cannot register provider handlers.
+`tests/legacy_snapshot/mod.rs` is a test-only, provenance-traceable independent
+adaptation of the archived pre-migration algorithms from consumer commit
+`cc6f283`. Its module header is the provenance notice: “Reference implementation
+copied from commit cc6f283 for migration parity only. Never used by production.”
+It has no `electrodata-io` dependency and cannot register provider handlers.
 
 `tests/io_migration_parity.rs` compares that archived reference with the
 canonical public reader. Time-series comparisons cover row count, raw
-timestamps, seconds-normalized time where available, time unit, channel count
-and order, complete source names, channel units, every `Option<f64>`, and null
-positions. EIS comparisons cover frequency, real/imaginary impedance and sign,
-source measured magnitude/phase, derived magnitude/phase, row count, and units.
+timestamps, seconds-normalized time where available, time unit, coordinate
+name, channel count and order, logical names, exact source headers, channel
+units, every `Option<f64>`, and null positions. EIS comparisons cover
+frequency, real/imaginary impedance and sign, source-measured magnitude/phase,
+derived magnitude/phase, row count, and units.
 The corpus has no sensor or analyte metadata fields, so those comparisons are
 not applicable.
 

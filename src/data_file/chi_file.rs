@@ -1,8 +1,9 @@
-//! Parsers and adapters for CHI/EIS text exports.
+//! Scientific EIS/OCPT domain types and canonical-provider adapters.
 //!
-//! The functions in this file convert instrument-oriented CSV/TXT input into
-//! strongly typed series (`ElectrochemData`, `EISData`) while preserving
-//! metadata used later by plotting and ECM search reporting.
+//! `electrodata-io` owns raw container parsing, CHI header recognition,
+//! EIS-format detection, binary detection, and malformed-row recovery. This
+//! module adapts its typed datasets into `ElectrochemData` and `EISData` for
+//! downstream plotting and ECM search while preserving provenance.
 
 use crate::domain::{
     DataParsingError, FittingError, MeasurementChannel, MultiChannelMeasurement, ParseDiagnostics,
@@ -321,10 +322,12 @@ pub struct RankedEISFit {
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct EISData {
-    /// Public fields are retained for pre-1.0 source compatibility. New code
-    /// should use `from_impedance`, `with_source_bode`, and the accessors
-    /// below so source-measured and derived Bode quantities cannot be
-    /// accidentally conflated.
+    /// Public fields are retained for pre-1.0 source compatibility. Direct
+    /// struct literals are not the stable compatibility boundary; new code
+    /// should use [`EISData::from_impedance`] followed by
+    /// [`EISData::with_source_bode`], and then the accessors below. That
+    /// construction keeps source-measured Bode values distinct from values
+    /// derived from complex impedance.
     pub date: String,
     pub test_type: String,
     pub instrument_model: String,

@@ -1,10 +1,15 @@
 //! Data-ingestion and normalization layer.
 //!
-//! This module family converts domain input files into stable in-memory data
-//! structures consumed by plotting and search pipelines.
-//! - `chi_file`: parsers for CHI-style electrochemical exports and EIS files.
+//! This module family is the canonical `Dataset`-to-domain adaptation and
+//! compatibility façade consumed by plotting and search pipelines. Physical
+//! CSV/TXT/DAT/XLSX parsing, CHI recognition, binary detection, and malformed
+//! row recovery belong exclusively to `electrodata-io`.
+//! - `chi_file`: scientific EIS/OCPT domain types and canonical provider adapters.
 //! - `data_op`: generic `PlotData` container and point-selection utilities.
 //! - `value_transform`: display/run-time axis transform resolution.
+//!
+//! `calamine` is a test-only archived-parity dependency, never a consumer
+//! production workbook parser.
 
 pub mod chi_file;
 pub mod data_op;

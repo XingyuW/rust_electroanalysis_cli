@@ -11,6 +11,8 @@ pub type ChannelMetadata = BTreeMap<String, String>;
 /// provider.  The channel's `name` is its logical, analysis-facing identity;
 /// the source header remains available for provenance and selector aliases.
 pub const SOURCE_HEADER_METADATA_KEY: &str = "source_header";
+/// Stable JSON array of exact selectors generated at canonical ingestion.
+pub const CHANNEL_ALIASES_METADATA_KEY: &str = "channel_aliases";
 
 /// Provenance for an explicit coordinate normalization performed after input
 /// ingestion. The raw coordinate values and source unit remain available on
@@ -86,6 +88,32 @@ impl MeasurementChannel {
             .as_ref()
             .and_then(|metadata| metadata.get(SOURCE_HEADER_METADATA_KEY))
             .map(String::as_str)
+    }
+
+    /// Records stable compatibility selectors without changing the primary
+    /// logical name or exact source-header provenance.
+    pub fn with_aliases<I, S>(mut self, aliases: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let mut aliases = aliases.into_iter().map(Into::into).collect::<Vec<String>>();
+        aliases.sort();
+        aliases.dedup();
+        if let Ok(serialized) = serde_json::to_string(&aliases) {
+            self.metadata
+                .get_or_insert_default()
+                .insert(CHANNEL_ALIASES_METADATA_KEY.to_string(), serialized);
+        }
+        self
+    }
+
+    pub fn aliases(&self) -> Vec<String> {
+        self.metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get(CHANNEL_ALIASES_METADATA_KEY))
+            .and_then(|serialized| serde_json::from_str(serialized).ok())
+            .unwrap_or_default()
     }
 
     pub fn missing_value_count(&self) -> usize {
@@ -239,18 +267,62 @@ impl MultiChannelMeasurement {
         &self.time
     }
 
-    pub fn channel(&self, name: &str) -> Option<&MeasurementChannel> {
-        self.channels.iter().find(|channel| {
-            channel.name == name
-                || channel
-                    .source_header()
-                    .is_some_and(|source_header| source_header == name)
-                || (channel.source_header().is_none()
+    /// Resolves logical names, exact source headers, then verified aliases.
+    /// Ambiguous selectors are rejected instead of selecting the first
+    /// channel, which keeps historical bare aliases safe for new datasets.
+    pub fn resolve_channel(
+        &self,
+        name: &str,
+    ) -> Result<Option<&MeasurementChannel>, DataParsingError> {
+        for matches in [
+            self.channels
+                .iter()
+                .filter(|channel| channel.name == name)
+                .collect::<Vec<_>>(),
+            self.channels
+                .iter()
+                .filter(|channel| channel.source_header() == Some(name))
+                .collect::<Vec<_>>(),
+            self.channels
+                .iter()
+                .filter(|channel| channel.aliases().iter().any(|alias| alias == name))
+                .collect::<Vec<_>>(),
+        ] {
+            match matches.as_slice() {
+                [] => continue,
+                [channel] => return Ok(Some(*channel)),
+                _ => {
+                    return Err(DataParsingError::invalid(format!(
+                        "channel selector '{name}' is ambiguous"
+                    )));
+                }
+            }
+        }
+
+        // Compatibility for programmatically constructed legacy channels.
+        let matches = self
+            .channels
+            .iter()
+            .filter(|channel| {
+                channel.source_header().is_none()
                     && !channel.unit.is_empty()
-                    && format!("{}/{}", channel.name, channel.unit) == name)
-                || (!channel.unit.is_empty()
-                    && format!("{} [{}]", channel.name, channel.unit) == name)
-        })
+                    && (format!("{}/{}", channel.name, channel.unit) == name
+                        || format!("{} [{}]", channel.name, channel.unit) == name)
+            })
+            .collect::<Vec<_>>();
+        match matches.as_slice() {
+            [] => Ok(None),
+            [channel] => Ok(Some(*channel)),
+            _ => Err(DataParsingError::invalid(format!(
+                "channel selector '{name}' is ambiguous"
+            ))),
+        }
+    }
+
+    /// Compatibility convenience API. Use [`Self::resolve_channel`] when the
+    /// caller must distinguish an absent selector from an ambiguous alias.
+    pub fn channel(&self, name: &str) -> Option<&MeasurementChannel> {
+        self.resolve_channel(name).ok().flatten()
     }
 
     pub fn missing_value_count(&self) -> usize {
@@ -274,7 +346,10 @@ impl MultiChannelMeasurement {
 
 #[cfg(test)]
 mod tests {
-    use super::{MeasurementChannel, MultiChannelMeasurement, SOURCE_HEADER_METADATA_KEY};
+    use super::{
+        CHANNEL_ALIASES_METADATA_KEY, MeasurementChannel, MultiChannelMeasurement,
+        SOURCE_HEADER_METADATA_KEY,
+    };
 
     #[test]
     fn validates_shared_axis_alignment_and_reports_missing_values() {
@@ -347,5 +422,46 @@ mod tests {
         assert_eq!(serialized["name"], "E1");
         assert_eq!(serialized["unit"], "V");
         assert_eq!(serialized["metadata"][SOURCE_HEADER_METADATA_KEY], "E1/V");
+    }
+
+    #[test]
+    fn resolves_verified_aliases_and_rejects_ambiguous_bare_aliases() {
+        let measurement = MultiChannelMeasurement::new(
+            vec![0.0],
+            vec![
+                MeasurementChannel::from_values("Signal", "ppm", vec![1.0])
+                    .with_source_header("Signal/ppm")
+                    .with_aliases(["Signal", "Signal/ppm"]),
+            ],
+        )
+        .expect("valid measurement");
+        assert!(std::ptr::eq(
+            measurement.channel("Signal").expect("bare alias"),
+            measurement.channel("Signal/ppm").expect("source header")
+        ));
+        let serialized = serde_json::to_value(&measurement.channels[0]).expect("serialize");
+        assert_eq!(
+            serialized["metadata"][CHANNEL_ALIASES_METADATA_KEY],
+            serde_json::json!("[\"Signal\",\"Signal/ppm\"]")
+        );
+
+        let ambiguous = MultiChannelMeasurement::new(
+            vec![0.0],
+            vec![
+                MeasurementChannel::from_values("A", "ppm", vec![1.0])
+                    .with_aliases(["Signal", "A/ppm"]),
+                MeasurementChannel::from_values("B", "ppb", vec![2.0])
+                    .with_aliases(["Signal", "B/ppb"]),
+            ],
+        )
+        .expect("valid measurement");
+        assert!(ambiguous.channel("Signal").is_none());
+        assert!(
+            ambiguous
+                .resolve_channel("Signal")
+                .expect_err("ambiguous alias must be reported")
+                .to_string()
+                .contains("ambiguous")
+        );
     }
 }

@@ -23,7 +23,8 @@ pub use experiment::{
     ReferenceMetadata, SensorMetadata,
 };
 pub use measurement::{
-    ChannelMetadata, CoordinateConversion, MeasurementChannel, MultiChannelMeasurement,
+    CHANNEL_ALIASES_METADATA_KEY, ChannelMetadata, CoordinateConversion, MeasurementChannel,
+    MultiChannelMeasurement, SOURCE_HEADER_METADATA_KEY,
 };
 pub use metadata::{ExperimentMetadataDocument, build_experiment, load_experiment_metadata};
 pub use provenance::AnalysisProvenance;

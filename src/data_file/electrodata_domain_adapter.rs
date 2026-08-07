@@ -13,7 +13,7 @@ use crate::domain::{
 use electrodata_io::{
     Column, ColumnNamePolicy, ColumnRole, CoordinateOrderPolicy, Dataset, HeaderPolicy,
     InvalidCellPolicy, InvalidTimePolicy, RaggedRowPolicy, ReadOptions, ReadProfile, SheetSelector,
-    ValidationLevel,
+    Unit, ValidationLevel,
 };
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -222,32 +222,64 @@ fn channel_from_canonical(column: &Column) -> MeasurementChannel {
         .clone()
         .unwrap_or_else(|| column.name.clone());
     let unit = unit_label(column.unit.as_ref());
-    let logical_name = logical_channel_name(&source_header, &unit);
-    MeasurementChannel::new(logical_name, unit, column.values.clone())
-        .with_source_header(source_header)
+    let logical_name = logical_channel_name(&source_header, column.unit.as_ref());
+    MeasurementChannel::new(logical_name.clone(), unit, column.values.clone())
+        .with_source_header(source_header.clone())
+        .with_aliases([logical_name, source_header])
 }
 
-/// Derives the analysis-facing channel identity only when the canonical unit
-/// metadata verifies that the final slash-delimited token is a known unit
-/// annotation.  This deliberately does not split arbitrary source headers.
-fn logical_channel_name(source_header: &str, canonical_unit: &str) -> String {
-    let Some((name, suffix)) = source_header.rsplit_once('/') else {
+/// Derives the compatibility bare name only when the canonical provider has
+/// parsed the final source-header token as the same unit. This preserves
+/// genuine slash-bearing identifiers such as `NH4/NO3` rather than treating
+/// arbitrary punctuation as a unit delimiter.
+fn logical_channel_name(source_header: &str, source_unit: Option<&Unit>) -> String {
+    let Some((name, suffix)) = source_header_unit_parts(source_header) else {
         return source_header.to_string();
     };
-    let name = name.trim();
-    let suffix = suffix.trim();
-    if !name.is_empty() && is_verified_unit_suffix(suffix, canonical_unit) {
+    if is_verified_unit_suffix(suffix, source_unit) {
         name.to_string()
     } else {
         source_header.to_string()
     }
 }
 
-fn is_verified_unit_suffix(suffix: &str, canonical_unit: &str) -> bool {
-    matches!(
-        canonical_unit,
-        "s" | "h" | "day" | "Hz" | "ohm" | "deg" | "V" | "mV" | "A" | "mA" | "uA" | "C"
-    ) && suffix.eq_ignore_ascii_case(canonical_unit)
+fn source_header_unit_parts(source_header: &str) -> Option<(&str, &str)> {
+    let trimmed = source_header.trim();
+    if let Some((name, suffix)) = trimmed.rsplit_once('/') {
+        let name = name.trim();
+        let suffix = suffix.trim();
+        return (!name.is_empty() && !suffix.is_empty()).then_some((name, suffix));
+    }
+    let (name, suffix) = trimmed.rsplit_once('(')?;
+    let suffix = suffix.strip_suffix(')')?.trim();
+    let name = name.trim();
+    (!name.is_empty() && !suffix.is_empty()).then_some((name, suffix))
+}
+
+/// Uses the provider's parsed unit representation, including its normalized
+/// synonyms. `Unit::Other` is accepted only for a small set of unambiguous
+/// scientific annotations, so identifiers like `reference/working` are not
+/// stripped.
+fn is_verified_unit_suffix(suffix: &str, source_unit: Option<&Unit>) -> bool {
+    let normalized = suffix.trim().to_ascii_lowercase();
+    match source_unit {
+        Some(Unit::Second) => matches!(normalized.as_str(), "s" | "sec" | "second" | "seconds"),
+        Some(Unit::Hour) => matches!(normalized.as_str(), "h" | "hr" | "hour" | "hours"),
+        Some(Unit::Day) => matches!(normalized.as_str(), "d" | "day" | "days"),
+        Some(Unit::Hertz) => normalized == "hz",
+        Some(Unit::Ohm) => matches!(normalized.as_str(), "ohm" | "ohms" | "ω"),
+        Some(Unit::Degree) => matches!(normalized.as_str(), "deg" | "degree" | "degrees" | "°"),
+        Some(Unit::Volt) => matches!(normalized.as_str(), "v" | "volt" | "volts"),
+        Some(Unit::Millivolt) => normalized == "mv",
+        Some(Unit::Ampere) => matches!(normalized.as_str(), "a" | "amp" | "amps"),
+        Some(Unit::Milliampere) => normalized == "ma",
+        Some(Unit::Microampere) => matches!(normalized.as_str(), "ua" | "µa" | "μa"),
+        Some(Unit::Other(value)) => {
+            value.trim().eq_ignore_ascii_case(suffix)
+                && matches!(normalized.as_str(), "c" | "ppm" | "ppb" | "ppt")
+        }
+        Some(Unit::Unknown) | None => false,
+    }
 }
 
 fn required_values(column: &Column, field: &str) -> Result<Vec<f64>, DataParsingError> {
@@ -331,14 +363,38 @@ pub fn is_eis(dataset: &Dataset) -> bool {
 #[cfg(test)]
 mod tests {
     use super::logical_channel_name;
+    use electrodata_io::Unit;
 
     #[test]
-    fn strips_only_a_verified_canonical_unit_suffix() {
-        assert_eq!(logical_channel_name("E1/V", "V"), "E1");
-        assert_eq!(logical_channel_name("NH4/mV", "mV"), "NH4");
-        assert_eq!(logical_channel_name("ORP", "V"), "ORP");
-        assert_eq!(logical_channel_name("NO3_sensor/A", "A"), "NO3_sensor");
-        assert_eq!(logical_channel_name("NO3_sensor/A", "V"), "NO3_sensor/A");
-        assert_eq!(logical_channel_name("path/segment", ""), "path/segment");
+    fn derives_verified_unit_aliases_without_stripping_real_slash_names() {
+        assert_eq!(logical_channel_name("E1/V", Some(&Unit::Volt)), "E1");
+        assert_eq!(
+            logical_channel_name("NH4/mV", Some(&Unit::Millivolt)),
+            "NH4"
+        );
+        assert_eq!(
+            logical_channel_name("Signal/volts", Some(&Unit::Volt)),
+            "Signal"
+        );
+        assert_eq!(
+            logical_channel_name("Signal(ppm)", Some(&Unit::Other("ppm".into()))),
+            "Signal"
+        );
+        assert_eq!(
+            logical_channel_name("Potential (mV)", Some(&Unit::Millivolt)),
+            "Potential"
+        );
+        assert_eq!(
+            logical_channel_name("sensor/A/channel", Some(&Unit::Other("channel".into()))),
+            "sensor/A/channel"
+        );
+        assert_eq!(
+            logical_channel_name("NH4/NO3", Some(&Unit::Other("NO3".into()))),
+            "NH4/NO3"
+        );
+        assert_eq!(
+            logical_channel_name("reference/working", Some(&Unit::Other("working".into()))),
+            "reference/working"
+        );
     }
 }
