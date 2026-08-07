@@ -12,25 +12,16 @@ electrodata-io = { git = "https://github.com/XingyuW/electrodata-io.git", rev = 
 `Cargo.lock` records the same Git source and resolved commit. No consumer path
 dependency or sibling checkout is required.
 
-## Independent legacy reference
+## Completed independent parity gate
 
-`tests/legacy_snapshot/mod.rs` is a test-only, provenance-traceable independent
-adaptation of the archived pre-migration algorithms from consumer commit
-`cc6f283`. Its module header is the provenance notice: “Reference implementation
-copied from commit cc6f283 for migration parity only. Never used by production.”
-It has no `electrodata-io` dependency and cannot register provider handlers.
+The independent legacy reference and parity test were deliberately removed in
+Prompt 3B only after the final GO decision. Their tested consumer/provider
+SHAs, fixture matrix, intentional-difference allowlist, scientific-output
+references, and final result are retained in
+`docs/io_migration_validation_archive.md`. Canonical boundary, typed-error,
+XLSX, EIS semantic, and scientific workflow regressions remain active tests.
 
-`tests/io_migration_parity.rs` compares that archived reference with the
-canonical public reader. Time-series comparisons cover row count, raw
-timestamps, seconds-normalized time where available, time unit, coordinate
-name, channel count and order, logical names, exact source headers, channel
-units, every `Option<f64>`, and null positions. EIS comparisons cover
-frequency, real/imaginary impedance and sign, source-measured magnitude/phase,
-derived magnitude/phase, row count, and units.
-The corpus has no sensor or analyte metadata fields, so those comparisons are
-not applicable.
-
-## Parity matrix
+## Archived parity matrix
 
 | Fixture | Classification | Recorded result |
 | --- | --- | --- |

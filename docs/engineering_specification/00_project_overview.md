@@ -62,7 +62,7 @@
 
 ## 5. Current Capabilities (Verified)
 
-- **CHI file parsing**: OCPT (open-circuit potential vs time), multi-column OCPT, and EIS files with automatic header detection.
+- **Provider-backed CHI ingestion**: `electrodata-io` detects and reads OCPT, multi-column OCPT, and EIS files; this project adapts typed datasets for analysis.
 - **15 circuit elements**: R, C, L, W (Warburg), CPE, Wo, Ws, La, Gw, G, Gs, K, Zarc, TLMQ, T (porous electrode).
 - **Circuit string parser**: Nom-based parser for expressions like `R0-p(CPE1,R1)`.
 - **ECM genetic search**: Configurable population size, generations, mutation rate.
@@ -146,4 +146,11 @@
 
 ## Canonical input boundary
 
-`electrodata-io` is the canonical physical/scientific input boundary. This repository converts its typed datasets to enriched scientific domain objects and owns analysis, estimation, modeling, health, mechanism, reporting, and plots. Legacy readers are retained only for Phase 3A parity verification.
+`electrodata-io` is the canonical physical/scientific input boundary. It owns
+physical detection, CSV/TXT/DAT/XLSX reading, worksheet handling, canonical
+roles and units, malformed-input recovery, diagnostics, and provenance. This
+repository converts typed datasets to enriched scientific domain objects and
+owns validation, analysis, estimation, modeling, health, mechanism, reporting,
+plots, and analysis artifacts. The completed legacy-parity evidence is archived
+in `docs/io_migration_validation_archive.md`; no local production physical
+parser remains.

@@ -4,7 +4,8 @@
 //! orchestration, scientific candidate selection, ECM search/reporting, and
 //! optional ranked-model plots. `electrodata-io`—not this consumer—owns raw
 //! CSV/TXT/DAT/XLSX parsing, CHI/EIS detection, physical-binary detection,
-//! and malformed-row recovery.
+//! and malformed-row recovery. Analysis-artifact reads remain consumer-owned
+//! because they are versioned result contracts, not physical measurements.
 
 use crate::{
     data_file::chi_file::EISData,

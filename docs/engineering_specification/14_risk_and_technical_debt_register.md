@@ -100,9 +100,13 @@ diagnostics, and raw input errors. This project owns domain conversion,
 scientific calculations, modeling, estimation, mechanism, health, plotting,
 reporting, and analysis artifacts.
 
-## Phase 3A migration debt
+## Prompt 3B migration debt
 
-Legacy `ProjectTabularHandler`, measurement/EIS parsers, Excel wrappers, and `InputKind` remain present for compatibility/parity verification and must not be treated as production raw-input dispatch. Delete them only after independent parity review covers the full consumer-fixture corpus, including headerless/ragged recovery and all EIS layouts.
+The independently approved legacy `ProjectTabularHandler`, local raw adapter,
+snapshot parity test, and test-only Calamine dependency were removed after
+their evidence was archived. Excel wrappers and `InputKind` remain public
+compatibility/reference surfaces and must not be treated as production raw-
+input dispatch.
 
 `chi_file.rs` and file-based `measurement_parser.rs` are canonical Dataset-to-domain adapters; only `parse_measurement_text` is deprecated compatibility code. Excel wrappers and `InputKind` are legacy/reference helpers, while `electrodata-io` remains the sole owner of physical workbook and format detection.
 

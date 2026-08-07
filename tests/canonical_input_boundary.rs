@@ -5,7 +5,11 @@ use electrodata_io::{
     RaggedRowPolicy, ReadProfile, SheetSelector, ValidationLevel,
 };
 use rust_electroanalysis_cli::data_file::{
-    EISData, parse_measurement_file, project_compatibility_read_options, read_dataset,
+    EISData, InputKind,
+    excel_file::{
+        ExcelMeasurementParseResult, ExcelTable, parse_excel_measurement, read_worksheet,
+    },
+    parse_measurement_file, project_compatibility_read_options, read_dataset,
     read_dataset_with_sheet,
 };
 use rust_electroanalysis_cli::{
@@ -265,9 +269,16 @@ fn ownership_documentation_does_not_restore_local_raw_parser_claims() {
         "docs/engineering_specification/03_module_specifications.md",
         "docs/engineering_specification/04_data_models_and_units.md",
         "docs/engineering_specification/06_workflows.md",
+        "docs/engineering_specification/08_validation_and_constraints.md",
+        "docs/engineering_specification/09_testing_and_quality_assurance.md",
+        "docs/engineering_specification/12_change_management_playbook.md",
         "docs/engineering_specification/13_traceability_matrix.md",
         "docs/engineering_specification/14_risk_and_technical_debt_register.md",
         "docs/io_migration_validation.md",
+        "src/data_file/lib.rs",
+        "src/data_file/chi_file.rs",
+        "src/search_runner.rs",
+        "src/plottings/generic_plot.rs",
     ];
     let stale_claims = [
         "chi format parser",
@@ -277,6 +288,8 @@ fn ownership_documentation_does_not_restore_local_raw_parser_claims() {
         "chi_file parses physical csv",
         "search_runner parses raw csv",
         "calamine | provider-internal xlsx implementation detail",
+        "input_kind.rs — format detection",
+        "write a parser that produces",
     ];
 
     for document in documents {
@@ -294,6 +307,26 @@ fn ownership_documentation_does_not_restore_local_raw_parser_claims() {
             "canonical owner is not documented in {document}"
         );
     }
+}
+
+#[allow(deprecated)]
+#[test]
+fn retained_public_compatibility_surfaces_compile() {
+    let _: fn(
+        &str,
+        &Path,
+    ) -> Result<rust_electroanalysis_cli::MeasurementParseResult, DataParsingError> =
+        |text, path| rust_electroanalysis_cli::data_file::parse_measurement_text(text, path);
+    let _: fn(&Path, Option<&str>) -> Result<ExcelMeasurementParseResult, DataParsingError> =
+        |path, sheet| parse_excel_measurement(path, sheet);
+    let _: fn(&Path, Option<&str>) -> Result<ExcelTable, DataParsingError> =
+        |path, sheet| read_worksheet(path, sheet);
+    let _ = std::mem::size_of::<ExcelTable>();
+    let _ = std::mem::size_of::<ExcelMeasurementParseResult>();
+    let _: fn(&Path) -> InputKind = InputKind::classify_by_extension;
+    let _: fn(Vec<f64>, Vec<f64>, Vec<f64>) -> EISData = EISData::from_impedance;
+    let _ = EISData::with_source_bode;
+    let _ = EISData::parse_file_with_sheet::<&Path>;
 }
 
 fn rust_sources_under(directory: &Path) -> Vec<PathBuf> {

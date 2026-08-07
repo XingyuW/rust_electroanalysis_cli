@@ -22,8 +22,8 @@ Verification confidence labels used in **Verified By**:
 | FR-003 | System shall ingest multi-column OCPT files into independent measurement series | High | `electrodata-io` → project domain adapter | **Direct** — `chi_file` tests | ✅ Implemented |
 | FR-004 | System shall ingest generic CSV measurement files with automatic column-name detection | High | `electrodata-io` → `src/data_file/measurement_parser.rs` domain adapter | **Direct** — `phase1_domain` tests | ✅ Implemented |
 | FR-005 | System shall ingest Excel `.xlsx` workbooks with worksheet selection | High | `electrodata-io` → domain adapter | **Direct** — `xlsx_ingestion` tests | ✅ Implemented |
-| FR-006 | System shall reject legacy `.xls` binary files with a clear error message | Medium | `src/data_file/excel_file.rs` | **Direct** — `unified_data_loading` test | ✅ Implemented |
-| FR-007 | System shall reject binary content disguised as CSV | Medium | `electrodata-io` (with `InputKind` compatibility classification) | **Direct** — `unified_data_loading` test | ✅ Implemented |
+| FR-006 | System shall reject legacy `.xls` binary files with a clear error message | Medium | `electrodata-io` typed error → compatibility wrapper if requested | **Direct** — `unified_data_loading` test | ✅ Implemented |
+| FR-007 | System shall reject binary content disguised as CSV | Medium | `electrodata-io`; `InputKind` is compatibility-only | **Direct** — `unified_data_loading` test | ✅ Implemented |
 | FR-008 | System shall load experiment metadata from TOML files | High | `src/domain/metadata.rs` | **Direct** — `phase1_domain` tests | ✅ Implemented |
 | FR-009 | System shall fit a user-specified circuit expression to EIS data using Levenberg-Marquardt | High | `src/impedance/fitting.rs` | **Direct** — `impedance::tests` | ✅ Implemented |
 | FR-010 | System shall resolve circuit models from filename/metadata tags and configured rules | High | `src/impedance/circuit_models.rs` | **Direct** — `chi_file` tests | ✅ Implemented |

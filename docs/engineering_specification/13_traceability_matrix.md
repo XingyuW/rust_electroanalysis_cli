@@ -175,4 +175,4 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | VAL-ISM-001 | `model_validation.rs`, `results/validation.rs` | `runners/model_validation.rs` | `phase07_validation` missing-evidence assertions |
 | EST-EQ-001 | `estimation/model_output.rs`, `estimation_config.rs` | EKF and UKF timestamp outputs | equilibrium unit tests and `phase6_estimation` |
 | IO-CANON-001 | `data_file/electrodata_domain_adapter.rs` | typed `Dataset` conversion | `canonical_input_boundary` |
-| IO-CANON-002 | `data_file/electrodata_adapter.rs` | parity-only legacy path | adapter parity tests |
+| IO-CANON-002 | `docs/io_migration_validation_archive.md` | completed independent parity evidence | canonical boundary, XLSX, EIS semantics, and scientific workflow regressions |

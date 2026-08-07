@@ -25,10 +25,6 @@ rayon = "1.12.0"
 rand = "0.8"
 rustfft = "6"
 
-[dev-dependencies]
-# Test-only dependency for the archived cc6f283 XLSX reference reader.
-calamine = "0.36.1"
-
 [profile.release]
 opt-level      = 3
 panic          = "abort"

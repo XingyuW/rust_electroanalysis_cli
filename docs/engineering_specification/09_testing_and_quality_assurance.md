@@ -39,6 +39,8 @@
 | `tests/phase6_estimation.rs` | 6 | State estimation, EKF/UKF |
 | `tests/unified_data_loading.rs` | 3 | File format detection, binary rejection |
 | `tests/xlsx_ingestion.rs` | (inferred) | Excel file reading |
+| `tests/canonical_input_boundary.rs` | IO migration | canonical ownership guard, compatibility API compilation, recovery/time/EIS semantics |
+| `tests/canonical_error_types.rs` | IO migration | provider typed errors and worksheet context |
 | `tests/model_core.rs` | 02 | ISM graph compilation, schemas, decomposition, and legacy CLI surface |
 | `tests/model_builtins.rs` | 03 | Synthetic equilibrium, relaxation, disturbance, reconstruction, and validity coverage |
 
@@ -52,6 +54,12 @@
 | Numerical tests | Multiple (fit accuracy, Nernst slope) |
 | Error-path tests | Multiple (invalid inputs, edge cases) |
 | Cross-platform tests | CI runs on Linux + macOS |
+
+The completed independent legacy parity gate is preserved in
+`docs/io_migration_validation_archive.md`; ongoing coverage uses the
+`electrodata-io` canonical input boundary, typed errors, XLSX, EIS semantics,
+and all-phase scientific regression tests rather than a retained local raw
+parser.
 
 ## 2. Requirement Test Coverage
 

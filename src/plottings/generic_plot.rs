@@ -27,14 +27,11 @@
 //!
 //! # Extensibility
 //!
-//! The directory-scanning functions currently load files through
-//! [`ElectrochemData::parse_file`] then convert via [`IntoPlotData`].  To
-//! support a different file format:
-//!
-//! 1. Write a parser that produces some `T: IntoPlotData`.
-//! 2. Add a branch or sister function that loads files through that parser.
-//! 3. Convert with `your_data.into_plot_data()` and feed the resulting
-//!    `Vec<PlotData>` into [`plot_generic_datasets`].
+//! Physical input formats are recognized and read by `electrodata-io`; the
+//! directory-scanning functions only convert provider-backed project domains
+//! through [`ElectrochemData::parse_file`] and [`IntoPlotData`]. To support a
+//! new physical format, extend `electrodata-io` and its typed domain adapter,
+//! then feed the resulting `Vec<PlotData>` into [`plot_generic_datasets`].
 //!
 //! No changes to `plotting.rs`, `plot_hq`, or anything else are needed.
 
@@ -342,10 +339,11 @@ pub fn plot_generic_directory<P: AsRef<Path>>(
 ///    `From<ElectrochemData>` impl).
 /// 4. Write individual plots (one file per dataset) and one combined overlay.
 ///
-/// ## Extending to new file formats
+/// ## Extending physical inputs
 ///
-/// Replace step 2–3 with your own parser + `IntoPlotData` implementation.
-/// Steps 1, 4, and the outcome types are format-agnostic.
+/// Extend `electrodata-io` and the canonical Dataset-to-domain adapter; do
+/// not add local physical parsing branches here. Rendering remains
+/// format-agnostic once a project domain can produce `PlotData`.
 ///
 /// # Config pipeline contract
 ///

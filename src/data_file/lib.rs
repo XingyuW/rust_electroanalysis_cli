@@ -8,12 +8,8 @@
 //! - `data_op`: generic `PlotData` container and point-selection utilities.
 //! - `value_transform`: display/run-time axis transform resolution.
 //!
-//! `calamine` is a test-only archived-parity dependency, never a consumer
-//! production workbook parser.
-
 pub mod chi_file;
 pub mod data_op;
-pub(crate) mod electrodata_adapter;
 pub mod electrodata_domain_adapter;
 pub mod excel_file;
 pub mod input_kind;

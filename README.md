@@ -97,7 +97,7 @@ matrix, and temperature context and are not averaged across incompatible events.
   - [Adding a New Circuit Element](#adding-a-new-circuit-element)
   - [Adding a New Plot Type](#adding-a-new-plot-type)
   - [Adding a New Regression Model](#adding-a-new-regression-model)
-  - [Adding a New File Format Parser](#adding-a-new-file-format-parser)
+  - [Adding a New Consumer Domain Projection](#adding-a-new-consumer-domain-projection)
   - [Coding Conventions](#coding-conventions)
 - [20. Scientific Correctness and Artifact Migration](#20-scientific-correctness-and-artifact-migration)
 - [21. Troubleshooting](#21-troubleshooting)
@@ -321,10 +321,12 @@ The release binary is self-contained and requires only the TOML configuration fi
 
 ## 4. Input File Formats and Automatic Detection
 
-Physical/raw electrochemical input is interpreted only by `electrodata-io`; this
-project converts its typed `Dataset` into scientific domains and owns analysis
-and artifacts. Legacy/reference parsers remain for compatibility and parity
-tests, not production ingestion.
+Physical/raw electrochemical input is interpreted only by `electrodata-io`; it
+owns format and binary detection, CSV/TXT/DAT/XLSX reading, worksheet handling,
+CHI/EIS roles, recovery, diagnostics, and provenance. This project converts its
+typed `Dataset` into scientific domains and owns validation, analysis, and
+artifacts. The completed independent legacy-parity evidence is archived in
+`docs/io_migration_validation_archive.md`; no local physical parser remains.
 
 1. **Binary handling**: `electrodata-io` detects unsupported binary content and returns its structured error; the CLI does not pre-classify physical formats.
 2. **Excel (`.xlsx`)**: Read and worksheet-selected by `electrodata-io`.
@@ -1416,7 +1418,8 @@ cargo run -- estimate validate \
 
 ```mermaid
 flowchart TD
-    Input["EIS data file"] --> Parse["EISData::parse_file()"]
+    Input["EIS data file"] --> Provider["electrodata-io read / typed view"]
+    Provider --> Parse["EISData::parse_file() domain adapter"]
     Parse --> Search["discover_equivalent_circuits_with_config()"]
     Search --> Evolve["Genetic Algorithm\n(ecm_evolution.rs)"]
     Evolve --> Score["Score candidates\n(ecm_scoring.rs)"]

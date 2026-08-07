@@ -3,7 +3,8 @@
 //! `electrodata-io` owns raw container parsing, CHI header recognition,
 //! EIS-format detection, binary detection, and malformed-row recovery. This
 //! module adapts its typed datasets into `ElectrochemData` and `EISData` for
-//! downstream plotting and ECM search while preserving provenance.
+//! downstream plotting and ECM search while preserving provenance. It is not
+//! a raw CHI/CSV/TXT/DAT/XLSX parser and does not recognize physical formats.
 
 use crate::domain::{
     DataParsingError, FittingError, MeasurementChannel, MultiChannelMeasurement, ParseDiagnostics,
@@ -71,7 +72,10 @@ fn file_label<P: AsRef<Path>>(path: P) -> String {
         .unwrap_or_else(|| "Unknown".to_string())
 }
 
-// ElectrochemData is a more general struct for parsing and representing electrochemical data from CHI files, which may include various test types beyond just EIS. It captures common metadata and provides a flexible structure for x-y data pairs, making it suitable for OCPT, CV, and other electrochemical techniques. The EISData struct is specifically tailored for impedance spectroscopy data, with additional fields and methods relevant to EIS analysis and fitting.
+// ElectrochemData is the project's general domain representation for
+// provider-recognized electrochemical datasets. It captures metadata and x-y
+// data pairs for OCPT and related scientific workflows. EISData is the
+// impedance-specific domain representation used for fitting and plotting.
 
 /// Source-coordinate contract retained by regular plotting. Values are never
 /// reinterpreted from this metadata: an explicit normalization must update the
@@ -288,7 +292,10 @@ impl TryFrom<ElectrochemData> for MultiChannelMeasurement {
     }
 }
 
-// EISData is a specialized struct for representing electrochemical impedance spectroscopy data parsed from CHI files. It includes fields for frequency, phase, real and imaginary impedance components, as well as metadata and circuit model information. The struct provides methods for parsing EIS-specific data formats, fitting to equivalent circuit models, and generating plot series for visualization. This struct is designed to encapsulate all relevant information and functionality needed for EIS analysis within the rust_plots library.
+// EISData is a specialized scientific domain struct for electrochemical
+// impedance spectroscopy. Provider-backed file adapters supply its frequency,
+// phase, real/imaginary impedance, provenance, and optional source Bode
+// measurements; this type then supports fitting and plot-series generation.
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
