@@ -1,5 +1,5 @@
 use rust_electroanalysis_cli::data_file::{DataFileType, load_data, measurement_to_plot_data};
-use rust_electroanalysis_cli::domain::ElectrochemicalExperiment;
+use rust_electroanalysis_cli::domain::{DataParsingError, ElectrochemicalExperiment};
 use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -75,8 +75,20 @@ fn rejects_binary_content_with_csv_extension() {
     let path = std::env::temp_dir().join(format!("unified-binary-{suffix}.csv"));
     fs::write(&path, [0x00, 0xFE, 0x10, 0x20]).expect("write binary fixture");
     let err = load_data(&path).expect_err("binary csv should be rejected");
-    let text = err.to_string();
-    assert!(text.contains("unsupported") || text.contains("binary"));
+    match err {
+        DataParsingError::ElectrodataIo(error) => match error.as_ref() {
+            electrodata_io::Error::UnsupportedBinary {
+                path: error_path,
+                magic,
+                ..
+            } => {
+                assert_eq!(error_path, &path);
+                assert!(!magic.is_empty());
+            }
+            other => panic!("expected canonical UnsupportedBinary, got {other:?}"),
+        },
+        other => panic!("expected canonical error wrapper, got {other:?}"),
+    }
     fs::remove_file(path).ok();
 }
 

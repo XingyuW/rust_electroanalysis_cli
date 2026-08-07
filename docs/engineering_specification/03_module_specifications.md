@@ -216,8 +216,8 @@
 
 ### `data_file/` — Data Ingestion
 
-- **Canonical boundary**: `electrodata-io` owns raw CSV/DAT/XLSX interpretation, worksheet selection, headers, recovery, units, and diagnostics.
-- **Domain adapter**: converts typed datasets to project scientific domains; legacy parsers remain compatibility/parity-only.
+- **Canonical boundary**: `electrodata-io` owns physical/raw data detection, parsing, worksheet handling, scientific input roles, recovery diagnostics, and raw input errors.
+- **Domain adapter**: this project owns domain conversion, scientific calculations, modeling, estimation, mechanism, health, plotting, reporting, and analysis artifacts; legacy parsers remain compatibility/parity-only.
 
 ### `results/` — Result Structures
 

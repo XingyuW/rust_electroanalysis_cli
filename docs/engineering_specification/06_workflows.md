@@ -231,7 +231,7 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     subgraph "Phase 1: Data"
-        RAW[Raw Files] --> PARSE[Measurement Parser]
+        RAW[Raw Files] --> PARSE[electrodata-io canonical reader]
         PARSE --> EXP[ElectrochemicalExperiment]
     end
     

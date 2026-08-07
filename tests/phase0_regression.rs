@@ -187,6 +187,43 @@ fn structured_and_legacy_search_commands_still_export_reports() {
 }
 
 #[test]
+fn eis_search_directory_keeps_same_stem_csv_and_xlsx_artifacts_distinct() {
+    let root = test_workspace("search_same_stem");
+    fs::write(root.join("data/eis.csv"), eis_fixture()).expect("write CSV EIS fixture");
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/xlsx/eis_only.xlsx"),
+        root.join("data/eis.xlsx"),
+    )
+    .expect("copy XLSX EIS fixture");
+    let output = run_binary(
+        &root,
+        &[
+            "eis",
+            "search",
+            "data",
+            "--search-output",
+            "output/same_stem",
+            "--search-top",
+            "1",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "same-stem directory search failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for extension in ["csv", "xlsx"] {
+        let base = root
+            .join("output/same_stem")
+            .join(format!("eis__{extension}_ecm_search"));
+        assert!(base.with_extension("txt").is_file());
+        assert!(base.with_extension("csv").is_file());
+    }
+
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn structured_fit_command_writes_named_report() {
     let root = test_workspace("fit");
     let output = run_binary(

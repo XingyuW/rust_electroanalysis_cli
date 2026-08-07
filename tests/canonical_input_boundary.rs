@@ -192,13 +192,21 @@ fn scientific_seconds_conversion_is_explicit_and_recorded() {
 fn eis_artifact_keeps_source_bode_values_distinct_from_derived_values() {
     let fixture_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/io_migration");
     let three_path = fixture_dir.join("chi_eis_three_column.csv");
+    let four_path = fixture_dir.join("chi_eis_four_column.csv");
     let five_path = fixture_dir.join("chi_eis_five_column.csv");
     let three = EISData::parse_file(&three_path).expect("three-column EIS");
+    let four = EISData::parse_file(&four_path).expect("four-column EIS");
     let five = EISData::parse_file(&five_path).expect("five-column EIS");
     assert!(three.measured_magnitude.is_none());
     assert!(three.measured_phase.is_none());
     assert!(five.measured_magnitude.is_some());
     assert!(five.measured_phase.is_some());
+    assert!(four.measured_magnitude.is_none());
+    assert_eq!(four.source_measured_phase().unwrap()[0], Some(-5.710_593));
+    assert_ne!(
+        four.source_measured_phase().unwrap()[0],
+        Some(four.derived_phase()[0])
+    );
 
     let fit = CircuitFitResult {
         fitted_parameters: vec![1.0],
@@ -226,6 +234,11 @@ fn eis_artifact_keeps_source_bode_values_distinct_from_derived_values() {
     let supplied = five.measured_magnitude.as_ref().expect("source magnitude");
     assert_eq!(supplied[0], Some(10.049_876));
     assert_ne!(supplied[0], Some(five.derived_magnitude[0]));
+    assert_eq!(five.source_measured_phase().unwrap()[0], Some(-5.710_593));
+    assert_ne!(
+        five.source_measured_phase().unwrap()[0],
+        Some(five.derived_phase()[0])
+    );
 
     let mut legacy = serde_json::to_value(&artifact).expect("serialize v2 artifact");
     let root = legacy.as_object_mut().expect("artifact object");

@@ -44,7 +44,7 @@ pub fn pb_sensor_individual_publication_config() -> PublicationConfig {
         plot_ratio_x: 10.6,
         plot_ratio_y: 6.2,
         legend_font_ratio: 0.62,
-        x_label: "Time (s)".to_string(),
+        x_label: "X Values".to_string(),
         y_label: "Potential (V)".to_string(),
         png_font: "Arial Bold".to_string(),
         svg_font: "Arial".to_string(),
@@ -65,7 +65,7 @@ pub fn pb_sensor_combined_publication_config() -> PublicationConfig {
         plot_ratio_x: 11.0,
         plot_ratio_y: 6.2,
         legend_font_ratio: 0.56,
-        x_label: "Time (s)".to_string(),
+        x_label: "X Values".to_string(),
         y_label: "Potential (V)".to_string(),
         png_font: "Arial Bold".to_string(),
         svg_font: "Arial".to_string(),
@@ -110,9 +110,7 @@ pub fn plot_chi_file_with_transform<P: AsRef<Path>>(
     let mut transformed = vec![data.clone()];
     apply_axis_transforms_to_electrochem(&mut transformed, transform);
 
-    let plot_config = config
-        .clone()
-        .with_default_axis_labels("Time (s)", "Potential (V)");
+    let plot_config = coordinate_plot_config(config, std::slice::from_ref(&data));
     plot_hq(
         output_base.to_string_lossy().as_ref(),
         &transformed,
@@ -224,12 +222,8 @@ pub fn plot_chi_directory_with_configs_and_transforms<P: AsRef<Path>>(
     apply_axis_transforms_to_electrochem(&mut individual_datasets, individual_transform);
     apply_axis_transforms_to_electrochem(&mut combined_datasets, combined_transform);
 
-    let individual_plot_config = individual_config
-        .clone()
-        .with_default_axis_labels("Time (s)", "Potential (V)");
-    let combined_plot_config = combined_config
-        .clone()
-        .with_default_axis_labels("Time (s)", "Potential (V)");
+    let individual_plot_config = coordinate_plot_config(individual_config, &individual_datasets);
+    let combined_plot_config = coordinate_plot_config(combined_config, &combined_datasets);
 
     plot_hq(
         individual_output_base.to_string_lossy().as_ref(),
@@ -267,6 +261,24 @@ fn apply_axis_transforms_to_electrochem(
             ty.apply_vec(&mut dataset.y_values);
         }
     }
+}
+
+pub(crate) fn coordinate_plot_config(
+    config: &PublicationConfig,
+    datasets: &[ElectrochemData],
+) -> PublicationConfig {
+    let x_label = datasets
+        .first()
+        .map(|dataset| dataset.coordinate.source_axis_label())
+        .filter(|label| {
+            datasets
+                .iter()
+                .all(|dataset| dataset.coordinate.source_axis_label() == *label)
+        })
+        .unwrap_or_else(|| "Coordinate".to_string());
+    config
+        .clone()
+        .with_default_axis_labels(x_label.as_str(), "Potential (V)")
 }
 
 fn sanitize_output_component(value: &str) -> String {

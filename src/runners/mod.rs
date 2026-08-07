@@ -34,6 +34,12 @@ pub enum RunnerError {
     Data(#[from] DataParsingError),
     #[error("raw-data batch input failures: {failures:?}")]
     BatchInput { failures: Vec<BatchFileFailure> },
+    #[error("search output collision at {output}: {first_input} and {second_input}")]
+    OutputCollision {
+        output: std::path::PathBuf,
+        first_input: std::path::PathBuf,
+        second_input: std::path::PathBuf,
+    },
     #[error(transparent)]
     Fitting(#[from] FittingError),
     #[error(transparent)]

@@ -175,7 +175,7 @@ pub(crate) fn measurement_from_dataset(
                 | electrodata_io::ContainerFormat::Xlsb
                 | electrodata_io::ContainerFormat::Ods
         ) {
-            "worksheet is EIS-like but XLSX EIS ingestion is not supported in this time-series workflow"
+            "worksheet is EIS-like and cannot be used by this time-series workflow"
         } else {
             "EIS data cannot be loaded through the time-series measurement workflow"
         };

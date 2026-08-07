@@ -18,7 +18,10 @@ use crate::{
 };
 use crate::{domain::BatchFileFailure, runners::RunnerError};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 // ---------------------------------------------------------------------------
 // Supporting types
@@ -89,7 +92,7 @@ where
     F: FnMut(SearchLogLevel, &str),
 {
     let target = resolve_cli_path(workspace_dir, search_target);
-    let input_collection = collect_eis_search_inputs(&target)?;
+    let input_collection = collect_eis_search_inputs(&target, sheet)?;
     let input_files = input_collection.files;
     let mut failures = input_collection.failures;
     let output_path = search_output.map(|path| resolve_cli_path(workspace_dir, path));
@@ -146,6 +149,7 @@ where
     }
 
     let mut processed_files = 0usize;
+    let mut resolved_outputs = BTreeMap::new();
     for input_file in input_files {
         let data = match EISData::parse_file_with_sheet(&input_file, sheet) {
             Ok(data) => data,
@@ -171,11 +175,27 @@ where
         emit_info(&mut log, report.ranking_table());
         emit_info(&mut log, "");
 
-        // Write text and CSV reports.
+        // Resolve and reserve every per-input artifact before writing.  This
+        // makes a future naming regression a structured failure, never an
+        // overwrite of scientific output.
         let export_path =
             resolve_search_export_path(&input_file, output_path.as_deref(), target.is_dir())?;
-        report.export_detailed_report(&export_path)?;
         let csv_export_path = resolve_search_csv_export_path(&export_path);
+        reserve_search_output(&mut resolved_outputs, &export_path, &input_file)?;
+        reserve_search_output(&mut resolved_outputs, &csv_export_path, &input_file)?;
+        let plot_output_base = (plot_top_n > 0).then(|| {
+            resolve_search_plot_output_base(
+                &input_file,
+                configured_plot_dir.as_deref(),
+                target.is_dir(),
+            )
+        });
+        if let Some(base) = &plot_output_base {
+            reserve_search_output(&mut resolved_outputs, base, &input_file)?;
+        }
+
+        // Write text and CSV reports.
+        report.export_detailed_report(&export_path)?;
         report.export_ranking_csv(&csv_export_path)?;
         emit_info(
             &mut log,
@@ -195,11 +215,7 @@ where
                 ));
             }
 
-            let plot_output_base = resolve_search_plot_output_base(
-                &input_file,
-                configured_plot_dir.as_deref(),
-                target.is_dir(),
-            );
+            let plot_output_base = plot_output_base.expect("plot output reserved when plotting");
             if let Some(parent) = plot_output_base.parent() {
                 fs::create_dir_all(parent)?;
             }
@@ -303,13 +319,7 @@ fn resolve_search_export_path(
     configured_output: Option<&Path>,
     multi_input_search: bool,
 ) -> Result<PathBuf, RunnerError> {
-    let default_name = format!(
-        "{}_ecm_search.txt",
-        input_file
-            .file_stem()
-            .and_then(|v| v.to_str())
-            .unwrap_or("eis_search")
-    );
+    let default_name = format!("{}_ecm_search.txt", search_input_identity(input_file));
 
     match configured_output {
         Some(output_path) if multi_input_search => Ok(output_path.join(default_name)),
@@ -331,17 +341,14 @@ fn resolve_search_plot_output_base(
     configured_output_dir: Option<&Path>,
     multi_input_search: bool,
 ) -> PathBuf {
-    let stem = input_file
-        .file_stem()
-        .and_then(|v| v.to_str())
-        .unwrap_or("eis_search");
+    let identity = search_input_identity(input_file);
 
     match configured_output_dir {
         Some(output_dir) if multi_input_search => {
-            output_dir.join(stem).join("ecm_search_top_models")
+            output_dir.join(identity).join("ecm_search_top_models")
         }
         Some(output_dir) => output_dir.join("ecm_search_top_models"),
-        None => input_file.with_file_name(format!("{stem}_ecm_search_top_models")),
+        None => input_file.with_file_name(format!("{identity}_ecm_search_top_models")),
     }
 }
 
@@ -370,6 +377,60 @@ fn resolve_search_combined_plot_output_base(
 /// plain-text report path with `.csv`.
 fn resolve_search_csv_export_path(text_report_path: &Path) -> PathBuf {
     text_report_path.with_extension("csv")
+}
+
+/// Human-readable, deterministic identity for one physical source.  The
+/// extension is part of provenance: `eis.csv` and `eis.xlsx` must never share
+/// an analysis artifact name.
+fn search_input_identity(input_file: &Path) -> String {
+    let stem = input_file
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("eis_search");
+    let extension = input_file
+        .extension()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("input");
+    format!(
+        "{}__{}",
+        sanitize_output_component(stem),
+        sanitize_output_component(extension)
+    )
+}
+
+fn sanitize_output_component(value: &str) -> String {
+    let result = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    if result.is_empty() {
+        "input".to_string()
+    } else {
+        result
+    }
+}
+
+fn reserve_search_output(
+    reserved: &mut BTreeMap<PathBuf, PathBuf>,
+    output: &Path,
+    input: &Path,
+) -> Result<(), RunnerError> {
+    if let Some(first_input) = reserved.get(output) {
+        return Err(RunnerError::OutputCollision {
+            output: output.to_path_buf(),
+            first_input: first_input.clone(),
+            second_input: input.to_path_buf(),
+        });
+    }
+    reserved.insert(output.to_path_buf(), input.to_path_buf());
+    Ok(())
 }
 
 fn pair_dataset_experimental_and_fitted_colors(series: Vec<PlotSeries>) -> Vec<PlotSeries> {
@@ -532,17 +593,40 @@ fn apply_render_config_to_publication(
 
 /// Walk `target` (a single file **or** a directory), read every non-artifact
 /// file through the canonical reader, then accept only impedance datasets.
-fn collect_eis_search_inputs(target: &Path) -> Result<SearchInputCollection, RunnerError> {
+fn collect_eis_search_inputs(
+    target: &Path,
+    sheet: Option<&str>,
+) -> Result<SearchInputCollection, RunnerError> {
     if !target.exists() {
         return Err(format!("Search target does not exist: {}", target.display()).into());
     }
 
-    // Single-file shortcut.
+    // A single file follows the same canonical read/worksheet-selection path
+    // as directory discovery. This preserves provider errors and prevents a
+    // workbook from being rejected before its explicit --sheet reaches it.
     if target.is_file() {
-        return Ok(SearchInputCollection {
-            files: vec![target.to_path_buf()],
-            failures: Vec::new(),
-        });
+        return match crate::data_file::read_dataset_with_sheet(target, sheet) {
+            Ok(dataset) if dataset.kind() == electrodata_io::DatasetKind::ImpedanceSpectrum => {
+                Ok(SearchInputCollection {
+                    files: vec![target.to_path_buf()],
+                    failures: Vec::new(),
+                })
+            }
+            Ok(dataset) => Ok(SearchInputCollection {
+                files: Vec::new(),
+                failures: vec![BatchFileFailure::rejected(
+                    target,
+                    format!(
+                        "canonical dataset kind {:?} is not an impedance spectrum",
+                        dataset.kind()
+                    ),
+                )],
+            }),
+            Err(error) => Ok(SearchInputCollection {
+                files: Vec::new(),
+                failures: vec![BatchFileFailure::canonical(target, error)],
+            }),
+        };
     }
 
     if !target.is_dir() {
@@ -572,7 +656,7 @@ fn collect_eis_search_inputs(target: &Path) -> Result<SearchInputCollection, Run
             ));
             continue;
         }
-        match crate::data_file::read_dataset(&path) {
+        match crate::data_file::read_dataset_with_sheet(&path, sheet) {
             Ok(dataset) if dataset.kind() == electrodata_io::DatasetKind::ImpedanceSpectrum => {
                 files.push(path)
             }
@@ -611,9 +695,14 @@ fn is_generated_search_artifact(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        pair_dataset_experimental_and_fitted_colors, resolve_search_combined_plot_output_base,
+        collect_eis_search_inputs, pair_dataset_experimental_and_fitted_colors,
+        resolve_search_combined_plot_output_base, resolve_search_export_path,
+        resolve_search_plot_output_base,
     };
-    use crate::plottings::{PlotSeries, PlotSeriesKind};
+    use crate::{
+        plottings::{PlotSeries, PlotSeriesKind},
+        runners::RunnerError,
+    };
     use std::path::Path;
 
     #[test]
@@ -641,6 +730,63 @@ mod tests {
             Path::new("/tmp/search_plots")
                 .join("combined")
                 .join("ecm_search_all_datasets")
+        );
+    }
+
+    #[test]
+    fn same_stem_inputs_have_distinct_report_and_plot_paths() {
+        let output = Path::new("/tmp/search-output");
+        let csv = Path::new("/tmp/eis.csv");
+        let xlsx = Path::new("/tmp/eis.xlsx");
+        assert_ne!(
+            resolve_search_export_path(csv, Some(output), true).unwrap(),
+            resolve_search_export_path(xlsx, Some(output), true).unwrap()
+        );
+        assert_ne!(
+            resolve_search_plot_output_base(csv, Some(output), true),
+            resolve_search_plot_output_base(xlsx, Some(output), true)
+        );
+    }
+
+    #[test]
+    fn report_and_csv_path_collisions_are_structured_errors() {
+        let report = resolve_search_export_path(
+            Path::new("/tmp/eis.csv"),
+            Some(Path::new("/tmp/output.csv")),
+            false,
+        )
+        .unwrap();
+        assert_eq!(report, Path::new("/tmp/output.csv"));
+        assert_eq!(super::resolve_search_csv_export_path(&report), report);
+        let input = Path::new("/tmp/eis.csv");
+        let mut reserved = std::collections::BTreeMap::new();
+        super::reserve_search_output(&mut reserved, &report, input).unwrap();
+        assert!(matches!(
+            super::reserve_search_output(&mut reserved, &report, input),
+            Err(RunnerError::OutputCollision { .. })
+        ));
+    }
+
+    #[test]
+    fn discovery_passes_explicit_worksheet_to_canonical_reader() {
+        let fixture =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/xlsx/multi_timeseries.xlsx");
+        let without_sheet = collect_eis_search_inputs(&fixture, None).expect("discovery");
+        assert_eq!(without_sheet.failures.len(), 1);
+        let with_sheet = collect_eis_search_inputs(&fixture, Some("SheetA")).expect("discovery");
+        assert_eq!(with_sheet.failures.len(), 1);
+        let text = format!("{:?}", with_sheet.failures);
+        assert!(
+            text.contains("TimeSeries"),
+            "explicit sheet was not applied: {text}"
+        );
+
+        // The no-sheet path retains the provider's ambiguity rather than
+        // probing workbook content locally.
+        let text = format!("{:?}", without_sheet.failures);
+        assert!(
+            text.contains("AmbiguousWorksheet"),
+            "missing canonical ambiguity: {text}"
         );
     }
 }

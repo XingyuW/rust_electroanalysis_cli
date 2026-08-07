@@ -6,6 +6,7 @@
 //! * **Regular plots** – CHI timeseries / Pb-sensor diagrams produced by
 //!   `chi_plot`.
 
+use crate::plottings::chi_plot::coordinate_plot_config;
 use crate::runners::RunnerError;
 use crate::{
     data_file::{
@@ -285,13 +286,6 @@ where
                 let combined_output_base = job.output_dir.join("combined").join(combined_suffix);
                 fs::create_dir_all(combined_output_base.parent().unwrap_or(&job.output_dir))?;
 
-                let individual_plot_config = individual_config
-                    .clone()
-                    .with_default_axis_labels("Time (s)", "Potential (V)");
-                let combined_plot_config = combined_config
-                    .clone()
-                    .with_default_axis_labels("Time (s)", "Potential (V)");
-
                 let mut individual_datasets = datasets.clone();
                 let mut combined_datasets = datasets.clone();
                 apply_axis_transforms_to_electrochem_with_logger(
@@ -299,6 +293,10 @@ where
                     &job.individual_transforms,
                     &mut log,
                 );
+                let individual_plot_config =
+                    coordinate_plot_config(&individual_config, &individual_datasets);
+                let combined_plot_config =
+                    coordinate_plot_config(&combined_config, &combined_datasets);
                 apply_axis_transforms_to_electrochem_with_logger(
                     &mut combined_datasets,
                     &job.combined_transforms,
@@ -363,9 +361,7 @@ where
                 &job.individual_transforms,
                 &mut log,
             );
-            let plot_config = individual_config
-                .clone()
-                .with_default_axis_labels("Time (s)", "Potential (V)");
+            let plot_config = coordinate_plot_config(&individual_config, &transformed);
             plot_hq(
                 individual_output_base.to_string_lossy().as_ref(),
                 &transformed,

@@ -189,6 +189,10 @@ pub struct StateFilterComparison {
     pub schema_version: u32,
     pub records: Vec<FilterComparisonRecord>,
     pub warnings: Vec<EstimationWarning>,
+    /// Canonical physical-input recovery evidence shared by every compared
+    /// filter run. Kept separate from each filter's downstream diagnostics.
+    #[serde(default)]
+    pub ingestion_diagnostics: crate::domain::ParseDiagnostics,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

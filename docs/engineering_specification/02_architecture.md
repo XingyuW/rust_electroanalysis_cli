@@ -128,7 +128,8 @@ Domain depends on nothing except `serde`, `sha2`, `std`. Domain does **not** dep
 
 ```mermaid
 flowchart LR
-    A[Raw File\nCSV/XLSX/CHI] --> B[data_file/\nParser]
+    A[Raw File\nCSV/XLSX/CHI] --> B[electrodata-io\ncanonical reader]
+    B --> C[data_file/\ndomain adapter]
     B --> C[MultiChannel\nMeasurement]
     C --> D[Electrochemical\nExperiment]
     D --> E{Workflow}
@@ -319,4 +320,4 @@ plotting, health, or mechanism modules.
 
 ## Canonical physical-input boundary
 
-`electrodata-io` owns input detection, containers, CSV/TXT/DAT/XLSX parsing, worksheet selection, raw units, schemas, diagnostics, provenance, and structured errors. `data_file/electrodata_domain_adapter.rs` is the only production conversion boundary from `Dataset` to project domains; it uses typed time-series/EIS views and never accesses Polars. Legacy parser modules remain compatibility/parity-only pending independent review.
+`electrodata-io` owns physical/raw data detection, parsing, worksheet handling, scientific input roles, recovery diagnostics, and raw input errors. `rust_electroanalysis_cli` owns domain conversion, scientific calculations, modeling, estimation, mechanism, health, plotting, reporting, and analysis artifacts. `data_file/electrodata_domain_adapter.rs` is the only production conversion boundary from `Dataset` to project domains; it uses typed time-series/EIS views and never accesses Polars. Legacy parser modules remain compatibility/parity-only pending independent review.

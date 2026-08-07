@@ -133,7 +133,7 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | WF-020 | `estimate run` | `runners/estimation.rs` | `estimation/` | ✅ |
 | WF-021 | `estimate validate` | `runners/estimation.rs` | `estimation/validation.rs` | ✅ |
 | WF-022 | `estimate simulate` | `runners/estimation.rs` | `estimation/simulation.rs` | ✅ |
-| WF-023 | `estimate compare` | `runners/estimation.rs` | `estimation/comparison.rs` | ✅ |
+| WF-023 | `estimate compare` | `runners/estimation.rs` | `estimation/comparison.rs` | ✅ — shared canonical ingestion validation and evidence |
 
 ---
 

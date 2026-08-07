@@ -123,7 +123,7 @@ It is designed for electrochemical researchers and analysts who need to:
 1. CHI EIS CSV (`Freq/Hz`, `Z'/ohm`, `Z"/ohm`)
 2. CHI OCPT/time-series CSV (`Time/sec`, `Potential/V`)
 3. General time-series sensor CSV or Excel (`.xlsx`) with `time`/`timestamp` + numeric channels
-4. Excel workbooks containing compatible OCPT/transient/calibration/general time-series tables (XLSX EIS ingestion is not supported)
+4. Excel workbooks containing compatible time-series or EIS worksheets selected by `electrodata-io`
 
 ### Supported Input Formats
 
@@ -132,9 +132,9 @@ It is designed for electrochemical researchers and analysts who need to:
 3. `.xls` is explicitly rejected
 
 **Not supported:**
-- Binary files such as `.bin`, `.raw` are intentionally unsupported.
-  - During batch/directory processing, binary files are **skipped with a warning** and do not cause the workflow to fail.
-  - When supplied as an explicit single-file input, binary files produce a **structured error** explaining that binary input is not supported and recommending export to CSV or `.xlsx`.
+- Binary files such as `.bin`, `.raw` are intentionally unsupported and are
+  reported as structured canonical input failures in both single-file and
+  directory workflows.
 
 ### Runtime Requirements
 
@@ -147,7 +147,7 @@ The application is organized into four major subsystems:
 
 | Subsystem | Purpose |
 |-----------|---------|
-| **Data file parser** (`data_file/`) | Reads CHI-format electrochemical files, extracts metadata and measurement columns |
+| **Input-domain adapter** (`data_file/`) | Converts canonically parsed physical data into project domain and plotting types |
 | **Scientific domain** (`domain/`) | Owns aligned multi-channel measurements, experiment metadata, diagnostics, and provenance |
 | **Impedance engine** (`impedance/`) | Circuit model AST, element equations, fitting, evolutionary search, scoring, and reporting |
 | **Plotting backend** (`plottings/`) | High-quality figure rendering in SVG + supersampled PNG, supporting 9 plot geometries |
@@ -326,7 +326,7 @@ project converts its typed `Dataset` into scientific domains and owns analysis
 and artifacts. Legacy/reference parsers remain for compatibility and parity
 tests, not production ingestion.
 
-1. **Binary guard**: Files with `.bin` or `.raw` extensions are rejected before any parser attempt.
+1. **Binary handling**: `electrodata-io` detects unsupported binary content and returns its structured error; the CLI does not pre-classify physical formats.
 2. **Excel (`.xlsx`)**: Read and worksheet-selected by `electrodata-io`.
 3. **CHI EIS**: Recognized by `electrodata-io` and converted through `EISData::parse_file`.
 4. **CHI OCPT**: Content detection identifies a time header with CHI preamble markers (instrument/data-source); parser `parse_measurement_file`, internal type `chi_export`.
@@ -345,13 +345,13 @@ When loading an Excel workbook:
 
 ### Binary File Behaviour
 
-- **Batch/directory input**: Binary files (`.bin`, `.raw`) are skipped before parsing, with a concise warning and a record in the batch summary.
+- **Batch/directory input**: Binary files are offered to canonical ingestion and retained as typed per-file failures.
 - **Explicit single-file input**: Supplying a binary file directly returns a structured error:
   ```
   Unsupported input file 'data/example.bin': binary input is not supported.
   Export the dataset as CSV, XLSX, or another documented text-based format.
   ```
-- Skipped binary files do **not** count as parser failures.
+- Canonical binary failures remain visible in the batch summary and never produce partial artifacts for that input.
 - No output directories or partial artefacts are created for binary files.
 
 ### Minimal Examples

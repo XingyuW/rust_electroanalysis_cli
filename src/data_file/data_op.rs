@@ -848,10 +848,9 @@ pub struct LoadedExperimentData {
 
 /// Unified, content-detected data loading entrypoint.
 ///
-/// This function enforces the input‑support policy:
-/// - Binary files are rejected before any parsing attempt.
-/// - Excel workbooks are routed through the spreadsheet parser and then
-///   normalised to the same representation as CSV data.
+/// This function consumes the canonical physical-input contract. Unsupported
+/// binary content and worksheet selection are classified by `electrodata-io`;
+/// this project only converts its resulting typed dataset into a domain view.
 pub fn load_data(path: impl AsRef<Path>) -> Result<LoadedExperimentData, DataParsingError> {
     let path = path.as_ref();
 

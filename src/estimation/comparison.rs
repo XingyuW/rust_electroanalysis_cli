@@ -105,9 +105,10 @@ pub fn compare_reports(
         }
     }
     StateFilterComparison {
-        schema_version: 2,
+        schema_version: 3,
         records,
         warnings,
+        ingestion_diagnostics: Default::default(),
     }
 }
 

@@ -94,6 +94,12 @@ scientific extension, not hidden debt in the reduced-order release.
 | P3 (Low-Medium) | 1 | Address when touching related code |
 | P4 (Low) | 14 | Documented; no immediate action required |
 
+Production ownership remains explicit: `electrodata-io` owns physical/raw data
+detection, parsing, worksheet handling, scientific input roles, recovery
+diagnostics, and raw input errors. This project owns domain conversion,
+scientific calculations, modeling, estimation, mechanism, health, plotting,
+reporting, and analysis artifacts.
+
 ## Phase 3A migration debt
 
 Legacy `ProjectTabularHandler`, measurement/EIS parsers, Excel wrappers, and `InputKind` remain present for compatibility/parity verification and must not be treated as production raw-input dispatch. Delete them only after independent parity review covers the full consumer-fixture corpus, including headerless/ragged recovery and all EIS layouts.

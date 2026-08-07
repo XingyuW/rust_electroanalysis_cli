@@ -72,6 +72,44 @@ fn file_label<P: AsRef<Path>>(path: P) -> String {
 
 // ElectrochemData is a more general struct for parsing and representing electrochemical data from CHI files, which may include various test types beyond just EIS. It captures common metadata and provides a flexible structure for x-y data pairs, making it suitable for OCPT, CV, and other electrochemical techniques. The EISData struct is specifically tailored for impedance spectroscopy data, with additional fields and methods relevant to EIS analysis and fitting.
 
+/// Source-coordinate contract retained by regular plotting. Values are never
+/// reinterpreted from this metadata: an explicit normalization must update the
+/// values, unit, and provenance together.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlotCoordinateMetadata {
+    pub source_name: Option<String>,
+    pub source_unit: Option<String>,
+    pub unit_known: bool,
+    pub normalization_provenance: Option<String>,
+}
+
+impl PlotCoordinateMetadata {
+    pub fn source_axis_label(&self) -> String {
+        let name = self
+            .source_name
+            .as_deref()
+            .map(display_coordinate_name)
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "Coordinate".to_string());
+        match self.source_unit.as_deref().filter(|_| self.unit_known) {
+            Some(unit) if !unit.trim().is_empty() => format!("{name} ({unit})"),
+            _ => name,
+        }
+    }
+}
+
+fn display_coordinate_name(source_name: &str) -> String {
+    // Canonical `original_name` retains the source heading (for example
+    // `Elapsed Time/min`). The unit belongs in the axis suffix, not duplicated
+    // in the coordinate name.
+    source_name
+        .split(['/', '('])
+        .next()
+        .unwrap_or(source_name)
+        .trim()
+        .to_string()
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ElectrochemData {
@@ -81,6 +119,7 @@ pub struct ElectrochemData {
     pub x_values: Vec<f64>,
     pub y_values: Vec<f64>,
     pub label: String,
+    pub coordinate: PlotCoordinateMetadata,
 }
 
 impl ElectrochemData {
@@ -154,6 +193,22 @@ impl ElectrochemData {
         // Preserve source coordinates for plotting. A scientific caller that
         // needs seconds must request and record that conversion explicitly.
         let x_values = view.coordinate_values().to_vec();
+        let coordinate = PlotCoordinateMetadata {
+            source_name: view.time.original_name.clone(),
+            source_unit: view.coordinate_unit().and_then(|unit| match unit {
+                electrodata_io::Unit::Unknown => None,
+                electrodata_io::Unit::Second => Some("s".to_string()),
+                electrodata_io::Unit::Hour => Some("h".to_string()),
+                electrodata_io::Unit::Day => Some("day".to_string()),
+                electrodata_io::Unit::Other(value) => Some(value.clone()),
+                unit => Some(format!("{unit:?}")),
+            }),
+            unit_known: !matches!(
+                view.coordinate_unit(),
+                None | Some(electrodata_io::Unit::Unknown)
+            ),
+            normalization_provenance: None,
+        };
         let y_descriptors = view.measurements;
         let y_headers = y_descriptors
             .iter()
@@ -184,6 +239,7 @@ impl ElectrochemData {
                 x_values,
                 y_values,
                 label,
+                coordinate: coordinate.clone(),
             });
         }
 
@@ -881,7 +937,7 @@ fn is_warburg_extended_model(model: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{EISData, EISFitResult, ElectrochemData, file_label};
+    use super::{EISData, EISFitResult, ElectrochemData, PlotCoordinateMetadata, file_label};
     use crate::impedance::{
         CircuitModelResolver, CircuitModelRule, DEFAULT_CIRCUIT_MODEL_CONFIG_PATH,
         DEFAULT_EIS_CIRCUIT_MODEL, FitRankingMetric, Impedance, parse_circuit_string,
@@ -909,6 +965,42 @@ mod tests {
         let path = std::env::temp_dir().join(format!("{prefix}_{timestamp}.toml"));
         fs::write(&path, content).expect("failed to write temp TOML file");
         path
+    }
+
+    #[test]
+    fn plot_coordinate_metadata_keeps_source_values_and_labels_together() {
+        let cases = [
+            (Some("Time/s"), Some("s"), true, "Time (s)"),
+            (Some("Time/h"), Some("h"), true, "Time (h)"),
+            (Some("Time/day"), Some("day"), true, "Time (day)"),
+            (
+                Some("Elapsed Time/min"),
+                Some("min"),
+                true,
+                "Elapsed Time (min)",
+            ),
+            (Some("Time"), None, false, "Time"),
+            (None, None, false, "Coordinate"),
+        ];
+        for (source_name, source_unit, unit_known, expected_label) in cases {
+            let coordinate = PlotCoordinateMetadata {
+                source_name: source_name.map(str::to_string),
+                source_unit: source_unit.map(str::to_string),
+                unit_known,
+                normalization_provenance: None,
+            };
+            assert_eq!(coordinate.source_axis_label(), expected_label);
+        }
+
+        let normalized = PlotCoordinateMetadata {
+            source_name: Some("Time/s".into()),
+            source_unit: Some("s".into()),
+            unit_known: true,
+            normalization_provenance: Some("h -> s (scale 3600)".into()),
+        };
+        let plotted_x_values = [0.0, 1_800.0, 3_600.0];
+        assert_eq!(normalized.source_axis_label(), "Time (s)");
+        assert_eq!(plotted_x_values, [0.0, 1_800.0, 3_600.0]);
     }
 
     #[test]
