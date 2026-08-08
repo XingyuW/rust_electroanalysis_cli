@@ -279,6 +279,7 @@ fn v1_descriptor(
             required_uncertainty_statement:
                 "runtime covariance is required for complete prediction uncertainty".into(),
         }],
+        applicability_constraints: Vec::new(),
         metadata,
     }
 }
@@ -458,6 +459,7 @@ fn descriptor(
             required_uncertainty_statement:
                 "parameter uncertainty is required before interpretation".into(),
         }],
+        applicability_constraints: Vec::new(),
         metadata,
     }
 }

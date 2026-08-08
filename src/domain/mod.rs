@@ -12,7 +12,10 @@ pub mod measurement;
 pub mod metadata;
 pub mod provenance;
 
-pub use artifact::{ArtifactError, ArtifactKind, VersionedArtifact, read_artifact, write_artifact};
+pub use artifact::{
+    ArtifactError, ArtifactKind, VersionedArtifact, read_artifact, validate_serialized_finite,
+    write_artifact,
+};
 pub use diagnostics::{IngestionDiagnostic, MeasurementParseResult, ParseDiagnostics};
 pub use errors::{
     BatchFileFailure, ConfigurationError, DataParsingError, FittingError, PlottingError,

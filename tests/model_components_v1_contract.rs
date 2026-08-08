@@ -1,13 +1,16 @@
 //! Permanent scientific guardrail regression coverage for Reduced-Order ISM V1.
 
 use rust_electroanalysis_cli::model::{
-    ComponentApplicabilityDomain, DomainEnforcement, DomainSource, DomainStatus,
-    EquilibriumEvidence, EquilibriumRecognitionConfig, EquilibriumStatus, EvidenceValue,
-    InputValue, InterpretationStatus, ModelError, ModelInput, NumericInterval, UncertaintyStatus,
-    ValidityReport, built_in_registry, compile_model, exact_nonzero_charge, recognize_equilibrium,
-    reduced_ism_v1_definition,
+    ApplicabilityConstraint, ComponentApplicabilityDomain, DomainEnforcement, DomainSource,
+    DomainStatus, DomainSubject, EquilibriumEvidence, EquilibriumRecognitionConfig,
+    EquilibriumStatus, EvidenceValue, InputValue, InterpretationStatus, ModelError, ModelInput,
+    NumericInterval, UncertaintyStatus, ValidityReport, built_in_registry, compile_model,
+    exact_nonzero_charge, recognize_equilibrium, reduced_ism_v1_definition,
 };
-use rust_electroanalysis_cli::results::{ModelAnalysisPoint, ModelAnalysisReport};
+use rust_electroanalysis_cli::{
+    domain::write_artifact,
+    results::{ModelAnalysisPoint, ModelAnalysisReport},
+};
 use std::collections::BTreeMap;
 
 fn input(activity: f64, temperature_k: f64) -> ModelInput {
@@ -196,6 +199,128 @@ fn component_identifiability_requirements_are_structured_and_deterministic() {
     assert!(text.contains("TransientExcitation"));
     assert!(text.contains("ObservationDurationRelativeToTimescale"));
     assert!(text.contains("ReferenceAnchor"));
+    assert!(metadata.component_requirements.iter().any(|requirement| {
+        requirement.kind
+            == rust_electroanalysis_cli::model::IdentifiabilityRequirementKind::ModeSeparation
+            && requirement.component_ids == ["dynamic_fast", "dynamic_slow"]
+            && !requirement.requirement_id.is_empty()
+    }));
+    assert!(metadata.component_requirements.iter().any(|requirement| matches!(
+        requirement.scope,
+        rust_electroanalysis_cli::model::IdentifiabilityScope::Conditional { .. }
+    ) && matches!(requirement.kind,
+        rust_electroanalysis_cli::model::IdentifiabilityRequirementKind::InterferentVariation
+            | rust_electroanalysis_cli::model::IdentifiabilityRequirementKind::IndependentCovariateVariation
+            | rust_electroanalysis_cli::model::IdentifiabilityRequirementKind::AuxiliaryObservation
+    )));
+}
+
+#[test]
+fn applicability_constraints_are_explicitly_bound_and_never_skipped() {
+    let mut definition = reduced_ism_v1_definition();
+    definition.components[1].applicability_constraints = vec![
+        ApplicabilityConstraint {
+            id: "activity".into(),
+            subject: DomainSubject::Input("target_activity".into()),
+            interval: NumericInterval {
+                lower: 1e-6,
+                upper: 1.0,
+            },
+            source: DomainSource::CalibrationArtifact,
+            enforcement: DomainEnforcement::Warn,
+        },
+        ApplicabilityConstraint {
+            id: "temperature".into(),
+            subject: DomainSubject::Input("temperature".into()),
+            interval: NumericInterval {
+                lower: 290.0,
+                upper: 310.0,
+            },
+            source: DomainSource::CalibrationArtifact,
+            enforcement: DomainEnforcement::Warn,
+        },
+    ];
+    let model = compile_model(definition, built_in_registry()).unwrap();
+    let parameters = model.default_parameters();
+    let state = model.initialize(&parameters).unwrap();
+    let report = model
+        .component_validity_reports(&state, &parameters, &input(0.1, 298.15))
+        .into_iter()
+        .find(|item| item.component_id == "equilibrium_nernst")
+        .unwrap();
+    assert_eq!(report.domain_status, DomainStatus::InsideDomain);
+    assert_eq!(
+        report.constraint_statuses.len(),
+        2,
+        "every constraint is evaluated exactly once"
+    );
+
+    let mut unavailable = ModelInput::empty(0.0);
+    unavailable.values.insert(
+        "target_activity".into(),
+        InputValue {
+            value: 0.1,
+            unit: "activity".into(),
+        },
+    );
+    // Temperature remains model-required, so use an optional constrained input
+    // to demonstrate domain availability without weakening runtime input rules.
+    let mut optional = reduced_ism_v1_definition();
+    optional.inputs[4].required = false;
+    optional.components[4].required_inputs.push(
+        rust_electroanalysis_cli::model::InputRequirement {
+            id: "conductivity".into(),
+            unit: "S/m".into(),
+        },
+    );
+    optional.components[4].applicability_constraints = vec![ApplicabilityConstraint {
+        id: "conductivity".into(),
+        subject: DomainSubject::Input("conductivity".into()),
+        interval: NumericInterval {
+            lower: 0.1,
+            upper: 1.0,
+        },
+        source: DomainSource::UserConfiguration,
+        enforcement: DomainEnforcement::Warn,
+    }];
+    let optional_model = compile_model(optional, built_in_registry()).unwrap();
+    let optional_state = optional_model
+        .initialize(&optional_model.default_parameters())
+        .unwrap();
+    let optional_report = optional_model
+        .component_validity_reports(
+            &optional_state,
+            &optional_model.default_parameters(),
+            &unavailable,
+        )
+        .into_iter()
+        .find(|item| item.component_id == "reference_offset")
+        .unwrap();
+    assert_eq!(
+        optional_report.domain_status,
+        DomainStatus::DomainUnavailable
+    );
+}
+
+#[test]
+fn validated_reference_offset_cannot_bind_target_activity_without_consuming_it() {
+    let mut definition = reduced_ism_v1_definition();
+    let reference = &mut definition.components[4];
+    reference.interpretation_status = InterpretationStatus::ValidatedForDomain;
+    reference.applicability_constraints = vec![ApplicabilityConstraint {
+        id: "target_activity".into(),
+        subject: DomainSubject::Input("target_activity".into()),
+        interval: NumericInterval {
+            lower: 1e-6,
+            upper: 1.0,
+        },
+        source: DomainSource::CalibrationArtifact,
+        enforcement: DomainEnforcement::Reject,
+    }];
+    assert!(matches!(
+        compile_model(definition, built_in_registry()),
+        Err(ModelError::UnresolvedApplicabilityBinding { .. })
+    ));
 }
 
 #[test]
@@ -210,7 +335,7 @@ fn nested_nonfinite_outputs_cannot_serialize_as_json_null() {
         .auxiliary_outputs
         .insert("bad".into(), f64::NAN);
     let report = ModelAnalysisReport {
-        schema_version: 3,
+        schema_version: rust_electroanalysis_cli::results::MODEL_RESULT_SCHEMA_VERSION,
         artifact_kind: "ism_model_analysis".into(),
         model_definition: model.definition().clone(),
         points: vec![ModelAnalysisPoint {
@@ -237,5 +362,78 @@ fn nested_nonfinite_outputs_cannot_serialize_as_json_null() {
     };
     assert!(
         matches!(report.to_json(), Err(ModelError::NonFiniteResult { path }) if path.contains("auxiliary_outputs[\"bad\"]"))
+    );
+}
+
+#[test]
+fn generic_artifact_writer_rejects_nested_nonfinite_before_json_conversion() {
+    let model = compile_model(reduced_ism_v1_definition(), built_in_registry()).unwrap();
+    let parameters = model.default_parameters();
+    let state = model.initialize(&parameters).unwrap();
+    let mut prediction = model
+        .observation_prediction(&state, &parameters, &input(0.1, 298.15), None)
+        .unwrap();
+    prediction.contributions[0]
+        .auxiliary_outputs
+        .insert("bad".into(), f64::NEG_INFINITY);
+    let report = ModelAnalysisReport {
+        schema_version: rust_electroanalysis_cli::results::MODEL_RESULT_SCHEMA_VERSION,
+        artifact_kind: "ism_model_analysis".into(),
+        model_definition: model.definition().clone(),
+        points: vec![ModelAnalysisPoint {
+            time_s: 0.0,
+            observed_voltage_v: None,
+            predicted_voltage_v: prediction.predicted_voltage_v,
+            uncertainty: prediction.uncertainty,
+            state_values: vec![],
+            contributions: prediction.contributions,
+            equilibrium: recognize_equilibrium(
+                &evidence(EvidenceValue::NotApplicable),
+                &EquilibriumRecognitionConfig::default(),
+            ),
+            validity: model.validity_report(&state, &parameters, &input(0.1, 298.15)),
+            unexplained_residual_v: None,
+        }],
+        identifiability: model.identifiability_report(),
+        evidence: vec![],
+    };
+    let path = std::env::temp_dir().join(format!("ism_nonfinite_{}.json", std::process::id()));
+    std::fs::remove_file(&path).ok();
+    assert!(
+        matches!(write_artifact(&path, &report), Err(rust_electroanalysis_cli::domain::ArtifactError::NonFiniteValue { field_path, .. }) if field_path.contains("auxiliary_outputs[\"bad\"]"))
+    );
+    assert!(!path.exists());
+}
+
+#[test]
+fn custom_covariate_units_require_exact_normalized_symbols() {
+    let mut definition = reduced_ism_v1_definition();
+    definition.inputs[4].id = "relative_humidity".into();
+    definition.inputs[4].unit = "%RH".into();
+    definition.inputs[4].required = false;
+    definition.parameters[2].unit = "V/%RH".into();
+    definition.parameters[3].unit = "%RH".into();
+    let covariate = &mut definition.components[4];
+    covariate.id = "humidity_covariate".into();
+    covariate.kind = "disturbance.linear_covariate".into();
+    covariate.role = rust_electroanalysis_cli::model::ComponentRole::ExternalDisturbance;
+    covariate.required_inputs = vec![rust_electroanalysis_cli::model::InputRequirement {
+        id: "relative_humidity".into(),
+        unit: "%RH".into(),
+    }];
+    covariate.state_ids.clear();
+    covariate.observation_state_ids.clear();
+    covariate.parameter_ids = vec![
+        "dynamic_fast_tau_s".into(),
+        "dynamic_fast_gain_v_per_decade".into(),
+    ];
+    covariate.observation_parameter_ids = covariate.parameter_ids.clone();
+    assert!(
+        compile_model(definition.clone(), built_in_registry()).is_ok(),
+        "%RH and V/%RH must be supported"
+    );
+    definition.parameters[2].unit = "V/ppm".into();
+    assert!(
+        matches!(compile_model(definition, built_in_registry()), Err(ModelError::ParameterUnitMismatch { component, parameter_id, .. }) if component == "humidity_covariate" && parameter_id == "dynamic_fast_tau_s")
     );
 }

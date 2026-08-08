@@ -186,3 +186,24 @@ Candidate first-order transduction remains `Hypothesized`. Missing evidence is
 not equivalent to a zero disturbance. Component-specific identifiability
 requirements and typed covariate dimensions are part of the scientific
 contract, and result serialization must reject nested nonfinite leaves.
+
+### Schema-v4 component-contract remediation
+
+Applicability intervals are now serialized as typed constraints with a stable
+constraint ID, `DomainSubject`, interval, source, and warn/reject enforcement.
+Compilation resolves each subject against the component's declared consumed
+inputs, states, or parameters; a derived or unrelated subject is a typed
+`UnresolvedApplicabilityBinding` failure. Legacy metadata domains migrate only
+when every field has such a binding. Runtime records every constraint outcome;
+`InsideDomain` requires all constraints to have been evaluated inside, while a
+missing bound value is `DomainUnavailable` and never an in-domain claim.
+
+Identifiability requirements now have stable IDs and `Active` or `Conditional`
+scope. Active first-order modes are grouped from the compiled observation
+topology, not their labels. The V1 profile publishes conditional Nicolsky,
+covariate, and transduction evidence requirements without claiming that absent
+components are active. Linear covariates accept declared custom base units such
+as `%RH` and `ppm`; matching is normalized only for micro-symbol aliases and
+otherwise case-sensitive. The generic artifact writer runs a lossless
+serializer-based finite check before JSON conversion and reports the exact
+structural path of any nonfinite leaf.

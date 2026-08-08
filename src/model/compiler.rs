@@ -8,7 +8,8 @@ use super::{
     graph::dependency_order,
     identifiability::{
         IdentifiabilityMetadata, IdentifiabilityReport, IdentifiabilityRequirement,
-        IdentifiabilityRequirementKind, ParameterIdentifiabilityRequirement, RequirementSeverity,
+        IdentifiabilityRequirementKind, IdentifiabilityScope, ParameterIdentifiabilityRequirement,
+        RequirementSeverity,
     },
     input::{ModelInput, potential_sensitivity_unit, units_compatible, validate_unit},
     output::{
@@ -25,8 +26,9 @@ use super::{
         ModelState,
     },
     validity::{
-        ComponentApplicabilityDomain, ComponentValidityReport, DomainEnforcement, DomainSource,
-        DomainStatus, ValidityReport, ValidityStatus,
+        ApplicabilityConstraint, ApplicabilityConstraintReport, ComponentApplicabilityDomain,
+        ComponentValidityReport, DomainEnforcement, DomainSource, DomainStatus, DomainSubject,
+        ValidityReport, ValidityStatus,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -72,6 +74,7 @@ pub struct CompiledIsmModel {
     state_indices: BTreeMap<String, usize>,
     parameter_indices: BTreeMap<String, usize>,
     component_bindings: BTreeMap<String, ComponentBindingSummary>,
+    applicability_bindings: BTreeMap<String, Vec<ApplicabilityConstraint>>,
     components: Vec<Box<dyn IsmComponent>>,
 }
 
@@ -289,10 +292,18 @@ impl CompiledIsmModel {
         let mut contributions = Vec::new();
         for component in &self.components {
             let descriptor = component.descriptor();
-            let domain = evaluate_applicability_domain(descriptor, input)?;
-            if domain.status == DomainStatus::OutsideDomain
-                && domain.enforcement == DomainEnforcement::Reject
-            {
+            let domain = evaluate_applicability_domain(
+                self.applicability_bindings
+                    .get(&descriptor.id)
+                    .map(Vec::as_slice)
+                    .unwrap_or_default(),
+                state,
+                parameters,
+                input,
+                &self.state_indices,
+                &self.parameter_indices,
+            );
+            if domain_rejected(&domain) {
                 return Err(ModelError::ComponentEvaluation {
                     component: descriptor.id.clone(),
                     message: format!(
@@ -830,19 +841,26 @@ impl CompiledIsmModel {
                 Ok(component_warnings) => warnings.extend(component_warnings),
                 Err(error) => violations.push(error.to_string()),
             }
-            match evaluate_applicability_domain(component.descriptor(), input) {
-                Ok(domain)
-                    if domain.status == DomainStatus::OutsideDomain
-                        && domain.enforcement == DomainEnforcement::Reject =>
-                {
+            let domain = evaluate_applicability_domain(
+                self.applicability_bindings
+                    .get(&component.descriptor().id)
+                    .map(Vec::as_slice)
+                    .unwrap_or_default(),
+                state,
+                parameters,
+                input,
+                &self.state_indices,
+                &self.parameter_indices,
+            );
+            match domain {
+                domain if domain_rejected(&domain) => {
                     violations.push(format!(
                         "component '{}' outside declared applicability domain: {}",
                         component.descriptor().id,
                         domain.violated_fields.join(", ")
                     ));
                 }
-                Ok(domain) => warnings.extend(domain.warning()),
-                Err(error) => violations.push(error.to_string()),
+                domain => warnings.extend(domain.warning()),
             }
         }
         let mut report = if violations.is_empty() {
@@ -882,6 +900,7 @@ impl CompiledIsmModel {
                         extrapolation_distance: None,
                         violated_domain_fields: Vec::new(),
                         domain_source: super::validity::DomainSource::Unknown,
+                        constraint_statuses: Vec::new(),
                     },
                     Ok(warnings) => ComponentValidityReport {
                         component_id: descriptor.id.clone(),
@@ -896,6 +915,7 @@ impl CompiledIsmModel {
                         extrapolation_distance: None,
                         violated_domain_fields: Vec::new(),
                         domain_source: super::validity::DomainSource::Unknown,
+                        constraint_statuses: Vec::new(),
                     },
                     Err(error) => ComponentValidityReport {
                         component_id: descriptor.id.clone(),
@@ -910,35 +930,38 @@ impl CompiledIsmModel {
                         extrapolation_distance: None,
                         violated_domain_fields: Vec::new(),
                         domain_source: super::validity::DomainSource::Unknown,
+                        constraint_statuses: Vec::new(),
                     },
                 }
             })
             .collect();
         for (report, component) in reports.iter_mut().zip(&self.components) {
-            match evaluate_applicability_domain(component.descriptor(), input) {
-                Ok(domain) => {
-                    report.domain_status = domain.status;
-                    report.extrapolation_distance = domain.extrapolation_distance;
-                    report.violated_domain_fields = domain.violated_fields.clone();
-                    report.domain_source = domain.source;
-                    if domain.status == DomainStatus::OutsideDomain
-                        && domain.enforcement == DomainEnforcement::Reject
-                    {
-                        report.status = ValidityStatus::Invalid;
-                        report.evaluation_rejected = true;
-                        report.violations.extend(domain.violated_fields);
-                    } else {
-                        report.warnings.extend(domain.warning());
-                        if !report.warnings.is_empty() && report.status == ValidityStatus::Valid {
-                            report.status = ValidityStatus::ValidWithWarnings;
-                        }
-                    }
-                }
-                Err(error) => {
-                    report.status = ValidityStatus::Unavailable;
+            {
+                let domain = evaluate_applicability_domain(
+                    self.applicability_bindings
+                        .get(&component.descriptor().id)
+                        .map(Vec::as_slice)
+                        .unwrap_or_default(),
+                    state,
+                    parameters,
+                    input,
+                    &self.state_indices,
+                    &self.parameter_indices,
+                );
+                report.domain_status = domain.status;
+                report.extrapolation_distance = domain.extrapolation_distance;
+                report.violated_domain_fields = domain.violated_fields.clone();
+                report.domain_source = domain.source;
+                report.constraint_statuses = domain.constraint_statuses.clone();
+                if domain_rejected(&domain) {
+                    report.status = ValidityStatus::Invalid;
                     report.evaluation_rejected = true;
-                    report.physical_valid = false;
-                    report.violations.push(error.to_string());
+                    report.violations.extend(domain.violated_fields);
+                } else {
+                    report.warnings.extend(domain.warning());
+                    if !report.warnings.is_empty() && report.status == ValidityStatus::Valid {
+                        report.status = ValidityStatus::ValidWithWarnings;
+                    }
                 }
             }
         }
@@ -979,13 +1002,32 @@ impl CompiledIsmModel {
                 })
                 .map(|component| component.descriptor().id.clone())
                 .collect(),
-            component_requirements: self
-                .components
-                .iter()
-                .flat_map(|component| {
-                    component_identifiability_requirements(component.descriptor())
-                })
-                .collect(),
+            component_requirements: {
+                let mut requirements = self
+                    .components
+                    .iter()
+                    .flat_map(|component| {
+                        component_identifiability_requirements(component.descriptor())
+                    })
+                    .collect::<Vec<_>>();
+                requirements.extend(topology_identifiability_requirements(&self.components));
+                requirements.extend(profile_conditional_requirements(&self.definition));
+                requirements.sort_by(|left, right| {
+                    (
+                        left.scope.clone(),
+                        left.kind,
+                        &left.component_ids,
+                        &left.requirement_id,
+                    )
+                        .cmp(&(
+                            right.scope.clone(),
+                            right.kind,
+                            &right.component_ids,
+                            &right.requirement_id,
+                        ))
+                });
+                requirements
+            },
         }
     }
 
@@ -1189,7 +1231,14 @@ fn component_identifiability_requirements(
     use RequirementSeverity::{Required, Warning};
     let requirement =
         |kind, description: &str, severity, criterion: Option<&str>| IdentifiabilityRequirement {
+            requirement_id: format!(
+                "{}.{}",
+                descriptor.id,
+                format!("{kind:?}").to_ascii_lowercase()
+            ),
+            scope: IdentifiabilityScope::Active,
             component_id: descriptor.id.clone(),
+            component_ids: vec![descriptor.id.clone()],
             kind,
             target_states: descriptor.state_ids.clone(),
             target_parameters: descriptor.parameter_ids.clone(),
@@ -1308,9 +1357,129 @@ fn component_identifiability_requirements(
     }
 }
 
+/// Requirements which only become visible after graph topology is known.
+fn topology_identifiability_requirements(
+    components: &[Box<dyn IsmComponent>],
+) -> Vec<IdentifiabilityRequirement> {
+    use IdentifiabilityRequirementKind as Kind;
+    let dynamic: Vec<_> = components
+        .iter()
+        .map(|component| component.descriptor())
+        .filter(|descriptor| {
+            matches!(
+                descriptor.kind.as_str(),
+                "dynamics.first_order" | "transport.first_order_relaxation"
+            ) && descriptor.contribution_semantics == ContributionSemantics::AdditivePotential
+        })
+        .collect();
+    if dynamic.len() < 2 {
+        return Vec::new();
+    }
+    let component_ids = dynamic
+        .iter()
+        .map(|item| item.id.clone())
+        .collect::<Vec<_>>();
+    let states = dynamic
+        .iter()
+        .flat_map(|item| item.state_ids.clone())
+        .collect::<Vec<_>>();
+    let parameters = dynamic
+        .iter()
+        .flat_map(|item| {
+            item.parameter_ids
+                .iter()
+                .filter(|id| id.contains("tau"))
+                .cloned()
+        })
+        .collect::<Vec<_>>();
+    let group = component_ids.join("+");
+    [
+        (
+            Kind::ModeSeparation,
+            "active first-order modes share the observation; their amplitudes and timescales can confound unless their timescales are separated",
+            RequirementSeverity::Warning,
+            Some("distinct time constants relative to sampling and duration"),
+        ),
+        (
+            Kind::TransientExcitation,
+            "active first-order modes require transient excitation that distinguishes each mode",
+            RequirementSeverity::Required,
+            None,
+        ),
+        (
+            Kind::ObservationDurationRelativeToTimescale,
+            "observation duration and temporal resolution must cover every active first-order time constant",
+            RequirementSeverity::Required,
+            Some("duration and sampling interval relative to each tau"),
+        ),
+    ]
+    .into_iter()
+    .map(|(kind, description, severity, criterion)| IdentifiabilityRequirement {
+        requirement_id: format!("dynamic-group:{group}:{kind:?}").to_ascii_lowercase(),
+        scope: IdentifiabilityScope::Active,
+        component_id: group.clone(),
+        component_ids: component_ids.clone(),
+        kind,
+        target_states: states.clone(),
+        target_parameters: parameters.clone(),
+        description: description.into(),
+        quantitative_criterion: criterion.map(str::to_string),
+        severity,
+    })
+    .collect()
+}
+
+fn profile_conditional_requirements(
+    definition: &ModelDefinition,
+) -> Vec<IdentifiabilityRequirement> {
+    use IdentifiabilityRequirementKind as Kind;
+    if definition.model_id != "reduced_ism_v1" {
+        return Vec::new();
+    }
+    [
+        (
+            "equilibrium.nicolsky_eisenman",
+            "when Nicolsky-Eisenman equilibrium is enabled",
+            Kind::InterferentVariation,
+            "interferent activity must vary independently of target activity",
+        ),
+        (
+            "disturbance.linear_covariate",
+            "when a temperature, conductivity, or flow covariate is enabled",
+            Kind::IndependentCovariateVariation,
+            "covariate variation must be independent of target activity",
+        ),
+        (
+            "transduction.first_order_candidate",
+            "when the hypothesized transduction candidate is enabled",
+            Kind::AuxiliaryObservation,
+            "perturbation and independent physical-attribution evidence are required",
+        ),
+    ]
+    .into_iter()
+    .map(
+        |(kind_target, condition, kind, description)| IdentifiabilityRequirement {
+            requirement_id: format!("profile:{kind_target}:{kind:?}").to_ascii_lowercase(),
+            scope: IdentifiabilityScope::Conditional {
+                component_kind: kind_target.into(),
+                activation_condition: condition.into(),
+            },
+            component_id: kind_target.into(),
+            component_ids: Vec::new(),
+            kind,
+            target_states: Vec::new(),
+            target_parameters: Vec::new(),
+            description: description.into(),
+            quantitative_criterion: None,
+            severity: RequirementSeverity::Required,
+        },
+    )
+    .collect()
+}
+
 /// Compile a versioned model definition against an immutable static registry.
 pub fn compile_model(
-    definition: ModelDefinition,
+    mut definition: ModelDefinition,
     registry: &ComponentRegistry,
 ) -> Result<CompiledIsmModel, ModelError> {
     definition.validate_schema()?;
@@ -1320,6 +1489,7 @@ pub fn compile_model(
             expected: super::definition::MODEL_DEFINITION_SCHEMA_VERSION,
         });
     }
+    migrate_legacy_applicability_domains(&mut definition)?;
     let state_indices = stable_indices(definition.states.iter().map(|state| state.id.as_str()));
     let parameter_indices = stable_indices(
         definition
@@ -1329,7 +1499,9 @@ pub fn compile_model(
     );
     validate_component_references(&definition, &state_indices, &parameter_indices)?;
     validate_discrete_equilibrium_charges(&definition)?;
-    validate_interpretation_constraints(&definition)?;
+    let applicability_bindings =
+        resolve_applicability_constraints(&definition, &state_indices, &parameter_indices)?;
+    validate_interpretation_constraints(&definition, &applicability_bindings)?;
     let ordered_ids = dependency_order(&definition.components)?;
     validate_contribution_owners(&definition.components)?;
     let component_by_id: BTreeMap<&str, &ComponentDescriptor> = definition
@@ -1395,6 +1567,7 @@ pub fn compile_model(
         state_indices,
         parameter_indices,
         component_bindings,
+        applicability_bindings,
         components,
     })
 }
@@ -1445,7 +1618,10 @@ fn validate_discrete_equilibrium_charges(definition: &ModelDefinition) -> Result
     Ok(())
 }
 
-fn validate_interpretation_constraints(definition: &ModelDefinition) -> Result<(), ModelError> {
+fn validate_interpretation_constraints(
+    definition: &ModelDefinition,
+    bindings: &BTreeMap<String, Vec<ApplicabilityConstraint>>,
+) -> Result<(), ModelError> {
     for component in &definition.components {
         if component.kind == "transduction.first_order_candidate"
             && component.interpretation_status
@@ -1459,12 +1635,7 @@ fn validate_interpretation_constraints(definition: &ModelDefinition) -> Result<(
         }
         if component.interpretation_status
             == super::component::InterpretationStatus::ValidatedForDomain
-            && ComponentApplicabilityDomain::from_metadata(&component.metadata)
-                .map_err(|message| ModelError::InvalidApplicabilityDomain {
-                    component: component.id.clone(),
-                    message,
-                })?
-                .is_none()
+            && bindings.get(&component.id).is_none_or(Vec::is_empty)
         {
             return Err(ModelError::InvalidInterpretationStatus {
                 component: component.id.clone(),
@@ -1472,8 +1643,157 @@ fn validate_interpretation_constraints(definition: &ModelDefinition) -> Result<(
                     .into(),
             });
         }
+        if component.interpretation_status
+            == super::component::InterpretationStatus::ValidatedForDomain
+            && bindings[&component.id]
+                .iter()
+                .any(|constraint| constraint.source == DomainSource::Unknown)
+        {
+            return Err(ModelError::InvalidInterpretationStatus {
+                component: component.id.clone(),
+                message: "ValidatedForDomain requires a recorded source for every applicability constraint".into(),
+            });
+        }
     }
     Ok(())
+}
+
+fn migrate_legacy_applicability_domains(
+    definition: &mut ModelDefinition,
+) -> Result<(), ModelError> {
+    for component in &mut definition.components {
+        if !component.applicability_constraints.is_empty() {
+            continue;
+        }
+        let Some(domain) = ComponentApplicabilityDomain::from_metadata(&component.metadata)
+            .map_err(|message| ModelError::InvalidApplicabilityDomain {
+                component: component.id.clone(),
+                message,
+            })?
+        else {
+            continue;
+        };
+        let consumed = |id: &str| component.required_inputs.iter().any(|input| input.id == id);
+        let mut constraints = Vec::new();
+        let mut push = |id: String, input: String, interval: super::validity::NumericInterval| {
+            constraints.push(ApplicabilityConstraint {
+                id,
+                subject: DomainSubject::Input(input),
+                interval,
+                source: domain.source,
+                enforcement: domain.enforcement,
+            });
+        };
+        if let Some(interval) = domain.target_activity {
+            let input = if consumed("target_activity") {
+                "target_activity"
+            } else if consumed("primary_concentration") {
+                "primary_concentration"
+            } else {
+                return Err(ModelError::UnresolvedApplicabilityBinding {
+                    component_id: component.id.clone(),
+                    constraint_id: "target_activity".into(),
+                    subject: "input:target_activity".into(),
+                });
+            };
+            push("target_activity".into(), input.into(), interval);
+        }
+        if let Some(interval) = domain.temperature_k {
+            if !consumed("temperature") {
+                return Err(ModelError::UnresolvedApplicabilityBinding {
+                    component_id: component.id.clone(),
+                    constraint_id: "temperature_k".into(),
+                    subject: "input:temperature".into(),
+                });
+            }
+            push("temperature_k".into(), "temperature".into(), interval);
+        }
+        for (id, interval) in domain.interferent_activities {
+            if !consumed(&id) {
+                return Err(ModelError::UnresolvedApplicabilityBinding {
+                    component_id: component.id.clone(),
+                    constraint_id: format!("interferent_activities.{id}"),
+                    subject: format!("input:{id}"),
+                });
+            }
+            push(format!("interferent_activities.{id}"), id, interval);
+        }
+        for (id, interval) in domain.environmental_inputs {
+            if !consumed(&id) {
+                return Err(ModelError::UnresolvedApplicabilityBinding {
+                    component_id: component.id.clone(),
+                    constraint_id: format!("environmental_inputs.{id}"),
+                    subject: format!("input:{id}"),
+                });
+            }
+            push(format!("environmental_inputs.{id}"), id, interval);
+        }
+        component.applicability_constraints = constraints;
+    }
+    Ok(())
+}
+
+fn resolve_applicability_constraints(
+    definition: &ModelDefinition,
+    states: &BTreeMap<String, usize>,
+    parameters: &BTreeMap<String, usize>,
+) -> Result<BTreeMap<String, Vec<ApplicabilityConstraint>>, ModelError> {
+    let inputs: BTreeSet<_> = definition
+        .inputs
+        .iter()
+        .map(|input| input.id.as_str())
+        .collect();
+    let mut resolved = BTreeMap::new();
+    for component in &definition.components {
+        let mut seen_subjects = BTreeSet::new();
+        let mut constraints = component.applicability_constraints.clone();
+        constraints.sort_by(|left, right| left.id.cmp(&right.id));
+        for constraint in &constraints {
+            if constraint.id.trim().is_empty() || !constraint.interval.validate() {
+                return Err(ModelError::InvalidApplicabilityDomain {
+                    component: component.id.clone(),
+                    message: format!(
+                        "constraint '{}' must have a nonempty id and finite interval",
+                        constraint.id
+                    ),
+                });
+            }
+            let observable = match &constraint.subject {
+                DomainSubject::Input(id) => {
+                    inputs.contains(id.as_str())
+                        && component
+                            .required_inputs
+                            .iter()
+                            .any(|input| input.id == *id)
+                }
+                DomainSubject::State(id) => {
+                    states.contains_key(id) && component.state_ids.contains(id)
+                }
+                DomainSubject::Parameter(id) => {
+                    parameters.contains_key(id) && component.parameter_ids.contains(id)
+                }
+                DomainSubject::Derived(_) => false,
+            };
+            if !observable {
+                return Err(ModelError::UnresolvedApplicabilityBinding {
+                    component_id: component.id.clone(),
+                    constraint_id: constraint.id.clone(),
+                    subject: format!("{:?}", constraint.subject),
+                });
+            }
+            if !seen_subjects.insert(constraint.subject.clone()) {
+                return Err(ModelError::InvalidApplicabilityDomain {
+                    component: component.id.clone(),
+                    message: format!(
+                        "duplicate constraint subject {:?} has no composition rule",
+                        constraint.subject
+                    ),
+                });
+            }
+        }
+        resolved.insert(component.id.clone(), constraints);
+    }
+    Ok(resolved)
 }
 
 #[derive(Debug, Clone)]
@@ -1484,17 +1804,19 @@ struct DomainEvaluation {
     extrapolation_distance: Option<f64>,
     violated_fields: Vec<String>,
     near_fields: Vec<String>,
+    constraint_statuses: Vec<ApplicabilityConstraintReport>,
 }
 
 impl DomainEvaluation {
-    fn unavailable() -> Self {
+    fn not_applicable() -> Self {
         Self {
-            status: DomainStatus::DomainUnavailable,
+            status: DomainStatus::NotApplicable,
             enforcement: DomainEnforcement::Warn,
             source: DomainSource::Unknown,
             extrapolation_distance: None,
             violated_fields: Vec::new(),
             near_fields: Vec::new(),
+            constraint_statuses: Vec::new(),
         }
     }
 
@@ -1518,111 +1840,115 @@ impl DomainEvaluation {
     }
 }
 
+fn domain_rejected(domain: &DomainEvaluation) -> bool {
+    domain.enforcement == DomainEnforcement::Reject
+        && matches!(
+            domain.status,
+            DomainStatus::OutsideDomain | DomainStatus::DomainUnavailable
+        )
+}
+
 fn evaluate_applicability_domain(
-    descriptor: &ComponentDescriptor,
+    constraints: &[ApplicabilityConstraint],
+    state: &ModelState,
+    parameters: &ParameterValues,
     input: &ModelInput,
-) -> Result<DomainEvaluation, ModelError> {
-    let Some(domain) =
-        ComponentApplicabilityDomain::from_metadata(&descriptor.metadata).map_err(|message| {
-            ModelError::InvalidApplicabilityDomain {
-                component: descriptor.id.clone(),
-                message,
-            }
-        })?
-    else {
-        return Ok(DomainEvaluation::unavailable());
-    };
+    state_indices: &BTreeMap<String, usize>,
+    parameter_indices: &BTreeMap<String, usize>,
+) -> DomainEvaluation {
+    if constraints.is_empty() {
+        return DomainEvaluation::not_applicable();
+    }
     let mut result = DomainEvaluation {
-        status: DomainStatus::InsideDomain,
-        enforcement: domain.enforcement,
-        source: domain.source,
-        extrapolation_distance: Some(0.0),
+        status: DomainStatus::Unevaluated,
+        enforcement: DomainEnforcement::Warn,
+        source: DomainSource::Unknown,
+        extrapolation_distance: None,
         violated_fields: Vec::new(),
         near_fields: Vec::new(),
+        constraint_statuses: Vec::with_capacity(constraints.len()),
     };
-    let activity_input = descriptor
-        .metadata
-        .get("activity_input_id")
-        .map(String::as_str)
-        .or_else(|| {
-            descriptor
-                .required_inputs
-                .iter()
-                .find(|item| item.id == "target_activity")
-                .map(|item| item.id.as_str())
-        })
-        .or_else(|| {
-            descriptor
-                .required_inputs
-                .iter()
-                .find(|item| item.id == "primary_concentration")
-                .map(|item| item.id.as_str())
-        });
-    if let (Some(interval), Some(id)) = (&domain.target_activity, activity_input) {
-        assess_interval(
-            &mut result,
-            "target_activity",
-            interval,
-            input.values.get(id).map(|value| value.value),
-        );
+    for constraint in constraints {
+        result.enforcement = if constraint.enforcement == DomainEnforcement::Reject {
+            DomainEnforcement::Reject
+        } else {
+            result.enforcement
+        };
+        if result.source == DomainSource::Unknown {
+            result.source = constraint.source;
+        }
+        let value = match &constraint.subject {
+            DomainSubject::Input(id) => input.values.get(id).map(|value| value.value),
+            DomainSubject::State(id) => state_indices
+                .get(id)
+                .and_then(|index| state.values.get(*index))
+                .copied(),
+            DomainSubject::Parameter(id) => parameter_indices
+                .get(id)
+                .and_then(|index| parameters.values.get(*index))
+                .copied(),
+            DomainSubject::Derived(_) => None,
+        };
+        let (status, distance) = assess_interval(&constraint.interval, value);
+        let field = format!("{}:{:?}", constraint.id, constraint.subject);
+        match status {
+            DomainStatus::OutsideDomain => result.violated_fields.push(field),
+            DomainStatus::NearBoundary => result.near_fields.push(field),
+            DomainStatus::DomainUnavailable => {
+                result.violated_fields.push(format!("{field} (missing)"))
+            }
+            _ => {}
+        }
+        if let Some(distance) = distance {
+            result.extrapolation_distance =
+                Some(result.extrapolation_distance.unwrap_or(0.0).max(distance));
+        }
+        result
+            .constraint_statuses
+            .push(ApplicabilityConstraintReport {
+                constraint_id: constraint.id.clone(),
+                subject: constraint.subject.clone(),
+                status,
+                extrapolation_distance: distance,
+            });
     }
-    if let Some(interval) = &domain.temperature_k {
-        assess_interval(
-            &mut result,
-            "temperature_k",
-            interval,
-            input.values.get("temperature").map(|value| value.value),
-        );
-    }
-    for (id, interval) in &domain.interferent_activities {
-        assess_interval(
-            &mut result,
-            &format!("interferent_activities.{id}"),
-            interval,
-            input.values.get(id).map(|value| value.value),
-        );
-    }
-    for (id, interval) in &domain.environmental_inputs {
-        assess_interval(
-            &mut result,
-            &format!("environmental_inputs.{id}"),
-            interval,
-            input.values.get(id).map(|value| value.value),
-        );
-    }
-    if !result.violated_fields.is_empty() {
+    if result
+        .constraint_statuses
+        .iter()
+        .any(|item| item.status == DomainStatus::DomainUnavailable)
+    {
+        result.status = DomainStatus::DomainUnavailable;
+    } else if !result.violated_fields.is_empty() {
         result.status = DomainStatus::OutsideDomain;
     } else if !result.near_fields.is_empty() {
         result.status = DomainStatus::NearBoundary;
+    } else {
+        result.status = DomainStatus::InsideDomain;
     }
-    Ok(result)
+    result
 }
 
 fn assess_interval(
-    result: &mut DomainEvaluation,
-    field: &str,
     interval: &super::validity::NumericInterval,
     value: Option<f64>,
-) {
+) -> (DomainStatus, Option<f64>) {
     let Some(value) = value else {
-        result.violated_fields.push(format!("{field} (missing)"));
-        return;
+        return (DomainStatus::DomainUnavailable, None);
     };
     let Some(distance) = interval.distance(value) else {
-        result.violated_fields.push(format!("{field} (non-finite)"));
-        return;
+        return (DomainStatus::DomainUnavailable, None);
     };
-    result.extrapolation_distance =
-        Some(result.extrapolation_distance.unwrap_or(0.0).max(distance));
     if distance > 0.0 {
-        result.violated_fields.push(field.into());
+        (DomainStatus::OutsideDomain, Some(distance))
     } else {
         let span = (interval.upper - interval.lower).abs();
         if value == interval.lower
             || value == interval.upper
             || (span > 0.0 && (value - interval.lower).min(interval.upper - value) <= span * 0.05)
         {
-            result.near_fields.push(field.into());
+            (DomainStatus::NearBoundary, Some(0.0))
+        } else {
+            (DomainStatus::InsideDomain, Some(0.0))
         }
     }
 }
@@ -1756,7 +2082,7 @@ fn validate_linear_covariate_units(
                 message: "linear covariate requires sensitivity and reference parameters".into(),
             })?;
     for (parameter_id, expected) in [
-        (sensitivity_id, expected_sensitivity),
+        (sensitivity_id, expected_sensitivity.as_str()),
         (reference_id, input_unit),
     ] {
         let parameter = definition

@@ -10,6 +10,9 @@ macro_rules! contract {
             fn schema_version(&self) -> u32 {
                 self.schema_version
             }
+            fn validate_before_json(&self) -> Result<(), crate::domain::ArtifactError> {
+                crate::domain::artifact::validate_serialized_finite(self)
+            }
         }
     };
 }
@@ -68,13 +71,13 @@ contract!(
 contract!(
     ModelCompilationArtifact,
     ArtifactKind::ModelCompilation,
-    3,
-    &[1, 2, 3]
+    4,
+    &[1, 2, 3, 4]
 );
 contract!(
     ModelAnalysisReport,
     ArtifactKind::ModelAnalysis,
-    3,
-    &[1, 2, 3]
+    4,
+    &[1, 2, 3, 4]
 );
 contract!(ValidationResults, ArtifactKind::ModelValidation, 1, &[1]);

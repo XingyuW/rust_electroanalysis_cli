@@ -35,7 +35,12 @@ pub enum RequirementSeverity {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IdentifiabilityRequirement {
+    pub requirement_id: String,
+    #[serde(default)]
+    pub scope: IdentifiabilityScope,
     pub component_id: String,
+    #[serde(default)]
+    pub component_ids: Vec<String>,
     pub kind: IdentifiabilityRequirementKind,
     #[serde(default)]
     pub target_states: Vec<String>,
@@ -45,6 +50,19 @@ pub struct IdentifiabilityRequirement {
     #[serde(default)]
     pub quantitative_criterion: Option<String>,
     pub severity: RequirementSeverity,
+}
+
+/// Whether the requirement is emitted by the compiled graph or by an optional
+/// capability advertised by a model profile.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum IdentifiabilityScope {
+    #[default]
+    Active,
+    Conditional {
+        component_kind: String,
+        activation_condition: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

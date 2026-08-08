@@ -103,3 +103,22 @@ may only enrich a legacy stochastic-unknown declaration through an explicit
 migration that records a positive typed uncertainty declaration/provenance.
 Full caller-supplied runtime covariance then quantifies that declaration; it does not itself silently
 rewrite schema semantics. A contradictory supplied row is a typed error.
+
+## Version 4: explicit component applicability and scoped identifiability
+
+Model-definition schema 4 adds `applicability_constraints` to component
+descriptors. Each constraint binds an inclusive interval to exactly one typed
+input, state, parameter, or derived subject. Only declared consumed inputs and
+component-owned state/parameter values are currently evaluable; invalid or
+duplicate bindings fail compilation. Existing `applicability_domain` metadata
+may be migrated in memory only when each legacy target-activity, temperature,
+interferent, or environmental field maps to a declared consumed input; no
+field is silently dropped. Model compilation and analysis artifacts increment
+to schema 4 because validity records carry per-constraint results and
+identifiability requirements carry stable IDs, component targets, and scope.
+
+Result writers accept legacy read schemas listed by their artifact contracts,
+but newly written model artifacts use schema 4. Before JSON serialization,
+every `VersionedArtifact` must perform an explicit finite validation; the
+shared serializer guard rejects NaN and either infinity with a structural path
+instead of allowing serde JSON to replace the value with `null`.

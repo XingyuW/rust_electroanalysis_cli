@@ -71,6 +71,28 @@ pub(crate) enum ModelUnitDimension {
     TemperatureSensitivity,
     ConductivitySensitivity,
     FlowSensitivity,
+    Custom,
+    CustomSensitivity,
+}
+
+/// The deliberately small unit grammar needed by V1 covariates.  It keeps
+/// custom symbols typed and comparable without introducing symbolic algebra.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelUnitExpression {
+    Base(UnitAtom),
+    Ratio {
+        numerator: UnitAtom,
+        denominator: UnitAtom,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitAtom {
+    Known(String),
+    Custom {
+        symbol: String,
+        normalized_symbol: String,
+    },
 }
 
 pub(crate) fn validate_unit(unit: &str, subject: String) -> Result<ModelUnitDimension, ModelError> {
@@ -81,18 +103,73 @@ pub(crate) fn validate_unit(unit: &str, subject: String) -> Result<ModelUnitDime
 }
 
 pub(crate) fn units_compatible(expected: &str, found: &str) -> bool {
-    matches!((unit_dimension(expected), unit_dimension(found)), (Some(left), Some(right)) if left == right)
+    unit_expression(expected) == unit_expression(found)
 }
 
 /// The only compound units required by the V1 linear-covariate contract.
 /// This intentionally is not a general-purpose unit algebra.
-pub(crate) fn potential_sensitivity_unit(input_unit: &str) -> Option<&'static str> {
-    match unit_dimension(input_unit)? {
-        ModelUnitDimension::Temperature => Some("V/K"),
-        ModelUnitDimension::Conductivity => Some("V/(S/m)"),
-        ModelUnitDimension::Flow => Some("V/(m/s)"),
-        _ => None,
+pub(crate) fn potential_sensitivity_unit(input_unit: &str) -> Option<String> {
+    let atom = match unit_expression(input_unit)? {
+        ModelUnitExpression::Base(atom) => atom,
+        ModelUnitExpression::Ratio { .. } => return None,
+    };
+    Some(match atom {
+        UnitAtom::Known(symbol) if symbol == "K" => "V/K".into(),
+        UnitAtom::Known(symbol) if symbol == "S/m" => "V/(S/m)".into(),
+        UnitAtom::Known(symbol) if symbol == "m/s" => "V/(m/s)".into(),
+        UnitAtom::Known(symbol) => format!("V/{symbol}"),
+        UnitAtom::Custom {
+            normalized_symbol, ..
+        } => format!("V/{normalized_symbol}"),
+    })
+}
+
+fn unit_expression(unit: &str) -> Option<ModelUnitExpression> {
+    let trimmed = unit.trim();
+    if trimmed.is_empty() {
+        return None;
     }
+    if let Some(denominator) = trimmed.strip_prefix("V/") {
+        let denominator = denominator
+            .strip_prefix('(')
+            .and_then(|value| value.strip_suffix(')'))
+            .unwrap_or(denominator);
+        return Some(ModelUnitExpression::Ratio {
+            numerator: atom("V")?,
+            denominator: atom(denominator)?,
+        });
+    }
+    atom(trimmed).map(ModelUnitExpression::Base)
+}
+
+fn atom(unit: &str) -> Option<UnitAtom> {
+    let normalized = normalize_unit(unit);
+    if normalized.is_empty() {
+        return None;
+    }
+    let known = match normalized.to_ascii_lowercase().as_str() {
+        "v" | "volt" | "volts" => Some("V"),
+        "k" => Some("K"),
+        "s/m" | "s·m^-1" => Some("S/m"),
+        "m/s" | "meter/s" | "metre/s" => Some("m/s"),
+        "activity" => Some("activity"),
+        "dimensionless" => Some("dimensionless"),
+        _ => None,
+    };
+    Some(match known {
+        Some(symbol) => UnitAtom::Known(symbol.into()),
+        // Custom symbols are deliberately case-sensitive; `%RH` and `ppm`
+        // remain scientifically distinct declared units. Micro glyph aliases
+        // normalize to the canonical U+00B5 micro sign.
+        None => UnitAtom::Custom {
+            symbol: unit.trim().into(),
+            normalized_symbol: normalized,
+        },
+    })
+}
+
+fn normalize_unit(unit: &str) -> String {
+    unit.trim().replace('μ', "µ")
 }
 
 fn unit_dimension(unit: &str) -> Option<ModelUnitDimension> {
@@ -114,6 +191,16 @@ fn unit_dimension(unit: &str) -> Option<ModelUnitDimension> {
                 QuantityDimension::Potential => ModelUnitDimension::Potential,
                 QuantityDimension::Temperature => ModelUnitDimension::Temperature,
                 QuantityDimension::Conductivity => ModelUnitDimension::Conductivity,
+            })
+            .or_else(|| match unit_expression(unit)? {
+                ModelUnitExpression::Base(UnitAtom::Custom { .. }) => {
+                    Some(ModelUnitDimension::Custom)
+                }
+                ModelUnitExpression::Ratio {
+                    numerator: UnitAtom::Known(numerator),
+                    denominator: UnitAtom::Custom { .. },
+                } if numerator == "V" => Some(ModelUnitDimension::CustomSensitivity),
+                _ => None,
             }),
     }
 }

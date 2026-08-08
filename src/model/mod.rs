@@ -43,9 +43,12 @@ pub use evidence::{
 };
 pub use identifiability::{
     AssessmentStatus, IdentifiabilityMetadata, IdentifiabilityReport, IdentifiabilityRequirement,
-    IdentifiabilityRequirementKind, ParameterIdentifiabilityRequirement, RequirementSeverity,
+    IdentifiabilityRequirementKind, IdentifiabilityScope, ParameterIdentifiabilityRequirement,
+    RequirementSeverity,
 };
-pub use input::{InputRequirement, InputSpec, InputValue, ModelInput};
+pub use input::{
+    InputRequirement, InputSpec, InputValue, ModelInput, ModelUnitExpression, UnitAtom,
+};
 pub use output::{
     ComponentContribution, ContributionTotals, DEFAULT_POTENTIAL_RECONSTRUCTION_TOLERANCE_V,
     ModelPrediction, ModelWarning, ObservationPrediction, PredictionUncertainty,
@@ -61,8 +64,9 @@ pub use state::{
     ModelState, StateInitializationSource, StateSpec, StateTransformation, UncertaintySpec,
 };
 pub use validity::{
-    ComponentApplicabilityDomain, ComponentValidityReport, DomainEnforcement, DomainSource,
-    DomainStatus, NumericInterval, ValidityDomain, ValidityReport, ValidityStatus,
+    ApplicabilityConstraint, ApplicabilityConstraintReport, ComponentApplicabilityDomain,
+    ComponentValidityReport, DomainEnforcement, DomainSource, DomainStatus, DomainSubject,
+    NumericInterval, ValidityDomain, ValidityReport, ValidityStatus,
 };
 
 /// Public name for the framework's model implementation contract.

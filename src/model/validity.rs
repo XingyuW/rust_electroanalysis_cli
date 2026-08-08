@@ -1,6 +1,40 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+use super::component::{ParameterId, StateId};
+
+/// The exact quantity constrained by an applicability interval.  A domain is
+/// never inferred from a display name or a convention such as `temperature`.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "id", rename_all = "snake_case")]
+pub enum DomainSubject {
+    Input(String),
+    State(StateId),
+    Parameter(ParameterId),
+    Derived(String),
+}
+
+/// One independently enforceable applicability constraint.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApplicabilityConstraint {
+    pub id: String,
+    pub subject: DomainSubject,
+    pub interval: NumericInterval,
+    pub source: DomainSource,
+    #[serde(default)]
+    pub enforcement: DomainEnforcement,
+}
+
+/// Runtime outcome retained for every compiled constraint.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApplicabilityConstraintReport {
+    pub constraint_id: String,
+    pub subject: DomainSubject,
+    pub status: DomainStatus,
+    #[serde(default)]
+    pub extrapolation_distance: Option<f64>,
+}
+
 /// Explicit evaluation status. A warning is not a health diagnosis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -31,6 +65,8 @@ pub struct ComponentValidityReport {
     pub violated_domain_fields: Vec<String>,
     #[serde(default)]
     pub domain_source: DomainSource,
+    #[serde(default)]
+    pub constraint_statuses: Vec<ApplicabilityConstraintReport>,
 }
 
 /// Closed interval with explicitly inclusive endpoints.
@@ -81,9 +117,11 @@ pub enum DomainEnforcement {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum DomainStatus {
+    Unevaluated,
     InsideDomain,
     NearBoundary,
     OutsideDomain,
+    NotApplicable,
     #[default]
     DomainUnavailable,
 }

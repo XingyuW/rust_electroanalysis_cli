@@ -27,6 +27,9 @@ impl VersionedArtifact for FixtureArtifact {
     fn schema_version(&self) -> u32 {
         self.schema_version
     }
+    fn validate_before_json(&self) -> Result<(), ArtifactError> {
+        rust_electroanalysis_cli::domain::validate_serialized_finite(self)
+    }
 }
 
 fn path(name: &str) -> PathBuf {

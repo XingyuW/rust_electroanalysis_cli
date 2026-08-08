@@ -81,6 +81,14 @@ pub enum ModelError {
     },
     #[error("component '{component}' has an invalid applicability domain: {message}")]
     InvalidApplicabilityDomain { component: String, message: String },
+    #[error(
+        "component '{component_id}' constraint '{constraint_id}' has unresolved applicability binding {subject}"
+    )]
+    UnresolvedApplicabilityBinding {
+        component_id: String,
+        constraint_id: String,
+        subject: String,
+    },
     #[error("component '{component}' interpretation status is not allowed: {message}")]
     InvalidInterpretationStatus { component: String, message: String },
     #[error("non-finite model result at {path}")]

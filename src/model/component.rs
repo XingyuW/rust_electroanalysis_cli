@@ -116,6 +116,11 @@ pub struct ComponentDescriptor {
     pub assumptions: Vec<String>,
     #[serde(default)]
     pub evidence_requirements: Vec<EvidenceRequirement>,
+    /// Explicit, typed applicability bindings. Legacy metadata is migrated
+    /// during compilation only when every legacy field maps to a consumed
+    /// input; it is never silently ignored.
+    #[serde(default)]
+    pub applicability_constraints: Vec<super::validity::ApplicabilityConstraint>,
     #[serde(default)]
     pub metadata: std::collections::BTreeMap<String, String>,
 }

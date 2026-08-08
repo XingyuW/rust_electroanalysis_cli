@@ -5,7 +5,7 @@ use super::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-pub const MODEL_DEFINITION_SCHEMA_VERSION: u32 = 3;
+pub const MODEL_DEFINITION_SCHEMA_VERSION: u32 = 4;
 
 /// Portable, versioned description of an ISM model graph.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

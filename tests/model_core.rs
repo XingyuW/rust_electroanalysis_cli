@@ -140,6 +140,7 @@ fn component(id: &str, role: ComponentRole, owner: &str, voltage_v: f64) -> Comp
             alternatives_to_consider: vec!["test".into()],
             required_uncertainty_statement: "test".into(),
         }],
+        applicability_constraints: Vec::new(),
         metadata: BTreeMap::from([("voltage_v".into(), voltage_v.to_string())]),
     }
 }
@@ -390,7 +391,7 @@ fn model_config_and_artifact_have_stable_semantics() {
     let artifact = ModelCompilationArtifact::from_compiled(&compiled);
     assert_eq!(artifact.artifact_kind, MODEL_COMPILATION_ARTIFACT_KIND);
     let json = artifact.to_json().expect("serialize finite model artifact");
-    assert!(json.contains("\"schema_version\": 3"));
+    assert!(json.contains("\"schema_version\": 4"));
     assert!(!json.contains("NaN"));
     assert!(!json.contains("Infinity"));
 }
