@@ -172,3 +172,8 @@ V1 remediation records discrete ion-charge configuration, explicit
 applicability domains, evidence availability, component-specific
 identifiability, covariate dimensions, and finite artifact serialization as
 model-core guardrails; it introduces no workflow integration.
+
+Legacy and typed applicability constraints are merged rather than selected
+between. Exact duplicates retain both declaration origins; conflicts fail with
+typed diagnostics. Warn/Reject is evaluated for each constraint, and all model
+artifact JSON paths reject nonfinite nested values before serde can emit `null`.

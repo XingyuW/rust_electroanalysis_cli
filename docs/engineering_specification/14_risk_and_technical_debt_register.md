@@ -140,3 +140,8 @@ supported production path. This is non-blocking provider follow-up debt.
 | RISK-036 | SCI | First-order propagation cannot quantify a stochastic discrete valence without an explicitly supported non-differential method; the built-in charge remains fixed/deterministic. | Medium | P2 |
 | RISK-037 | SCI | Applicability-domain limits remain calibration- or experiment-specific; absent limits are reported unavailable rather than inferred. | Medium | P1 |
 | RISK-038 | SCI | Candidate transduction and covariate terms can be confounded without independent excitation and auxiliary evidence. | Medium | P1 |
+
+The V1 final remediation closes the previously observed P1 loss-of-legacy-domain
+and mixed-policy escalation defects, and the P2 mismatch between model `to_json`
+and artifact writing. Remaining applicability risk is RISK-037: intervals remain
+calibration- or experiment-specific and are not universal scientific limits.

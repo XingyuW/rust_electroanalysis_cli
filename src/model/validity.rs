@@ -23,6 +23,18 @@ pub struct ApplicabilityConstraint {
     pub source: DomainSource,
     #[serde(default)]
     pub enforcement: DomainEnforcement,
+    /// Records whether this binding was declared directly or was normalized
+    /// from the legacy metadata domain.  This makes migration lossless and
+    /// lets an exact legacy/typed duplicate retain both declarations.
+    #[serde(default)]
+    pub provenance: Vec<ApplicabilityConstraintProvenance>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApplicabilityConstraintProvenance {
+    TypedDeclaration,
+    LegacyMetadata,
 }
 
 /// Runtime outcome retained for every compiled constraint.
@@ -32,7 +44,17 @@ pub struct ApplicabilityConstraintReport {
     pub subject: DomainSubject,
     pub status: DomainStatus,
     #[serde(default)]
+    pub enforcement: DomainEnforcement,
+    #[serde(default)]
+    pub observed_value: Option<f64>,
+    #[serde(default)]
+    pub interval: Option<NumericInterval>,
+    #[serde(default)]
+    pub source: DomainSource,
+    #[serde(default)]
     pub extrapolation_distance: Option<f64>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 /// Explicit evaluation status. A warning is not a health diagnosis.
@@ -95,7 +117,7 @@ impl NumericInterval {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum DomainSource {
     CalibrationArtifact,
@@ -106,7 +128,7 @@ pub enum DomainSource {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum DomainEnforcement {
     #[default]

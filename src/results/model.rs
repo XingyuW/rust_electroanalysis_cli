@@ -1,5 +1,6 @@
 //! Durable artifacts for compiled ISM model definitions.
 
+use crate::domain::{ArtifactError, validate_serialized_finite};
 use crate::model::{
     CompiledIsmModel, ComponentContribution, EquilibriumAssessment, IdentifiabilityReport,
     ModelDefinition, ModelError, PredictionUncertainty, ValidityReport,
@@ -53,81 +54,20 @@ impl ModelAnalysisReport {
         serde_json::to_string_pretty(self).map_err(|error| ModelError::Json(error.to_string()))
     }
 
-    /// Validates every numeric leaf before serde's JSON encoder can map NaN
-    /// or infinity to `null`. Paths are stable diagnostic locations.
+    /// Uses the same recursive finite-value serializer guard as
+    /// `write_artifact`, before serde JSON can map NaN or infinity to `null`.
     pub fn validate_finite(&self) -> Result<(), ModelError> {
-        for (point_index, point) in self.points.iter().enumerate() {
-            let point_path = format!("points[{point_index}]");
-            finite(point.time_s, &format!("{point_path}.time_s"))?;
-            finite(
-                point.predicted_voltage_v,
-                &format!("{point_path}.predicted_voltage_v"),
-            )?;
-            optional_finite(
-                point.observed_voltage_v,
-                &format!("{point_path}.observed_voltage_v"),
-            )?;
-            optional_finite(
-                point.unexplained_residual_v,
-                &format!("{point_path}.unexplained_residual_v"),
-            )?;
-            for (state_index, (_, value)) in point.state_values.iter().enumerate() {
-                finite(
-                    *value,
-                    &format!("{point_path}.state_values[{state_index}].1"),
-                )?;
-            }
-            for (contribution_index, contribution) in point.contributions.iter().enumerate() {
-                let contribution_path = format!("{point_path}.contributions[{contribution_index}]");
-                optional_finite(
-                    contribution.potential_v,
-                    &format!("{contribution_path}.potential_v"),
-                )?;
-                optional_finite(
-                    contribution.variance_v2,
-                    &format!("{contribution_path}.variance_v2"),
-                )?;
-                for (name, value) in &contribution.auxiliary_outputs {
-                    finite(
-                        *value,
-                        &format!("{contribution_path}.auxiliary_outputs[{name:?}]"),
-                    )?;
-                }
-            }
-            for (field, value) in [
-                ("total_variance_v2", point.uncertainty.total_variance_v2),
-                ("standard_error_v", point.uncertainty.standard_error_v),
-                ("state_variance_v2", point.uncertainty.state_variance_v2),
-                (
-                    "parameter_variance_v2",
-                    point.uncertainty.parameter_variance_v2,
-                ),
-                (
-                    "observation_variance_v2",
-                    point.uncertainty.observation_variance_v2,
-                ),
-            ] {
-                optional_finite(value, &format!("{point_path}.uncertainty.{field}"))?;
-            }
-            finite(
-                point.equilibrium.confidence,
-                &format!("{point_path}.equilibrium.confidence"),
-            )?;
+        validate_model_artifact_finite(self)
+    }
+}
+
+fn validate_model_artifact_finite<T: Serialize>(artifact: &T) -> Result<(), ModelError> {
+    validate_serialized_finite(artifact).map_err(|error| match error {
+        ArtifactError::NonFiniteValue { field_path, .. } => {
+            ModelError::NonFiniteResult { path: field_path }
         }
-        Ok(())
-    }
-}
-
-fn finite(value: f64, path: &str) -> Result<(), ModelError> {
-    if value.is_finite() {
-        Ok(())
-    } else {
-        Err(ModelError::NonFiniteResult { path: path.into() })
-    }
-}
-
-fn optional_finite(value: Option<f64>, path: &str) -> Result<(), ModelError> {
-    value.map_or(Ok(()), |value| finite(value, path))
+        error => ModelError::Json(error.to_string()),
+    })
 }
 
 impl ModelCompilationArtifact {
@@ -153,6 +93,11 @@ impl ModelCompilationArtifact {
     /// fields before serde can turn a non-finite float into JSON `null`.
     pub fn to_json(&self) -> Result<String, ModelError> {
         self.model_definition.validate_schema()?;
+        validate_model_artifact_finite(self)?;
         serde_json::to_string_pretty(self).map_err(|error| ModelError::Json(error.to_string()))
+    }
+
+    pub fn validate_finite(&self) -> Result<(), ModelError> {
+        validate_model_artifact_finite(self)
     }
 }

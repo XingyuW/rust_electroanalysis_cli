@@ -64,9 +64,9 @@ pub use state::{
     ModelState, StateInitializationSource, StateSpec, StateTransformation, UncertaintySpec,
 };
 pub use validity::{
-    ApplicabilityConstraint, ApplicabilityConstraintReport, ComponentApplicabilityDomain,
-    ComponentValidityReport, DomainEnforcement, DomainSource, DomainStatus, DomainSubject,
-    NumericInterval, ValidityDomain, ValidityReport, ValidityStatus,
+    ApplicabilityConstraint, ApplicabilityConstraintProvenance, ApplicabilityConstraintReport,
+    ComponentApplicabilityDomain, ComponentValidityReport, DomainEnforcement, DomainSource,
+    DomainStatus, DomainSubject, NumericInterval, ValidityDomain, ValidityReport, ValidityStatus,
 };
 
 /// Public name for the framework's model implementation contract.

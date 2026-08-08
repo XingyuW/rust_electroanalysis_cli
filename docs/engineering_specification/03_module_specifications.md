@@ -332,3 +332,9 @@ fitted), rather than by whether they might be fitted in a future workflow.
 `evidence.rs` represents Present/NotApplicable/Missing evidence;
 `identifiability.rs` holds structured component requirements; and
 `results/model.rs` recursively validates numeric report leaves before JSON.
+
+`compiler.rs` normalizes metadata domains and typed constraints together,
+records declaration provenance, sorts deterministically, and returns typed
+conflicts rather than silently composing same-subject constraints. `validity.rs`
+retains each observed value, interval, source, enforcement, and warning; its
+aggregate status is independent of fatality.

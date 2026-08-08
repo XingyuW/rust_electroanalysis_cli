@@ -174,3 +174,9 @@ Should a future schema persist applicability domains as first-class nested
 descriptor fields rather than the backwards-compatible explicit metadata
 payload? It must preserve source, inclusive intervals, enforcement, and the
 absence of invented universal limits.
+
+V1 resolves the immediate migration behavior without requiring a schema change:
+legacy and typed declarations are merged, exact duplicates preserve provenance,
+and conflicts fail until a future owner defines an explicit intersection or
+composition rule. Whether to add such a rule remains open; V1 deliberately does
+not infer one.

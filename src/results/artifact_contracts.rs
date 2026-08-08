@@ -1,5 +1,5 @@
 use super::*;
-use crate::domain::{ArtifactKind, VersionedArtifact};
+use crate::domain::{ArtifactError, ArtifactKind, VersionedArtifact, validate_serialized_finite};
 
 macro_rules! contract {
     ($type:ty, $kind:expr, $current:expr, $legacy:expr) => {
@@ -68,16 +68,41 @@ contract!(
     2,
     &[1, 2]
 );
-contract!(
-    ModelCompilationArtifact,
-    ArtifactKind::ModelCompilation,
-    4,
-    &[1, 2, 3, 4]
-);
-contract!(
-    ModelAnalysisReport,
-    ArtifactKind::ModelAnalysis,
-    4,
-    &[1, 2, 3, 4]
-);
+impl VersionedArtifact for ModelCompilationArtifact {
+    const ARTIFACT_KIND: ArtifactKind = ArtifactKind::ModelCompilation;
+    const CURRENT_SCHEMA_VERSION: u32 = 4;
+    const LEGACY_SCHEMA_VERSIONS: &'static [u32] = &[1, 2, 3, 4];
+
+    fn schema_version(&self) -> u32 {
+        self.schema_version
+    }
+
+    fn validate_before_json(&self) -> Result<(), ArtifactError> {
+        self.model_definition
+            .validate_schema()
+            .map_err(|error| ArtifactError::Validation {
+                message: error.to_string(),
+            })?;
+        validate_serialized_finite(self)
+    }
+}
+
+impl VersionedArtifact for ModelAnalysisReport {
+    const ARTIFACT_KIND: ArtifactKind = ArtifactKind::ModelAnalysis;
+    const CURRENT_SCHEMA_VERSION: u32 = 4;
+    const LEGACY_SCHEMA_VERSIONS: &'static [u32] = &[1, 2, 3, 4];
+
+    fn schema_version(&self) -> u32 {
+        self.schema_version
+    }
+
+    fn validate_before_json(&self) -> Result<(), ArtifactError> {
+        self.model_definition
+            .validate_schema()
+            .map_err(|error| ArtifactError::Validation {
+                message: error.to_string(),
+            })?;
+        validate_serialized_finite(self)
+    }
+}
 contract!(ValidationResults, ArtifactKind::ModelValidation, 1, &[1]);

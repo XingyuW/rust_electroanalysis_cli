@@ -207,3 +207,11 @@ as `%RH` and `ppm`; matching is normalized only for micro-symbol aliases and
 otherwise case-sensitive. The generic artifact writer runs a lossless
 serializer-based finite check before JSON conversion and reports the exact
 structural path of any nonfinite leaf.
+
+The V1 final remediation treats legacy and typed applicability declarations as
+independent sources. Exact duplicates are evaluated once with both declaration
+provenances; competing intervals, sources, or enforcement policies return a
+typed conflict because V1 declares no composition rule. Enforcement is decided
+per violated constraint, never by an aggregate component policy. Aggregate
+status remains observational: `OutsideDomain`, `DomainUnavailable`,
+`NearBoundary`, `InsideDomain`, then `NotApplicable` by severity.

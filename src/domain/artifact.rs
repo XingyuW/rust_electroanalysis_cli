@@ -95,6 +95,8 @@ pub enum ArtifactError {
     },
     #[error("artifact {path} contains a non-finite value at {field_path}")]
     NonFiniteValue { path: PathBuf, field_path: String },
+    #[error("artifact schema validation failed: {message}")]
+    Validation { message: String },
 }
 
 pub fn read_artifact<T: VersionedArtifact>(path: &Path) -> Result<T, ArtifactError> {

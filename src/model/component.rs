@@ -116,9 +116,9 @@ pub struct ComponentDescriptor {
     pub assumptions: Vec<String>,
     #[serde(default)]
     pub evidence_requirements: Vec<EvidenceRequirement>,
-    /// Explicit, typed applicability bindings. Legacy metadata is migrated
-    /// during compilation only when every legacy field maps to a consumed
-    /// input; it is never silently ignored.
+    /// Explicit, typed applicability bindings. Legacy metadata is normalized
+    /// and merged with these bindings during compilation; it is never
+    /// silently ignored when typed constraints are also present.
     #[serde(default)]
     pub applicability_constraints: Vec<super::validity::ApplicabilityConstraint>,
     #[serde(default)]

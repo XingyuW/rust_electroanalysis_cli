@@ -192,3 +192,11 @@ calculation remains covered.
 exact charge rejection, calibrated-domain Warn/Reject behavior, candidate
 transduction status, missing disturbance evidence, structured
 identifiability, and nested nonfinite serialization.
+
+The permanent V1 matrix also covers legacy-only and typed-only domains, the
+legacy-plus-typed two-constraint reviewer reproduction, exact duplicate
+provenance, typed conflicts, deterministic constraint ordering, mixed
+Warn/Reject independence, and shared `to_json`/`write_artifact` rejection of a
+nested nonfinite applicability interval. The wider model-core suites retain the
+charge, equation, dynamic, covariance, identifiability, unit, equilibrium, and
+decomposition matrices.

@@ -1,15 +1,16 @@
 //! Permanent scientific guardrail regression coverage for Reduced-Order ISM V1.
 
 use rust_electroanalysis_cli::model::{
-    ApplicabilityConstraint, ComponentApplicabilityDomain, DomainEnforcement, DomainSource,
-    DomainStatus, DomainSubject, EquilibriumEvidence, EquilibriumRecognitionConfig,
-    EquilibriumStatus, EvidenceValue, InputValue, InterpretationStatus, ModelError, ModelInput,
-    NumericInterval, UncertaintyStatus, ValidityReport, built_in_registry, compile_model,
-    exact_nonzero_charge, recognize_equilibrium, reduced_ism_v1_definition,
+    ApplicabilityConstraint, ApplicabilityConstraintProvenance, ComponentApplicabilityDomain,
+    DomainEnforcement, DomainSource, DomainStatus, DomainSubject, EquilibriumEvidence,
+    EquilibriumRecognitionConfig, EquilibriumStatus, EvidenceValue, InputValue,
+    InterpretationStatus, ModelError, ModelInput, NumericInterval, UncertaintyStatus,
+    ValidityReport, built_in_registry, compile_model, exact_nonzero_charge, recognize_equilibrium,
+    reduced_ism_v1_definition,
 };
 use rust_electroanalysis_cli::{
     domain::write_artifact,
-    results::{ModelAnalysisPoint, ModelAnalysisReport},
+    results::{ModelAnalysisPoint, ModelAnalysisReport, ModelCompilationArtifact},
 };
 use std::collections::BTreeMap;
 
@@ -32,6 +33,23 @@ fn input(activity: f64, temperature_k: f64) -> ModelInput {
                 },
             ),
         ]),
+    }
+}
+
+fn constraint(
+    id: &str,
+    subject: &str,
+    lower: f64,
+    upper: f64,
+    enforcement: DomainEnforcement,
+) -> ApplicabilityConstraint {
+    ApplicabilityConstraint {
+        id: id.into(),
+        subject: DomainSubject::Input(subject.into()),
+        interval: NumericInterval { lower, upper },
+        source: DomainSource::CalibrationArtifact,
+        enforcement,
+        provenance: vec![],
     }
 }
 
@@ -228,6 +246,7 @@ fn applicability_constraints_are_explicitly_bound_and_never_skipped() {
             },
             source: DomainSource::CalibrationArtifact,
             enforcement: DomainEnforcement::Warn,
+            provenance: vec![],
         },
         ApplicabilityConstraint {
             id: "temperature".into(),
@@ -238,6 +257,7 @@ fn applicability_constraints_are_explicitly_bound_and_never_skipped() {
             },
             source: DomainSource::CalibrationArtifact,
             enforcement: DomainEnforcement::Warn,
+            provenance: vec![],
         },
     ];
     let model = compile_model(definition, built_in_registry()).unwrap();
@@ -282,6 +302,7 @@ fn applicability_constraints_are_explicitly_bound_and_never_skipped() {
         },
         source: DomainSource::UserConfiguration,
         enforcement: DomainEnforcement::Warn,
+        provenance: vec![],
     }];
     let optional_model = compile_model(optional, built_in_registry()).unwrap();
     let optional_state = optional_model
@@ -303,6 +324,189 @@ fn applicability_constraints_are_explicitly_bound_and_never_skipped() {
 }
 
 #[test]
+fn legacy_and_typed_applicability_constraints_are_merged_losslessly() {
+    let mut definition = reduced_ism_v1_definition();
+    definition.components[1].applicability_constraints = vec![constraint(
+        "temperature",
+        "temperature",
+        290.0,
+        310.0,
+        DomainEnforcement::Warn,
+    )];
+    definition.components[1].metadata.insert(
+        "applicability_domain".into(),
+        serde_json::to_string(&ComponentApplicabilityDomain {
+            target_activity: Some(NumericInterval {
+                lower: 1e-6,
+                upper: 1.0,
+            }),
+            temperature_k: None,
+            interferent_activities: BTreeMap::new(),
+            environmental_inputs: BTreeMap::new(),
+            source: DomainSource::CalibrationArtifact,
+            enforcement: DomainEnforcement::Warn,
+        })
+        .unwrap(),
+    );
+
+    let model = compile_model(definition, built_in_registry()).unwrap();
+    let constraints = &model.definition().components[1].applicability_constraints;
+    assert_eq!(constraints.len(), 2, "legacy constraint must not disappear");
+    assert_eq!(
+        constraints[0].subject,
+        DomainSubject::Input("target_activity".into())
+    );
+    assert_eq!(
+        constraints[1].subject,
+        DomainSubject::Input("temperature".into())
+    );
+    assert_eq!(
+        constraints[0].provenance,
+        vec![ApplicabilityConstraintProvenance::LegacyMetadata]
+    );
+    assert_eq!(
+        constraints[1].provenance,
+        vec![ApplicabilityConstraintProvenance::TypedDeclaration]
+    );
+}
+
+#[test]
+fn exact_legacy_typed_duplicates_deduplicate_and_conflicts_are_typed() {
+    let legacy = ComponentApplicabilityDomain {
+        target_activity: Some(NumericInterval {
+            lower: 1e-6,
+            upper: 1.0,
+        }),
+        temperature_k: None,
+        interferent_activities: BTreeMap::new(),
+        environmental_inputs: BTreeMap::new(),
+        source: DomainSource::CalibrationArtifact,
+        enforcement: DomainEnforcement::Warn,
+    };
+    let mut duplicate = reduced_ism_v1_definition();
+    duplicate.components[1].applicability_constraints = vec![constraint(
+        "target_activity",
+        "target_activity",
+        1e-6,
+        1.0,
+        DomainEnforcement::Warn,
+    )];
+    duplicate.components[1].metadata.insert(
+        "applicability_domain".into(),
+        serde_json::to_string(&legacy).unwrap(),
+    );
+    let model = compile_model(duplicate, built_in_registry()).unwrap();
+    let constraints = &model.definition().components[1].applicability_constraints;
+    assert_eq!(constraints.len(), 1);
+    assert_eq!(
+        constraints[0].provenance,
+        vec![
+            ApplicabilityConstraintProvenance::TypedDeclaration,
+            ApplicabilityConstraintProvenance::LegacyMetadata,
+        ]
+    );
+
+    let mut conflicting = reduced_ism_v1_definition();
+    conflicting.components[1].applicability_constraints = vec![constraint(
+        "typed_activity",
+        "target_activity",
+        1e-4,
+        1.0,
+        DomainEnforcement::Warn,
+    )];
+    conflicting.components[1].metadata.insert(
+        "applicability_domain".into(),
+        serde_json::to_string(&legacy).unwrap(),
+    );
+    assert!(matches!(
+        compile_model(conflicting, built_in_registry()),
+        Err(ModelError::ConflictingApplicabilityConstraints { .. })
+    ));
+}
+
+#[test]
+fn applicability_enforcement_is_independent_per_constraint() {
+    let mut definition = reduced_ism_v1_definition();
+    definition.components[1].applicability_constraints = vec![
+        constraint(
+            "activity_warn",
+            "target_activity",
+            1e-6,
+            1.0,
+            DomainEnforcement::Warn,
+        ),
+        constraint(
+            "temperature_reject",
+            "temperature",
+            290.0,
+            310.0,
+            DomainEnforcement::Reject,
+        ),
+    ];
+    let model = compile_model(definition, built_in_registry()).unwrap();
+    let parameters = model.default_parameters();
+    let state = model.initialize(&parameters).unwrap();
+    let contributions = model
+        .component_contributions(&state, &parameters, &input(2.0, 298.15))
+        .expect("passing Reject constraint must not upgrade Warn violation");
+    assert!(contributions.iter().any(|contribution| {
+        contribution.component_id == "equilibrium_nernst"
+            && contribution
+                .warnings
+                .iter()
+                .any(|warning| format!("{warning:?}").contains("activity_warn"))
+    }));
+    let report = model
+        .component_validity_reports(&state, &parameters, &input(2.0, 298.15))
+        .into_iter()
+        .find(|report| report.component_id == "equilibrium_nernst")
+        .unwrap();
+    assert_eq!(report.domain_status, DomainStatus::OutsideDomain);
+    assert_eq!(report.constraint_statuses.len(), 2);
+
+    let mut rejecting = model.definition().clone();
+    rejecting.components[1].applicability_constraints[0].enforcement = DomainEnforcement::Reject;
+    let rejecting = compile_model(rejecting, built_in_registry()).unwrap();
+    let state = rejecting.initialize(&parameters).unwrap();
+    assert!(matches!(
+        rejecting.component_contributions(&state, &parameters, &input(2.0, 298.15)),
+        Err(ModelError::ApplicabilityConstraintRejected {
+            constraint_id,
+            enforcement: DomainEnforcement::Reject,
+            ..
+        }) if constraint_id == "activity_warn"
+    ));
+}
+
+#[test]
+fn model_artifact_json_and_writer_share_nested_finite_validation() {
+    let model = compile_model(reduced_ism_v1_definition(), built_in_registry()).unwrap();
+    let mut artifact = ModelCompilationArtifact::from_compiled(&model);
+    artifact.model_definition.components[1].applicability_constraints = vec![constraint(
+        "bad_interval",
+        "target_activity",
+        f64::NAN,
+        1.0,
+        DomainEnforcement::Warn,
+    )];
+    let to_json_path = match artifact.to_json() {
+        Err(ModelError::NonFiniteResult { path }) => path,
+        other => panic!("expected nested non-finite error, got {other:?}"),
+    };
+    assert!(to_json_path.contains("applicability_constraints[0].interval.lower"));
+    let path = std::env::temp_dir().join(format!("ism_interval_{}.json", std::process::id()));
+    std::fs::remove_file(&path).ok();
+    let write_path = match write_artifact(&path, &artifact) {
+        Err(rust_electroanalysis_cli::domain::ArtifactError::NonFiniteValue {
+            field_path, ..
+        }) => field_path,
+        other => panic!("expected nested non-finite error, got {other:?}"),
+    };
+    assert_eq!(to_json_path, write_path);
+    assert!(!path.exists());
+}
+
+#[test]
 fn validated_reference_offset_cannot_bind_target_activity_without_consuming_it() {
     let mut definition = reduced_ism_v1_definition();
     let reference = &mut definition.components[4];
@@ -316,6 +520,7 @@ fn validated_reference_offset_cannot_bind_target_activity_without_consuming_it()
         },
         source: DomainSource::CalibrationArtifact,
         enforcement: DomainEnforcement::Reject,
+        provenance: vec![],
     }];
     assert!(matches!(
         compile_model(definition, built_in_registry()),

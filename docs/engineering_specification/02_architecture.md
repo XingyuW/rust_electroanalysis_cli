@@ -367,3 +367,8 @@ uncertainty before calling the core.
 Applicability-domain evaluation, discrete parameter validation, evidence-state
 handling, identifiability metadata, and finite-result validation remain in the
 model core and do not introduce dependencies on estimation or reporting.
+
+Legacy-domain normalization and typed-domain merging also stay inside the
+compiler boundary. The results layer delegates recursive finite validation to
+the domain artifact serializer guard; this is a validation dependency, not a
+model-to-reporting dependency.

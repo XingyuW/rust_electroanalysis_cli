@@ -66,3 +66,9 @@ relative to tau, mode separation, reference anchoring, and independent
 covariate/interferent variation. Linear covariates require compatible input,
 reference, and V-per-input sensitivity units. Result serialization rejects any
 nested nonfinite value instead of encoding it as JSON `null`.
+
+When legacy metadata and typed constraints coexist, V1 normalizes and merges
+both sources. An exact duplicate is evaluated once and records both origins;
+competing constraints for the same subject return a typed conflict rather than
+being silently intersected. Each violation uses its own Warn/Reject policy, so
+a passing Reject constraint cannot turn a separate Warn violation into failure.

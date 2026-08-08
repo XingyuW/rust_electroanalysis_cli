@@ -218,3 +218,12 @@ Physical equation validity is distinct from declared applicability-domain
 validity. Domain endpoints are inclusive; unavailable domains cannot support
 an in-domain claim. Outside-domain inputs are warned or rejected by declared
 policy, while nonfinite nested result values are rejected before serialization.
+
+Legacy metadata and typed constraints are always normalized and merged. Exact
+same-subject, interval, source, and enforcement declarations are deduplicated
+with both origins retained; any competing same-subject declaration is a typed
+conflict until an explicit composition rule exists. Runtime reports every
+constraint independently. A Reject failure contains the component, constraint,
+subject, observed value, interval, source, status, and policy. Aggregate domain
+status is observational (`OutsideDomain` > `DomainUnavailable` >
+`NearBoundary` > `InsideDomain` > `NotApplicable`) and never selects fatality.

@@ -515,3 +515,9 @@ For `E_external = beta (u - u_ref)`, `u_ref` has the same typed dimension as
 `u`, `beta` has V per `u`, and the contribution is V. Ion charge is a discrete
 configuration in Nernst/Nicolsky-Eisenman equations, not a continuous slope
 parameter; only exact nonzero integer values are admissible.
+
+Applicability intervals are inclusive validation declarations, not additions to
+the Nernst, Nicolsky-Eisenman, first-order, or covariate equations. Each interval
+is assessed independently; its Warn or Reject policy controls only that
+constraint's failure. No physical equation or reduced-order mechanism changed
+in the V1 final domain-contract remediation.

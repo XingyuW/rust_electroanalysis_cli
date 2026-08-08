@@ -122,3 +122,14 @@ but newly written model artifacts use schema 4. Before JSON serialization,
 every `VersionedArtifact` must perform an explicit finite validation; the
 shared serializer guard rejects NaN and either infinity with a structural path
 instead of allowing serde JSON to replace the value with `null`.
+
+### V1 final applicability remediation
+
+This remediation does not increment a schema version: it adds only serde-defaulted
+provenance and per-constraint report fields, while preserving schema-4 reads.
+Legacy metadata and typed `applicability_constraints` are independent input
+sources. Compilation normalizes both, merges exact same-subject/interval/source/
+enforcement declarations once with both provenances retained, and returns a typed
+conflict for competing declarations because V1 has no intersection rule. The
+model-artifact `to_json` paths use the same recursive finite serializer guard as
+`write_artifact`; both fail before JSON conversion with the same structural path.

@@ -4,7 +4,7 @@ use super::{
         JacobianMethod, JacobianStatus, ParameterJacobian, StateJacobianStatus, identity,
     },
     definition::ModelDefinition,
-    error::ModelError,
+    error::{ApplicabilityConstraintConflict, ModelError},
     graph::dependency_order,
     identifiability::{
         IdentifiabilityMetadata, IdentifiabilityReport, IdentifiabilityRequirement,
@@ -26,9 +26,9 @@ use super::{
         ModelState,
     },
     validity::{
-        ApplicabilityConstraint, ApplicabilityConstraintReport, ComponentApplicabilityDomain,
-        ComponentValidityReport, DomainEnforcement, DomainSource, DomainStatus, DomainSubject,
-        ValidityReport, ValidityStatus,
+        ApplicabilityConstraint, ApplicabilityConstraintProvenance, ApplicabilityConstraintReport,
+        ComponentApplicabilityDomain, ComponentValidityReport, DomainEnforcement, DomainSource,
+        DomainStatus, DomainSubject, ValidityReport, ValidityStatus,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -303,14 +303,8 @@ impl CompiledIsmModel {
                 &self.state_indices,
                 &self.parameter_indices,
             );
-            if domain_rejected(&domain) {
-                return Err(ModelError::ComponentEvaluation {
-                    component: descriptor.id.clone(),
-                    message: format!(
-                        "outside declared applicability domain: {}",
-                        domain.violated_fields.join(", ")
-                    ),
-                });
+            if let Some(constraint) = domain.rejected_constraint() {
+                return Err(applicability_constraint_error(&descriptor.id, constraint));
             }
             let voltage = component.observation_voltage(state, parameters, input)?;
             let variance = component.observation_variance_v2(state, parameters, input)?;
@@ -853,7 +847,7 @@ impl CompiledIsmModel {
                 &self.parameter_indices,
             );
             match domain {
-                domain if domain_rejected(&domain) => {
+                domain if domain.rejected_constraint().is_some() => {
                     violations.push(format!(
                         "component '{}' outside declared applicability domain: {}",
                         component.descriptor().id,
@@ -953,7 +947,7 @@ impl CompiledIsmModel {
                 report.violated_domain_fields = domain.violated_fields.clone();
                 report.domain_source = domain.source;
                 report.constraint_statuses = domain.constraint_statuses.clone();
-                if domain_rejected(&domain) {
+                if domain.rejected_constraint().is_some() {
                     report.status = ValidityStatus::Invalid;
                     report.evaluation_rejected = true;
                     report.violations.extend(domain.violated_fields);
@@ -1662,26 +1656,34 @@ fn migrate_legacy_applicability_domains(
     definition: &mut ModelDefinition,
 ) -> Result<(), ModelError> {
     for component in &mut definition.components {
-        if !component.applicability_constraints.is_empty() {
-            continue;
-        }
         let Some(domain) = ComponentApplicabilityDomain::from_metadata(&component.metadata)
             .map_err(|message| ModelError::InvalidApplicabilityDomain {
                 component: component.id.clone(),
                 message,
             })?
         else {
+            let mut declared = std::mem::take(&mut component.applicability_constraints);
+            for constraint in &mut declared {
+                if constraint.provenance.is_empty() {
+                    constraint
+                        .provenance
+                        .push(ApplicabilityConstraintProvenance::TypedDeclaration);
+                }
+            }
+            component.applicability_constraints =
+                merge_applicability_constraints(&component.id, declared)?;
             continue;
         };
         let consumed = |id: &str| component.required_inputs.iter().any(|input| input.id == id);
-        let mut constraints = Vec::new();
+        let mut legacy_constraints = Vec::new();
         let mut push = |id: String, input: String, interval: super::validity::NumericInterval| {
-            constraints.push(ApplicabilityConstraint {
+            legacy_constraints.push(ApplicabilityConstraint {
                 id,
                 subject: DomainSubject::Input(input),
                 interval,
                 source: domain.source,
                 enforcement: domain.enforcement,
+                provenance: vec![ApplicabilityConstraintProvenance::LegacyMetadata],
             });
         };
         if let Some(interval) = domain.target_activity {
@@ -1728,9 +1730,75 @@ fn migrate_legacy_applicability_domains(
             }
             push(format!("environmental_inputs.{id}"), id, interval);
         }
-        component.applicability_constraints = constraints;
+        let mut declared = std::mem::take(&mut component.applicability_constraints);
+        for constraint in &mut declared {
+            if constraint.provenance.is_empty() {
+                constraint
+                    .provenance
+                    .push(ApplicabilityConstraintProvenance::TypedDeclaration);
+            }
+        }
+        declared.extend(legacy_constraints);
+        component.applicability_constraints =
+            merge_applicability_constraints(&component.id, declared)?;
     }
     Ok(())
+}
+
+/// Typed and legacy declarations are independent sources. Exact contracts are
+/// evaluated once with both origins retained; any competing contract for the
+/// same subject requires an explicit future composition rule.
+fn merge_applicability_constraints(
+    component_id: &str,
+    mut constraints: Vec<ApplicabilityConstraint>,
+) -> Result<Vec<ApplicabilityConstraint>, ModelError> {
+    constraints.sort_by(|left, right| {
+        left.subject
+            .cmp(&right.subject)
+            .then_with(|| left.id.cmp(&right.id))
+            .then_with(|| left.source.cmp(&right.source))
+    });
+    let mut merged: Vec<ApplicabilityConstraint> = Vec::with_capacity(constraints.len());
+    for mut constraint in constraints {
+        if let Some(existing) = merged
+            .iter_mut()
+            .find(|existing| existing.subject == constraint.subject)
+        {
+            let identical = existing.interval == constraint.interval
+                && existing.enforcement == constraint.enforcement
+                && existing.source == constraint.source;
+            if !identical {
+                return Err(ModelError::ConflictingApplicabilityConstraints {
+                    details: Box::new(ApplicabilityConstraintConflict {
+                        component_id: component_id.into(),
+                        subject: constraint.subject,
+                        first_constraint_id: existing.id.clone(),
+                        second_constraint_id: constraint.id,
+                        reason: "same subject has no declared intersection/composition rule".into(),
+                    }),
+                });
+            }
+            existing.provenance.append(&mut constraint.provenance);
+            existing.provenance.sort();
+            existing.provenance.dedup();
+            // Stable IDs make the merged serialization and runtime reports
+            // independent of declaration order.
+            if constraint.id < existing.id {
+                existing.id = constraint.id;
+            }
+        } else {
+            constraint.provenance.sort();
+            constraint.provenance.dedup();
+            merged.push(constraint);
+        }
+    }
+    merged.sort_by(|left, right| {
+        left.subject
+            .cmp(&right.subject)
+            .then_with(|| left.id.cmp(&right.id))
+            .then_with(|| left.source.cmp(&right.source))
+    });
+    Ok(merged)
 }
 
 fn resolve_applicability_constraints(
@@ -1745,9 +1813,13 @@ fn resolve_applicability_constraints(
         .collect();
     let mut resolved = BTreeMap::new();
     for component in &definition.components {
-        let mut seen_subjects = BTreeSet::new();
         let mut constraints = component.applicability_constraints.clone();
-        constraints.sort_by(|left, right| left.id.cmp(&right.id));
+        constraints.sort_by(|left, right| {
+            left.subject
+                .cmp(&right.subject)
+                .then_with(|| left.id.cmp(&right.id))
+                .then_with(|| left.source.cmp(&right.source))
+        });
         for constraint in &constraints {
             if constraint.id.trim().is_empty() || !constraint.interval.validate() {
                 return Err(ModelError::InvalidApplicabilityDomain {
@@ -1781,15 +1853,6 @@ fn resolve_applicability_constraints(
                     subject: format!("{:?}", constraint.subject),
                 });
             }
-            if !seen_subjects.insert(constraint.subject.clone()) {
-                return Err(ModelError::InvalidApplicabilityDomain {
-                    component: component.id.clone(),
-                    message: format!(
-                        "duplicate constraint subject {:?} has no composition rule",
-                        constraint.subject
-                    ),
-                });
-            }
         }
         resolved.insert(component.id.clone(), constraints);
     }
@@ -1799,11 +1862,9 @@ fn resolve_applicability_constraints(
 #[derive(Debug, Clone)]
 struct DomainEvaluation {
     status: DomainStatus,
-    enforcement: DomainEnforcement,
     source: DomainSource,
     extrapolation_distance: Option<f64>,
     violated_fields: Vec<String>,
-    near_fields: Vec<String>,
     constraint_statuses: Vec<ApplicabilityConstraintReport>,
 }
 
@@ -1811,41 +1872,48 @@ impl DomainEvaluation {
     fn not_applicable() -> Self {
         Self {
             status: DomainStatus::NotApplicable,
-            enforcement: DomainEnforcement::Warn,
             source: DomainSource::Unknown,
             extrapolation_distance: None,
             violated_fields: Vec::new(),
-            near_fields: Vec::new(),
             constraint_statuses: Vec::new(),
         }
     }
 
     fn warning(&self) -> Vec<String> {
-        match self.status {
-            DomainStatus::DomainUnavailable => vec![
-                "calibrated applicability domain unavailable; no in-domain claim is made".into(),
-            ],
-            DomainStatus::NearBoundary => vec![format!(
-                "near applicability-domain boundary: {}",
-                self.near_fields.join(", ")
-            )],
-            DomainStatus::OutsideDomain if self.enforcement == DomainEnforcement::Warn => {
-                vec![format!(
-                    "outside declared applicability domain (warn policy): {}",
-                    self.violated_fields.join(", ")
-                )]
-            }
-            _ => Vec::new(),
-        }
+        self.constraint_statuses
+            .iter()
+            .flat_map(|constraint| constraint.warnings.clone())
+            .collect()
+    }
+
+    fn rejected_constraint(&self) -> Option<&ApplicabilityConstraintReport> {
+        self.constraint_statuses.iter().find(|constraint| {
+            constraint.enforcement == DomainEnforcement::Reject
+                && matches!(
+                    constraint.status,
+                    DomainStatus::OutsideDomain | DomainStatus::DomainUnavailable
+                )
+        })
     }
 }
 
-fn domain_rejected(domain: &DomainEvaluation) -> bool {
-    domain.enforcement == DomainEnforcement::Reject
-        && matches!(
-            domain.status,
-            DomainStatus::OutsideDomain | DomainStatus::DomainUnavailable
-        )
+fn applicability_constraint_error(
+    component_id: &str,
+    constraint: &ApplicabilityConstraintReport,
+) -> ModelError {
+    ModelError::ApplicabilityConstraintRejected {
+        component_id: component_id.into(),
+        constraint_id: constraint.constraint_id.clone(),
+        subject: constraint.subject.clone(),
+        status: constraint.status,
+        observed_value: constraint.observed_value,
+        interval: constraint
+            .interval
+            .clone()
+            .expect("compiled applicability reports always retain their interval"),
+        domain_source: constraint.source,
+        enforcement: constraint.enforcement,
+    }
 }
 
 fn evaluate_applicability_domain(
@@ -1861,19 +1929,12 @@ fn evaluate_applicability_domain(
     }
     let mut result = DomainEvaluation {
         status: DomainStatus::Unevaluated,
-        enforcement: DomainEnforcement::Warn,
         source: DomainSource::Unknown,
         extrapolation_distance: None,
         violated_fields: Vec::new(),
-        near_fields: Vec::new(),
         constraint_statuses: Vec::with_capacity(constraints.len()),
     };
     for constraint in constraints {
-        result.enforcement = if constraint.enforcement == DomainEnforcement::Reject {
-            DomainEnforcement::Reject
-        } else {
-            result.enforcement
-        };
         if result.source == DomainSource::Unknown {
             result.source = constraint.source;
         }
@@ -1893,7 +1954,7 @@ fn evaluate_applicability_domain(
         let field = format!("{}:{:?}", constraint.id, constraint.subject);
         match status {
             DomainStatus::OutsideDomain => result.violated_fields.push(field),
-            DomainStatus::NearBoundary => result.near_fields.push(field),
+            DomainStatus::NearBoundary => {}
             DomainStatus::DomainUnavailable => {
                 result.violated_fields.push(format!("{field} (missing)"))
             }
@@ -1909,23 +1970,54 @@ fn evaluate_applicability_domain(
                 constraint_id: constraint.id.clone(),
                 subject: constraint.subject.clone(),
                 status,
+                enforcement: constraint.enforcement,
+                observed_value: value,
+                interval: Some(constraint.interval.clone()),
+                source: constraint.source,
                 extrapolation_distance: distance,
+                warnings: applicability_constraint_warnings(constraint, status),
             });
     }
-    if result
+    // Domain status describes observed applicability independently from
+    // enforcement. Outside > unavailable > near-boundary > inside; an inside
+    // claim is therefore possible only when every applicable constraint is in.
+    result.status = result
         .constraint_statuses
         .iter()
-        .any(|item| item.status == DomainStatus::DomainUnavailable)
-    {
-        result.status = DomainStatus::DomainUnavailable;
-    } else if !result.violated_fields.is_empty() {
-        result.status = DomainStatus::OutsideDomain;
-    } else if !result.near_fields.is_empty() {
-        result.status = DomainStatus::NearBoundary;
-    } else {
-        result.status = DomainStatus::InsideDomain;
-    }
+        .map(|constraint| constraint.status)
+        .max_by_key(|status| domain_status_severity(*status))
+        .unwrap_or(DomainStatus::NotApplicable);
     result
+}
+
+fn domain_status_severity(status: DomainStatus) -> u8 {
+    match status {
+        DomainStatus::OutsideDomain => 5,
+        DomainStatus::DomainUnavailable => 4,
+        DomainStatus::NearBoundary => 3,
+        DomainStatus::InsideDomain => 2,
+        DomainStatus::NotApplicable => 1,
+        DomainStatus::Unevaluated => 0,
+    }
+}
+
+fn applicability_constraint_warnings(
+    constraint: &ApplicabilityConstraint,
+    status: DomainStatus,
+) -> Vec<String> {
+    let field = format!("{}:{:?}", constraint.id, constraint.subject);
+    match (status, constraint.enforcement) {
+        (DomainStatus::OutsideDomain, DomainEnforcement::Warn) => vec![format!(
+            "outside declared applicability domain (warn policy): {field}"
+        )],
+        (DomainStatus::DomainUnavailable, DomainEnforcement::Warn) => vec![format!(
+            "calibrated applicability domain unavailable (warn policy): {field}"
+        )],
+        (DomainStatus::NearBoundary, _) => {
+            vec![format!("near applicability-domain boundary: {field}")]
+        }
+        _ => Vec::new(),
+    }
 }
 
 fn assess_interval(

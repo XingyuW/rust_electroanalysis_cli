@@ -193,3 +193,6 @@ Verification confidence labels used in **Verified By**:
 | ISM-010 | Equilibrium ion charge shall be Fixed, Deterministic, finite, exact nonzero `i32`, and discrete rather than fitted | `parameter.rs`, `compiler.rs`, `builtins.rs` |
 | ISM-011 | Declared applicability domains shall be source-provenanced and enforced as Warn or Reject without inventing universal limits | `validity.rs`, `compiler.rs` |
 | ISM-012 | Missing disturbance evidence shall yield indeterminate equilibrium classification; nested nonfinite result values shall not serialize | `evidence.rs`, `equilibrium_recognition.rs`, `results/model.rs` |
+| ISM-013 | Legacy and typed applicability declarations shall be normalized, merged deterministically, deduplicated only when semantically identical, and otherwise rejected with typed conflict context | `compiler.rs`, `validity.rs`, `error.rs` |
+| ISM-014 | Applicability enforcement shall be decided per constraint; aggregate domain status shall not upgrade a Warn violation because another constraint is Reject | `compiler.rs`, `validity.rs` |
+| ISM-015 | `to_json` and `write_artifact` shall use the same recursive finite-value validation before JSON conversion | `results/model.rs`, `domain/artifact.rs` |

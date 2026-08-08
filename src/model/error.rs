@@ -1,5 +1,16 @@
 use thiserror::Error;
 
+/// Structured context for competing applicability declarations. Boxed in the
+/// top-level error so routine `Result<_, ModelError>` values remain compact.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ApplicabilityConstraintConflict {
+    pub component_id: String,
+    pub subject: super::validity::DomainSubject,
+    pub first_constraint_id: String,
+    pub second_constraint_id: String,
+    pub reason: String,
+}
+
 /// Typed failures produced while defining, compiling, or evaluating an ISM model.
 #[derive(Debug, Error, Clone, PartialEq)]
 pub enum ModelError {
@@ -88,6 +99,32 @@ pub enum ModelError {
         component_id: String,
         constraint_id: String,
         subject: String,
+    },
+    #[error("conflicting applicability constraints: {details:?}")]
+    ConflictingApplicabilityConstraints {
+        details: Box<ApplicabilityConstraintConflict>,
+    },
+    #[error(
+        "component '{component_id}' has duplicate applicability constraints '{first_constraint_id}' and '{second_constraint_id}' for {subject:?}"
+    )]
+    DuplicateApplicabilityConstraint {
+        component_id: String,
+        subject: super::validity::DomainSubject,
+        first_constraint_id: String,
+        second_constraint_id: String,
+    },
+    #[error(
+        "component '{component_id}' rejected applicability constraint '{constraint_id}' for {subject:?}: {status:?}"
+    )]
+    ApplicabilityConstraintRejected {
+        component_id: String,
+        constraint_id: String,
+        subject: super::validity::DomainSubject,
+        status: super::validity::DomainStatus,
+        observed_value: Option<f64>,
+        interval: super::validity::NumericInterval,
+        domain_source: super::validity::DomainSource,
+        enforcement: super::validity::DomainEnforcement,
     },
     #[error("component '{component}' interpretation status is not allowed: {message}")]
     InvalidInterpretationStatus { component: String, message: String },
