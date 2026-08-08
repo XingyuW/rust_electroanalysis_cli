@@ -72,6 +72,16 @@ pub enum ModelError {
     NonFiniteContribution { component: String },
     #[error("component '{component}' emitted a voltage without a declared contribution owner")]
     UndeclaredVoltageContribution { component: String },
+    #[error("invalid potential reconstruction tolerance {tolerance_v} V")]
+    InvalidTolerance { tolerance_v: f64 },
+    #[error(
+        "component contributions reconstruct {reconstructed_v} V, not predicted {predicted_v} V within {tolerance_v} V"
+    )]
+    ContributionReconstruction {
+        predicted_v: f64,
+        reconstructed_v: f64,
+        tolerance_v: f64,
+    },
     #[error("component '{component}' evaluation failed: {message}")]
     ComponentEvaluation { component: String, message: String },
     #[error("component '{component}' has an invalid descriptor shape: {message}")]

@@ -5,7 +5,9 @@ use super::{
     graph::dependency_order,
     identifiability::IdentifiabilityReport,
     input::{ModelInput, units_compatible, validate_unit},
-    output::{ComponentContribution, ObservationPrediction},
+    output::{
+        ComponentContribution, DEFAULT_POTENTIAL_RECONSTRUCTION_TOLERANCE_V, ObservationPrediction,
+    },
     parameter::{CompiledParameterSpec, ParameterValues},
     registry::ComponentRegistry,
     state::{CompiledStateSpec, ModelState},
@@ -159,10 +161,12 @@ impl CompiledIsmModel {
         input: &ModelInput,
         observed_voltage_v: Option<f64>,
     ) -> Result<ObservationPrediction, ModelError> {
-        ObservationPrediction::new(
+        let prediction = ObservationPrediction::new(
             self.component_contributions(state, parameters, input)?,
             observed_voltage_v,
-        )
+        )?;
+        prediction.verify_reconstruction(DEFAULT_POTENTIAL_RECONSTRUCTION_TOLERANCE_V)?;
+        Ok(prediction)
     }
 
     pub fn observation_jacobian(

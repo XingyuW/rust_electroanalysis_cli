@@ -2,8 +2,8 @@
 
 use crate::{
     model::{
-        AssessmentStatus, EquilibriumAssessment, ModelInput, ModelState, UnexplainedResidual,
-        built_in_registry, compile_model, default_model_definition,
+        AssessmentStatus, EquilibriumAssessment, EquilibriumStatus, ModelInput, ModelState,
+        UnexplainedResidual, built_in_registry, compile_model, default_model_definition,
     },
     model_config::ModelConfig,
     results::{
@@ -373,7 +373,7 @@ fn evaluate(
         UnexplainedResidual::Observed(value) => Some(value),
         UnexplainedResidual::MissingObservedVoltage => None,
     };
-    Ok(ModelAnalysisPoint { time_s: input.time_s, observed_voltage_v: observed, predicted_voltage_v: prediction.predicted_voltage_v, state_values: compiled.state_definitions().iter().zip(&state.values).map(|(spec, value)| (spec.spec.id.clone(), *value)).collect(), contributions: prediction.contributions, equilibrium: EquilibriumAssessment { status: AssessmentStatus::Indeterminate, supporting_evidence: Vec::new(), contradictory_evidence: vec!["Equilibrium recognition requires estimator innovation and environmental evidence.".into()], missing_evidence: vec!["dynamic-state derivative and innovation evidence unavailable in deterministic workflow".into()], validity_domain: compiled.definition().validity_domain.clone() }, validity: compiled.validity_report(state, parameters, input), unexplained_residual_v: residual })
+    Ok(ModelAnalysisPoint { time_s: input.time_s, observed_voltage_v: observed, predicted_voltage_v: prediction.predicted_voltage_v, state_values: compiled.state_definitions().iter().zip(&state.values).map(|(spec, value)| (spec.spec.id.clone(), *value)).collect(), contributions: prediction.contributions, equilibrium: EquilibriumAssessment { status: AssessmentStatus::Indeterminate, classification: EquilibriumStatus::Indeterminate, supporting_evidence: Vec::new(), contradictory_evidence: vec!["Equilibrium recognition requires estimator innovation and environmental evidence.".into()], missing_evidence: vec!["dynamic-state derivative and innovation evidence unavailable in deterministic workflow".into()], validity_domain: compiled.definition().validity_domain.clone() }, validity: compiled.validity_report(state, parameters, input), unexplained_residual_v: residual })
 }
 fn export(
     workspace: &Path,

@@ -333,3 +333,13 @@ removed after its independent gate and is archived in
 `docs/io_migration_validation_archive.md`.
 
 `data_file` is the canonical Dataset-to-domain adaptation layer and compatibility façade. `chi_file.rs` provides scientific EIS/OCPT domain types and canonical-provider adapters; it does not parse physical CSV/TXT/DAT files or recognize CHI/EIS formats. `search_runner.rs` performs filesystem enumeration, canonical-ingestion orchestration, scientific candidate selection, and analysis. `parse_measurement_text` is a deprecated compatibility surface, while `excel_file.rs` and `InputKind` are compatibility/reference helpers. The consumer has no Calamine dependency or local workbook parser.
+
+## ADR-0002 scientific-contract clarification
+
+The model core is the only layer that defines ISM scientific vocabulary. It may
+depend on domain contracts, shared units, small numerical abstractions, and
+narrow existing-equation adapters. It must not depend on CLI, runners,
+plotting, reporting, health, mechanism, or estimation; `tests/model_contracts.rs`
+guards this source-level boundary. Workflow adapters consume the core in the
+direction recorded by ADR-0002. Static component registration is the current
+extension mechanism; no dynamic plugin ABI is part of the architecture.

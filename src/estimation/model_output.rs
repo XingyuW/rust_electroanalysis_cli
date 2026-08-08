@@ -7,7 +7,7 @@ use super::{
 use crate::estimation_config::EquilibriumRecognitionConfig;
 use crate::model::{
     AssessmentStatus, ComponentContribution, ComponentRole, EquilibriumAssessment,
-    ObservationPrediction, UnexplainedResidual,
+    EquilibriumStatus, ObservationPrediction, UnexplainedResidual,
 };
 use nalgebra::{DMatrix, DVector};
 
@@ -298,6 +298,7 @@ fn assess_equilibrium(
     let Some(evidence) = evidence else {
         return EquilibriumAssessment {
             status: AssessmentStatus::Indeterminate,
+            classification: EquilibriumStatus::Indeterminate,
             supporting_evidence: Vec::new(),
             contradictory_evidence: Vec::new(),
             missing_evidence: vec![
@@ -310,6 +311,7 @@ fn assess_equilibrium(
     if !evidence.config.enabled {
         return EquilibriumAssessment {
             status: AssessmentStatus::NotAssessed,
+            classification: EquilibriumStatus::Indeterminate,
             supporting_evidence: Vec::new(),
             contradictory_evidence: Vec::new(),
             missing_evidence: vec!["equilibrium recognition is disabled by configuration".into()],
@@ -447,6 +449,13 @@ fn assess_equilibrium(
     };
     EquilibriumAssessment {
         status,
+        classification: match status {
+            AssessmentStatus::Supported => EquilibriumStatus::Equilibrium,
+            AssessmentStatus::Contradicted => EquilibriumStatus::Disturbed,
+            AssessmentStatus::NotAssessed | AssessmentStatus::Indeterminate => {
+                EquilibriumStatus::Indeterminate
+            }
+        },
         supporting_evidence: supporting,
         contradictory_evidence: contradictory,
         missing_evidence: missing,

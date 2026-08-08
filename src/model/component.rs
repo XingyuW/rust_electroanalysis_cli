@@ -4,6 +4,13 @@ use super::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Stable, schema-persisted identifier for a model component.
+///
+/// The alias deliberately keeps the on-disk representation compatible with
+/// existing version-1 model definitions while making identifier intent clear at
+/// public API boundaries.
+pub type ComponentId = String;
+
 /// Scientific role of a component's explicit voltage contribution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -12,15 +19,38 @@ pub enum ComponentRole {
     Transport,
     Transduction,
     Reference,
+    ExternalDisturbance,
+    ObservationNoise,
+    Auxiliary,
+    Unexplained,
+    /// Backward-compatible spelling for `ExternalDisturbance`. New
+    /// definitions must use `ExternalDisturbance`.
+    #[serde(alias = "external")]
     External,
+}
+
+/// Strength of the physical interpretation attached to a component.
+///
+/// This status describes the component interpretation, not fit quality. In
+/// particular, an exponential fit begins as `Phenomenological`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum InterpretationStatus {
+    #[default]
+    Phenomenological,
+    Hypothesized,
+    ExperimentallySupported,
+    ValidatedForDomain,
 }
 
 /// Declarative component metadata used for graph and unit validation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ComponentDescriptor {
-    pub id: String,
+    pub id: ComponentId,
     pub kind: String,
     pub role: ComponentRole,
+    #[serde(default)]
+    pub interpretation_status: InterpretationStatus,
     #[serde(default)]
     pub depends_on: Vec<String>,
     #[serde(default)]
@@ -35,6 +65,11 @@ pub struct ComponentDescriptor {
     /// Stable owner name for one explicit contribution. This is never an
     /// unexplained-residual owner.
     pub voltage_contribution_owner: Option<String>,
+    /// Declares how this contribution combines with other contributions. A
+    /// voltage-producing component must state this explicitly so terms cannot
+    /// silently overlap semantically.
+    #[serde(default = "default_composition_rule")]
+    pub composition_rule: Option<String>,
     pub source: String,
     pub validity_domain: String,
     #[serde(default)]
@@ -47,6 +82,12 @@ pub struct ComponentDescriptor {
     pub evidence_requirements: Vec<EvidenceRequirement>,
     #[serde(default)]
     pub metadata: std::collections::BTreeMap<String, String>,
+}
+
+fn default_composition_rule() -> Option<String> {
+    // Schema-v1 definitions did not encode composition. Their only supported
+    // deterministic observation semantics were additive voltage terms.
+    Some("additive_voltage".into())
 }
 
 impl ComponentDescriptor {
@@ -78,6 +119,30 @@ impl ComponentDescriptor {
             return Err(ModelError::InvalidUnit {
                 subject: format!("voltage component '{}'", self.id),
                 unit: "missing output unit".into(),
+            });
+        }
+        if self.voltage_contribution_owner.is_some()
+            && self.composition_rule.as_deref().is_none_or(str::is_empty)
+        {
+            return Err(ModelError::InvalidComponentShape {
+                component: self.id.clone(),
+                message: "voltage contribution requires an explicit composition rule".into(),
+            });
+        }
+        if matches!(self.role, ComponentRole::Unexplained)
+            && (self.voltage_contribution_owner.is_some() || self.output_unit.is_some())
+        {
+            return Err(ModelError::InvalidComponentShape {
+                component: self.id.clone(),
+                message: "unexplained residuals are not model components".into(),
+            });
+        }
+        if matches!(self.role, ComponentRole::ObservationNoise)
+            && self.voltage_contribution_owner.is_some()
+        {
+            return Err(ModelError::InvalidComponentShape {
+                component: self.id.clone(),
+                message: "observation noise must remain separate from deterministic voltage contributions".into(),
             });
         }
         Ok(())

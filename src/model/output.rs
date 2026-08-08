@@ -1,6 +1,19 @@
 use super::{component::ComponentRole, error::ModelError};
 use serde::{Deserialize, Serialize};
 
+/// Configured numerical tolerance for reconstruction of the voltage sum.
+pub const DEFAULT_POTENTIAL_RECONSTRUCTION_TOLERANCE_V: f64 = 1e-12;
+
+/// Non-fatal contract warning produced by model evaluation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind", content = "message")]
+pub enum ModelWarning {
+    Validity(String),
+    Identifiability(String),
+    Evidence(String),
+    Reconstruction(String),
+}
+
 /// One named, explicit voltage contribution to the predicted potential.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ComponentContribution {
@@ -65,4 +78,28 @@ impl ObservationPrediction {
             unexplained_residual,
         })
     }
+
+    /// Verifies that the declared contributions reconstruct the prediction to
+    /// the caller's tolerance.
+    pub fn verify_reconstruction(&self, tolerance_v: f64) -> Result<(), ModelError> {
+        if !tolerance_v.is_finite() || tolerance_v < 0.0 {
+            return Err(ModelError::InvalidTolerance { tolerance_v });
+        }
+        let reconstructed = self
+            .contributions
+            .iter()
+            .map(|item| item.voltage_v)
+            .sum::<f64>();
+        if (reconstructed - self.predicted_voltage_v).abs() > tolerance_v {
+            return Err(ModelError::ContributionReconstruction {
+                predicted_v: self.predicted_voltage_v,
+                reconstructed_v: reconstructed,
+                tolerance_v,
+            });
+        }
+        Ok(())
+    }
 }
+
+/// Public scientific name for a decomposed model observation.
+pub type ModelPrediction = ObservationPrediction;

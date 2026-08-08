@@ -430,3 +430,12 @@ High-fidelity Nernst–Planck transport remains outside the reduced-order model
 contract. Adding it requires a separate scientific phase with new state,
 boundary-condition, numerical-stability, unit, identifiability, and experimental
 validation requirements; it is not a release blocker for this framework.
+
+### EQ-ISM-009: Contract-only extension policy
+
+ADR-0002 adds no equation. It standardizes the state/parameter/component
+metadata and requires any future component to state its equation/version,
+composition, validity, interpretation status, and evidence requirements. Nernst,
+Nicolsky-Eisenman, activity, transient, EIS-timescale, and estimation-observation
+implementations remain existing adapters until a separately reviewed equation
+change is approved.

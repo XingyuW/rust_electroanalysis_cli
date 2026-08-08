@@ -10,9 +10,10 @@ use crate::{
     estimation_config::ResolvedEstimationConfig,
     model::{
         ComponentBindings, ComponentDescriptor, ComponentFactory, ComponentRegistry, ComponentRole,
-        EvidenceRequirement, InputSpec, InputValue, IsmComponent, Jacobian, ModelDefinition,
-        ModelError, ModelInput, ModelState, ParameterSpec, ParameterValues, StateSpec,
-        compile_model,
+        EvidenceRequirement, InputSpec, InputValue, InterpretationStatus, IsmComponent, Jacobian,
+        ModelDefinition, ModelError, ModelInput, ModelState, ParameterSpec, ParameterValueSource,
+        ParameterValues, StateInitializationSource, StateSpec, StateTransformation,
+        UncertaintyRepresentation, compile_model,
     },
     results::StoredCalibrationModel,
 };
@@ -53,11 +54,15 @@ pub fn legacy_model_definition(
         .iter()
         .map(|state| StateSpec {
             id: state.name.clone(),
+            name: state.name.replace('_', " "),
+            description: state.interpretation.clone(),
             unit: if state.name == "log10_activity" {
                 "dimensionless".into()
             } else {
                 state.unit.clone()
             },
+            transformation: StateTransformation::Custom(format!("{:?}", state.transform)),
+            initialization_source: StateInitializationSource::Estimated,
             lower_bound: if matches!(state.transform, StateTransform::LogisticBounded) {
                 -30.0
             } else {
@@ -92,7 +97,12 @@ pub fn legacy_model_definition(
                 _ => 0.0,
             },
             source: "legacy estimation state adapter".into(),
+            process_equation_version: 1,
+            observability_requirements: vec![
+                "Estimator observability must be retained in the compatibility report.".into(),
+            ],
             validity_domain: state.interpretation.clone(),
+            uncertainty_representation: UncertaintyRepresentation::Covariance,
         })
         .collect::<Vec<_>>();
     let mut parameters = Vec::new();
@@ -492,17 +502,24 @@ fn descriptor(
     owner: &str,
     metadata: BTreeMap<String, String>,
 ) -> ComponentDescriptor {
-    ComponentDescriptor { id: id.into(), kind: kind.into(), role, depends_on: Vec::new(), required_inputs: Vec::new(), state_ids: states.into_iter().map(str::to_string).collect(), parameter_ids: parameters.into_iter().map(str::to_string).collect(), output_unit: Some("V".into()), voltage_contribution_owner: Some(owner.into()), source: "legacy estimation compatibility adapter".into(), validity_domain: "stored calibration and configured legacy estimator domain".into(), equation: "legacy Phase 6 estimator equation adapter".into(), equation_version: 1, assumptions: vec!["Compatibility adapter preserves legacy numerical semantics without assigning a physical mechanism.".into()], evidence_requirements: vec![EvidenceRequirement { hypothesis_id: format!("{id}.identity"), proposed_mechanism_label: "unassigned".into(), independent_evidence_types: vec!["independent experiment".into()], minimum_independent_observations: 2, validity_domain: "declared calibration domain".into(), alternatives_to_consider: vec!["other reduced-order explanations".into()], required_uncertainty_statement: "state and calibration uncertainty must be retained".into() }], metadata }
+    ComponentDescriptor { id: id.into(), kind: kind.into(), role, interpretation_status: InterpretationStatus::Phenomenological, depends_on: Vec::new(), required_inputs: Vec::new(), state_ids: states.into_iter().map(str::to_string).collect(), parameter_ids: parameters.into_iter().map(str::to_string).collect(), output_unit: Some("V".into()), voltage_contribution_owner: Some(owner.into()), composition_rule: Some("additive_voltage".into()), source: "legacy estimation compatibility adapter".into(), validity_domain: "stored calibration and configured legacy estimator domain".into(), equation: "legacy Phase 6 estimator equation adapter".into(), equation_version: 1, assumptions: vec!["Compatibility adapter preserves legacy numerical semantics without assigning a physical mechanism.".into()], evidence_requirements: vec![EvidenceRequirement { hypothesis_id: format!("{id}.identity"), proposed_mechanism_label: "unassigned".into(), independent_evidence_types: vec!["independent experiment".into()], minimum_independent_observations: 2, validity_domain: "declared calibration domain".into(), alternatives_to_consider: vec!["other reduced-order explanations".into()], required_uncertainty_statement: "state and calibration uncertainty must be retained".into() }], metadata }
 }
 fn parameter(id: &str, unit: &str, lower: f64, upper: f64, default_value: f64) -> ParameterSpec {
     ParameterSpec {
         id: id.into(),
+        name: id.replace('_', " "),
+        description: "Legacy estimator compatibility parameter.".into(),
         unit: unit.into(),
         lower_bound: lower,
         upper_bound: upper,
         default_value,
         uncertainty: 0.0,
         source: "legacy estimation configuration".into(),
+        equation_version: 1,
+        identifiability_requirements: vec![
+            "Retain legacy estimator observability and covariance evidence.".into(),
+        ],
+        value_source: ParameterValueSource::ExternallySupplied,
         validity_domain: "configured legacy estimator domain".into(),
     }
 }

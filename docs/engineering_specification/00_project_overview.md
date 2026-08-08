@@ -154,3 +154,10 @@ owns validation, analysis, estimation, modeling, health, mechanism, reporting,
 plots, and analysis artifacts. The completed legacy-parity evidence is archived
 in `docs/io_migration_validation_archive.md`; no local production physical
 parser remains.
+
+## ISM scientific-contract boundary (ADR-0002)
+
+The ISM framework is an extensible scientific contract, not a completed
+high-fidelity membrane transport model. It records explicit potential terms,
+noise, residuals, uncertainty, validity, and evidence without converting a fit
+into a physical explanation. See `docs/adr/0002-unified-ism-scientific-contract.md`.

@@ -145,3 +145,12 @@ scientific contributions.
 `estimation::model_output::equilibrium_tests` covers a fully evidenced stable
 timestamp, rejection of slow reference drift, and indeterminate classification
 when history or residual evidence is missing.
+
+### ADR-0002 contract coverage
+
+`tests/model_contracts.rs` guards stable component IDs, duplicate state and
+parameter rejection, required state/parameter/component metadata, the separation
+of noise/residuals from deterministic voltage, and forbidden high-level imports
+from `src/model`. Existing `model_core` tests cover acyclic dependencies and
+unique contribution ownership. These tests are architectural invariants, not
+evidence that a high-fidelity physical transport model has been validated.

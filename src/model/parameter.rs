@@ -2,23 +2,65 @@ use super::error::ModelError;
 use super::input::validate_unit;
 use serde::{Deserialize, Serialize};
 
+/// How a parameter value enters an evaluation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ParameterValueSource {
+    #[default]
+    Fixed,
+    Fitted,
+    ExternallySupplied,
+}
+
 /// Versioned metadata and constraints for a model parameter.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterSpec {
     pub id: String,
+    #[serde(default = "default_name")]
+    pub name: String,
+    #[serde(default = "default_description")]
+    pub description: String,
     pub unit: String,
     pub lower_bound: f64,
     pub upper_bound: f64,
     pub default_value: f64,
     pub uncertainty: f64,
     pub source: String,
+    #[serde(default = "default_equation_version")]
+    pub equation_version: u32,
+    #[serde(default)]
+    pub identifiability_requirements: Vec<String>,
+    #[serde(default)]
+    pub value_source: ParameterValueSource,
     pub validity_domain: String,
+}
+
+const fn default_equation_version() -> u32 {
+    1
+}
+
+fn default_name() -> String {
+    "unspecified parameter name (schema-v1 migration)".into()
+}
+
+fn default_description() -> String {
+    "No parameter description was present in the schema-v1 definition.".into()
 }
 
 impl ParameterSpec {
     pub(crate) fn validate(&self) -> Result<(), ModelError> {
         if self.id.trim().is_empty() {
             return Err(ModelError::EmptyIdentifier { kind: "parameter" });
+        }
+        if self.name.trim().is_empty() || self.description.trim().is_empty() {
+            return Err(ModelError::EmptyIdentifier {
+                kind: "parameter name or description",
+            });
+        }
+        if self.equation_version == 0 {
+            return Err(ModelError::EmptyIdentifier {
+                kind: "parameter equation version",
+            });
         }
         validate_unit(&self.unit, format!("parameter '{}'", self.id))?;
         if !self.lower_bound.is_finite()

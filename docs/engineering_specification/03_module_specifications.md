@@ -289,3 +289,13 @@ descriptor content before validating its shape.
 ## `data_file/electrodata_domain_adapter.rs`
 
 This module owns no raw parsing. It applies the explicit project compatibility `ReadOptions`, calls `electrodata_io::read_with_options`, converts typed time-series/EIS views into project types, preserves source channel names, units, ordering and null cells, and passes `electrodata_io::Error` transparently through `DataParsingError`.
+
+### ISM scientific-contract additions (ADR-0002)
+
+`ComponentId`, `InterpretationStatus`, `EvidenceAssessment`, `ModelPrediction`,
+`ModelWarning`, and `EquilibriumStatus` make model-form uncertainty and
+interpretation boundaries explicit. `StateSpec` and `ParameterSpec` retain
+scientific metadata beyond bounds and units, including transformations,
+initialization/value source, equation version, observability/identifiability,
+validity, and uncertainty representation. These are contracts only: they do
+not introduce a new numerical transport equation.

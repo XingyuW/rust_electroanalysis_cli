@@ -112,3 +112,20 @@ This list now contains policy-level decisions that still require owner input.
 | OQ-008 | Low | Platform |
 | OQ-010 | Low | Numerical |
 | OQ-011 | Low | Infrastructure |
+
+### OQ-012: Operational equilibrium thresholds
+
+**Question**: What domain-specific threshold sources and acceptance criteria
+should govern the evidence categories in `EquilibriumStatus`?
+
+**Impact**: High. The contract deliberately preserves indeterminacy until this
+scientific decision and validation data are available.
+
+### OQ-013: Mechanism-evidence acceptance policy
+
+**Question**: Which independent evidence types, replication counts, and
+contradiction rules are sufficient to promote a component from
+`Hypothesized` to `ExperimentallySupported` or `ValidatedForDomain`?
+
+**Impact**: High. This is required before mechanism labels can be used in a
+scientific conclusion.

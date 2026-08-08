@@ -66,7 +66,7 @@ pub fn default_model_definition() -> ModelDefinition {
             descriptor(
                 "baseline_drift",
                 "disturbance.linear_drift",
-                ComponentRole::External,
+                ComponentRole::ExternalDisturbance,
                 vec![],
                 vec![],
                 vec!["baseline_drift_v_per_s"],
@@ -77,7 +77,7 @@ pub fn default_model_definition() -> ModelDefinition {
             descriptor(
                 "observation_noise",
                 "disturbance.stochastic_observation_noise",
-                ComponentRole::External,
+                ComponentRole::ObservationNoise,
                 vec![],
                 vec![],
                 vec!["observation_noise_std_v"],
@@ -92,12 +92,22 @@ pub fn default_model_definition() -> ModelDefinition {
 fn state(id: &str) -> StateSpec {
     StateSpec {
         id: id.into(),
+        name: id.replace('_', " "),
+        description:
+            "Phenomenological reduced-order voltage state; no physical mechanism is implied.".into(),
         unit: "V".into(),
+        transformation: super::StateTransformation::Identity,
+        initialization_source: super::StateInitializationSource::DeclaredDefault,
         lower_bound: -10.0,
         upper_bound: 10.0,
         initial_value: 0.0,
         source: "default reduced-order model".into(),
+        process_equation_version: 1,
+        observability_requirements: vec![
+            "State observability must be assessed before interpretation.".into(),
+        ],
         validity_domain: "reduced-order voltage mode".into(),
+        uncertainty_representation: super::UncertaintyRepresentation::NotSpecified,
     }
 }
 fn parameter(
@@ -109,12 +119,21 @@ fn parameter(
 ) -> ParameterSpec {
     ParameterSpec {
         id: id.into(),
+        name: id.replace('_', " "),
+        description: "Reduced-order model parameter; domain-specific calibration is required."
+            .into(),
         unit: unit.into(),
         lower_bound,
         upper_bound,
         default_value,
         uncertainty: 0.0,
         source: "default reduced-order model".into(),
+        equation_version: 1,
+        identifiability_requirements: vec![
+            "Structural and practical identifiability must be assessed before interpretation."
+                .into(),
+        ],
+        value_source: super::ParameterValueSource::Fitted,
         validity_domain: "must be calibrated for the experimental domain".into(),
     }
 }
@@ -143,6 +162,7 @@ fn descriptor(
         id: id.into(),
         kind: kind.into(),
         role,
+        interpretation_status: super::InterpretationStatus::Phenomenological,
         depends_on: Vec::new(),
         required_inputs: input_ids
             .into_iter()
@@ -160,6 +180,7 @@ fn descriptor(
         parameter_ids: parameter_ids.into_iter().map(str::to_string).collect(),
         output_unit: owner.map(|_| "V".into()),
         voltage_contribution_owner: owner.map(str::to_string),
+        composition_rule: owner.map(|_| "additive_voltage".into()),
         source: "Phase 03 built-in component".into(),
         validity_domain: "reduced-order component; no mechanism confirmation implied".into(),
         equation: equation.into(),

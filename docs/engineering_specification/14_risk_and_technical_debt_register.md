@@ -114,3 +114,11 @@ The pinned provider does not currently expose a public canonical in-memory
 text/buffer read API. `parse_measurement_text` is therefore deprecated and
 restricted to compatibility/tests; file-based `electrodata-io` ingestion is the
 supported production path. This is non-blocking provider follow-up debt.
+
+## ADR-0002 follow-up risks
+
+| ID | Category | Description | Impact | Priority |
+|----|----------|-------------|--------|----------|
+| RISK-030 | SCI | Interpretation metadata and evidence contracts prevent automatic claims but cannot establish physical identity without independent experiments. | High | P1 |
+| RISK-031 | SCI | Equilibrium categories are an interface until thresholds and validation data support a complete recognition algorithm. | High | P1 |
+| RISK-032 | ARCH | The current `ComponentId` string representation is compatibility-preserving; a future extracted crate may need stronger namespaced-ID validation. | Medium | P2 |

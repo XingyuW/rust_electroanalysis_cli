@@ -167,6 +167,9 @@ Verification confidence labels used in **Verified By**:
 | ART-002 | Incompatible artifact kinds and future schema versions shall return typed errors | Implemented and migration-tested |
 | ISM-001 | Every state and parameter shall declare units, finite bounds, source, and validity domain | Enforced during model compilation |
 | ISM-002 | Component voltage contributions shall reconstruct predicted potential and shall not own unexplained residual | Enforced by compiled observation evaluation and regression tests |
+| ISM-003 | Every ISM component shall declare an interpretation status and explicit composition rule when it contributes voltage | Enforced by `model::ComponentDescriptor` validation |
+| ISM-004 | ISM observation noise and unexplained residuals shall remain outside deterministic potential reconstruction | Enforced by role validation and decomposition tests |
+| ISM-005 | Equilibrium recognition shall preserve missing evidence and its required evidence categories | Contract defined; algorithm remains a future scientific implementation |
 | EST-ISM-001 | EKF and UKF shall use one compiled scientific model for transition, Jacobian, observation, and contribution equations | Implemented through the legacy-to-ISM compatibility adapter |
 | VAL-ISM-001 | Missing reference, uncertainty, or grouping evidence shall remain unavailable rather than be replaced by proxy metrics | Implemented in experimental validation evaluation |
 

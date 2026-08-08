@@ -23,19 +23,28 @@ mod validity;
 
 pub use compiler::{CompiledIsmModel, compile_model};
 pub use component::{
-    ComponentBindings, ComponentDescriptor, ComponentRole, IsmComponent, Jacobian,
+    ComponentBindings, ComponentDescriptor, ComponentId, ComponentRole, InterpretationStatus,
+    IsmComponent, Jacobian,
 };
 pub use defaults::default_model_definition;
 pub use definition::{MODEL_DEFINITION_SCHEMA_VERSION, ModelDefinition};
-pub use equilibrium_recognition::EquilibriumAssessment;
+pub use equilibrium_recognition::{
+    EquilibriumAssessment, EquilibriumEvidenceRequirements, EquilibriumStatus,
+};
 pub use error::ModelError;
-pub use evidence::EvidenceRequirement;
+pub use evidence::{EvidenceAssessment, EvidenceAssessmentStatus, EvidenceRequirement};
 pub use identifiability::{AssessmentStatus, IdentifiabilityReport};
 pub use input::{InputRequirement, InputSpec, InputValue, ModelInput};
-pub use output::{ComponentContribution, ObservationPrediction, UnexplainedResidual};
-pub use parameter::{CompiledParameterSpec, ParameterSpec, ParameterValues};
+pub use output::{
+    ComponentContribution, DEFAULT_POTENTIAL_RECONSTRUCTION_TOLERANCE_V, ModelPrediction,
+    ModelWarning, ObservationPrediction, UnexplainedResidual,
+};
+pub use parameter::{CompiledParameterSpec, ParameterSpec, ParameterValueSource, ParameterValues};
 pub use registry::{ComponentFactory, ComponentRegistry, built_in_registry};
-pub use state::{CompiledStateSpec, ModelState, StateSpec};
+pub use state::{
+    CompiledStateSpec, ModelState, StateInitializationSource, StateSpec, StateTransformation,
+    UncertaintyRepresentation,
+};
 pub use validity::{ValidityDomain, ValidityReport};
 
 /// Public name for the framework's model implementation contract.

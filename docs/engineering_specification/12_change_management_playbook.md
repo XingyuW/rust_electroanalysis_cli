@@ -356,3 +356,14 @@ Phase 06 introduces additive model-analysis artifacts. Readers verify both
 
 Phase 07 validation artifacts are additive. Consumers reject a mismatched
 validation schema rather than treating unknown experiment evidence as valid.
+
+### ADR-0002 component-extension procedure
+
+Before adding an ISM component, read `docs/adr/0002-unified-ism-scientific-contract.md`.
+The change must include: component implementation; descriptor; state and
+parameter specifications; static registry entry; unit tests; validity tests;
+synthetic behavior test; equation documentation; and a traceability update.
+Do not add parallel mechanism, estimation, health, plotting, or reporting
+match statements. If a change alters state/parameter units, equation meaning,
+or validity semantics, record the schema-version and migration decision before
+implementation. Dynamic-library plugins are not an approved extension path.

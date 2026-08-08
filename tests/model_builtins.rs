@@ -1,7 +1,7 @@
 use rust_electroanalysis_cli::{
     model::{
-        InputRequirement, InputSpec, ModelInput, ParameterSpec, built_in_registry, compile_model,
-        default_model_definition,
+        InputRequirement, InputSpec, ModelInput, ParameterSpec, ParameterValueSource,
+        built_in_registry, compile_model, default_model_definition,
     },
     potentiometry::calibration::nicolsky_eisenman::{InterferentModelInput, evaluate_potential},
 };
@@ -71,12 +71,17 @@ fn nicolsky_eisenman_with_interferents() {
         2,
         ParameterSpec {
             id: "selectivity_na".into(),
+            name: "sodium selectivity".into(),
+            description: "Synthetic selectivity coefficient.".into(),
             unit: "dimensionless".into(),
             lower_bound: 1e-9,
             upper_bound: 1.0,
             default_value: 0.1,
             uncertainty: 0.01,
             source: "synthetic test".into(),
+            equation_version: 1,
+            identifiability_requirements: vec!["synthetic test parameter".into()],
+            value_source: ParameterValueSource::Fixed,
             validity_domain: "synthetic".into(),
         },
     );
@@ -263,22 +268,32 @@ fn conductivity_disturbance_is_a_named_external_contribution() {
     component.equation = "linear conductivity covariate".into();
     definition.parameters.push(ParameterSpec {
         id: "conductivity_sensitivity".into(),
+        name: "conductivity sensitivity".into(),
+        description: "Synthetic conductivity sensitivity.".into(),
         unit: "V/(S/m)".into(),
         lower_bound: -1.0,
         upper_bound: 1.0,
         default_value: 0.01,
         uncertainty: 0.001,
         source: "synthetic".into(),
+        equation_version: 1,
+        identifiability_requirements: vec!["synthetic test parameter".into()],
+        value_source: ParameterValueSource::Fixed,
         validity_domain: "synthetic".into(),
     });
     definition.parameters.push(ParameterSpec {
         id: "conductivity_reference".into(),
+        name: "conductivity reference".into(),
+        description: "Synthetic conductivity reference.".into(),
         unit: "S/m".into(),
         lower_bound: 0.0,
         upper_bound: 10.0,
         default_value: 1.0,
         uncertainty: 0.0,
         source: "synthetic".into(),
+        equation_version: 1,
+        identifiability_requirements: vec!["synthetic test parameter".into()],
+        value_source: ParameterValueSource::Fixed,
         validity_domain: "synthetic".into(),
     });
     definition.inputs.push(InputSpec {

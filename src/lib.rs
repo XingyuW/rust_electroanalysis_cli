@@ -52,9 +52,12 @@ pub use domain::{
     WorkspaceError, load_experiment_metadata,
 };
 pub use model::{
-    CompiledIsmModel, ComponentContribution, ComponentDescriptor, ComponentRole,
-    EquilibriumAssessment, EvidenceRequirement, IdentifiabilityReport, IsmComponent, IsmModel,
-    ModelDefinition, ModelInput, ModelState, ParameterSpec, StateSpec, ValidityReport,
+    CompiledIsmModel, ComponentContribution, ComponentDescriptor, ComponentId, ComponentRole,
+    EquilibriumAssessment, EquilibriumEvidenceRequirements, EquilibriumStatus, EvidenceAssessment,
+    EvidenceAssessmentStatus, EvidenceRequirement, IdentifiabilityReport, InterpretationStatus,
+    IsmComponent, IsmModel, ModelDefinition, ModelInput, ModelPrediction, ModelState, ModelWarning,
+    ParameterSpec, ParameterValueSource, StateInitializationSource, StateSpec, StateTransformation,
+    UncertaintyRepresentation, ValidityReport,
 };
 pub use potentiometry::units::{Quantity, QuantityUnit};
 pub use results::CircuitFitResult;
