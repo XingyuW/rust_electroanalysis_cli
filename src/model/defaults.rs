@@ -185,6 +185,61 @@ pub fn reduced_ism_v1_definition() -> ModelDefinition {
     }
 }
 
+/// Explicit reduced-V1 variant used when estimation enables the optional
+/// candidate-transduction input. The ordinary reduced definition remains
+/// unchanged so inactive compiled scenarios retain their historical state
+/// vector and artifact shape.
+pub fn reduced_ism_v1_with_transduction_definition() -> ModelDefinition {
+    let mut definition = reduced_ism_v1_definition();
+    definition
+        .states
+        .push(state("transduction_candidate_potential_v"));
+    definition.parameters.push(parameter(
+        "transduction_candidate_tau_s",
+        "s",
+        1e-6,
+        1e7,
+        10.0,
+    ));
+    definition.parameters.push(parameter(
+        "transduction_candidate_gain_v_per_decade",
+        "V",
+        -10.0,
+        10.0,
+        0.015,
+    ));
+    let reference_index = definition
+        .components
+        .iter()
+        .position(|component| component.id == "reference_offset")
+        .unwrap_or(definition.components.len());
+    definition.components.insert(
+        reference_index,
+        v1_descriptor(
+            "transduction_candidate",
+            "transduction.first_order_candidate",
+            ComponentRole::Transduction,
+            super::InterpretationStatus::Hypothesized,
+            vec!["transduction_drive"],
+            vec!["transduction_candidate_potential_v"],
+            vec![
+                "transduction_candidate_tau_s",
+                "transduction_candidate_gain_v_per_decade",
+            ],
+            Some("transduction_candidate"),
+            super::ContributionSemantics::AdditivePotential,
+            "dx/dt=-x/tau; x+=gain*transduction_drive",
+            BTreeMap::new(),
+            vec![
+                "explicit transduction-drive event",
+                "independent perturbation",
+                "repeatability",
+            ],
+        ),
+    );
+    definition
+}
+
 #[allow(clippy::too_many_arguments)]
 fn v1_descriptor(
     id: &str,

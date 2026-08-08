@@ -236,6 +236,8 @@ pub struct StateEstimationReport {
     #[serde(default)]
     pub resolved_model_definition_source:
         Option<crate::estimation::ism_adapter::ResolvedModelDefinitionSource>,
+    #[serde(default)]
+    pub resolved_input_bindings: Option<crate::estimation::ism_adapter::ResolvedModelInputBindings>,
     pub state_definitions: Vec<StateDefinition>,
     pub initialization: InitializationReport,
     pub process_covariance: CovarianceResolution,

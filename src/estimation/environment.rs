@@ -17,7 +17,7 @@ use crate::{
     },
     potentiometry::{
         calibration::activity::evaluate_activity,
-        units::{Quantity, QuantityUnit},
+        units::{FlowUnit, Quantity, QuantityUnit},
     },
 };
 use serde::{Deserialize, Serialize};
@@ -55,6 +55,13 @@ pub struct AlignedValue {
     pub source_unit: Option<String>,
     #[serde(default)]
     pub conversion: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EventFieldValue {
+    pub value: f64,
+    pub unit: String,
+    pub event_timestamps_s: Vec<f64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -97,6 +104,8 @@ pub struct AlignedEnvironment {
     pub transduction_drive_source: Option<String>,
     #[serde(default)]
     pub transduction_event_timestamps_s: Vec<f64>,
+    #[serde(default)]
+    pub event_fields: BTreeMap<String, EventFieldValue>,
     pub values: Vec<AlignedValue>,
     pub warnings: Vec<EstimationWarning>,
 }
@@ -286,8 +295,10 @@ pub fn align_experiment_with_polarization(
         result.ionic_strength_mol_l = config.fallback_ionic_strength_mol_l;
     }
     if let Some(series) = find(&config.flow_series) {
-        if let Some(value) = align_series(series, timestamp_s, method, config)? {
-            result.flow = Some(value.value);
+        if let Some(mut value) = align_series(series, timestamp_s, method, config)? {
+            result.flow = Some(to_flow_m_per_s(value.value, &series.unit)?);
+            value.source_unit = Some(series.unit.clone());
+            value.conversion = Some("converted to m/s".into());
             result.values.push(value);
         }
     }
@@ -297,7 +308,8 @@ pub fn align_experiment_with_polarization(
             .iter()
             .find(|s| s.name == *series_name)
         {
-            if let Some(value) = align_series(series, timestamp_s, method, config)? {
+            if let Some(mut value) = align_series(series, timestamp_s, method, config)? {
+                value.source_unit = Some(series.unit.clone());
                 result
                     .interferent_activities
                     .insert(name.clone(), value.value);
@@ -461,6 +473,12 @@ fn to_kelvin(value: f64, unit: &str) -> Result<f64, EstimationError> {
 fn to_conductivity(value: f64, unit: &str) -> Result<f64, EstimationError> {
     Quantity::parse(value, unit)
         .and_then(|quantity| quantity.to_conductivity_s_per_m())
+        .map_err(|error| EstimationError::invalid(error.to_string()))
+}
+
+fn to_flow_m_per_s(value: f64, unit: &str) -> Result<f64, EstimationError> {
+    unit.parse::<FlowUnit>()
+        .and_then(|flow_unit| flow_unit.to_meters_per_second(value))
         .map_err(|error| EstimationError::invalid(error.to_string()))
 }
 
@@ -747,6 +765,38 @@ pub fn bind_compiled_transition_inputs(
             .enumerate()
             .filter(|(_, event)| event.timestamp > previous_time && event.timestamp <= current_time)
             .collect::<Vec<_>>();
+        let mut event_fields = BTreeMap::new();
+        for (_, event) in &interval_events {
+            let Some(metadata) = event.metadata.as_ref() else {
+                continue;
+            };
+            for (field, raw) in metadata {
+                if field.ends_with("_unit") {
+                    continue;
+                }
+                let Ok(value) = raw.parse::<f64>() else {
+                    continue;
+                };
+                if !value.is_finite() {
+                    continue;
+                }
+                let unit = metadata
+                    .get(&format!("{field}_unit"))
+                    .cloned()
+                    .or_else(|| event.unit.clone())
+                    .unwrap_or_else(|| "dimensionless".into());
+                let entry = event_fields
+                    .entry(field.clone())
+                    .or_insert_with(|| EventFieldValue {
+                        value: 0.0,
+                        unit: unit.clone(),
+                        event_timestamps_s: Vec::new(),
+                    });
+                entry.value += value;
+                entry.event_timestamps_s.push(event.timestamp);
+            }
+        }
+        environments[index].event_fields = event_fields;
         let mut step_sum = 0.0;
         let mut step_count = 0;
         let mut step_timestamps = Vec::new();

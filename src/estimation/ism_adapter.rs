@@ -29,6 +29,606 @@ pub enum ResolvedModelDefinitionSource {
     File { path: PathBuf, sha256: String },
 }
 
+pub type InputId = String;
+
+/// Standard environmental channels understood by the estimation boundary.
+/// User-defined channels are represented by `EnvironmentNamed` below.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvironmentSource {
+    Temperature,
+    Conductivity,
+    IonicStrength,
+    Flow,
+    PolarizationInput,
+    Interferent(String),
+}
+
+/// Typed origin of a compiled model input. The declaration string is kept in
+/// `InputBindingProvenance`; this enum is the only runtime dispatch path.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum ModelInputSource {
+    EstimatedTargetActivity,
+    ActivityStep,
+    TransductionDrive,
+    Environment(EnvironmentSource),
+    EnvironmentNamed(String),
+    EventField { field: String },
+    Constant { value: f64, unit: String },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum InputUnitConversion {
+    Identity,
+    Converted {
+        source_unit: String,
+        target_unit: String,
+    },
+    Deferred,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InputBindingProvenance {
+    pub target_input_id: InputId,
+    pub source_declaration: String,
+    pub model_id: String,
+    pub expected_unit: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ResolvedInputBinding {
+    pub target_input_id: InputId,
+    pub source: ModelInputSource,
+    pub target_unit: String,
+    pub source_unit: Option<String>,
+    pub conversion: InputUnitConversion,
+    pub provenance: InputBindingProvenance,
+    pub required: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ResolvedModelInputBindings {
+    pub bindings: BTreeMap<InputId, ResolvedInputBinding>,
+}
+
+impl ResolvedModelInputBindings {
+    pub fn binding(&self, input_id: &str) -> Option<&ResolvedInputBinding> {
+        self.bindings.get(input_id)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct RuntimeInputValue {
+    value: f64,
+    unit: String,
+}
+
+fn standard_binding_declarations(config: &ResolvedEstimationConfig) -> BTreeMap<String, String> {
+    BTreeMap::from([
+        (
+            "target_activity".into(),
+            config.model.input_bindings.target_activity.clone(),
+        ),
+        (
+            "delta_log10_activity".into(),
+            config.model.input_bindings.delta_log10_activity.clone(),
+        ),
+        (
+            "temperature".into(),
+            config.model.input_bindings.temperature.clone(),
+        ),
+        (
+            "conductivity".into(),
+            config.model.input_bindings.conductivity.clone(),
+        ),
+    ])
+}
+
+fn default_binding_declaration(input_id: &str) -> Option<&'static str> {
+    match input_id {
+        "target_activity" => Some("estimated_activity"),
+        "delta_log10_activity" => Some("experiment_activity_step"),
+        "temperature" => Some("environment:temperature"),
+        "conductivity" => Some("environment:conductivity"),
+        "ionic_strength" => Some("environment:ionic_strength"),
+        "flow" => Some("environment:flow"),
+        "polarization_input_v" => Some("environment:polarization_input_v"),
+        "transduction_drive" => Some("transduction_drive"),
+        input_id if input_id.starts_with("interferent.") => Some("environment:interferent"),
+        _ => None,
+    }
+}
+
+fn unsupported_source(
+    target_input_id: &str,
+    source_declaration: &str,
+    model_id: &str,
+) -> EstimationError {
+    EstimationError::UnsupportedModelInputSource {
+        target_input_id: target_input_id.into(),
+        source_declaration: source_declaration.into(),
+        model_id: model_id.into(),
+    }
+}
+
+fn parse_constant(
+    target_input_id: &str,
+    source_declaration: &str,
+    model_id: &str,
+    payload: &str,
+) -> Result<ModelInputSource, EstimationError> {
+    let payload = payload.trim();
+    let (value_text, unit) = if let Some((value, unit)) = payload.split_once(',') {
+        (value.trim().to_string(), unit.trim().to_string())
+    } else if let Some((value, unit)) = payload.split_once(':') {
+        (value.trim().to_string(), unit.trim().to_string())
+    } else {
+        let mut parts = payload.split_whitespace();
+        let value = parts.next().unwrap_or_default().to_string();
+        (value, parts.collect::<Vec<_>>().join(" "))
+    };
+    let value = value_text
+        .parse::<f64>()
+        .map_err(|_| unsupported_source(target_input_id, source_declaration, model_id))?;
+    if !value.is_finite() || unit.trim().is_empty() {
+        return Err(unsupported_source(
+            target_input_id,
+            source_declaration,
+            model_id,
+        ));
+    }
+    Ok(ModelInputSource::Constant {
+        value,
+        unit: unit.trim().into(),
+    })
+}
+
+fn parse_binding_source(
+    target_input_id: &str,
+    source_declaration: &str,
+    model_id: &str,
+) -> Result<ModelInputSource, EstimationError> {
+    let declaration = source_declaration.trim();
+    if declaration.is_empty() {
+        return Err(unsupported_source(
+            target_input_id,
+            source_declaration,
+            model_id,
+        ));
+    }
+    match declaration {
+        "estimated_activity" | "target_activity" => Ok(ModelInputSource::EstimatedTargetActivity),
+        "experiment_activity_step" | "activity_step" | "delta_log10_activity" => {
+            Ok(ModelInputSource::ActivityStep)
+        }
+        "transduction_drive" => Ok(ModelInputSource::TransductionDrive),
+        _ if declaration.starts_with("environment:") => {
+            let name = declaration.trim_start_matches("environment:").trim();
+            if name.is_empty() {
+                return Err(unsupported_source(
+                    target_input_id,
+                    source_declaration,
+                    model_id,
+                ));
+            }
+            let source = match name {
+                "temperature" => EnvironmentSource::Temperature,
+                "conductivity" => EnvironmentSource::Conductivity,
+                "ionic_strength" | "ionic-strength" => EnvironmentSource::IonicStrength,
+                "flow" => EnvironmentSource::Flow,
+                "polarization_input_v" => EnvironmentSource::PolarizationInput,
+                "interferent" => EnvironmentSource::Interferent(
+                    target_input_id
+                        .strip_prefix("interferent.")
+                        .unwrap_or(target_input_id)
+                        .into(),
+                ),
+                value if value.starts_with("interferent.") => {
+                    EnvironmentSource::Interferent(value.trim_start_matches("interferent.").into())
+                }
+                value => return Ok(ModelInputSource::EnvironmentNamed(value.into())),
+            };
+            Ok(ModelInputSource::Environment(source))
+        }
+        _ if declaration.starts_with("event:") || declaration.starts_with("event_field:") => {
+            let field = declaration
+                .split_once(':')
+                .map(|(_, field)| field.trim())
+                .unwrap_or_default();
+            if field.is_empty() {
+                return Err(unsupported_source(
+                    target_input_id,
+                    source_declaration,
+                    model_id,
+                ));
+            }
+            Ok(ModelInputSource::EventField {
+                field: field.into(),
+            })
+        }
+        _ if declaration.starts_with("constant:") => parse_constant(
+            target_input_id,
+            source_declaration,
+            model_id,
+            declaration.trim_start_matches("constant:"),
+        ),
+        _ if declaration.starts_with("constant(") && declaration.ends_with(')') => parse_constant(
+            target_input_id,
+            source_declaration,
+            model_id,
+            &declaration[9..declaration.len() - 1],
+        ),
+        _ => Err(unsupported_source(
+            target_input_id,
+            source_declaration,
+            model_id,
+        )),
+    }
+}
+
+fn source_unit(source: &ModelInputSource) -> Option<String> {
+    match source {
+        ModelInputSource::EstimatedTargetActivity
+        | ModelInputSource::ActivityStep
+        | ModelInputSource::TransductionDrive => Some("activity".into()),
+        ModelInputSource::Environment(source) => Some(
+            match source {
+                EnvironmentSource::Temperature => "K",
+                EnvironmentSource::Conductivity => "S/m",
+                EnvironmentSource::IonicStrength => "mol/L",
+                EnvironmentSource::Flow => "m/s",
+                EnvironmentSource::PolarizationInput => "V",
+                EnvironmentSource::Interferent(_) => "activity",
+            }
+            .into(),
+        ),
+        ModelInputSource::EnvironmentNamed(_) | ModelInputSource::EventField { .. } => None,
+        ModelInputSource::Constant { unit, .. } => Some(unit.clone()),
+    }
+}
+
+fn unit_conversion(source_unit: &str, target_unit: &str) -> Option<InputUnitConversion> {
+    if crate::model::units_compatible(source_unit, target_unit) {
+        return Some(InputUnitConversion::Identity);
+    }
+    can_convert_units(source_unit, target_unit).then_some(InputUnitConversion::Converted {
+        source_unit: source_unit.into(),
+        target_unit: target_unit.into(),
+    })
+}
+
+fn normalized_unit(unit: &str) -> String {
+    unit.trim().to_ascii_lowercase().replace(['μ', 'µ'], "u")
+}
+
+fn can_convert_units(source_unit: &str, target_unit: &str) -> bool {
+    let source = normalized_unit(source_unit);
+    let target = normalized_unit(target_unit);
+    (matches!(source.as_str(), "c" | "°c" | "degc" | "celsius") && target == "k")
+        || (source == "k" && matches!(target.as_str(), "c" | "°c" | "degc" | "celsius"))
+        || (matches!(source.as_str(), "v" | "mv" | "uv")
+            && matches!(target.as_str(), "v" | "mv" | "uv"))
+        || (matches!(source.as_str(), "s/m" | "s/cm" | "ms/cm" | "us/cm")
+            && matches!(target.as_str(), "s/m" | "s/cm" | "ms/cm" | "us/cm"))
+        || (matches!(source.as_str(), "m/s" | "cm/s" | "mm/s")
+            && matches!(target.as_str(), "m/s" | "cm/s" | "mm/s"))
+}
+
+fn convert_value(value: f64, source_unit: &str, target_unit: &str) -> Option<f64> {
+    if crate::model::units_compatible(source_unit, target_unit) {
+        return Some(value);
+    }
+    let source = normalized_unit(source_unit);
+    let target = normalized_unit(target_unit);
+    let result = if matches!(source.as_str(), "c" | "°c" | "degc" | "celsius") && target == "k" {
+        value + 273.15
+    } else if source == "k" && matches!(target.as_str(), "c" | "°c" | "degc" | "celsius") {
+        value - 273.15
+    } else if matches!(source.as_str(), "v" | "mv" | "uv")
+        && matches!(target.as_str(), "v" | "mv" | "uv")
+    {
+        let volts = value
+            * match source.as_str() {
+                "mv" => 1e-3,
+                "uv" => 1e-6,
+                _ => 1.0,
+            };
+        volts
+            * match target.as_str() {
+                "mv" => 1e3,
+                "uv" => 1e6,
+                _ => 1.0,
+            }
+    } else if matches!(source.as_str(), "s/m" | "s/cm" | "ms/cm" | "us/cm")
+        && matches!(target.as_str(), "s/m" | "s/cm" | "ms/cm" | "us/cm")
+    {
+        let siemens_per_m = value
+            * match source.as_str() {
+                "s/cm" => 100.0,
+                "ms/cm" => 0.1,
+                "us/cm" => 1e-4,
+                _ => 1.0,
+            };
+        siemens_per_m
+            / match target.as_str() {
+                "s/cm" => 100.0,
+                "ms/cm" => 0.1,
+                "us/cm" => 1e-4,
+                _ => 1.0,
+            }
+    } else if matches!(source.as_str(), "m/s" | "cm/s" | "mm/s")
+        && matches!(target.as_str(), "m/s" | "cm/s" | "mm/s")
+    {
+        let meters_per_s = value
+            * match source.as_str() {
+                "cm/s" => 1e-2,
+                "mm/s" => 1e-3,
+                _ => 1.0,
+            };
+        meters_per_s
+            / match target.as_str() {
+                "cm/s" => 1e-2,
+                "mm/s" => 1e-3,
+                _ => 1.0,
+            }
+    } else {
+        return None;
+    };
+    result.is_finite().then_some(result)
+}
+
+/// Resolve every configured declaration against a compiled definition once.
+/// Runtime evaluation consumes this deterministic map and never reparses the
+/// source strings.
+pub fn resolve_model_input_bindings(
+    compiled: &crate::model::CompiledIsmModel,
+    config: &ResolvedEstimationConfig,
+) -> Result<ResolvedModelInputBindings, EstimationError> {
+    let definition = compiled.definition();
+    let model_id = definition.model_id.clone();
+    let standard = standard_binding_declarations(config);
+    for target_input_id in config.model.input_bindings.custom.keys() {
+        if !definition
+            .inputs
+            .iter()
+            .any(|input| input.id == *target_input_id)
+        {
+            return Err(EstimationError::UnknownModelInputBindingTarget {
+                target_input_id: target_input_id.clone(),
+                source_declaration: config
+                    .model
+                    .input_bindings
+                    .custom
+                    .get(target_input_id)
+                    .cloned()
+                    .unwrap_or_default(),
+                model_id,
+            });
+        }
+    }
+    let mut bindings = BTreeMap::new();
+    for input in &definition.inputs {
+        let declaration = config
+            .model
+            .input_bindings
+            .custom
+            .get(&input.id)
+            .cloned()
+            .or_else(|| standard.get(&input.id).cloned())
+            .or_else(|| default_binding_declaration(&input.id).map(str::to_string));
+        let Some(declaration) = declaration else {
+            if input.required {
+                return Err(EstimationError::MissingModelInputSource {
+                    target_input_id: input.id.clone(),
+                    source_declaration: String::new(),
+                    expected_unit: input.unit.clone(),
+                    model_id: model_id.clone(),
+                });
+            }
+            continue;
+        };
+        let source = parse_binding_source(&input.id, &declaration, &model_id)?;
+        let source_unit = source_unit(&source);
+        let conversion = source_unit
+            .as_deref()
+            .map(|unit| {
+                unit_conversion(unit, &input.unit).ok_or_else(|| {
+                    EstimationError::ModelInputUnitMismatch {
+                        target_input_id: input.id.clone(),
+                        source_declaration: declaration.clone(),
+                        expected_unit: input.unit.clone(),
+                        actual_unit: unit.into(),
+                        model_id: model_id.clone(),
+                    }
+                })
+            })
+            .transpose()?
+            .unwrap_or(InputUnitConversion::Deferred);
+        let binding = ResolvedInputBinding {
+            target_input_id: input.id.clone(),
+            source,
+            target_unit: input.unit.clone(),
+            source_unit,
+            conversion,
+            provenance: InputBindingProvenance {
+                target_input_id: input.id.clone(),
+                source_declaration: declaration,
+                model_id: model_id.clone(),
+                expected_unit: input.unit.clone(),
+            },
+            required: input.required,
+        };
+        if bindings.insert(input.id.clone(), binding).is_some() {
+            return Err(EstimationError::DuplicateModelInputBinding {
+                target_input_id: input.id.clone(),
+                declarations: vec![input.id.clone()],
+                model_id: model_id.clone(),
+            });
+        }
+    }
+    Ok(ResolvedModelInputBindings { bindings })
+}
+
+fn environment_value(
+    environment: &AlignedEnvironment,
+    source: &EnvironmentSource,
+) -> Option<RuntimeInputValue> {
+    match source {
+        EnvironmentSource::Temperature => {
+            environment.temperature_k.map(|value| RuntimeInputValue {
+                value,
+                unit: "K".into(),
+            })
+        }
+        EnvironmentSource::Conductivity => {
+            environment
+                .conductivity_s_per_m
+                .map(|value| RuntimeInputValue {
+                    value,
+                    unit: "S/m".into(),
+                })
+        }
+        EnvironmentSource::IonicStrength => {
+            environment
+                .ionic_strength_mol_l
+                .map(|value| RuntimeInputValue {
+                    value,
+                    unit: "mol/L".into(),
+                })
+        }
+        EnvironmentSource::Flow => environment.flow.map(|value| RuntimeInputValue {
+            value,
+            unit: "m/s".into(),
+        }),
+        EnvironmentSource::PolarizationInput => {
+            environment
+                .polarization_input_v
+                .map(|value| RuntimeInputValue {
+                    value,
+                    unit: "V".into(),
+                })
+        }
+        EnvironmentSource::Interferent(id) => environment
+            .interferent_activities
+            .get(id)
+            .copied()
+            .map(|value| RuntimeInputValue {
+                value,
+                unit: "activity".into(),
+            }),
+    }
+}
+
+fn runtime_source_value(
+    source: &ModelInputSource,
+    estimated_log10_activity: Option<f64>,
+    environment: &AlignedEnvironment,
+) -> Option<RuntimeInputValue> {
+    match source {
+        ModelInputSource::EstimatedTargetActivity => estimated_log10_activity
+            .map(|value| 10_f64.powf(value))
+            .filter(|value| value.is_finite())
+            .map(|value| RuntimeInputValue {
+                value,
+                unit: "activity".into(),
+            }),
+        ModelInputSource::ActivityStep => environment
+            .delta_log10_activity
+            .filter(|value| value.is_finite())
+            .map(|value| RuntimeInputValue {
+                value,
+                unit: "activity".into(),
+            }),
+        ModelInputSource::TransductionDrive => environment
+            .transduction_drive
+            .filter(|value| value.is_finite())
+            .map(|value| RuntimeInputValue {
+                value,
+                unit: "activity".into(),
+            }),
+        ModelInputSource::Environment(source) => environment_value(environment, source),
+        ModelInputSource::EnvironmentNamed(name) => environment
+            .values
+            .iter()
+            .find(|value| value.source_series == *name)
+            .map(|value| RuntimeInputValue {
+                value: value.value,
+                unit: value
+                    .source_unit
+                    .clone()
+                    .unwrap_or_else(|| "dimensionless".into()),
+            }),
+        ModelInputSource::EventField { field } => {
+            environment
+                .event_fields
+                .get(field)
+                .map(|value| RuntimeInputValue {
+                    value: value.value,
+                    unit: value.unit.clone(),
+                })
+        }
+        ModelInputSource::Constant { value, unit } => Some(RuntimeInputValue {
+            value: *value,
+            unit: unit.clone(),
+        }),
+    }
+}
+
+/// Execute the resolved plan for one observation or transition. This is
+/// shared by EKF, UKF, compiled simulation, and all estimate workflows.
+pub fn execute_model_input_bindings(
+    plan: &ResolvedModelInputBindings,
+    estimated_log10_activity: Option<f64>,
+    environment: &AlignedEnvironment,
+) -> Result<ModelInput, EstimationError> {
+    let mut input = ModelInput::empty(environment.timestamp_s);
+    let model_id = plan
+        .bindings
+        .values()
+        .next()
+        .map(|binding| binding.provenance.model_id.clone())
+        .unwrap_or_default();
+    for binding in plan.bindings.values() {
+        let Some(source_value) =
+            runtime_source_value(&binding.source, estimated_log10_activity, environment)
+        else {
+            if binding.required {
+                return Err(EstimationError::MissingModelInputSource {
+                    target_input_id: binding.target_input_id.clone(),
+                    source_declaration: binding.provenance.source_declaration.clone(),
+                    expected_unit: binding.target_unit.clone(),
+                    model_id: model_id.clone(),
+                });
+            }
+            continue;
+        };
+        let value = convert_value(source_value.value, &source_value.unit, &binding.target_unit)
+            .ok_or_else(|| EstimationError::ModelInputUnitMismatch {
+                target_input_id: binding.target_input_id.clone(),
+                source_declaration: binding.provenance.source_declaration.clone(),
+                expected_unit: binding.target_unit.clone(),
+                actual_unit: source_value.unit.clone(),
+                model_id: model_id.clone(),
+            })?;
+        if !value.is_finite() {
+            return Err(EstimationError::InvalidInput(format!(
+                "compiled model input '{}' converted to a non-finite value",
+                binding.target_input_id
+            )));
+        }
+        input.values.insert(
+            binding.target_input_id.clone(),
+            InputValue {
+                value,
+                unit: binding.target_unit.clone(),
+            },
+        );
+    }
+    Ok(input)
+}
+
 pub fn compile_legacy_model(
     config: &ResolvedEstimationConfig,
     definitions: &[StateDefinition],
@@ -72,7 +672,14 @@ pub fn compile_reduced_v1_model(
     let activity = legacy.states.first().cloned().ok_or_else(|| {
         EstimationError::config("reduced profile requires a log10 activity state")
     })?;
-    let mut definition = crate::model::reduced_ism_v1_definition();
+    let mut definition = if matches!(
+        config.model.transduction_drive,
+        crate::estimation_config::TransductionDriveSource::None
+    ) {
+        crate::model::reduced_ism_v1_definition()
+    } else {
+        crate::model::reduced_ism_v1_with_transduction_definition()
+    };
     definition.states.insert(0, activity);
     definition
         .components
@@ -100,6 +707,7 @@ pub fn compile_reduced_v1_model(
         .map_err(|error| EstimationError::config(format!("compiled registry: {error}")))?;
     let compiled = compile_model(definition, &registry)
         .map_err(|error| EstimationError::compiled("reduced-v1 compilation", error))?;
+    let resolved_bindings = resolve_model_input_bindings(&compiled, config)?;
     model.definitions = compiled
         .state_definitions()
         .iter()
@@ -121,6 +729,7 @@ pub fn compile_reduced_v1_model(
     }
     model.compiled_parameters = Some(compiled.default_parameters());
     model.compiled = Some(std::sync::Arc::new(compiled));
+    model.resolved_input_bindings = Some(std::sync::Arc::new(resolved_bindings));
     model.definition_source = Some(ResolvedModelDefinitionSource::Profile(
         crate::estimation_config::CompiledEstimationProfile::ReducedIsmV1,
     ));
@@ -159,9 +768,9 @@ pub fn compile_custom_model(
             ))
         })?
         .model;
-    validate_custom_input_bindings(&definition, config)?;
     let compiled = compile_model(definition, crate::model::built_in_registry())
         .map_err(|error| EstimationError::compiled("custom-definition compilation", error))?;
+    let resolved_bindings = resolve_model_input_bindings(&compiled, config)?;
     let mut model = super::model::StateModel::new(config, tau_s, tau_uncertainty_s)?;
     model.definitions = compiled
         .state_definitions()
@@ -182,60 +791,12 @@ pub fn compile_custom_model(
     }
     model.compiled_parameters = Some(compiled.default_parameters());
     model.compiled = Some(std::sync::Arc::new(compiled));
+    model.resolved_input_bindings = Some(std::sync::Arc::new(resolved_bindings));
     model.definition_source = Some(ResolvedModelDefinitionSource::File {
         path,
         sha256: format!("{:x}", Sha256::digest(bytes)),
     });
     Ok(model)
-}
-
-fn validate_custom_input_bindings(
-    definition: &ModelDefinition,
-    config: &ResolvedEstimationConfig,
-) -> Result<(), EstimationError> {
-    let standard_sources = BTreeMap::from([
-        (
-            "target_activity",
-            config.model.input_bindings.target_activity.as_str(),
-        ),
-        (
-            "delta_log10_activity",
-            config.model.input_bindings.delta_log10_activity.as_str(),
-        ),
-        (
-            "temperature",
-            config.model.input_bindings.temperature.as_str(),
-        ),
-        (
-            "conductivity",
-            config.model.input_bindings.conductivity.as_str(),
-        ),
-    ]);
-    for input in definition.inputs.iter().filter(|input| input.required) {
-        let bound = standard_sources
-            .get(input.id.as_str())
-            .is_some_and(|source| !source.trim().is_empty())
-            || config
-                .model
-                .input_bindings
-                .custom
-                .get(&input.id)
-                .is_some_and(|source| !source.trim().is_empty());
-        if !bound {
-            return Err(EstimationError::config(format!(
-                "missing input binding for required custom model input '{}' ({})",
-                input.id, input.unit
-            )));
-        }
-    }
-    for input_id in config.model.input_bindings.custom.keys() {
-        if !definition.inputs.iter().any(|input| input.id == *input_id) {
-            return Err(EstimationError::config(format!(
-                "unknown custom model input binding '{input_id}'"
-            )));
-        }
-    }
-    Ok(())
 }
 
 pub fn legacy_model_definition(

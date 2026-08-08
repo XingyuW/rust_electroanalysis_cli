@@ -65,8 +65,8 @@ contract!(
 contract!(
     StateEstimationReport,
     ArtifactKind::StateEstimation,
-    2,
-    &[1, 2]
+    3,
+    &[1, 2, 3]
 );
 impl VersionedArtifact for ModelCompilationArtifact {
     const ARTIFACT_KIND: ArtifactKind = ArtifactKind::ModelCompilation;

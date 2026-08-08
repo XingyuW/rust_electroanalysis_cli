@@ -23,6 +23,8 @@ pub struct StateModel {
     pub gain: f64,
     pub(crate) compiled: Option<std::sync::Arc<crate::model::CompiledIsmModel>>,
     pub(crate) compiled_parameters: Option<crate::model::ParameterValues>,
+    pub(crate) resolved_input_bindings:
+        Option<std::sync::Arc<super::ism_adapter::ResolvedModelInputBindings>>,
     pub(crate) definition_source: Option<super::ism_adapter::ResolvedModelDefinitionSource>,
 }
 
@@ -58,6 +60,7 @@ impl StateModel {
             gain: config.polarization.gain,
             compiled: None,
             compiled_parameters: None,
+            resolved_input_bindings: None,
             definition_source: None,
         })
     }
@@ -92,8 +95,11 @@ impl StateModel {
             tau_uncertainty_s,
             calibration,
         )?;
+        let resolved_bindings =
+            super::ism_adapter::resolve_model_input_bindings(&compiled, config)?;
         model.compiled_parameters = Some(compiled.default_parameters());
         model.compiled = Some(std::sync::Arc::new(compiled));
+        model.resolved_input_bindings = Some(std::sync::Arc::new(resolved_bindings));
         model.definition_source = Some(super::ism_adapter::ResolvedModelDefinitionSource::Profile(
             config.model.profile,
         ));
@@ -196,7 +202,7 @@ impl StateModel {
             .process_jacobian(
                 &crate::model::ModelState::new(state.iter().copied().collect()),
                 parameters,
-                &self.compiled_input(state, environment),
+                &self.compiled_input(state, environment)?,
                 dt_s,
             )
             .map_err(|error| EstimationError::Numerical(error.to_string()))?;
@@ -235,7 +241,7 @@ impl StateModel {
             .process_transition(
                 &crate::model::ModelState::new(state.iter().copied().collect()),
                 parameters,
-                &self.compiled_input(state, environment),
+                &self.compiled_input(state, environment)?,
                 dt_s,
             )
             .map_err(|error| EstimationError::Numerical(error.to_string()))?;
@@ -250,6 +256,11 @@ impl StateModel {
     }
     pub fn definition_source(&self) -> Option<&super::ism_adapter::ResolvedModelDefinitionSource> {
         self.definition_source.as_ref()
+    }
+    pub fn resolved_input_bindings(
+        &self,
+    ) -> Option<&super::ism_adapter::ResolvedModelInputBindings> {
+        self.resolved_input_bindings.as_deref()
     }
     pub fn compiled_observation_prediction(
         &self,
@@ -267,7 +278,7 @@ impl StateModel {
             .observation_prediction(
                 &crate::model::ModelState::new(state.iter().copied().collect()),
                 parameters,
-                &self.compiled_input(state, environment),
+                &self.compiled_input(state, environment)?,
                 observed_voltage_v,
             )
             .map(Some)
@@ -284,11 +295,18 @@ impl StateModel {
             })
     }
 
-    fn compiled_input(
+    pub fn compiled_input(
         &self,
         state: &DVector<f64>,
         environment: &AlignedEnvironment,
-    ) -> crate::model::ModelInput {
+    ) -> Result<crate::model::ModelInput, EstimationError> {
+        if let Some(bindings) = &self.resolved_input_bindings {
+            return super::ism_adapter::execute_model_input_bindings(
+                bindings,
+                Some(self.log10_activity(state)?),
+                environment,
+            );
+        }
         let mut input = super::ism_adapter::model_input(environment);
         if let Ok(log10_activity) = self.log10_activity(state) {
             input.values.insert(
@@ -323,7 +341,7 @@ impl StateModel {
                 },
             );
         }
-        input
+        Ok(input)
     }
     pub fn process_covariance(&self, dt_s: f64, noise: &ProcessNoiseConfig) -> DMatrix<f64> {
         let mut q = DMatrix::zeros(self.dimension(), self.dimension());
@@ -406,7 +424,7 @@ pub fn observation_components(
         let parameters = model.compiled_parameters.as_ref().ok_or_else(|| {
             EstimationError::Numerical("compiled model parameters are unavailable".into())
         })?;
-        let input = model.compiled_input(state, env);
+        let input = model.compiled_input(state, env)?;
         let state = crate::model::ModelState::new(state.iter().copied().collect());
         let prediction = compiled
             .observation_prediction(&state, parameters, &input, None)

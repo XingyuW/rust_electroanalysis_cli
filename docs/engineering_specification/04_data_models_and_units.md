@@ -133,7 +133,9 @@ All configuration files are TOML, but schema versions are **module-specific** (n
 | Mechanism comparison/trend reports | `runners/mechanism.rs`, `results/mechanism.rs` | 1 |
 | Health baseline | `health/baseline.rs` | 2 |
 | Health assessment/trend reports | `health/assessment.rs`, `health/trend.rs` | 1 |
-| Estimation run/compare/simulate outputs | `estimation/mod.rs`, `estimation/comparison.rs`, `estimation/simulation.rs` | 2 |
+| Estimation run report | `estimation/mod.rs`, `results/estimation.rs` | 3 (legacy 1–2 readable; new compiled binding provenance defaults absent) |
+| Estimation filter comparison | `estimation/comparison.rs` | 3 |
+| Estimation simulation truth | `estimation/simulation.rs` | 2 for Legacy, 3 for Compiled |
 
 ## 4. Unit Registry
 

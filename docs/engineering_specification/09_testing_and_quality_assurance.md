@@ -109,7 +109,7 @@ Evidence classes:
 | GAP-005 | No tests for NaN/Inf edge cases in all numerical paths | Medium |
 | GAP-006 | Kalman filter process/measurement noise model tests are limited | Medium |
 | GAP-007 | No Windows CI testing | Low |
-| GAP-008 | No integration test for `estimate simulate` | Low |
+| GAP-008 | No integration test for `estimate simulate` | Closed by the permanent compiled-truth tests below |
 | GAP-009 | No deterministic reproducibility tests (fixed seed comparison) | Medium |
 | GAP-010 | Plotting output is tested for file existence, not visual correctness | Low |
 | GAP-011 | No real Nernst, transport, transduction, reference, or external ISM component implementation yet | High (planned Phase 03) |
@@ -172,6 +172,30 @@ Model-contract tests cover deterministic contribution ordering, typed voltage
 reconstruction, observation-variance exclusion, canonical external-role alias
 migration, uncertainty validation, covariance propagation, and non-finite
 prediction serialization rejection.
+
+## Compiled estimation integration matrix
+
+`tests/phase6_estimation.rs` is the permanent integration gate for compiled
+estimation. The runtime binding plan is resolved once per compiled model and is
+then executed by the shared `StateModel::compiled_input` path used by EKF, UKF,
+compiled simulation, estimate, and compare. Explicit custom target IDs take
+precedence over standard defaults; required unbound inputs fail; optional
+unbound inputs remain absent; source declarations, units, conversions, and
+model identity are retained in `StateEstimationReport.resolved_input_bindings`.
+
+| Contract | Exact test function(s) | Profile/filter/state model | Tolerance or policy |
+|----------|-------------------------|----------------------------|---------------------|
+| `flow_drive` target execution, provenance, hash, report, and normal runtime observation | `custom_flow_drive_binding_executes_in_normal_estimation_runtime` | `Compiled` / `Custom` / EKF / Activity | Exact target-ID and source assertions; fixture predictions are checked |
+| Standard/custom sources, named environment, event field, constants, and typed failures | `compiled_bindings_cover_standard_custom_target_and_constant_sources`, `compiled_bindings_support_named_environment_and_event_field_sources`, `compiled_bindings_reject_typed_target_source_and_unit_failures`, `compiled_bindings_report_missing_and_optional_sources_without_position_assumptions` | `Compiled` / `Custom` / shared input plan | Typed error variants and fields; typed unit conversion |
+| Legacy/compiled parity matrix | `compiled_legacy_equivalent_permanent_parity_matrix_covers_states_filters_and_scenarios`, `compiled_legacy_parity_covers_condition_sensitivity_state_for_ekf_and_ukf` | `Legacy` vs `Compiled` + `LegacyEquivalentV1`; EKF and UKF; Activity, ActivityBaseline, ActivityBaselinePolarization, plus sensitivity/condition | Ordinary matrix `1e-10`; condition/sensitivity compatibility `1e-8`; warning metadata differences are explicitly allowlisted only |
+| Irregular, multiple, initial, and absent activity events | `compiled_activity_events_are_applied_once_at_irregular_transitions_with_provenance` | Reduced transition binding | Events in `(previous_timestamp, current_timestamp]`; interval sums and all event timestamps are asserted |
+| Transduction drive modes and active truth | `compiled_transduction_drive_modes_cover_none_activity_step_event_field_and_failures`, `compiled_reduced_active_transduction_truth_and_validation_use_stable_state_ids` | ReducedIsmV1; EKF plus simulation truth/validation | None/ActivityStep/ExplicitEventField; missing and incompatible event fields remain unavailable or warn |
+| Stable-ID simulation truth and validation metrics | `compiled_reduced_active_transduction_truth_and_validation_use_stable_state_ids` | ReducedIsmV1 with active transduction | IDs, deterministic ordering, RMSE, MAE, bias, and interval coverage are asserted by name |
+| Human reports and migration breadth | `estimation_report_matrix_renders_honest_backend_profile_and_custom_definition`, `old_estimation_configuration_fixture_matrix_preserves_legacy_defaults`, `old_estimation_artifact_migration_matrix_keeps_identity_honest_and_deterministic` | Legacy, compiled legacy-equivalent, reduced, custom; old config/truth/report/validation/comparison schemas | Backend/profile/model identity never defaults to Compiled; old fields deserialize as absent/unavailable |
+
+This matrix does not compare `ReducedIsmV1` numerically with Legacy. It
+compares only the approved LegacyEquivalentV1 adapter with the historical
+backend and keeps reduced-profile truth and contribution assertions separate.
 
 Schema-v3 regressions additionally cover Nernst E0 and slope covariance and
 their cross term, Nicolsky-Eisenman E0/slope/selectivity derivatives and full

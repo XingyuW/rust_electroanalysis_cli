@@ -31,7 +31,10 @@ pub use component::{
     InterpretationStatus, IsmComponent, Jacobian, JacobianMethod, JacobianStatus, ParameterId,
     ParameterJacobian, StateId, StateJacobian, StateJacobianStatus,
 };
-pub use defaults::{default_model_definition, reduced_ism_v1_definition};
+pub use defaults::{
+    default_model_definition, reduced_ism_v1_definition,
+    reduced_ism_v1_with_transduction_definition,
+};
 pub use definition::{MODEL_DEFINITION_SCHEMA_VERSION, ModelDefinition};
 pub use equilibrium_recognition::{
     EquilibriumAssessment, EquilibriumEvidence, EquilibriumEvidenceRequirements,
@@ -46,6 +49,7 @@ pub use identifiability::{
     IdentifiabilityRequirementKind, IdentifiabilityScope, ParameterIdentifiabilityRequirement,
     RequirementSeverity,
 };
+pub(crate) use input::units_compatible;
 pub use input::{
     InputRequirement, InputSpec, InputValue, ModelInput, ModelUnitExpression, UnitAtom,
 };

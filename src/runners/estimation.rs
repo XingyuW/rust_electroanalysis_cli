@@ -424,7 +424,7 @@ fn export_report(
     Ok(())
 }
 
-fn human_report(r: &StateEstimationReport) -> String {
+pub fn human_report(r: &StateEstimationReport) -> String {
     let model_narrative = match (r.model_backend, r.model_profile) {
         (Some(crate::estimation_config::EstimationModelBackend::Legacy), _) | (None, _) => {
             "measurement model: stored calibration adapter + baseline offset + dynamic polarization; optional sensitivity scale\n- process model: actual timestamp intervals; random walks plus first-order polarization decay".into()
@@ -461,7 +461,7 @@ fn human_report(r: &StateEstimationReport) -> String {
         ));
     }
     s.push_str(&format!(
-        "\nTimestamp preprocessing\n- was preprocessed: {}\n- segments: {}\n- skipped segments: {}\n- diagnostics: {:?}\n\nModels\n- backend: {:?}\n- profile: {:?}\n- {}\n- resolved source: {:?}\n- initialization sources: {:?}\n- initialization assumptions: {:?}\n\nCovariance sources\n- process: {:?}, resolved variance {} {}\n- measurement: {:?}, resolved variance {} {}\n- measurement assumptions: {:?}\n\nInnovation diagnostics\n- mean: {:?}\n- standard deviation: {:?}\n- mean NIS: {:?}\n- NIS exceedance rate: {:?}\n- residual autocorrelation: {:?}\n- log likelihood: {:?}\n\nObservability and identifiability\n- rank: {}/{}\n- condition number: {:?}\n- weak states: {:?}\n- unobservable states: {:?}\n- empirical identifiability passed: {}\n\nCalibration domain and uncertainty\n- domain excursions: {}\n- state uncertainty is reported per point as standard error and covariance\n- molar concentration is emitted only for the ideal activity model\n\nValidation\n- {:?}\n\nWarnings\n{:?}\n",
+        "\nTimestamp preprocessing\n- was preprocessed: {}\n- segments: {}\n- skipped segments: {}\n- diagnostics: {:?}\n\nModels\n- backend: {:?}\n- profile: {:?}\n- {}\n- resolved source: {:?}\n- resolved input bindings: {:?}\n- initialization sources: {:?}\n- initialization assumptions: {:?}\n\nCovariance sources\n- process: {:?}, resolved variance {} {}\n- measurement: {:?}, resolved variance {} {}\n- measurement assumptions: {:?}\n\nInnovation diagnostics\n- mean: {:?}\n- standard deviation: {:?}\n- mean NIS: {:?}\n- NIS exceedance rate: {:?}\n- residual autocorrelation: {:?}\n- log likelihood: {:?}\n\nObservability and identifiability\n- rank: {}/{}\n- condition number: {:?}\n- weak states: {:?}\n- unobservable states: {:?}\n- empirical identifiability passed: {}\n\nCalibration domain and uncertainty\n- domain excursions: {}\n- state uncertainty is reported per point as standard error and covariance\n- molar concentration is emitted only for the ideal activity model\n\nValidation\n- {:?}\n\nWarnings\n{:?}\n",
         r.was_preprocessed,
         r.timestamp_segments.len(),
         r.skipped_timestamp_segments.len(),
@@ -470,6 +470,7 @@ fn human_report(r: &StateEstimationReport) -> String {
         r.model_profile,
         model_narrative,
         r.resolved_model_definition_source,
+        r.resolved_input_bindings,
         r.initialization.sources,
         r.initialization.assumptions,
         r.process_covariance.selected_source,

@@ -1,0 +1,122 @@
+schema_version = 1
+
+[model]
+schema_version = 4
+model_id = "custom_flow_covariate"
+description = "Custom compiled model used by the estimation input-binding integration gate."
+validity_domain = "Finite flow covariate values in m/s."
+uncertainty_incomplete = false
+
+[[model.states]]
+id = "log10_activity"
+name = "log10 activity"
+description = "Estimator-owned latent log10 activity coordinate."
+unit = "dimensionless"
+transformation = "identity"
+initialization_source = "declared_default"
+lower_bound = -30.0
+upper_bound = 30.0
+initial_value = -3.0
+source = "estimation integration fixture"
+process_equation_version = 1
+observability_requirements = []
+validity_domain = "Finite log10 activity."
+initial_uncertainty = { kind = "deterministic" }
+
+[[model.parameters]]
+id = "flow_sensitivity"
+name = "flow sensitivity"
+description = "Linear external flow contribution sensitivity."
+unit = "V/(m/s)"
+lower_bound = -100.0
+upper_bound = 100.0
+default_value = 0.25
+uncertainty = { kind = "deterministic" }
+source = "estimation integration fixture"
+equation_version = 1
+identifiability_requirements = []
+value_source = "fixed"
+characteristic = "continuous"
+validity_domain = "Finite declared flow covariate."
+
+[[model.parameters]]
+id = "flow_reference"
+name = "flow reference"
+description = "Reference flow for the linear covariate."
+unit = "m/s"
+lower_bound = -100.0
+upper_bound = 100.0
+default_value = 0.0
+uncertainty = { kind = "deterministic" }
+source = "estimation integration fixture"
+equation_version = 1
+identifiability_requirements = []
+value_source = "fixed"
+characteristic = "continuous"
+validity_domain = "Finite declared flow covariate."
+
+[[model.inputs]]
+id = "flow_drive"
+unit = "m/s"
+required = true
+source = "aligned environmental flow series"
+validity_domain = "Finite flow in m/s."
+
+[[model.inputs]]
+id = "temperature_drive"
+unit = "K"
+required = false
+source = "aligned environmental temperature series"
+validity_domain = "Finite temperature in K."
+
+[[model.inputs]]
+id = "temperature"
+unit = "K"
+required = false
+source = "standard temperature binding override fixture"
+validity_domain = "Finite temperature in K."
+
+[[model.inputs]]
+id = "user_covariate"
+unit = "%RH"
+required = false
+source = "aligned named environmental series"
+validity_domain = "Finite relative humidity."
+
+[[model.inputs]]
+id = "event_drive"
+unit = "activity"
+required = false
+source = "event metadata"
+validity_domain = "Finite event drive."
+
+[[model.components]]
+id = "custom_flow_disturbance"
+kind = "disturbance.linear_covariate"
+role = "external_disturbance"
+interpretation_status = "phenomenological"
+depends_on = []
+required_inputs = [{ id = "flow_drive", unit = "m/s" }]
+state_ids = []
+parameter_ids = ["flow_sensitivity", "flow_reference"]
+observation_state_ids = []
+observation_parameter_ids = ["flow_sensitivity", "flow_reference"]
+numerical_jacobian_supported = false
+output_unit = "V"
+voltage_contribution_owner = "custom_flow_disturbance"
+contribution_semantics = "additive_potential"
+source = "estimation integration fixture"
+validity_domain = "Finite flow covariate in the declared model domain."
+equation = "E_flow = sensitivity * (flow_drive - flow_reference)"
+equation_version = 1
+assumptions = ["The flow covariate is externally aligned and finite."]
+evidence_requirements = [{
+  hypothesis_id = "custom-flow-covariate",
+  proposed_mechanism_label = "custom external flow contribution",
+  independent_evidence_types = ["flow series variation"],
+  minimum_independent_observations = 1,
+  validity_domain = "Finite flow covariate in m/s.",
+  alternatives_to_consider = ["unmodeled external disturbance"],
+  required_uncertainty_statement = "The contribution is a phenomenological covariate term."
+}]
+metadata = {}

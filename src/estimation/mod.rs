@@ -339,6 +339,7 @@ fn estimate_single_segment(
             .compiled_model()
             .map(|compiled| compiled.definition().clone()),
         resolved_model_definition_source: model.definition_source().cloned(),
+        resolved_input_bindings: model.resolved_input_bindings().cloned(),
         state_definitions: model.definitions,
         initialization,
         process_covariance: process,

@@ -1,0 +1,15 @@
+schema_version = 1
+
+[auxiliary]
+standard_variance_v2 = 2.5e-7
+
+[measurement_noise]
+configured_variance_v2 = 2.0e-6
+
+[polarization]
+configured_tau_s = 12.0
+
+[simulation]
+interval_s = 1.0
+sample_count = 20
+
