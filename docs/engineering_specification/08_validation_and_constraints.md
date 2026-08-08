@@ -178,3 +178,16 @@ meaningful uncertainty can be calculated. `NotRequested` requires an explicit
 disabled request. Numerical derivatives are accepted only when the descriptor
 declares support and positive relative/absolute steps are recorded; built-ins
 use analytical derivatives.
+
+### Covariance uncertainty contract
+
+The schema, rather than a numeric covariance matrix, declares whether each
+state or parameter is deterministic, stochastic with known uncertainty, or
+stochastic with unknown uncertainty. Supplied full covariance must have exact
+dimension, finite entries, symmetry within tolerance, and positive
+semidefiniteness. A declared stochastic-known entry requires a positive finite
+diagonal; a deterministic entry requires zero row and column. Violations return
+typed covariance-contract errors. An unknown declaration remains incomplete
+until explicitly migrated/enriched and never obtains a zero numeric variance.
+Derivative coverage is required for every declared non-deterministic ID that a
+component says influences its observation, independent of covariance sparsity.

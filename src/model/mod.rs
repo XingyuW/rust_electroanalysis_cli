@@ -44,8 +44,8 @@ pub use output::{
 pub use parameter::{CompiledParameterSpec, ParameterSpec, ParameterValueSource, ParameterValues};
 pub use registry::{ComponentFactory, ComponentRegistry, built_in_registry};
 pub use state::{
-    CompiledStateSpec, ModelState, StateInitializationSource, StateSpec, StateTransformation,
-    UncertaintySpec,
+    CompiledStateSpec, DeclaredUncertaintyClass, ModelState, StateInitializationSource, StateSpec,
+    StateTransformation, UncertaintySpec,
 };
 pub use validity::{ValidityDomain, ValidityReport};
 

@@ -36,6 +36,19 @@ pub enum UncertaintySpec {
     Unknown { reason: String },
 }
 
+/// Semantic uncertainty class declared by the model schema.
+///
+/// Covariance matrices quantify members of this class but never change it.
+/// In particular, an all-zero covariance row is not evidence that a quantity
+/// declared stochastic is deterministic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeclaredUncertaintyClass {
+    Deterministic,
+    StochasticKnown,
+    StochasticUnknown,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum UncertaintySpecWire {
@@ -90,6 +103,16 @@ impl<'de> Deserialize<'de> for UncertaintySpec {
 }
 
 impl UncertaintySpec {
+    pub const fn declared_class(&self) -> DeclaredUncertaintyClass {
+        match self {
+            Self::Deterministic => DeclaredUncertaintyClass::Deterministic,
+            Self::StandardDeviation { .. } | Self::Variance { .. } => {
+                DeclaredUncertaintyClass::StochasticKnown
+            }
+            Self::Unknown { .. } => DeclaredUncertaintyClass::StochasticUnknown,
+        }
+    }
+
     pub fn variance_in(&self, expected_unit: &str) -> Result<Option<f64>, ModelError> {
         match self {
             Self::Deterministic => Ok(Some(0.0)),
@@ -170,6 +193,19 @@ fn default_description() -> String {
 }
 
 impl StateSpec {
+    /// Schema-declared uncertainty semantics for prediction propagation.
+    pub const fn declared_uncertainty_class(&self) -> DeclaredUncertaintyClass {
+        match self.initialization_source {
+            // Schema validation requires an estimated initial state to have a
+            // positive finite typed uncertainty.
+            StateInitializationSource::Estimated => DeclaredUncertaintyClass::StochasticKnown,
+            StateInitializationSource::DeclaredDefault
+            | StateInitializationSource::Calibration
+            | StateInitializationSource::Measurement
+            | StateInitializationSource::External => self.initial_uncertainty.declared_class(),
+        }
+    }
+
     pub(crate) fn validate(&self) -> Result<(), ModelError> {
         if self.id.trim().is_empty() {
             return Err(ModelError::EmptyIdentifier { kind: "state" });

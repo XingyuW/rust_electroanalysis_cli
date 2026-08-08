@@ -112,6 +112,7 @@ This list now contains policy-level decisions that still require owner input.
 | OQ-008 | Low | Platform |
 | OQ-010 | Low | Numerical |
 | OQ-011 | Low | Infrastructure |
+| OQ-ISM-005 | Medium | Discrete uncertainty |
 
 ### OQ-012: Operational equilibrium thresholds
 
@@ -140,3 +141,10 @@ Schema v3 closes derivative-coverage ambiguity and covariance omission for
 declared first-order sources. It does not answer how discrete structural choices
 (including charge/model parameterization), competing model forms, or calibration
 model selection uncertainty should be combined with that first-order variance.
+
+## OQ-ISM-005: Discrete stochastic parameter method
+
+If a custom model needs uncertain discrete valence or another enumerated
+structural parameter, which validated non-differential method (for example
+model enumeration) should be added? The current first-order Jacobian contract
+will report it incomplete rather than round a continuous fitted value.

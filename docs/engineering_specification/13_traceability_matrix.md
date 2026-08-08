@@ -180,3 +180,4 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | ISM-006 | `model/component.rs`, `model/compiler.rs`, `model/output.rs` | typed composition, reconstruction, uncertainty status | `model_core`, `model_builtins` | Schema-v3 |
 | ISM-007 / FR-040 / FR-041 | `model/component.rs`, `model/compiler.rs`, `model/builtins.rs` | stable-ID derivative coverage and complete covariance propagation | built-in/model-core uncertainty regressions | Schema-v3 |
 | ISM-008 / FR-042 | `model/definition.rs`, `model/state.rs`, `model/parameter.rs`, `estimation/ism_adapter.rs` | fitted/estimated validation and legacy enrichment | model-core and phase6 estimation regressions | Schema-v3 |
+| ISM-009 | `model/compiler.rs`, `model/error.rs`, `model/state.rs`, `model/parameter.rs` | declared uncertainty class and covariance-contract enforcement | zero-row, state, derivative, and matrix validation regressions | Schema-v3 covariance consistency |

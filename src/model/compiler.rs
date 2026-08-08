@@ -14,7 +14,7 @@ use super::{
     },
     parameter::{CompiledParameterSpec, ParameterValues},
     registry::ComponentRegistry,
-    state::{CompiledStateSpec, ModelState, UncertaintySpec},
+    state::{CompiledStateSpec, DeclaredUncertaintyClass, ModelState, UncertaintySpec},
     validity::ValidityReport,
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -472,6 +472,7 @@ impl CompiledIsmModel {
             self.state_definitions.iter().map(|item| {
                 (
                     item.spec.id.as_str(),
+                    item.spec.declared_uncertainty_class(),
                     &item.spec.initial_uncertainty,
                     item.spec.unit.as_str(),
                 )
@@ -487,6 +488,7 @@ impl CompiledIsmModel {
             self.parameter_definitions.iter().map(|item| {
                 (
                     item.spec.id.as_str(),
+                    item.spec.declared_uncertainty_class(),
                     &item.spec.uncertainty,
                     item.spec.unit.as_str(),
                 )
@@ -495,28 +497,34 @@ impl CompiledIsmModel {
             &mut missing_sources,
             &mut assumptions,
         )?;
-        let state_covariance = resolved_state_covariance.matrix;
         let state_has_information = resolved_state_covariance.has_information;
-        let parameter_covariance = resolved_parameter_covariance.matrix;
+        let state_covariance_complete = resolved_state_covariance.complete;
+        let state_covariance = resolved_state_covariance.matrix;
         let parameter_has_information = resolved_parameter_covariance.has_information;
+        let parameter_covariance_complete = resolved_parameter_covariance.complete;
+        let parameter_covariance = resolved_parameter_covariance.matrix;
 
         record_relevant_missing_derivatives(
             &state_jacobian,
-            state_covariance.as_deref(),
             &self.state_indices,
-            self.state_definitions
-                .iter()
-                .map(|item| (item.spec.id.as_str(), &item.spec.initial_uncertainty)),
+            self.state_definitions.iter().map(|item| {
+                (
+                    item.spec.id.as_str(),
+                    item.spec.declared_uncertainty_class(),
+                )
+            }),
             "state",
             &mut missing_sources,
         );
         record_relevant_missing_derivatives(
             &parameter_jacobian,
-            parameter_covariance.as_deref(),
             &self.parameter_indices,
-            self.parameter_definitions
-                .iter()
-                .map(|item| (item.spec.id.as_str(), &item.spec.uncertainty)),
+            self.parameter_definitions.iter().map(|item| {
+                (
+                    item.spec.id.as_str(),
+                    item.spec.declared_uncertainty_class(),
+                )
+            }),
             "parameter",
             &mut missing_sources,
         );
@@ -524,25 +532,29 @@ impl CompiledIsmModel {
         let state_derivatives_complete = !state_jacobian.missing_ids.iter().any(|id| {
             derivative_is_required(
                 id,
-                state_covariance.as_deref(),
                 &self.state_indices,
-                self.state_definitions
-                    .iter()
-                    .map(|item| (item.spec.id.as_str(), &item.spec.initial_uncertainty)),
+                self.state_definitions.iter().map(|item| {
+                    (
+                        item.spec.id.as_str(),
+                        item.spec.declared_uncertainty_class(),
+                    )
+                }),
             )
         });
         let parameter_derivatives_complete = !parameter_jacobian.missing_ids.iter().any(|id| {
             derivative_is_required(
                 id,
-                parameter_covariance.as_deref(),
                 &self.parameter_indices,
-                self.parameter_definitions
-                    .iter()
-                    .map(|item| (item.spec.id.as_str(), &item.spec.uncertainty)),
+                self.parameter_definitions.iter().map(|item| {
+                    (
+                        item.spec.id.as_str(),
+                        item.spec.declared_uncertainty_class(),
+                    )
+                }),
             )
         });
 
-        let state_variance_v2 = if state_derivatives_complete {
+        let state_variance_v2 = if state_derivatives_complete && state_covariance_complete {
             state_covariance
                 .as_ref()
                 .map(|matrix| quadratic_form(&state_jacobian.values, matrix))
@@ -550,14 +562,15 @@ impl CompiledIsmModel {
         } else {
             None
         };
-        let parameter_variance_v2 = if parameter_derivatives_complete {
-            parameter_covariance
-                .as_ref()
-                .map(|matrix| quadratic_form(&parameter_jacobian.values, matrix))
-                .transpose()?
-        } else {
-            None
-        };
+        let parameter_variance_v2 =
+            if parameter_derivatives_complete && parameter_covariance_complete {
+                parameter_covariance
+                    .as_ref()
+                    .map(|matrix| quadratic_form(&parameter_jacobian.values, matrix))
+                    .transpose()?
+            } else {
+                None
+            };
         let observation_variance_v2 = resolve_observation_variance(
             supplied.observation_variance_v2,
             contributions,
@@ -921,6 +934,7 @@ struct AggregatedJacobian {
 struct ResolvedCovariance {
     matrix: Option<Vec<Vec<f64>>>,
     has_information: bool,
+    complete: bool,
 }
 
 impl AggregatedJacobian {
@@ -1010,33 +1024,46 @@ fn resolve_covariance<'a>(
     supplied: Option<Vec<Vec<f64>>>,
     dimension: usize,
     relevant_ids: &BTreeSet<String>,
-    specifications: impl Iterator<Item = (&'a str, &'a UncertaintySpec, &'a str)>,
+    specifications: impl Iterator<
+        Item = (
+            &'a str,
+            DeclaredUncertaintyClass,
+            &'a UncertaintySpec,
+            &'a str,
+        ),
+    >,
     subject: &'static str,
     missing: &mut Vec<String>,
     assumptions: &mut Vec<String>,
 ) -> Result<ResolvedCovariance, ModelError> {
     if let Some(matrix) = supplied {
         validate_covariance(&matrix, dimension, subject)?;
+        let missing_before = missing.len();
+        validate_covariance_contract(&matrix, specifications, relevant_ids, subject, missing)?;
         let has_information = matrix.iter().flatten().any(|value| *value != 0.0);
         return Ok(ResolvedCovariance {
             matrix: Some(matrix),
             has_information,
+            complete: missing.len() == missing_before,
         });
     }
 
     let mut diagonal = vec![0.0; dimension];
     let mut complete = true;
     let mut has_information = false;
-    for (index, (id, uncertainty, unit)) in specifications.enumerate() {
+    for (index, (id, class, uncertainty, unit)) in specifications.enumerate() {
         if !relevant_ids.contains(id) {
             continue;
         }
-        match uncertainty.variance_in(unit) {
-            Ok(Some(value)) => {
+        match (class, uncertainty.variance_in(unit)) {
+            (DeclaredUncertaintyClass::Deterministic, Ok(Some(value))) => {
                 diagonal[index] = value;
-                has_information |= value > 0.0;
             }
-            Ok(None) => {
+            (DeclaredUncertaintyClass::StochasticKnown, Ok(Some(value))) => {
+                diagonal[index] = value;
+                has_information = true;
+            }
+            (DeclaredUncertaintyClass::StochasticUnknown, Ok(None)) => {
                 complete = false;
                 missing.push(format!(
                     "{subject}:{id} covariance missing: {}",
@@ -1045,7 +1072,7 @@ fn resolve_covariance<'a>(
                         .unwrap_or_else(|| "unknown source".into())
                 ));
             }
-            Err(_) => {
+            _ => {
                 complete = false;
                 missing.push(format!("{subject}:{id} covariance is invalid"));
             }
@@ -1065,11 +1092,13 @@ fn resolve_covariance<'a>(
         Ok(ResolvedCovariance {
             matrix: Some(matrix),
             has_information,
+            complete: true,
         })
     } else {
         Ok(ResolvedCovariance {
             matrix: None,
             has_information,
+            complete: false,
         })
     }
 }
@@ -1079,11 +1108,7 @@ fn validate_covariance(
     expected: usize,
     subject: &'static str,
 ) -> Result<(), ModelError> {
-    if covariance.len() != expected
-        || covariance
-            .iter()
-            .any(|row| row.len() != expected || row.iter().any(|value| !value.is_finite()))
-    {
+    if covariance.len() != expected || covariance.iter().any(|row| row.len() != expected) {
         let actual = format!(
             "{} rows with widths {:?}",
             covariance.len(),
@@ -1095,38 +1120,131 @@ fn validate_covariance(
             actual,
         });
     }
+    for (row, values) in covariance.iter().enumerate() {
+        for (column, value) in values.iter().enumerate() {
+            if !value.is_finite() {
+                return Err(ModelError::NonFiniteCovariance {
+                    subject,
+                    row,
+                    column,
+                });
+            }
+            if (value - covariance[column][row]).abs() > COVARIANCE_TOLERANCE {
+                return Err(ModelError::AsymmetricCovariance {
+                    subject,
+                    row,
+                    column,
+                });
+            }
+        }
+    }
+    validate_positive_semidefinite(covariance, subject)
+}
+
+const COVARIANCE_TOLERANCE: f64 = 1.0e-12;
+
+/// A caller-supplied covariance quantifies the schema contract; it cannot
+/// override it. Unknown declarations remain incomplete until an explicit
+/// schema migration/enrichment changes the declaration itself.
+fn validate_covariance_contract<'a>(
+    covariance: &[Vec<f64>],
+    specifications: impl Iterator<
+        Item = (
+            &'a str,
+            DeclaredUncertaintyClass,
+            &'a UncertaintySpec,
+            &'a str,
+        ),
+    >,
+    relevant_ids: &BTreeSet<String>,
+    subject: &'static str,
+    missing: &mut Vec<String>,
+) -> Result<(), ModelError> {
+    for (index, (id, class, _uncertainty, _unit)) in specifications.enumerate() {
+        let diagonal = covariance[index][index];
+        let row_or_column_is_nonzero = covariance[index]
+            .iter()
+            .chain(covariance.iter().map(|row| &row[index]))
+            .any(|value| value.abs() > COVARIANCE_TOLERANCE);
+        match class {
+            DeclaredUncertaintyClass::Deterministic if row_or_column_is_nonzero => {
+                return Err(ModelError::NonzeroCovarianceForDeterministicQuantity {
+                    quantity_id: id.into(),
+                    covariance_diagonal: diagonal,
+                });
+            }
+            DeclaredUncertaintyClass::StochasticKnown if diagonal <= COVARIANCE_TOLERANCE => {
+                return Err(ModelError::CovarianceUncertaintyConflict {
+                    quantity_id: id.into(),
+                    declared_uncertainty: class,
+                    covariance_diagonal: Some(diagonal),
+                    reason:
+                        "a declared stochastic quantity requires a positive covariance diagonal"
+                            .into(),
+                });
+            }
+            DeclaredUncertaintyClass::StochasticUnknown if relevant_ids.contains(id) => {
+                missing.push(format!(
+                    "{subject}:{id} covariance remains unknown; explicit schema enrichment is required"
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// PSD validation permits a singular covariance but rejects negative modes.
+fn validate_positive_semidefinite(
+    covariance: &[Vec<f64>],
+    subject: &'static str,
+) -> Result<(), ModelError> {
+    let dimension = covariance.len();
+    let mut lower = vec![vec![0.0; dimension]; dimension];
+    for row in 0..dimension {
+        for column in 0..=row {
+            let residual = covariance[row][column]
+                - (0..column)
+                    .map(|index| lower[row][index] * lower[column][index])
+                    .sum::<f64>();
+            if row == column {
+                if residual < -COVARIANCE_TOLERANCE {
+                    return Err(ModelError::NonPositiveSemidefiniteCovariance { subject });
+                }
+                lower[row][column] = residual.max(0.0).sqrt();
+            } else if lower[column][column] > COVARIANCE_TOLERANCE {
+                lower[row][column] = residual / lower[column][column];
+            } else if residual.abs() > COVARIANCE_TOLERANCE {
+                return Err(ModelError::NonPositiveSemidefiniteCovariance { subject });
+            }
+        }
+    }
     Ok(())
 }
 
 fn derivative_is_required<'a>(
     id: &str,
-    covariance: Option<&[Vec<f64>]>,
     indices: &BTreeMap<String, usize>,
-    specifications: impl Iterator<Item = (&'a str, &'a UncertaintySpec)>,
+    specifications: impl Iterator<Item = (&'a str, DeclaredUncertaintyClass)>,
 ) -> bool {
-    let Some(index) = indices.get(id).copied() else {
+    if !indices.contains_key(id) {
         return true;
-    };
-    if let Some(matrix) = covariance {
-        return matrix[index].iter().any(|value| *value != 0.0)
-            || matrix.iter().any(|row| row[index] != 0.0);
     }
     specifications
         .filter(|(candidate, _)| *candidate == id)
-        .any(|(_, uncertainty)| !matches!(uncertainty, UncertaintySpec::Deterministic))
+        .any(|(_, class)| !matches!(class, DeclaredUncertaintyClass::Deterministic))
 }
 
 #[allow(clippy::too_many_arguments)]
 fn record_relevant_missing_derivatives<'a>(
     jacobian: &AggregatedJacobian,
-    covariance: Option<&[Vec<f64>]>,
     indices: &BTreeMap<String, usize>,
-    specifications: impl Iterator<Item = (&'a str, &'a UncertaintySpec)> + Clone,
+    specifications: impl Iterator<Item = (&'a str, DeclaredUncertaintyClass)> + Clone,
     subject: &str,
     missing_sources: &mut Vec<String>,
 ) {
     for (component, id, message) in &jacobian.missing {
-        if derivative_is_required(id, covariance, indices, specifications.clone()) {
+        if derivative_is_required(id, indices, specifications.clone()) {
             missing_sources.push(format!("{subject}:{id} {message} (component:{component})"));
         }
     }

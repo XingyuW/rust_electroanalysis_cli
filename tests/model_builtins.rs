@@ -1,6 +1,6 @@
 use rust_electroanalysis_cli::{
     model::{
-        InputRequirement, InputSpec, ModelInput, ParameterSpec, ParameterValueSource,
+        InputRequirement, InputSpec, ModelError, ModelInput, ParameterSpec, ParameterValueSource,
         UncertaintySpec, built_in_registry, compile_model, default_model_definition,
     },
     potentiometry::calibration::nicolsky_eisenman::{InterferentModelInput, evaluate_potential},
@@ -462,8 +462,59 @@ fn nernst_e0_covariance_propagates_and_uncertain_charge_blocks_complete() {
 }
 
 #[test]
+fn reviewer_zero_charge_covariance_row_is_a_typed_contract_error() {
+    let mut definition = default_model_definition();
+    for parameter in &mut definition.parameters {
+        parameter.uncertainty = UncertaintySpec::Deterministic;
+        parameter.value_source = ParameterValueSource::Fixed;
+    }
+    definition.parameters[0].uncertainty = UncertaintySpec::Variance {
+        value: 1.0,
+        unit: "V^2".into(),
+    };
+    definition.parameters[0].value_source = ParameterValueSource::Fitted;
+    definition.parameters[1].uncertainty = UncertaintySpec::StandardDeviation {
+        value: 0.1,
+        unit: "dimensionless".into(),
+    };
+    definition.parameters[1].value_source = ParameterValueSource::Fitted;
+    let model = compile_model(definition, built_in_registry()).unwrap();
+    let parameters = model.default_parameters();
+    let state = model.initialize(&parameters).unwrap();
+    let dimension = model.parameter_definitions().len();
+    let mut covariance = vec![vec![0.0; dimension]; dimension];
+    covariance[model.parameter_index("standard_potential_v").unwrap()]
+        [model.parameter_index("standard_potential_v").unwrap()] = 1.0;
+
+    assert!(matches!(
+        model.observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(0.0),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
+                state_covariance: Some(vec![vec![0.0; 2]; 2]),
+                parameter_covariance: Some(covariance),
+                observation_variance_v2: Some(1.0e-6),
+            },
+        ),
+        Err(ModelError::CovarianceUncertaintyConflict { quantity_id, .. }) if quantity_id == "ion_charge"
+    ));
+}
+
+#[test]
 fn empirical_nernst_slope_covariance_and_cross_term_propagate() {
     let mut definition = default_model_definition();
+    for parameter in &mut definition.parameters {
+        parameter.uncertainty = UncertaintySpec::Deterministic;
+        parameter.value_source = ParameterValueSource::Fixed;
+    }
+    definition.parameters[0].uncertainty = UncertaintySpec::Variance {
+        value: 1.0,
+        unit: "V^2".into(),
+    };
+    definition.parameters[0].value_source = ParameterValueSource::Fitted;
     definition.parameters.push(ParameterSpec {
         id: "empirical_slope_v_per_decade".into(),
         name: "empirical slope".into(),
@@ -552,6 +603,15 @@ fn empirical_nernst_slope_covariance_and_cross_term_propagate() {
 #[test]
 fn nicolsky_parameter_derivatives_use_stable_ids_and_full_covariance() {
     let mut definition = default_model_definition();
+    for parameter in &mut definition.parameters {
+        parameter.uncertainty = UncertaintySpec::Deterministic;
+        parameter.value_source = ParameterValueSource::Fixed;
+    }
+    definition.parameters[0].uncertainty = UncertaintySpec::Variance {
+        value: 1.0,
+        unit: "V^2".into(),
+    };
+    definition.parameters[0].value_source = ParameterValueSource::Fitted;
     let equilibrium = &mut definition.components[0];
     equilibrium.kind = "equilibrium.nicolsky_eisenman".into();
     equilibrium.equation = "EQ-CAL-002 adapter".into();
@@ -656,6 +716,10 @@ fn nicolsky_parameter_derivatives_use_stable_ids_and_full_covariance() {
     covariance[selectivity][selectivity] = 0.04;
     covariance[e0][selectivity] = 0.1;
     covariance[selectivity][e0] = 0.1;
+    let slope = model
+        .parameter_index("nicolsky_slope_v_per_decade")
+        .unwrap();
+    covariance[slope][slope] = 1.0e-4;
     let prediction = model
         .observation_prediction_with_uncertainty(
             &state,
@@ -670,8 +734,12 @@ fn nicolsky_parameter_derivatives_use_stable_ids_and_full_covariance() {
             },
         )
         .unwrap();
-    let expected_parameter_variance =
-        1.0 + expected_selectivity * expected_selectivity * 0.04 + 2.0 * expected_selectivity * 0.1;
+    let expected_parameter_variance = 1.0
+        + expected_selectivity * expected_selectivity * 0.04
+        + 2.0 * expected_selectivity * 0.1
+        + derivatives["nicolsky_slope_v_per_decade"]
+            * derivatives["nicolsky_slope_v_per_decade"]
+            * 1.0e-4;
     assert_eq!(
         prediction.uncertainty.status,
         rust_electroanalysis_cli::model::UncertaintyStatus::Complete

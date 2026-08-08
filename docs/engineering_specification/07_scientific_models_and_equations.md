@@ -446,6 +446,15 @@ as `J_x P_x J_x^T + J_theta P_theta J_theta^T + R`; full covariance retains
 correlation and diagonal declarations record an independence assumption.
 Structural and model-form uncertainty remain unquantified.
 
+Covariance supplies the numerical joint distribution only: it may refine a
+declared stochastic magnitude and cross-correlation, but may not change a
+schema-declared stochastic quantity into deterministic or make a deterministic
+quantity stochastic. Consequently a declared stochastic diagonal must be
+positive when a full matrix is supplied, while deterministic rows/columns must
+be zero. A singular valid covariance remains permitted. Missing Jacobian
+coverage is different from an explicitly covered zero derivative and cannot be
+converted to zero by inspecting covariance.
+
 ### EQ-ISM-010: Analytical Observation-Parameter Jacobians
 
 For an explicitly parameterized Nernst form
@@ -455,6 +464,13 @@ temperature/charge slope, so it does not pretend that slope is a fitted
 uncertain parameter. Ion charge is a rounded structural parameter; its
 continuous derivative is unavailable, and an uncertain charge therefore makes
 uncertainty incomplete.
+
+The built-in ion charge remains `Fixed` plus `Deterministic`: it is a discrete
+valence, not a continuously fitted physical coefficient. A custom definition
+that marks charge stochastic has no continuous first-order derivative in this
+adapter and therefore cannot receive `Complete` differential uncertainty; it
+must use an explicitly supported non-differential treatment outside this
+adapter rather than silently rounding and propagating a fake derivative.
 
 For Nicolsky-Eisenman,
 `Aeff = ai + sum(Kij aj^(zi/zj))` and `E = E0 + S log10(Aeff)` when an empirical

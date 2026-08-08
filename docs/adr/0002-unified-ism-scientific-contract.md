@@ -141,3 +141,18 @@ Fitted parameters and estimated states require positive finite uncertainty.
 cannot bypass validation. Legacy numeric zero deserializes as `Unknown` and
 must be enriched before compilation. This remains first-order propagation and
 makes no Bayesian or structural/model-form uncertainty claim.
+
+### Covariance uncertainty consistency
+
+Schema declarations are authoritative: `Deterministic`, `StochasticKnown`, or
+`StochasticUnknown` is derived from the value/initialization source and typed
+uncertainty declaration, never from a covariance row. A full covariance matrix
+quantifies magnitude and correlation but cannot turn a declared stochastic
+quantity into deterministic or vice versa. Known stochastic entries require a
+finite positive diagonal; deterministic entries require an all-zero row and
+column. Dimension, finiteness, symmetry, and PSD are validated before
+propagation, and contradictions are typed errors. A zero derivative is valid
+only when the Jacobian explicitly covers the ID and returns numeric zero;
+missing coverage remains missing even for a zero covariance row. `Complete`
+requires valid covariance and explicit derivative coverage for each relevant
+stochastic source, observation variance, and finite propagated values.

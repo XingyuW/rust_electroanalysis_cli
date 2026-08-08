@@ -18,6 +18,7 @@ struct MockVoltageComponent {
     descriptor: ComponentDescriptor,
     voltage_v: f64,
     missing_parameter_derivative: bool,
+    zero_parameter_derivative: bool,
 }
 
 impl IsmComponent for MockVoltageComponent {
@@ -58,6 +59,8 @@ impl IsmComponent for MockVoltageComponent {
                 },
                 method: rust_electroanalysis_cli::model::JacobianMethod::NotEvaluated,
             })
+        } else if self.zero_parameter_derivative {
+            Ok(ParameterJacobian::analytic([("offset".into(), 0.0)]))
         } else {
             Ok(ParameterJacobian::analytic([("offset".into(), 3.0)]))
         }
@@ -88,6 +91,10 @@ fn mock_factory(descriptor: &ComponentDescriptor) -> Result<Box<dyn IsmComponent
         missing_parameter_derivative: descriptor
             .metadata
             .get("missing_parameter_derivative")
+            .is_some_and(|value| value == "true"),
+        zero_parameter_derivative: descriptor
+            .metadata
+            .get("zero_parameter_derivative")
             .is_some_and(|value| value == "true"),
     }))
 }
@@ -726,6 +733,182 @@ fn legacy_numeric_uncertainty_is_unknown_and_incomplete_legacy_cannot_compile() 
         compile_model(structurally_legacy, &registry()),
         Err(ModelError::LegacyMigrationRequired { found: 2, .. })
     ));
+}
+
+#[test]
+fn zero_covariance_row_cannot_hide_a_missing_stochastic_derivative() {
+    let mut model = definition();
+    model.components.truncate(1);
+    model.components[0]
+        .metadata
+        .insert("missing_parameter_derivative".into(), "true".into());
+    let compiled = compile_model(model, &registry()).unwrap();
+    let parameters = compiled.default_parameters();
+    let state = compiled.initialize(&parameters).unwrap();
+    assert!(matches!(
+        compiled.observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
+                state_covariance: Some(vec![vec![0.01]]),
+                parameter_covariance: Some(vec![vec![0.0]]),
+                observation_variance_v2: Some(0.0),
+            },
+        ),
+        Err(ModelError::CovarianceUncertaintyConflict { quantity_id, .. }) if quantity_id == "offset"
+    ));
+}
+
+#[test]
+fn complete_derivative_coverage_is_distinct_from_an_analytical_zero() {
+    let mut model = definition();
+    model.components.truncate(1);
+    model.components[0]
+        .metadata
+        .insert("zero_parameter_derivative".into(), "true".into());
+    let compiled = compile_model(model, &registry()).unwrap();
+    let parameters = compiled.default_parameters();
+    let state = compiled.initialize(&parameters).unwrap();
+    let prediction = compiled
+        .observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
+                state_covariance: Some(vec![vec![0.5]]),
+                parameter_covariance: Some(vec![vec![0.25]]),
+                observation_variance_v2: Some(0.0),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        prediction.uncertainty.status,
+        rust_electroanalysis_cli::model::UncertaintyStatus::Complete
+    );
+    assert_eq!(prediction.uncertainty.parameter_variance_v2, Some(0.0));
+}
+
+#[test]
+fn deterministic_covariance_contract_accepts_zero_and_rejects_nonzero() {
+    let mut model = definition();
+    model.components.truncate(1);
+    model.states[0].initial_uncertainty = UncertaintySpec::Deterministic;
+    model.parameters[0].uncertainty = UncertaintySpec::Deterministic;
+    let compiled = compile_model(model, &registry()).unwrap();
+    let parameters = compiled.default_parameters();
+    let state = compiled.initialize(&parameters).unwrap();
+    let accepted = compiled
+        .observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
+                state_covariance: Some(vec![vec![0.0]]),
+                parameter_covariance: Some(vec![vec![0.0]]),
+                observation_variance_v2: Some(0.0),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        accepted.uncertainty.status,
+        rust_electroanalysis_cli::model::UncertaintyStatus::Complete
+    );
+    assert!(matches!(
+        compiled.observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
+                state_covariance: Some(vec![vec![0.0]]),
+                parameter_covariance: Some(vec![vec![0.1]]),
+                observation_variance_v2: Some(0.0),
+            },
+        ),
+        Err(ModelError::NonzeroCovarianceForDeterministicQuantity { quantity_id, .. }) if quantity_id == "offset"
+    ));
+}
+
+#[test]
+fn state_covariance_contract_prevents_an_estimated_state_from_becoming_zero_variance() {
+    let mut model = definition();
+    model.components.truncate(1);
+    model.states[0].initialization_source = StateInitializationSource::Estimated;
+    model.states[0].initial_uncertainty = UncertaintySpec::Variance {
+        value: 0.25,
+        unit: "V^2".into(),
+    };
+    let compiled = compile_model(model, &registry()).unwrap();
+    let parameters = compiled.default_parameters();
+    let state = compiled.initialize(&parameters).unwrap();
+    assert!(matches!(
+        compiled.observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
+                state_covariance: Some(vec![vec![0.0]]),
+                parameter_covariance: Some(vec![vec![0.25]]),
+                observation_variance_v2: Some(0.0),
+            },
+        ),
+        Err(ModelError::CovarianceUncertaintyConflict { quantity_id, .. }) if quantity_id == "memory"
+    ));
+}
+
+#[test]
+fn covariance_matrix_validation_has_typed_failures() {
+    let mut model = definition();
+    model.components.truncate(1);
+    let mut additional_state = model.states[0].clone();
+    additional_state.id = "memory_2".into();
+    additional_state.name = "memory 2".into();
+    model.states.push(additional_state);
+    let compiled = compile_model(model, &registry()).unwrap();
+    let parameters = compiled.default_parameters();
+    let state = compiled.initialize(&parameters).unwrap();
+    for (matrix, expected) in [
+        (vec![vec![f64::NAN, 0.0], vec![0.0, 0.1]], "nonfinite"),
+        (vec![vec![0.5, 0.1], vec![0.0, 0.5]], "asymmetric"),
+        (vec![vec![1.0, 2.0], vec![2.0, 1.0]], "non_psd"),
+    ] {
+        let result = compiled.observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
+                state_covariance: Some(matrix),
+                parameter_covariance: Some(vec![vec![0.25]]),
+                observation_variance_v2: Some(0.0),
+            },
+        );
+        match expected {
+            "nonfinite" => assert!(matches!(
+                result,
+                Err(ModelError::NonFiniteCovariance { .. })
+            )),
+            "asymmetric" => assert!(matches!(
+                result,
+                Err(ModelError::AsymmetricCovariance { .. })
+            )),
+            _ => assert!(matches!(
+                result,
+                Err(ModelError::NonPositiveSemidefiniteCovariance { .. })
+            )),
+        }
+    }
 }
 
 #[test]

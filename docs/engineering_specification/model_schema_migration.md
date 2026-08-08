@@ -86,3 +86,13 @@ or reclassifies a truly fixed quantity. Direct compilation of an unmigrated
 legacy definition returns `LegacyMigrationRequired` once its uncertainty is
 otherwise valid. Writers emit schema 3; model artifact readers retain explicit
 legacy schema 1/2 support.
+
+### Covariance enrichment semantics
+
+Schema uncertainty class is authoritative during migration. Legacy numeric zero
+remains `Unknown`, never `Deterministic`; incomplete artifacts may deserialize
+but cannot become uncertainty-complete through a zero covariance row. A caller
+may only enrich a legacy stochastic-unknown declaration through an explicit
+migration that records a positive typed uncertainty declaration/provenance.
+Full covariance then quantifies that declaration; it does not itself silently
+rewrite schema semantics. A contradictory supplied row is a typed error.
