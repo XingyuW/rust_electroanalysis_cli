@@ -200,3 +200,19 @@ Warn/Reject independence, and shared `to_json`/`write_artifact` rejection of a
 nested nonfinite applicability interval. The wider model-core suites retain the
 charge, equation, dynamic, covariance, identifiability, unit, equilibrium, and
 decomposition matrices.
+
+### Permanent V1 regression-matrix traceability
+
+The following normal integration-test targets are committed regression gates;
+the function names are intentionally recorded so a future review can identify
+the scientific assertion without relying on a filename alone.
+
+| Requirement | Test file | Exact test function | Scientific assertion protected |
+|-------------|-----------|---------------------|--------------------------------|
+| ISM-013 declaration migration, deterministic ordering, duplicate provenance, and typed conflicts | `tests/model_v1_applicability_contract.rs` | `legacy_only_constraint_is_migrated_losslessly`, `typed_only_constraint_is_resolved_and_preserved`, `mixed_legacy_and_typed_constraints_survive_with_stable_ordering`, `exact_duplicate_retains_both_provenance_sources_and_conflicts_name_fields`, `conflicting_intervals_and_policies_return_typed_conflict_context` | Legacy and typed domains are lossless, deterministic, source-provenanced, and never silently composed. |
+| ISM-014 per-constraint Warn/Reject enforcement and unavailable evidence | `tests/model_v1_applicability_contract.rs` | `independent_warn_and_reject_policies_keep_each_constraint_outcome`, `unavailable_warn_and_reject_are_independent_and_ordered` | Each applicability constraint retains its own typed result, warning, and enforcement policy. |
+| ISM-012 equilibrium evidence statuses | `tests/model_v1_equilibrium_identifiability_contract.rs` | `equilibrium_recognition_classifies_every_v1_status_with_auditable_criteria`, `equilibrium_recognition_preserves_missing_not_applicable_and_unobservable_evidence` | Equilibrium, quasi-equilibrium, transitional, disturbed, and indeterminate assessments preserve satisfied, violated, and missing evidence. |
+| ISM-015 topology and optional-component identifiability metadata | `tests/model_v1_equilibrium_identifiability_contract.rs` | `identifiability_metadata_distinguishes_one_and_two_active_dynamic_modes`, `optional_requirements_promote_to_active_and_serialized_order_is_stable` | Active versus conditional requirements, IDs, scopes, targets, and serialized ordering are stable. |
+| ISM-010 discrete ion-charge contract | `tests/model_v1_units_charge_serialization_contract.rs` | `nernst_component_rejects_every_invalid_discrete_charge_without_coercion`, `nicolsky_component_validates_target_and_interferent_charges_on_its_actual_path` | Nernst and Nicolsky-Eisenman only accept fixed, finite, nonzero integral ion charges. |
+| ISM-011 covariate dimensions | `tests/model_v1_units_charge_serialization_contract.rs` | `covariate_units_accept_exact_contracts_and_report_precise_mismatches` | Temperature, conductivity, flow, `%RH`, and ppm inputs require matching reference and V-per-input sensitivity units with typed mismatch context. |
+| ISM-015 finite public artifacts | `tests/model_v1_units_charge_serialization_contract.rs` | `public_serialization_paths_reject_nested_nonfinite_values_without_creating_files`, `analysis_serialization_rejects_each_uncertainty_and_nested_numeric_path` | `to_json` and `write_artifact` reject nonfinite nested fields at the same structural path and do not create an output file. |

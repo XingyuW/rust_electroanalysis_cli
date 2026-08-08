@@ -72,3 +72,31 @@ both sources. An exact duplicate is evaluated once and records both origins;
 competing constraints for the same subject return a typed conflict rather than
 being silently intersected. Each violation uses its own Warn/Reject policy, so
 a passing Reject constraint cannot turn a separate Warn violation into failure.
+
+## Permanent V1 contract tests
+
+The committed V1 regression matrix is split by contract boundary rather than by
+temporary review scenario. `tests/model_v1_applicability_contract.rs` records
+declaration migration in `legacy_only_constraint_is_migrated_losslessly`,
+`typed_only_constraint_is_resolved_and_preserved`,
+`mixed_legacy_and_typed_constraints_survive_with_stable_ordering`,
+`exact_duplicate_retains_both_provenance_sources_and_conflicts_name_fields`,
+and `conflicting_intervals_and_policies_return_typed_conflict_context`; it
+records enforcement in `independent_warn_and_reject_policies_keep_each_constraint_outcome`
+and `unavailable_warn_and_reject_are_independent_and_ordered`.
+
+`tests/model_v1_equilibrium_identifiability_contract.rs` records the
+evidence-preserving classifications in
+`equilibrium_recognition_classifies_every_v1_status_with_auditable_criteria`
+and `equilibrium_recognition_preserves_missing_not_applicable_and_unobservable_evidence`,
+and records topology/optional-component metadata in
+`identifiability_metadata_distinguishes_one_and_two_active_dynamic_modes` and
+`optional_requirements_promote_to_active_and_serialized_order_is_stable`.
+
+`tests/model_v1_units_charge_serialization_contract.rs` records component-path
+charge validation in `nernst_component_rejects_every_invalid_discrete_charge_without_coercion`
+and `nicolsky_component_validates_target_and_interferent_charges_on_its_actual_path`,
+unit contracts in `covariate_units_accept_exact_contracts_and_report_precise_mismatches`,
+and finite serialization in
+`public_serialization_paths_reject_nested_nonfinite_values_without_creating_files`
+and `analysis_serialization_rejects_each_uncertainty_and_nested_numeric_path`.
