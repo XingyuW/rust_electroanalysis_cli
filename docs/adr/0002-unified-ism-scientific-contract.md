@@ -1,5 +1,11 @@
 # ADR-0002: ISM scientific-contract framework
 
+## Reduced-order component V1 follow-on
+
+The activity-first reduced-order adapters preserve the ADR's explicit
+decomposition, uncertainty, and interpretation-neutrality contracts. See
+[`docs/model/reduced_order_ism_v1.md`](../model/reduced_order_ism_v1.md).
+
 ## Model-core implementation
 
 The model core compiles the frozen definition into a deterministic graph with

@@ -1,5 +1,10 @@
 # 13 — Traceability Matrix
 
+## Reduced-order ISM components V1
+
+The V1 source, example, and scientific-test mapping is summarized in
+[`docs/model/reduced_order_ism_v1.md`](../model/reduced_order_ism_v1.md).
+
 ## ISM model-core trace
 
 Frozen ISM contract requirements trace to `src/model/{definition,registry,

@@ -1070,7 +1070,17 @@ impl CompiledIsmModel {
         }
         for component in &self.components {
             for requirement in &component.descriptor().required_inputs {
-                if !input.values.contains_key(&requirement.id) {
+                // A descriptor may declare an explicit event/covariate input
+                // whose model-level contract marks it optional.  It is then
+                // available to the component when supplied, but its absence
+                // represents "no event" rather than an inferred value.
+                let required_now = self
+                    .definition
+                    .inputs
+                    .iter()
+                    .find(|specification| specification.id == requirement.id)
+                    .is_none_or(|specification| specification.required);
+                if required_now && !input.values.contains_key(&requirement.id) {
                     return Err(ModelError::MissingInput {
                         component: component.descriptor().id.clone(),
                         input: requirement.id.clone(),

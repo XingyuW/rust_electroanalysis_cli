@@ -1,5 +1,10 @@
 # 16 — Open Questions
 
+## Reduced-order ISM components V1
+
+Physical mechanism attribution, EIS-to-timescale mapping, and estimator
+integration remain deferred after the neutral V1 component library.
+
 ## Next model integration phase
 
 Pending work is an adapter from estimation observability/configuration into

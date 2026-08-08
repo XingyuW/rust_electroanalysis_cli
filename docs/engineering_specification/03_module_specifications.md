@@ -1,5 +1,11 @@
 # 03 — Module Specifications
 
+## Reduced-order ISM components V1
+
+V1 adds activity, equilibrium, first-order dynamic, reference, covariate, and
+observation-variance adapters under the existing model contracts. Details are
+in [`docs/model/reduced_order_ism_v1.md`](../model/reduced_order_ism_v1.md).
+
 ## `model`
 
 The model module exposes compiled state/parameter lookup and component-local

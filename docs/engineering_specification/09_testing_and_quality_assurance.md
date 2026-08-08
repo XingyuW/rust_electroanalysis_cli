@@ -1,5 +1,10 @@
 # 09 — Testing & Quality Assurance
 
+## Reduced-order ISM components V1
+
+Parity, analytical decay, decomposition, variance separation, and neutral
+equilibrium-recognition coverage are added in `reduced_ism_components_v1` tests.
+
 ## Model-core QA
 
 Model-core tests cover graph rejection and stable ordering, state/parameter

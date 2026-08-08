@@ -1,5 +1,10 @@
 # 07 — Scientific Models & Equations
 
+## Reduced-order ISM components V1
+
+The V1 adapter equations, domains, and explicit non-mechanistic interpretation
+limits are recorded in [`docs/model/reduced_order_ism_v1.md`](../model/reduced_order_ism_v1.md).
+
 ## Composition and uncertainty
 
 The prediction is the sum of outputs explicitly typed
