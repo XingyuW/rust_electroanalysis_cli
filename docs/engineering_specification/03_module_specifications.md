@@ -299,3 +299,8 @@ scientific metadata beyond bounds and units, including transformations,
 initialization/value source, equation version, observability/identifiability,
 validity, and uncertainty representation. These are contracts only: they do
 not introduce a new numerical transport equation.
+
+`component.rs` owns closed output semantics and canonical external role;
+`output.rs` records categorized potential/variance and uncertainty status;
+`compiler.rs` enforces output compatibility and applies available first-order
+covariance propagation.

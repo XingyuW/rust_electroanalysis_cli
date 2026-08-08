@@ -62,6 +62,7 @@ pub(crate) enum ModelUnitDimension {
     Concentration,
     Activity,
     Potential,
+    PotentialVariance,
     Temperature,
     Conductivity,
     Time,
@@ -87,6 +88,7 @@ fn unit_dimension(unit: &str) -> Option<ModelUnitDimension> {
     match unit.trim().to_ascii_lowercase().as_str() {
         "s" | "sec" | "second" | "seconds" => Some(ModelUnitDimension::Time),
         "v/s" | "volt/s" | "volts/s" => Some(ModelUnitDimension::PotentialRate),
+        "v^2" | "volt^2" | "volts^2" => Some(ModelUnitDimension::PotentialVariance),
         "m/s" | "meter/s" | "metre/s" => Some(ModelUnitDimension::Flow),
         "v/k" | "volt/k" => Some(ModelUnitDimension::TemperatureSensitivity),
         "v/(s/m)" | "v/(s·m^-1)" | "v per s/m" => {

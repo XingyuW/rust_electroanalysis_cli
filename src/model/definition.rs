@@ -5,7 +5,7 @@ use super::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-pub const MODEL_DEFINITION_SCHEMA_VERSION: u32 = 1;
+pub const MODEL_DEFINITION_SCHEMA_VERSION: u32 = 2;
 
 /// Portable, versioned description of an ISM model graph.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -14,6 +14,11 @@ pub struct ModelDefinition {
     pub model_id: String,
     pub description: String,
     pub validity_domain: String,
+    /// Allows a portable definition to be structurally compiled while naming
+    /// uncertainty sources that must be supplied by a calibration/estimation
+    /// workflow. It is never interpreted as zero uncertainty.
+    #[serde(default)]
+    pub uncertainty_incomplete: bool,
     pub states: Vec<StateSpec>,
     pub parameters: Vec<ParameterSpec>,
     pub inputs: Vec<InputSpec>,
@@ -22,7 +27,7 @@ pub struct ModelDefinition {
 
 impl ModelDefinition {
     pub fn validate_schema(&self) -> Result<(), ModelError> {
-        if self.schema_version != MODEL_DEFINITION_SCHEMA_VERSION {
+        if !(1..=MODEL_DEFINITION_SCHEMA_VERSION).contains(&self.schema_version) {
             return Err(ModelError::UnsupportedSchemaVersion {
                 found: self.schema_version,
                 expected: MODEL_DEFINITION_SCHEMA_VERSION,
@@ -44,11 +49,32 @@ impl ModelDefinition {
             self.components.iter().map(|item| item.id.as_str()),
             "component",
         )?;
+        let uncertainty_incomplete = self.uncertainty_incomplete || self.schema_version == 1;
         for state in &self.states {
             state.validate()?;
+            if matches!(
+                state.initialization_source,
+                super::state::StateInitializationSource::Estimated
+            ) && state.initial_uncertainty.missing_reason().is_some()
+                && !uncertainty_incomplete
+            {
+                return Err(ModelError::InvalidUncertainty {
+                    subject: format!("estimated state '{}'", state.id),
+                });
+            }
         }
         for parameter in &self.parameters {
             parameter.validate()?;
+            if matches!(
+                parameter.value_source,
+                super::parameter::ParameterValueSource::Fitted
+            ) && parameter.uncertainty.missing_reason().is_some()
+                && !uncertainty_incomplete
+            {
+                return Err(ModelError::InvalidUncertainty {
+                    subject: format!("fitted parameter '{}'", parameter.id),
+                });
+            }
         }
         for input in &self.inputs {
             input.validate()?;

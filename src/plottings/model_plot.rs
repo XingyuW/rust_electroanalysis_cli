@@ -85,7 +85,7 @@ pub fn plot_model_analysis(
                     .contributions
                     .iter()
                     .filter(|value| matches!(value.role, crate::model::ComponentRole::Equilibrium))
-                    .map(|value| value.voltage_v)
+                    .filter_map(|value| value.potential_v)
                     .sum(),
             )
         })
@@ -100,7 +100,7 @@ pub fn plot_model_analysis(
                     .contributions
                     .iter()
                     .filter(|value| !matches!(value.role, crate::model::ComponentRole::Equilibrium))
-                    .map(|value| value.voltage_v)
+                    .filter_map(|value| value.potential_v)
                     .sum(),
             )
         })
@@ -121,7 +121,7 @@ pub fn plot_model_analysis(
             component_series
                 .entry(contribution.component_id.clone())
                 .or_default()
-                .push((point.time_s, contribution.voltage_v));
+                .push((point.time_s, contribution.potential_v.unwrap_or(0.0)));
         }
     }
     let component_series = component_series
@@ -168,7 +168,14 @@ pub fn plot_model_analysis(
         .parameters
         .iter()
         .enumerate()
-        .map(|(index, parameter)| (index as f64, parameter.uncertainty))
+        .filter_map(|(index, parameter)| {
+            parameter
+                .uncertainty
+                .variance_in(&parameter.unit)
+                .ok()
+                .flatten()
+                .map(|variance| (index as f64, variance.sqrt()))
+        })
         .collect::<Vec<_>>();
     line(
         directory.join("model_parameter_uncertainty.png"),

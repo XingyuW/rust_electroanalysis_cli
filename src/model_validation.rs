@@ -230,7 +230,7 @@ fn analysis_summary(analysis: &ModelAnalysisReport) -> AnalysisSummary {
                     - point
                         .contributions
                         .iter()
-                        .map(|value| value.voltage_v)
+                        .filter_map(|value| value.potential_v)
                         .sum::<f64>())
                 .abs()
             })

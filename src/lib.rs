@@ -57,7 +57,7 @@ pub use model::{
     EvidenceAssessmentStatus, EvidenceRequirement, IdentifiabilityReport, InterpretationStatus,
     IsmComponent, IsmModel, ModelDefinition, ModelInput, ModelPrediction, ModelState, ModelWarning,
     ParameterSpec, ParameterValueSource, StateInitializationSource, StateSpec, StateTransformation,
-    UncertaintyRepresentation, ValidityReport,
+    UncertaintySpec, ValidityReport,
 };
 pub use potentiometry::units::{Quantity, QuantityUnit};
 pub use results::CircuitFitResult;

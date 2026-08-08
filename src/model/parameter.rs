@@ -1,5 +1,5 @@
-use super::error::ModelError;
 use super::input::validate_unit;
+use super::{error::ModelError, state::UncertaintySpec};
 use serde::{Deserialize, Serialize};
 
 /// How a parameter value enters an evaluation.
@@ -24,7 +24,8 @@ pub struct ParameterSpec {
     pub lower_bound: f64,
     pub upper_bound: f64,
     pub default_value: f64,
-    pub uncertainty: f64,
+    #[serde(default = "default_unknown_uncertainty")]
+    pub uncertainty: UncertaintySpec,
     pub source: String,
     #[serde(default = "default_equation_version")]
     pub equation_version: u32,
@@ -45,6 +46,12 @@ fn default_name() -> String {
 
 fn default_description() -> String {
     "No parameter description was present in the schema-v1 definition.".into()
+}
+
+fn default_unknown_uncertainty() -> UncertaintySpec {
+    UncertaintySpec::Unknown {
+        reason: "parameter uncertainty was not declared".into(),
+    }
 }
 
 impl ParameterSpec {
@@ -88,11 +95,7 @@ impl ParameterSpec {
                 upper: self.upper_bound,
             });
         }
-        if !self.uncertainty.is_finite() || self.uncertainty < 0.0 {
-            return Err(ModelError::NonFinite {
-                subject: format!("parameter '{}' uncertainty", self.id),
-            });
-        }
+        self.uncertainty.variance_in(&self.unit)?;
         if self.source.trim().is_empty() || self.validity_domain.trim().is_empty() {
             return Err(ModelError::EmptyIdentifier {
                 kind: "parameter source or validity domain",

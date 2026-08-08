@@ -175,3 +175,6 @@ Verification confidence labels used in **Verified By**:
 
 | IO-CANON-001 | All production physical-data workflows shall use `electrodata-io` typed datasets and structured errors | `data_file/electrodata_domain_adapter.rs` |
 | IO-CANON-002 | Compatibility reads shall skip invalid coordinate rows, retain invalid measurements as nulls, pad ragged rows, and preserve ordering with diagnostics | `project_compatibility_read_options()` |
+
+| FR-031 | ISM shall sum only typed additive-potential outputs and verify reconstruction | High | `model/component.rs`, `model/output.rs` | Direct |
+| FR-032 | ISM shall report uncertainty status and never coerce unknown uncertainty to zero | High | `model/compiler.rs`, `model/output.rs` | Direct |

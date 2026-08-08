@@ -21,7 +21,10 @@ silently treating a non-model JSON artifact as a model analysis.
 `ism_model_validation`. A reader must reject an incompatible schema or kind.
 
 Phase 02 introduces `ModelDefinition` and `ModelConfig` schema version `1`,
-and the `ism_model_compilation` result artifact schema version `1`. There are no
+and the `ism_model_compilation` result artifact schema version `2`. Model schema
+v1 remains readable: legacy additive composition is migrated to typed semantics,
+legacy `external` deserializes as `external_disturbance`, and legacy numeric
+uncertainty remains explicitly unknown/incomplete rather than zero. There are no
 earlier ISM model artifacts to migrate.
 
 ## Compatibility Rules

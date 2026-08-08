@@ -129,3 +129,9 @@ contradiction rules are sufficient to promote a component from
 
 **Impact**: High. This is required before mechanism labels can be used in a
 scientific conclusion.
+
+## OQ-ISM-004: Structural/model-form uncertainty
+
+The current contract reports first-order state, parameter, and observation
+uncertainty only. How structural and model-form alternatives should be
+quantified remains open; no Bayesian claim is made.

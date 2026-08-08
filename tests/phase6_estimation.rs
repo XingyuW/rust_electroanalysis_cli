@@ -769,7 +769,7 @@ fn ekf_ukf_comparison_reports_equivalent_input_metrics() {
             let sum = point
                 .component_contributions
                 .iter()
-                .map(|component| component.voltage_v)
+                .filter_map(|component| component.potential_v)
                 .sum::<f64>();
             assert!((sum - point.predicted_measurement_v.unwrap()).abs() < 1e-9);
             assert!(

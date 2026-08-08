@@ -439,3 +439,9 @@ composition, validity, interpretation status, and evidence requirements. Nernst,
 Nicolsky-Eisenman, activity, transient, EIS-timescale, and estimation-observation
 implementations remain existing adapters until a separately reviewed equation
 change is approved.
+
+For scalar voltage prediction, `E_pred = sum(E_additive)`. Observation noise
+is `R` in V² and cannot be a voltage term. Available uncertainty is propagated
+as `J_x P_x J_x^T + J_theta P_theta J_theta^T + R`; full covariance retains
+correlation and diagonal declarations record an independence assumption.
+Structural and model-form uncertainty remain unquantified.

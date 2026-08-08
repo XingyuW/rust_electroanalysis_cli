@@ -19,14 +19,30 @@ pub enum ComponentRole {
     Transport,
     Transduction,
     Reference,
+    /// `external` was emitted by schema-v1 definitions. It deserializes into
+    /// the single canonical runtime role; serialization always emits
+    /// `external_disturbance`.
+    #[serde(alias = "external")]
     ExternalDisturbance,
     ObservationNoise,
     Auxiliary,
     Unexplained,
-    /// Backward-compatible spelling for `ExternalDisturbance`. New
-    /// definitions must use `ExternalDisturbance`.
-    #[serde(alias = "external")]
-    External,
+}
+
+/// Closed numerical semantics for a component observation.
+///
+/// This is deliberately not a string: only additive potentials participate in
+/// the deterministic voltage reconstruction.  Observation noise is represented
+/// as variance in V², and state-only/auxiliary components have no numerical
+/// observation contribution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ContributionSemantics {
+    #[default]
+    AdditivePotential,
+    ObservationVariance,
+    StateOnly,
+    Auxiliary,
 }
 
 /// Strength of the physical interpretation attached to a component.
@@ -59,17 +75,19 @@ pub struct ComponentDescriptor {
     pub state_ids: Vec<String>,
     #[serde(default)]
     pub parameter_ids: Vec<String>,
-    /// Output unit for an observation-producing component. Voltage contributions
-    /// must use a unit compatible with volts.
+    /// Output unit for an observation-producing component. Additive-potential
+    /// outputs use volts and observation-variance outputs use V².
     pub output_unit: Option<String>,
     /// Stable owner name for one explicit contribution. This is never an
     /// unexplained-residual owner.
     pub voltage_contribution_owner: Option<String>,
-    /// Declares how this contribution combines with other contributions. A
-    /// voltage-producing component must state this explicitly so terms cannot
-    /// silently overlap semantically.
-    #[serde(default = "default_composition_rule")]
-    pub composition_rule: Option<String>,
+    /// Explicit, closed composition contract for the component output.
+    #[serde(default)]
+    pub contribution_semantics: ContributionSemantics,
+    /// Read-only schema-v1 migration input. It is never used for numerical
+    /// dispatch and is not emitted by current serialization.
+    #[serde(default, rename = "composition_rule", skip_serializing)]
+    pub legacy_composition_rule: Option<String>,
     pub source: String,
     pub validity_domain: String,
     #[serde(default)]
@@ -82,12 +100,6 @@ pub struct ComponentDescriptor {
     pub evidence_requirements: Vec<EvidenceRequirement>,
     #[serde(default)]
     pub metadata: std::collections::BTreeMap<String, String>,
-}
-
-fn default_composition_rule() -> Option<String> {
-    // Schema-v1 definitions did not encode composition. Their only supported
-    // deterministic observation semantics were additive voltage terms.
-    Some("additive_voltage".into())
 }
 
 impl ComponentDescriptor {
@@ -115,18 +127,12 @@ impl ComponentDescriptor {
                 kind: "component assumptions or evidence requirements",
             });
         }
-        if self.voltage_contribution_owner.is_some() && self.output_unit.is_none() {
-            return Err(ModelError::InvalidUnit {
-                subject: format!("voltage component '{}'", self.id),
-                unit: "missing output unit".into(),
-            });
-        }
-        if self.voltage_contribution_owner.is_some()
-            && self.composition_rule.as_deref().is_none_or(str::is_empty)
+        if let Some(rule) = &self.legacy_composition_rule
+            && !matches!(rule.as_str(), "additive_voltage" | "additive_potential")
         {
-            return Err(ModelError::InvalidComponentShape {
+            return Err(ModelError::UnsupportedCompositionSemantics {
                 component: self.id.clone(),
-                message: "voltage contribution requires an explicit composition rule".into(),
+                semantics: rule.clone(),
             });
         }
         if matches!(self.role, ComponentRole::Unexplained)
@@ -137,13 +143,51 @@ impl ComponentDescriptor {
                 message: "unexplained residuals are not model components".into(),
             });
         }
-        if matches!(self.role, ComponentRole::ObservationNoise)
-            && self.voltage_contribution_owner.is_some()
-        {
-            return Err(ModelError::InvalidComponentShape {
-                component: self.id.clone(),
-                message: "observation noise must remain separate from deterministic voltage contributions".into(),
-            });
+        match self.contribution_semantics {
+            ContributionSemantics::AdditivePotential => {
+                if self.voltage_contribution_owner.is_none()
+                    || self.output_unit.as_deref() != Some("V")
+                {
+                    return Err(ModelError::InvalidComponentShape {
+                        component: self.id.clone(),
+                        message: "additive-potential components require a contribution owner and V output".into(),
+                    });
+                }
+                if matches!(
+                    self.role,
+                    ComponentRole::ObservationNoise | ComponentRole::Auxiliary
+                ) {
+                    return Err(ModelError::InvalidComponentShape {
+                        component: self.id.clone(),
+                        message: "observation-noise and auxiliary components cannot be additive potentials".into(),
+                    });
+                }
+            }
+            ContributionSemantics::ObservationVariance => {
+                if self.voltage_contribution_owner.is_some()
+                    || self.output_unit.as_deref() != Some("V^2")
+                {
+                    return Err(ModelError::InvalidComponentShape {
+                        component: self.id.clone(),
+                        message: "observation-variance components require V^2 output and no voltage owner".into(),
+                    });
+                }
+                if !matches!(self.role, ComponentRole::ObservationNoise) {
+                    return Err(ModelError::InvalidComponentShape {
+                        component: self.id.clone(),
+                        message: "only observation-noise components may emit observation variance"
+                            .into(),
+                    });
+                }
+            }
+            ContributionSemantics::StateOnly | ContributionSemantics::Auxiliary => {
+                if self.voltage_contribution_owner.is_some() || self.output_unit.is_some() {
+                    return Err(ModelError::InvalidComponentShape {
+                        component: self.id.clone(),
+                        message: "state-only and auxiliary components cannot declare numerical observation output".into(),
+                    });
+                }
+            }
         }
         Ok(())
     }
@@ -206,6 +250,32 @@ pub trait IsmComponent: Send + Sync {
         _input: &ModelInput,
     ) -> Result<Option<f64>, ModelError> {
         Ok(None)
+    }
+
+    /// Returns an observation-noise variance in V². It is intentionally
+    /// separate from `observation_voltage` so noise cannot enter the voltage
+    /// sum by accident.
+    fn observation_variance_v2(
+        &self,
+        _state: &ModelState,
+        _parameters: &ParameterValues,
+        _input: &ModelInput,
+    ) -> Result<Option<f64>, ModelError> {
+        Ok(None)
+    }
+
+    /// Local derivative of the additive observation with respect to the
+    /// ordered parameter vector. Components that do not expose this derivative
+    /// return a zero vector; callers then report incomplete uncertainty rather
+    /// than inventing parameter variance.
+    fn observation_parameter_jacobian(
+        &self,
+        parameter_dimension: usize,
+        _state: &ModelState,
+        _parameters: &ParameterValues,
+        _input: &ModelInput,
+    ) -> Result<Vec<f64>, ModelError> {
+        Ok(vec![0.0; parameter_dimension])
     }
 
     fn observation_jacobian(

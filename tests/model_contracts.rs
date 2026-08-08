@@ -78,7 +78,8 @@ fn unexplained_and_observation_noise_never_become_voltage_terms() {
         .expect("default model contains an observation-noise declaration");
     observation_noise.output_unit = Some("V".into());
     observation_noise.voltage_contribution_owner = Some("noise".into());
-    observation_noise.composition_rule = Some("additive_voltage".into());
+    observation_noise.contribution_semantics =
+        rust_electroanalysis_cli::model::ContributionSemantics::AdditivePotential;
     assert!(matches!(
         compile_model(noise, built_in_registry()),
         Err(ModelError::InvalidComponentShape { .. })
@@ -92,7 +93,8 @@ fn unexplained_and_observation_noise_never_become_voltage_terms() {
     component.role = ComponentRole::Unexplained;
     component.output_unit = Some("V".into());
     component.voltage_contribution_owner = Some("unexplained".into());
-    component.composition_rule = Some("additive_voltage".into());
+    component.contribution_semantics =
+        rust_electroanalysis_cli::model::ContributionSemantics::AdditivePotential;
     assert!(matches!(
         compile_model(unexplained, built_in_registry()),
         Err(ModelError::InvalidComponentShape { .. })

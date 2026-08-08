@@ -373,7 +373,7 @@ fn evaluate(
         UnexplainedResidual::Observed(value) => Some(value),
         UnexplainedResidual::MissingObservedVoltage => None,
     };
-    Ok(ModelAnalysisPoint { time_s: input.time_s, observed_voltage_v: observed, predicted_voltage_v: prediction.predicted_voltage_v, state_values: compiled.state_definitions().iter().zip(&state.values).map(|(spec, value)| (spec.spec.id.clone(), *value)).collect(), contributions: prediction.contributions, equilibrium: EquilibriumAssessment { status: AssessmentStatus::Indeterminate, classification: EquilibriumStatus::Indeterminate, supporting_evidence: Vec::new(), contradictory_evidence: vec!["Equilibrium recognition requires estimator innovation and environmental evidence.".into()], missing_evidence: vec!["dynamic-state derivative and innovation evidence unavailable in deterministic workflow".into()], validity_domain: compiled.definition().validity_domain.clone() }, validity: compiled.validity_report(state, parameters, input), unexplained_residual_v: residual })
+    Ok(ModelAnalysisPoint { time_s: input.time_s, observed_voltage_v: observed, predicted_voltage_v: prediction.predicted_voltage_v, uncertainty: prediction.uncertainty, state_values: compiled.state_definitions().iter().zip(&state.values).map(|(spec, value)| (spec.spec.id.clone(), *value)).collect(), contributions: prediction.contributions, equilibrium: EquilibriumAssessment { status: AssessmentStatus::Indeterminate, classification: EquilibriumStatus::Indeterminate, supporting_evidence: Vec::new(), contradictory_evidence: vec!["Equilibrium recognition requires estimator innovation and environmental evidence.".into()], missing_evidence: vec!["dynamic-state derivative and innovation evidence unavailable in deterministic workflow".into()], validity_domain: compiled.definition().validity_domain.clone() }, validity: compiled.validity_report(state, parameters, input), unexplained_residual_v: residual })
 }
 fn export(
     workspace: &Path,
@@ -394,7 +394,13 @@ fn export(
     let mut states = csv::Writer::from_path(directory.join("model_states.csv"))?;
     states.write_record(["time_s", "state_id", "value"])?;
     let mut contributions = csv::Writer::from_path(directory.join("model_contributions.csv"))?;
-    contributions.write_record(["time_s", "component_id", "owner", "voltage_v"])?;
+    contributions.write_record([
+        "time_s",
+        "component_id",
+        "owner",
+        "potential_v",
+        "variance_v2",
+    ])?;
     let mut equilibrium = csv::Writer::from_path(directory.join("model_equilibrium.csv"))?;
     equilibrium.write_record(["time_s", "status"])?;
     let mut validity = csv::Writer::from_path(directory.join("model_validity.csv"))?;
@@ -407,8 +413,15 @@ fn export(
             contributions.write_record([
                 point.time_s.to_string(),
                 contribution.component_id.clone(),
-                contribution.owner.clone(),
-                contribution.voltage_v.to_string(),
+                contribution.owner.clone().unwrap_or_default(),
+                contribution
+                    .potential_v
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+                contribution
+                    .variance_v2
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
             ])?;
         }
         equilibrium.write_record([

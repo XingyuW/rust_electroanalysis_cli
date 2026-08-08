@@ -1,5 +1,8 @@
 use super::{
-    component::{ComponentBindings, ComponentDescriptor, IsmComponent, Jacobian, identity},
+    component::{
+        ComponentBindings, ComponentDescriptor, ContributionSemantics, IsmComponent, Jacobian,
+        identity,
+    },
     definition::ModelDefinition,
     error::ModelError,
     graph::dependency_order,
@@ -7,6 +10,7 @@ use super::{
     input::{ModelInput, units_compatible, validate_unit},
     output::{
         ComponentContribution, DEFAULT_POTENTIAL_RECONSTRUCTION_TOLERANCE_V, ObservationPrediction,
+        PredictionUncertainty, PredictionUncertaintyInput, UncertaintyStatus,
     },
     parameter::{CompiledParameterSpec, ParameterValues},
     registry::ComponentRegistry,
@@ -129,27 +133,58 @@ impl CompiledIsmModel {
         self.validate_input(input)?;
         let mut contributions = Vec::new();
         for component in &self.components {
-            if let Some(voltage_v) = component.observation_voltage(state, parameters, input)? {
-                if !voltage_v.is_finite() {
-                    return Err(ModelError::NonFiniteContribution {
-                        component: component.descriptor().id.clone(),
-                    });
+            let descriptor = component.descriptor();
+            let voltage = component.observation_voltage(state, parameters, input)?;
+            let variance = component.observation_variance_v2(state, parameters, input)?;
+            let (potential_v, variance_v2) = match descriptor.contribution_semantics {
+                ContributionSemantics::AdditivePotential => {
+                    let value =
+                        voltage.ok_or_else(|| ModelError::IncompatibleContributionOutput {
+                            component: descriptor.id.clone(),
+                            semantics: descriptor.contribution_semantics,
+                        })?;
+                    if variance.is_some() || !value.is_finite() {
+                        return Err(ModelError::IncompatibleContributionOutput {
+                            component: descriptor.id.clone(),
+                            semantics: descriptor.contribution_semantics,
+                        });
+                    }
+                    (Some(value), None)
                 }
-                let descriptor = component.descriptor();
-                let Some(owner) = &descriptor.voltage_contribution_owner else {
-                    return Err(ModelError::UndeclaredVoltageContribution {
-                        component: descriptor.id.clone(),
-                    });
-                };
-                contributions.push(ComponentContribution {
-                    component_id: descriptor.id.clone(),
-                    owner: owner.clone(),
-                    role: descriptor.role,
-                    voltage_v,
-                    source: descriptor.source.clone(),
-                    validity_domain: descriptor.validity_domain.clone(),
-                });
-            }
+                ContributionSemantics::ObservationVariance => {
+                    let value =
+                        variance.ok_or_else(|| ModelError::IncompatibleContributionOutput {
+                            component: descriptor.id.clone(),
+                            semantics: descriptor.contribution_semantics,
+                        })?;
+                    if voltage.is_some() || !value.is_finite() || value < 0.0 {
+                        return Err(ModelError::IncompatibleContributionOutput {
+                            component: descriptor.id.clone(),
+                            semantics: descriptor.contribution_semantics,
+                        });
+                    }
+                    (None, Some(value))
+                }
+                ContributionSemantics::StateOnly | ContributionSemantics::Auxiliary => {
+                    if voltage.is_some() || variance.is_some() {
+                        return Err(ModelError::IncompatibleContributionOutput {
+                            component: descriptor.id.clone(),
+                            semantics: descriptor.contribution_semantics,
+                        });
+                    }
+                    (None, None)
+                }
+            };
+            contributions.push(ComponentContribution {
+                component_id: descriptor.id.clone(),
+                owner: descriptor.voltage_contribution_owner.clone(),
+                role: descriptor.role,
+                semantics: descriptor.contribution_semantics,
+                potential_v,
+                variance_v2,
+                source: descriptor.source.clone(),
+                validity_domain: descriptor.validity_domain.clone(),
+            });
         }
         Ok(contributions)
     }
@@ -161,10 +196,33 @@ impl CompiledIsmModel {
         input: &ModelInput,
         observed_voltage_v: Option<f64>,
     ) -> Result<ObservationPrediction, ModelError> {
-        let prediction = ObservationPrediction::new(
-            self.component_contributions(state, parameters, input)?,
+        self.observation_prediction_with_uncertainty(
+            state,
+            parameters,
+            input,
             observed_voltage_v,
+            PredictionUncertaintyInput::default(),
+        )
+    }
+
+    pub fn observation_prediction_with_uncertainty(
+        &self,
+        state: &ModelState,
+        parameters: &ParameterValues,
+        input: &ModelInput,
+        observed_voltage_v: Option<f64>,
+        uncertainty_input: PredictionUncertaintyInput,
+    ) -> Result<ObservationPrediction, ModelError> {
+        let contributions = self.component_contributions(state, parameters, input)?;
+        let uncertainty = self.prediction_uncertainty(
+            state,
+            parameters,
+            input,
+            &contributions,
+            uncertainty_input,
         )?;
+        let prediction =
+            ObservationPrediction::new(contributions, observed_voltage_v, uncertainty)?;
         prediction.verify_reconstruction(DEFAULT_POTENTIAL_RECONSTRUCTION_TOLERANCE_V)?;
         Ok(prediction)
     }
@@ -181,6 +239,11 @@ impl CompiledIsmModel {
         let dimension = self.state_definitions.len();
         let mut result = vec![0.0; dimension];
         for component in &self.components {
+            if component.descriptor().contribution_semantics
+                != ContributionSemantics::AdditivePotential
+            {
+                continue;
+            }
             let jacobian = component.observation_jacobian(dimension, state, parameters, input)?;
             if jacobian.len() != dimension || jacobian.iter().any(|value| !value.is_finite()) {
                 return Err(ModelError::JacobianDimension {
@@ -192,6 +255,119 @@ impl CompiledIsmModel {
             }
         }
         Ok(result)
+    }
+
+    fn observation_parameter_jacobian(
+        &self,
+        state: &ModelState,
+        parameters: &ParameterValues,
+        input: &ModelInput,
+    ) -> Result<Vec<f64>, ModelError> {
+        let dimension = self.parameter_definitions.len();
+        let mut result = vec![0.0; dimension];
+        for component in &self.components {
+            if component.descriptor().contribution_semantics
+                != ContributionSemantics::AdditivePotential
+            {
+                continue;
+            }
+            let jacobian =
+                component.observation_parameter_jacobian(dimension, state, parameters, input)?;
+            if jacobian.len() != dimension || jacobian.iter().any(|value| !value.is_finite()) {
+                return Err(ModelError::JacobianDimension {
+                    component: component.descriptor().id.clone(),
+                });
+            }
+            for (total, value) in result.iter_mut().zip(jacobian) {
+                *total += value;
+            }
+        }
+        Ok(result)
+    }
+
+    fn prediction_uncertainty(
+        &self,
+        state: &ModelState,
+        parameters: &ParameterValues,
+        input: &ModelInput,
+        contributions: &[ComponentContribution],
+        supplied: PredictionUncertaintyInput,
+    ) -> Result<PredictionUncertainty, ModelError> {
+        let mut missing_sources = Vec::new();
+        let mut assumptions = Vec::new();
+        let state_covariance = supplied.state_covariance.or_else(|| {
+            diagonal_covariance(
+                self.state_definitions
+                    .iter()
+                    .map(|item| (&item.spec.initial_uncertainty, item.spec.unit.as_str())),
+                "state",
+                &mut missing_sources,
+                &mut assumptions,
+            )
+        });
+        let parameter_covariance = supplied.parameter_covariance.or_else(|| {
+            diagonal_covariance(
+                self.parameter_definitions
+                    .iter()
+                    .map(|item| (&item.spec.uncertainty, item.spec.unit.as_str())),
+                "parameter",
+                &mut missing_sources,
+                &mut assumptions,
+            )
+        });
+        let state_variance_v2 = state_covariance
+            .as_ref()
+            .map(|matrix| {
+                let jacobian = self.observation_jacobian(state, parameters, input)?;
+                quadratic_form(&jacobian, matrix)
+            })
+            .transpose()?;
+        let parameter_variance_v2 = parameter_covariance
+            .as_ref()
+            .map(|matrix| {
+                let jacobian = self.observation_parameter_jacobian(state, parameters, input)?;
+                quadratic_form(&jacobian, matrix)
+            })
+            .transpose()?;
+        let observation_variance_v2 = contributions
+            .iter()
+            .filter_map(|item| item.variance_v2)
+            .try_fold(0.0, |sum, value| {
+                if value.is_finite() && value >= 0.0 {
+                    Ok(sum + value)
+                } else {
+                    Err(ModelError::NonFinite {
+                        subject: "observation variance".into(),
+                    })
+                }
+            })?;
+        let has_missing = !missing_sources.is_empty();
+        let known_total = match (state_variance_v2, parameter_variance_v2) {
+            (Some(state), Some(parameter)) => Some(state + parameter + observation_variance_v2),
+            _ => None,
+        };
+        let status = match (has_missing, known_total) {
+            (false, Some(_)) => UncertaintyStatus::Complete,
+            (true, _)
+                if state_variance_v2.is_some()
+                    || parameter_variance_v2.is_some()
+                    || observation_variance_v2 > 0.0 =>
+            {
+                UncertaintyStatus::Partial
+            }
+            (true, _) => UncertaintyStatus::Unavailable,
+            (false, None) => UncertaintyStatus::Unavailable,
+        };
+        Ok(PredictionUncertainty {
+            status,
+            total_variance_v2: known_total,
+            standard_error_v: known_total.map(f64::sqrt),
+            state_variance_v2,
+            parameter_variance_v2,
+            observation_variance_v2: Some(observation_variance_v2),
+            missing_sources,
+            assumptions,
+        })
     }
 
     pub fn validity_report(
@@ -458,7 +634,7 @@ fn validate_component_references(
         if let Some(unit) = &component.output_unit {
             validate_unit(unit, format!("component '{}' output", component.id))?;
         }
-        if component.voltage_contribution_owner.is_some()
+        if component.contribution_semantics == ContributionSemantics::AdditivePotential
             && !component
                 .output_unit
                 .as_deref()
@@ -492,6 +668,77 @@ fn validate_contribution_owners(components: &[ComponentDescriptor]) -> Result<()
         }
     }
     Ok(())
+}
+
+fn diagonal_covariance<'a>(
+    specifications: impl Iterator<Item = (&'a super::state::UncertaintySpec, &'a str)>,
+    subject: &str,
+    missing: &mut Vec<String>,
+    assumptions: &mut Vec<String>,
+) -> Option<Vec<Vec<f64>>> {
+    let mut diagonal = Vec::new();
+    for (index, (uncertainty, unit)) in specifications.enumerate() {
+        match uncertainty.variance_in(unit) {
+            Ok(Some(value)) => diagonal.push(value),
+            Ok(None) => missing.push(format!(
+                "{subject} covariance for index {index}: {}",
+                uncertainty
+                    .missing_reason()
+                    .unwrap_or_else(|| "unknown source".into())
+            )),
+            Err(_) => missing.push(format!("{subject} covariance for index {index} is invalid")),
+        }
+    }
+    if !missing.iter().any(|message| message.starts_with(subject)) {
+        assumptions.push(format!(
+            "{subject} uncertainties were propagated as an independent diagonal covariance"
+        ));
+        Some(
+            diagonal
+                .iter()
+                .enumerate()
+                .map(|(row, value)| {
+                    diagonal
+                        .iter()
+                        .enumerate()
+                        .map(|(column, _)| if row == column { *value } else { 0.0 })
+                        .collect()
+                })
+                .collect(),
+        )
+    } else {
+        None
+    }
+}
+
+fn quadratic_form(jacobian: &[f64], covariance: &[Vec<f64>]) -> Result<f64, ModelError> {
+    if covariance.len() != jacobian.len()
+        || covariance
+            .iter()
+            .any(|row| row.len() != jacobian.len() || row.iter().any(|value| !value.is_finite()))
+    {
+        return Err(ModelError::JacobianDimension {
+            component: "prediction uncertainty covariance".into(),
+        });
+    }
+    let result = jacobian
+        .iter()
+        .enumerate()
+        .map(|(row, left)| {
+            covariance[row]
+                .iter()
+                .enumerate()
+                .map(|(column, covariance)| left * covariance * jacobian[column])
+                .sum::<f64>()
+        })
+        .sum::<f64>();
+    if result.is_finite() && result >= 0.0 {
+        Ok(result)
+    } else {
+        Err(ModelError::NonFinite {
+            subject: "propagated prediction variance".into(),
+        })
+    }
 }
 
 fn valid_matrix(matrix: &Jacobian, rows: usize, columns: usize) -> bool {

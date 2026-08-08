@@ -104,3 +104,14 @@ Legacy estimation remains an outer compatibility adapter until regression
 equivalence is shown. The future extraction path is a mechanical move of
 `src/model` to `crates/ism-model-core`, retained by a compatibility re-export;
 the extracted crate must not reverse the dependency direction.
+
+### Schema-v2 composition and uncertainty remediation
+
+Composition is a closed typed contract: `additive_potential`,
+`observation_variance`, `state_only`, or `auxiliary`. Only additive potential
+terms reconstruct prediction; observation variance remains V². The sole
+runtime external role is `external_disturbance`; legacy `external` is an input
+alias only. Predictions report complete, partial, unavailable, or
+not-requested uncertainty. First-order propagation uses available `J P Jᵀ`
+terms and records diagonal-independence assumptions. It does not claim full
+Bayesian or model-form uncertainty propagation.

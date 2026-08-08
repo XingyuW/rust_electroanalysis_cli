@@ -68,8 +68,8 @@ contract!(
 contract!(
     ModelCompilationArtifact,
     ArtifactKind::ModelCompilation,
-    1,
-    &[1]
+    2,
+    &[1, 2]
 );
-contract!(ModelAnalysisReport, ArtifactKind::ModelAnalysis, 1, &[1]);
+contract!(ModelAnalysisReport, ArtifactKind::ModelAnalysis, 2, &[1, 2]);
 contract!(ValidationResults, ArtifactKind::ModelValidation, 1, &[1]);

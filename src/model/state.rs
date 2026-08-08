@@ -1,6 +1,6 @@
 use super::error::ModelError;
 use super::input::validate_unit;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Transformation between stored and physical state coordinates.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -25,16 +25,100 @@ pub enum StateInitializationSource {
     Estimated,
 }
 
-/// How uncertainty for a state is represented without requiring an estimator.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum UncertaintyRepresentation {
-    #[default]
-    NotSpecified,
-    StandardDeviation,
-    Variance,
-    Covariance,
-    PriorDistribution,
+/// Typed uncertainty declaration. Numeric zero is meaningful only for an
+/// explicitly deterministic quantity; unknown uncertainty is never coerced to
+/// zero.
+#[derive(Debug, Clone, PartialEq)]
+pub enum UncertaintySpec {
+    Deterministic,
+    StandardDeviation { value: f64, unit: String },
+    Variance { value: f64, unit: String },
+    Unknown { reason: String },
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum UncertaintySpecWire {
+    Deterministic,
+    StandardDeviation { value: f64, unit: String },
+    Variance { value: f64, unit: String },
+    Unknown { reason: String },
+}
+
+impl Serialize for UncertaintySpec {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let wire = match self {
+            Self::Deterministic => UncertaintySpecWire::Deterministic,
+            Self::StandardDeviation { value, unit } => UncertaintySpecWire::StandardDeviation {
+                value: *value,
+                unit: unit.clone(),
+            },
+            Self::Variance { value, unit } => UncertaintySpecWire::Variance {
+                value: *value,
+                unit: unit.clone(),
+            },
+            Self::Unknown { reason } => UncertaintySpecWire::Unknown {
+                reason: reason.clone(),
+            },
+        };
+        wire.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for UncertaintySpec {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Wire {
+            Typed(UncertaintySpecWire),
+            LegacyNumber(f64),
+        }
+        Ok(match Wire::deserialize(deserializer)? {
+            Wire::Typed(UncertaintySpecWire::Deterministic) => Self::Deterministic,
+            Wire::Typed(UncertaintySpecWire::StandardDeviation { value, unit }) => {
+                Self::StandardDeviation { value, unit }
+            }
+            Wire::Typed(UncertaintySpecWire::Variance { value, unit }) => {
+                Self::Variance { value, unit }
+            }
+            Wire::Typed(UncertaintySpecWire::Unknown { reason }) => Self::Unknown { reason },
+            Wire::LegacyNumber(_legacy_value) => Self::Unknown {
+                reason: "legacy numeric uncertainty requires explicit typed migration".into(),
+            },
+        })
+    }
+}
+
+impl UncertaintySpec {
+    pub fn variance_in(&self, expected_unit: &str) -> Result<Option<f64>, ModelError> {
+        match self {
+            Self::Deterministic => Ok(Some(0.0)),
+            Self::StandardDeviation { value, unit } => {
+                if unit != expected_unit || !value.is_finite() || *value <= 0.0 {
+                    return Err(ModelError::InvalidUncertainty {
+                        subject: expected_unit.into(),
+                    });
+                }
+                Ok(Some(value * value))
+            }
+            Self::Variance { value, unit } => {
+                if unit != &format!("{expected_unit}^2") || !value.is_finite() || *value <= 0.0 {
+                    return Err(ModelError::InvalidUncertainty {
+                        subject: expected_unit.into(),
+                    });
+                }
+                Ok(Some(*value))
+            }
+            Self::Unknown { .. } => Ok(None),
+        }
+    }
+
+    pub fn missing_reason(&self) -> Option<String> {
+        match self {
+            Self::Unknown { reason } => Some(reason.clone()),
+            _ => None,
+        }
+    }
 }
 
 /// Versioned metadata and constraints for one latent model state.
@@ -59,8 +143,14 @@ pub struct StateSpec {
     #[serde(default)]
     pub observability_requirements: Vec<String>,
     pub validity_domain: String,
-    #[serde(default)]
-    pub uncertainty_representation: UncertaintyRepresentation,
+    #[serde(default = "default_unknown_uncertainty")]
+    pub initial_uncertainty: UncertaintySpec,
+}
+
+fn default_unknown_uncertainty() -> UncertaintySpec {
+    UncertaintySpec::Unknown {
+        reason: "initial-state uncertainty was not declared".into(),
+    }
 }
 
 const fn default_equation_version() -> u32 {
@@ -121,6 +211,7 @@ impl StateSpec {
                 kind: "state source or validity domain",
             });
         }
+        self.initial_uncertainty.variance_in(&self.unit)?;
         Ok(())
     }
 }

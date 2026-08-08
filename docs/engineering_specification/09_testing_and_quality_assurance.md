@@ -154,3 +154,8 @@ of noise/residuals from deterministic voltage, and forbidden high-level imports
 from `src/model`. Existing `model_core` tests cover acyclic dependencies and
 unique contribution ownership. These tests are architectural invariants, not
 evidence that a high-fidelity physical transport model has been validated.
+
+Model-contract tests cover deterministic contribution ordering, typed voltage
+reconstruction, observation-variance exclusion, canonical external-role alias
+migration, uncertainty validation, covariance propagation, and non-finite
+prediction serialization rejection.

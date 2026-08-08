@@ -72,6 +72,20 @@ pub enum ModelError {
     NonFiniteContribution { component: String },
     #[error("component '{component}' emitted a voltage without a declared contribution owner")]
     UndeclaredVoltageContribution { component: String },
+    #[error("component '{component}' requested unsupported composition semantics '{semantics}'")]
+    UnsupportedCompositionSemantics {
+        component: String,
+        semantics: String,
+    },
+    #[error(
+        "component '{component}' emitted an output incompatible with declared {semantics:?} semantics"
+    )]
+    IncompatibleContributionOutput {
+        component: String,
+        semantics: super::component::ContributionSemantics,
+    },
+    #[error("invalid or missing uncertainty declaration for {subject}")]
+    InvalidUncertainty { subject: String },
     #[error("invalid potential reconstruction tolerance {tolerance_v} V")]
     InvalidTolerance { tolerance_v: f64 },
     #[error(

@@ -213,7 +213,10 @@ pub fn decompose_legacy_observation(
             reference,
         ));
     }
-    let predicted_voltage_v = contributions.iter().map(|item| item.voltage_v).sum::<f64>();
+    let predicted_voltage_v = contributions
+        .iter()
+        .filter_map(|item| item.potential_v)
+        .sum::<f64>();
     let unexplained_residual_v = observed_voltage_v.map(|observed| observed - predicted_voltage_v);
     let domain = calibration.valid_domain_check(activity, environment);
     let equilibrium_assessment = assess_equilibrium(
@@ -251,14 +254,14 @@ fn assembled_output(
             .contributions
             .iter()
             .filter(|contribution| contribution.role == role)
-            .map(|contribution| contribution.voltage_v)
+            .filter_map(|contribution| contribution.potential_v)
             .sum::<f64>()
     };
     let equilibrium_potential = role_sum(ComponentRole::Equilibrium);
     let transport = role_sum(ComponentRole::Transport);
     let transduction = role_sum(ComponentRole::Transduction);
     let reference = role_sum(ComponentRole::Reference);
-    let external = role_sum(ComponentRole::External);
+    let external = role_sum(ComponentRole::ExternalDisturbance);
     let unexplained_residual_v = match prediction.unexplained_residual {
         UnexplainedResidual::Observed(value) => Some(value),
         UnexplainedResidual::MissingObservedVoltage => None,
@@ -550,20 +553,24 @@ pub fn decompose_weighted_observation(
     result.reference_potential_v = totals[3];
     result.external_disturbance_potential_v = totals[4];
     let mut index = 0;
-    result.contributions[index].voltage_v = totals[0];
+    result.contributions[index].potential_v = Some(totals[0]);
     index += 1;
     if model.has_polarization() {
-        result.contributions[index].voltage_v = totals[1];
+        result.contributions[index].potential_v = Some(totals[1]);
         index += 1;
     }
     if model.has_condition() {
-        result.contributions[index].voltage_v = totals[2];
+        result.contributions[index].potential_v = Some(totals[2]);
         index += 1;
     }
     if model.has_baseline() {
-        result.contributions[index].voltage_v = totals[3];
+        result.contributions[index].potential_v = Some(totals[3]);
     }
-    result.predicted_voltage_v = result.contributions.iter().map(|item| item.voltage_v).sum();
+    result.predicted_voltage_v = result
+        .contributions
+        .iter()
+        .filter_map(|item| item.potential_v)
+        .sum();
     result.unexplained_residual_v =
         observed_voltage_v.map(|value| value - result.predicted_voltage_v);
     result.equilibrium = assess_equilibrium(
@@ -586,9 +593,11 @@ fn contribution(
 ) -> ComponentContribution {
     ComponentContribution {
         component_id: component_id.into(),
-        owner: owner.into(),
+        owner: Some(owner.into()),
         role,
-        voltage_v,
+        semantics: crate::model::ContributionSemantics::AdditivePotential,
+        potential_v: Some(voltage_v),
+        variance_v2: None,
         source: "legacy estimation compatibility adapter".into(),
         validity_domain: "stored calibration and configured state-model domain".into(),
     }

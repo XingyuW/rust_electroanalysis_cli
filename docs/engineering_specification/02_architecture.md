@@ -343,3 +343,7 @@ plotting, reporting, health, mechanism, or estimation; `tests/model_contracts.rs
 guards this source-level boundary. Workflow adapters consume the core in the
 direction recorded by ADR-0002. Static component registration is the current
 extension mechanism; no dynamic plugin ABI is part of the architecture.
+
+Schema-v2 composition dispatch and first-order prediction uncertainty remain in
+the model core. Estimation may provide covariance to this core, but the core
+does not depend on estimation, results, CLI, reporting, health, or plotting.

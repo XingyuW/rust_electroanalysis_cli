@@ -177,3 +177,4 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | IO-CANON-001 | `data_file/electrodata_domain_adapter.rs` | typed `Dataset` conversion | `canonical_input_boundary` |
 | IO-CANON-002 | `docs/io_migration_validation_archive.md` | completed independent parity evidence | canonical boundary, XLSX, EIS semantics, and scientific workflow regressions |
 | ISM-003 / ISM-004 / ISM-005 | `model/component.rs`, `model/state.rs`, `model/parameter.rs`, `model/evidence.rs`, `model/equilibrium_recognition.rs` | ADR-0002 scientific-contract boundary | `model_contracts`, `model_core` | Contract-only; no high-fidelity transport claim |
+| ISM-006 | `model/component.rs`, `model/compiler.rs`, `model/output.rs` | typed composition, reconstruction, uncertainty status | `model_core`, `model_builtins` | Schema-v2 |

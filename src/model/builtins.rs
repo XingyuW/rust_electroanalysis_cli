@@ -383,6 +383,22 @@ impl IsmComponent for BuiltinComponent {
         Ok(Some(value))
     }
 
+    fn observation_variance_v2(
+        &self,
+        _state: &ModelState,
+        parameters: &ParameterValues,
+        _input: &ModelInput,
+    ) -> Result<Option<f64>, ModelError> {
+        match self.descriptor.kind.as_str() {
+            "disturbance.stochastic_observation_noise" => {
+                let standard_deviation_v =
+                    self.parameter(parameters, &self.descriptor.parameter_ids[0])?;
+                Ok(Some(standard_deviation_v * standard_deviation_v))
+            }
+            _ => Ok(None),
+        }
+    }
+
     fn observation_jacobian(
         &self,
         dimension: usize,
@@ -406,6 +422,32 @@ impl IsmComponent for BuiltinComponent {
                 }
             }
             _ => {}
+        }
+        Ok(result)
+    }
+
+    fn observation_parameter_jacobian(
+        &self,
+        dimension: usize,
+        _state: &ModelState,
+        _parameters: &ParameterValues,
+        input: &ModelInput,
+    ) -> Result<Vec<f64>, ModelError> {
+        let mut result = vec![0.0; dimension];
+        if self.descriptor.kind.as_str() == "disturbance.linear_drift" {
+            let index = self
+                .bindings
+                .parameter_indices
+                .get(&self.descriptor.parameter_ids[0])
+                .copied()
+                .ok_or_else(|| {
+                    missing(
+                        &self.descriptor.id,
+                        "parameter",
+                        &self.descriptor.parameter_ids[0],
+                    )
+                })?;
+            result[index] = input.time_s;
         }
         Ok(result)
     }

@@ -2,11 +2,11 @@ use clap::Parser;
 use rust_electroanalysis_cli::{
     cli::Cli,
     model::{
-        ComponentDescriptor, ComponentFactory, ComponentRegistry, ComponentRole, InputRequirement,
-        InputSpec, InputValue, InterpretationStatus, IsmComponent, ModelDefinition, ModelError,
-        ModelInput, ModelState, ParameterSpec, ParameterValueSource, ParameterValues,
-        StateInitializationSource, StateSpec, StateTransformation, UncertaintyRepresentation,
-        compile_model,
+        ComponentDescriptor, ComponentFactory, ComponentRegistry, ComponentRole,
+        ContributionSemantics, InputRequirement, InputSpec, InputValue, InterpretationStatus,
+        IsmComponent, ModelDefinition, ModelError, ModelInput, ModelState, ParameterSpec,
+        ParameterValueSource, ParameterValues, StateInitializationSource, StateSpec,
+        StateTransformation, UncertaintySpec, compile_model,
     },
     model_config::{MODEL_CONFIG_SCHEMA_VERSION, ModelConfig},
     results::model::{MODEL_COMPILATION_ARTIFACT_KIND, ModelCompilationArtifact},
@@ -31,6 +31,26 @@ impl IsmComponent for MockVoltageComponent {
         _input: &ModelInput,
     ) -> Result<Option<f64>, ModelError> {
         Ok(Some(self.voltage_v))
+    }
+
+    fn observation_jacobian(
+        &self,
+        _state_dimension: usize,
+        _state: &ModelState,
+        _parameters: &ParameterValues,
+        _input: &ModelInput,
+    ) -> Result<Vec<f64>, ModelError> {
+        Ok(vec![2.0])
+    }
+
+    fn observation_parameter_jacobian(
+        &self,
+        _parameter_dimension: usize,
+        _state: &ModelState,
+        _parameters: &ParameterValues,
+        _input: &ModelInput,
+    ) -> Result<Vec<f64>, ModelError> {
+        Ok(vec![3.0])
     }
 }
 
@@ -80,7 +100,8 @@ fn component(id: &str, role: ComponentRole, owner: &str, voltage_v: f64) -> Comp
         parameter_ids: vec!["offset".into()],
         output_unit: Some("V".into()),
         voltage_contribution_owner: Some(owner.into()),
-        composition_rule: Some("additive_voltage".into()),
+        contribution_semantics: ContributionSemantics::AdditivePotential,
+        legacy_composition_rule: None,
         source: "test fixture".into(),
         validity_domain: "synthetic bounded fixture".into(),
         equation: "test constant voltage".into(),
@@ -101,10 +122,11 @@ fn component(id: &str, role: ComponentRole, owner: &str, voltage_v: f64) -> Comp
 
 fn definition() -> ModelDefinition {
     ModelDefinition {
-        schema_version: 1,
+        schema_version: 2,
         model_id: "test-model".into(),
         description: "mock-component compilation fixture".into(),
         validity_domain: "synthetic bounded fixture".into(),
+        uncertainty_incomplete: false,
         states: vec![StateSpec {
             id: "memory".into(),
             name: "memory".into(),
@@ -119,7 +141,10 @@ fn definition() -> ModelDefinition {
             process_equation_version: 1,
             observability_requirements: vec!["synthetic observable state".into()],
             validity_domain: "synthetic bounded fixture".into(),
-            uncertainty_representation: UncertaintyRepresentation::Variance,
+            initial_uncertainty: UncertaintySpec::Variance {
+                value: 0.01,
+                unit: "V^2".into(),
+            },
         }],
         parameters: vec![ParameterSpec {
             id: "offset".into(),
@@ -129,7 +154,10 @@ fn definition() -> ModelDefinition {
             lower_bound: -1.0,
             upper_bound: 1.0,
             default_value: 0.0,
-            uncertainty: 0.01,
+            uncertainty: UncertaintySpec::StandardDeviation {
+                value: 0.01,
+                unit: "V".into(),
+            },
             source: "test fixture".into(),
             equation_version: 1,
             identifiability_requirements: vec!["synthetic identifiable parameter".into()],
@@ -150,7 +178,12 @@ fn definition() -> ModelDefinition {
                 "equilibrium",
                 0.2,
             ),
-            component("external", ComponentRole::External, "external", 0.05),
+            component(
+                "external",
+                ComponentRole::ExternalDisturbance,
+                "external",
+                0.05,
+            ),
         ],
     }
 }
@@ -173,7 +206,7 @@ fn rejects_duplicate_component_id() {
     let mut model = definition();
     model.components.push(component(
         "equilibrium",
-        ComponentRole::External,
+        ComponentRole::ExternalDisturbance,
         "different-owner",
         0.0,
     ));
@@ -295,7 +328,7 @@ fn contribution_sum_equals_predicted_output() {
     let contribution_sum: f64 = prediction
         .contributions
         .iter()
-        .map(|item| item.voltage_v)
+        .filter_map(|item| item.potential_v)
         .sum();
     assert!((contribution_sum - prediction.predicted_voltage_v).abs() < 1e-12);
     assert_eq!(prediction.predicted_voltage_v, 0.25);
@@ -332,7 +365,7 @@ fn model_config_and_artifact_have_stable_semantics() {
     let artifact = ModelCompilationArtifact::from_compiled(&compiled);
     assert_eq!(artifact.artifact_kind, MODEL_COMPILATION_ARTIFACT_KIND);
     let json = artifact.to_json().expect("serialize finite model artifact");
-    assert!(json.contains("\"schema_version\": 1"));
+    assert!(json.contains("\"schema_version\": 2"));
     assert!(!json.contains("NaN"));
     assert!(!json.contains("Infinity"));
 }
@@ -346,4 +379,124 @@ fn model_artifact_rejects_nonfinite_definition_values() {
         artifact.to_json(),
         Err(ModelError::NonFinite { .. })
     ));
+}
+
+#[test]
+fn legacy_external_role_is_canonicalized_on_deserialization() {
+    let role: ComponentRole = serde_json::from_str("\"external\"").unwrap();
+    assert_eq!(role, ComponentRole::ExternalDisturbance);
+    assert_eq!(
+        serde_json::to_string(&role).unwrap(),
+        "\"external_disturbance\""
+    );
+}
+
+#[test]
+fn unsupported_legacy_composition_rule_is_rejected() {
+    let mut model = definition();
+    model.components[0].legacy_composition_rule = Some("multiply_voltage".into());
+    assert!(matches!(
+        compile_model(model, &registry()),
+        Err(ModelError::UnsupportedCompositionSemantics { .. })
+    ));
+}
+
+#[test]
+fn state_only_or_auxiliary_output_cannot_enter_voltage_sum() {
+    for semantics in [
+        ContributionSemantics::StateOnly,
+        ContributionSemantics::Auxiliary,
+    ] {
+        let mut model = definition();
+        model.components.truncate(1);
+        model.components[0].contribution_semantics = semantics;
+        model.components[0].voltage_contribution_owner = None;
+        model.components[0].output_unit = None;
+        let compiled = compile_model(model, &registry()).unwrap();
+        let parameters = compiled.default_parameters();
+        let state = compiled.initialize(&parameters).unwrap();
+        assert!(matches!(
+            compiled.component_contributions(&state, &parameters, &input()),
+            Err(ModelError::IncompatibleContributionOutput { .. })
+        ));
+    }
+}
+
+#[test]
+fn reconstruction_failure_is_typed() {
+    let compiled = compile_model(definition(), &registry()).unwrap();
+    let parameters = compiled.default_parameters();
+    let state = compiled.initialize(&parameters).unwrap();
+    let mut prediction = compiled
+        .observation_prediction(&state, &parameters, &input(), None)
+        .unwrap();
+    prediction.predicted_voltage_v += 1.0;
+    assert!(matches!(
+        prediction.verify_reconstruction(1e-12),
+        Err(ModelError::ContributionReconstruction { .. })
+    ));
+}
+
+#[test]
+fn fitted_missing_or_zero_uncertainty_is_rejected_unless_incomplete() {
+    let mut missing = definition();
+    missing.parameters[0].value_source = ParameterValueSource::Fitted;
+    missing.parameters[0].uncertainty = UncertaintySpec::Unknown {
+        reason: "missing".into(),
+    };
+    assert!(matches!(
+        compile_model(missing, &registry()),
+        Err(ModelError::InvalidUncertainty { .. })
+    ));
+    let mut zero = definition();
+    zero.parameters[0].value_source = ParameterValueSource::Fitted;
+    zero.parameters[0].uncertainty = UncertaintySpec::StandardDeviation {
+        value: 0.0,
+        unit: "V".into(),
+    };
+    assert!(matches!(
+        compile_model(zero, &registry()),
+        Err(ModelError::InvalidUncertainty { .. })
+    ));
+}
+
+#[test]
+fn estimated_state_requires_explicit_uncertainty() {
+    let mut model = definition();
+    model.states[0].initialization_source = StateInitializationSource::Estimated;
+    model.states[0].initial_uncertainty = UncertaintySpec::Unknown {
+        reason: "missing".into(),
+    };
+    assert!(matches!(
+        compile_model(model, &registry()),
+        Err(ModelError::InvalidUncertainty { .. })
+    ));
+}
+
+#[test]
+fn explicit_covariance_propagates_first_order_state_and_parameter_variance() {
+    let mut model = definition();
+    model.components.truncate(1);
+    let compiled = compile_model(model, &registry()).unwrap();
+    let parameters = compiled.default_parameters();
+    let state = compiled.initialize(&parameters).unwrap();
+    let prediction = compiled
+        .observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                state_covariance: Some(vec![vec![0.5]]),
+                parameter_covariance: Some(vec![vec![0.25]]),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        prediction.uncertainty.status,
+        rust_electroanalysis_cli::model::UncertaintyStatus::Complete
+    );
+    assert!((prediction.uncertainty.state_variance_v2.unwrap() - 2.0).abs() < 1e-12);
+    assert!((prediction.uncertainty.parameter_variance_v2.unwrap() - 2.25).abs() < 1e-12);
+    assert!((prediction.uncertainty.total_variance_v2.unwrap() - 4.25).abs() < 1e-12);
 }

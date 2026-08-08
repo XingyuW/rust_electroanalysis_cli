@@ -161,3 +161,8 @@ one unique owner and explicit composition rule. `ObservationNoise` and
 `Unexplained` roles cannot produce a deterministic voltage contribution. The
 sum of component contributions is checked against `E_pred` within the configured
 reconstruction tolerance.
+
+Schema-v2 rejects unsupported legacy composition strings, incompatible output
+fields, additive output from state-only/auxiliary components, and fitted or
+estimated quantities with missing/zero uncertainty unless the model explicitly
+declares uncertainty incomplete. Unknown never means numeric zero.

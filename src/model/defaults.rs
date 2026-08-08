@@ -13,6 +13,7 @@ pub fn default_model_definition() -> ModelDefinition {
         description: "Reduced-order ISM baseline with explicit phenomenological modes.".into(),
         validity_domain:
             "Aqueous potentiometric steps within declared calibration/activity domains.".into(),
+        uncertainty_incomplete: true,
         states: vec![state("fast_mode_v"), state("slow_mode_v")],
         parameters: vec![
             parameter("standard_potential_v", "V", -2.0, 2.0, 0.0),
@@ -107,7 +108,7 @@ fn state(id: &str) -> StateSpec {
             "State observability must be assessed before interpretation.".into(),
         ],
         validity_domain: "reduced-order voltage mode".into(),
-        uncertainty_representation: super::UncertaintyRepresentation::NotSpecified,
+        initial_uncertainty: super::UncertaintySpec::Deterministic,
     }
 }
 fn parameter(
@@ -126,7 +127,9 @@ fn parameter(
         lower_bound,
         upper_bound,
         default_value,
-        uncertainty: 0.0,
+        uncertainty: super::UncertaintySpec::Unknown {
+            reason: "default model parameters require calibration or an explicit prior before uncertainty propagation".into(),
+        },
         source: "default reduced-order model".into(),
         equation_version: 1,
         identifiability_requirements: vec![
@@ -178,9 +181,20 @@ fn descriptor(
             .collect(),
         state_ids: state_ids.into_iter().map(str::to_string).collect(),
         parameter_ids: parameter_ids.into_iter().map(str::to_string).collect(),
-        output_unit: owner.map(|_| "V".into()),
+        output_unit: if id == "observation_noise" {
+            Some("V^2".into())
+        } else {
+            owner.map(|_| "V".into())
+        },
         voltage_contribution_owner: owner.map(str::to_string),
-        composition_rule: owner.map(|_| "additive_voltage".into()),
+        contribution_semantics: if id == "observation_noise" {
+            super::ContributionSemantics::ObservationVariance
+        } else if owner.is_some() {
+            super::ContributionSemantics::AdditivePotential
+        } else {
+            super::ContributionSemantics::StateOnly
+        },
+        legacy_composition_rule: None,
         source: "Phase 03 built-in component".into(),
         validity_domain: "reduced-order component; no mechanism confirmation implied".into(),
         equation: equation.into(),

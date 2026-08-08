@@ -1,7 +1,7 @@
 use rust_electroanalysis_cli::{
     model::{
         InputRequirement, InputSpec, ModelInput, ParameterSpec, ParameterValueSource,
-        built_in_registry, compile_model, default_model_definition,
+        UncertaintySpec, built_in_registry, compile_model, default_model_definition,
     },
     potentiometry::calibration::nicolsky_eisenman::{InterferentModelInput, evaluate_potential},
 };
@@ -77,7 +77,10 @@ fn nicolsky_eisenman_with_interferents() {
             lower_bound: 1e-9,
             upper_bound: 1.0,
             default_value: 0.1,
-            uncertainty: 0.01,
+            uncertainty: UncertaintySpec::StandardDeviation {
+                value: 0.01,
+                unit: "dimensionless".into(),
+            },
             source: "synthetic test".into(),
             equation_version: 1,
             identifiability_requirements: vec!["synthetic test parameter".into()],
@@ -109,7 +112,8 @@ fn nicolsky_eisenman_with_interferents() {
         .into_iter()
         .find(|item| item.component_id == "equilibrium")
         .unwrap()
-        .voltage_v;
+        .potential_v
+        .unwrap();
     let expected = evaluate_potential(
         0.0,
         0.01,
@@ -229,7 +233,7 @@ fn baseline_drift_is_explicit() {
         .into_iter()
         .find(|item| item.component_id == "baseline_drift")
         .unwrap();
-    assert!((contribution.voltage_v - 0.02).abs() < 1e-12);
+    assert!((contribution.potential_v.unwrap() - 0.02).abs() < 1e-12);
 }
 
 #[test]
@@ -274,7 +278,10 @@ fn conductivity_disturbance_is_a_named_external_contribution() {
         lower_bound: -1.0,
         upper_bound: 1.0,
         default_value: 0.01,
-        uncertainty: 0.001,
+        uncertainty: UncertaintySpec::StandardDeviation {
+            value: 0.001,
+            unit: "V/(S/m)".into(),
+        },
         source: "synthetic".into(),
         equation_version: 1,
         identifiability_requirements: vec!["synthetic test parameter".into()],
@@ -289,7 +296,7 @@ fn conductivity_disturbance_is_a_named_external_contribution() {
         lower_bound: 0.0,
         upper_bound: 10.0,
         default_value: 1.0,
-        uncertainty: 0.0,
+        uncertainty: UncertaintySpec::Deterministic,
         source: "synthetic".into(),
         equation_version: 1,
         identifiability_requirements: vec!["synthetic test parameter".into()],
@@ -320,7 +327,8 @@ fn conductivity_disturbance_is_a_named_external_contribution() {
         .into_iter()
         .find(|item| item.component_id == "conductivity")
         .unwrap()
-        .voltage_v;
+        .potential_v
+        .unwrap();
     assert!((value - 0.02).abs() < 1e-12);
 }
 
@@ -337,11 +345,29 @@ fn contribution_reconstruction_is_exact() {
             - prediction
                 .contributions
                 .iter()
-                .map(|item| item.voltage_v)
+                .filter_map(|item| item.potential_v)
                 .sum::<f64>())
         .abs()
             < 1e-12
     );
+}
+
+#[test]
+fn observation_variance_is_categorized_and_never_added_to_voltage() {
+    let model = compiled();
+    let parameters = model.default_parameters();
+    let state = model.initialize(&parameters).unwrap();
+    let prediction = model
+        .observation_prediction(&state, &parameters, &input(0.0), None)
+        .unwrap();
+    let noise = prediction
+        .contributions
+        .iter()
+        .find(|item| item.component_id == "observation_noise")
+        .unwrap();
+    assert!(noise.potential_v.is_none());
+    assert_eq!(noise.variance_v2, Some(1.0e-6));
+    assert_eq!(prediction.uncertainty.observation_variance_v2, Some(1.0e-6));
 }
 
 #[test]
