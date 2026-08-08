@@ -1,7 +1,10 @@
 //! Permanent V1 component-path unit, discrete-charge, and artifact guards.
 
 use rust_electroanalysis_cli::{
-    domain::write_artifact,
+    domain::{
+        ArtifactError, ArtifactKind, VersionedArtifact, validate_serialized_finite, write_artifact,
+    },
+    estimation::simulation::simulation_model,
     model::{
         ComponentRole, ContributionSemantics, EquilibriumEvidence, EquilibriumRecognitionConfig,
         EvidenceValue, InputRequirement, InputValue, ModelError, ModelInput, UncertaintyStatus,
@@ -13,7 +16,41 @@ use rust_electroanalysis_cli::{
         ModelCompilationArtifact,
     },
 };
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+
+/// Test-only envelope that exercises the public artifact writer with the
+/// repository's raw equilibrium-evidence type. Model analysis artifacts retain
+/// only the derived assessment, so they intentionally do not contain this
+/// caller-supplied evidence payload.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct RawEquilibriumEvidenceArtifact {
+    schema_version: u32,
+    evidence: EquilibriumEvidence,
+}
+
+impl RawEquilibriumEvidenceArtifact {
+    fn to_json(&self) -> Result<String, ArtifactError> {
+        validate_serialized_finite(self)?;
+        serde_json::to_string_pretty(self).map_err(|error| ArtifactError::Validation {
+            message: error.to_string(),
+        })
+    }
+}
+
+impl VersionedArtifact for RawEquilibriumEvidenceArtifact {
+    const ARTIFACT_KIND: ArtifactKind = ArtifactKind::ModelAnalysis;
+    const CURRENT_SCHEMA_VERSION: u32 = 4;
+    const LEGACY_SCHEMA_VERSIONS: &'static [u32] = &[4];
+
+    fn schema_version(&self) -> u32 {
+        self.schema_version
+    }
+
+    fn validate_before_json(&self) -> Result<(), ArtifactError> {
+        validate_serialized_finite(self)
+    }
+}
 
 fn input() -> ModelInput {
     ModelInput {
@@ -283,6 +320,217 @@ fn analysis_report() -> ModelAnalysisReport {
         identifiability: model.identifiability_report(),
         evidence: vec!["finite".into()],
     }
+}
+
+#[test]
+fn applicability_interval_infinity_is_rejected_by_all_public_serializers() {
+    for (case, lower, upper, endpoint) in [
+        ("positive-minimum", f64::INFINITY, 1.0, "lower"),
+        ("positive-maximum", 1e-6, f64::INFINITY, "upper"),
+        ("negative-minimum", f64::NEG_INFINITY, 1.0, "lower"),
+    ] {
+        let mut artifact = ModelCompilationArtifact::from_compiled(
+            &compile_model(reduced_ism_v1_definition(), built_in_registry()).unwrap(),
+        );
+        artifact.model_definition.components[1]
+            .applicability_constraints
+            .push(rust_electroanalysis_cli::model::ApplicabilityConstraint {
+                id: format!("infinite-{case}"),
+                subject: rust_electroanalysis_cli::model::DomainSubject::Input(
+                    "target_activity".into(),
+                ),
+                interval: rust_electroanalysis_cli::model::NumericInterval { lower, upper },
+                source: rust_electroanalysis_cli::model::DomainSource::CalibrationArtifact,
+                enforcement: rust_electroanalysis_cli::model::DomainEnforcement::Warn,
+                provenance: vec![],
+            });
+        let expected = format!(
+            "model_definition.components[1].applicability_constraints[0].interval.{endpoint}"
+        );
+        let json_path = match artifact.to_json() {
+            Err(ModelError::NonFiniteResult { path }) => path,
+            other => panic!("{case}: expected non-finite JSON error, got {other:?}"),
+        };
+        assert_eq!(json_path, format!("$.{expected}"));
+
+        let path = std::env::temp_dir().join(format!(
+            "ism-v1-infinite-interval-{case}-{}.json",
+            std::process::id()
+        ));
+        std::fs::remove_file(&path).ok();
+        let write_path = match write_artifact(&path, &artifact) {
+            Err(ArtifactError::NonFiniteValue { field_path, .. }) => field_path,
+            other => panic!("{case}: expected non-finite writer error, got {other:?}"),
+        };
+        assert_eq!(write_path, json_path, "{case}");
+        assert!(!path.exists(), "{case}: writer must not create a JSON file");
+    }
+}
+
+#[test]
+fn parameter_covariance_nonfinite_entries_are_rejected_with_exact_paths() {
+    for (case, value, row, column) in [
+        ("nan-diagonal", f64::NAN, 0, 0),
+        ("positive-infinity-diagonal", f64::INFINITY, 1, 1),
+        ("negative-infinity-off-diagonal", f64::NEG_INFINITY, 0, 1),
+    ] {
+        let mut artifact = simulation_model();
+        artifact.training_statistics.parameter_covariance =
+            Some(vec![vec![1.0, 0.0], vec![0.0, 1.0]]);
+        artifact
+            .training_statistics
+            .parameter_covariance
+            .as_mut()
+            .unwrap()[row][column] = value;
+        let expected = format!("$.training_statistics.parameter_covariance[{row}][{column}]");
+        let json_path = match validate_serialized_finite(&artifact) {
+            Err(ArtifactError::NonFiniteValue { field_path, .. }) => field_path,
+            other => panic!("{case}: expected non-finite serialization error, got {other:?}"),
+        };
+        assert_eq!(json_path, expected, "{case}");
+
+        let path = std::env::temp_dir().join(format!(
+            "ism-v1-parameter-covariance-{case}-{}.json",
+            std::process::id()
+        ));
+        std::fs::remove_file(&path).ok();
+        let write_path = match write_artifact(&path, &artifact) {
+            Err(ArtifactError::NonFiniteValue { field_path, .. }) => field_path,
+            other => panic!("{case}: expected non-finite writer error, got {other:?}"),
+        };
+        assert_eq!(write_path, json_path, "{case}");
+        assert!(!path.exists(), "{case}: writer must not create a JSON file");
+
+        let model = compile_model(reduced_ism_v1_definition(), built_in_registry()).unwrap();
+        let parameters = model.default_parameters();
+        let state = model.initialize(&parameters).unwrap();
+        let dimension = model.parameter_definitions().len();
+        let mut covariance = vec![vec![0.0; dimension]; dimension];
+        covariance[row][column] = value;
+        assert!(matches!(
+            model.observation_prediction_with_uncertainty(
+                &state,
+                &parameters,
+                &input(),
+                None,
+                rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                    requested: true,
+                    state_covariance: None,
+                    parameter_covariance: Some(covariance),
+                    observation_variance_v2: None,
+                },
+            ),
+            Err(ModelError::NonFiniteCovariance { subject: "parameter", row: actual_row, column: actual_column })
+                if actual_row == row && actual_column == column
+        ));
+    }
+
+    let mut finite = simulation_model();
+    finite.training_statistics.parameter_covariance = Some(vec![vec![1.0, 0.25], vec![0.25, 1.0]]);
+    assert!(validate_serialized_finite(&finite).is_ok());
+    let finite_path = std::env::temp_dir().join(format!(
+        "ism-v1-finite-parameter-covariance-{}.json",
+        std::process::id()
+    ));
+    std::fs::remove_file(&finite_path).ok();
+    write_artifact(&finite_path, &finite).unwrap();
+    assert!(
+        std::fs::read_to_string(&finite_path)
+            .unwrap()
+            .contains("\"parameter_covariance\": [")
+    );
+    std::fs::remove_file(finite_path).unwrap();
+}
+
+fn raw_equilibrium_evidence() -> EquilibriumEvidence {
+    EquilibriumEvidence {
+        dynamic_state_derivative_norm: Some(0.0),
+        dynamic_potential_magnitude_v: Some(0.0),
+        equilibrium_gap_v: Some(0.0),
+        elapsed_tau_ratios: vec![4.0],
+        environmental_stability: Some(1.0),
+        innovation_metric: Some(0.0),
+        residual_autocorrelation: Some(0.0),
+        observable: Some(true),
+        validity: ValidityReport {
+            is_valid: true,
+            checked_domain: "test".into(),
+            violations: vec![],
+            warnings: vec![],
+        },
+        uncertainty_status: UncertaintyStatus::Complete,
+        external_disturbance_potential_v: EvidenceValue::Present(0.0),
+    }
+}
+
+fn set_nan_derivative(evidence: &mut EquilibriumEvidence) {
+    evidence.dynamic_state_derivative_norm = Some(f64::NAN);
+}
+
+fn set_positive_infinity_dynamic_potential(evidence: &mut EquilibriumEvidence) {
+    evidence.dynamic_potential_magnitude_v = Some(f64::INFINITY);
+}
+
+fn set_negative_infinity_disturbance(evidence: &mut EquilibriumEvidence) {
+    evidence.external_disturbance_potential_v = EvidenceValue::Present(f64::NEG_INFINITY);
+}
+
+#[test]
+fn raw_equilibrium_evidence_nonfinite_values_are_rejected_with_exact_paths() {
+    for (case, mutate, expected) in [
+        (
+            "nan-derivative",
+            set_nan_derivative as fn(&mut EquilibriumEvidence),
+            "$.evidence.dynamic_state_derivative_norm",
+        ),
+        (
+            "positive-infinity-dynamic-potential",
+            set_positive_infinity_dynamic_potential as fn(&mut EquilibriumEvidence),
+            "$.evidence.dynamic_potential_magnitude_v",
+        ),
+        (
+            "negative-infinity-disturbance",
+            set_negative_infinity_disturbance as fn(&mut EquilibriumEvidence),
+            "$.evidence.external_disturbance_potential_v.value",
+        ),
+    ] {
+        let mut artifact = RawEquilibriumEvidenceArtifact {
+            schema_version: 4,
+            evidence: raw_equilibrium_evidence(),
+        };
+        mutate(&mut artifact.evidence);
+        let json_path = match artifact.to_json() {
+            Err(ArtifactError::NonFiniteValue { field_path, .. }) => field_path,
+            other => panic!("{case}: expected non-finite JSON error, got {other:?}"),
+        };
+        assert_eq!(json_path, expected, "{case}");
+
+        let path = std::env::temp_dir().join(format!(
+            "ism-v1-raw-evidence-{case}-{}.json",
+            std::process::id()
+        ));
+        std::fs::remove_file(&path).ok();
+        let write_path = match write_artifact(&path, &artifact) {
+            Err(ArtifactError::NonFiniteValue { field_path, .. }) => field_path,
+            other => panic!("{case}: expected non-finite writer error, got {other:?}"),
+        };
+        assert_eq!(write_path, json_path, "{case}");
+        assert!(!path.exists(), "{case}: writer must not create a JSON file");
+    }
+
+    let finite = RawEquilibriumEvidenceArtifact {
+        schema_version: 4,
+        evidence: raw_equilibrium_evidence(),
+    };
+    assert!(finite.to_json().is_ok());
+    let finite_path = std::env::temp_dir().join(format!(
+        "ism-v1-finite-raw-evidence-{}.json",
+        std::process::id()
+    ));
+    std::fs::remove_file(&finite_path).ok();
+    write_artifact(&finite_path, &finite).unwrap();
+    assert!(finite_path.exists());
+    std::fs::remove_file(finite_path).unwrap();
 }
 
 #[test]

@@ -100,3 +100,19 @@ unit contracts in `covariate_units_accept_exact_contracts_and_report_precise_mis
 and finite serialization in
 `public_serialization_paths_reject_nested_nonfinite_values_without_creating_files`
 and `analysis_serialization_rejects_each_uncertainty_and_nested_numeric_path`.
+`applicability_interval_infinity_is_rejected_by_all_public_serializers` additionally
+guards positive and negative infinity at exact applicability-interval endpoints;
+`parameter_covariance_nonfinite_entries_are_rejected_with_exact_paths` guards
+NaN and signed infinity in public parameter-covariance matrix paths and the
+direct `parameter` covariance API; and
+`raw_equilibrium_evidence_nonfinite_values_are_rejected_with_exact_paths`
+guards raw derivative, dynamic-potential, and external-disturbance evidence
+paths before JSON serialization.
+
+The model-core fallback coverage is also named explicitly:
+`tests/model_core.rs` function `model_artifact_rejects_nonfinite_definition_values`
+protects the `model_definition.parameters[0].default_value` serialization path,
+while `covariance_matrix_validation_has_typed_failures` protects nonfinite,
+asymmetric, and non-PSD **state** covariance validation only. Parameter
+covariance has its independent V1 test above and is not inferred from the
+state-covariance test.
