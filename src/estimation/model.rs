@@ -67,6 +67,7 @@ impl StateModel {
             config,
             &model.definitions,
             tau_p_s,
+            tau_uncertainty_s,
             calibration,
         )?;
         model.compiled_parameters = Some(compiled.default_parameters());

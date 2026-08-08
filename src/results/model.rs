@@ -2,11 +2,11 @@
 
 use crate::model::{
     CompiledIsmModel, ComponentContribution, EquilibriumAssessment, IdentifiabilityReport,
-    ModelDefinition, ModelError, ValidityReport,
+    ModelDefinition, ModelError, PredictionUncertainty, ValidityReport,
 };
 use serde::{Deserialize, Serialize};
 
-pub const MODEL_RESULT_SCHEMA_VERSION: u32 = 1;
+pub const MODEL_RESULT_SCHEMA_VERSION: u32 = 3;
 pub const MODEL_COMPILATION_ARTIFACT_KIND: &str = "ism_model_compilation";
 pub const MODEL_ANALYSIS_ARTIFACT_KIND: &str = "ism_model_analysis";
 
@@ -27,6 +27,8 @@ pub struct ModelAnalysisPoint {
     pub time_s: f64,
     pub observed_voltage_v: Option<f64>,
     pub predicted_voltage_v: f64,
+    #[serde(default = "crate::model::PredictionUncertainty::not_requested")]
+    pub uncertainty: PredictionUncertainty,
     pub state_values: Vec<(String, f64)>,
     pub contributions: Vec<ComponentContribution>,
     pub equilibrium: EquilibriumAssessment,
@@ -60,10 +62,24 @@ impl ModelAnalysisReport {
                     .state_values
                     .iter()
                     .any(|(_, value)| !value.is_finite())
-                || point
-                    .contributions
-                    .iter()
-                    .any(|value| !value.voltage_v.is_finite())
+                || point.contributions.iter().any(|value| {
+                    value
+                        .potential_v
+                        .is_some_and(|potential| !potential.is_finite())
+                        || value
+                            .variance_v2
+                            .is_some_and(|variance| !variance.is_finite())
+                })
+                || [
+                    point.uncertainty.total_variance_v2,
+                    point.uncertainty.standard_error_v,
+                    point.uncertainty.state_variance_v2,
+                    point.uncertainty.parameter_variance_v2,
+                    point.uncertainty.observation_variance_v2,
+                ]
+                .into_iter()
+                .flatten()
+                .any(|value| !value.is_finite())
         }) {
             return Err(ModelError::NonFinite {
                 subject: "model analysis report".into(),

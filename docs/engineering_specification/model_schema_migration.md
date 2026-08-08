@@ -21,7 +21,10 @@ silently treating a non-model JSON artifact as a model analysis.
 `ism_model_validation`. A reader must reject an incompatible schema or kind.
 
 Phase 02 introduces `ModelDefinition` and `ModelConfig` schema version `1`,
-and the `ism_model_compilation` result artifact schema version `1`. There are no
+and the `ism_model_compilation` result artifact schema version `2`. Model schema
+v1 remains readable: legacy additive composition is migrated to typed semantics,
+legacy `external` deserializes as `external_disturbance`, and legacy numeric
+uncertainty remains explicitly unknown/incomplete rather than zero. There are no
 earlier ISM model artifacts to migrate.
 
 ## Compatibility Rules
@@ -63,3 +66,33 @@ The additive `[equilibrium_recognition]` estimation configuration section uses
 documented defaults under schema version 3, so existing schema-3 files require
 no migration. Timestamp-level result fields were already optional; no result
 schema increment is required.
+
+## Version 3: uncertainty and derivative coverage
+
+Model-definition schema 3 adds direct observation state/parameter declarations,
+typed Jacobian coverage/method records, and strict uncertainty compatibility.
+Model compilation and analysis artifacts increment from schema 2 to 3 because
+prediction uncertainty now serializes Jacobian methods and follows stricter
+status semantics. Older model definitions still deserialize. Legacy numeric
+uncertainty becomes `Unknown` with a migration reason; it is never reinterpreted
+as zero.
+
+The configuration adapter can migrate unambiguous composition and built-in
+dependency declarations in memory, but `uncertainty_incomplete` no longer
+bypasses validation. A legacy fitted parameter or estimated state with missing,
+zero, deterministic, or unknown uncertainty returns typed
+`InvalidUncertainty` until the user supplies a positive finite prior/covariance
+or reclassifies a truly fixed quantity. Direct compilation of an unmigrated
+legacy definition returns `LegacyMigrationRequired` once its uncertainty is
+otherwise valid. Writers emit schema 3; model artifact readers retain explicit
+legacy schema 1/2 support.
+
+### Covariance enrichment semantics
+
+Schema uncertainty class is authoritative during migration. Legacy numeric zero
+remains `Unknown`, never `Deterministic`; incomplete artifacts may deserialize
+but cannot become uncertainty-complete through a zero covariance row. A caller
+may only enrich a legacy stochastic-unknown declaration through an explicit
+migration that records a positive typed uncertainty declaration/provenance.
+Full caller-supplied runtime covariance then quantifies that declaration; it does not itself silently
+rewrite schema semantics. A contradictory supplied row is a typed error.

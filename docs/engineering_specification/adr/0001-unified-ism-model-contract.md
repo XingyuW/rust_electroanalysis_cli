@@ -94,3 +94,11 @@ schema migration and compatibility mode.
 Residuals, limitations, uncertainty, contradictory evidence, and missing
 evidence remain visible. The framework deliberately cannot turn a good fit or a
 timescale match into physical validation.
+
+Schema-v3 clarification: a derivative value of zero is valid only when its
+stable state/parameter ID is explicitly covered. Missing coverage has a typed
+status and prevents complete uncertainty for any non-deterministic influencing
+quantity. Fitted parameters and estimated states require positive finite
+uncertainty; legacy `uncertainty_incomplete` metadata cannot bypass that rule.
+First-order covariance retains off-diagonal terms but does not quantify
+structural/model-form uncertainty or imply Bayesian propagation.

@@ -1,5 +1,8 @@
-use super::error::ModelError;
 use super::input::validate_unit;
+use super::{
+    error::ModelError,
+    state::{DeclaredUncertaintyClass, UncertaintySpec},
+};
 use serde::{Deserialize, Serialize};
 
 /// How a parameter value enters an evaluation.
@@ -10,6 +13,7 @@ pub enum ParameterValueSource {
     Fixed,
     Fitted,
     ExternallySupplied,
+    ExternallySuppliedFixed,
 }
 
 /// Versioned metadata and constraints for a model parameter.
@@ -24,7 +28,8 @@ pub struct ParameterSpec {
     pub lower_bound: f64,
     pub upper_bound: f64,
     pub default_value: f64,
-    pub uncertainty: f64,
+    #[serde(default = "default_unknown_uncertainty")]
+    pub uncertainty: UncertaintySpec,
     pub source: String,
     #[serde(default = "default_equation_version")]
     pub equation_version: u32,
@@ -47,7 +52,28 @@ fn default_description() -> String {
     "No parameter description was present in the schema-v1 definition.".into()
 }
 
+fn default_unknown_uncertainty() -> UncertaintySpec {
+    UncertaintySpec::Unknown {
+        reason: "parameter uncertainty was not declared".into(),
+    }
+}
+
 impl ParameterSpec {
+    /// Schema-declared uncertainty semantics.  `value_source` is validated
+    /// with this declaration by `ModelDefinition`; covariance cannot override
+    /// the resulting class.
+    pub const fn declared_uncertainty_class(&self) -> DeclaredUncertaintyClass {
+        match self.value_source {
+            // Schema validation requires a fitted value to carry a positive,
+            // finite typed uncertainty. Keeping the source in this decision
+            // prevents future covariance handling from reclassifying it.
+            ParameterValueSource::Fitted => DeclaredUncertaintyClass::StochasticKnown,
+            ParameterValueSource::Fixed
+            | ParameterValueSource::ExternallySupplied
+            | ParameterValueSource::ExternallySuppliedFixed => self.uncertainty.declared_class(),
+        }
+    }
+
     pub(crate) fn validate(&self) -> Result<(), ModelError> {
         if self.id.trim().is_empty() {
             return Err(ModelError::EmptyIdentifier { kind: "parameter" });
@@ -88,11 +114,7 @@ impl ParameterSpec {
                 upper: self.upper_bound,
             });
         }
-        if !self.uncertainty.is_finite() || self.uncertainty < 0.0 {
-            return Err(ModelError::NonFinite {
-                subject: format!("parameter '{}' uncertainty", self.id),
-            });
-        }
+        self.uncertainty.variance_in(&self.unit)?;
         if self.source.trim().is_empty() || self.validity_domain.trim().is_empty() {
             return Err(ModelError::EmptyIdentifier {
                 kind: "parameter source or validity domain",

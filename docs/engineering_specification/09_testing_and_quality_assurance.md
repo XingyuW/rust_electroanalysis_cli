@@ -154,3 +154,23 @@ of noise/residuals from deterministic voltage, and forbidden high-level imports
 from `src/model`. Existing `model_core` tests cover acyclic dependencies and
 unique contribution ownership. These tests are architectural invariants, not
 evidence that a high-fidelity physical transport model has been validated.
+
+Model-contract tests cover deterministic contribution ordering, typed voltage
+reconstruction, observation-variance exclusion, canonical external-role alias
+migration, uncertainty validation, covariance propagation, and non-finite
+prediction serialization rejection.
+
+Schema-v3 regressions additionally cover Nernst E0 and slope covariance and
+their cross term, Nicolsky-Eisenman E0/slope/selectivity derivatives and full
+covariance, transduction gain/offset, centered covariate coefficients, drift,
+stable-ID mapping, missing derivative/covariance status, explicit disabling,
+strict fitted/estimated compatibility matrices, legacy numeric-zero migration,
+and enrichment of legacy estimator states from resolved initial covariance.
+
+Covariance-consistency regressions cover the reviewer Nernst positive-charge
+uncertainty plus zero-row reproduction, a generic missing derivative with a
+zero row, missing fitted-parameter and estimated-state runtime covariance,
+deterministic and stochastic `1e-13` state/parameter covariance, covered
+numerical zero derivatives, state equivalents, and dimension, non-finite,
+asymmetric, and non-PSD matrices. The existing Nernst 0.76 V² cross-covariance
+calculation remains covered.

@@ -56,6 +56,10 @@ Verification confidence labels used in **Verified By**:
 | FR-037 | Health features shall retain transient scientific context and expose model residual, validity, identifiability, calibration-domain, state, and parameter evidence | High | `src/health/features.rs` | `phase05_model_health` | ✅ Implemented |
 | FR-038 | System shall expose model validate, simulate, decompose, and report workflows with finite schema-versioned outputs | High | `src/runners/model.rs` | `phase06_model_workflow` | ✅ Implemented |
 | FR-039 | System shall evaluate declared model-validation manifests and export reproducible recovery, coverage, reconstruction, identifiability, and comparison evidence | High | `src/model_validation.rs` | `phase07_validation` | ✅ Implemented |
+| FR-040 | ISM observation Jacobians shall distinguish explicit zero derivatives from missing coverage and map local derivatives through stable state/parameter IDs | High | `src/model/component.rs`, `src/model/compiler.rs` | `model_core`, `model_builtins` | ✅ Implemented |
+| FR-041 | Complete prediction uncertainty shall require caller-supplied runtime covariance for all relevant stochastic sources, derivative coverage, observation variance, and finite values | High | `src/model/compiler.rs`, `src/model/output.rs` | uncertainty status regressions | ✅ Implemented |
+| FR-042 | Fitted parameters and estimated states shall require positive finite uncertainty; legacy incompleteness shall not bypass current-schema validation | High | `src/model/definition.rs`, `src/model/state.rs`, `src/model/parameter.rs` | validation and migration regressions | ✅ Implemented |
+| FR-043 | Built-in voltage components shall provide analytical parameter derivatives, including empirical slopes when explicitly parameterized | High | `src/model/builtins.rs` | Nernst, Nicolsky-Eisenman, transduction, covariate, and drift regressions | ✅ Implemented |
 
 ## 2. Scientific Requirements
 
@@ -73,6 +77,7 @@ Verification confidence labels used in **Verified By**:
 | SCI-010 | Transient stretched-exponential shall be E(t) = E∞ + A·exp(−(t/τ)^β) | `src/potentiometry/transient/models.rs` | (Verified from code) |
 | SCI-011 | ISM model contract shall preserve the decomposition E_pred = E_equilibrium + E_transport + E_transduction + E_reference + E_external, with residual reported separately | `src/model/output.rs` | `model_core` contribution test |
 | SCI-012 | Reduced-order ISM relaxation modes are phenomenological and shall not be assigned physical mechanism labels automatically | `src/model/builtins.rs` | Synthetic validity tests |
+| SCI-013 | Scalar ISM prediction variance shall use caller-supplied runtime `Jx Px Jx^T + Jtheta Ptheta Jtheta^T + R`, retaining covariance cross terms without treating declared uncertainty as posterior covariance | `src/model/compiler.rs` | built-in and model-core covariance tests |
 
 ## 3. Numerical Requirements
 
@@ -175,3 +180,8 @@ Verification confidence labels used in **Verified By**:
 
 | IO-CANON-001 | All production physical-data workflows shall use `electrodata-io` typed datasets and structured errors | `data_file/electrodata_domain_adapter.rs` |
 | IO-CANON-002 | Compatibility reads shall skip invalid coordinate rows, retain invalid measurements as nulls, pad ragged rows, and preserve ordering with diagnostics | `project_compatibility_read_options()` |
+
+| FR-031 | ISM shall sum only typed additive-potential outputs and verify reconstruction | High | `model/component.rs`, `model/output.rs` | Direct |
+| FR-032 | ISM shall report uncertainty status and never coerce unknown uncertainty to zero | High | `model/compiler.rs`, `model/output.rs` | Direct |
+| ISM-007 | Current-schema fitted parameters and estimated states require positive finite uncertainty; `uncertainty_incomplete` is migration metadata only | Enforced during definition validation |
+| ISM-008 | Complete uncertainty requires relevant caller-supplied runtime covariance, complete stable-ID Jacobian coverage, observation variance, and finite propagation; absent stochastic covariance is Partial or Unavailable | Enforced during prediction and regression-tested |

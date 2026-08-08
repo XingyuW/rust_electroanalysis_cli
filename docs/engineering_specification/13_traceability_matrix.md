@@ -104,6 +104,7 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | EQ-ISM-001 | ISM state-space interface | `model/` | `model_core` | ✅ (contract only) |
 | EQ-ISM-002 | ISM contribution/residual decomposition | `model/output.rs` | `model_core` | ✅ |
 | EQ-ISM-003 | Reduced-order built-in adapters | `model/builtins.rs` | `model_builtins` | ✅ |
+| EQ-ISM-004 | Runtime covariance propagation and semantic-zero contract | `model/compiler.rs` | `model_core`, `model_builtins` | ✅ |
 
 ---
 
@@ -177,3 +178,7 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | IO-CANON-001 | `data_file/electrodata_domain_adapter.rs` | typed `Dataset` conversion | `canonical_input_boundary` |
 | IO-CANON-002 | `docs/io_migration_validation_archive.md` | completed independent parity evidence | canonical boundary, XLSX, EIS semantics, and scientific workflow regressions |
 | ISM-003 / ISM-004 / ISM-005 | `model/component.rs`, `model/state.rs`, `model/parameter.rs`, `model/evidence.rs`, `model/equilibrium_recognition.rs` | ADR-0002 scientific-contract boundary | `model_contracts`, `model_core` | Contract-only; no high-fidelity transport claim |
+| ISM-006 | `model/component.rs`, `model/compiler.rs`, `model/output.rs` | typed composition, reconstruction, uncertainty status | `model_core`, `model_builtins` | Schema-v3 |
+| ISM-007 / FR-040 / FR-041 | `model/component.rs`, `model/compiler.rs`, `model/builtins.rs` | stable-ID derivative coverage and complete covariance propagation | built-in/model-core uncertainty regressions | Schema-v3 |
+| ISM-008 / FR-042 | `model/definition.rs`, `model/state.rs`, `model/parameter.rs`, `estimation/ism_adapter.rs` | fitted/estimated validation and legacy enrichment | model-core and phase6 estimation regressions | Schema-v3 |
+| ISM-009 | `model/compiler.rs`, `model/error.rs`, `model/state.rs`, `model/parameter.rs` | declared uncertainty class and covariance-contract enforcement | zero-row, state, derivative, and matrix validation regressions | Schema-v3 covariance consistency |

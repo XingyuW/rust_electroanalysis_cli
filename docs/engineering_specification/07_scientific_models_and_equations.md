@@ -439,3 +439,61 @@ composition, validity, interpretation status, and evidence requirements. Nernst,
 Nicolsky-Eisenman, activity, transient, EIS-timescale, and estimation-observation
 implementations remain existing adapters until a separately reviewed equation
 change is approved.
+
+For scalar voltage prediction, `E_pred = sum(E_additive)`. Observation noise
+is `R` in V² and cannot be a voltage term. Available uncertainty is propagated
+as `J_x P_x J_x^T + J_theta P_theta J_theta^T + R`; caller-supplied full
+runtime covariance retains correlation. Declared uncertainty is prior or
+initialization metadata and is not an implicit runtime diagonal covariance.
+Structural and model-form uncertainty remain unquantified.
+
+Runtime covariance supplies the numerical joint distribution only: it may refine a
+declared stochastic magnitude and cross-correlation, but may not change a
+schema-declared stochastic quantity into deterministic or make a deterministic
+quantity stochastic. Consequently a declared stochastic diagonal must be
+positive when a full matrix is supplied, while deterministic rows/columns must
+be exactly zero. Symmetry and PSD tolerances apply only to numerical matrix
+validation, never to this semantic-zero rule: `1e-13` is nonzero for a
+deterministic row and remains positive for a stochastic diagonal. A singular
+valid covariance remains permitted. Missing Jacobian
+coverage is different from an explicitly covered zero derivative and cannot be
+converted to zero by inspecting covariance.
+
+### EQ-ISM-010: Analytical Observation-Parameter Jacobians
+
+For an explicitly parameterized Nernst form
+`E = E0 + S log10(a)`, the built-in returns `dE/dE0 = 1` and
+`dE/dS = log10(a)`. The default Nernst descriptor instead uses the theoretical
+temperature/charge slope, so it does not pretend that slope is a fitted
+uncertain parameter. Ion charge is a rounded structural parameter; its
+continuous derivative is unavailable, and an uncertain charge therefore makes
+uncertainty incomplete.
+
+The built-in ion charge remains `Fixed` plus `Deterministic`: it is a discrete
+valence, not a continuously fitted physical coefficient. A custom definition
+that marks charge stochastic has no continuous first-order derivative in this
+adapter and therefore cannot receive `Complete` differential uncertainty; it
+must use an explicitly supported non-differential treatment outside this
+adapter rather than silently rounding and propagating a fake derivative.
+
+For Nicolsky-Eisenman,
+`Aeff = ai + sum(Kij aj^(zi/zj))` and `E = E0 + S log10(Aeff)` when an empirical
+slope is declared. The derivatives are `dE/dE0 = 1`,
+`dE/dS = log10(Aeff)`, and
+`dE/dKij = S aj^(zi/zj) / (ln(10) Aeff)`. With the theoretical slope, the same
+selectivity derivative is evaluated as
+`R T aj^(zi/zj) / (zi F Aeff)`. Interferent parameters are resolved by stable
+parameter ID, never by descriptor-local vector position.
+
+For `E = offset + gain x`, the derivatives are `1` and `x`. For the implemented
+centered covariate form `E = beta (u - uref)`, they are `u - uref` and `-beta`.
+For linear drift `E = k t`, the derivative is `t`. State-output components
+explicitly cover each directly observed state with derivative one, including a
+mathematically zero value when that is the actual analytical result.
+
+Prediction variance is
+`Var(E) = Jx Px Jx^T + Jtheta Ptheta Jtheta^T + R`. Supplied full runtime
+matrices retain off-diagonal cross terms. Absent runtime covariance leaves a
+stochastic component unavailable rather than creating a diagonal matrix from
+declared uncertainty. Structural and model-form uncertainty are still not
+quantified, and no Bayesian propagation claim is made.

@@ -112,6 +112,8 @@ This list now contains policy-level decisions that still require owner input.
 | OQ-008 | Low | Platform |
 | OQ-010 | Low | Numerical |
 | OQ-011 | Low | Infrastructure |
+| OQ-ISM-005 | Medium | Discrete uncertainty |
+| OQ-ISM-006 | Medium | Explicit covariance approximation |
 
 ### OQ-012: Operational equilibrium thresholds
 
@@ -129,3 +131,29 @@ contradiction rules are sufficient to promote a component from
 
 **Impact**: High. This is required before mechanism labels can be used in a
 scientific conclusion.
+
+## OQ-ISM-004: Structural/model-form uncertainty
+
+The current contract reports first-order state, parameter, and observation
+uncertainty only. How structural and model-form alternatives should be
+quantified remains open; no Bayesian claim is made.
+
+Schema v3 closes derivative-coverage ambiguity and covariance omission for
+declared first-order sources. It does not answer how discrete structural choices
+(including charge/model parameterization), competing model forms, or calibration
+model selection uncertainty should be combined with that first-order variance.
+
+## OQ-ISM-005: Discrete stochastic parameter method
+
+If a custom model needs uncertain discrete valence or another enumerated
+structural parameter, which validated non-differential method (for example
+model enumeration) should be added? The current first-order Jacobian contract
+will report it incomplete rather than round a continuous fitted value.
+
+## OQ-ISM-006: Explicit declared-prior approximation
+
+Should a future prediction mode permit declared independent uncertainty as an
+explicit approximation when runtime posterior covariance is unavailable? Any
+such mode must record `DeclaredIndependentApproximation`, an independence
+assumption, and `Partial` status; it must never be reported as complete runtime
+propagation.

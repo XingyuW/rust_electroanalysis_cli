@@ -13,6 +13,7 @@ pub fn default_model_definition() -> ModelDefinition {
         description: "Reduced-order ISM baseline with explicit phenomenological modes.".into(),
         validity_domain:
             "Aqueous potentiometric steps within declared calibration/activity domains.".into(),
+        uncertainty_incomplete: false,
         states: vec![state("fast_mode_v"), state("slow_mode_v")],
         parameters: vec![
             parameter("standard_potential_v", "V", -2.0, 2.0, 0.0),
@@ -107,7 +108,7 @@ fn state(id: &str) -> StateSpec {
             "State observability must be assessed before interpretation.".into(),
         ],
         validity_domain: "reduced-order voltage mode".into(),
-        uncertainty_representation: super::UncertaintyRepresentation::NotSpecified,
+        initial_uncertainty: super::UncertaintySpec::Deterministic,
     }
 }
 fn parameter(
@@ -117,24 +118,45 @@ fn parameter(
     upper_bound: f64,
     default_value: f64,
 ) -> ParameterSpec {
+    let (uncertainty, value_source, description, validity_domain) = match id {
+        "ion_charge" => (
+            super::UncertaintySpec::Deterministic,
+            super::ParameterValueSource::Fixed,
+            "Fixed analyte charge used by the configured theoretical equilibrium equation.",
+            "declared nonzero integer analyte charge",
+        ),
+        "observation_noise_std_v" => (
+            super::UncertaintySpec::Deterministic,
+            super::ParameterValueSource::ExternallySuppliedFixed,
+            "Fixed configured observation-noise scale; it defines R rather than a voltage term.",
+            "configured measurement-system noise domain",
+        ),
+        _ => (
+            super::UncertaintySpec::Unknown {
+                reason: "default value has no calibration covariance or explicit prior".into(),
+            },
+            super::ParameterValueSource::ExternallySupplied,
+            "Externally supplied reduced-order value; calibration covariance or a prior is required for complete uncertainty.",
+            "requires calibration or an explicit prior for the experimental domain",
+        ),
+    };
     ParameterSpec {
         id: id.into(),
         name: id.replace('_', " "),
-        description: "Reduced-order model parameter; domain-specific calibration is required."
-            .into(),
+        description: description.into(),
         unit: unit.into(),
         lower_bound,
         upper_bound,
         default_value,
-        uncertainty: 0.0,
+        uncertainty,
         source: "default reduced-order model".into(),
         equation_version: 1,
         identifiability_requirements: vec![
             "Structural and practical identifiability must be assessed before interpretation."
                 .into(),
         ],
-        value_source: super::ParameterValueSource::Fitted,
-        validity_domain: "must be calibrated for the experimental domain".into(),
+        value_source,
+        validity_domain: validity_domain.into(),
     }
 }
 fn input(id: &str, unit: &str, required: bool) -> InputSpec {
@@ -158,6 +180,34 @@ fn descriptor(
     equation: &str,
     metadata: BTreeMap<String, String>,
 ) -> ComponentDescriptor {
+    let state_ids = state_ids
+        .into_iter()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let parameter_ids = parameter_ids
+        .into_iter()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let observation_state_ids = match kind {
+        "transport.first_order_relaxation"
+        | "transport.two_mode_relaxation"
+        | "transport.stretched_relaxation"
+        | "transport.partition_delay"
+        | "transduction.solid_contact_rc_candidate"
+        | "transduction.interfacial_polarization_candidate"
+        | "disturbance.baseline_random_walk" => state_ids.clone(),
+        _ => Vec::new(),
+    };
+    let observation_parameter_ids = match kind {
+        "equilibrium.nernst"
+        | "equilibrium.nicolsky_eisenman"
+        | "transduction.ideal"
+        | "disturbance.linear_drift"
+        | "disturbance.temperature_covariate"
+        | "disturbance.conductivity_covariate"
+        | "disturbance.flow_covariate" => parameter_ids.clone(),
+        _ => Vec::new(),
+    };
     ComponentDescriptor {
         id: id.into(),
         kind: kind.into(),
@@ -176,11 +226,25 @@ fn descriptor(
                 .into(),
             })
             .collect(),
-        state_ids: state_ids.into_iter().map(str::to_string).collect(),
-        parameter_ids: parameter_ids.into_iter().map(str::to_string).collect(),
-        output_unit: owner.map(|_| "V".into()),
+        state_ids,
+        parameter_ids,
+        observation_state_ids,
+        observation_parameter_ids,
+        numerical_jacobian_supported: false,
+        output_unit: if id == "observation_noise" {
+            Some("V^2".into())
+        } else {
+            owner.map(|_| "V".into())
+        },
         voltage_contribution_owner: owner.map(str::to_string),
-        composition_rule: owner.map(|_| "additive_voltage".into()),
+        contribution_semantics: if id == "observation_noise" {
+            super::ContributionSemantics::ObservationVariance
+        } else if owner.is_some() {
+            super::ContributionSemantics::AdditivePotential
+        } else {
+            super::ContributionSemantics::StateOnly
+        },
+        legacy_composition_rule: None,
         source: "Phase 03 built-in component".into(),
         validity_domain: "reduced-order component; no mechanism confirmation implied".into(),
         equation: equation.into(),

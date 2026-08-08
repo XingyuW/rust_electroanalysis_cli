@@ -769,7 +769,7 @@ fn ekf_ukf_comparison_reports_equivalent_input_metrics() {
             let sum = point
                 .component_contributions
                 .iter()
-                .map(|component| component.voltage_v)
+                .filter_map(|component| component.potential_v)
                 .sum::<f64>();
             assert!((sum - point.predicted_measurement_v.unwrap()).abs() < 1e-9);
             assert!(
@@ -817,7 +817,22 @@ fn compiled_legacy_adapter_reproduces_legacy_process_and_observation_equations()
         &config, 7.0, None, &stored,
     )
     .unwrap();
-    assert!(compiled.compiled_model().is_some());
+    let compiled_definition = compiled.compiled_model().unwrap().definition();
+    assert!(compiled_definition.states.iter().all(|state| {
+        matches!(
+            state.initialization_source,
+            rust_electroanalysis_cli::model::StateInitializationSource::Estimated
+        ) && state
+            .initial_uncertainty
+            .variance_in(&state.unit)
+            .is_ok_and(|variance| variance.is_some_and(|value| value > 0.0))
+    }));
+    assert!(!compiled_definition.states.iter().any(|state| {
+        matches!(
+            state.initial_uncertainty,
+            rust_electroanalysis_cli::model::UncertaintySpec::Unknown { .. }
+        )
+    }));
     let state = nalgebra::DVector::from_vec(vec![-3.0, 0.01, 0.02]);
     let environment = AlignedEnvironment {
         timestamp_s: 1.0,

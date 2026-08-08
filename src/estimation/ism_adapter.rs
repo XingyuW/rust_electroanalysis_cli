@@ -12,8 +12,8 @@ use crate::{
         ComponentBindings, ComponentDescriptor, ComponentFactory, ComponentRegistry, ComponentRole,
         EvidenceRequirement, InputSpec, InputValue, InterpretationStatus, IsmComponent, Jacobian,
         ModelDefinition, ModelError, ModelInput, ModelState, ParameterSpec, ParameterValueSource,
-        ParameterValues, StateInitializationSource, StateSpec, StateTransformation,
-        UncertaintyRepresentation, compile_model,
+        ParameterValues, StateInitializationSource, StateJacobian, StateSpec, StateTransformation,
+        UncertaintySpec, compile_model,
     },
     results::StoredCalibrationModel,
 };
@@ -23,9 +23,11 @@ pub fn compile_legacy_model(
     config: &ResolvedEstimationConfig,
     definitions: &[StateDefinition],
     tau_s: f64,
+    tau_uncertainty_s: Option<f64>,
     calibration: &StoredCalibrationModel,
 ) -> Result<crate::model::CompiledIsmModel, EstimationError> {
-    let definition = legacy_model_definition(config, definitions, tau_s, calibration)?;
+    let definition =
+        legacy_model_definition(config, definitions, tau_s, tau_uncertainty_s, calibration)?;
     let registry = ComponentRegistry::from_static_factories([
         ("estimation.legacy_equilibrium", factory as ComponentFactory),
         ("estimation.legacy_baseline", factory as ComponentFactory),
@@ -43,6 +45,7 @@ pub fn legacy_model_definition(
     config: &ResolvedEstimationConfig,
     definitions: &[StateDefinition],
     tau_s: f64,
+    tau_uncertainty_s: Option<f64>,
     calibration: &StoredCalibrationModel,
 ) -> Result<ModelDefinition, EstimationError> {
     let calibration_json = serde_json::to_string(calibration)
@@ -52,57 +55,61 @@ pub fn legacy_model_definition(
         .ok_or_else(|| EstimationError::config("legacy estimator has no activity state"))?;
     let states = definitions
         .iter()
-        .map(|state| StateSpec {
-            id: state.name.clone(),
-            name: state.name.replace('_', " "),
-            description: state.interpretation.clone(),
-            unit: if state.name == "log10_activity" {
-                "dimensionless".into()
-            } else {
-                state.unit.clone()
-            },
-            transformation: StateTransformation::Custom(format!("{:?}", state.transform)),
-            initialization_source: StateInitializationSource::Estimated,
-            lower_bound: if matches!(state.transform, StateTransform::LogisticBounded) {
-                -30.0
-            } else {
-                state.lower_bound.unwrap_or_else(|| {
-                    if state.name == "log10_activity" {
-                        -30.0
-                    } else {
-                        -10.0
+        .map(|state| {
+            let (initialization_source, initial_uncertainty) =
+                state_initial_uncertainty(config, &state.name);
+            StateSpec {
+                id: state.name.clone(),
+                name: state.name.replace('_', " "),
+                description: state.interpretation.clone(),
+                unit: if state.name == "log10_activity" {
+                    "dimensionless".into()
+                } else {
+                    state.unit.clone()
+                },
+                transformation: StateTransformation::Custom(format!("{:?}", state.transform)),
+                initialization_source,
+                lower_bound: if matches!(state.transform, StateTransform::LogisticBounded) {
+                    -30.0
+                } else {
+                    state.lower_bound.unwrap_or_else(|| {
+                        if state.name == "log10_activity" {
+                            -30.0
+                        } else {
+                            -10.0
+                        }
+                    })
+                },
+                upper_bound: if matches!(state.transform, StateTransform::LogisticBounded) {
+                    30.0
+                } else {
+                    state.upper_bound.unwrap_or_else(|| {
+                        if state.name == "log10_activity" {
+                            30.0
+                        } else {
+                            10.0
+                        }
+                    })
+                },
+                initial_value: match state.name.as_str() {
+                    "baseline_offset" => config.initialization.baseline_v,
+                    "polarization" => config.initialization.polarization_v,
+                    "sensitivity_scale"
+                        if matches!(state.transform, StateTransform::LogisticBounded) =>
+                    {
+                        0.0
                     }
-                })
-            },
-            upper_bound: if matches!(state.transform, StateTransform::LogisticBounded) {
-                30.0
-            } else {
-                state.upper_bound.unwrap_or_else(|| {
-                    if state.name == "log10_activity" {
-                        30.0
-                    } else {
-                        10.0
-                    }
-                })
-            },
-            initial_value: match state.name.as_str() {
-                "baseline_offset" => config.initialization.baseline_v,
-                "polarization" => config.initialization.polarization_v,
-                "sensitivity_scale"
-                    if matches!(state.transform, StateTransform::LogisticBounded) =>
-                {
-                    0.0
-                }
-                "sensitivity_scale" => config.initialization.condition_value,
-                _ => 0.0,
-            },
-            source: "legacy estimation state adapter".into(),
-            process_equation_version: 1,
-            observability_requirements: vec![
-                "Estimator observability must be retained in the compatibility report.".into(),
-            ],
-            validity_domain: state.interpretation.clone(),
-            uncertainty_representation: UncertaintyRepresentation::Covariance,
+                    "sensitivity_scale" => config.initialization.condition_value,
+                    _ => 0.0,
+                },
+                source: "legacy estimation state adapter".into(),
+                process_equation_version: 1,
+                observability_requirements: vec![
+                    "Estimator observability must be retained in the compatibility report.".into(),
+                ],
+                validity_domain: state.interpretation.clone(),
+                initial_uncertainty,
+            }
         })
         .collect::<Vec<_>>();
     let mut parameters = Vec::new();
@@ -138,13 +145,24 @@ pub fn legacy_model_definition(
     }
     if definitions.iter().any(|state| state.name == "polarization") {
         parameters.extend([
-            parameter("legacy_polarization_tau_s", "s", 1e-12, 1e12, tau_s),
+            parameter(
+                "legacy_polarization_tau_s",
+                "s",
+                1e-12,
+                1e12,
+                tau_s,
+                tau_uncertainty_s.map(|value| UncertaintySpec::StandardDeviation {
+                    value,
+                    unit: "s".into(),
+                }),
+            ),
             parameter(
                 "legacy_polarization_gain",
                 "dimensionless",
                 -1e6,
                 1e6,
                 config.polarization.gain,
+                None,
             ),
         ]);
         components.push(descriptor(
@@ -208,6 +226,7 @@ pub fn legacy_model_definition(
         description: "Compiled compatibility representation of the legacy estimation equations"
             .into(),
         validity_domain: "Stored calibration domain and configured legacy estimator bounds".into(),
+        uncertainty_incomplete: true,
         states,
         parameters,
         inputs,
@@ -249,6 +268,49 @@ pub fn model_input(environment: &AlignedEnvironment) -> ModelInput {
     ModelInput {
         time_s: environment.timestamp_s,
         values,
+    }
+}
+
+fn state_initial_uncertainty(
+    config: &ResolvedEstimationConfig,
+    state_id: &str,
+) -> (StateInitializationSource, UncertaintySpec) {
+    let (variance, unit, process_variance) = match state_id {
+        "log10_activity" => (
+            config.initial_covariance.log10_activity_variance,
+            "dimensionless^2",
+            config.process_noise.activity_variance_per_s,
+        ),
+        "baseline_offset" => (
+            config.initial_covariance.baseline_variance_v2,
+            "V^2",
+            config.process_noise.baseline_variance_v2_per_s,
+        ),
+        "polarization" => (
+            config.initial_covariance.polarization_variance_v2,
+            "V^2",
+            config.process_noise.polarization_variance_v2_per_s,
+        ),
+        "sensitivity_scale" => (
+            config.initial_covariance.condition_variance,
+            "dimensionless^2",
+            config.process_noise.condition_variance_per_s,
+        ),
+        _ => (f64::NAN, "dimensionless^2", f64::NAN),
+    };
+    if variance == 0.0 && process_variance == 0.0 {
+        (
+            StateInitializationSource::DeclaredDefault,
+            UncertaintySpec::Deterministic,
+        )
+    } else {
+        (
+            StateInitializationSource::Estimated,
+            UncertaintySpec::Variance {
+                value: variance,
+                unit: unit.into(),
+            },
+        )
     }
 }
 
@@ -443,13 +505,13 @@ impl IsmComponent for LegacyComponent {
         };
         Ok(Some(value))
     }
-    fn observation_jacobian(
+    fn observation_state_jacobian(
         &self,
-        dimension: usize,
         state: &ModelState,
         _parameters: &ParameterValues,
         input: &ModelInput,
-    ) -> Result<Vec<f64>, ModelError> {
+    ) -> Result<StateJacobian, ModelError> {
+        let dimension = self.bindings.state_indices.len();
         let mut result = vec![0.0; dimension];
         match self.descriptor.kind.as_str() {
             "estimation.legacy_equilibrium" => {
@@ -489,7 +551,16 @@ impl IsmComponent for LegacyComponent {
             }
             _ => {}
         }
-        Ok(result)
+        Ok(StateJacobian::analytic(
+            self.descriptor
+                .observation_state_ids
+                .iter()
+                .map(|id| {
+                    let index = self.bindings.state_indices[id];
+                    (id.clone(), result[index])
+                })
+                .collect::<Vec<_>>(),
+        ))
     }
 }
 
@@ -502,9 +573,17 @@ fn descriptor(
     owner: &str,
     metadata: BTreeMap<String, String>,
 ) -> ComponentDescriptor {
-    ComponentDescriptor { id: id.into(), kind: kind.into(), role, interpretation_status: InterpretationStatus::Phenomenological, depends_on: Vec::new(), required_inputs: Vec::new(), state_ids: states.into_iter().map(str::to_string).collect(), parameter_ids: parameters.into_iter().map(str::to_string).collect(), output_unit: Some("V".into()), voltage_contribution_owner: Some(owner.into()), composition_rule: Some("additive_voltage".into()), source: "legacy estimation compatibility adapter".into(), validity_domain: "stored calibration and configured legacy estimator domain".into(), equation: "legacy Phase 6 estimator equation adapter".into(), equation_version: 1, assumptions: vec!["Compatibility adapter preserves legacy numerical semantics without assigning a physical mechanism.".into()], evidence_requirements: vec![EvidenceRequirement { hypothesis_id: format!("{id}.identity"), proposed_mechanism_label: "unassigned".into(), independent_evidence_types: vec!["independent experiment".into()], minimum_independent_observations: 2, validity_domain: "declared calibration domain".into(), alternatives_to_consider: vec!["other reduced-order explanations".into()], required_uncertainty_statement: "state and calibration uncertainty must be retained".into() }], metadata }
+    let state_ids = states.into_iter().map(str::to_string).collect::<Vec<_>>();
+    ComponentDescriptor { id: id.into(), kind: kind.into(), role, interpretation_status: InterpretationStatus::Phenomenological, depends_on: Vec::new(), required_inputs: Vec::new(), observation_state_ids: state_ids.clone(), observation_parameter_ids: Vec::new(), numerical_jacobian_supported: false, state_ids, parameter_ids: parameters.into_iter().map(str::to_string).collect(), output_unit: Some("V".into()), voltage_contribution_owner: Some(owner.into()), contribution_semantics: crate::model::ContributionSemantics::AdditivePotential, legacy_composition_rule: None, source: "legacy estimation compatibility adapter".into(), validity_domain: "stored calibration and configured legacy estimator domain".into(), equation: "legacy Phase 6 estimator equation adapter".into(), equation_version: 1, assumptions: vec!["Compatibility adapter preserves legacy numerical semantics without assigning a physical mechanism.".into()], evidence_requirements: vec![EvidenceRequirement { hypothesis_id: format!("{id}.identity"), proposed_mechanism_label: "unassigned".into(), independent_evidence_types: vec!["independent experiment".into()], minimum_independent_observations: 2, validity_domain: "declared calibration domain".into(), alternatives_to_consider: vec!["other reduced-order explanations".into()], required_uncertainty_statement: "state and calibration uncertainty must be retained".into() }], metadata }
 }
-fn parameter(id: &str, unit: &str, lower: f64, upper: f64, default_value: f64) -> ParameterSpec {
+fn parameter(
+    id: &str,
+    unit: &str,
+    lower: f64,
+    upper: f64,
+    default_value: f64,
+    uncertainty: Option<UncertaintySpec>,
+) -> ParameterSpec {
     ParameterSpec {
         id: id.into(),
         name: id.replace('_', " "),
@@ -513,7 +592,9 @@ fn parameter(id: &str, unit: &str, lower: f64, upper: f64, default_value: f64) -
         lower_bound: lower,
         upper_bound: upper,
         default_value,
-        uncertainty: 0.0,
+        uncertainty: uncertainty.unwrap_or_else(|| UncertaintySpec::Unknown {
+            reason: "legacy estimator compatibility parameter has no configured covariance".into(),
+        }),
         source: "legacy estimation configuration".into(),
         equation_version: 1,
         identifiability_requirements: vec![

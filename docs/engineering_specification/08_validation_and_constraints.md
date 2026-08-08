@@ -161,3 +161,40 @@ one unique owner and explicit composition rule. `ObservationNoise` and
 `Unexplained` roles cannot produce a deterministic voltage contribution. The
 sum of component contributions is checked against `E_pred` within the configured
 reconstruction tolerance.
+
+Schema v3 rejects unsupported legacy composition strings, incompatible output
+fields, additive output from state-only/auxiliary components, inconsistent
+Jacobian dimensions/coverage/ID mapping, and undeclared numerical derivative
+use. A fitted parameter or estimated state requires positive finite variance or
+standard deviation. Deterministic, zero, non-finite, or unknown uncertainty is
+rejected for those sources even when `uncertainty_incomplete` is true. Fixed
+quantities may be deterministic. Unknown never means numeric zero.
+
+`Complete` requires every relevant non-deterministic state and parameter to
+have caller-supplied runtime covariance and derivative coverage, required
+observation variance, and finite propagated values. Declared uncertainty is
+prior/initialization metadata, not a fallback runtime covariance. With absent
+runtime covariance, deterministic blocks legitimately contribute `Some(0.0)`;
+each affected stochastic source is named as missing, its component variance is
+`None`, and the total/standard error are `None`. `Partial` retains a prediction
+with named missing sources when some meaningful uncertainty is available.
+`Unavailable` means no meaningful uncertainty can be calculated.
+`NotRequested` requires an explicit disabled request. Deterministic covariance
+rows and columns must be exactly zero; stochastic known diagonals must be
+strictly positive. Symmetry and PSD tolerances do not classify uncertainty.
+Numerical derivatives are accepted only when the descriptor declares support
+and positive relative/absolute steps are recorded; built-ins use analytical
+derivatives.
+
+### Covariance uncertainty contract
+
+The schema, rather than a numeric covariance matrix, declares whether each
+state or parameter is deterministic, stochastic with known uncertainty, or
+stochastic with unknown uncertainty. Supplied full covariance must have exact
+dimension, finite entries, symmetry within tolerance, and positive
+semidefiniteness. A declared stochastic-known entry requires a positive finite
+diagonal; a deterministic entry requires zero row and column. Violations return
+typed covariance-contract errors. An unknown declaration remains incomplete
+until explicitly migrated/enriched and never obtains a zero numeric variance.
+Derivative coverage is required for every declared non-deterministic ID that a
+component says influences its observation, independent of covariance sparsity.

@@ -68,10 +68,74 @@ pub enum ModelError {
     InvalidTimeStep { dt_s: f64 },
     #[error("invalid Jacobian dimensions from component '{component}'")]
     JacobianDimension { component: String },
+    #[error(
+        "invalid {subject} covariance dimensions; expected {expected}x{expected}, found {actual}"
+    )]
+    CovarianceDimension {
+        subject: &'static str,
+        expected: usize,
+        actual: String,
+    },
+    #[error("non-finite {subject} covariance entry at ({row}, {column})")]
+    NonFiniteCovariance {
+        subject: &'static str,
+        row: usize,
+        column: usize,
+    },
+    #[error("{subject} covariance is not symmetric at ({row}, {column})")]
+    AsymmetricCovariance {
+        subject: &'static str,
+        row: usize,
+        column: usize,
+    },
+    #[error("{subject} covariance is not positive semidefinite")]
+    NonPositiveSemidefiniteCovariance { subject: &'static str },
+    #[error(
+        "covariance conflicts with declared {declared_uncertainty:?} uncertainty for '{quantity_id}': diagonal {covariance_diagonal:?}; {reason}"
+    )]
+    CovarianceUncertaintyConflict {
+        quantity_id: String,
+        declared_uncertainty: super::state::DeclaredUncertaintyClass,
+        covariance_diagonal: Option<f64>,
+        reason: String,
+    },
+    #[error("stochastic quantity '{quantity_id}' is missing covariance")]
+    MissingCovarianceForStochasticQuantity { quantity_id: String },
+    #[error(
+        "deterministic quantity '{quantity_id}' has nonzero covariance entry {covariance_entry} at ({row}, {column})"
+    )]
+    NonzeroCovarianceForDeterministicQuantity {
+        quantity_id: String,
+        covariance_entry: f64,
+        row: usize,
+        column: usize,
+    },
+    #[error("stochastic quantity '{quantity_id}' has an exact-zero covariance diagonal")]
+    ZeroCovarianceForStochasticQuantity { quantity_id: String },
+    #[error("invalid Jacobian coverage from component '{component}': {message}")]
+    JacobianCoverage { component: String, message: String },
+    #[error(
+        "model schema version {found} must be explicitly migrated to version {expected} before compilation"
+    )]
+    LegacyMigrationRequired { found: u32, expected: u32 },
     #[error("component '{component}' emitted a non-finite voltage contribution")]
     NonFiniteContribution { component: String },
     #[error("component '{component}' emitted a voltage without a declared contribution owner")]
     UndeclaredVoltageContribution { component: String },
+    #[error("component '{component}' requested unsupported composition semantics '{semantics}'")]
+    UnsupportedCompositionSemantics {
+        component: String,
+        semantics: String,
+    },
+    #[error(
+        "component '{component}' emitted an output incompatible with declared {semantics:?} semantics"
+    )]
+    IncompatibleContributionOutput {
+        component: String,
+        semantics: super::component::ContributionSemantics,
+    },
+    #[error("invalid or missing uncertainty declaration for {subject}")]
+    InvalidUncertainty { subject: String },
     #[error("invalid potential reconstruction tolerance {tolerance_v} V")]
     InvalidTolerance { tolerance_v: f64 },
     #[error(

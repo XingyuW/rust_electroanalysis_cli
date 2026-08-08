@@ -1,6 +1,6 @@
 use super::error::ModelError;
 use super::input::validate_unit;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Transformation between stored and physical state coordinates.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -25,16 +25,129 @@ pub enum StateInitializationSource {
     Estimated,
 }
 
-/// How uncertainty for a state is represented without requiring an estimator.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+/// Typed schema-declared uncertainty. It establishes semantic class and may
+/// describe a prior or initialization, but is not runtime posterior/joint
+/// covariance for prediction propagation. Numeric zero is meaningful only for
+/// an explicitly deterministic quantity; unknown uncertainty is never coerced
+/// to zero.
+#[derive(Debug, Clone, PartialEq)]
+pub enum UncertaintySpec {
+    Deterministic,
+    StandardDeviation { value: f64, unit: String },
+    Variance { value: f64, unit: String },
+    Unknown { reason: String },
+}
+
+/// Semantic uncertainty class declared by the model schema.
+///
+/// Covariance matrices quantify members of this class but never change it.
+/// In particular, an all-zero covariance row is not evidence that a quantity
+/// declared stochastic is deterministic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum UncertaintyRepresentation {
-    #[default]
-    NotSpecified,
-    StandardDeviation,
-    Variance,
-    Covariance,
-    PriorDistribution,
+pub enum DeclaredUncertaintyClass {
+    Deterministic,
+    StochasticKnown,
+    StochasticUnknown,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum UncertaintySpecWire {
+    Deterministic,
+    StandardDeviation { value: f64, unit: String },
+    Variance { value: f64, unit: String },
+    Unknown { reason: String },
+}
+
+impl Serialize for UncertaintySpec {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let wire = match self {
+            Self::Deterministic => UncertaintySpecWire::Deterministic,
+            Self::StandardDeviation { value, unit } => UncertaintySpecWire::StandardDeviation {
+                value: *value,
+                unit: unit.clone(),
+            },
+            Self::Variance { value, unit } => UncertaintySpecWire::Variance {
+                value: *value,
+                unit: unit.clone(),
+            },
+            Self::Unknown { reason } => UncertaintySpecWire::Unknown {
+                reason: reason.clone(),
+            },
+        };
+        wire.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for UncertaintySpec {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Wire {
+            Typed(UncertaintySpecWire),
+            LegacyNumber(f64),
+        }
+        Ok(match Wire::deserialize(deserializer)? {
+            Wire::Typed(UncertaintySpecWire::Deterministic) => Self::Deterministic,
+            Wire::Typed(UncertaintySpecWire::StandardDeviation { value, unit }) => {
+                Self::StandardDeviation { value, unit }
+            }
+            Wire::Typed(UncertaintySpecWire::Variance { value, unit }) => {
+                Self::Variance { value, unit }
+            }
+            Wire::Typed(UncertaintySpecWire::Unknown { reason }) => Self::Unknown { reason },
+            Wire::LegacyNumber(_legacy_value) => Self::Unknown {
+                reason: "legacy numeric uncertainty requires explicit typed migration".into(),
+            },
+        })
+    }
+}
+
+impl UncertaintySpec {
+    pub const fn declared_class(&self) -> DeclaredUncertaintyClass {
+        match self {
+            Self::Deterministic => DeclaredUncertaintyClass::Deterministic,
+            Self::StandardDeviation { .. } | Self::Variance { .. } => {
+                DeclaredUncertaintyClass::StochasticKnown
+            }
+            Self::Unknown { .. } => DeclaredUncertaintyClass::StochasticUnknown,
+        }
+    }
+
+    pub fn variance_in(&self, expected_unit: &str) -> Result<Option<f64>, ModelError> {
+        match self {
+            Self::Deterministic => Ok(Some(0.0)),
+            Self::StandardDeviation { value, unit } => {
+                if unit != expected_unit || !value.is_finite() || *value <= 0.0 {
+                    return Err(ModelError::InvalidUncertainty {
+                        subject: expected_unit.into(),
+                    });
+                }
+                Ok(Some(value * value))
+            }
+            Self::Variance { value, unit } => {
+                if unit != &format!("{expected_unit}^2") || !value.is_finite() || *value <= 0.0 {
+                    return Err(ModelError::InvalidUncertainty {
+                        subject: expected_unit.into(),
+                    });
+                }
+                Ok(Some(*value))
+            }
+            Self::Unknown { .. } => Ok(None),
+        }
+    }
+
+    pub fn missing_reason(&self) -> Option<String> {
+        match self {
+            Self::Unknown { reason } => Some(reason.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn is_positive_finite(&self, expected_unit: &str) -> bool {
+        matches!(self.variance_in(expected_unit), Ok(Some(value)) if value.is_finite() && value > 0.0)
+    }
 }
 
 /// Versioned metadata and constraints for one latent model state.
@@ -59,8 +172,14 @@ pub struct StateSpec {
     #[serde(default)]
     pub observability_requirements: Vec<String>,
     pub validity_domain: String,
-    #[serde(default)]
-    pub uncertainty_representation: UncertaintyRepresentation,
+    #[serde(default = "default_unknown_uncertainty")]
+    pub initial_uncertainty: UncertaintySpec,
+}
+
+fn default_unknown_uncertainty() -> UncertaintySpec {
+    UncertaintySpec::Unknown {
+        reason: "initial-state uncertainty was not declared".into(),
+    }
 }
 
 const fn default_equation_version() -> u32 {
@@ -76,6 +195,19 @@ fn default_description() -> String {
 }
 
 impl StateSpec {
+    /// Schema-declared uncertainty semantics for prediction propagation.
+    pub const fn declared_uncertainty_class(&self) -> DeclaredUncertaintyClass {
+        match self.initialization_source {
+            // Schema validation requires an estimated initial state to have a
+            // positive finite typed uncertainty.
+            StateInitializationSource::Estimated => DeclaredUncertaintyClass::StochasticKnown,
+            StateInitializationSource::DeclaredDefault
+            | StateInitializationSource::Calibration
+            | StateInitializationSource::Measurement
+            | StateInitializationSource::External => self.initial_uncertainty.declared_class(),
+        }
+    }
+
     pub(crate) fn validate(&self) -> Result<(), ModelError> {
         if self.id.trim().is_empty() {
             return Err(ModelError::EmptyIdentifier { kind: "state" });
@@ -121,6 +253,7 @@ impl StateSpec {
                 kind: "state source or validity domain",
             });
         }
+        self.initial_uncertainty.variance_in(&self.unit)?;
         Ok(())
     }
 }

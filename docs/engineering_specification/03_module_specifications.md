@@ -299,3 +299,17 @@ scientific metadata beyond bounds and units, including transformations,
 initialization/value source, equation version, observability/identifiability,
 validity, and uncertainty representation. These are contracts only: they do
 not introduce a new numerical transport equation.
+
+`component.rs` owns closed output semantics and canonical external role;
+`output.rs` records categorized potential/variance and uncertainty status;
+`compiler.rs` enforces output compatibility and applies available first-order
+covariance propagation.
+
+In schema v3, `component.rs` also owns typed state/parameter Jacobian results.
+Covered values are paired with stable IDs; `Complete`, `Partial`,
+`Unavailable`, and `NotApplicable` coverage cannot be inferred from numeric
+zeros. `compiler.rs` validates declared direct-observation dependencies,
+coverage sets, finite values, numerical-step policy, and local-to-global ID
+mapping before applying caller-supplied full runtime covariance. `defaults.rs`
+classifies values by the current artifact (fixed, externally supplied, or
+fitted), rather than by whether they might be fitted in a future workflow.

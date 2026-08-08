@@ -104,3 +104,59 @@ Legacy estimation remains an outer compatibility adapter until regression
 equivalence is shown. The future extraction path is a mechanical move of
 `src/model` to `crates/ism-model-core`, retained by a compatibility re-export;
 the extracted crate must not reverse the dependency direction.
+
+### Schema-v2 composition and uncertainty remediation
+
+Composition is a closed typed contract: `additive_potential`,
+`observation_variance`, `state_only`, or `auxiliary`. Only additive potential
+terms reconstruct prediction; observation variance remains V². The sole
+runtime external role is `external_disturbance`; legacy `external` is an input
+alias only. Predictions report complete, partial, unavailable, or
+not-requested uncertainty. First-order propagation uses caller-supplied runtime
+`J P Jᵀ` terms. It does not claim full Bayesian or model-form uncertainty
+propagation.
+
+### Schema-v3 derivative-coverage and uncertainty remediation
+
+Schema v3 separates a covered derivative whose analytical value is zero from
+an omitted derivative. Each additive component declares its direct observation
+state and parameter IDs. Local Jacobians return stable IDs, values, coverage
+status (`complete`, `partial`, `unavailable`, or `not_applicable`), and method;
+the compiler validates the local-to-global mapping. Built-ins use analytical
+derivatives. Numerical derivatives require an explicit component declaration
+and recorded positive relative and absolute steps; there is no silent finite-
+difference fallback.
+
+`Complete` now requires caller-supplied runtime covariance and derivative coverage for every
+non-deterministic influencing state and parameter, an available observation
+variance, finite values, and no unresolved source. Missing covariance or
+coverage produces `Partial` when some meaningful uncertainty is available and
+`Unavailable` otherwise. `NotRequested` is emitted only by an explicit request
+flag. Full runtime covariance uses all off-diagonal terms. Schema-declared
+uncertainty is prior/initialization metadata and is never silently converted to
+an independent diagonal runtime covariance.
+
+Fitted parameters and estimated states require positive finite uncertainty.
+`Deterministic`, zero, and `Unknown` are invalid for those sources.
+`uncertainty_incomplete` is retained only as legacy/migration metadata and
+cannot bypass validation. Legacy numeric zero deserializes as `Unknown` and
+must be enriched before compilation. This remains first-order propagation and
+makes no Bayesian or structural/model-form uncertainty claim.
+
+### Covariance uncertainty consistency
+
+Schema declarations are authoritative: `Deterministic`, `StochasticKnown`, or
+`StochasticUnknown` is derived from the value/initialization source and typed
+uncertainty declaration, never from a covariance row. A full covariance matrix
+quantifies magnitude and correlation but cannot turn a declared stochastic
+quantity into deterministic or vice versa. Known stochastic entries require a
+finite, strictly positive diagonal; deterministic entries require every
+supplied row/column entry to be exactly numeric zero (both signed zeros are
+permitted). Dimension, finiteness, symmetry, and PSD are validated before
+propagation, and contradictions are typed errors. Symmetry/PSD tolerances are
+numerical matrix-validation tools, never semantic zero thresholds; a positive
+covariance such as `1e-13` remains stochastic. A zero derivative is valid
+only when the Jacobian explicitly covers the ID and returns numeric zero;
+missing coverage remains missing even for a zero covariance row. `Complete`
+requires valid covariance and explicit derivative coverage for each relevant
+stochastic source, observation variance, and finite propagated values.
