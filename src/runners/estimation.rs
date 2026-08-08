@@ -425,6 +425,24 @@ fn export_report(
 }
 
 fn human_report(r: &StateEstimationReport) -> String {
+    let model_narrative = match (r.model_backend, r.model_profile) {
+        (Some(crate::estimation_config::EstimationModelBackend::Legacy), _) | (None, _) => {
+            "measurement model: stored calibration adapter + baseline offset + dynamic polarization; optional sensitivity scale\n- process model: actual timestamp intervals; random walks plus first-order polarization decay".into()
+        }
+        (
+            Some(crate::estimation_config::EstimationModelBackend::Compiled),
+            Some(crate::estimation_config::CompiledEstimationProfile::LegacyEquivalentV1),
+        ) => "compiled legacy-equivalent profile: mapped equilibrium, baseline/reference, polarization, and optional sensitivity components\n- process model: compiled legacy-parity transition equations".into(),
+        (
+            Some(crate::estimation_config::EstimationModelBackend::Compiled),
+            Some(crate::estimation_config::CompiledEstimationProfile::ReducedIsmV1),
+        ) => "compiled reduced ISM V1: calibrated equilibrium, phenomenological fast and slow dynamic modes, reference offset, optional candidate transduction, declared external covariates, and unexplained residual\n- process model: component-specific compiled transitions and equilibrium assessment; component labels are not asserted mechanisms".into(),
+        (Some(crate::estimation_config::EstimationModelBackend::Compiled), _) => format!(
+            "custom compiled definition: model {:?}; components {:?}\n- process model: declared compiled component equations and input bindings",
+            r.model_id,
+            r.model_definition.as_ref().map(|definition| definition.components.iter().map(|component| format!("{} ({}, {:?})", component.id, component.kind, component.role)).collect::<Vec<_>>())
+        ),
+    };
     let mut s = format!(
         "State estimation report\n========================\n\nDirect measurements\n- channel: {} [V]\n- observations: {}\n- filter: {:?}\n- state model: {:?}\n- accepted updates: {}\n- rejected updates: {}\n- predict-only steps: {}\n\n",
         r.channel,
@@ -443,11 +461,15 @@ fn human_report(r: &StateEstimationReport) -> String {
         ));
     }
     s.push_str(&format!(
-        "\nTimestamp preprocessing\n- was preprocessed: {}\n- segments: {}\n- skipped segments: {}\n- diagnostics: {:?}\n\nModels\n- measurement model: stored calibration adapter + baseline offset + dynamic polarization; optional sensitivity scale\n- process model: actual timestamp intervals; random walks plus first-order polarization decay\n- initialization sources: {:?}\n- initialization assumptions: {:?}\n\nCovariance sources\n- process: {:?}, resolved variance {} {}\n- measurement: {:?}, resolved variance {} {}\n- measurement assumptions: {:?}\n\nInnovation diagnostics\n- mean: {:?}\n- standard deviation: {:?}\n- mean NIS: {:?}\n- NIS exceedance rate: {:?}\n- residual autocorrelation: {:?}\n- log likelihood: {:?}\n\nObservability and identifiability\n- rank: {}/{}\n- condition number: {:?}\n- weak states: {:?}\n- unobservable states: {:?}\n- empirical identifiability passed: {}\n\nCalibration domain and uncertainty\n- domain excursions: {}\n- state uncertainty is reported per point as standard error and covariance\n- molar concentration is emitted only for the ideal activity model\n\nValidation\n- {:?}\n\nWarnings\n{:?}\n",
+        "\nTimestamp preprocessing\n- was preprocessed: {}\n- segments: {}\n- skipped segments: {}\n- diagnostics: {:?}\n\nModels\n- backend: {:?}\n- profile: {:?}\n- {}\n- resolved source: {:?}\n- initialization sources: {:?}\n- initialization assumptions: {:?}\n\nCovariance sources\n- process: {:?}, resolved variance {} {}\n- measurement: {:?}, resolved variance {} {}\n- measurement assumptions: {:?}\n\nInnovation diagnostics\n- mean: {:?}\n- standard deviation: {:?}\n- mean NIS: {:?}\n- NIS exceedance rate: {:?}\n- residual autocorrelation: {:?}\n- log likelihood: {:?}\n\nObservability and identifiability\n- rank: {}/{}\n- condition number: {:?}\n- weak states: {:?}\n- unobservable states: {:?}\n- empirical identifiability passed: {}\n\nCalibration domain and uncertainty\n- domain excursions: {}\n- state uncertainty is reported per point as standard error and covariance\n- molar concentration is emitted only for the ideal activity model\n\nValidation\n- {:?}\n\nWarnings\n{:?}\n",
         r.was_preprocessed,
         r.timestamp_segments.len(),
         r.skipped_timestamp_segments.len(),
         r.timestamp_diagnostics,
+        r.model_backend,
+        r.model_profile,
+        model_narrative,
+        r.resolved_model_definition_source,
         r.initialization.sources,
         r.initialization.assumptions,
         r.process_covariance.selected_source,

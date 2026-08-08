@@ -83,10 +83,20 @@ pub fn initialize_state(
         sources.push("configured baseline offset".into());
         assumptions.push("baseline is initialized to the configured offset and is latent".into());
     }
+    if let Some(i) = model.index("reference_offset_v") {
+        mean[i] = config.initialization.baseline_v;
+        sources.push("configured reference offset".into());
+    }
     if let Some(i) = model.index("polarization") {
         mean[i] = config.initialization.polarization_v;
         sources.push("configured polarization state".into());
         assumptions.push("polarization is initialized from the configured prior; transient data may constrain its time constant".into());
+    }
+    for state in ["dynamic_fast_potential_v", "dynamic_slow_potential_v"] {
+        if let Some(i) = model.index(state) {
+            mean[i] = config.initialization.polarization_v;
+            sources.push(format!("configured {state} prior"));
+        }
     }
     if let Some(i) = model.index("sensitivity_scale") {
         let physical = if config.initialization.condition_value.is_finite() {
@@ -117,8 +127,12 @@ pub fn initialize_state(
     for (i, d) in model.definitions.iter().enumerate() {
         covariance[(i, i)] = match d.name.as_str() {
             "log10_activity" => config.initial_covariance.log10_activity_variance,
-            "baseline_offset" => config.initial_covariance.baseline_variance_v2,
-            "polarization" => config.initial_covariance.polarization_variance_v2,
+            "baseline_offset" | "reference_offset_v" => {
+                config.initial_covariance.baseline_variance_v2
+            }
+            "polarization" | "dynamic_fast_potential_v" | "dynamic_slow_potential_v" => {
+                config.initial_covariance.polarization_variance_v2
+            }
             "sensitivity_scale" => config.initial_covariance.condition_variance,
             _ => 1e-6,
         };

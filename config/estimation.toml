@@ -154,3 +154,21 @@ minor_reversal_threshold_s = 1.0
 reset_threshold_s = 10.0
 reset_threshold_fraction = 0.5
 minimum_segment_points = 10
+
+# Existing workflows intentionally remain on the direct legacy backend.
+# Set backend = "compiled" to opt in to either compiled profile.
+[model]
+backend = "legacy"
+profile = "legacy_equivalent_v1"
+
+[model.input_bindings]
+target_activity = "estimated_activity"
+delta_log10_activity = "experiment_activity_step"
+temperature = "environment:temperature"
+conductivity = "environment:conductivity"
+
+[model.transduction_drive]
+source = "none"
+
+[model.observation_variance]
+combination = "estimation_only"

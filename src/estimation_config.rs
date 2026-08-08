@@ -37,6 +37,81 @@ pub enum StateModelKind {
     Custom,
 }
 
+/// Selects the scientific-model implementation used by the estimators.
+///
+/// `Legacy` is deliberately the default: an existing estimation TOML must
+/// retain its direct, historically validated state/observation equations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EstimationModelBackend {
+    #[default]
+    Legacy,
+    Compiled,
+}
+
+/// Explicit compiled-model profiles.  The compatibility profile preserves
+/// the legacy state vector; the reduced profile is an opt-in V1 capability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CompiledEstimationProfile {
+    #[default]
+    LegacyEquivalentV1,
+    ReducedIsmV1,
+    /// A definition supplied by `model.definition`; built-in profile defaults
+    /// must not be silently mixed with a user model.
+    Custom,
+}
+
+/// Explicit source for the optional candidate-transduction event input.
+/// It is deliberately separate from the legacy polarization input policy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case", tag = "source")]
+pub enum TransductionDriveSource {
+    #[default]
+    None,
+    ActivityStep,
+    ExplicitEventField {
+        field: String,
+        unit: String,
+    },
+}
+
+/// Names at the estimation boundary that populate ordinary compiled inputs.
+/// Event sources are resolved once per transition, not by individual filters.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ModelInputBindingsConfig {
+    pub target_activity: String,
+    pub delta_log10_activity: String,
+    pub temperature: String,
+    pub conductivity: String,
+    /// Explicit sources for required custom model input IDs. The current
+    /// estimation boundary rejects unbound required IDs rather than silently
+    /// evaluating a partially populated custom definition.
+    pub custom: BTreeMap<String, String>,
+}
+
+impl Default for ModelInputBindingsConfig {
+    fn default() -> Self {
+        Self {
+            target_activity: "estimated_activity".into(),
+            delta_log10_activity: "experiment_activity_step".into(),
+            temperature: "environment:temperature".into(),
+            conductivity: "environment:conductivity".into(),
+            custom: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ObservationVarianceCombination {
+    #[default]
+    EstimationOnly,
+    ModelOnly,
+    AddIndependent,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum StateTransformKind {
@@ -128,6 +203,7 @@ pub struct ResolvedEstimationConfig {
     pub schema_version: u32,
     pub filter: FilterConfig,
     pub state_model: StateModelConfig,
+    pub model: EstimationModelConfig,
     pub initialization: InitializationConfig,
     pub initial_covariance: InitialCovarianceConfig,
     pub process_noise: ProcessNoiseConfig,
@@ -155,6 +231,7 @@ impl Default for ResolvedEstimationConfig {
             schema_version: ESTIMATION_CONFIG_SCHEMA_VERSION,
             filter: FilterConfig::default(),
             state_model: StateModelConfig::default(),
+            model: EstimationModelConfig::default(),
             initialization: InitializationConfig::default(),
             initial_covariance: InitialCovarianceConfig::default(),
             process_noise: ProcessNoiseConfig::default(),
@@ -173,6 +250,46 @@ impl Default for ResolvedEstimationConfig {
             timestamp_handling: TimestampHandlingConfig::default(),
             ingestion: IngestionValidationConfig::default(),
             source_path: None,
+        }
+    }
+}
+
+/// Compiled-model settings live at the estimation boundary.  They must never
+/// be imported by the model core.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EstimationModelConfig {
+    pub backend: EstimationModelBackend,
+    pub profile: CompiledEstimationProfile,
+    pub definition: Option<PathBuf>,
+    pub input_bindings: ModelInputBindingsConfig,
+    pub transduction_drive: TransductionDriveSource,
+    pub observation_variance: ObservationVarianceConfig,
+}
+
+impl Default for EstimationModelConfig {
+    fn default() -> Self {
+        Self {
+            backend: EstimationModelBackend::Legacy,
+            profile: CompiledEstimationProfile::LegacyEquivalentV1,
+            definition: None,
+            input_bindings: ModelInputBindingsConfig::default(),
+            transduction_drive: TransductionDriveSource::None,
+            observation_variance: ObservationVarianceConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ObservationVarianceConfig {
+    pub combination: ObservationVarianceCombination,
+}
+
+impl Default for ObservationVarianceConfig {
+    fn default() -> Self {
+        Self {
+            combination: ObservationVarianceCombination::EstimationOnly,
         }
     }
 }
@@ -656,6 +773,37 @@ impl ResolvedEstimationConfig {
                 self.schema_version
             )));
         }
+        if matches!(self.model.backend, EstimationModelBackend::Legacy)
+            && !matches!(
+                self.model.profile,
+                CompiledEstimationProfile::LegacyEquivalentV1
+            )
+        {
+            return Err(ConfigurationError::invalid(
+                "model.profile is only meaningful for backend = compiled",
+            ));
+        }
+        if self.model.definition.is_some()
+            && !matches!(self.model.backend, EstimationModelBackend::Compiled)
+        {
+            return Err(ConfigurationError::invalid(
+                "model.definition requires backend = compiled",
+            ));
+        }
+        if self.model.definition.is_some()
+            && !matches!(self.model.profile, CompiledEstimationProfile::Custom)
+        {
+            return Err(ConfigurationError::invalid(
+                "model.definition requires model.profile = custom; built-in profiles and definitions are not combined",
+            ));
+        }
+        if self.model.definition.is_none()
+            && matches!(self.model.profile, CompiledEstimationProfile::Custom)
+        {
+            return Err(ConfigurationError::invalid(
+                "model.profile = custom requires model.definition",
+            ));
+        }
         for (name, value) in [
             ("confidence_level", self.filter.confidence_level),
             (
@@ -977,6 +1125,16 @@ mod tests {
     #[test]
     fn defaults_validate() {
         ResolvedEstimationConfig::default().validate().unwrap();
+    }
+
+    #[test]
+    fn absent_model_section_keeps_the_legacy_backend() {
+        let config: ResolvedEstimationConfig = toml::from_str("schema_version = 3").unwrap();
+        assert_eq!(config.model.backend, EstimationModelBackend::Legacy);
+        assert_eq!(
+            config.model.profile,
+            CompiledEstimationProfile::LegacyEquivalentV1
+        );
     }
 
     #[test]

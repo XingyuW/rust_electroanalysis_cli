@@ -6,7 +6,7 @@ use crate::{
 };
 use nalgebra::{DMatrix, DVector};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::{collections::BTreeMap, path::Path};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TruthPoint {
@@ -16,8 +16,54 @@ pub struct TruthPoint {
     pub baseline_offset_v: Option<f64>,
     pub polarization_v: Option<f64>,
     pub sensitivity_scale: Option<f64>,
+    /// Stable compiled-state truth. Legacy named fields remain for existing
+    /// CSVs; this map lets validation score any compiled state ID.
+    #[serde(default)]
+    pub state_values: BTreeMap<String, f64>,
+    #[serde(default)]
+    pub component_potentials_v: BTreeMap<String, f64>,
     #[serde(default)]
     pub outlier: bool,
+}
+
+/// Adapts either legacy or compiled simulation artifacts into validation
+/// truth without inventing states that a simulation did not emit.
+pub fn truth_from_simulation(
+    simulation: &crate::estimation::simulation::SimulationOutput,
+) -> Vec<TruthPoint> {
+    simulation
+        .observations
+        .iter()
+        .map(|point| TruthPoint {
+            timestamp_s: point.timestamp_s,
+            log10_activity: Some(point.log10_activity),
+            activity: Some(point.activity),
+            baseline_offset_v: Some(point.baseline_offset_v),
+            polarization_v: Some(point.polarization_v),
+            sensitivity_scale: point.sensitivity_scale,
+            state_values: point
+                .compiled
+                .as_ref()
+                .map(|truth| truth.state_values.clone())
+                .unwrap_or_default(),
+            component_potentials_v: point
+                .compiled
+                .as_ref()
+                .map(|truth| {
+                    truth
+                        .component_contributions
+                        .iter()
+                        .filter_map(|contribution| {
+                            contribution
+                                .potential_v
+                                .map(|value| (contribution.component_id.clone(), value))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            outlier: point.outlier,
+        })
+        .collect()
 }
 pub fn validate_report(
     report: &StateEstimationReport,
@@ -196,9 +242,52 @@ pub fn validate_report(
             nees_consistency_interval: consistency_interval(nees.len(), 1.0, confidence, z_score),
         });
     }
+    let mut contribution_metrics = Vec::new();
+    let contribution_ids = samples
+        .iter()
+        .flat_map(|sample| sample.truth.component_potentials_v.keys().cloned())
+        .collect::<std::collections::BTreeSet<_>>();
+    for component_id in contribution_ids {
+        let errors = samples
+            .iter()
+            .filter_map(|sample| {
+                let truth = sample.truth.component_potentials_v.get(&component_id)?;
+                let estimate = sample
+                    .estimate
+                    .component_contributions
+                    .iter()
+                    .find(|contribution| contribution.component_id == component_id)
+                    .and_then(|contribution| contribution.potential_v)?;
+                Some(estimate - truth)
+            })
+            .collect::<Vec<_>>();
+        if errors.is_empty() {
+            continue;
+        }
+        contribution_metrics.push(StateMetric {
+            state: component_id,
+            unit: "V".into(),
+            rmse: Some(
+                (errors.iter().map(|error| error * error).sum::<f64>() / errors.len() as f64)
+                    .sqrt(),
+            ),
+            mae: Some(errors.iter().map(|error| error.abs()).sum::<f64>() / errors.len() as f64),
+            bias: Some(errors.iter().sum::<f64>() / errors.len() as f64),
+            interval_coverage: None,
+            nees_mean: None,
+            convergence_time_s: None,
+            step_response_delay_s: None,
+            maximum_transient_error: errors.iter().map(|error| error.abs()).reduce(f64::max),
+            outlier_rejection_rate: None,
+            calibration_domain_violations: report.diagnostics.domain_excursion_count,
+            sample_count: errors.len(),
+            nees_consistency_interval: None,
+        });
+    }
     StateValidationResult {
         truth_source: source,
         metrics,
+        contribution_metrics,
         vector_nees_mean: (!vector_nees.is_empty())
             .then_some(vector_nees.iter().sum::<f64>() / vector_nees.len() as f64),
         vector_nees_count: vector_nees.len(),
@@ -368,11 +457,41 @@ fn interpolate_truth(
         baseline_offset_v: lerp(left.baseline_offset_v, right.baseline_offset_v),
         polarization_v: lerp(left.polarization_v, right.polarization_v),
         sensitivity_scale: lerp(left.sensitivity_scale, right.sensitivity_scale),
+        state_values: left
+            .state_values
+            .iter()
+            .filter_map(|(state_id, left_value)| {
+                right.state_values.get(state_id).map(|right_value| {
+                    (
+                        state_id.clone(),
+                        left_value + fraction * (right_value - left_value),
+                    )
+                })
+            })
+            .collect(),
+        component_potentials_v: left
+            .component_potentials_v
+            .iter()
+            .filter_map(|(component_id, left_value)| {
+                right
+                    .component_potentials_v
+                    .get(component_id)
+                    .map(|right_value| {
+                        (
+                            component_id.clone(),
+                            left_value + fraction * (right_value - left_value),
+                        )
+                    })
+            })
+            .collect(),
         outlier: left.outlier || right.outlier,
     }
 }
 
 fn truth_value(point: &TruthPoint, state: &str) -> Option<f64> {
+    if let Some(value) = point.state_values.get(state).copied() {
+        return value.is_finite().then_some(value);
+    }
     match state {
         "log10_activity" => point.log10_activity,
         "baseline_offset" => point.baseline_offset_v,
@@ -546,6 +665,8 @@ pub fn read_truth_csv(path: &Path) -> Result<Vec<TruthPoint>, std::io::Error> {
             baseline_offset_v: base.and_then(|i| parse(Some(i))),
             polarization_v: pol.and_then(|i| parse(Some(i))),
             sensitivity_scale: sens.and_then(|i| parse(Some(i))),
+            state_values: BTreeMap::new(),
+            component_potentials_v: BTreeMap::new(),
             outlier: idx(&["outlier", "is_outlier"])
                 .and_then(|i| r.get(i))
                 .is_some_and(|value| {

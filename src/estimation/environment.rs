@@ -13,6 +13,7 @@ use crate::{
     },
     estimation_config::{
         AlignmentKind, EnvironmentConfig, PolarizationConfig, PolarizationInputModel,
+        TransductionDriveSource,
     },
     potentiometry::{
         calibration::activity::evaluate_activity,
@@ -83,6 +84,19 @@ pub struct AlignedEnvironment {
     pub polarization_input_source: Option<String>,
     #[serde(default)]
     pub polarization_event_timestamp_s: Option<f64>,
+    /// Explicit event input for a compiled transition.  This is populated
+    /// once for events in `(previous_timestamp, timestamp]` and is never
+    /// inferred from a measured or estimated voltage.
+    #[serde(default)]
+    pub delta_log10_activity: Option<f64>,
+    #[serde(default)]
+    pub activity_step_event_timestamps_s: Vec<f64>,
+    #[serde(default)]
+    pub transduction_drive: Option<f64>,
+    #[serde(default)]
+    pub transduction_drive_source: Option<String>,
+    #[serde(default)]
+    pub transduction_event_timestamps_s: Vec<f64>,
     pub values: Vec<AlignedValue>,
     pub warnings: Vec<EstimationWarning>,
 }
@@ -107,6 +121,14 @@ pub struct AlignedEnvironmentSummary {
     pub polarization_input_source: Option<String>,
     #[serde(default)]
     pub polarization_event_timestamp_s: Option<f64>,
+    #[serde(default)]
+    pub delta_log10_activity: Option<f64>,
+    #[serde(default)]
+    pub activity_step_event_timestamps_s: Vec<f64>,
+    #[serde(default)]
+    pub transduction_drive: Option<f64>,
+    #[serde(default)]
+    pub transduction_drive_source: Option<String>,
     pub interferent_activities: BTreeMap<String, f64>,
     pub source_records: Vec<AlignedValueSummary>,
 }
@@ -138,6 +160,10 @@ impl From<&AlignedEnvironment> for AlignedEnvironmentSummary {
             known_standard_provenance: e.known_standard_provenance.clone(),
             polarization_input_source: e.polarization_input_source.clone(),
             polarization_event_timestamp_s: e.polarization_event_timestamp_s,
+            delta_log10_activity: e.delta_log10_activity,
+            activity_step_event_timestamps_s: e.activity_step_event_timestamps_s.clone(),
+            transduction_drive: e.transduction_drive,
+            transduction_drive_source: e.transduction_drive_source.clone(),
             interferent_activities: e.interferent_activities.clone(),
             source_records: e
                 .values
@@ -693,4 +719,181 @@ pub fn resolve_standard_activity(
         activity_config.model
     ));
     Ok(())
+}
+
+/// Resolves compiled-model event inputs for an already aligned trajectory.
+///
+/// The resolver is intentionally upstream of EKF/UKF: both filters consume
+/// the same immutable `AlignedEnvironment` record for a transition. Multiple
+/// compatible concentration steps in an interval are summed in log-activity
+/// space and each timestamp remains in provenance. Events at the destination
+/// timestamp belong to that transition; no event is replayed later.
+pub fn bind_compiled_transition_inputs(
+    experiment: &ElectrochemicalExperiment,
+    environments: &mut [AlignedEnvironment],
+    activity_config: &ActivityConfig,
+    molar_mass_g_per_mol: Option<f64>,
+    ion_charge: i32,
+    transduction_source: &TransductionDriveSource,
+) {
+    let events = experiment.ordered_events();
+    for index in 1..environments.len() {
+        let previous_time = environments[index - 1].timestamp_s;
+        let current_time = environments[index].timestamp_s;
+        let ionic_strength = environments[index].ionic_strength_mol_l;
+        let conductivity = environments[index].conductivity_s_per_m;
+        let interval_events = events
+            .iter()
+            .enumerate()
+            .filter(|(_, event)| event.timestamp > previous_time && event.timestamp <= current_time)
+            .collect::<Vec<_>>();
+        let mut step_sum = 0.0;
+        let mut step_count = 0;
+        let mut step_timestamps = Vec::new();
+        for (event_index, event) in &interval_events {
+            if event.kind != ExperimentEventKind::ConcentrationStep {
+                continue;
+            }
+            let before = events[..*event_index].iter().rev().find(|candidate| {
+                candidate.kind == ExperimentEventKind::ConcentrationStep
+                    && analytes_match(event.analyte.as_deref(), candidate.analyte.as_deref())
+            });
+            let Some(before) = before else {
+                environments[index].warnings.push(EstimationWarning::at(
+                    EstimationWarningKind::ModelDiscrepancy,
+                    "compiled activity-step input skipped: no preceding compatible concentration event",
+                    event.timestamp,
+                ));
+                continue;
+            };
+            match (
+                event_activity_log10(
+                    event,
+                    activity_config,
+                    molar_mass_g_per_mol,
+                    ion_charge,
+                    ionic_strength,
+                    conductivity,
+                ),
+                event_activity_log10(
+                    before,
+                    activity_config,
+                    molar_mass_g_per_mol,
+                    ion_charge,
+                    ionic_strength,
+                    conductivity,
+                ),
+            ) {
+                (Ok(after), Ok(before)) => {
+                    step_sum += after - before;
+                    step_count += 1;
+                    step_timestamps.push(event.timestamp);
+                }
+                (Err(error), _) | (_, Err(error)) => {
+                    environments[index].warnings.push(EstimationWarning::at(
+                        EstimationWarningKind::ModelDiscrepancy,
+                        format!("compiled activity-step input skipped: {error}"),
+                        event.timestamp,
+                    ))
+                }
+            }
+        }
+        if step_count > 0 {
+            environments[index].delta_log10_activity = Some(step_sum);
+            environments[index].activity_step_event_timestamps_s = step_timestamps;
+        }
+        match transduction_source {
+            TransductionDriveSource::None => {}
+            TransductionDriveSource::ActivityStep => {
+                environments[index].transduction_drive = environments[index].delta_log10_activity;
+                environments[index].transduction_event_timestamps_s =
+                    environments[index].activity_step_event_timestamps_s.clone();
+                environments[index].transduction_drive_source =
+                    Some("activity_step delta_log10_activity".into());
+            }
+            TransductionDriveSource::ExplicitEventField { field, unit } => {
+                let mut values = Vec::new();
+                for (_, event) in interval_events {
+                    let Some(raw) = event
+                        .metadata
+                        .as_ref()
+                        .and_then(|metadata| metadata.get(field))
+                    else {
+                        continue;
+                    };
+                    match raw.parse::<f64>() {
+                        Ok(value) if value.is_finite() => values.push((event.timestamp, value)),
+                        _ => environments[index].warnings.push(EstimationWarning::at(
+                            EstimationWarningKind::ModelDiscrepancy,
+                            format!(
+                                "compiled transduction drive field '{field}' is not a finite number"
+                            ),
+                            event.timestamp,
+                        )),
+                    }
+                }
+                if !values.is_empty() {
+                    // The declared field unit is provenance and a contract
+                    // check. Reduced V1 consumes dimensionless activity-like
+                    // drive; other model units require a custom adapter.
+                    if unit == "activity" || unit == "dimensionless" {
+                        environments[index].transduction_drive =
+                            Some(values.iter().map(|(_, value)| value).sum());
+                        environments[index].transduction_event_timestamps_s =
+                            values.iter().map(|(timestamp, _)| *timestamp).collect();
+                        environments[index].transduction_drive_source =
+                            Some(format!("explicit event field '{field}' ({unit})"));
+                    } else {
+                        environments[index].warnings.push(EstimationWarning::at(
+                            EstimationWarningKind::ModelDiscrepancy,
+                            format!("compiled transduction drive unit '{unit}' is incompatible with the reduced-V1 activity drive"),
+                            current_time,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn analytes_match(left: Option<&str>, right: Option<&str>) -> bool {
+    matches!((left, right), (Some(left), Some(right)) if left == right)
+        || left.is_none() && right.is_none()
+}
+
+fn event_activity_log10(
+    event: &crate::domain::ExperimentEvent,
+    activity_config: &ActivityConfig,
+    molar_mass_g_per_mol: Option<f64>,
+    ion_charge: i32,
+    ionic_strength_mol_l: Option<f64>,
+    conductivity_s_per_m: Option<f64>,
+) -> Result<f64, EstimationError> {
+    let value = event
+        .value
+        .ok_or_else(|| EstimationError::invalid("activity-step event lacks a value"))?;
+    let unit = event
+        .unit
+        .as_deref()
+        .ok_or_else(|| EstimationError::invalid("activity-step event lacks an explicit unit"))?;
+    let quantity = Quantity::parse(value, unit)
+        .map_err(|error| EstimationError::invalid(format!("activity-step unit: {error}")))?;
+    if matches!(quantity.unit, QuantityUnit::Activity) {
+        return quantity
+            .to_activity()
+            .map(f64::log10)
+            .map_err(|error| EstimationError::invalid(error.to_string()));
+    }
+    evaluate_activity(
+        Some(&quantity),
+        molar_mass_g_per_mol,
+        None,
+        None,
+        ion_charge,
+        ionic_strength_mol_l,
+        conductivity_s_per_m,
+        activity_config,
+    )
+    .map(|evaluation| evaluation.log10_activity)
+    .map_err(|error| EstimationError::Calibration(error.to_string()))
 }

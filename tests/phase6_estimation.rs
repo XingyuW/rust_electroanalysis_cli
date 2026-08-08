@@ -633,6 +633,8 @@ fn validation_uses_configured_linear_alignment_and_state_thresholds() {
             baseline_offset_v: None,
             polarization_v: None,
             sensitivity_scale: None,
+            state_values: std::collections::BTreeMap::new(),
+            component_potentials_v: std::collections::BTreeMap::new(),
             outlier: false,
         },
         rust_electroanalysis_cli::estimation::validation::TruthPoint {
@@ -642,6 +644,8 @@ fn validation_uses_configured_linear_alignment_and_state_thresholds() {
             baseline_offset_v: None,
             polarization_v: None,
             sensitivity_scale: None,
+            state_values: std::collections::BTreeMap::new(),
+            component_potentials_v: std::collections::BTreeMap::new(),
             outlier: false,
         },
         rust_electroanalysis_cli::estimation::validation::TruthPoint {
@@ -651,6 +655,8 @@ fn validation_uses_configured_linear_alignment_and_state_thresholds() {
             baseline_offset_v: None,
             polarization_v: None,
             sensitivity_scale: None,
+            state_values: std::collections::BTreeMap::new(),
+            component_potentials_v: std::collections::BTreeMap::new(),
             outlier: false,
         },
         rust_electroanalysis_cli::estimation::validation::TruthPoint {
@@ -660,6 +666,8 @@ fn validation_uses_configured_linear_alignment_and_state_thresholds() {
             baseline_offset_v: None,
             polarization_v: None,
             sensitivity_scale: None,
+            state_values: std::collections::BTreeMap::new(),
+            component_potentials_v: std::collections::BTreeMap::new(),
             outlier: false,
         },
     ];
@@ -810,9 +818,13 @@ fn ekf_ukf_comparison_reports_equivalent_input_metrics() {
 fn compiled_legacy_adapter_reproduces_legacy_process_and_observation_equations() {
     let stored = simulation::simulation_model();
     let calibration = StoredCalibrationObservationModel::new(stored.clone()).unwrap();
-    let config = config(StateModelKind::ActivityBaselinePolarization);
+    let mut config = config(StateModelKind::ActivityBaselinePolarization);
     let legacy =
         rust_electroanalysis_cli::estimation::model::StateModel::new(&config, 7.0, None).unwrap();
+    config.model.backend =
+        rust_electroanalysis_cli::estimation_config::EstimationModelBackend::Compiled;
+    config.model.profile =
+        rust_electroanalysis_cli::estimation_config::CompiledEstimationProfile::LegacyEquivalentV1;
     let compiled = rust_electroanalysis_cli::estimation::model::StateModel::new_compiled(
         &config, 7.0, None, &stored,
     )
@@ -867,6 +879,126 @@ fn compiled_legacy_adapter_reproduces_legacy_process_and_observation_equations()
         .try_process_state(&state, 0.5, &environment)
         .unwrap();
     assert!((&legacy_next - &compiled_next).norm() < 1e-12);
+}
+
+#[test]
+fn compiled_legacy_profile_parity_covers_supported_legacy_state_models() {
+    let stored = simulation::simulation_model();
+    let calibration = StoredCalibrationObservationModel::new(stored.clone()).unwrap();
+    for kind in [
+        StateModelKind::Activity,
+        StateModelKind::ActivityBaseline,
+        StateModelKind::ActivityBaselinePolarization,
+    ] {
+        let mut config = config(kind);
+        let legacy =
+            rust_electroanalysis_cli::estimation::model::StateModel::new(&config, 7.0, None)
+                .unwrap();
+        config.model.backend =
+            rust_electroanalysis_cli::estimation_config::EstimationModelBackend::Compiled;
+        config.model.profile =
+            rust_electroanalysis_cli::estimation_config::CompiledEstimationProfile::LegacyEquivalentV1;
+        let compiled = rust_electroanalysis_cli::estimation::model::StateModel::new_compiled(
+            &config, 7.0, None, &stored,
+        )
+        .unwrap();
+        let mut state = nalgebra::DVector::zeros(legacy.dimension());
+        state[0] = -3.0;
+        for index in 1..state.len() {
+            state[index] = 0.01 * index as f64;
+        }
+        let environment = AlignedEnvironment {
+            timestamp_s: 1.0,
+            temperature_k: Some(298.15),
+            polarization_input_v: Some(0.03),
+            ..Default::default()
+        };
+        let legacy_observation =
+            rust_electroanalysis_cli::estimation::model::observation_components(
+                &state,
+                &environment,
+                &legacy,
+                &calibration,
+            )
+            .unwrap();
+        let compiled_observation =
+            rust_electroanalysis_cli::estimation::model::observation_components(
+                &state,
+                &environment,
+                &compiled,
+                &calibration,
+            )
+            .unwrap();
+        assert!(
+            (legacy_observation.0 - compiled_observation.0).abs() < 1e-12,
+            "{kind:?}"
+        );
+        assert!(
+            (&legacy_observation.1 - &compiled_observation.1).norm() < 1e-12,
+            "{kind:?}"
+        );
+        let legacy_next = legacy.process_state(&state, 0.5, &environment);
+        let compiled_next = compiled
+            .try_process_state(&state, 0.5, &environment)
+            .unwrap();
+        assert!((&legacy_next - compiled_next).norm() < 1e-12, "{kind:?}");
+    }
+}
+
+#[test]
+fn compiled_reduced_simulation_emits_stable_state_truth_and_one_shot_step_input() {
+    let scenario = simulation::SimulationScenario {
+        sample_count: 100,
+        activity_step_time_s: Some(10.0),
+        model: rust_electroanalysis_cli::estimation_config::EstimationModelConfig {
+            backend: rust_electroanalysis_cli::estimation_config::EstimationModelBackend::Compiled,
+            profile:
+                rust_electroanalysis_cli::estimation_config::CompiledEstimationProfile::ReducedIsmV1,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let output = simulation::simulate_scenario(&scenario).unwrap();
+    let stepped = output
+        .observations
+        .iter()
+        .find(|point| point.timestamp_s >= 10.0)
+        .and_then(|point| point.compiled.as_ref())
+        .unwrap();
+    assert!(
+        stepped
+            .state_values
+            .contains_key("dynamic_fast_potential_v")
+    );
+    assert!(
+        stepped
+            .state_values
+            .contains_key("dynamic_slow_potential_v")
+    );
+    assert!(stepped.state_values.contains_key("reference_offset_v"));
+    assert_eq!(stepped.event_inputs.get("delta_log10_activity"), Some(&1.0));
+    assert!(stepped.predicted_potential_v.is_finite());
+    assert!(
+        output
+            .observations
+            .iter()
+            .filter_map(|point| point.compiled.as_ref())
+            .filter(|truth| truth.event_inputs.contains_key("delta_log10_activity"))
+            .count()
+            == 1
+    );
+    let validation_truth =
+        rust_electroanalysis_cli::estimation::validation::truth_from_simulation(&output);
+    assert!(
+        validation_truth
+            .iter()
+            .any(|point| point.state_values.contains_key("dynamic_fast_potential_v"))
+    );
+    assert!(
+        validation_truth
+            .iter()
+            .any(|point| point.component_potentials_v.contains_key("dynamic_fast"))
+    );
 }
 
 #[test]

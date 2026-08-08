@@ -17,7 +17,17 @@ use crate::{
     },
     results::StoredCalibrationModel,
 };
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+use std::path::PathBuf;
+
+/// Provenance for the only supported custom-definition resolution path.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum ResolvedModelDefinitionSource {
+    Profile(crate::estimation_config::CompiledEstimationProfile),
+    File { path: PathBuf, sha256: String },
+}
 
 pub fn compile_legacy_model(
     config: &ResolvedEstimationConfig,
@@ -38,7 +48,194 @@ pub fn compile_legacy_model(
         ("estimation.legacy_sensitivity", factory as ComponentFactory),
     ]);
     compile_model(definition, &registry)
-        .map_err(|error| EstimationError::config(format!("legacy ISM compilation failed: {error}")))
+        .map_err(|error| EstimationError::compiled("legacy compilation", error))
+}
+
+/// Builds the opt-in V1 reduced profile while keeping calibration equations in
+/// the established stored-calibration adapter.  The dynamic/reference/
+/// observation-variance components are the approved V1 built-ins; only the
+/// calibration bridge is estimation-owned.
+pub fn compile_reduced_v1_model(
+    config: &ResolvedEstimationConfig,
+    tau_s: f64,
+    tau_uncertainty_s: Option<f64>,
+    calibration: &StoredCalibrationModel,
+) -> Result<super::model::StateModel, EstimationError> {
+    let mut model = super::model::StateModel::new(config, tau_s, tau_uncertainty_s)?;
+    let legacy = legacy_model_definition(
+        config,
+        &model.definitions,
+        tau_s,
+        tau_uncertainty_s,
+        calibration,
+    )?;
+    let activity = legacy.states.first().cloned().ok_or_else(|| {
+        EstimationError::config("reduced profile requires a log10 activity state")
+    })?;
+    let mut definition = crate::model::reduced_ism_v1_definition();
+    definition.states.insert(0, activity);
+    definition
+        .components
+        .retain(|component| component.id != "equilibrium_nernst");
+    let calibration_json = serde_json::to_string(calibration)
+        .map_err(|error| EstimationError::config(format!("calibration serialization: {error}")))?;
+    definition.components.insert(
+        1,
+        descriptor(
+            "calibrated_equilibrium",
+            "estimation.legacy_equilibrium",
+            ComponentRole::Equilibrium,
+            vec!["log10_activity"],
+            Vec::new(),
+            "equilibrium",
+            BTreeMap::from([
+                ("calibration_json".into(), calibration_json),
+                ("activity_transform".into(), "Identity".into()),
+            ]),
+        ),
+    );
+    let mut registry = crate::model::built_in_registry().clone();
+    registry
+        .register("estimation.legacy_equilibrium", factory as ComponentFactory)
+        .map_err(|error| EstimationError::config(format!("compiled registry: {error}")))?;
+    let compiled = compile_model(definition, &registry)
+        .map_err(|error| EstimationError::compiled("reduced-v1 compilation", error))?;
+    model.definitions = compiled
+        .state_definitions()
+        .iter()
+        .map(|binding| StateDefinition {
+            name: binding.spec.id.clone(),
+            unit: binding.spec.unit.clone(),
+            transform: StateTransform::Identity,
+            lower_bound: Some(binding.spec.lower_bound),
+            upper_bound: Some(binding.spec.upper_bound),
+            interpretation: binding.spec.description.clone(),
+        })
+        .collect();
+    // Preserve the latent activity coordinate semantics even though the model
+    // definition declares a dimensionless state.
+    if let Some(activity) = model.definitions.first_mut() {
+        activity.unit = "log10(activity)".into();
+        activity.lower_bound = None;
+        activity.upper_bound = None;
+    }
+    model.compiled_parameters = Some(compiled.default_parameters());
+    model.compiled = Some(std::sync::Arc::new(compiled));
+    model.definition_source = Some(ResolvedModelDefinitionSource::Profile(
+        crate::estimation_config::CompiledEstimationProfile::ReducedIsmV1,
+    ));
+    Ok(model)
+}
+
+/// Loads and compiles a user definition through the approved core registry.
+/// The configuration validator ensures this cannot be silently combined with
+/// a built-in profile. `ModelConfig` performs schema migration and validation
+/// before graph compilation.
+pub fn compile_custom_model(
+    config: &ResolvedEstimationConfig,
+    tau_s: f64,
+    tau_uncertainty_s: Option<f64>,
+) -> Result<super::model::StateModel, EstimationError> {
+    let configured_path =
+        config.model.definition.as_ref().ok_or_else(|| {
+            EstimationError::config("custom compiled profile has no definition path")
+        })?;
+    let path = if configured_path.is_absolute() {
+        configured_path.clone()
+    } else {
+        config
+            .source_path
+            .as_deref()
+            .and_then(|source| source.parent())
+            .map(|base| base.join(configured_path))
+            .unwrap_or_else(|| configured_path.clone())
+    };
+    let bytes = std::fs::read(&path).map_err(|source| EstimationError::io(&path, source))?;
+    let definition = crate::model_config::ModelConfig::load(&path)
+        .map_err(|error| {
+            EstimationError::config(format!(
+                "custom model definition '{}': {error}",
+                path.display()
+            ))
+        })?
+        .model;
+    validate_custom_input_bindings(&definition, config)?;
+    let compiled = compile_model(definition, crate::model::built_in_registry())
+        .map_err(|error| EstimationError::compiled("custom-definition compilation", error))?;
+    let mut model = super::model::StateModel::new(config, tau_s, tau_uncertainty_s)?;
+    model.definitions = compiled
+        .state_definitions()
+        .iter()
+        .map(|binding| StateDefinition {
+            name: binding.spec.id.clone(),
+            unit: binding.spec.unit.clone(),
+            transform: StateTransform::Identity,
+            lower_bound: Some(binding.spec.lower_bound),
+            upper_bound: Some(binding.spec.upper_bound),
+            interpretation: binding.spec.description.clone(),
+        })
+        .collect();
+    if model.index("log10_activity").is_none() {
+        return Err(EstimationError::config(
+            "custom compiled definition must declare stable state ID 'log10_activity' for estimator-owned activity",
+        ));
+    }
+    model.compiled_parameters = Some(compiled.default_parameters());
+    model.compiled = Some(std::sync::Arc::new(compiled));
+    model.definition_source = Some(ResolvedModelDefinitionSource::File {
+        path,
+        sha256: format!("{:x}", Sha256::digest(bytes)),
+    });
+    Ok(model)
+}
+
+fn validate_custom_input_bindings(
+    definition: &ModelDefinition,
+    config: &ResolvedEstimationConfig,
+) -> Result<(), EstimationError> {
+    let standard_sources = BTreeMap::from([
+        (
+            "target_activity",
+            config.model.input_bindings.target_activity.as_str(),
+        ),
+        (
+            "delta_log10_activity",
+            config.model.input_bindings.delta_log10_activity.as_str(),
+        ),
+        (
+            "temperature",
+            config.model.input_bindings.temperature.as_str(),
+        ),
+        (
+            "conductivity",
+            config.model.input_bindings.conductivity.as_str(),
+        ),
+    ]);
+    for input in definition.inputs.iter().filter(|input| input.required) {
+        let bound = standard_sources
+            .get(input.id.as_str())
+            .is_some_and(|source| !source.trim().is_empty())
+            || config
+                .model
+                .input_bindings
+                .custom
+                .get(&input.id)
+                .is_some_and(|source| !source.trim().is_empty());
+        if !bound {
+            return Err(EstimationError::config(format!(
+                "missing input binding for required custom model input '{}' ({})",
+                input.id, input.unit
+            )));
+        }
+    }
+    for input_id in config.model.input_bindings.custom.keys() {
+        if !definition.inputs.iter().any(|input| input.id == *input_id) {
+            return Err(EstimationError::config(format!(
+                "unknown custom model input binding '{input_id}'"
+            )));
+        }
+    }
+    Ok(())
 }
 
 pub fn legacy_model_definition(

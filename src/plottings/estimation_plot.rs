@@ -100,6 +100,24 @@ pub fn plot_estimation_report(
             "Estimated sensor-condition proxy",
             BLACK,
         ),
+        (
+            "dynamic_fast_potential_v",
+            "estimated_dynamic_fast.png",
+            "Estimated fast phenomenological dynamic state",
+            CYAN,
+        ),
+        (
+            "dynamic_slow_potential_v",
+            "estimated_dynamic_slow.png",
+            "Estimated slow phenomenological dynamic state",
+            MAGENTA,
+        ),
+        (
+            "reference_offset_v",
+            "estimated_reference_offset.png",
+            "Estimated reference offset",
+            RED,
+        ),
     ] {
         let values = points
             .iter()
@@ -114,6 +132,20 @@ pub fn plot_estimation_report(
         if !values.is_empty() {
             line_plot(&directory.join(filename), x0, x1, &values, title, color)?;
         }
+    }
+    let residuals = points
+        .iter()
+        .filter_map(|point| point.unexplained_residual_v.map(|v| (point.timestamp_s, v)))
+        .collect::<Vec<_>>();
+    if !residuals.is_empty() {
+        line_plot(
+            &directory.join("estimated_unexplained_residual.png"),
+            x0,
+            x1,
+            &residuals,
+            "Unexplained residual",
+            BLACK,
+        )?;
     }
     let innovations = report
         .diagnostics

@@ -12,7 +12,10 @@ use crate::{
         initialization::InitializationReport, innovation::InnovationRecord,
         observability::ObservabilityReport,
     },
-    estimation_config::{FilterKind, ResolvedEstimationConfig, StateModelKind},
+    estimation_config::{
+        CompiledEstimationProfile, EstimationModelBackend, FilterKind, ResolvedEstimationConfig,
+        StateModelKind,
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -140,6 +143,8 @@ pub struct StateMetric {
 pub struct StateValidationResult {
     pub truth_source: Option<String>,
     pub metrics: Vec<StateMetric>,
+    #[serde(default)]
+    pub contribution_metrics: Vec<StateMetric>,
     pub vector_nees_mean: Option<f64>,
     pub vector_nees_count: usize,
     #[serde(default)]
@@ -162,6 +167,10 @@ pub struct StateValidationResult {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FilterComparisonRecord {
     pub filter: FilterKind,
+    #[serde(default)]
+    pub model_backend: Option<EstimationModelBackend>,
+    #[serde(default)]
+    pub model_profile: Option<CompiledEstimationProfile>,
     pub runtime_ms: f64,
     pub activity_rmse: Option<f64>,
     pub innovation_mean: Option<f64>,
@@ -208,8 +217,25 @@ pub struct StateEstimationReport {
     pub measurement_conversion: String,
     pub filter: FilterKind,
     pub model: StateModelKind,
+    /// Absent in pre-integration artifacts; absence must never be interpreted
+    /// as a compiled model.
+    #[serde(default)]
+    pub model_backend: Option<EstimationModelBackend>,
+    #[serde(default)]
+    pub model_profile: Option<CompiledEstimationProfile>,
+    #[serde(default)]
+    pub model_id: Option<String>,
+    #[serde(default)]
+    pub model_schema_version: Option<u32>,
+    #[serde(default)]
+    pub compiled_model_summary: Option<crate::model::CompiledModelSummary>,
+    #[serde(default)]
+    pub state_bindings: Vec<crate::estimation::model_adapter::StateBinding>,
     #[serde(default)]
     pub model_definition: Option<crate::model::ModelDefinition>,
+    #[serde(default)]
+    pub resolved_model_definition_source:
+        Option<crate::estimation::ism_adapter::ResolvedModelDefinitionSource>,
     pub state_definitions: Vec<StateDefinition>,
     pub initialization: InitializationReport,
     pub process_covariance: CovarianceResolution,

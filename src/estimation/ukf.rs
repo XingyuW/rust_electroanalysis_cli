@@ -3,7 +3,8 @@
 use crate::{
     estimation::{
         covariance::{
-            is_psd, resolve_observation_variance, resolve_process_covariance, symmetrize,
+            combine_model_observation_variance, is_psd, resolve_observation_variance,
+            resolve_process_covariance, symmetrize,
         },
         ekf::{FilterInput, FilterRun},
         environment::{AlignedEnvironment, AlignedEnvironmentSummary},
@@ -111,7 +112,13 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
     for (index, obs) in input.observations.iter().enumerate() {
         let env = input.environments.get(index).cloned().unwrap_or_default();
         let evidence_dt = previous.map(|previous_time| obs.timestamp_s - previous_time);
-        if let Some(event_time) = env.polarization_event_timestamp_s {
+        let latest_compiled_event = env
+            .activity_step_event_timestamps_s
+            .iter()
+            .chain(env.transduction_event_timestamps_s.iter())
+            .copied()
+            .max_by(f64::total_cmp);
+        if let Some(event_time) = latest_compiled_event.or(env.polarization_event_timestamp_s) {
             last_dynamic_event_time = Some(event_time);
         }
         let mut warnings = input.calibration.warnings(&env);
@@ -185,6 +192,13 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
                 predicted_log10,
                 &env,
                 domain,
+            )?;
+            let variance = combine_model_observation_variance(
+                variance,
+                input
+                    .model
+                    .model_observation_variance_v2(&pred_state, &env)?,
+                input.config.model.observation_variance.combination,
             )?;
             if variance.inflation_factor > 1.0 {
                 covariance_inflation_warning_count += 1;
@@ -331,7 +345,11 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             &env,
             previous_equilibrium_environment.as_ref(),
             evidence_dt,
-            Some(obs.timestamp_s - last_dynamic_event_time.unwrap_or(start_time)),
+            if input.model.compiled_model().is_some() {
+                last_dynamic_event_time.map(|event_time| obs.timestamp_s - event_time)
+            } else {
+                Some(obs.timestamp_s - last_dynamic_event_time.unwrap_or(start_time))
+            },
             residual_autocorrelation(&innovation_history),
             index + 1,
             input.model,

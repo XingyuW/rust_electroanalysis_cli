@@ -10,6 +10,7 @@ use crate::model::{
     EquilibriumStatus, ObservationPrediction, UnexplainedResidual,
 };
 use nalgebra::{DMatrix, DVector};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
 pub struct EquilibriumEvidence {
@@ -17,6 +18,9 @@ pub struct EquilibriumEvidence {
     pub history_points: usize,
     pub normalized_state_rate_per_s: Option<f64>,
     pub elapsed_time_constants: Option<f64>,
+    /// Per-mode elapsed/tau evidence. A missing timestamp stays missing; it
+    /// is never substituted with an assumed settled infinite duration.
+    pub elapsed_tau_ratios: BTreeMap<String, Option<f64>>,
     pub residual_autocorrelation: Option<f64>,
     pub environment_change_fraction: Option<f64>,
     pub maximum_state_uncertainty_fraction: Option<f64>,
@@ -56,10 +60,27 @@ pub fn equilibrium_evidence(
                 })
                 .fold(0.0, f64::max)
         });
-    let elapsed_time_constants = if model.has_polarization() {
-        elapsed_since_event_s.map(|elapsed| elapsed.max(0.0) / model.tau_p_s)
-    } else {
+    let dynamic_modes = model.active_dynamic_time_constants_s();
+    let elapsed_tau_ratios = dynamic_modes
+        .iter()
+        .map(|(state_id, tau_s)| {
+            (
+                state_id.clone(),
+                elapsed_since_event_s.map(|elapsed| elapsed.max(0.0) / tau_s),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    // Equilibrium only receives positive elapsed-tau evidence after every
+    // active mode has it; the smallest ratio is the limiting (slowest)
+    // settling mode.
+    let elapsed_time_constants = if dynamic_modes.is_empty() {
         Some(f64::INFINITY)
+    } else {
+        elapsed_tau_ratios
+            .values()
+            .copied()
+            .collect::<Option<Vec<_>>>()
+            .map(|ratios| ratios.into_iter().fold(f64::INFINITY, f64::min))
     };
     let maximum_state_uncertainty_fraction = (covariance.nrows() == model.dimension()
         && covariance.ncols() == model.dimension())
@@ -84,6 +105,7 @@ pub fn equilibrium_evidence(
         history_points,
         normalized_state_rate_per_s,
         elapsed_time_constants,
+        elapsed_tau_ratios,
         residual_autocorrelation,
         environment_change_fraction: previous_environment
             .and_then(|previous| environment_change(environment, previous)),
@@ -636,6 +658,7 @@ mod equilibrium_tests {
             history_points: 10,
             normalized_state_rate_per_s: Some(0.0),
             elapsed_time_constants: Some(10.0),
+            elapsed_tau_ratios: std::collections::BTreeMap::new(),
             residual_autocorrelation: Some(0.0),
             environment_change_fraction: Some(0.0),
             maximum_state_uncertainty_fraction: Some(0.001),

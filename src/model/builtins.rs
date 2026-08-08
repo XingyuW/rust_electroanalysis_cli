@@ -212,21 +212,22 @@ impl BuiltinComponent {
         state.values[index] *= self.decay(tau, dt_s, None)?;
         // The event is intentionally explicit.  Absence means no event, not
         // an inferred step from the measured potential.
-        if let Some(event) = input.values.get("delta_log10_activity") {
+        let event = match self.descriptor.kind.as_str() {
+            "dynamics.first_order" => input.values.get("delta_log10_activity"),
+            // A candidate transduction mode is driven only by its explicitly
+            // configured input. An activity step becomes a drive solely at
+            // the estimation input-binding boundary when selected there.
+            "transduction.first_order_candidate" => input.values.get("transduction_drive"),
+            _ => None,
+        };
+        if let Some(event) = event {
             if !event.value.is_finite() {
-                return Err(evaluation(&self.descriptor.id, "event step must be finite"));
-            }
-            state.values[index] += gain * event.value;
-        } else if self.descriptor.kind == "transduction.first_order_candidate"
-            && let Some(drive) = input.values.get("transduction_drive")
-        {
-            if !drive.value.is_finite() {
                 return Err(evaluation(
                     &self.descriptor.id,
-                    "transduction drive must be finite",
+                    "event input must be finite",
                 ));
             }
-            state.values[index] += gain * drive.value;
+            state.values[index] += gain * event.value;
         }
         Ok(())
     }

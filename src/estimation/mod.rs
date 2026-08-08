@@ -22,6 +22,7 @@ pub mod innovation;
 pub mod ism_adapter;
 pub mod measurement;
 pub mod model;
+pub mod model_adapter;
 pub mod model_output;
 pub mod observability;
 pub mod process;
@@ -45,7 +46,8 @@ use crate::{
 use calibration_adapter::StoredCalibrationObservationModel;
 use covariance::{resolve_measurement_covariance, resolve_process_covariance};
 use environment::{
-    AlignedEnvironment, align_experiment_with_polarization, resolve_standard_activity,
+    AlignedEnvironment, align_experiment_with_polarization, bind_compiled_transition_inputs,
+    resolve_standard_activity,
 };
 use error::EstimationError;
 use initialization::initialize_state;
@@ -175,6 +177,19 @@ fn estimate_single_segment(
         previous = Some(e.clone());
         environments.push(e);
     }
+    if matches!(
+        config.model.backend,
+        crate::estimation_config::EstimationModelBackend::Compiled
+    ) {
+        bind_compiled_transition_inputs(
+            experiment,
+            &mut environments,
+            &calibration.model.configuration.activity,
+            calibration.model.configuration.analyte.molar_mass_g_per_mol,
+            calibration.model.ion_charge,
+            &config.model.transduction_drive,
+        );
+    }
     let measurement_covariance = resolve_measurement_covariance(
         config,
         obs.iter()
@@ -271,7 +286,7 @@ fn estimate_single_segment(
         ));
     }
     Ok(StateEstimationReport {
-        schema_version: 2,
+        schema_version: 3,
         analysis_id: format!(
             "estimate:{}:{}",
             experiment.provenance.input_sha256, logical_channel_name
@@ -284,9 +299,46 @@ fn estimate_single_segment(
             "potential converted to V; per-observation variance converted to V²".into(),
         filter,
         model: config.state_model.kind,
+        model_backend: Some(config.model.backend),
+        model_profile: matches!(
+            config.model.backend,
+            crate::estimation_config::EstimationModelBackend::Compiled
+        )
+        .then_some(config.model.profile),
+        model_id: model
+            .compiled_model()
+            .map(|compiled| compiled.definition().model_id.clone()),
+        model_schema_version: model
+            .compiled_model()
+            .map(|compiled| compiled.definition().schema_version),
+        compiled_model_summary: model
+            .compiled_model()
+            .map(|compiled| compiled.compiled_summary()),
+        state_bindings: model
+            .compiled_model()
+            .map(|compiled| {
+                compiled
+                    .state_definitions()
+                    .iter()
+                    .enumerate()
+                    .map(|(estimator_index, state)| {
+                        crate::estimation::model_adapter::StateBinding {
+                            state_id: state.spec.id.clone(),
+                            estimator_index,
+                            ownership: if state.spec.id == "log10_activity" {
+                                "estimator_owned_latent".into()
+                            } else {
+                                "compiled_component_state".into()
+                            },
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
         model_definition: model
             .compiled_model()
             .map(|compiled| compiled.definition().clone()),
+        resolved_model_definition_source: model.definition_source().cloned(),
         state_definitions: model.definitions,
         initialization,
         process_covariance: process,

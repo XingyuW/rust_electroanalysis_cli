@@ -1,7 +1,10 @@
 use crate::{
     domain::{AnalysisProvenance, MeasurementChannel, MultiChannelMeasurement},
-    estimation::error::EstimationError,
-    estimation_config::PolarizationInputModel,
+    estimation::{environment::AlignedEnvironment, error::EstimationError, model::StateModel},
+    estimation_config::{
+        EstimationModelBackend, EstimationModelConfig, PolarizationInputModel,
+        ResolvedEstimationConfig,
+    },
     results::{
         ActivityModelKind, CalibrationDomain, CalibrationFitStatistics, CalibrationModelKind,
         CalibrationParameter, NernstSlopeMode, ResponseSign, StoredCalibrationModel,
@@ -10,7 +13,7 @@ use crate::{
 };
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -45,6 +48,9 @@ pub struct SimulationScenario {
     pub missing_fraction: f64,
     pub outlier_fraction: f64,
     pub outlier_magnitude_v: f64,
+    /// Legacy remains the default; compiled scenarios use the same adapter as
+    /// EKF/UKF and never duplicate the reduced component equations here.
+    pub model: EstimationModelConfig,
 }
 impl Default for SimulationScenario {
     fn default() -> Self {
@@ -79,6 +85,7 @@ impl Default for SimulationScenario {
             missing_fraction: 0.0,
             outlier_fraction: 0.0,
             outlier_magnitude_v: 0.05,
+            model: EstimationModelConfig::default(),
         }
     }
 }
@@ -94,6 +101,20 @@ pub struct SimulationTruthPoint {
     pub temperature_k: f64,
     pub observed_potential_v: Option<f64>,
     pub outlier: bool,
+    #[serde(default)]
+    pub compiled: Option<CompiledSimulationTruthPoint>,
+}
+
+/// Stable-ID truth emitted by compiled simulations. Legacy truth fields are
+/// retained above for backward-compatible artifacts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CompiledSimulationTruthPoint {
+    pub state_values: BTreeMap<String, f64>,
+    pub parameter_values: BTreeMap<String, f64>,
+    pub component_contributions: Vec<crate::model::ComponentContribution>,
+    pub predicted_potential_v: f64,
+    #[serde(default)]
+    pub event_inputs: BTreeMap<String, f64>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SimulationOutput {
@@ -106,6 +127,9 @@ pub struct SimulationOutput {
 pub fn simulate_scenario(
     scenario: &SimulationScenario,
 ) -> Result<SimulationOutput, EstimationError> {
+    if matches!(scenario.model.backend, EstimationModelBackend::Compiled) {
+        return simulate_compiled_scenario(scenario);
+    }
     if scenario.sample_count < 2 || !scenario.interval_s.is_finite() || scenario.interval_s <= 0.0 {
         return Err(EstimationError::invalid(
             "simulation sample_count and interval must be valid",
@@ -220,12 +244,206 @@ pub fn simulate_scenario(
             temperature_k: temp,
             observed_potential_v: (!missing).then_some(potential),
             outlier,
+            compiled: None,
         });
     }
     Ok(SimulationOutput {
         schema_version: 2,
         scenario: scenario.clone(),
         observations: out,
+        provenance: None,
+    })
+}
+
+fn simulate_compiled_scenario(
+    scenario: &SimulationScenario,
+) -> Result<SimulationOutput, EstimationError> {
+    if scenario.sample_count < 2 || !scenario.interval_s.is_finite() || scenario.interval_s <= 0.0 {
+        return Err(EstimationError::invalid(
+            "simulation sample_count and interval must be valid",
+        ));
+    }
+    let config = ResolvedEstimationConfig {
+        model: scenario.model.clone(),
+        ..Default::default()
+    };
+    config
+        .validate()
+        .map_err(|error| EstimationError::config(error.to_string()))?;
+    let calibration = simulation_model();
+    let model = StateModel::new_compiled(
+        &config,
+        scenario.polarization_tau_s.max(1e-9),
+        None,
+        &calibration,
+    )?;
+    let compiled = model
+        .compiled_model()
+        .ok_or_else(|| EstimationError::config("compiled simulation selected no compiled model"))?;
+    let mut rng = rand::rngs::StdRng::seed_from_u64(scenario.seed);
+    let mut state = nalgebra::DVector::zeros(model.dimension());
+    let activity_index = model.index("log10_activity").ok_or_else(|| {
+        EstimationError::config("compiled simulation model requires log10_activity state")
+    })?;
+    state[activity_index] = scenario.initial_log10_activity;
+    if let Some(reference) = model
+        .index("reference_offset_v")
+        .or_else(|| model.index("baseline_offset"))
+    {
+        state[reference] = scenario.baseline_initial_v;
+    }
+    if let Some(polarization) = model.index("polarization") {
+        state[polarization] = scenario.polarization_initial_v;
+    }
+    let mut t = scenario.start_time_s;
+    let mut output = Vec::with_capacity(scenario.sample_count);
+    for index in 0..scenario.sample_count {
+        let previous_t = t;
+        let dt_s = if index == 0 {
+            0.0
+        } else {
+            (scenario.interval_s
+                + if scenario.irregular_jitter_s > 0.0 {
+                    rng.gen_range(-scenario.irregular_jitter_s..scenario.irregular_jitter_s)
+                } else {
+                    0.0
+                })
+            .max(1e-9)
+        };
+        if index > 0 {
+            t += dt_s;
+        }
+        let crossed = |event_time: Option<f64>| {
+            event_time.is_some_and(|event| {
+                (index == 0 && (t - event).abs() <= 1e-12)
+                    || (index > 0 && previous_t < event && event <= t)
+            })
+        };
+        let log10_activity = scenario.initial_log10_activity
+            + scenario.activity_ramp_rate_log10_per_s * (t - scenario.start_time_s)
+            + scenario
+                .activity_step_time_s
+                .filter(|event| t >= *event)
+                .map(|_| scenario.activity_step_log10)
+                .unwrap_or(0.0)
+            + scenario
+                .activity_pulse_time_s
+                .filter(|event| {
+                    t >= *event && t < *event + scenario.activity_pulse_duration_s.max(0.0)
+                })
+                .map(|_| scenario.activity_pulse_log10)
+                .unwrap_or(0.0);
+        state[activity_index] = log10_activity;
+        let mut event_inputs = BTreeMap::new();
+        if crossed(scenario.activity_step_time_s) {
+            event_inputs.insert("delta_log10_activity".into(), scenario.activity_step_log10);
+        }
+        let mut environment = AlignedEnvironment {
+            timestamp_s: t,
+            temperature_k: Some(
+                273.15
+                    + scenario.temperature_celsius
+                    + scenario.temperature_ramp_celsius_per_s * (t - scenario.start_time_s),
+            ),
+            delta_log10_activity: event_inputs.get("delta_log10_activity").copied(),
+            ..Default::default()
+        };
+        if matches!(
+            scenario.model.transduction_drive,
+            crate::estimation_config::TransductionDriveSource::ActivityStep
+        ) {
+            environment.transduction_drive = environment.delta_log10_activity;
+            if environment.transduction_drive.is_some() {
+                event_inputs.insert(
+                    "transduction_drive".into(),
+                    environment.transduction_drive.unwrap_or_default(),
+                );
+            }
+        }
+        if index > 0 {
+            state = model.try_process_state(&state, dt_s, &environment)?;
+            state[activity_index] = log10_activity;
+        }
+        if let Some(reference) = model
+            .index("reference_offset_v")
+            .or_else(|| model.index("baseline_offset"))
+        {
+            state[reference] = scenario.baseline_initial_v
+                + scenario.baseline_drift_v_per_s * (t - scenario.start_time_s);
+            if scenario.baseline_random_walk_sd_v > 0.0 && index > 0 {
+                state[reference] +=
+                    scenario.baseline_random_walk_sd_v * dt_s.sqrt() * normal(&mut rng);
+            }
+        }
+        let prediction = model
+            .compiled_observation_prediction(&state, &environment, None)?
+            .ok_or_else(|| {
+                EstimationError::Numerical("compiled simulation observation unavailable".into())
+            })?;
+        let mut measured = prediction.predicted_voltage_v;
+        let outlier =
+            scenario.outlier_fraction > 0.0 && rng.r#gen::<f64>() < scenario.outlier_fraction;
+        if outlier {
+            measured += scenario.outlier_magnitude_v;
+        }
+        if scenario.measurement_noise_sd_v > 0.0 {
+            measured += scenario.measurement_noise_sd_v * normal(&mut rng);
+        }
+        let missing =
+            scenario.missing_fraction > 0.0 && rng.r#gen::<f64>() < scenario.missing_fraction;
+        let state_values: BTreeMap<String, f64> = compiled
+            .state_definitions()
+            .iter()
+            .zip(state.iter())
+            .map(|(definition, value)| (definition.spec.id.clone(), *value))
+            .collect();
+        let parameter_values: BTreeMap<String, f64> = compiled
+            .parameter_definitions()
+            .iter()
+            .zip(
+                model
+                    .compiled_parameter_values()
+                    .into_iter()
+                    .flat_map(|values| values.values.iter()),
+            )
+            .map(|(definition, value)| (definition.spec.id.clone(), *value))
+            .collect();
+        let fast = state_values
+            .get("dynamic_fast_potential_v")
+            .copied()
+            .unwrap_or(0.0);
+        let slow = state_values
+            .get("dynamic_slow_potential_v")
+            .copied()
+            .unwrap_or(0.0);
+        let reference = state_values
+            .get("reference_offset_v")
+            .or_else(|| state_values.get("baseline_offset"))
+            .copied()
+            .unwrap_or(0.0);
+        output.push(SimulationTruthPoint {
+            timestamp_s: t,
+            log10_activity,
+            activity: 10_f64.powf(log10_activity),
+            baseline_offset_v: reference,
+            polarization_v: fast + slow,
+            sensitivity_scale: None,
+            temperature_k: environment.temperature_k.unwrap_or_default(),
+            observed_potential_v: (!missing).then_some(measured),
+            outlier,
+            compiled: Some(CompiledSimulationTruthPoint {
+                state_values,
+                parameter_values,
+                component_contributions: prediction.contributions,
+                predicted_potential_v: prediction.predicted_voltage_v,
+                event_inputs,
+            }),
+        });
+    }
+    Ok(SimulationOutput {
+        schema_version: 3,
+        scenario: scenario.clone(),
+        observations: output,
         provenance: None,
     })
 }

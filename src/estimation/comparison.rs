@@ -44,6 +44,8 @@ pub fn compare_reports(
             .collect::<Vec<_>>();
         records.push(FilterComparisonRecord {
             filter: *filter,
+            model_backend: report.model_backend,
+            model_profile: report.model_profile,
             runtime_ms: 0.0,
             activity_rmse: rmse,
             innovation_mean: report.diagnostics.innovation_mean,

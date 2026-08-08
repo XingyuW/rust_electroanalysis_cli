@@ -13,6 +13,12 @@ pub enum EstimationError {
     Numerical(String),
     #[error("estimation covariance failure: {0}")]
     Covariance(String),
+    #[error("compiled ISM model integration failed during {context}: {source}")]
+    CompiledModel {
+        context: &'static str,
+        #[source]
+        source: Box<crate::model::ModelError>,
+    },
     #[error("estimation artifact I/O failed for {path}: {source}")]
     Io {
         path: PathBuf,
@@ -38,6 +44,12 @@ impl EstimationError {
         Self::Io {
             path: path.into(),
             source,
+        }
+    }
+    pub fn compiled(context: &'static str, source: crate::model::ModelError) -> Self {
+        Self::CompiledModel {
+            context,
+            source: Box::new(source),
         }
     }
 }
