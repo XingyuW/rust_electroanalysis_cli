@@ -1,5 +1,20 @@
 use serde::{Deserialize, Serialize};
 
+/// Declarative structural information consumed by a later identifiability
+/// adapter. It deliberately makes no empirical claim.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IdentifiabilityMetadata {
+    pub states_requiring_independent_observations: Vec<String>,
+    pub parameter_requirements: Vec<ParameterIdentifiabilityRequirement>,
+    pub component_sensitivity_targets: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ParameterIdentifiabilityRequirement {
+    pub parameter_id: String,
+    pub requirements: Vec<String>,
+}
+
 /// Explicit assessment state that preserves a lack of evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

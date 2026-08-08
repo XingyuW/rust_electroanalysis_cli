@@ -1,5 +1,12 @@
 # ISM Model Schema Migration Policy
 
+## Compiled summaries
+
+Definitions remain versioned and serializable. Compilation requires an
+explicit migration to the current definition schema; legacy numeric
+uncertainty remains explicitly unknown. Compiled summaries serialize graph
+metadata and bindings only, never trait objects or runtime covariance.
+
 ## Version 1
 
 ### Phase 05 adapter contracts

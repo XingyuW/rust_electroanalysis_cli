@@ -1,5 +1,12 @@
 # 02 — Architecture
 
+## ISM model core
+
+`ModelDefinition -> validation -> static registry -> dependency graph ->
+stable bindings -> CompiledIsmModel` is the model-core boundary. Components
+are evaluated in deterministic topological order. Workflow adapters may call
+the core but cannot become dependencies of it.
+
 **Identifier:** `DOC-02`  
 **Status:** Verified from repository inspection  
 **Last Updated:** 2026-07-19

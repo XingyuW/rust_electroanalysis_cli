@@ -1,5 +1,12 @@
 # 16 — Open Questions
 
+## Next model integration phase
+
+Pending work is an adapter from estimation observability/configuration into
+the neutral initialization and identifiability contracts, followed by health,
+mechanism, plotting, and reporting consumers. Those integrations are outside
+the model-core implementation phase.
+
 **Identifier:** `DOC-16`  
 **Status:** Requires project-owner input  
 **Last Updated:** 2026-07-19

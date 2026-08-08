@@ -1,5 +1,14 @@
 # 08 — Validation & Constraints
 
+## Model-core constraints
+
+The compiler rejects duplicate IDs/kinds/contribution owners, missing or
+self/cyclic dependencies, incompatible input/output units, invalid bounds,
+and factory descriptor mismatches. Jacobian coverage distinguishes an explicit
+zero derivative from a missing derivative. Deterministic declarations reject
+nonzero runtime covariance; stochastic declarations require appropriate
+runtime covariance for Complete propagation.
+
 **Identifier:** `DOC-08`  
 **Status:** Verified from repository inspection  
 **Last Updated:** 2026-07-19

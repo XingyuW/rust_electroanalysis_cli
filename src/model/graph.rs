@@ -12,6 +12,22 @@ pub(crate) fn dependency_order(
     let mut indegree = BTreeMap::<String, usize>::new();
     let mut dependents = BTreeMap::<String, BTreeSet<String>>::new();
     for component in components {
+        if component
+            .depends_on
+            .iter()
+            .any(|dependency| dependency == &component.id)
+        {
+            return Err(ModelError::SelfDependency {
+                component: component.id.clone(),
+            });
+        }
+        if component.depends_on.iter().collect::<BTreeSet<_>>().len() != component.depends_on.len()
+        {
+            return Err(ModelError::InvalidComponentShape {
+                component: component.id.clone(),
+                message: "component dependencies contain duplicate IDs".into(),
+            });
+        }
         indegree.insert(component.id.clone(), component.depends_on.len());
         for dependency in &component.depends_on {
             if !known.contains(dependency.as_str()) {

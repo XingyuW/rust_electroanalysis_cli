@@ -1,5 +1,27 @@
 use serde::{Deserialize, Serialize};
 
+/// Explicit evaluation status. A warning is not a health diagnosis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ValidityStatus {
+    Valid,
+    ValidWithWarnings,
+    Invalid,
+    Unavailable,
+}
+
+/// Per-component validity information retained alongside model-level results.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComponentValidityReport {
+    pub component_id: String,
+    pub status: ValidityStatus,
+    pub assumptions_checked: Vec<String>,
+    pub validity_domain: String,
+    pub violations: Vec<String>,
+    pub warnings: Vec<String>,
+    pub evaluation_rejected: bool,
+}
+
 /// A declaration of the domain over which a state, parameter, or model is valid.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ValidityDomain {

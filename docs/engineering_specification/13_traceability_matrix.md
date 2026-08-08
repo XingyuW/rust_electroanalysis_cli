@@ -1,5 +1,12 @@
 # 13 — Traceability Matrix
 
+## ISM model-core trace
+
+Frozen ISM contract requirements trace to `src/model/{definition,registry,
+graph,compiler,component,state,parameter,output,validity,identifiability}.rs`
+and `tests/model_core*.rs`. The compiled summary provides the reproducible
+component order, bindings, dependencies, equation versions, and warnings.
+
 **Identifier:** `DOC-13`  
 **Status:** Verified from repository inspection  
 **Last Updated:** 2026-07-19

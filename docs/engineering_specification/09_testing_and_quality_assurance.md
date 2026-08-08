@@ -1,5 +1,13 @@
 # 09 — Testing & Quality Assurance
 
+## Model-core QA
+
+Model-core tests cover graph rejection and stable ordering, state/parameter
+round trips and slices, additive reconstruction, variance separation,
+Jacobian coverage, covariance propagation, schema serialization, and an
+architecture regression check that prohibits high-level imports from
+`src/model`.
+
 **Identifier:** `DOC-09`  
 **Status:** Verified from repository inspection  
 **Last Updated:** 2026-07-19

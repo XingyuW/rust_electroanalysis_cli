@@ -16,6 +16,8 @@ pub enum ModelError {
         component: String,
         dependency: String,
     },
+    #[error("component '{component}' may not depend on itself")]
+    SelfDependency { component: String },
     #[error("component dependency cycle detected: {components:?}")]
     CircularDependency { components: Vec<String> },
     #[error("component '{component}' requires missing input '{input}'")]
@@ -39,6 +41,8 @@ pub enum ModelError {
     InvalidUnit { subject: String, unit: String },
     #[error("component '{component}' has no factory for kind '{kind}'")]
     UnknownComponentKind { component: String, kind: String },
+    #[error("component kind '{kind}' is already registered")]
+    DuplicateComponentKind { kind: String },
     #[error("component factory returned a descriptor inconsistent with '{component}'")]
     FactoryDescriptorMismatch { component: String },
     #[error("duplicate voltage contribution owner '{owner}'")]

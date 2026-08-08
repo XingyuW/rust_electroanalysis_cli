@@ -1,5 +1,13 @@
 # 07 — Scientific Models & Equations
 
+## Composition and uncertainty
+
+The prediction is the sum of outputs explicitly typed
+`additive_potential`. Observation-noise components provide `R` in V² and do
+not enter voltage. With supplied runtime covariance, propagated variance is
+`Jx Px Jxᵀ + Jθ Pθ Jθᵀ + R`, retaining off-diagonal terms. Missing derivative
+coverage or covariance remains Partial or Unavailable, never zero by default.
+
 **Identifier:** `DOC-07`  
 **Status:** Verified from source code inspection  
 **Last Updated:** 2026-07-19

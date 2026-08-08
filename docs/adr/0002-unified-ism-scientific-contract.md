@@ -1,5 +1,15 @@
 # ADR-0002: ISM scientific-contract framework
 
+## Model-core implementation
+
+The model core compiles the frozen definition into a deterministic graph with
+stable state and parameter IDs/indices. Registry factories are static and
+duplicate kinds, self-dependencies, missing dependencies, and descriptor
+mismatches are rejected. Only additive-potential outputs reconstruct voltage;
+observation variance, auxiliary outputs, and unexplained residuals remain
+separate. Runtime covariance is caller supplied and propagated with full
+`J P Jᵀ`; declarations and priors are never substituted for runtime covariance.
+
 Status: Accepted  
 Date: 2026-08-07
 

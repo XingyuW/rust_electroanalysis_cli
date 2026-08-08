@@ -6,18 +6,57 @@ use super::{
     definition::ModelDefinition,
     error::ModelError,
     graph::dependency_order,
-    identifiability::IdentifiabilityReport,
+    identifiability::{
+        IdentifiabilityMetadata, IdentifiabilityReport, ParameterIdentifiabilityRequirement,
+    },
     input::{ModelInput, units_compatible, validate_unit},
     output::{
-        ComponentContribution, DEFAULT_POTENTIAL_RECONSTRUCTION_TOLERANCE_V, ObservationPrediction,
-        PredictionUncertainty, PredictionUncertaintyInput, UncertaintyStatus,
+        ComponentContribution, DEFAULT_POTENTIAL_RECONSTRUCTION_TOLERANCE_V, ModelWarning,
+        ObservationPrediction, PredictionUncertainty, PredictionUncertaintyInput,
+        UncertaintyStatus,
     },
     parameter::{CompiledParameterSpec, ParameterValues},
     registry::ComponentRegistry,
-    state::{CompiledStateSpec, DeclaredUncertaintyClass, ModelState},
-    validity::ValidityReport,
+    state::{
+        CompiledStateSpec, DeclaredUncertaintyClass, InitializationContext, InitializedModelState,
+        ModelState,
+    },
+    validity::{ComponentValidityReport, ValidityReport, ValidityStatus},
 };
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+
+/// Serializable compiler output. Trait-object component implementations are
+/// intentionally excluded; this preserves the graph and bindings needed for
+/// reproducibility without pretending a compiled binary plugin is portable.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CompiledModelSummary {
+    pub schema_version: u32,
+    pub compiler_version: String,
+    pub model_id: String,
+    pub component_order: Vec<String>,
+    pub component_descriptors: Vec<ComponentDescriptor>,
+    pub state_bindings: Vec<CompiledBindingSummary>,
+    pub parameter_bindings: Vec<CompiledBindingSummary>,
+    pub dependency_graph: BTreeMap<String, Vec<String>>,
+    pub equation_versions: BTreeMap<String, u32>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompiledBindingSummary {
+    pub id: String,
+    pub global_index: usize,
+    pub component_ids: Vec<String>,
+}
+
+/// Stable component-local bindings in global vector coordinates.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComponentBindingSummary {
+    pub component_id: String,
+    pub state_indices: Vec<usize>,
+    pub parameter_indices: Vec<usize>,
+}
 
 /// Deterministically validated and factory-resolved ISM model graph.
 pub struct CompiledIsmModel {
@@ -26,6 +65,7 @@ pub struct CompiledIsmModel {
     parameter_definitions: Vec<CompiledParameterSpec>,
     state_indices: BTreeMap<String, usize>,
     parameter_indices: BTreeMap<String, usize>,
+    component_bindings: BTreeMap<String, ComponentBindingSummary>,
     components: Vec<Box<dyn IsmComponent>>,
 }
 
@@ -50,6 +90,46 @@ impl CompiledIsmModel {
         self.parameter_indices.get(id).copied()
     }
 
+    pub fn state_spec(&self, id: &str) -> Option<&CompiledStateSpec> {
+        self.state_index(id)
+            .and_then(|index| self.state_definitions.get(index))
+    }
+
+    pub fn parameter_spec(&self, id: &str) -> Option<&CompiledParameterSpec> {
+        self.parameter_index(id)
+            .and_then(|index| self.parameter_definitions.get(index))
+    }
+
+    pub fn state_id(&self, global_index: usize) -> Option<&str> {
+        self.state_definitions
+            .get(global_index)
+            .map(|binding| binding.spec.id.as_str())
+    }
+
+    pub fn parameter_id(&self, global_index: usize) -> Option<&str> {
+        self.parameter_definitions
+            .get(global_index)
+            .map(|binding| binding.spec.id.as_str())
+    }
+
+    /// Component-local state indices in stable global state order.
+    pub fn state_slice(&self, component_id: &str) -> Option<&[usize]> {
+        self.component_bindings
+            .get(component_id)
+            .map(|binding| binding.state_indices.as_slice())
+    }
+
+    /// Component-local parameter indices in stable global parameter order.
+    pub fn parameter_slice(&self, component_id: &str) -> Option<&[usize]> {
+        self.component_bindings
+            .get(component_id)
+            .map(|binding| binding.parameter_indices.as_slice())
+    }
+
+    pub fn component_bindings(&self) -> &BTreeMap<String, ComponentBindingSummary> {
+        &self.component_bindings
+    }
+
     pub fn default_parameters(&self) -> ParameterValues {
         ParameterValues::new(
             self.parameter_definitions
@@ -60,18 +140,87 @@ impl CompiledIsmModel {
     }
 
     pub fn initialize(&self, parameters: &ParameterValues) -> Result<ModelState, ModelError> {
+        Ok(self
+            .initialize_with_context(parameters, &InitializationContext::default())?
+            .state)
+    }
+
+    /// Initializes the state from caller values first, then definition
+    /// defaults, and finally component initialization hooks. Caller context is
+    /// deliberately domain-neutral and does not import estimation settings.
+    pub fn initialize_with_context(
+        &self,
+        parameters: &ParameterValues,
+        context: &InitializationContext,
+    ) -> Result<InitializedModelState, ModelError> {
         self.validate_parameters(parameters)?;
-        let mut state = ModelState::new(
-            self.state_definitions
-                .iter()
-                .map(|state| state.spec.initial_value)
-                .collect(),
-        );
+        let mut sources = Vec::with_capacity(self.state_definitions.len());
+        let values = self
+            .state_definitions
+            .iter()
+            .map(|binding| {
+                if let Some(value) = context.state_values.get(&binding.spec.id) {
+                    sources.push(
+                        context
+                            .source
+                            .clone()
+                            .unwrap_or(super::state::StateInitializationSource::External),
+                    );
+                    *value
+                } else {
+                    sources.push(binding.spec.initialization_source.clone());
+                    binding.spec.initial_value
+                }
+            })
+            .collect();
+        for id in context.state_values.keys() {
+            if !self.state_indices.contains_key(id) {
+                return Err(ModelError::MissingReference {
+                    component: "initialization context".into(),
+                    kind: "state",
+                    id: id.clone(),
+                });
+            }
+        }
+        let mut state = ModelState::new(values);
         for component in &self.components {
             component.initialize(&mut state, parameters)?;
         }
         self.validate_state(&state)?;
-        Ok(state)
+        Ok(InitializedModelState { state, sources })
+    }
+
+    /// Evaluates the sum of only the continuous component derivatives. It is
+    /// not an integrator and never implies Euler propagation for discrete
+    /// components.
+    pub fn process_derivative(
+        &self,
+        state: &ModelState,
+        parameters: &ParameterValues,
+        input: &ModelInput,
+    ) -> Result<Vec<f64>, ModelError> {
+        self.validate_state(state)?;
+        self.validate_parameters(parameters)?;
+        self.validate_input(input)?;
+        let mut derivative = vec![0.0; self.state_definitions.len()];
+        for component in &self.components {
+            if let Some(local) = component.process_derivative(
+                state,
+                parameters,
+                input,
+                self.state_definitions.len(),
+            )? {
+                if local.len() != derivative.len() || local.iter().any(|value| !value.is_finite()) {
+                    return Err(ModelError::JacobianDimension {
+                        component: component.descriptor().id.clone(),
+                    });
+                }
+                for (total, value) in derivative.iter_mut().zip(local) {
+                    *total += value;
+                }
+            }
+        }
+        Ok(derivative)
     }
 
     pub fn process_transition(
@@ -136,6 +285,19 @@ impl CompiledIsmModel {
             let descriptor = component.descriptor();
             let voltage = component.observation_voltage(state, parameters, input)?;
             let variance = component.observation_variance_v2(state, parameters, input)?;
+            let component_warnings = component
+                .validity_warnings(state, parameters, input)
+                .map_err(|error| ModelError::ComponentEvaluation {
+                    component: descriptor.id.clone(),
+                    message: error.to_string(),
+                })?;
+            let auxiliary_outputs = component.auxiliary_outputs(state, parameters, input)?;
+            if auxiliary_outputs.values().any(|value| !value.is_finite()) {
+                return Err(ModelError::ComponentEvaluation {
+                    component: descriptor.id.clone(),
+                    message: "component emitted a non-finite auxiliary output".into(),
+                });
+            }
             let (potential_v, variance_v2) = match descriptor.contribution_semantics {
                 ContributionSemantics::AdditivePotential => {
                     let value =
@@ -184,6 +346,20 @@ impl CompiledIsmModel {
                 variance_v2,
                 source: descriptor.source.clone(),
                 validity_domain: descriptor.validity_domain.clone(),
+                interpretation_status: descriptor.interpretation_status,
+                equation_version: descriptor.equation_version,
+                validity_status: if component_warnings.is_empty() {
+                    ValidityStatus::Valid
+                } else {
+                    ValidityStatus::ValidWithWarnings
+                },
+                warnings: component_warnings
+                    .into_iter()
+                    .map(ModelWarning::Validity)
+                    .collect(),
+                uncertainty_status: UncertaintyStatus::NotRequested,
+                state_output_ids: descriptor.state_ids.clone(),
+                auxiliary_outputs,
             });
         }
         Ok(contributions)
@@ -213,7 +389,7 @@ impl CompiledIsmModel {
         observed_voltage_v: Option<f64>,
         uncertainty_input: PredictionUncertaintyInput,
     ) -> Result<ObservationPrediction, ModelError> {
-        let contributions = self.component_contributions(state, parameters, input)?;
+        let mut contributions = self.component_contributions(state, parameters, input)?;
         let uncertainty = if uncertainty_input.requested {
             self.prediction_uncertainty(
                 state,
@@ -225,6 +401,9 @@ impl CompiledIsmModel {
         } else {
             PredictionUncertainty::not_requested()
         };
+        for contribution in &mut contributions {
+            contribution.uncertainty_status = uncertainty.status;
+        }
         let prediction =
             ObservationPrediction::new(contributions, observed_voltage_v, uncertainty)?;
         prediction.verify_reconstruction(DEFAULT_POTENTIAL_RECONSTRUCTION_TOLERANCE_V)?;
@@ -642,6 +821,52 @@ impl CompiledIsmModel {
         report
     }
 
+    /// Returns one explicit validity record per component. Evaluation errors
+    /// are preserved as rejected evaluations, rather than re-labelled as a
+    /// health or mechanism conclusion.
+    pub fn component_validity_reports(
+        &self,
+        state: &ModelState,
+        parameters: &ParameterValues,
+        input: &ModelInput,
+    ) -> Vec<ComponentValidityReport> {
+        self.components
+            .iter()
+            .map(|component| {
+                let descriptor = component.descriptor();
+                match component.validity_warnings(state, parameters, input) {
+                    Ok(warnings) if warnings.is_empty() => ComponentValidityReport {
+                        component_id: descriptor.id.clone(),
+                        status: ValidityStatus::Valid,
+                        assumptions_checked: descriptor.assumptions.clone(),
+                        validity_domain: descriptor.validity_domain.clone(),
+                        violations: Vec::new(),
+                        warnings,
+                        evaluation_rejected: false,
+                    },
+                    Ok(warnings) => ComponentValidityReport {
+                        component_id: descriptor.id.clone(),
+                        status: ValidityStatus::ValidWithWarnings,
+                        assumptions_checked: descriptor.assumptions.clone(),
+                        validity_domain: descriptor.validity_domain.clone(),
+                        violations: Vec::new(),
+                        warnings,
+                        evaluation_rejected: false,
+                    },
+                    Err(error) => ComponentValidityReport {
+                        component_id: descriptor.id.clone(),
+                        status: ValidityStatus::Unavailable,
+                        assumptions_checked: descriptor.assumptions.clone(),
+                        validity_domain: descriptor.validity_domain.clone(),
+                        violations: vec![error.to_string()],
+                        warnings: Vec::new(),
+                        evaluation_rejected: true,
+                    },
+                }
+            })
+            .collect()
+    }
+
     pub fn identifiability_report(&self) -> IdentifiabilityReport {
         IdentifiabilityReport::not_assessed(
             self.parameter_definitions
@@ -649,6 +874,114 @@ impl CompiledIsmModel {
                 .map(|parameter| parameter.spec.id.clone())
                 .collect(),
         )
+    }
+
+    pub fn identifiability_metadata(&self) -> IdentifiabilityMetadata {
+        IdentifiabilityMetadata {
+            states_requiring_independent_observations: self
+                .state_definitions
+                .iter()
+                .filter(|state| !state.spec.observability_requirements.is_empty())
+                .map(|state| state.spec.id.clone())
+                .collect(),
+            parameter_requirements: self
+                .parameter_definitions
+                .iter()
+                .map(|parameter| ParameterIdentifiabilityRequirement {
+                    parameter_id: parameter.spec.id.clone(),
+                    requirements: parameter.spec.identifiability_requirements.clone(),
+                })
+                .collect(),
+            component_sensitivity_targets: self
+                .components
+                .iter()
+                .filter(|component| {
+                    !component.descriptor().observation_state_ids.is_empty()
+                        || !component.descriptor().observation_parameter_ids.is_empty()
+                })
+                .map(|component| component.descriptor().id.clone())
+                .collect(),
+        }
+    }
+
+    pub fn compiled_summary(&self) -> CompiledModelSummary {
+        let component_order = self
+            .components
+            .iter()
+            .map(|component| component.descriptor().id.clone())
+            .collect::<Vec<_>>();
+        let descriptors = self
+            .components
+            .iter()
+            .map(|component| component.descriptor().clone())
+            .collect::<Vec<_>>();
+        let component_ids_for = |id: &str, is_state: bool| {
+            self.components
+                .iter()
+                .filter(|component| {
+                    if is_state {
+                        component
+                            .descriptor()
+                            .state_ids
+                            .iter()
+                            .any(|candidate| candidate == id)
+                    } else {
+                        component
+                            .descriptor()
+                            .parameter_ids
+                            .iter()
+                            .any(|candidate| candidate == id)
+                    }
+                })
+                .map(|component| component.descriptor().id.clone())
+                .collect::<Vec<_>>()
+        };
+        CompiledModelSummary {
+            schema_version: self.definition.schema_version,
+            compiler_version: env!("CARGO_PKG_VERSION").into(),
+            model_id: self.definition.model_id.clone(),
+            component_order,
+            component_descriptors: descriptors,
+            state_bindings: self
+                .state_definitions
+                .iter()
+                .map(|binding| CompiledBindingSummary {
+                    id: binding.spec.id.clone(),
+                    global_index: binding.index,
+                    component_ids: component_ids_for(&binding.spec.id, true),
+                })
+                .collect(),
+            parameter_bindings: self
+                .parameter_definitions
+                .iter()
+                .map(|binding| CompiledBindingSummary {
+                    id: binding.spec.id.clone(),
+                    global_index: binding.index,
+                    component_ids: component_ids_for(&binding.spec.id, false),
+                })
+                .collect(),
+            dependency_graph: self
+                .components
+                .iter()
+                .map(|component| {
+                    (
+                        component.descriptor().id.clone(),
+                        component.descriptor().depends_on.clone(),
+                    )
+                })
+                .collect(),
+            equation_versions: self
+                .components
+                .iter()
+                .map(|component| {
+                    (
+                        component.descriptor().id.clone(),
+                        component.descriptor().equation_version,
+                    )
+                })
+                .collect(),
+            warnings: Vec::new(),
+        }
     }
 
     pub fn validate_parameters(&self, parameters: &ParameterValues) -> Result<(), ModelError> {
@@ -677,7 +1010,7 @@ impl CompiledIsmModel {
         Ok(())
     }
 
-    fn validate_state(&self, state: &ModelState) -> Result<(), ModelError> {
+    pub fn validate_state(&self, state: &ModelState) -> Result<(), ModelError> {
         if state.values.len() != self.state_definitions.len() {
             return Err(ModelError::StateDimension {
                 expected: self.state_definitions.len(),
@@ -777,6 +1110,7 @@ pub fn compile_model(
         .map(|component| (component.id.as_str(), component))
         .collect();
     let mut components = Vec::with_capacity(ordered_ids.len());
+    let mut component_bindings = BTreeMap::new();
     for id in ordered_ids {
         let descriptor =
             component_by_id
@@ -787,9 +1121,7 @@ pub fn compile_model(
                     id: id.clone(),
                 })?;
         let mut component = registry.create(descriptor)?;
-        if component.descriptor().id != descriptor.id
-            || component.descriptor().kind != descriptor.kind
-        {
+        if component.descriptor() != *descriptor {
             return Err(ModelError::FactoryDescriptorMismatch {
                 component: descriptor.id.clone(),
             });
@@ -798,6 +1130,22 @@ pub fn compile_model(
             state_indices: state_indices.clone(),
             parameter_indices: parameter_indices.clone(),
         })?;
+        component_bindings.insert(
+            descriptor.id.clone(),
+            ComponentBindingSummary {
+                component_id: descriptor.id.clone(),
+                state_indices: descriptor
+                    .state_ids
+                    .iter()
+                    .filter_map(|state_id| state_indices.get(state_id).copied())
+                    .collect(),
+                parameter_indices: descriptor
+                    .parameter_ids
+                    .iter()
+                    .filter_map(|parameter_id| parameter_indices.get(parameter_id).copied())
+                    .collect(),
+            },
+        );
         components.push(component);
     }
     Ok(CompiledIsmModel {
@@ -818,6 +1166,7 @@ pub fn compile_model(
         definition,
         state_indices,
         parameter_indices,
+        component_bindings,
         components,
     })
 }

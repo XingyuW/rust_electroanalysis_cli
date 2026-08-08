@@ -1,6 +1,7 @@
 use super::{
-    component::{ComponentRole, ContributionSemantics, JacobianMethod},
+    component::{ComponentRole, ContributionSemantics, InterpretationStatus, JacobianMethod},
     error::ModelError,
+    validity::ValidityStatus,
 };
 use serde::{Deserialize, Serialize};
 
@@ -30,6 +31,45 @@ pub struct ComponentContribution {
     pub variance_v2: Option<f64>,
     pub source: String,
     pub validity_domain: String,
+    #[serde(default = "default_interpretation_status")]
+    pub interpretation_status: InterpretationStatus,
+    #[serde(default)]
+    pub equation_version: u32,
+    #[serde(default = "default_validity_status")]
+    pub validity_status: ValidityStatus,
+    #[serde(default)]
+    pub warnings: Vec<ModelWarning>,
+    #[serde(default = "default_uncertainty_status")]
+    pub uncertainty_status: UncertaintyStatus,
+    /// State/auxiliary output names are retained even though they never enter
+    /// the additive potential reconstruction.
+    #[serde(default)]
+    pub state_output_ids: Vec<String>,
+    #[serde(default)]
+    pub auxiliary_outputs: std::collections::BTreeMap<String, f64>,
+}
+
+/// Deterministic contribution totals grouped by the closed component roles.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct ContributionTotals {
+    pub equilibrium_v: f64,
+    pub transport_v: f64,
+    pub transduction_v: f64,
+    pub reference_v: f64,
+    pub external_disturbance_v: f64,
+    pub observation_variance_v2: f64,
+}
+
+fn default_interpretation_status() -> InterpretationStatus {
+    InterpretationStatus::Phenomenological
+}
+
+fn default_validity_status() -> ValidityStatus {
+    ValidityStatus::Valid
+}
+
+fn default_uncertainty_status() -> UncertaintyStatus {
+    UncertaintyStatus::NotRequested
 }
 
 /// Explicit status of propagated prediction uncertainty.
@@ -121,6 +161,29 @@ pub struct ObservationPrediction {
 }
 
 impl ObservationPrediction {
+    pub fn categorized_totals(&self) -> ContributionTotals {
+        let mut totals = ContributionTotals::default();
+        for contribution in &self.contributions {
+            if let Some(variance) = contribution.variance_v2 {
+                totals.observation_variance_v2 += variance;
+            }
+            let Some(potential) = contribution.potential_v else {
+                continue;
+            };
+            match contribution.role {
+                ComponentRole::Equilibrium => totals.equilibrium_v += potential,
+                ComponentRole::Transport => totals.transport_v += potential,
+                ComponentRole::Transduction => totals.transduction_v += potential,
+                ComponentRole::Reference => totals.reference_v += potential,
+                ComponentRole::ExternalDisturbance => totals.external_disturbance_v += potential,
+                ComponentRole::ObservationNoise
+                | ComponentRole::Auxiliary
+                | ComponentRole::Unexplained => {}
+            }
+        }
+        totals
+    }
+
     pub(crate) fn new(
         contributions: Vec<ComponentContribution>,
         observed_voltage_v: Option<f64>,

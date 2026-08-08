@@ -266,7 +266,7 @@ pub struct CompiledStateSpec {
 }
 
 /// State values ordered by compiled state index.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelState {
     pub values: Vec<f64>,
 }
@@ -275,4 +275,26 @@ impl ModelState {
     pub fn new(values: Vec<f64>) -> Self {
         Self { values }
     }
+}
+
+/// Neutral caller-supplied initialization values.  Workflow adapters can
+/// populate this contract without importing their configuration into the
+/// model core.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct InitializationContext {
+    #[serde(default)]
+    pub state_values: std::collections::BTreeMap<String, f64>,
+    #[serde(default)]
+    pub source: Option<StateInitializationSource>,
+    #[serde(default)]
+    pub known_experimental_context: std::collections::BTreeMap<String, String>,
+}
+
+/// Initialized values and their provenance.  `ModelState` remains a compact
+/// runtime vector while this record retains the audit information required at
+/// the initialization boundary.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InitializedModelState {
+    pub state: ModelState,
+    pub sources: Vec<StateInitializationSource>,
 }

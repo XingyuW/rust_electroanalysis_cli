@@ -600,6 +600,13 @@ fn contribution(
         variance_v2: None,
         source: "legacy estimation compatibility adapter".into(),
         validity_domain: "stored calibration and configured state-model domain".into(),
+        interpretation_status: crate::model::InterpretationStatus::Phenomenological,
+        equation_version: 1,
+        validity_status: crate::model::ValidityStatus::Valid,
+        warnings: Vec::new(),
+        uncertainty_status: crate::model::UncertaintyStatus::NotRequested,
+        state_output_ids: Vec::new(),
+        auxiliary_outputs: std::collections::BTreeMap::new(),
     }
 }
 

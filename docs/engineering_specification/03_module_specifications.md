@@ -1,5 +1,13 @@
 # 03 — Module Specifications
 
+## `model`
+
+The model module exposes compiled state/parameter lookup and component-local
+index slices, discrete transitions, optional continuous derivatives, process
+Jacobians, observation reconstruction, covariance propagation, validity, and
+declarative identifiability metadata. `CompiledModelSummary` is serializable;
+trait-object component implementations are intentionally not serialized.
+
 **Identifier:** `DOC-03`  
 **Status:** Verified from repository inspection  
 **Last Updated:** 2026-07-19

@@ -1,5 +1,11 @@
 # ADR-0001: Unified ISM model scientific contract
 
+## Core implementation boundary
+
+Compilation, evaluation, validity, uncertainty, and declarative
+identifiability metadata remain in `src/model`. The core does not import CLI,
+workflow, estimation, health, mechanism, plotting, or reporting modules.
+
 Status: Accepted
 Date: 2026-08-05
 

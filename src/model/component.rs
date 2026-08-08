@@ -380,6 +380,19 @@ pub trait IsmComponent: Send + Sync {
         Ok(())
     }
 
+    /// Optional continuous-time state derivative in compiled global state
+    /// order. Components without a continuous process return `None`; their
+    /// discrete transition remains an explicit, separate operation.
+    fn process_derivative(
+        &self,
+        _state: &ModelState,
+        _parameters: &ParameterValues,
+        _input: &ModelInput,
+        _state_dimension: usize,
+    ) -> Result<Option<Vec<f64>>, ModelError> {
+        Ok(None)
+    }
+
     fn process_jacobian(
         &self,
         state_dimension: usize,
@@ -413,6 +426,17 @@ pub trait IsmComponent: Send + Sync {
         _input: &ModelInput,
     ) -> Result<Option<f64>, ModelError> {
         Ok(None)
+    }
+
+    /// Named non-voltage outputs. The compiler preserves these for callers
+    /// but never includes them in the potential reconstruction.
+    fn auxiliary_outputs(
+        &self,
+        _state: &ModelState,
+        _parameters: &ParameterValues,
+        _input: &ModelInput,
+    ) -> Result<std::collections::BTreeMap<String, f64>, ModelError> {
+        Ok(std::collections::BTreeMap::new())
     }
 
     /// Local derivative of the additive observation with respect to stable

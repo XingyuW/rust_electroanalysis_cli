@@ -1,5 +1,12 @@
 # 14 — Risk & Technical Debt Register
 
+## Model-core residual risks
+
+The core intentionally does not provide a universal numerical integrator,
+full empirical identifiability solver, Nernst--Planck transport solver, or
+workflow integration. Continuous derivatives and discrete transitions are
+kept separate so later integrator selection remains explicit.
+
 **Identifier:** `DOC-14`  
 **Status:** Verified from repository inspection  
 **Last Updated:** 2026-07-19
