@@ -1,11 +1,15 @@
 //! EIS equivalent-circuit search pipeline.
 //!
-//! This module is responsible for filesystem enumeration, canonical ingestion
-//! orchestration, scientific candidate selection, ECM search/reporting, and
-//! optional ranked-model plots. `electrodata-io`—not this consumer—owns raw
-//! CSV/TXT/DAT/XLSX parsing, CHI/EIS detection, physical-binary detection,
-//! and malformed-row recovery. Analysis-artifact reads remain consumer-owned
-//! because they are versioned result contracts, not physical measurements.
+//! This module enumerates candidate input paths, excludes known
+//! application-generated artifacts, and delegates physical-format, container,
+//! worksheet, CHI/EIS header, and role recognition to `electrodata-io`. The
+//! provider owns raw CSV/TXT/DAT/XLSX reading, content-aware unusual-extension
+//! and binary detection, canonical DatasetKind/ColumnRole assignment,
+//! malformed-row recovery, diagnostics, and provenance. Canonical EIS datasets
+//! are then checked for scientific ECM-search suitability and passed to the
+//! search/reporting and optional ranked-model plotting workflow.
+//! Analysis-artifact reads remain consumer-owned because they are versioned
+//! result contracts, not physical measurements.
 
 use crate::{
     data_file::chi_file::EISData,
@@ -52,8 +56,9 @@ pub enum SearchLogLevel {
 /// Run the full ECM search pipeline for a single EIS file or every eligible
 /// file inside a directory.
 ///
-/// For each file the function:
-/// 1. Parses EIS data via [`EISData::parse_file`].
+/// For each canonical EIS input the function:
+/// 1. Uses [`EISData::parse_file`], whose file read delegates to
+///    `electrodata-io`.
 /// 2. Runs `discover_equivalent_circuits_with_config`.
 /// 3. Writes a plain-text report and a CSV ranking table.
 /// 4. Optionally renders ranked-model plots when `plot_top_n > 0`.

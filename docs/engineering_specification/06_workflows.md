@@ -315,3 +315,9 @@ Config-driven filenames are shown with their default values from each resolved c
 Plot time-series/EIS, EIS fit/search, transient fitting, calibration extraction, signal characterization, and estimate run/compare use the canonical `electrodata-io` boundary. `--sheet <NAME>` is passed without local probing for XLSX time-series and EIS workflows; automatic selection succeeds only for one compatible worksheet and otherwise returns the reader's structured ambiguity/failure. Estimation retains provider diagnostic code, source row/column, recovery action, skipped-row count, and recovered-null count in its artifact, and enforces `[ingestion]` limits before filtering.
 
 Directory physical-input workflows preserve completed artifacts but return a structured partial batch failure when any canonical input fails. `chi_file.rs`/`measurement_parser.rs` adapt provider datasets into workflow domains; `InputKind` and Excel wrappers are compatibility/reference-only. No workflow reintroduces raw delimiter splitting, binary magic probes, worksheet probing, or CHI/EIS header recognition.
+
+For EIS search, the boundary is: filesystem candidates are enumerated by this
+project; known application artifacts may be excluded; `electrodata-io` then
+detects and interprets each physical input into a canonical Dataset/EIS view;
+the project checks scientific workflow suitability and performs ECM search and
+reporting. It does not recognize raw CHI/EIS headers itself.

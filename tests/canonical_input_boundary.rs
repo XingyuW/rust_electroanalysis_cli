@@ -277,10 +277,11 @@ fn ownership_documentation_does_not_restore_local_raw_parser_claims() {
         "docs/io_migration_validation.md",
         "src/data_file/lib.rs",
         "src/data_file/chi_file.rs",
+        "src/data_file/input_kind.rs",
         "src/search_runner.rs",
         "src/plottings/generic_plot.rs",
     ];
-    let stale_claims = [
+    let forbidden_current_ownership_claims = [
         "chi format parser",
         "local xlsx parser",
         "local format detection owns",
@@ -290,21 +291,87 @@ fn ownership_documentation_does_not_restore_local_raw_parser_claims() {
         "calamine | provider-internal xlsx implementation detail",
         "input_kind.rs — format detection",
         "write a parser that produces",
+        "validates file headers",
+        "validates chi eis headers",
+        "checks freq/hz headers",
+        "detects whether a raw file is eis",
+        "detects raw eis",
+        "consumer detects chi format",
+        "consumer performs physical format detection",
+        "parses physical csv",
+        "parses physical xlsx",
+        "performs binary physical-file detection",
+        "consumer detects unusual-extension physical files",
+        "every runner that accepts file inputs must use this module",
+        "requires the `freq/hz` header",
     ];
+    // Historical migration evidence may describe the legacy implementation;
+    // it must remain explicitly labeled rather than being mistaken for the
+    // current ownership contract.
+    let historical_ownership_allowlist = [(
+        "docs/io_migration_validation.md",
+        "legacy requires the `freq/hz` header in column one",
+    )];
+    let normalized_document = |document: &str| {
+        fs::read_to_string(root.join(document))
+            .expect("read ownership documentation")
+            .lines()
+            .map(|line| {
+                line.trim_start()
+                    .trim_start_matches("//!")
+                    .trim_start_matches("///")
+                    .trim()
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_ascii_lowercase()
+    };
 
     for document in documents {
-        let text = fs::read_to_string(root.join(document))
-            .expect("read ownership documentation")
-            .to_ascii_lowercase();
-        for stale_claim in stale_claims {
+        let text = normalized_document(document);
+        for stale_claim in forbidden_current_ownership_claims {
+            let allow_historical_statement =
+                historical_ownership_allowlist
+                    .iter()
+                    .any(|(allowlisted_document, statement)| {
+                        document == *allowlisted_document && text.contains(statement)
+                    })
+                    && stale_claim == "requires the `freq/hz` header";
             assert!(
-                !text.contains(stale_claim),
+                allow_historical_statement || !text.contains(stale_claim),
                 "stale input-ownership claim {stale_claim:?} in {document}"
             );
         }
         assert!(
             text.contains("electrodata-io"),
             "canonical owner is not documented in {document}"
+        );
+    }
+
+    let readme = normalized_document("README.md");
+    for required_provider_ownership_claim in [
+        "canonical physical-format detection",
+        "content-aware detection for unusual-extension physical input",
+        "physical csv/txt/dat/xlsx ingestion",
+        "xlsx worksheet recognition and selection",
+        "chi/eis physical-input recognition",
+        "canonical `datasetkind` and `columnrole` assignment",
+    ] {
+        assert!(
+            readme.contains(required_provider_ownership_claim),
+            "README must state provider ownership of {required_provider_ownership_claim:?}"
+        );
+    }
+
+    let search_contract = normalized_document("src/search_runner.rs");
+    for required_search_boundary_claim in [
+        "enumerates candidate input paths",
+        "delegates physical-format, container, worksheet, chi/eis header, and role recognition to `electrodata-io`",
+        "checked for scientific ecm-search suitability",
+    ] {
+        assert!(
+            search_contract.contains(required_search_boundary_claim),
+            "search contract must state {required_search_boundary_claim:?}"
         );
     }
 }

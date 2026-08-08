@@ -319,6 +319,17 @@ plotting, health, or mechanism modules.
 
 ## Canonical physical-input boundary
 
-`electrodata-io` owns physical/raw data detection, parsing, worksheet handling, scientific input roles, recovery diagnostics, and raw input errors. `rust_electroanalysis_cli` owns domain conversion, scientific calculations, modeling, estimation, mechanism, health, plotting, reporting, and analysis artifacts. `data_file/electrodata_domain_adapter.rs` is the only production conversion boundary from `Dataset` to project domains; it uses typed time-series/EIS views. The legacy parity implementation was removed after its independent gate and is archived in `docs/io_migration_validation_archive.md`.
+`electrodata-io` owns physical/raw data detection and parsing: content-aware
+unusual-extension and binary detection, CSV/TXT/DAT/XLSX ingestion, worksheet
+recognition/selection, CHI/EIS physical-input recognition, canonical
+`DatasetKind`/`ColumnRole` assignment, source units, recovery diagnostics, and
+raw input errors. `rust_electroanalysis_cli` owns filesystem enumeration,
+application-artifact exclusion, domain conversion, scientific workflow
+validation, calculations, modeling, estimation, mechanism, health, plotting,
+reporting, and analysis artifacts. `data_file/electrodata_domain_adapter.rs`
+is the only production conversion boundary from `Dataset` to project domains;
+it uses typed time-series/EIS views. The legacy parity implementation was
+removed after its independent gate and is archived in
+`docs/io_migration_validation_archive.md`.
 
 `data_file` is the canonical Dataset-to-domain adaptation layer and compatibility façade. `chi_file.rs` provides scientific EIS/OCPT domain types and canonical-provider adapters; it does not parse physical CSV/TXT/DAT files or recognize CHI/EIS formats. `search_runner.rs` performs filesystem enumeration, canonical-ingestion orchestration, scientific candidate selection, and analysis. `parse_measurement_text` is a deprecated compatibility surface, while `excel_file.rs` and `InputKind` are compatibility/reference helpers. The consumer has no Calamine dependency or local workbook parser.

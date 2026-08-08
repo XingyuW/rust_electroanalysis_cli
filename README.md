@@ -321,12 +321,18 @@ The release binary is self-contained and requires only the TOML configuration fi
 
 ## 4. Input File Formats and Automatic Detection
 
-Physical/raw electrochemical input is interpreted only by `electrodata-io`; it
-owns format and binary detection, CSV/TXT/DAT/XLSX reading, worksheet handling,
-CHI/EIS roles, recovery, diagnostics, and provenance. This project converts its
-typed `Dataset` into scientific domains and owns validation, analysis, and
+Physical/raw electrochemical input is interpreted only by `electrodata-io`.
+It owns canonical physical-format detection, including content-aware detection
+for unusual-extension physical input and binary content; physical
+CSV/TXT/DAT/XLSX ingestion; XLSX worksheet recognition and selection; CHI/EIS
+physical-input recognition; canonical `DatasetKind` and `ColumnRole`
+assignment; source units; malformed-input recovery; diagnostics; structured
+errors; and provenance. This project enumerates filesystem candidates, may
+exclude known application-generated artifacts, converts typed `Dataset` values
+into scientific domains, and owns workflow suitability checks, analysis, and
 artifacts. The completed independent legacy-parity evidence is archived in
-`docs/io_migration_validation_archive.md`; no local physical parser remains.
+`docs/io_migration_validation_archive.md`; no local production physical parser
+remains.
 
 1. **Binary handling**: `electrodata-io` detects unsupported binary content and returns its structured error; the CLI does not pre-classify physical formats.
 2. **Excel (`.xlsx`)**: Read and worksheet-selected by `electrodata-io`.
@@ -1562,7 +1568,8 @@ Default axis labels are `"Time (s)"` and `"Potential (V)"`, configurable via TOM
 
 ### Generic Plots
 
-A domain-agnostic plotting pipeline that accepts any x/y dataset through CHI-format parsing:
+A domain-agnostic plotting pipeline that accepts provider-recognized physical
+input after canonical Dataset-to-domain conversion:
 
 - Supports 9 plot geometries: line, scatter, vertical/horizontal/grouped/stacked bar, fill-between, stack plot, pie
 - No hardcoded axis labels — fully configured through TOML
@@ -2390,10 +2397,10 @@ Each function:
 
 Drives the ECM search workflow:
 
-1. Discovers EIS files from target path (file or directory)
-2. Validates file headers (CHI EIS format)
-3. Loads and resolves search configuration
-4. For each file: parses EIS data, runs GA search, writes reports, optionally renders plots
+1. Enumerates candidate paths from a target file or directory
+2. Excludes known application-generated artifacts without interpreting physical input
+3. Delegates physical-format, container, worksheet, CHI/EIS header, and role recognition to `electrodata-io`
+4. Checks whether the canonical EIS dataset is scientifically suitable, then runs GA search, writes reports, and optionally renders plots
 5. Supports pluggable logging callbacks for CLI output
 
 **Key functions:**
@@ -2701,4 +2708,10 @@ This project is distributed as open source under the terms of the [MIT License](
 
 ## Canonical physical input boundary
 
-`electrodata-io` is the canonical physical/scientific input boundary. It owns file and container detection, parsing, worksheet selection, raw schema/units, recovery policies, provenance, diagnostics, and structured input errors. This project owns scientific domain conversion and enrichment, analysis, state estimation, modeling, health, mechanism interpretation, reporting, and plots. Legacy readers remain temporarily for parity verification; they are not the production raw-data path.
+`electrodata-io` is the canonical physical/scientific input boundary. It owns
+file and container detection, parsing, worksheet selection, raw schema/units,
+recovery policies, provenance, diagnostics, and structured input errors. This
+project owns scientific domain conversion and enrichment, analysis, state
+estimation, modeling, health, mechanism interpretation, reporting, and plots.
+The completed parity evidence is archived; retained compatibility APIs are not
+the production raw-data path.

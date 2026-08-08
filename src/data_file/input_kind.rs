@@ -1,7 +1,8 @@
-//! Legacy compatibility classification for batch filtering.
+//! Legacy public compatibility classification.
 //!
-//! Every runner that accepts file inputs must use this module to determine
-//! whether a file is supported and which parser should handle it.
+//! Production runners enumerate candidate paths and delegate physical-input
+//! interpretation to `electrodata-io`. This type remains available only for
+//! callers that require the historical reference classification API.
 
 use std::fmt;
 use std::path::Path;
