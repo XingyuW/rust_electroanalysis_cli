@@ -14,7 +14,7 @@ macro_rules! contract {
     };
 }
 
-contract!(EisFitArtifact, ArtifactKind::EisFit, 1, &[1]);
+contract!(EisFitArtifact, ArtifactKind::EisFit, 2, &[1, 2]);
 contract!(
     TransientAnalysisReport,
     ArtifactKind::TransientAnalysis,

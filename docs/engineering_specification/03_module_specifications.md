@@ -22,12 +22,12 @@
 | `src/domain/provenance.rs` | AnalysisProvenance (SHA-256, timestamps) | ✅ |
 | `src/domain/diagnostics.rs` | ParseDiagnostics, MeasurementParseResult | ✅ |
 | `src/data_file/lib.rs` | Data ingestion module root | ✅ |
-| `src/data_file/chi_file.rs` | CHI-format parser (EIS, OCPT) | ✅ |
+| `src/data_file/chi_file.rs` | Canonical Dataset → EIS/plot domain adapter | ✅ |
 | `src/data_file/data_op.rs` | PlotData container, IntoPlotData trait | ✅ |
-| `src/data_file/excel_file.rs` | Excel .xlsx reader (calamine) | ✅ |
-| `src/data_file/input_kind.rs` | File format detection | ✅ |
+| `src/data_file/excel_file.rs` | Compatibility wrapper over canonical XLSX ingestion | ✅ |
+| `src/data_file/input_kind.rs` | Legacy/reference batch classification only | ✅ |
 | `src/data_file/measurement_adapter.rs` | Conversion from domain measurements to PlotData | ✅ |
-| `src/data_file/measurement_parser.rs` | Generic CSV measurement parser | ✅ |
+| `src/data_file/measurement_parser.rs` | Canonical file-to-measurement domain adapter; deprecated text compatibility API | ✅ |
 | `src/data_file/value_transform.rs` | Axis transform resolution for plotting | ✅ |
 | `src/impedance/lib.rs` | Impedance module root, fit_circuit, lin_kk | ✅ |
 | `src/impedance/elements.rs` | 15 circuit element types with impedance equations | ✅ |
@@ -216,10 +216,8 @@
 
 ### `data_file/` — Data Ingestion
 
-- **CHI parser**: Header-based detection of EIS vs OCPT, multi-column handling.
-- **Generic CSV**: Automatic delimiter detection, header parsing, channel name/unit extraction.
-- **Excel**: calamine-based `.xlsx` reading with worksheet selection.
-- **Format detection**: `InputKind` discriminates CHI, generic CSV, Excel, and rejects binary/legacy `.xls`.
+- **Canonical boundary**: `electrodata-io` owns physical/raw data detection, parsing, worksheet handling, scientific input roles, recovery diagnostics, and raw input errors.
+- **Domain adapter**: this project owns domain conversion, scientific calculations, modeling, estimation, mechanism, health, plotting, reporting, and analysis artifacts. The completed legacy parser/parity gate is archived; retained `parse_measurement_text`, Excel wrappers, and `InputKind` are public compatibility surfaces only.
 
 ### `results/` — Result Structures
 
@@ -287,3 +285,7 @@ missing state/profile-likelihood evidence instead of fabricating validation.
 Malformed built-in descriptors, parameter/state arity errors, and missing
 runtime inputs return `ModelError`; a factory may not index user-controlled
 descriptor content before validating its shape.
+
+## `data_file/electrodata_domain_adapter.rs`
+
+This module owns no raw parsing. It applies the explicit project compatibility `ReadOptions`, calls `electrodata_io::read_with_options`, converts typed time-series/EIS views into project types, preserves source channel names, units, ordering and null cells, and passes `electrodata_io::Error` transparently through `DataParsingError`.

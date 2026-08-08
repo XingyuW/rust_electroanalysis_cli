@@ -22,11 +22,11 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 
 | Requirement | Module | CLI Command | Tests | Output | Evidence Class | Status |
 |------------|--------|------------|-------|--------|----------------|--------|
-| FR-001 | `data_file/chi_file.rs` | (implicit via all commands) | `chi_file` tests, `unified` test | Parsed EISData | Direct | ✅ |
-| FR-002 | `data_file/chi_file.rs` | (implicit) | `chi_file` tests | Parsed ElectrochemData | Direct | ✅ |
-| FR-003 | `data_file/chi_file.rs` | (implicit) | `chi_file` tests | Multi-series data | Direct | ✅ |
-| FR-004 | `data_file/measurement_parser.rs` | (implicit) | `phase1_domain` tests | MeasurementParseResult | Direct | ✅ |
-| FR-005 | `data_file/excel_file.rs` | (implicit via --sheet) | `xlsx_ingestion` tests | MeasurementParseResult | Direct | ✅ |
+| FR-001 | `electrodata-io` → `data_file/chi_file.rs` domain adapter | (implicit via all commands) | `chi_file` tests, `unified` test | Parsed EISData | Direct | ✅ |
+| FR-002 | `electrodata-io` → project domain adapter | (implicit) | `chi_file` tests | Parsed ElectrochemData | Direct | ✅ |
+| FR-003 | `electrodata-io` → project domain adapter | (implicit) | `chi_file` tests | Multi-series data | Direct | ✅ |
+| FR-004 | `electrodata-io` → `data_file/measurement_parser.rs` domain adapter | (implicit) | `phase1_domain` tests | MeasurementParseResult | Direct | ✅ |
+| FR-005 | `electrodata-io` → `data_file/excel_file.rs` compatibility wrapper | (implicit via --sheet) | `xlsx_ingestion` tests | MeasurementParseResult | Direct | ✅ |
 | FR-006 | `data_file/excel_file.rs` | (implicit) | `unified_data_loading` test | Error message | Direct | ✅ |
 | FR-007 | `data_file/input_kind.rs` | (implicit) | `unified_data_loading` test | Error message | Direct | ✅ |
 | FR-008 | `domain/metadata.rs` | All commands with --metadata | `phase1_domain` tests | ExperimentMetadataDocument | Direct | ✅ |
@@ -133,7 +133,7 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | WF-020 | `estimate run` | `runners/estimation.rs` | `estimation/` | ✅ |
 | WF-021 | `estimate validate` | `runners/estimation.rs` | `estimation/validation.rs` | ✅ |
 | WF-022 | `estimate simulate` | `runners/estimation.rs` | `estimation/simulation.rs` | ✅ |
-| WF-023 | `estimate compare` | `runners/estimation.rs` | `estimation/comparison.rs` | ✅ |
+| WF-023 | `estimate compare` | `runners/estimation.rs` | `estimation/comparison.rs` | ✅ — shared canonical ingestion validation and evidence |
 
 ---
 
@@ -174,3 +174,5 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | EST-ISM-001 | `estimation/ism_adapter.rs`, `estimation/model.rs`, `estimation/model_output.rs` | EKF and UKF compatibility facade | `phase6_estimation` compiled-equivalence and contribution tests |
 | VAL-ISM-001 | `model_validation.rs`, `results/validation.rs` | `runners/model_validation.rs` | `phase07_validation` missing-evidence assertions |
 | EST-EQ-001 | `estimation/model_output.rs`, `estimation_config.rs` | EKF and UKF timestamp outputs | equilibrium unit tests and `phase6_estimation` |
+| IO-CANON-001 | `data_file/electrodata_domain_adapter.rs` | typed `Dataset` conversion | `canonical_input_boundary` |
+| IO-CANON-002 | `docs/io_migration_validation_archive.md` | completed independent parity evidence | canonical boundary, XLSX, EIS semantics, and scientific workflow regressions |

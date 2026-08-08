@@ -33,31 +33,20 @@ pub fn parse_measurement_file_with_sheet(
 ) -> Result<MeasurementParseResult, DataParsingError> {
     let path = path.as_ref();
 
-    let kind = crate::data_file::InputKind::classify_by_extension(path);
-    if kind.is_unsupported_binary() {
-        return Err(DataParsingError::invalid_at(
-            path,
-            format!(
-                "Unsupported input file '{}': binary input is not supported. \
-                 Export the dataset as CSV, XLSX, or another documented text-based format.",
-                path.display()
-            ),
-        ));
-    }
-
-    if matches!(kind, crate::data_file::InputKind::ExcelXls) {
-        return Err(DataParsingError::invalid_at(
-            path,
-            "legacy '.xls' workbooks are not supported in this workflow; save the workbook as '.xlsx' and retry",
-        ));
-    }
-
-    let dataset = crate::data_file::electrodata_adapter::read_dataset(path, sheet_name)?;
-    crate::data_file::electrodata_adapter::measurement_from_dataset(&dataset, path)
+    let dataset =
+        crate::data_file::electrodata_domain_adapter::read_dataset_with_sheet(path, sheet_name)?;
+    crate::data_file::electrodata_domain_adapter::measurement_parse_result(&dataset)
 }
 
 /// Parse a CHI-style or generic time-series text buffer.  Metadata/preamble
 /// lines are ignored until a time-oriented header is found.
+/// Deprecated compatibility parser. `electrodata-io` currently exposes the
+/// canonical file API but no public in-memory text/buffer entry point; use
+/// `parse_measurement_file` for production raw input. This parser remains for
+/// compatibility tests only and must not become a second canonical reader.
+#[deprecated(
+    note = "use parse_measurement_file; canonical in-memory buffer ingestion is provider follow-up debt"
+)]
 pub fn parse_measurement_text(
     text: &str,
     source: impl AsRef<Path>,
@@ -94,7 +83,8 @@ pub fn parse_measurement_text(
     )
 }
 
-pub fn parse_measurement_table(
+#[doc(hidden)]
+pub(crate) fn parse_measurement_table(
     source: &Path,
     headers: &[String],
     rows: &[Vec<String>],
@@ -330,7 +320,18 @@ pub fn load_experiment_with_sheet(
 ) -> Result<(crate::domain::ElectrochemicalExperiment, ParseDiagnostics), DataParsingError> {
     let measurement_path = measurement_path.as_ref();
     let metadata_path = metadata_path.as_ref();
-    let parsed = parse_measurement_file_with_sheet(measurement_path, sheet_name)?;
+    let mut parsed = parse_measurement_file_with_sheet(measurement_path, sheet_name)?;
+    // Experiment workflows feed transient, calibration, and estimation
+    // algorithms whose time constants are defined in seconds. This is an
+    // explicit post-ingestion conversion; raw `parse_measurement_file` keeps
+    // the original coordinate untouched.
+    parsed.measurement = parsed.measurement.normalized_to_seconds()?;
+    if let Some(conversion) = &parsed.measurement.time_conversion {
+        parsed.diagnostics.messages.push(format!(
+            "time coordinate normalized for scientific analysis: {} -> {} (scale {})",
+            conversion.source_unit, conversion.target_unit, conversion.scale
+        ));
+    }
     let metadata = crate::domain::load_experiment_metadata(metadata_path)?;
     let diagnostics = parsed.diagnostics.clone();
     let experiment = crate::domain::metadata::build_experiment(
@@ -343,6 +344,7 @@ pub fn load_experiment_with_sheet(
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::parse_measurement_text;
 

@@ -88,10 +88,10 @@
 
 | Format | Detection | Parser |
 |--------|-----------|--------|
-| CHI EIS CSV | Header contains "A.C. Impedance" or "Freq/Hz" column | `chi_file.rs` → `EISData` |
-| CHI OCPT CSV | Header contains "Technique" metadata or time/potential columns | `chi_file.rs` → `ElectrochemData` |
-| Generic sensor CSV | CSV with header row containing time column + value columns | `measurement_parser.rs` → `MeasurementParseResult` |
-| Excel .xlsx | File extension `.xlsx` | `excel_file.rs` (calamine) → `MeasurementParseResult` |
+| CHI EIS CSV | Canonical physical-data detection | `electrodata-io` → domain adapter → `EISData` |
+| CHI OCPT CSV | Canonical physical-data detection | `electrodata-io` → domain adapter → `ElectrochemData` |
+| Generic sensor CSV | Canonical physical-data detection | `electrodata-io` → domain adapter → `MeasurementParseResult` |
+| Excel .xlsx | Canonical workbook probing | `electrodata-io` → domain adapter → `MeasurementParseResult` |
 | Experiment metadata | TOML file with `experiment_id`, `sensor`, `events` | `metadata.rs` → `ExperimentMetadataDocument` |
 
 ### 3.2 Output Formats
@@ -220,3 +220,9 @@ For plotting styles specifically:
 3. Named `style_preset`
 4. `[shared.style]` / `[shared.individual_style]` / `[shared.combined_style]`
 5. Global `[render]` settings
+
+## Input-domain conversion
+
+Raw units and missing cells are retained by `electrodata-io`. Time-series conversion preserves source coordinate values, coordinate names, and source units; seconds normalization is an explicit recorded downstream conversion. EIS conversion requires frequency, real impedance, and imaginary impedance; measured magnitude and phase are retained separately when supplied, while the legacy complete phase vector derives only absent source values.
+
+`chi_file.rs` and `measurement_parser.rs` consume canonical typed datasets to create project domains. `excel_file.rs` and `InputKind` remain compatibility/reference surfaces and do not own physical XLSX/format detection. Analysis-artifact JSON/CSV/TOML schemas are consumer-owned contracts and are not physical-input formats.

@@ -41,6 +41,16 @@ pub struct RunOptions {
     pub seed: Option<u64>,
 }
 
+/// Canonically read estimation input after applying the configured acceptance
+/// policy.  Both `estimate run` and `estimate compare` use this boundary so a
+/// recovered physical input cannot be accepted by one workflow and rejected
+/// by the other.
+struct ValidatedEstimationInput {
+    experiment: crate::domain::ElectrochemicalExperiment,
+    ingestion: crate::domain::ParseDiagnostics,
+    warnings: Vec<crate::estimation::state::EstimationWarning>,
+}
+
 pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
     let input = resolve(workspace, &options.input);
     let metadata = resolve(workspace, &options.metadata);
@@ -52,10 +62,12 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         options.model.as_deref(),
         options.seed,
     )?;
-    let (experiment, _) = crate::data_file::measurement_parser::load_experiment_with_sheet(
+    let validated = load_validated_input(
         &input,
         &metadata,
         options.sheet.as_deref(),
+        &options.channel,
+        &config,
     )?;
     let calibration = StoredCalibrationObservationModel::new(read_versioned(&resolve(
         workspace,
@@ -75,8 +87,8 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         read_optional::<SensorHealthBaseline>(workspace, options.health_baseline.as_ref())?;
     let assessment =
         read_optional::<SensorHealthAssessment>(workspace, options.health_assessment.as_ref())?;
-    let report = estimation::estimate_experiment(
-        &experiment,
+    let mut report = estimation::estimate_experiment(
+        &validated.experiment,
         &options.channel,
         calibration,
         &config,
@@ -91,7 +103,71 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         },
         config.filter.kind,
     )?;
+    report.warnings.extend(validated.warnings);
+    report.ingestion_diagnostics = validated.ingestion;
     export_report(workspace, options.output.as_deref(), &report)
+}
+
+fn load_validated_input(
+    input: &Path,
+    metadata: &Path,
+    sheet: Option<&str>,
+    channel: &str,
+    config: &ResolvedEstimationConfig,
+) -> Result<ValidatedEstimationInput, RunnerError> {
+    let (experiment, ingestion) =
+        crate::data_file::measurement_parser::load_experiment_with_sheet(input, metadata, sheet)?;
+    validate_ingestion(&experiment, channel, &ingestion, config)?;
+    let warnings = ingestion.has_issues().then(|| {
+        crate::estimation::state::EstimationWarning::new(
+            crate::estimation::state::EstimationWarningKind::IngestionRecovery,
+            format!(
+                "canonical ingestion recovery retained: {} skipped row(s), {} missing measurement cell(s), {} provider diagnostic(s)",
+                ingestion.skipped_rows,
+                ingestion.missing_values,
+                ingestion.ingestion_diagnostics.len()
+            ),
+        )
+    }).into_iter().collect();
+    Ok(ValidatedEstimationInput {
+        experiment,
+        ingestion,
+        warnings,
+    })
+}
+
+fn validate_ingestion(
+    experiment: &crate::domain::ElectrochemicalExperiment,
+    channel: &str,
+    diagnostics: &crate::domain::ParseDiagnostics,
+    config: &ResolvedEstimationConfig,
+) -> Result<(), RunnerError> {
+    let policy = &config.ingestion;
+    if diagnostics.skipped_rows > policy.max_skipped_timestamp_rows {
+        return Err(RunnerError::Message(format!(
+            "estimation rejected: {} timestamp row(s) were skipped during canonical ingestion (limit {})",
+            diagnostics.skipped_rows, policy.max_skipped_timestamp_rows
+        )));
+    }
+    let selected = experiment
+        .measurement_data
+        .channel(channel)
+        .ok_or_else(|| RunnerError::Message(format!("estimation channel '{channel}' is absent")))?;
+    let missing = selected.missing_value_count();
+    let fraction = missing as f64 / selected.values.len().max(1) as f64;
+    if policy.reject_missing_required_channel && missing == selected.values.len() {
+        return Err(RunnerError::Message(format!(
+            "estimation rejected: required channel '{channel}' has no usable measurements after canonical ingestion"
+        )));
+    }
+    if fraction > policy.max_missing_measurement_fraction {
+        return Err(RunnerError::Message(format!(
+            "estimation rejected: channel '{channel}' has {:.1}% missing measurements after canonical ingestion (limit {:.1}%)",
+            fraction * 100.0,
+            policy.max_missing_measurement_fraction * 100.0
+        )));
+    }
+    Ok(())
 }
 
 pub fn validate(
@@ -188,10 +264,12 @@ pub fn compare(
     let metadata = resolve(workspace, &options.metadata);
     let loaded = load_config(workspace, options.config.as_deref())?;
     let config = loaded.config;
-    let (experiment, _) = crate::data_file::measurement_parser::load_experiment_with_sheet(
+    let validated = load_validated_input(
         &input,
         &metadata,
         options.sheet.as_deref(),
+        &options.channel,
+        &config,
     )?;
     let calibration_model: crate::results::StoredCalibrationModel =
         read_versioned(&resolve(workspace, &options.calibration_model))?;
@@ -217,7 +295,7 @@ pub fn compare(
     for filter in selected {
         let start = Instant::now();
         let report = estimation::estimate_experiment(
-            &experiment,
+            &validated.experiment,
             &options.channel,
             StoredCalibrationObservationModel::new(calibration_model.clone())?,
             &config,
@@ -229,6 +307,9 @@ pub fn compare(
             },
             filter,
         )?;
+        let mut report = report;
+        report.warnings.extend(validated.warnings.clone());
+        report.ingestion_diagnostics = validated.ingestion.clone();
         reports.push((filter, report));
         runtimes_ms.push(start.elapsed().as_secs_f64() * 1000.0);
     }
@@ -236,6 +317,8 @@ pub fn compare(
     for (record, runtime_ms) in comparison.records.iter_mut().zip(runtimes_ms) {
         record.runtime_ms = runtime_ms;
     }
+    comparison.warnings.extend(validated.warnings);
+    comparison.ingestion_diagnostics = validated.ingestion;
     let dir = output_dir(
         workspace,
         options.output.as_deref(),
@@ -402,8 +485,8 @@ fn validation_text(v: &StateValidationResult) -> String {
 }
 fn comparison_text(c: &StateFilterComparison) -> String {
     format!(
-        "State-estimation filter comparison\n==================================\nRecords: {:?}\nWarnings: {:?}\n",
-        c.records, c.warnings
+        "State-estimation filter comparison\n==================================\nRecords: {:?}\nWarnings: {:?}\nCanonical ingestion diagnostics: {:?}\n",
+        c.records, c.warnings, c.ingestion_diagnostics
     )
 }
 fn load_config(

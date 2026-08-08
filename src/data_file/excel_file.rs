@@ -28,8 +28,9 @@ pub fn parse_excel_measurement(
     sheet_name: Option<&str>,
 ) -> Result<ExcelMeasurementParseResult, DataParsingError> {
     let path = path.as_ref();
-    let dataset = crate::data_file::electrodata_adapter::read_dataset(path, sheet_name)?;
-    let parsed = crate::data_file::electrodata_adapter::measurement_from_dataset(&dataset, path)?;
+    let dataset =
+        crate::data_file::electrodata_domain_adapter::read_dataset_with_sheet(path, sheet_name)?;
+    let parsed = crate::data_file::electrodata_domain_adapter::measurement_parse_result(&dataset)?;
     let selected_sheet = dataset
         .metadata
         .provenance
@@ -49,32 +50,30 @@ pub fn parse_excel_measurement(
 
 /// Retained for callers that need the former table-shaped compatibility API.
 /// The workbook and worksheet selection are performed by `electrodata-io`;
-/// this function only adapts its numeric frame back into strings.
+/// this function only adapts canonical typed values back into strings.
 pub fn read_worksheet(
     path: impl AsRef<Path>,
     sheet_name: Option<&str>,
 ) -> Result<ExcelTable, DataParsingError> {
     let path = path.as_ref();
-    let dataset = crate::data_file::electrodata_adapter::read_dataset(path, sheet_name)?;
+    let dataset =
+        crate::data_file::electrodata_domain_adapter::read_dataset_with_sheet(path, sheet_name)?;
     let headers = dataset
-        .columns
+        .canonical_columns()
         .iter()
         .map(|column| {
-            if column.source_name.trim().is_empty() {
-                column.canonical_name.clone()
-            } else {
-                column.source_name.clone()
-            }
+            column
+                .original_name
+                .clone()
+                .unwrap_or_else(|| column.name.clone())
         })
         .collect::<Vec<_>>();
     let columns = dataset
-        .columns
+        .canonical_columns()
         .iter()
-        .map(|descriptor| {
-            crate::data_file::electrodata_adapter::descriptor_values(&dataset, descriptor, path)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let rows = (0..dataset.data.height())
+        .map(|column| column.values.clone())
+        .collect::<Vec<_>>();
+    let rows = (0..columns.first().map_or(0, Vec::len))
         .map(|row_index| {
             columns
                 .iter()

@@ -97,7 +97,7 @@ matrix, and temperature context and are not averaged across incompatible events.
   - [Adding a New Circuit Element](#adding-a-new-circuit-element)
   - [Adding a New Plot Type](#adding-a-new-plot-type)
   - [Adding a New Regression Model](#adding-a-new-regression-model)
-  - [Adding a New File Format Parser](#adding-a-new-file-format-parser)
+  - [Adding a New Consumer Domain Projection](#adding-a-new-consumer-domain-projection)
   - [Coding Conventions](#coding-conventions)
 - [20. Scientific Correctness and Artifact Migration](#20-scientific-correctness-and-artifact-migration)
 - [21. Troubleshooting](#21-troubleshooting)
@@ -123,7 +123,7 @@ It is designed for electrochemical researchers and analysts who need to:
 1. CHI EIS CSV (`Freq/Hz`, `Z'/ohm`, `Z"/ohm`)
 2. CHI OCPT/time-series CSV (`Time/sec`, `Potential/V`)
 3. General time-series sensor CSV or Excel (`.xlsx`) with `time`/`timestamp` + numeric channels
-4. Excel workbooks containing compatible OCPT/transient/calibration/general time-series tables (XLSX EIS ingestion is not supported)
+4. Excel workbooks containing compatible time-series or EIS worksheets selected by `electrodata-io`
 
 ### Supported Input Formats
 
@@ -132,9 +132,9 @@ It is designed for electrochemical researchers and analysts who need to:
 3. `.xls` is explicitly rejected
 
 **Not supported:**
-- Binary files such as `.bin`, `.raw` are intentionally unsupported.
-  - During batch/directory processing, binary files are **skipped with a warning** and do not cause the workflow to fail.
-  - When supplied as an explicit single-file input, binary files produce a **structured error** explaining that binary input is not supported and recommending export to CSV or `.xlsx`.
+- Binary files such as `.bin`, `.raw` are intentionally unsupported and are
+  reported as structured canonical input failures in both single-file and
+  directory workflows.
 
 ### Runtime Requirements
 
@@ -147,7 +147,7 @@ The application is organized into four major subsystems:
 
 | Subsystem | Purpose |
 |-----------|---------|
-| **Data file parser** (`data_file/`) | Reads CHI-format electrochemical files, extracts metadata and measurement columns |
+| **Input-domain adapter** (`data_file/`) | Converts canonically parsed physical data into project domain and plotting types |
 | **Scientific domain** (`domain/`) | Owns aligned multi-channel measurements, experiment metadata, diagnostics, and provenance |
 | **Impedance engine** (`impedance/`) | Circuit model AST, element equations, fitting, evolutionary search, scoring, and reporting |
 | **Plotting backend** (`plottings/`) | High-quality figure rendering in SVG + supersampled PNG, supporting 9 plot geometries |
@@ -321,13 +321,24 @@ The release binary is self-contained and requires only the TOML configuration fi
 
 ## 4. Input File Formats and Automatic Detection
 
-The unified loader (`load_data`) uses extension classification followed by content detection:
+Physical/raw electrochemical input is interpreted only by `electrodata-io`.
+It owns canonical physical-format detection, including content-aware detection
+for unusual-extension physical input and binary content; physical
+CSV/TXT/DAT/XLSX ingestion; XLSX worksheet recognition and selection; CHI/EIS
+physical-input recognition; canonical `DatasetKind` and `ColumnRole`
+assignment; source units; malformed-input recovery; diagnostics; structured
+errors; and provenance. This project enumerates filesystem candidates, may
+exclude known application-generated artifacts, converts typed `Dataset` values
+into scientific domains, and owns workflow suitability checks, analysis, and
+artifacts. The completed independent legacy-parity evidence is archived in
+`docs/io_migration_validation_archive.md`; no local production physical parser
+remains.
 
-1. **Binary guard**: Files with `.bin` or `.raw` extensions are rejected before any parser attempt.
-2. **Excel (`.xlsx`)**: Routed through the `calamine`-based Excel parser and parsed as structured tabular time-series data.
-3. **CHI EIS**: Content detection identifies `Freq/Hz` + impedance headers; parser `EISData::parse_file`, internal type `chi_eis`.
-4. **CHI OCPT**: Content detection identifies a time header with CHI preamble markers (instrument/data-source); parser `parse_measurement_file`, internal type `chi_export`.
-5. **General sensor CSV/Excel**: Time header without CHI preamble; parser `parse_measurement_file`, internal type `sensor_csv` or `excel_workbook`.
+1. **Binary handling**: `electrodata-io` detects unsupported binary content and returns its structured error; the CLI does not pre-classify physical formats.
+2. **Excel (`.xlsx`)**: Read and worksheet-selected by `electrodata-io`.
+3. **CHI EIS**: Recognized by `electrodata-io` and converted through `EISData::parse_file`.
+4. **CHI OCPT**: `electrodata-io` recognizes the physical time-series roles; `parse_measurement_file` is the project domain-adapter entry point, not a raw parser.
+5. **General sensor CSV/Excel**: `electrodata-io` owns detection, worksheet choice, recovery, and diagnostics; this project converts its typed view into `MeasurementParseResult`.
 
 Unsupported/ambiguous files return explicit errors (missing time/frequency header, unsupported binary, missing EIS header, decode/IO errors).
 
@@ -336,19 +347,19 @@ Unsupported/ambiguous files return explicit errors (missing time/frequency heade
 When loading an Excel workbook:
 
 1. If `--sheet` is specified, that worksheet is used.
-2. If exactly one compatible time-series worksheet exists, it is selected automatically.
-3. If multiple compatible time-series worksheets exist, an explicit `--sheet` selection is required (an ambiguity error is raised).
-4. Workbooks containing only EIS-style worksheets are rejected for time-series workflows (XLSX EIS ingestion is intentionally unsupported).
+2. If exactly one compatible time-series or EIS worksheet exists, it is selected automatically.
+3. If multiple compatible worksheets exist, an explicit `--sheet` selection is required (the provider returns structured ambiguity).
+4. EIS commands use the same provider selection policy; a time-series-only workflow still rejects an EIS dataset as a domain mismatch.
 
 ### Binary File Behaviour
 
-- **Batch/directory input**: Binary files (`.bin`, `.raw`) are skipped before parsing, with a concise warning and a record in the batch summary.
+- **Batch/directory input**: Binary files are offered to canonical ingestion and retained as typed per-file failures.
 - **Explicit single-file input**: Supplying a binary file directly returns a structured error:
   ```
   Unsupported input file 'data/example.bin': binary input is not supported.
   Export the dataset as CSV, XLSX, or another documented text-based format.
   ```
-- Skipped binary files do **not** count as parser failures.
+- Canonical binary failures remain visible in the batch summary and never produce partial artifacts for that input.
 - No output directories or partial artefacts are created for binary files.
 
 ### Minimal Examples
@@ -1413,7 +1424,8 @@ cargo run -- estimate validate \
 
 ```mermaid
 flowchart TD
-    Input["EIS data file"] --> Parse["EISData::parse_file()"]
+    Input["EIS data file"] --> Provider["electrodata-io read / typed view"]
+    Provider --> Parse["EISData::parse_file() domain adapter"]
     Parse --> Search["discover_equivalent_circuits_with_config()"]
     Search --> Evolve["Genetic Algorithm\n(ecm_evolution.rs)"]
     Evolve --> Score["Score candidates\n(ecm_scoring.rs)"]
@@ -1556,7 +1568,8 @@ Default axis labels are `"Time (s)"` and `"Potential (V)"`, configurable via TOM
 
 ### Generic Plots
 
-A domain-agnostic plotting pipeline that accepts any x/y dataset through CHI-format parsing:
+A domain-agnostic plotting pipeline that accepts provider-recognized physical
+input after canonical Dataset-to-domain conversion:
 
 - Supports 9 plot geometries: line, scatter, vertical/horizontal/grouped/stacked bar, fill-between, stack plot, pie
 - No hardcoded axis labels — fully configured through TOML
@@ -1742,8 +1755,8 @@ rust_electroanalysis_cli/
     │
     ├── data_file/                      # Data ingestion and normalization layer
     │   ├── lib.rs                      # Module facade — re-exports parsers and types
-    │   ├── chi_file.rs                 # CHI-format file parser (ElectrochemData, EISData)
-    │   ├── measurement_parser.rs       # Generic/CHI parser into domain measurements
+    │   ├── chi_file.rs                 # Canonical-domain adapters (ElectrochemData, EISData)
+    │   ├── measurement_parser.rs       # Canonical file-to-domain adapter; text API is deprecated compatibility only
     │   ├── measurement_adapter.rs      # Domain measurement → PlotData adapters
     │   ├── data_op.rs                  # Generic PlotData container, PointSelection, IntoPlotData
     │   └── value_transform.rs          # Axis transform resolution (log, neg-log, linear)
@@ -2026,12 +2039,13 @@ Defines the ECM search TOML schema with validation.
 
 ### Data Layer (`data_file/`)
 
-#### `chi_file.rs` — CHI Format Parser
+#### `chi_file.rs` — Canonical EIS and time-series domain adapter
 
-Parses CHI Instruments electrochemical data files. The binary format is a text/CSV hybrid with:
-- Optional metadata header lines (key: value pairs)
-- Column header row with hyphen separator
-- Numeric data rows
+Converts `electrodata-io` typed physical input into the legacy-consumer
+`ElectrochemData` and `EISData` domains. Physical CHI/CSV/TXT/DAT/XLSX
+detection, reading, worksheet handling, recovery, and source diagnostics are
+owned by `electrodata-io`; this module does not implement a production raw
+format parser.
 
 **Key types:**
 - `ElectrochemData` — General electrochemical dataset with date, test_type, instrument_model, x_values, multiple y_values series
@@ -2041,7 +2055,7 @@ Parses CHI Instruments electrochemical data files. The binary format is a text/C
 - `RankedEISFit` — Fit result + metrics pair
 
 **Key functions:**
-- `ElectrochemData::parse_file(path)` — Parse any CHI file
+- `ElectrochemData::parse_file(path)` — Canonically read then project to the plotting domain
 - `ElectrochemData::parse_file_series(path)` — Parse multi-column files into separate series
 - `EISData::parse_file(path)` — Parse EIS-specific files
 - `EISData::fit_circuit(circuit_str)` — Fit a circuit to this data
@@ -2383,10 +2397,10 @@ Each function:
 
 Drives the ECM search workflow:
 
-1. Discovers EIS files from target path (file or directory)
-2. Validates file headers (CHI EIS format)
-3. Loads and resolves search configuration
-4. For each file: parses EIS data, runs GA search, writes reports, optionally renders plots
+1. Enumerates candidate paths from a target file or directory
+2. Excludes known application-generated artifacts without interpreting physical input
+3. Delegates physical-format, container, worksheet, CHI/EIS header, and role recognition to `electrodata-io`
+4. Checks whether the canonical EIS dataset is scientifically suitable, then runs GA search, writes reports, and optionally renders plots
 5. Supports pluggable logging callbacks for CLI output
 
 **Key functions:**
@@ -2545,7 +2559,7 @@ cargo run -- eis search data/
 ## 18. Current Documented Limitations
 
 1. Binary CHI exports (`.bin`, `.raw`) are intentionally unsupported.
-2. XLSX EIS ingestion is intentionally unsupported (use CHI/text EIS inputs).
+2. The legacy `parse_measurement_text` compatibility entry point cannot use an in-memory provider API because the pinned provider exposes file-based canonical ingestion only.
 3. Calibration quality depends on metadata event definitions; no automatic concentration-step inference from filenames.
 
 ---
@@ -2587,10 +2601,10 @@ Required action on conflict: **treat it as documentation drift, not a silent beh
 4. Add the dispatch branch in `compute_regression()` and `compute_regression_with_fit()`
 5. Update the documentation table in the module-level doc comment
 
-### Adding a New File Format Parser
+### Adding a New Consumer Domain Projection
 
-1. Create a new module in `data_file/`
-2. Implement a struct representing the parsed data
+1. Extend or configure `electrodata-io` for physical input detection and reading.
+2. Create a project-domain conversion for the provider's typed dataset.
 3. Implement `IntoPlotData` for your new type to integrate with the generic plotting pipeline
 4. If EIS-specific, implement the `PlotDataSeries` trait for integration with EIS plotting
 5. Add a public re-export in `data_file/lib.rs`
@@ -2672,8 +2686,8 @@ its absence does not change the reduced-order model's claims.
 
 ## 21. Troubleshooting
 
-1. **Unsupported file format**: `.bin`/`.raw` are intentionally unsupported; `.xls` is rejected; XLSX EIS-only workbooks are rejected for time-series workflows.
-2. **Missing EIS headers**: `eis fit` requires `Freq/Hz` + impedance columns.
+1. **Unsupported file format**: unsupported containers are returned as structured `electrodata-io` errors; XLSX EIS is supported when the provider recognizes a compatible worksheet.
+2. **Missing EIS roles**: `eis fit` returns the provider's structured schema error.
 3. **Missing time header**: time-series workflows require `time`/`timestamp` columns.
 4. **Duplicate timestamps**:
    - `signal` default strict config can reject duplicates; use suitable sampling policy config.
@@ -2691,3 +2705,13 @@ This project is distributed as open source under the terms of the [MIT License](
 ---
 
 *Generated from codebase analysis. For questions, refer to the source code or open an issue.*
+
+## Canonical physical input boundary
+
+`electrodata-io` is the canonical physical/scientific input boundary. It owns
+file and container detection, parsing, worksheet selection, raw schema/units,
+recovery policies, provenance, diagnostics, and structured input errors. This
+project owns scientific domain conversion and enrichment, analysis, state
+estimation, modeling, health, mechanism interpretation, reporting, and plots.
+The completed parity evidence is archived; retained compatibility APIs are not
+the production raw-data path.

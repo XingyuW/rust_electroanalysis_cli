@@ -848,42 +848,18 @@ pub struct LoadedExperimentData {
 
 /// Unified, content-detected data loading entrypoint.
 ///
-/// This function enforces the input‑support policy:
-/// - Binary files are rejected before any parsing attempt.
-/// - Excel workbooks are routed through the spreadsheet parser and then
-///   normalised to the same representation as CSV data.
+/// This function consumes the canonical physical-input contract. Unsupported
+/// binary content and worksheet selection are classified by `electrodata-io`;
+/// this project only converts its resulting typed dataset into a domain view.
 pub fn load_data(path: impl AsRef<Path>) -> Result<LoadedExperimentData, DataParsingError> {
     let path = path.as_ref();
 
-    let kind = crate::data_file::InputKind::classify_by_extension(path);
-    if kind.is_unsupported_binary() {
-        return Err(DataParsingError::invalid_at(
-            path,
-            format!(
-                "Unsupported input file '{}': binary input is not supported. \
-                 Export the dataset as CSV, XLSX, or another documented text-based format.",
-                path.display()
-            ),
-        ));
-    }
-
-    if kind == crate::data_file::InputKind::ExcelXls {
-        return Err(DataParsingError::invalid_at(
-            path,
-            "legacy '.xls' workbooks are not supported in this workflow; convert to '.xlsx' and retry",
-        ));
-    }
-
-    let dataset = crate::data_file::electrodata_adapter::read_dataset(path, None)?;
+    let dataset = crate::data_file::electrodata_domain_adapter::read_dataset(path)?;
     let is_excel = !matches!(
         dataset.metadata.provenance.container,
         electrodata_io::ContainerFormat::Csv
     );
-    let file_type = if dataset
-        .columns
-        .iter()
-        .any(|column| column.role == electrodata_io::ColumnRole::Frequency)
-    {
+    let file_type = if dataset.kind() == electrodata_io::DatasetKind::ImpedanceSpectrum {
         DataFileType::ChiEis
     } else if matches!(
         dataset.format,
@@ -918,7 +894,7 @@ fn load_time_series_dataset(
     file_type: DataFileType,
     dataset: &electrodata_io::Dataset,
 ) -> Result<LoadedExperimentData, DataParsingError> {
-    let parsed = crate::data_file::electrodata_adapter::measurement_from_dataset(dataset, path)?;
+    let parsed = crate::data_file::electrodata_domain_adapter::measurement_parse_result(dataset)?;
     let provenance = AnalysisProvenance::from_paths(path, None)?;
     let experiment_id = file_stem_or_default(path);
     let mut sensor_metadata = default_sensor_metadata(

@@ -6,7 +6,7 @@
 //! * **Regular plots** – CHI timeseries / Pb-sensor diagrams produced by
 //!   `chi_plot`.
 
-use crate::runners::RunnerError;
+use crate::plottings::{chi_plot::coordinate_plot_config, eis_plot::EISPlotFailure};
 use crate::{
     data_file::{
         ElectrochemData, PlotData, load_data, measurement_to_plot_data,
@@ -20,6 +20,10 @@ use crate::{
         pb_sensor_individual_publication_config, plot_chi_directory_with_configs_and_transforms,
         plot_eis_directory_with_configs, plot_eis_file, plot_generic_datasets, plot_hq,
     },
+};
+use crate::{
+    domain::BatchFileFailure,
+    runners::{BatchRunSummary, RunnerError},
 };
 use std::fs;
 use std::path::Path;
@@ -61,6 +65,7 @@ where
     // Resolve only EIS jobs, then process each with shared render defaults.
     let jobs = resolve_jobs(plot_config, PlotJobKind::Eis, workspace_dir)?;
     let render = plot_config.render_config();
+    let mut batch = BatchRunSummary::default();
 
     for (idx, job) in jobs.iter().enumerate() {
         fs::create_dir_all(&job.output_dir)?;
@@ -106,6 +111,7 @@ where
             fs::create_dir_all(&job.output_dir)?;
 
             let outcome = plot_eis_file(file_path, &output_base, &combined_config, None)?;
+            batch.successful_inputs.push(outcome.input_file.clone());
             emit_plot_info(
                 &mut log,
                 format!("Processed file: {}", outcome.input_file.display()),
@@ -147,7 +153,15 @@ where
             None,
         )?;
 
-        for outcome in plotted.plotted {
+        if plotted.plotted.is_empty() && plotted.failures.is_empty() {
+            return Err(RunnerError::NoInputCandidates {
+                workflow: "EIS directory plotting",
+                input_dir: job.input_dir.clone(),
+            });
+        }
+
+        for outcome in &plotted.plotted {
+            batch.successful_inputs.push(outcome.input_file.clone());
             emit_plot_info(
                 &mut log,
                 format!("Processed file: {}", outcome.input_file.display()),
@@ -179,6 +193,18 @@ where
             );
         }
 
+        for failure in plotted.failures {
+            emit_plot_warning(&mut log, format!("EIS plot input failure: {failure}"));
+            batch.failures.push(eis_failure_into_batch_failure(failure));
+        }
+
+        // With no successful inputs, `finish_batch` returns BatchInput and
+        // retains every canonical failure instead of replacing it with a
+        // generic rendering error.
+        if batch.successful_inputs.is_empty() && !batch.failures.is_empty() {
+            return finish_batch(batch);
+        }
+
         emit_plot_info(
             &mut log,
             format!(
@@ -188,7 +214,7 @@ where
         );
     }
 
-    Ok(())
+    finish_batch(batch)
 }
 
 // ---------------------------------------------------------------------------
@@ -222,6 +248,7 @@ where
     // overlays before dispatching each job.
     let jobs = resolve_jobs(plot_config, PlotJobKind::RegularPlot, workspace_dir)?;
     let render = plot_config.render_config();
+    let mut batch = BatchRunSummary::default();
 
     for (idx, job) in jobs.iter().enumerate() {
         fs::create_dir_all(&job.output_dir)?;
@@ -281,13 +308,6 @@ where
                 let combined_output_base = job.output_dir.join("combined").join(combined_suffix);
                 fs::create_dir_all(combined_output_base.parent().unwrap_or(&job.output_dir))?;
 
-                let individual_plot_config = individual_config
-                    .clone()
-                    .with_default_axis_labels("Time (s)", "Potential (V)");
-                let combined_plot_config = combined_config
-                    .clone()
-                    .with_default_axis_labels("Time (s)", "Potential (V)");
-
                 let mut individual_datasets = datasets.clone();
                 let mut combined_datasets = datasets.clone();
                 apply_axis_transforms_to_electrochem_with_logger(
@@ -295,6 +315,10 @@ where
                     &job.individual_transforms,
                     &mut log,
                 );
+                let individual_plot_config =
+                    coordinate_plot_config(&individual_config, &individual_datasets);
+                let combined_plot_config =
+                    coordinate_plot_config(&combined_config, &combined_datasets);
                 apply_axis_transforms_to_electrochem_with_logger(
                     &mut combined_datasets,
                     &job.combined_transforms,
@@ -307,6 +331,7 @@ where
                     &individual_plot_config,
                     false,
                 )?;
+                batch.successful_inputs.push(file_path.clone());
                 plot_hq(
                     combined_output_base.to_string_lossy().as_ref(),
                     &combined_datasets,
@@ -359,15 +384,14 @@ where
                 &job.individual_transforms,
                 &mut log,
             );
-            let plot_config = individual_config
-                .clone()
-                .with_default_axis_labels("Time (s)", "Potential (V)");
+            let plot_config = coordinate_plot_config(&individual_config, &transformed);
             plot_hq(
                 individual_output_base.to_string_lossy().as_ref(),
                 &transformed,
                 &plot_config,
                 true,
             )?;
+            batch.successful_inputs.push(file_path.clone());
             emit_plot_info(
                 &mut log,
                 format!("Processed regular-plot file: {}", file_path.display()),
@@ -402,7 +426,15 @@ where
             &job.combined_transforms,
         )?;
 
-        for outcome in pb_sensor_plotted.plotted {
+        if pb_sensor_plotted.plotted.is_empty() && pb_sensor_plotted.skipped.is_empty() {
+            return Err(RunnerError::NoInputCandidates {
+                workflow: "regular directory plotting",
+                input_dir: job.input_dir.clone(),
+            });
+        }
+
+        for outcome in &pb_sensor_plotted.plotted {
+            batch.successful_inputs.push(outcome.input_file.clone());
             emit_plot_info(
                 &mut log,
                 format!(
@@ -435,9 +467,14 @@ where
                 format!(
                     "Skipped regular-plot file: {} ({})",
                     skipped.input_file.display(),
-                    skipped.reason
+                    skipped.failure
                 ),
             );
+            batch.failures.push(skipped.failure);
+        }
+
+        if batch.successful_inputs.is_empty() && !batch.failures.is_empty() {
+            return finish_batch(batch);
         }
 
         emit_plot_info(
@@ -449,7 +486,7 @@ where
         );
     }
 
-    Ok(())
+    finish_batch(batch)
 }
 
 // ---------------------------------------------------------------------------
@@ -516,6 +553,7 @@ where
     }
 
     let render = plot_config.render_config();
+    let mut batch = BatchRunSummary::default();
 
     for (idx, job) in jobs.iter().enumerate() {
         fs::create_dir_all(&job.output_dir)?;
@@ -612,6 +650,7 @@ where
                 &individual_config,
                 &combined_config,
             )?;
+            batch.successful_inputs.push(file_path.clone());
 
             emit_plot_info(
                 &mut log,
@@ -653,22 +692,26 @@ where
                 format!(
                     "Skipped generic-plot file: {} ({})",
                     s.input_file.display(),
-                    s.reason
+                    s.failure
                 ),
             );
         }
+        batch
+            .failures
+            .extend(skipped.into_iter().map(|skipped| skipped.failure));
 
         if loaded.is_empty() {
-            emit_plot_warning(
-                &mut log,
-                format!(
-                    "No valid datasets found in {} — skipping job {}",
-                    job.input_dir.display(),
-                    idx + 1
-                ),
-            );
-            continue;
+            if batch.failures.is_empty() {
+                return Err(RunnerError::NoInputCandidates {
+                    workflow: "generic directory plotting",
+                    input_dir: job.input_dir.clone(),
+                });
+            }
+            return finish_batch(batch);
         }
+        batch
+            .successful_inputs
+            .extend(loaded.iter().map(|dataset| dataset.source_file.clone()));
 
         // ── Step 2: build output paths ────────────────────────────────────
         // Paths are needed by both aggregation mode and standard mode;
@@ -928,7 +971,35 @@ where
         );
     }
 
-    Ok(())
+    finish_batch(batch)
+}
+
+fn eis_failure_into_batch_failure(failure: EISPlotFailure) -> BatchFileFailure {
+    match failure {
+        EISPlotFailure::Input(failure) => failure,
+        EISPlotFailure::Fitting { path, source } => {
+            BatchFileFailure::rejected(path, source.to_string())
+        }
+    }
+}
+
+fn finish_batch(mut batch: BatchRunSummary) -> Result<(), RunnerError> {
+    batch.successful_inputs.sort();
+    batch.successful_inputs.dedup();
+    if batch.successful_inputs.is_empty() {
+        return if batch.failures.is_empty() {
+            Ok(())
+        } else {
+            Err(RunnerError::BatchInput {
+                failures: batch.failures,
+            })
+        };
+    }
+    if batch.failures.is_empty() {
+        Ok(())
+    } else {
+        Err(RunnerError::partial_batch(batch))
+    }
 }
 
 fn emit_plot_info(log: &mut dyn FnMut(PlotRunLogLevel, &str), message: impl Into<String>) {
@@ -1168,4 +1239,253 @@ fn apply_regression_equation_terms(
     let x_term = regression_axis_term(transforms.x.as_ref(), "x");
     let y_term = regression_axis_term(transforms.y.as_ref(), "y");
     config.with_regression_terms(x_term, y_term)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{run_eis_plots_with_logger, run_regular_plots_with_logger};
+    use crate::{
+        domain::{BatchFileFailure, DataParsingError},
+        plot_config::PlotConfig,
+        runners::RunnerError,
+    };
+    use std::{
+        error::Error as _,
+        fs,
+        path::{Path, PathBuf},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn workspace(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("plot-runner-{name}-{nonce}"));
+        fs::create_dir_all(root.join("data")).expect("create input");
+        fs::create_dir_all(root.join("output")).expect("create output");
+        root
+    }
+
+    fn config(root: &Path) -> crate::plot_config::LoadedPlotConfig {
+        let config = PlotConfig::from_toml_str(
+            r#"
+[shared]
+input_path = "data"
+output_path = "output"
+input_is_directory = true
+
+[render]
+png_scale_factor = 1
+png_dpi = 72
+"#,
+        )
+        .expect("parse config");
+        crate::plot_config::LoadedPlotConfig {
+            config,
+            base_dir: root.to_path_buf(),
+            source_path: None,
+            warnings: Vec::new(),
+        }
+    }
+
+    fn eis_fixture() -> &'static str {
+        "Freq/Hz,Z'/ohm,Z\"/ohm,Phase/deg\n1000,10,-1,-5.7\n100,15,-5,-18.4\n10,20,-10,-26.6\n"
+    }
+
+    fn regular_fixture() -> &'static str {
+        "Time/sec,Potential/V\n0,0.1\n1,0.2\n2,0.3\n"
+    }
+
+    fn provider_contains(
+        error: &electrodata_io::Error,
+        predicate: fn(&electrodata_io::Error) -> bool,
+    ) -> bool {
+        predicate(error)
+            || matches!(error, electrodata_io::Error::ReadContext { source, .. } if provider_contains(source, predicate))
+    }
+
+    fn is_unsupported_binary(error: &electrodata_io::Error) -> bool {
+        matches!(error, electrodata_io::Error::UnsupportedBinary { .. })
+    }
+
+    fn unsupported_binary(error: &electrodata_io::Error) -> Option<&electrodata_io::Error> {
+        match error {
+            electrodata_io::Error::UnsupportedBinary { .. } => Some(error),
+            electrodata_io::Error::ReadContext { source, .. } => unsupported_binary(source),
+            _ => None,
+        }
+    }
+
+    fn is_unknown_format(error: &electrodata_io::Error) -> bool {
+        matches!(
+            error,
+            electrodata_io::Error::UnknownFormat { .. }
+                | electrodata_io::Error::UnknownFormatDetailed { .. }
+        )
+    }
+
+    fn assert_binary_failure(failures: &[BatchFileFailure], binary: &Path) {
+        let failure = failures
+            .iter()
+            .find(|failure| {
+                matches!(
+                    failure,
+                    BatchFileFailure::Canonical {
+                        path,
+                        source: DataParsingError::ElectrodataIo(source),
+                    } if path == binary && provider_contains(source.as_ref(), is_unsupported_binary)
+                )
+            })
+            .unwrap_or_else(|| panic!("missing typed binary failure: {failures:?}"));
+        let BatchFileFailure::Canonical {
+            path,
+            source: DataParsingError::ElectrodataIo(provider),
+        } = failure
+        else {
+            unreachable!("matched canonical provider failure");
+        };
+        assert_eq!(path, binary);
+        let Some(electrodata_io::Error::UnsupportedBinary {
+            path: provider_path,
+            magic,
+            ..
+        }) = unsupported_binary(provider)
+        else {
+            panic!("missing nested UnsupportedBinary");
+        };
+        assert_eq!(provider_path, binary);
+        assert!(
+            !magic.is_empty(),
+            "provider must retain binary magic evidence"
+        );
+        // `thiserror` transparently exposes the provider as the standard
+        // source-chain link; the enum match above additionally proves the
+        // intervening DataParsingError wrapper remains present.
+        assert!(
+            failure.source().is_some(),
+            "BatchFileFailure source missing"
+        );
+    }
+
+    #[test]
+    fn eis_all_invalid_directory_retains_provider_error_chain() {
+        let root = workspace("eis-all-invalid");
+        let binary = root.join("data/misleading.csv");
+        fs::write(&binary, [0_u8, 159, 146, 150]).expect("write binary");
+        let error =
+            run_eis_plots_with_logger(&root, &config(&root), |_, _| {}).expect_err("invalid batch");
+        match error {
+            RunnerError::BatchInput { failures } => assert_binary_failure(&failures, &binary),
+            other => panic!("expected BatchInput, got {other:?}"),
+        }
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn regular_all_invalid_directory_retains_provider_error_chain() {
+        let root = workspace("regular-all-invalid");
+        let binary = root.join("data/misleading.csv");
+        fs::write(&binary, [0_u8, 159, 146, 150]).expect("write binary");
+        let error = run_regular_plots_with_logger(&root, &config(&root), |_, _| {})
+            .expect_err("invalid batch");
+        match error {
+            RunnerError::BatchInput { failures } => assert_binary_failure(&failures, &binary),
+            other => panic!("expected BatchInput, got {other:?}"),
+        }
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn eis_mixed_directory_preserves_outputs_and_all_typed_failures() {
+        let root = workspace("eis-mixed");
+        fs::write(root.join("data/valid.csv"), eis_fixture()).expect("write fixture");
+        let binary = root.join("data/misleading.csv");
+        fs::write(&binary, [0_u8, 159, 146, 150]).expect("write binary");
+        fs::write(root.join("data/unknown.csv"), "not a scientific table\n")
+            .expect("write unknown");
+        let error =
+            run_eis_plots_with_logger(&root, &config(&root), |_, _| {}).expect_err("mixed batch");
+        match error {
+            RunnerError::PartialBatch { summary, .. } => {
+                assert_eq!(summary.successful_inputs, vec![root.join("data/valid.csv")]);
+                assert_binary_failure(&summary.failures, &binary);
+                assert!(summary.failures.iter().any(|failure| matches!(
+                    failure,
+                    BatchFileFailure::Canonical { source: DataParsingError::ElectrodataIo(source), .. }
+                        if provider_contains(source.as_ref(), is_unknown_format)
+                )));
+            }
+            other => panic!("expected PartialBatch, got {other:?}"),
+        }
+        assert!(
+            root.join("output")
+                .read_dir()
+                .expect("output")
+                .next()
+                .is_some()
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn regular_mixed_directory_preserves_outputs_and_all_typed_failures() {
+        let root = workspace("regular-mixed");
+        fs::write(root.join("data/valid.csv"), regular_fixture()).expect("write fixture");
+        let binary = root.join("data/misleading.csv");
+        fs::write(&binary, [0_u8, 159, 146, 150]).expect("write binary");
+        fs::write(root.join("data/unknown.csv"), "not a scientific table\n")
+            .expect("write unknown");
+        let error = run_regular_plots_with_logger(&root, &config(&root), |_, _| {})
+            .expect_err("mixed batch");
+        match error {
+            RunnerError::PartialBatch { summary, .. } => {
+                assert_eq!(summary.successful_inputs, vec![root.join("data/valid.csv")]);
+                assert_binary_failure(&summary.failures, &binary);
+                assert!(summary.failures.iter().any(|failure| matches!(
+                    failure,
+                    BatchFileFailure::Canonical { source: DataParsingError::ElectrodataIo(source), .. }
+                        if provider_contains(source.as_ref(), is_unknown_format)
+                )));
+            }
+            other => panic!("expected PartialBatch, got {other:?}"),
+        }
+        assert!(
+            root.join("output")
+                .read_dir()
+                .expect("output")
+                .next()
+                .is_some()
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn empty_plot_directories_are_typed_no_candidate_errors() {
+        for (name, run) in [
+            (
+                "eis-empty",
+                run_eis_plots_with_logger
+                    as fn(
+                        &Path,
+                        &crate::plot_config::LoadedPlotConfig,
+                        fn(crate::plot_runner::PlotRunLogLevel, &str),
+                    ) -> Result<(), RunnerError>,
+            ),
+            (
+                "regular-empty",
+                run_regular_plots_with_logger
+                    as fn(
+                        &Path,
+                        &crate::plot_config::LoadedPlotConfig,
+                        fn(crate::plot_runner::PlotRunLogLevel, &str),
+                    ) -> Result<(), RunnerError>,
+            ),
+        ] {
+            let root = workspace(name);
+            let error = run(&root, &config(&root), |_, _| {}).expect_err("empty directory");
+            assert!(matches!(error, RunnerError::NoInputCandidates { .. }));
+            fs::remove_dir_all(root).ok();
+        }
+    }
 }

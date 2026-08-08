@@ -93,3 +93,24 @@ scientific extension, not hidden debt in the reduced-order release.
 | P2 (Medium) | 5 | Consider addressing in next release cycle |
 | P3 (Low-Medium) | 1 | Address when touching related code |
 | P4 (Low) | 14 | Documented; no immediate action required |
+
+Production ownership remains explicit: `electrodata-io` owns physical/raw data
+detection, parsing, worksheet handling, scientific input roles, recovery
+diagnostics, and raw input errors. This project owns domain conversion,
+scientific calculations, modeling, estimation, mechanism, health, plotting,
+reporting, and analysis artifacts.
+
+## Prompt 3B migration debt
+
+The independently approved legacy `ProjectTabularHandler`, local raw adapter,
+snapshot parity test, and test-only Calamine dependency were removed after
+their evidence was archived. Excel wrappers and `InputKind` remain public
+compatibility/reference surfaces and must not be treated as production raw-
+input dispatch.
+
+`chi_file.rs` and file-based `measurement_parser.rs` are canonical Dataset-to-domain adapters; only `parse_measurement_text` is deprecated compatibility code. Excel wrappers and `InputKind` are legacy/reference helpers, while `electrodata-io` remains the sole owner of physical workbook and format detection.
+
+The pinned provider does not currently expose a public canonical in-memory
+text/buffer read API. `parse_measurement_text` is therefore deprecated and
+restricted to compatibility/tests; file-based `electrodata-io` ingestion is the
+supported production path. This is non-blocking provider follow-up debt.

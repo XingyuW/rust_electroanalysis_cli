@@ -4,6 +4,20 @@ use super::measurement::MultiChannelMeasurement;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+/// A lossless, analysis-artifact-safe copy of one canonical ingestion
+/// diagnostic.  The strings are the provider's stable enum spellings so a
+/// report can retain the code and recovery action without coupling artifact
+/// deserialization to a particular electrodata-io version.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IngestionDiagnostic {
+    pub code: String,
+    pub recovery: String,
+    pub message: String,
+    pub row: Option<usize>,
+    pub column: Option<String>,
+    pub column_index: Option<usize>,
+}
+
 /// Row-level and time-axis diagnostics from a measurement parser.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ParseDiagnostics {
@@ -27,6 +41,9 @@ pub struct ParseDiagnostics {
     pub non_monotonic_timestamps: usize,
     /// Additional row or source diagnostics suitable for logs and reports.
     pub messages: Vec<String>,
+    /// Canonical provider diagnostics retained with their source locations.
+    #[serde(default)]
+    pub ingestion_diagnostics: Vec<IngestionDiagnostic>,
 }
 
 impl ParseDiagnostics {

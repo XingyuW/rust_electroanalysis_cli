@@ -569,6 +569,10 @@ pub struct EisFitCommand {
     /// Input CHI EIS file.
     #[arg(value_name = "INPUT")]
     pub input: PathBuf,
+    /// Canonical XLSX worksheet name. Without it, electrodata-io selects one
+    /// compatible EIS worksheet or returns structured ambiguity.
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     /// Circuit expression override, for example `R0-p(CPE1,R1)`.
     #[arg(
         short = 'c',
@@ -592,6 +596,8 @@ pub struct EisFitCommand {
 pub struct EisExportFitCommand {
     #[arg(value_name = "INPUT")]
     pub input: PathBuf,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     #[arg(
         short = 'c',
         long = "circuit",
@@ -644,6 +650,9 @@ pub struct EisSearchCommand {
     /// EIS file or directory to search.
     #[arg(value_name = "INPUT")]
     pub input: PathBuf,
+    /// Apply this canonical XLSX worksheet selector to every input file.
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     /// Override the analysis TOML file.
     #[arg(long = "search-config", alias = "config", value_name = "PATH")]
     pub search_config: Option<PathBuf>,
@@ -687,6 +696,7 @@ pub enum CommandSpec {
     },
     EisFit {
         input: PathBuf,
+        sheet: Option<String>,
         circuit_model: Option<String>,
         output: Option<PathBuf>,
         artifact: Option<PathBuf>,
@@ -694,12 +704,14 @@ pub enum CommandSpec {
     },
     EisExportFit {
         input: PathBuf,
+        sheet: Option<String>,
         circuit_model: Option<String>,
         artifact: PathBuf,
         report: Option<PathBuf>,
     },
     EisSearch {
         input: PathBuf,
+        sheet: Option<String>,
         search_config_path: Option<PathBuf>,
         search_output: Option<PathBuf>,
         search_top: Option<usize>,
@@ -939,8 +951,7 @@ impl CliArgs {
                 input,
                 circuit_model,
                 output,
-                artifact: _,
-                report: _,
+                ..
             }) => {
                 result.fit_target = Some(input);
                 result.fit_circuit_model = circuit_model;
@@ -954,6 +965,7 @@ impl CliArgs {
                 search_config_path,
                 search_output,
                 search_top,
+                ..
             }) => {
                 result.search_target = Some(input);
                 result.search_config_path = search_config_path;
@@ -1036,6 +1048,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
             Command::Eis { command } => match command {
                 EisCommand::Fit(command) => CommandSpec::EisFit {
                     input: command.input,
+                    sheet: command.sheet,
                     circuit_model: command.circuit_model,
                     output: command.output,
                     artifact: command.artifact,
@@ -1043,6 +1056,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                 },
                 EisCommand::ExportFit(command) => CommandSpec::EisExportFit {
                     input: command.input,
+                    sheet: command.sheet,
                     circuit_model: command.circuit_model,
                     artifact: command.artifact,
                     report: command.report,
@@ -1051,6 +1065,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     validate_search_top(command.search_top)?;
                     CommandSpec::EisSearch {
                         input: command.input,
+                        sheet: command.sheet,
                         search_config_path: command.search_config,
                         search_output: command.search_output,
                         search_top: command.search_top,
@@ -1280,6 +1295,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
         validate_search_top(legacy.search_top)?;
         CommandSpec::EisSearch {
             input: search_target,
+            sheet: None,
             search_config_path: legacy.search_config,
             search_output: legacy.search_output,
             search_top: legacy.search_top,
@@ -1376,6 +1392,7 @@ mod tests {
             parsed.command,
             Some(CommandSpec::EisSearch {
                 input: "data/sample.csv".into(),
+                sheet: None,
                 search_config_path: Some("analysis.toml".into()),
                 search_output: Some("reports".into()),
                 search_top: Some(7),

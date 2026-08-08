@@ -17,13 +17,13 @@ Verification confidence labels used in **Verified By**:
 
 | ID | Requirement | Priority | Location | Verified By | Status |
 |----|------------|----------|----------|-------------|--------|
-| FR-001 | System shall parse CHI-format EIS files and extract frequency, Z′, Z″, Z, and Phase columns | High | `src/data_file/chi_file.rs` | **Direct** — `chi_file` tests, `unified_data_loading` test | ✅ Implemented |
-| FR-002 | System shall parse CHI-format OCPT files with automatic header detection | High | `src/data_file/chi_file.rs` | **Direct** — `chi_file` tests | ✅ Implemented |
-| FR-003 | System shall parse multi-column OCPT files into independent measurement series | High | `src/data_file/chi_file.rs` | **Direct** — `chi_file` tests | ✅ Implemented |
-| FR-004 | System shall parse generic CSV measurement files with automatic column-name detection | High | `src/data_file/measurement_parser.rs` | **Direct** — `phase1_domain` tests | ✅ Implemented |
-| FR-005 | System shall parse Excel `.xlsx` workbooks with worksheet selection | High | `src/data_file/excel_file.rs` | **Direct** — `xlsx_ingestion` tests | ✅ Implemented |
-| FR-006 | System shall reject legacy `.xls` binary files with a clear error message | Medium | `src/data_file/excel_file.rs` | **Direct** — `unified_data_loading` test | ✅ Implemented |
-| FR-007 | System shall reject binary content disguised as CSV | Medium | `src/data_file/input_kind.rs` | **Direct** — `unified_data_loading` test | ✅ Implemented |
+| FR-001 | System shall ingest CHI-format EIS files and extract frequency, Z′, Z″, Z, and Phase columns | High | `electrodata-io` → `src/data_file/chi_file.rs` domain adapter | **Direct** — `chi_file` tests, `unified_data_loading` test | ✅ Implemented |
+| FR-002 | System shall ingest CHI-format OCPT files with automatic header detection | High | `electrodata-io` → project domain adapter | **Direct** — `chi_file` tests | ✅ Implemented |
+| FR-003 | System shall ingest multi-column OCPT files into independent measurement series | High | `electrodata-io` → project domain adapter | **Direct** — `chi_file` tests | ✅ Implemented |
+| FR-004 | System shall ingest generic CSV measurement files with automatic column-name detection | High | `electrodata-io` → `src/data_file/measurement_parser.rs` domain adapter | **Direct** — `phase1_domain` tests | ✅ Implemented |
+| FR-005 | System shall ingest Excel `.xlsx` workbooks with worksheet selection | High | `electrodata-io` → domain adapter | **Direct** — `xlsx_ingestion` tests | ✅ Implemented |
+| FR-006 | System shall reject legacy `.xls` binary files with a clear error message | Medium | `electrodata-io` typed error → compatibility wrapper if requested | **Direct** — `unified_data_loading` test | ✅ Implemented |
+| FR-007 | System shall reject binary content disguised as CSV | Medium | `electrodata-io`; `InputKind` is compatibility-only | **Direct** — `unified_data_loading` test | ✅ Implemented |
 | FR-008 | System shall load experiment metadata from TOML files | High | `src/domain/metadata.rs` | **Direct** — `phase1_domain` tests | ✅ Implemented |
 | FR-009 | System shall fit a user-specified circuit expression to EIS data using Levenberg-Marquardt | High | `src/impedance/fitting.rs` | **Direct** — `impedance::tests` | ✅ Implemented |
 | FR-010 | System shall resolve circuit models from filename/metadata tags and configured rules | High | `src/impedance/circuit_models.rs` | **Direct** — `chi_file` tests | ✅ Implemented |
@@ -169,3 +169,6 @@ Verification confidence labels used in **Verified By**:
 | ISM-002 | Component voltage contributions shall reconstruct predicted potential and shall not own unexplained residual | Enforced by compiled observation evaluation and regression tests |
 | EST-ISM-001 | EKF and UKF shall use one compiled scientific model for transition, Jacobian, observation, and contribution equations | Implemented through the legacy-to-ISM compatibility adapter |
 | VAL-ISM-001 | Missing reference, uncertainty, or grouping evidence shall remain unavailable rather than be replaced by proxy metrics | Implemented in experimental validation evaluation |
+
+| IO-CANON-001 | All production physical-data workflows shall use `electrodata-io` typed datasets and structured errors | `data_file/electrodata_domain_adapter.rs` |
+| IO-CANON-002 | Compatibility reads shall skip invalid coordinate rows, retain invalid measurements as nulls, pad ragged rows, and preserve ordering with diagnostics | `project_compatibility_read_options()` |

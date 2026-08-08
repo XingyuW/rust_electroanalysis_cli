@@ -5,6 +5,7 @@
 
 use crate::DEFAULT_LOG_BASE;
 use crate::chi_file::{EISData, EISFitResult};
+use crate::domain::{BatchFileFailure, FittingError};
 use crate::impedance::{CircuitModelResolver, EcmSearchReport, RankedEcmCandidate};
 use crate::plottings::plotting::{
     AxisScale, PlotAxisScale, PlotColor, PlotLegendPosition, PublicationConfig,
@@ -30,10 +31,24 @@ pub struct EISPlotOutcome {
 }
 
 /// Output summary for directory-mode EIS plotting.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct EISDirectoryPlotOutcome {
     pub plotted: Vec<EISPlotOutcome>,
+    /// Per-file canonical or fitting failures retained for callers.
+    pub failures: Vec<EISPlotFailure>,
     pub combined_output_base: PathBuf,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum EISPlotFailure {
+    #[error(transparent)]
+    Input(#[from] BatchFileFailure),
+    #[error("EIS fitting failed for {path}: {source}")]
+    Fitting {
+        path: PathBuf,
+        #[source]
+        source: FittingError,
+    },
 }
 
 /// Output summary for ranked ECM-search overlay/individual plots.
@@ -490,6 +505,7 @@ pub fn plot_eis_directory_with_configs<P: AsRef<Path>>(
     entries.sort_by_key(|entry| entry.path());
 
     let mut outcomes = Vec::new();
+    let mut failures = Vec::new();
     let mut nyquist_series = Vec::new();
     let mut magnitude_series = Vec::new();
     let mut phase_series = Vec::new();
@@ -503,9 +519,7 @@ pub fn plot_eis_directory_with_configs<P: AsRef<Path>>(
 
     for entry in entries {
         let path = entry.path();
-        // Skip non-file entries (e.g., directories)
-        // Skip files that don't have a .csv extension (assuming EIS data files are in CSV format)
-        if !path.is_file() || path.extension().and_then(|ext| ext.to_str()) != Some("csv") {
+        if !path.is_file() {
             continue;
         }
 
@@ -518,7 +532,9 @@ pub fn plot_eis_directory_with_configs<P: AsRef<Path>>(
         let mut data = match EISData::parse_file_with_resolver(&path, &resolver) {
             Ok(data) => data,
             Err(error) => {
-                eprintln!("Skipped EIS file: {} ({error})", path.display());
+                failures.push(EISPlotFailure::Input(BatchFileFailure::canonical(
+                    path, error,
+                )));
                 continue;
             }
         };
@@ -531,11 +547,13 @@ pub fn plot_eis_directory_with_configs<P: AsRef<Path>>(
             .iter()
             .map(|model| data.fit_circuit_for_model(model))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| -> Box<dyn Error> { err.into() })
         {
             Ok(fits) => fits,
             Err(error) => {
-                eprintln!("Skipped EIS file: {} ({error})", path.display());
+                failures.push(EISPlotFailure::Fitting {
+                    path,
+                    source: error,
+                });
                 continue;
             }
         };
@@ -642,8 +660,15 @@ pub fn plot_eis_directory_with_configs<P: AsRef<Path>>(
         outcomes.push(outcome);
     }
 
+    // Keep all typed per-file failures in the outcome, including when no
+    // source was accepted. The runner, rather than this rendering module,
+    // owns the complete/partial/failed batch policy.
     if outcomes.is_empty() {
-        return Err(format!("No valid EIS datasets found in {}", input_dir.display()).into());
+        return Ok(EISDirectoryPlotOutcome {
+            plotted: outcomes,
+            failures,
+            combined_output_base,
+        });
     }
 
     let nyquist_combined_config = nyquist_plot_config(combined_config);
@@ -676,6 +701,7 @@ pub fn plot_eis_directory_with_configs<P: AsRef<Path>>(
 
     Ok(EISDirectoryPlotOutcome {
         plotted: outcomes,
+        failures,
         combined_output_base,
     })
 }

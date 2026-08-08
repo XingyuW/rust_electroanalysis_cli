@@ -245,14 +245,18 @@ Follow Section 4 "For circuit elements specifically."
 
 ## Section 7: Changing an Input Format
 
-### Likely affected files
-- `src/data_file/` — parser modules
-- `src/data_file/input_kind.rs` — format detection
-- Tests that use the changed format
-- Configuration that references the format
+### Ownership and likely affected files
+
+Physical-format changes belong first in `electrodata-io`: detection,
+CSV/TXT/DAT/XLSX reading, worksheet handling, CHI/EIS roles, recovery,
+diagnostics, and provenance are provider-owned. In this repository, update the
+canonical Dataset-to-domain adapter, its workflow tests, and configuration
+that references the format. Do not add a local parser or format-detection
+branch to `input_kind.rs`, `search_runner`, or plotting code; `InputKind` is a
+retained public compatibility surface only.
 
 ### Questions
-- Is this a new format or a change to an existing format parser?
+- Is this a provider format/role change or a project domain-adaptation change?
 - Will existing data files still parse correctly?
 - Do column names/units change?
 

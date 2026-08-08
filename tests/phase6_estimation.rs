@@ -426,7 +426,8 @@ fn per_observation_variance_is_applied_and_recorded() {
         vec![0.0, 1.0, 2.0],
         vec![
             MeasurementChannel::new("E1", "mV", vec![Some(22.52), Some(22.52), Some(22.52)])
-                .with_variance(vec![Some(1.0), Some(4.0), Some(9.0)]),
+                .with_variance(vec![Some(1.0), Some(4.0), Some(9.0)])
+                .with_source_header("E1/mV"),
         ],
     )
     .unwrap();
@@ -445,6 +446,15 @@ fn per_observation_variance_is_applied_and_recorded() {
     c.measurement_noise.source = MeasurementNoiseSourceKind::PerObservation;
     let report = estimation::estimate_experiment(
         &exp,
+        "E1",
+        StoredCalibrationObservationModel::new(simulation::simulation_model()).unwrap(),
+        &c,
+        estimation::EstimationContext::default(),
+        FilterKind::Ekf,
+    )
+    .unwrap();
+    let source_header_report = estimation::estimate_experiment(
+        &exp,
         "E1/mV",
         StoredCalibrationObservationModel::new(simulation::simulation_model()).unwrap(),
         &c,
@@ -452,6 +462,8 @@ fn per_observation_variance_is_applied_and_recorded() {
         FilterKind::Ekf,
     )
     .unwrap();
+    assert_eq!(report, source_header_report);
+    assert_eq!(report.channel, "E1");
     let records = &report.diagnostics.innovations;
     assert_eq!(records.len(), 3);
     assert_eq!(records[0].measurement_variance_source, "per_observation");
@@ -461,6 +473,41 @@ fn per_observation_variance_is_applied_and_recorded() {
         records[2].uninflated_measurement_variance_v2,
         records[2].measurement_variance_v2
     );
+
+    let ukf_by_logical = estimation::estimate_experiment(
+        &exp,
+        "E1",
+        StoredCalibrationObservationModel::new(simulation::simulation_model()).unwrap(),
+        &c,
+        estimation::EstimationContext::default(),
+        FilterKind::Ukf,
+    )
+    .unwrap();
+    let ukf_by_source_header = estimation::estimate_experiment(
+        &exp,
+        "E1/mV",
+        StoredCalibrationObservationModel::new(simulation::simulation_model()).unwrap(),
+        &c,
+        estimation::EstimationContext::default(),
+        FilterKind::Ukf,
+    )
+    .unwrap();
+    assert_eq!(ukf_by_logical, ukf_by_source_header);
+    let comparison_by_logical = estimation::comparison::compare_reports(
+        &[
+            (FilterKind::Ekf, report.clone()),
+            (FilterKind::Ukf, ukf_by_logical),
+        ],
+        None,
+    );
+    let comparison_by_source_header = estimation::comparison::compare_reports(
+        &[
+            (FilterKind::Ekf, source_header_report),
+            (FilterKind::Ukf, ukf_by_source_header),
+        ],
+        None,
+    );
+    assert_eq!(comparison_by_logical, comparison_by_source_header);
 }
 
 #[test]

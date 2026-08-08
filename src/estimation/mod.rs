@@ -142,6 +142,14 @@ fn estimate_single_segment(
     let calibration = Box::new(calibration.clone());
     let tau = resolve_tau(config, context.transient)?;
     let model = StateModel::new_compiled(config, tau.0, tau.1, &calibration.model)?;
+    let logical_channel_name = experiment
+        .measurement()
+        .channel(channel)
+        .ok_or_else(|| {
+            EstimationError::invalid(format!("selected channel '{channel}' does not exist"))
+        })?
+        .name
+        .clone();
     let (obs, timestamp_diagnostics) = observations(experiment.measurement(), channel)?;
     let measurement_source_unit = experiment
         .measurement()
@@ -266,11 +274,11 @@ fn estimate_single_segment(
         schema_version: 2,
         analysis_id: format!(
             "estimate:{}:{}",
-            experiment.provenance.input_sha256, channel
+            experiment.provenance.input_sha256, logical_channel_name
         ),
         experiment_id: experiment.experiment_id.clone(),
         sensor_id: experiment.sensor_metadata.sensor_id.clone(),
-        channel: channel.into(),
+        channel: logical_channel_name,
         measurement_source_unit,
         measurement_conversion:
             "potential converted to V; per-observation variance converted to V²".into(),
@@ -294,6 +302,7 @@ fn estimate_single_segment(
         timestamp_segments: Vec::new(),
         skipped_timestamp_segments: Vec::new(),
         was_preprocessed: false,
+        ingestion_diagnostics: crate::domain::ParseDiagnostics::default(),
         warnings,
     })
 }

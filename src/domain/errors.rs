@@ -48,6 +48,11 @@ impl ConfigurationError {
 /// Errors raised while reading or structurally interpreting instrument data.
 #[derive(Debug, Error)]
 pub enum DataParsingError {
+    /// Structured physical-input error emitted by the canonical reader.  This
+    /// remains transparent so path, worksheet, row, column, role, diagnostic,
+    /// and underlying-source context are available to CLI callers.
+    #[error(transparent)]
+    ElectrodataIo(#[from] Box<electrodata_io::Error>),
     #[error("data I/O error for {path}: {source}")]
     Io {
         path: PathBuf,
@@ -65,6 +70,45 @@ pub enum DataParsingError {
     Fitting(#[from] FittingError),
     #[error(transparent)]
     Provenance(#[from] ProvenanceError),
+}
+
+/// A per-file outcome for a batch raw-data workflow.
+///
+/// Canonical reader failures are retained as typed sources instead of being
+/// flattened into an "unsupported" or "skipped" display string. Workflow
+/// rejections occur only after a canonical dataset has been read successfully.
+#[derive(Debug, Error)]
+pub enum BatchFileFailure {
+    #[error("canonical input failure for {path}: {source}")]
+    Canonical {
+        path: PathBuf,
+        #[source]
+        source: DataParsingError,
+    },
+    #[error("workflow rejected {path}: {reason}")]
+    Rejected { path: PathBuf, reason: String },
+}
+
+impl BatchFileFailure {
+    pub fn canonical(path: impl Into<PathBuf>, source: DataParsingError) -> Self {
+        Self::Canonical {
+            path: path.into(),
+            source,
+        }
+    }
+
+    pub fn rejected(path: impl Into<PathBuf>, reason: impl Into<String>) -> Self {
+        Self::Rejected {
+            path: path.into(),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn path(&self) -> &PathBuf {
+        match self {
+            Self::Canonical { path, .. } | Self::Rejected { path, .. } => path,
+        }
+    }
 }
 
 /// Errors raised while hashing input/configuration files for provenance.
@@ -115,6 +159,12 @@ impl DataParsingError {
 impl From<io::Error> for DataParsingError {
     fn from(source: io::Error) -> Self {
         Self::io("<input>", source)
+    }
+}
+
+impl From<electrodata_io::Error> for DataParsingError {
+    fn from(source: electrodata_io::Error) -> Self {
+        Self::ElectrodataIo(Box::new(source))
     }
 }
 

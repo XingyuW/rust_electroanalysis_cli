@@ -62,7 +62,7 @@
 
 ## 5. Current Capabilities (Verified)
 
-- **CHI file parsing**: OCPT (open-circuit potential vs time), multi-column OCPT, and EIS files with automatic header detection.
+- **Provider-backed CHI ingestion**: `electrodata-io` detects and reads OCPT, multi-column OCPT, and EIS files; this project adapts typed datasets for analysis.
 - **15 circuit elements**: R, C, L, W (Warburg), CPE, Wo, Ws, La, Gw, G, Gs, K, Zarc, TLMQ, T (porous electrode).
 - **Circuit string parser**: Nom-based parser for expressions like `R0-p(CPE1,R1)`.
 - **ECM genetic search**: Configurable population size, generations, mutation rate.
@@ -102,10 +102,10 @@
 
 | Format | Extension | Parser |
 |--------|-----------|--------|
-| CHI EIS | `.csv`, `.txt` | `data_file::chi_file` |
-| CHI OCPT | `.csv`, `.txt` | `data_file::chi_file` |
-| Generic sensor CSV | `.csv` | `data_file::measurement_parser` |
-| Excel workbook | `.xlsx` | `data_file::excel_file` (calamine) |
+| CHI EIS | `.csv`, `.txt` | `electrodata-io` → `data_file::chi_file` domain adapter |
+| CHI OCPT | `.csv`, `.txt` | `electrodata-io` → project domain adapter |
+| Generic sensor CSV | `.csv` | `electrodata-io` → `measurement_parser` domain adapter |
+| Excel workbook | `.xlsx` | `electrodata-io` canonical reader → domain adapter |
 | Experiment metadata | `.toml` | `domain::metadata` |
 | Configuration | `.toml` | Various config modules |
 | JSON results | `.json` | Cross-workflow inputs |
@@ -143,3 +143,14 @@
 ## 11. System in One Page
 
 > **rust_electroanalysis_cli** reads electrochemical instrument files and configuration TOML files, then runs analysis commands selected by the user: fitting equivalent-circuit models to EIS data, searching for new circuit models with a genetic algorithm, analysing potentiometric transients with exponential models, building calibration curves with Nernst/Nicolsky-Eisenman equations, characterizing signal quality with PSD/Allan/drift analysis, assessing sensor health from multi-sensor data, comparing EIS and transient timescales, and estimating latent states with Kalman filters. All results are written as JSON/CSV/TXT reports and publication-quality PNG figures to a configurable output directory. A provenance record (SHA-256 + timestamp) is stored with every result for reproducibility.
+
+## Canonical input boundary
+
+`electrodata-io` is the canonical physical/scientific input boundary. It owns
+physical detection, CSV/TXT/DAT/XLSX reading, worksheet handling, canonical
+roles and units, malformed-input recovery, diagnostics, and provenance. This
+repository converts typed datasets to enriched scientific domain objects and
+owns validation, analysis, estimation, modeling, health, mechanism, reporting,
+plots, and analysis artifacts. The completed legacy-parity evidence is archived
+in `docs/io_migration_validation_archive.md`; no local production physical
+parser remains.

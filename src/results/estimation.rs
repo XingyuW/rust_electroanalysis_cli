@@ -189,6 +189,10 @@ pub struct StateFilterComparison {
     pub schema_version: u32,
     pub records: Vec<FilterComparisonRecord>,
     pub warnings: Vec<EstimationWarning>,
+    /// Canonical physical-input recovery evidence shared by every compared
+    /// filter run. Kept separate from each filter's downstream diagnostics.
+    #[serde(default)]
+    pub ingestion_diagnostics: crate::domain::ParseDiagnostics,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -227,6 +231,10 @@ pub struct StateEstimationReport {
     pub skipped_timestamp_segments: Vec<crate::estimation::timestamp::SkippedTimestampSegment>,
     #[serde(default)]
     pub was_preprocessed: bool,
+    /// Canonical physical-input recovery evidence used by this estimate.
+    /// Kept separately from downstream timestamp preprocessing diagnostics.
+    #[serde(default)]
+    pub ingestion_diagnostics: crate::domain::ParseDiagnostics,
 }
 
 pub fn finite_json<T: Serialize>(value: &T) -> Result<String, serde_json::Error> {

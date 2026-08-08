@@ -8,13 +8,34 @@ use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct EisMeasuredData {
+pub struct EisSourceData {
     pub frequency_hz: Vec<f64>,
     pub z_real_ohm: Vec<f64>,
     pub z_imag_ohm: Vec<f64>,
-    pub magnitude_ohm: Vec<f64>,
-    pub phase_deg: Vec<f64>,
+    /// Exact magnitude values supplied by the source, including source nulls.
+    /// `None` means the input did not provide a magnitude column.
+    #[serde(default)]
+    pub source_measured_magnitude_ohm: Option<Vec<Option<f64>>>,
+    /// Exact phase values supplied by the source, including source nulls.
+    /// `None` means the input did not provide a phase column.
+    #[serde(default)]
+    pub source_measured_phase_deg: Option<Vec<Option<f64>>>,
+    /// Magnitude derived from the source real/imaginary impedance components.
+    /// The aliases preserve schema-v1 artifact deserialization, where this
+    /// was incorrectly named as a measured field.
+    #[serde(default, alias = "magnitude_ohm")]
+    pub derived_magnitude_ohm: Vec<f64>,
+    /// Phase derived from the source real/imaginary impedance components.
+    /// The aliases preserve schema-v1 artifact deserialization, where this
+    /// was incorrectly named as a measured field.
+    #[serde(default, alias = "phase_deg")]
+    pub derived_phase_deg: Vec<f64>,
 }
+
+/// Compatibility name for callers that used the schema-v1 type. New code
+/// should use [`EisSourceData`], whose fields make source/derived semantics
+/// explicit.
+pub type EisMeasuredData = EisSourceData;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EisFittedData {
@@ -123,7 +144,11 @@ pub struct EisFitArtifact {
     pub sensor_id: Option<String>,
     pub circuit_expression: String,
     pub circuit_canonical_form: String,
-    pub measured: EisMeasuredData,
+    /// Original source components plus separately tracked source-provided and
+    /// derived Bode quantities. `measured` is accepted only when reading a
+    /// schema-v1 artifact.
+    #[serde(alias = "measured")]
+    pub source: EisSourceData,
     pub fitted: EisFittedData,
     pub parameters: Vec<EisFittedParameter>,
     pub statistics: EisFitStatistics,
@@ -153,17 +178,14 @@ impl EisFitArtifact {
         jacobian_rank: Option<usize>,
         provenance: AnalysisProvenance,
     ) -> Self {
-        let measured = EisMeasuredData {
+        let source = EisSourceData {
             frequency_hz: input.freq.clone(),
             z_real_ohm: input.z_re.clone(),
             z_imag_ohm: input.z_im.clone(),
-            magnitude_ohm: input
-                .z_re
-                .iter()
-                .zip(&input.z_im)
-                .map(|(re, im)| re.hypot(*im))
-                .collect(),
-            phase_deg: input.phase.clone(),
+            source_measured_magnitude_ohm: input.measured_magnitude.clone(),
+            source_measured_phase_deg: input.measured_phase.clone(),
+            derived_magnitude_ohm: input.derived_magnitude.clone(),
+            derived_phase_deg: input.derived_phase.clone(),
         };
         let fitted = EisFittedData {
             z_real_ohm: fit.fitted_z_re.clone(),
@@ -363,13 +385,13 @@ impl EisFitArtifact {
             .collect();
         let _ = PI;
         Self {
-            schema_version: 1,
+            schema_version: 2,
             fit_id: format!("{}:{}", input.label, circuit_expression),
             experiment_id: input.metadata.get("experiment_id").cloned(),
             sensor_id: input.metadata.get("sensor_id").cloned(),
             circuit_expression: circuit_expression.to_string(),
             circuit_canonical_form: circuit_expression.to_string(),
-            measured,
+            source,
             fitted,
             parameters,
             statistics,

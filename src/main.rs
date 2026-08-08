@@ -88,6 +88,7 @@ fn run() -> Result<(), ApplicationError> {
         }
         CommandSpec::EisSearch {
             input,
+            sheet,
             search_config_path,
             search_output,
             search_top,
@@ -102,6 +103,7 @@ fn run() -> Result<(), ApplicationError> {
             search::run(
                 &workspace_dir,
                 &input,
+                sheet.as_deref(),
                 search_config_path.as_deref(),
                 search_output.as_deref(),
                 search_top,
@@ -109,6 +111,7 @@ fn run() -> Result<(), ApplicationError> {
         }
         CommandSpec::EisFit {
             input,
+            sheet,
             circuit_model,
             output,
             artifact,
@@ -119,6 +122,7 @@ fn run() -> Result<(), ApplicationError> {
                 &workspace_dir,
                 &input,
                 circuit_model.as_deref(),
+                sheet.as_deref(),
                 output.as_deref(),
                 artifact.as_deref(),
                 report.as_deref(),
@@ -126,6 +130,7 @@ fn run() -> Result<(), ApplicationError> {
         }
         CommandSpec::EisExportFit {
             input,
+            sheet,
             circuit_model,
             artifact,
             report,
@@ -135,6 +140,7 @@ fn run() -> Result<(), ApplicationError> {
                 &workspace_dir,
                 &input,
                 circuit_model.as_deref(),
+                sheet.as_deref(),
                 &artifact,
                 report.as_deref(),
             )?;

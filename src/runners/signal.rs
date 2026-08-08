@@ -24,8 +24,9 @@ pub fn characterize(
     for w in &loaded.warnings {
         eprintln!("Warning: {w}");
     }
-    let parsed =
+    let mut parsed =
         crate::data_file::measurement_parser::parse_measurement_file_with_sheet(&input, sheet)?;
+    parsed.measurement = parsed.measurement.normalized_to_seconds()?;
     let provenance = AnalysisProvenance::from_paths(&input, loaded.source_path.as_deref())
         .map_err(crate::domain::DataParsingError::from)?;
     let (events, experiment_id, sensor_id) = if let Some(m) = metadata {
@@ -54,7 +55,8 @@ pub fn compare(
 ) -> Result<(), RunnerError> {
     let loaded = LoadedSignalConfig::load(workspace, config_path)?;
     let path = resolve(workspace, manifest);
-    let man = crate::signal::comparison::load_manifest(&path).map_err(RunnerError::Message)?;
+    let man = crate::signal::comparison::load_manifest(&path)
+        .map_err(|error| RunnerError::SignalComparison(Box::new(error)))?;
     if man.schema_version != 1 {
         return Err(RunnerError::Message(
             "unsupported signal comparison schema".into(),
@@ -62,7 +64,7 @@ pub fn compare(
     }
     let base = path.parent().unwrap_or(workspace);
     let (records, provenance) = crate::signal::comparison::compare(base, &man, &loaded.config)
-        .map_err(RunnerError::Message)?;
+        .map_err(|error| RunnerError::SignalComparison(Box::new(error)))?;
     let dir = output_dir(workspace, output, "signal_comparison");
     fs::create_dir_all(&dir)?;
     write_json(&dir.join("signal_comparison_results.json"), &records)?;
