@@ -67,6 +67,7 @@ source = "default reduced-order model"
 equation_version = 1
 identifiability_requirements = ["Structural and practical identifiability must be assessed before interpretation."]
 value_source = "fixed"
+characteristic = "discrete_integer"
 validity_domain = "must be declared for the analyte"
 
 [[model.parameters]]

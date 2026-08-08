@@ -56,6 +56,7 @@ default_value = 1.0
 uncertainty = { kind = "deterministic" }
 source = "analyte declaration"
 value_source = "fixed"
+characteristic = "discrete_integer"
 validity_domain = "nonzero signed ion charge"
 
 [[model.parameters]]

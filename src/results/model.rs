@@ -49,44 +49,85 @@ pub struct ModelAnalysisReport {
 impl ModelAnalysisReport {
     pub fn to_json(&self) -> Result<String, ModelError> {
         self.model_definition.validate_schema()?;
-        if self.points.iter().any(|point| {
-            !point.time_s.is_finite()
-                || !point.predicted_voltage_v.is_finite()
-                || point
-                    .observed_voltage_v
-                    .is_some_and(|value| !value.is_finite())
-                || point
-                    .unexplained_residual_v
-                    .is_some_and(|value| !value.is_finite())
-                || point
-                    .state_values
-                    .iter()
-                    .any(|(_, value)| !value.is_finite())
-                || point.contributions.iter().any(|value| {
-                    value
-                        .potential_v
-                        .is_some_and(|potential| !potential.is_finite())
-                        || value
-                            .variance_v2
-                            .is_some_and(|variance| !variance.is_finite())
-                })
-                || [
-                    point.uncertainty.total_variance_v2,
-                    point.uncertainty.standard_error_v,
-                    point.uncertainty.state_variance_v2,
-                    point.uncertainty.parameter_variance_v2,
-                    point.uncertainty.observation_variance_v2,
-                ]
-                .into_iter()
-                .flatten()
-                .any(|value| !value.is_finite())
-        }) {
-            return Err(ModelError::NonFinite {
-                subject: "model analysis report".into(),
-            });
-        }
+        self.validate_finite()?;
         serde_json::to_string_pretty(self).map_err(|error| ModelError::Json(error.to_string()))
     }
+
+    /// Validates every numeric leaf before serde's JSON encoder can map NaN
+    /// or infinity to `null`. Paths are stable diagnostic locations.
+    pub fn validate_finite(&self) -> Result<(), ModelError> {
+        for (point_index, point) in self.points.iter().enumerate() {
+            let point_path = format!("points[{point_index}]");
+            finite(point.time_s, &format!("{point_path}.time_s"))?;
+            finite(
+                point.predicted_voltage_v,
+                &format!("{point_path}.predicted_voltage_v"),
+            )?;
+            optional_finite(
+                point.observed_voltage_v,
+                &format!("{point_path}.observed_voltage_v"),
+            )?;
+            optional_finite(
+                point.unexplained_residual_v,
+                &format!("{point_path}.unexplained_residual_v"),
+            )?;
+            for (state_index, (_, value)) in point.state_values.iter().enumerate() {
+                finite(
+                    *value,
+                    &format!("{point_path}.state_values[{state_index}].1"),
+                )?;
+            }
+            for (contribution_index, contribution) in point.contributions.iter().enumerate() {
+                let contribution_path = format!("{point_path}.contributions[{contribution_index}]");
+                optional_finite(
+                    contribution.potential_v,
+                    &format!("{contribution_path}.potential_v"),
+                )?;
+                optional_finite(
+                    contribution.variance_v2,
+                    &format!("{contribution_path}.variance_v2"),
+                )?;
+                for (name, value) in &contribution.auxiliary_outputs {
+                    finite(
+                        *value,
+                        &format!("{contribution_path}.auxiliary_outputs[{name:?}]"),
+                    )?;
+                }
+            }
+            for (field, value) in [
+                ("total_variance_v2", point.uncertainty.total_variance_v2),
+                ("standard_error_v", point.uncertainty.standard_error_v),
+                ("state_variance_v2", point.uncertainty.state_variance_v2),
+                (
+                    "parameter_variance_v2",
+                    point.uncertainty.parameter_variance_v2,
+                ),
+                (
+                    "observation_variance_v2",
+                    point.uncertainty.observation_variance_v2,
+                ),
+            ] {
+                optional_finite(value, &format!("{point_path}.uncertainty.{field}"))?;
+            }
+            finite(
+                point.equilibrium.confidence,
+                &format!("{point_path}.equilibrium.confidence"),
+            )?;
+        }
+        Ok(())
+    }
+}
+
+fn finite(value: f64, path: &str) -> Result<(), ModelError> {
+    if value.is_finite() {
+        Ok(())
+    } else {
+        Err(ModelError::NonFiniteResult { path: path.into() })
+    }
+}
+
+fn optional_finite(value: Option<f64>, path: &str) -> Result<(), ModelError> {
+    value.map_or(Ok(()), |value| finite(value, path))
 }
 
 impl ModelCompilationArtifact {

@@ -601,6 +601,7 @@ fn parameter(
             "Retain legacy estimator observability and covariance evidence.".into(),
         ],
         value_source: ParameterValueSource::ExternallySupplied,
+        characteristic: crate::model::ParameterCharacteristic::Continuous,
         validity_domain: "configured legacy estimator domain".into(),
     }
 }

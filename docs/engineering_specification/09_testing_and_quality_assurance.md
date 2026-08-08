@@ -187,3 +187,8 @@ deterministic and stochastic `1e-13` state/parameter covariance, covered
 numerical zero derivatives, state equivalents, and dimension, non-finite,
 asymmetric, and non-PSD matrices. The existing Nernst 0.76 V² cross-covariance
 calculation remains covered.
+
+`tests/model_components_v1_contract.rs` permanently retains V1 guardrails for
+exact charge rejection, calibrated-domain Warn/Reject behavior, candidate
+transduction status, missing disturbance evidence, structured
+identifiability, and nested nonfinite serialization.

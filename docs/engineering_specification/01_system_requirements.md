@@ -190,3 +190,6 @@ Verification confidence labels used in **Verified By**:
 | FR-032 | ISM shall report uncertainty status and never coerce unknown uncertainty to zero | High | `model/compiler.rs`, `model/output.rs` | Direct |
 | ISM-007 | Current-schema fitted parameters and estimated states require positive finite uncertainty; `uncertainty_incomplete` is migration metadata only | Enforced during definition validation |
 | ISM-008 | Complete uncertainty requires relevant caller-supplied runtime covariance, complete stable-ID Jacobian coverage, observation variance, and finite propagation; absent stochastic covariance is Partial or Unavailable | Enforced during prediction and regression-tested |
+| ISM-010 | Equilibrium ion charge shall be Fixed, Deterministic, finite, exact nonzero `i32`, and discrete rather than fitted | `parameter.rs`, `compiler.rs`, `builtins.rs` |
+| ISM-011 | Declared applicability domains shall be source-provenanced and enforced as Warn or Reject without inventing universal limits | `validity.rs`, `compiler.rs` |
+| ISM-012 | Missing disturbance evidence shall yield indeterminate equilibrium classification; nested nonfinite result values shall not serialize | `evidence.rs`, `equilibrium_recognition.rs`, `results/model.rs` |

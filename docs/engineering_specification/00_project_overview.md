@@ -167,3 +167,8 @@ The model-core component library is documented in
 [`docs/model/reduced_order_ism_v1.md`](../model/reduced_order_ism_v1.md). It
 adds activity-first reduced-order components without assigning dynamic modes to
 physical mechanisms or integrating them into workflows.
+
+V1 remediation records discrete ion-charge configuration, explicit
+applicability domains, evidence availability, component-specific
+identifiability, covariate dimensions, and finite artifact serialization as
+model-core guardrails; it introduces no workflow integration.

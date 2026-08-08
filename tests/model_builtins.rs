@@ -88,6 +88,7 @@ fn nicolsky_eisenman_with_interferents() {
             equation_version: 1,
             identifiability_requirements: vec!["synthetic test parameter".into()],
             value_source: ParameterValueSource::Fixed,
+            characteristic: rust_electroanalysis_cli::model::ParameterCharacteristic::Continuous,
             validity_domain: "synthetic".into(),
         },
     );
@@ -295,6 +296,7 @@ fn conductivity_disturbance_is_a_named_external_contribution() {
         equation_version: 1,
         identifiability_requirements: vec!["synthetic test parameter".into()],
         value_source: ParameterValueSource::Fixed,
+        characteristic: rust_electroanalysis_cli::model::ParameterCharacteristic::Continuous,
         validity_domain: "synthetic".into(),
     });
     definition.parameters.push(ParameterSpec {
@@ -310,6 +312,7 @@ fn conductivity_disturbance_is_a_named_external_contribution() {
         equation_version: 1,
         identifiability_requirements: vec!["synthetic test parameter".into()],
         value_source: ParameterValueSource::Fixed,
+        characteristic: rust_electroanalysis_cli::model::ParameterCharacteristic::Continuous,
         validity_domain: "synthetic".into(),
     });
     definition.inputs.push(InputSpec {
@@ -319,6 +322,32 @@ fn conductivity_disturbance_is_a_named_external_contribution() {
         source: "synthetic".into(),
         validity_domain: "synthetic".into(),
     });
+    let mut wrong_sensitivity = definition.clone();
+    let wrong_sensitivity_parameter = wrong_sensitivity
+        .parameters
+        .iter_mut()
+        .find(|parameter| parameter.id == "conductivity_sensitivity")
+        .unwrap();
+    wrong_sensitivity_parameter.unit = "V".into();
+    wrong_sensitivity_parameter.uncertainty = UncertaintySpec::StandardDeviation {
+        value: 0.001,
+        unit: "V".into(),
+    };
+    assert!(matches!(
+        compile_model(wrong_sensitivity, built_in_registry()),
+        Err(ModelError::ParameterUnitMismatch { parameter_id, .. }) if parameter_id == "conductivity_sensitivity"
+    ));
+    let mut wrong_reference = definition.clone();
+    wrong_reference
+        .parameters
+        .iter_mut()
+        .find(|parameter| parameter.id == "conductivity_reference")
+        .unwrap()
+        .unit = "V".into();
+    assert!(matches!(
+        compile_model(wrong_reference, built_in_registry()),
+        Err(ModelError::ParameterUnitMismatch { parameter_id, .. }) if parameter_id == "conductivity_reference"
+    ));
     let model = compile_model(definition, built_in_registry()).unwrap();
     let parameters = model.default_parameters();
     let state = model.initialize(&parameters).unwrap();
@@ -408,7 +437,7 @@ fn component_validity_warnings_are_exposed() {
 }
 
 #[test]
-fn nernst_e0_covariance_propagates_and_uncertain_charge_blocks_complete() {
+fn nernst_e0_covariance_propagates_and_stochastic_charge_is_rejected() {
     let mut definition = default_model_definition();
     for parameter in &mut definition.parameters {
         parameter.uncertainty = UncertaintySpec::Deterministic;
@@ -457,27 +486,14 @@ fn nernst_e0_covariance_propagates_and_uncertain_charge_blocks_complete() {
         value: 0.1,
         unit: "dimensionless".into(),
     };
-    let model = compile_model(definition, built_in_registry()).unwrap();
-    let parameters = model.default_parameters();
-    let state = model.initialize(&parameters).unwrap();
-    let prediction = model
-        .observation_prediction(&state, &parameters, &input(0.0), None)
-        .unwrap();
-    assert_eq!(
-        prediction.uncertainty.status,
-        rust_electroanalysis_cli::model::UncertaintyStatus::Partial
-    );
-    assert!(
-        prediction
-            .uncertainty
-            .missing_sources
-            .iter()
-            .any(|source| source.contains("parameter:ion_charge") && source.contains("derivative"))
-    );
+    assert!(matches!(
+        compile_model(definition, built_in_registry()),
+        Err(ModelError::InvalidDiscreteParameter { parameter_id, .. }) if parameter_id == "ion_charge"
+    ));
 }
 
 #[test]
-fn reviewer_zero_charge_covariance_row_is_a_typed_contract_error() {
+fn fitted_discrete_charge_is_a_typed_contract_error() {
     let mut definition = default_model_definition();
     for parameter in &mut definition.parameters {
         parameter.uncertainty = UncertaintySpec::Deterministic;
@@ -493,28 +509,9 @@ fn reviewer_zero_charge_covariance_row_is_a_typed_contract_error() {
         unit: "dimensionless".into(),
     };
     definition.parameters[1].value_source = ParameterValueSource::Fitted;
-    let model = compile_model(definition, built_in_registry()).unwrap();
-    let parameters = model.default_parameters();
-    let state = model.initialize(&parameters).unwrap();
-    let dimension = model.parameter_definitions().len();
-    let mut covariance = vec![vec![0.0; dimension]; dimension];
-    covariance[model.parameter_index("standard_potential_v").unwrap()]
-        [model.parameter_index("standard_potential_v").unwrap()] = 1.0;
-
     assert!(matches!(
-        model.observation_prediction_with_uncertainty(
-            &state,
-            &parameters,
-            &input(0.0),
-            None,
-            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
-                requested: true,
-                state_covariance: Some(vec![vec![0.0; 2]; 2]),
-                parameter_covariance: Some(covariance),
-                observation_variance_v2: Some(1.0e-6),
-            },
-        ),
-        Err(ModelError::ZeroCovarianceForStochasticQuantity { quantity_id }) if quantity_id == "ion_charge"
+        compile_model(definition, built_in_registry()),
+        Err(ModelError::InvalidDiscreteParameter { parameter_id, .. }) if parameter_id == "ion_charge"
     ));
 }
 
@@ -546,6 +543,7 @@ fn empirical_nernst_slope_covariance_and_cross_term_propagate() {
         equation_version: 1,
         identifiability_requirements: vec!["synthetic".into()],
         value_source: ParameterValueSource::Fitted,
+        characteristic: rust_electroanalysis_cli::model::ParameterCharacteristic::Continuous,
         validity_domain: "synthetic".into(),
     });
     let equilibrium = &mut definition.components[0];
@@ -658,6 +656,7 @@ fn nicolsky_parameter_derivatives_use_stable_ids_and_full_covariance() {
         equation_version: 1,
         identifiability_requirements: vec!["synthetic test parameter".into()],
         value_source: ParameterValueSource::Fitted,
+        characteristic: rust_electroanalysis_cli::model::ParameterCharacteristic::Continuous,
         validity_domain: "synthetic".into(),
     });
     definition.parameters.push(ParameterSpec {
@@ -676,6 +675,7 @@ fn nicolsky_parameter_derivatives_use_stable_ids_and_full_covariance() {
         equation_version: 1,
         identifiability_requirements: vec!["synthetic test parameter".into()],
         value_source: ParameterValueSource::Fitted,
+        characteristic: rust_electroanalysis_cli::model::ParameterCharacteristic::Continuous,
         validity_domain: "synthetic".into(),
     });
     definition.components[0]
@@ -801,6 +801,7 @@ fn transduction_covariate_and_drift_derivatives_are_analytic() {
             equation_version: 1,
             identifiability_requirements: vec!["synthetic".into()],
             value_source: ParameterValueSource::Fixed,
+            characteristic: rust_electroanalysis_cli::model::ParameterCharacteristic::Continuous,
             validity_domain: "synthetic".into(),
         });
     }

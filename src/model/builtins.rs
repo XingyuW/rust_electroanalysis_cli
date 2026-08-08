@@ -143,12 +143,10 @@ impl BuiltinComponent {
             .map(String::as_str)
             .unwrap_or("ideal");
         let ionic_strength = input.values.get("ionic_strength").map(|value| value.value);
-        let charge = self.parameter(parameters, &self.descriptor.parameter_ids[1])?;
-        let charge = if charge.is_finite() {
-            charge.round() as i32
-        } else {
-            1
-        };
+        let charge = exact_nonzero_charge(
+            &self.descriptor.parameter_ids[1],
+            self.parameter(parameters, &self.descriptor.parameter_ids[1])?,
+        )?;
         let result = evaluate_model_activity(
             &quantity,
             charge,
@@ -440,8 +438,10 @@ impl IsmComponent for BuiltinComponent {
                         self.parameter(parameters, &self.descriptor.parameter_ids[0])?,
                         activity,
                         self.input(input, "temperature")?,
-                        self.parameter(parameters, &self.descriptor.parameter_ids[1])?
-                            .round() as i32,
+                        exact_nonzero_charge(
+                            &self.descriptor.parameter_ids[1],
+                            self.parameter(parameters, &self.descriptor.parameter_ids[1])?,
+                        )?,
                     )
                     .map_err(|error| evaluation(&self.descriptor.id, error))?
                 }
@@ -451,9 +451,10 @@ impl IsmComponent for BuiltinComponent {
                 let interferents =
                     parse_interferents(&self.descriptor, &self.bindings, parameters, input)?;
                 if let Some(slope_id) = slope_parameter_id(&self.descriptor) {
-                    let charge = self
-                        .parameter(parameters, &self.descriptor.parameter_ids[1])?
-                        .round() as i32;
+                    let charge = exact_nonzero_charge(
+                        &self.descriptor.parameter_ids[1],
+                        self.parameter(parameters, &self.descriptor.parameter_ids[1])?,
+                    )?;
                     let effective = effective_activity(activity, charge, &interferents)
                         .map_err(|error| evaluation(&self.descriptor.id, error))?;
                     let value = self.parameter(parameters, &self.descriptor.parameter_ids[0])?
@@ -469,8 +470,10 @@ impl IsmComponent for BuiltinComponent {
                     evaluate_potential(
                         self.parameter(parameters, &self.descriptor.parameter_ids[0])?,
                         activity,
-                        self.parameter(parameters, &self.descriptor.parameter_ids[1])?
-                            .round() as i32,
+                        exact_nonzero_charge(
+                            &self.descriptor.parameter_ids[1],
+                            self.parameter(parameters, &self.descriptor.parameter_ids[1])?,
+                        )?,
                         self.input(input, "temperature")?,
                         &interferents,
                     )
@@ -576,9 +579,10 @@ impl IsmComponent for BuiltinComponent {
                 let (activity, _) = self.activity(input, parameters)?;
                 let interferents =
                     parse_interferents(&self.descriptor, &self.bindings, parameters, input)?;
-                let charge = self
-                    .parameter(parameters, &self.descriptor.parameter_ids[1])?
-                    .round() as i32;
+                let charge = exact_nonzero_charge(
+                    &self.descriptor.parameter_ids[1],
+                    self.parameter(parameters, &self.descriptor.parameter_ids[1])?,
+                )?;
                 result.insert(
                     "effective_activity".into(),
                     effective_activity(activity, charge, &interferents)
@@ -655,7 +659,8 @@ impl IsmComponent for BuiltinComponent {
             }
             "equilibrium.nicolsky_eisenman" => {
                 let (primary_activity, _) = self.activity(input, parameters)?;
-                let primary_charge = self.parameter(parameters, &ids[1])?.round() as i32;
+                let primary_charge =
+                    exact_nonzero_charge(&ids[1], self.parameter(parameters, &ids[1])?)?;
                 let interferents = parse_interferents_with_ids(
                     &self.descriptor,
                     &self.bindings,
@@ -978,6 +983,25 @@ fn evaluation(component: &str, error: impl std::fmt::Display) -> ModelError {
         message: error.to_string(),
     }
 }
+/// Converts a scientific ion-charge configuration without coercion.  Charges
+/// are categorical equation configuration, never a fitted differentiable
+/// parameter.
+pub fn exact_nonzero_charge(parameter_id: &str, value: f64) -> Result<i32, ModelError> {
+    if !value.is_finite()
+        || value.fract() != 0.0
+        || value == 0.0
+        || value < i32::MIN as f64
+        || value > i32::MAX as f64
+    {
+        return Err(ModelError::InvalidDiscreteParameter {
+            parameter_id: parameter_id.into(),
+            value,
+            requirement: "a finite, exact, nonzero i32 integer".into(),
+        });
+    }
+    Ok(value as i32)
+}
+
 fn parse_interferents(
     descriptor: &ComponentDescriptor,
     bindings: &ComponentBindings,
@@ -1020,13 +1044,20 @@ fn parse_interferents_with_ids(
                         .get(fields[3])
                         .copied()
                         .ok_or_else(|| missing(&descriptor.id, "parameter", fields[3]))?;
-                    let charge =
-                        fields[1]
-                            .parse()
-                            .map_err(|_| ModelError::ComponentEvaluation {
-                                component: descriptor.id.clone(),
-                                message: "interferent charge must be integer".into(),
-                            })?;
+                    let charge_value = fields[1].parse::<f64>().map_err(|_| {
+                        ModelError::InvalidDiscreteParameter {
+                            parameter_id: format!(
+                                "{}.interferent.{}.charge",
+                                descriptor.id, fields[0]
+                            ),
+                            value: f64::NAN,
+                            requirement: "a finite, exact, nonzero i32 integer".into(),
+                        }
+                    })?;
+                    let charge = exact_nonzero_charge(
+                        &format!("{}.interferent.{}.charge", descriptor.id, fields[0]),
+                        charge_value,
+                    )?;
                     Ok((
                         fields[3].into(),
                         InterferentModelInput {

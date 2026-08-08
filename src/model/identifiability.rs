@@ -7,6 +7,44 @@ pub struct IdentifiabilityMetadata {
     pub states_requiring_independent_observations: Vec<String>,
     pub parameter_requirements: Vec<ParameterIdentifiabilityRequirement>,
     pub component_sensitivity_targets: Vec<String>,
+    #[serde(default)]
+    pub component_requirements: Vec<IdentifiabilityRequirement>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IdentifiabilityRequirementKind {
+    ActivityExcitation,
+    TransientExcitation,
+    ObservationDurationRelativeToTimescale,
+    ModeSeparation,
+    ReferenceAnchor,
+    IndependentCovariateVariation,
+    InterferentVariation,
+    TemperatureVariation,
+    RepeatedStandards,
+    AuxiliaryObservation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RequirementSeverity {
+    Required,
+    Warning,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IdentifiabilityRequirement {
+    pub component_id: String,
+    pub kind: IdentifiabilityRequirementKind,
+    #[serde(default)]
+    pub target_states: Vec<String>,
+    #[serde(default)]
+    pub target_parameters: Vec<String>,
+    pub description: String,
+    #[serde(default)]
+    pub quantitative_criterion: Option<String>,
+    pub severity: RequirementSeverity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

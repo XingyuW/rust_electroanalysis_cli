@@ -64,6 +64,27 @@ pub enum ModelError {
     },
     #[error("non-finite value for {subject}")]
     NonFinite { subject: String },
+    #[error("discrete parameter '{parameter_id}' has invalid value {value}: {requirement}")]
+    InvalidDiscreteParameter {
+        parameter_id: String,
+        value: f64,
+        requirement: String,
+    },
+    #[error(
+        "component '{component}' parameter '{parameter_id}' has incompatible units: expected '{expected}', found '{found}'"
+    )]
+    ParameterUnitMismatch {
+        component: String,
+        parameter_id: String,
+        expected: String,
+        found: String,
+    },
+    #[error("component '{component}' has an invalid applicability domain: {message}")]
+    InvalidApplicabilityDomain { component: String, message: String },
+    #[error("component '{component}' interpretation status is not allowed: {message}")]
+    InvalidInterpretationStatus { component: String, message: String },
+    #[error("non-finite model result at {path}")]
+    NonFiniteResult { path: String },
     #[error("state vector length {actual} does not match model state dimension {expected}")]
     StateDimension { expected: usize, actual: usize },
     #[error("parameter vector length {actual} does not match model parameter dimension {expected}")]

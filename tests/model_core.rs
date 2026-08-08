@@ -186,6 +186,7 @@ fn definition() -> ModelDefinition {
             equation_version: 1,
             identifiability_requirements: vec!["synthetic identifiable parameter".into()],
             value_source: ParameterValueSource::Fixed,
+            characteristic: rust_electroanalysis_cli::model::ParameterCharacteristic::Continuous,
             validity_domain: "synthetic bounded fixture".into(),
         }],
         inputs: vec![InputSpec {

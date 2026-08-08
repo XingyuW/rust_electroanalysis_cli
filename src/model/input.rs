@@ -84,6 +84,17 @@ pub(crate) fn units_compatible(expected: &str, found: &str) -> bool {
     matches!((unit_dimension(expected), unit_dimension(found)), (Some(left), Some(right)) if left == right)
 }
 
+/// The only compound units required by the V1 linear-covariate contract.
+/// This intentionally is not a general-purpose unit algebra.
+pub(crate) fn potential_sensitivity_unit(input_unit: &str) -> Option<&'static str> {
+    match unit_dimension(input_unit)? {
+        ModelUnitDimension::Temperature => Some("V/K"),
+        ModelUnitDimension::Conductivity => Some("V/(S/m)"),
+        ModelUnitDimension::Flow => Some("V/(m/s)"),
+        _ => None,
+    }
+}
+
 fn unit_dimension(unit: &str) -> Option<ModelUnitDimension> {
     match unit.trim().to_ascii_lowercase().as_str() {
         "s" | "sec" | "second" | "seconds" => Some(ModelUnitDimension::Time),

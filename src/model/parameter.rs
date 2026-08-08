@@ -16,6 +16,16 @@ pub enum ParameterValueSource {
     ExternallySuppliedFixed,
 }
 
+/// Whether a parameter is a continuous scalar or a discrete configuration.
+/// The default retains schema-v1 compatibility for existing artifacts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ParameterCharacteristic {
+    #[default]
+    Continuous,
+    DiscreteInteger,
+}
+
 /// Versioned metadata and constraints for a model parameter.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterSpec {
@@ -37,6 +47,8 @@ pub struct ParameterSpec {
     pub identifiability_requirements: Vec<String>,
     #[serde(default)]
     pub value_source: ParameterValueSource,
+    #[serde(default)]
+    pub characteristic: ParameterCharacteristic,
     pub validity_domain: String,
 }
 
@@ -115,6 +127,30 @@ impl ParameterSpec {
             });
         }
         self.uncertainty.variance_in(&self.unit)?;
+        if self.characteristic == ParameterCharacteristic::DiscreteInteger
+            && (!self.default_value.is_finite()
+                || self.default_value.fract() != 0.0
+                || self.default_value == 0.0
+                || self.default_value < i32::MIN as f64
+                || self.default_value > i32::MAX as f64)
+        {
+            return Err(ModelError::InvalidDiscreteParameter {
+                parameter_id: self.id.clone(),
+                value: self.default_value,
+                requirement: "a finite, nonzero i32 integer".into(),
+            });
+        }
+        if self.characteristic == ParameterCharacteristic::DiscreteInteger
+            && (self.value_source == ParameterValueSource::Fitted
+                || !matches!(self.uncertainty, UncertaintySpec::Deterministic))
+        {
+            return Err(ModelError::InvalidDiscreteParameter {
+                parameter_id: self.id.clone(),
+                value: self.default_value,
+                requirement: "discrete configuration parameters must be Fixed and Deterministic"
+                    .into(),
+            });
+        }
         if self.source.trim().is_empty() || self.validity_domain.trim().is_empty() {
             return Err(ModelError::EmptyIdentifier {
                 kind: "parameter source or validity domain",

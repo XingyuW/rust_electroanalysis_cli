@@ -169,3 +169,8 @@ explicit approximation when runtime posterior covariance is unavailable? Any
 such mode must record `DeclaredIndependentApproximation`, an independence
 assumption, and `Partial` status; it must never be reported as complete runtime
 propagation.
+
+Should a future schema persist applicability domains as first-class nested
+descriptor fields rather than the backwards-compatible explicit metadata
+payload? It must preserve source, inclusive intervals, enforcement, and the
+absence of invented universal limits.

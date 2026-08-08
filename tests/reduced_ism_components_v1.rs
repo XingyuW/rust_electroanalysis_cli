@@ -136,7 +136,9 @@ fn evidence() -> EquilibriumEvidence {
             warnings: vec![],
         },
         uncertainty_status: UncertaintyStatus::Complete,
-        external_disturbance_potential_v: Some(0.0),
+        external_disturbance_potential_v: rust_electroanalysis_cli::model::EvidenceValue::Present(
+            0.0,
+        ),
     }
 }
 

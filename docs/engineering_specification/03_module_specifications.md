@@ -327,3 +327,8 @@ coverage sets, finite values, numerical-step policy, and local-to-global ID
 mapping before applying caller-supplied full runtime covariance. `defaults.rs`
 classifies values by the current artifact (fixed, externally supplied, or
 fitted), rather than by whether they might be fitted in a future workflow.
+
+`validity.rs` supplies explicit calibrated-domain status and enforcement;
+`evidence.rs` represents Present/NotApplicable/Missing evidence;
+`identifiability.rs` holds structured component requirements; and
+`results/model.rs` recursively validates numeric report leaves before JSON.

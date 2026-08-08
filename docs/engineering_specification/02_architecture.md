@@ -363,3 +363,7 @@ covariance values through an outer adapter, but the core does not depend on
 estimation, results, CLI, reporting, health, or plotting. The legacy estimation
 adapter maps the resolved initial-covariance configuration into typed state
 uncertainty before calling the core.
+
+Applicability-domain evaluation, discrete parameter validation, evidence-state
+handling, identifiability metadata, and finite-result validation remain in the
+model core and do not introduce dependencies on estimation or reporting.

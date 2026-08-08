@@ -213,3 +213,8 @@ typed covariance-contract errors. An unknown declaration remains incomplete
 until explicitly migrated/enriched and never obtains a zero numeric variance.
 Derivative coverage is required for every declared non-deterministic ID that a
 component says influences its observation, independent of covariance sparsity.
+
+Physical equation validity is distinct from declared applicability-domain
+validity. Domain endpoints are inclusive; unavailable domains cannot support
+an in-domain claim. Outside-domain inputs are warned or rejected by declared
+policy, while nonfinite nested result values are rejected before serialization.

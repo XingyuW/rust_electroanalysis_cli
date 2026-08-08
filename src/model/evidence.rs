@@ -1,5 +1,16 @@
 use serde::{Deserialize, Serialize};
 
+/// Distinguishes observed evidence from evidence that is not applicable and
+/// evidence that was required but unavailable.  `Missing` is never coerced to
+/// a numerical neutral value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "status", content = "value")]
+pub enum EvidenceValue<T> {
+    Present(T),
+    NotApplicable,
+    Missing { reason: String },
+}
+
 /// Outcome of checking declared evidence without assigning a mechanism.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

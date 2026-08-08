@@ -48,3 +48,21 @@ small measured-voltage slope alone cannot yield `Equilibrium`.
 Deferred work: spatial transport, physical interface mechanisms, EIS mapping,
 mechanism scoring, EKF/UKF integration, health rules, plotting, reporting, and
 simulation-noise sampling.
+
+## V1 scientific guardrails
+
+Ion charge is a fixed, deterministic `DiscreteInteger`: it must be finite,
+exactly integral, nonzero, and within `i32`; no rounded or fitted charge is
+accepted. Applicability limits are explicit, source-provenanced inclusive
+intervals rather than universal activity or temperature limits. Reports retain
+physical validity separately from `InsideDomain`, `NearBoundary`,
+`OutsideDomain`, or `DomainUnavailable`, with Warn or Reject enforcement.
+
+The first-order transduction candidate is always `Hypothesized`. Equilibrium
+evidence distinguishes `Present`, `NotApplicable`, and `Missing`; missing
+disturbance evidence is indeterminate, never zero. Component-specific
+identifiability requirements describe activity/transient excitation, duration
+relative to tau, mode separation, reference anchoring, and independent
+covariate/interferent variation. Linear covariates require compatible input,
+reference, and V-per-input sensitivity units. Result serialization rejects any
+nested nonfinite value instead of encoding it as JSON `null`.

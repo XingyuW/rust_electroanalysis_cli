@@ -5,7 +5,8 @@
 //! of equilibrium here.
 
 use super::{
-    identifiability::AssessmentStatus, output::UncertaintyStatus, validity::ValidityReport,
+    evidence::EvidenceValue, identifiability::AssessmentStatus, output::UncertaintyStatus,
+    validity::ValidityReport,
 };
 use serde::{Deserialize, Serialize};
 
@@ -53,7 +54,7 @@ pub struct EquilibriumEvidence {
     pub observable: Option<bool>,
     pub validity: ValidityReport,
     pub uncertainty_status: UncertaintyStatus,
-    pub external_disturbance_potential_v: Option<f64>,
+    pub external_disturbance_potential_v: EvidenceValue<f64>,
 }
 
 /// Transparent thresholds for the V1 recognizer. They must be set in the
@@ -185,10 +186,32 @@ pub fn recognize_equilibrium(
             evidence,
         );
     }
-    let external = evidence
-        .external_disturbance_potential_v
-        .unwrap_or(0.0)
-        .abs();
+    let external = match &evidence.external_disturbance_potential_v {
+        EvidenceValue::Present(value) if value.is_finite() => value.abs(),
+        EvidenceValue::Present(_) => {
+            missing.push("finite external-disturbance evidence".into());
+            return assessment(
+                EquilibriumStatus::Indeterminate,
+                satisfied,
+                violated,
+                missing,
+                warnings,
+                evidence,
+            );
+        }
+        EvidenceValue::Missing { reason } => {
+            missing.push(format!("external-disturbance evidence: {reason}"));
+            return assessment(
+                EquilibriumStatus::Indeterminate,
+                satisfied,
+                violated,
+                missing,
+                warnings,
+                evidence,
+            );
+        }
+        EvidenceValue::NotApplicable => 0.0,
+    };
     if external > config.external_disturbance_threshold_v {
         violated.push("external disturbance exceeds threshold".into());
         return assessment(

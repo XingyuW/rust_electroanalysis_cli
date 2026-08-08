@@ -176,3 +176,13 @@ only when the Jacobian explicitly covers the ID and returns numeric zero;
 missing coverage remains missing even for a zero covariance row. `Complete`
 requires valid covariance and explicit derivative coverage for each relevant
 stochastic source, observation variance, and finite propagated values.
+
+### V1 component guardrails
+
+Equilibrium ion charge is a fixed deterministic discrete integer and is never
+rounded. A declared applicability domain is an explicit, inclusive,
+provenanced calibration/experiment interval; no universal range is implied.
+Candidate first-order transduction remains `Hypothesized`. Missing evidence is
+not equivalent to a zero disturbance. Component-specific identifiability
+requirements and typed covariate dimensions are part of the scientific
+contract, and result serialization must reject nested nonfinite leaves.

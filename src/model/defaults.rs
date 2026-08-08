@@ -349,6 +349,11 @@ fn parameter(
                 .into(),
         ],
         value_source,
+        characteristic: if id == "ion_charge" {
+            super::ParameterCharacteristic::DiscreteInteger
+        } else {
+            super::ParameterCharacteristic::Continuous
+        },
         validity_domain: validity_domain.into(),
     }
 }

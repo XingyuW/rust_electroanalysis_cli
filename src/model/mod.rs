@@ -21,6 +21,7 @@ mod registry;
 mod state;
 mod validity;
 
+pub use builtins::exact_nonzero_charge;
 pub use compiler::{
     CompiledBindingSummary, CompiledIsmModel, CompiledModelSummary, ComponentBindingSummary,
     compile_model,
@@ -37,10 +38,12 @@ pub use equilibrium_recognition::{
     EquilibriumRecognitionConfig, EquilibriumStatus, recognize_equilibrium,
 };
 pub use error::ModelError;
-pub use evidence::{EvidenceAssessment, EvidenceAssessmentStatus, EvidenceRequirement};
+pub use evidence::{
+    EvidenceAssessment, EvidenceAssessmentStatus, EvidenceRequirement, EvidenceValue,
+};
 pub use identifiability::{
-    AssessmentStatus, IdentifiabilityMetadata, IdentifiabilityReport,
-    ParameterIdentifiabilityRequirement,
+    AssessmentStatus, IdentifiabilityMetadata, IdentifiabilityReport, IdentifiabilityRequirement,
+    IdentifiabilityRequirementKind, ParameterIdentifiabilityRequirement, RequirementSeverity,
 };
 pub use input::{InputRequirement, InputSpec, InputValue, ModelInput};
 pub use output::{
@@ -48,13 +51,19 @@ pub use output::{
     ModelPrediction, ModelWarning, ObservationPrediction, PredictionUncertainty,
     PredictionUncertaintyInput, UncertaintyStatus, UnexplainedResidual,
 };
-pub use parameter::{CompiledParameterSpec, ParameterSpec, ParameterValueSource, ParameterValues};
+pub use parameter::{
+    CompiledParameterSpec, ParameterCharacteristic, ParameterSpec, ParameterValueSource,
+    ParameterValues,
+};
 pub use registry::{ComponentFactory, ComponentRegistry, built_in_registry};
 pub use state::{
     CompiledStateSpec, DeclaredUncertaintyClass, InitializationContext, InitializedModelState,
     ModelState, StateInitializationSource, StateSpec, StateTransformation, UncertaintySpec,
 };
-pub use validity::{ComponentValidityReport, ValidityDomain, ValidityReport, ValidityStatus};
+pub use validity::{
+    ComponentApplicabilityDomain, ComponentValidityReport, DomainEnforcement, DomainSource,
+    DomainStatus, NumericInterval, ValidityDomain, ValidityReport, ValidityStatus,
+};
 
 /// Public name for the framework's model implementation contract.
 pub trait IsmModel {

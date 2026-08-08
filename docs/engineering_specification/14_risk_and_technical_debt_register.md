@@ -138,3 +138,5 @@ supported production path. This is non-blocking provider follow-up debt.
 | RISK-034 | SCI | Rounded/discrete structural parameters such as ion charge do not have a continuous analytical uncertainty derivative; they must remain deterministic or prediction uncertainty is partial. | Medium | P2 |
 | RISK-035 | SCI | Complete propagation requires caller-supplied joint runtime covariance; absent covariance intentionally leaves stochastic prediction uncertainty Partial or Unavailable. An explicit independent-prior approximation remains a future, separately-provenanced feature. | Medium | P2 |
 | RISK-036 | SCI | First-order propagation cannot quantify a stochastic discrete valence without an explicitly supported non-differential method; the built-in charge remains fixed/deterministic. | Medium | P2 |
+| RISK-037 | SCI | Applicability-domain limits remain calibration- or experiment-specific; absent limits are reported unavailable rather than inferred. | Medium | P1 |
+| RISK-038 | SCI | Candidate transduction and covariate terms can be confounded without independent excitation and auxiliary evidence. | Medium | P1 |

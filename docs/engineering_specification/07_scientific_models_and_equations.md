@@ -510,3 +510,8 @@ matrices retain off-diagonal cross terms. Absent runtime covariance leaves a
 stochastic component unavailable rather than creating a diagonal matrix from
 declared uncertainty. Structural and model-form uncertainty are still not
 quantified, and no Bayesian propagation claim is made.
+
+For `E_external = beta (u - u_ref)`, `u_ref` has the same typed dimension as
+`u`, `beta` has V per `u`, and the contribution is V. Ion charge is a discrete
+configuration in Nernst/Nicolsky-Eisenman equations, not a continuous slope
+parameter; only exact nonzero integer values are admissible.
