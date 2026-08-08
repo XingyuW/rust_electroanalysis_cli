@@ -119,6 +119,10 @@ impl UncertaintySpec {
             _ => None,
         }
     }
+
+    pub fn is_positive_finite(&self, expected_unit: &str) -> bool {
+        matches!(self.variance_in(expected_unit), Ok(Some(value)) if value.is_finite() && value > 0.0)
+    }
 }
 
 /// Versioned metadata and constraints for one latent model state.

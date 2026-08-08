@@ -10,6 +10,7 @@ pub enum ParameterValueSource {
     Fixed,
     Fitted,
     ExternallySupplied,
+    ExternallySuppliedFixed,
 }
 
 /// Versioned metadata and constraints for a model parameter.

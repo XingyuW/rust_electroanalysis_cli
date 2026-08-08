@@ -6,7 +6,7 @@ use crate::model::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const MODEL_RESULT_SCHEMA_VERSION: u32 = 2;
+pub const MODEL_RESULT_SCHEMA_VERSION: u32 = 3;
 pub const MODEL_COMPILATION_ARTIFACT_KIND: &str = "ism_model_compilation";
 pub const MODEL_ANALYSIS_ARTIFACT_KIND: &str = "ism_model_analysis";
 

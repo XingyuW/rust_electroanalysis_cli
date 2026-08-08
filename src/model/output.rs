@@ -1,5 +1,5 @@
 use super::{
-    component::{ComponentRole, ContributionSemantics},
+    component::{ComponentRole, ContributionSemantics, JacobianMethod},
     error::ModelError,
 };
 use serde::{Deserialize, Serialize};
@@ -55,6 +55,10 @@ pub struct PredictionUncertainty {
     pub missing_sources: Vec<String>,
     #[serde(default)]
     pub assumptions: Vec<String>,
+    #[serde(default)]
+    pub state_jacobian_methods: Vec<JacobianMethod>,
+    #[serde(default)]
+    pub parameter_jacobian_methods: Vec<JacobianMethod>,
 }
 
 impl PredictionUncertainty {
@@ -68,16 +72,32 @@ impl PredictionUncertainty {
             observation_variance_v2: None,
             missing_sources: Vec::new(),
             assumptions: Vec::new(),
+            state_jacobian_methods: Vec::new(),
+            parameter_jacobian_methods: Vec::new(),
         }
     }
 }
 
 /// Optional full covariance inputs for first-order propagation. Matrices use
 /// compiled state/parameter order and may contain off-diagonal covariance.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PredictionUncertaintyInput {
+    /// `false` is the only path to `NotRequested`.
+    pub requested: bool,
     pub state_covariance: Option<Vec<Vec<f64>>>,
     pub parameter_covariance: Option<Vec<Vec<f64>>>,
+    pub observation_variance_v2: Option<f64>,
+}
+
+impl Default for PredictionUncertaintyInput {
+    fn default() -> Self {
+        Self {
+            requested: true,
+            state_covariance: None,
+            parameter_covariance: None,
+            observation_variance_v2: None,
+        }
+    }
 }
 
 /// Explicit status of the unexplained residual. Missing observed voltage is

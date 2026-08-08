@@ -135,3 +135,8 @@ scientific conclusion.
 The current contract reports first-order state, parameter, and observation
 uncertainty only. How structural and model-form alternatives should be
 quantified remains open; no Bayesian claim is made.
+
+Schema v3 closes derivative-coverage ambiguity and covariance omission for
+declared first-order sources. It does not answer how discrete structural choices
+(including charge/model parameterization), competing model forms, or calibration
+model selection uncertainty should be combined with that first-order variance.

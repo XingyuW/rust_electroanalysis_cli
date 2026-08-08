@@ -159,3 +159,10 @@ Model-contract tests cover deterministic contribution ordering, typed voltage
 reconstruction, observation-variance exclusion, canonical external-role alias
 migration, uncertainty validation, covariance propagation, and non-finite
 prediction serialization rejection.
+
+Schema-v3 regressions additionally cover Nernst E0 and slope covariance and
+their cross term, Nicolsky-Eisenman E0/slope/selectivity derivatives and full
+covariance, transduction gain/offset, centered covariate coefficients, drift,
+stable-ID mapping, missing derivative/covariance status, explicit disabling,
+strict fitted/estimated compatibility matrices, legacy numeric-zero migration,
+and enrichment of legacy estimator states from resolved initial covariance.

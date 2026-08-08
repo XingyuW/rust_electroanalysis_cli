@@ -817,7 +817,22 @@ fn compiled_legacy_adapter_reproduces_legacy_process_and_observation_equations()
         &config, 7.0, None, &stored,
     )
     .unwrap();
-    assert!(compiled.compiled_model().is_some());
+    let compiled_definition = compiled.compiled_model().unwrap().definition();
+    assert!(compiled_definition.states.iter().all(|state| {
+        matches!(
+            state.initialization_source,
+            rust_electroanalysis_cli::model::StateInitializationSource::Estimated
+        ) && state
+            .initial_uncertainty
+            .variance_in(&state.unit)
+            .is_ok_and(|variance| variance.is_some_and(|value| value > 0.0))
+    }));
+    assert!(!compiled_definition.states.iter().any(|state| {
+        matches!(
+            state.initial_uncertainty,
+            rust_electroanalysis_cli::model::UncertaintySpec::Unknown { .. }
+        )
+    }));
     let state = nalgebra::DVector::from_vec(vec![-3.0, 0.01, 0.02]);
     let environment = AlignedEnvironment {
         timestamp_s: 1.0,

@@ -4,9 +4,9 @@ use rust_electroanalysis_cli::{
     model::{
         ComponentDescriptor, ComponentFactory, ComponentRegistry, ComponentRole,
         ContributionSemantics, InputRequirement, InputSpec, InputValue, InterpretationStatus,
-        IsmComponent, ModelDefinition, ModelError, ModelInput, ModelState, ParameterSpec,
-        ParameterValueSource, ParameterValues, StateInitializationSource, StateSpec,
-        StateTransformation, UncertaintySpec, compile_model,
+        IsmComponent, ModelDefinition, ModelError, ModelInput, ModelState, ParameterJacobian,
+        ParameterSpec, ParameterValueSource, ParameterValues, StateInitializationSource,
+        StateJacobian, StateSpec, StateTransformation, UncertaintySpec, compile_model,
     },
     model_config::{MODEL_CONFIG_SCHEMA_VERSION, ModelConfig},
     results::model::{MODEL_COMPILATION_ARTIFACT_KIND, ModelCompilationArtifact},
@@ -17,6 +17,7 @@ use std::collections::BTreeMap;
 struct MockVoltageComponent {
     descriptor: ComponentDescriptor,
     voltage_v: f64,
+    missing_parameter_derivative: bool,
 }
 
 impl IsmComponent for MockVoltageComponent {
@@ -33,24 +34,33 @@ impl IsmComponent for MockVoltageComponent {
         Ok(Some(self.voltage_v))
     }
 
-    fn observation_jacobian(
+    fn observation_state_jacobian(
         &self,
-        _state_dimension: usize,
         _state: &ModelState,
         _parameters: &ParameterValues,
         _input: &ModelInput,
-    ) -> Result<Vec<f64>, ModelError> {
-        Ok(vec![2.0])
+    ) -> Result<StateJacobian, ModelError> {
+        Ok(StateJacobian::analytic([("memory".into(), 2.0)]))
     }
 
     fn observation_parameter_jacobian(
         &self,
-        _parameter_dimension: usize,
         _state: &ModelState,
         _parameters: &ParameterValues,
         _input: &ModelInput,
-    ) -> Result<Vec<f64>, ModelError> {
-        Ok(vec![3.0])
+    ) -> Result<ParameterJacobian, ModelError> {
+        if self.missing_parameter_derivative {
+            Ok(ParameterJacobian {
+                values: Vec::new(),
+                covered_parameters: Vec::new(),
+                status: rust_electroanalysis_cli::model::JacobianStatus::Unavailable {
+                    reason: "synthetic omission".into(),
+                },
+                method: rust_electroanalysis_cli::model::JacobianMethod::NotEvaluated,
+            })
+        } else {
+            Ok(ParameterJacobian::analytic([("offset".into(), 3.0)]))
+        }
     }
 }
 
@@ -75,6 +85,10 @@ fn mock_factory(descriptor: &ComponentDescriptor) -> Result<Box<dyn IsmComponent
     Ok(Box::new(MockVoltageComponent {
         descriptor: descriptor.clone(),
         voltage_v: value,
+        missing_parameter_derivative: descriptor
+            .metadata
+            .get("missing_parameter_derivative")
+            .is_some_and(|value| value == "true"),
     }))
 }
 
@@ -98,6 +112,9 @@ fn component(id: &str, role: ComponentRole, owner: &str, voltage_v: f64) -> Comp
         }],
         state_ids: vec!["memory".into()],
         parameter_ids: vec!["offset".into()],
+        observation_state_ids: vec!["memory".into()],
+        observation_parameter_ids: vec!["offset".into()],
+        numerical_jacobian_supported: false,
         output_unit: Some("V".into()),
         voltage_contribution_owner: Some(owner.into()),
         contribution_semantics: ContributionSemantics::AdditivePotential,
@@ -122,7 +139,7 @@ fn component(id: &str, role: ComponentRole, owner: &str, voltage_v: f64) -> Comp
 
 fn definition() -> ModelDefinition {
     ModelDefinition {
-        schema_version: 2,
+        schema_version: rust_electroanalysis_cli::model::MODEL_DEFINITION_SCHEMA_VERSION,
         model_id: "test-model".into(),
         description: "mock-component compilation fixture".into(),
         validity_domain: "synthetic bounded fixture".into(),
@@ -365,7 +382,7 @@ fn model_config_and_artifact_have_stable_semantics() {
     let artifact = ModelCompilationArtifact::from_compiled(&compiled);
     assert_eq!(artifact.artifact_kind, MODEL_COMPILATION_ARTIFACT_KIND);
     let json = artifact.to_json().expect("serialize finite model artifact");
-    assert!(json.contains("\"schema_version\": 2"));
+    assert!(json.contains("\"schema_version\": 3"));
     assert!(!json.contains("NaN"));
     assert!(!json.contains("Infinity"));
 }
@@ -438,7 +455,7 @@ fn reconstruction_failure_is_typed() {
 }
 
 #[test]
-fn fitted_missing_or_zero_uncertainty_is_rejected_unless_incomplete() {
+fn fitted_missing_or_zero_uncertainty_is_rejected() {
     let mut missing = definition();
     missing.parameters[0].value_source = ParameterValueSource::Fitted;
     missing.parameters[0].uncertainty = UncertaintySpec::Unknown {
@@ -461,6 +478,44 @@ fn fitted_missing_or_zero_uncertainty_is_rejected_unless_incomplete() {
 }
 
 #[test]
+fn fitted_deterministic_unknown_and_zero_variance_are_rejected() {
+    for uncertainty in [
+        UncertaintySpec::Deterministic,
+        UncertaintySpec::Unknown {
+            reason: "not fitted yet".into(),
+        },
+        UncertaintySpec::Variance {
+            value: 0.0,
+            unit: "V^2".into(),
+        },
+    ] {
+        let mut model = definition();
+        model.parameters[0].value_source = ParameterValueSource::Fitted;
+        model.parameters[0].uncertainty = uncertainty;
+        assert!(matches!(
+            compile_model(model, &registry()),
+            Err(ModelError::InvalidUncertainty { .. })
+        ));
+    }
+}
+
+#[test]
+fn fixed_deterministic_and_positive_fitted_uncertainty_are_accepted() {
+    let mut fixed = definition();
+    fixed.parameters[0].value_source = ParameterValueSource::Fixed;
+    fixed.parameters[0].uncertainty = UncertaintySpec::Deterministic;
+    assert!(compile_model(fixed, &registry()).is_ok());
+
+    let mut fitted = definition();
+    fitted.parameters[0].value_source = ParameterValueSource::Fitted;
+    fitted.parameters[0].uncertainty = UncertaintySpec::Variance {
+        value: 0.25,
+        unit: "V^2".into(),
+    };
+    assert!(compile_model(fitted, &registry()).is_ok());
+}
+
+#[test]
 fn estimated_state_requires_explicit_uncertainty() {
     let mut model = definition();
     model.states[0].initialization_source = StateInitializationSource::Estimated;
@@ -471,6 +526,36 @@ fn estimated_state_requires_explicit_uncertainty() {
         compile_model(model, &registry()),
         Err(ModelError::InvalidUncertainty { .. })
     ));
+}
+
+#[test]
+fn estimated_state_rejects_deterministic_and_incomplete_unknown() {
+    for uncertainty in [
+        UncertaintySpec::Deterministic,
+        UncertaintySpec::Unknown {
+            reason: "legacy omission".into(),
+        },
+    ] {
+        let mut model = definition();
+        model.uncertainty_incomplete = true;
+        model.states[0].initialization_source = StateInitializationSource::Estimated;
+        model.states[0].initial_uncertainty = uncertainty;
+        assert!(matches!(
+            compile_model(model, &registry()),
+            Err(ModelError::InvalidUncertainty { .. })
+        ));
+    }
+}
+
+#[test]
+fn estimated_state_with_positive_uncertainty_is_accepted() {
+    let mut model = definition();
+    model.states[0].initialization_source = StateInitializationSource::Estimated;
+    model.states[0].initial_uncertainty = UncertaintySpec::Variance {
+        value: 0.25,
+        unit: "V^2".into(),
+    };
+    assert!(compile_model(model, &registry()).is_ok());
 }
 
 #[test]
@@ -487,8 +572,10 @@ fn explicit_covariance_propagates_first_order_state_and_parameter_variance() {
             &input(),
             None,
             rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
                 state_covariance: Some(vec![vec![0.5]]),
                 parameter_covariance: Some(vec![vec![0.25]]),
+                observation_variance_v2: Some(0.0),
             },
         )
         .unwrap();
@@ -499,4 +586,171 @@ fn explicit_covariance_propagates_first_order_state_and_parameter_variance() {
     assert!((prediction.uncertainty.state_variance_v2.unwrap() - 2.0).abs() < 1e-12);
     assert!((prediction.uncertainty.parameter_variance_v2.unwrap() - 2.25).abs() < 1e-12);
     assert!((prediction.uncertainty.total_variance_v2.unwrap() - 4.25).abs() < 1e-12);
+}
+
+#[test]
+fn missing_parameter_covariance_or_derivative_is_partial() {
+    let mut missing_covariance = definition();
+    missing_covariance.components.truncate(1);
+    missing_covariance.parameters[0].uncertainty = UncertaintySpec::Unknown {
+        reason: "covariance unavailable".into(),
+    };
+    let compiled = compile_model(missing_covariance, &registry()).unwrap();
+    let parameters = compiled.default_parameters();
+    let state = compiled.initialize(&parameters).unwrap();
+    let prediction = compiled
+        .observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
+                state_covariance: None,
+                parameter_covariance: None,
+                observation_variance_v2: Some(1.0e-6),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        prediction.uncertainty.status,
+        rust_electroanalysis_cli::model::UncertaintyStatus::Partial
+    );
+    assert!(prediction.uncertainty.parameter_variance_v2.is_none());
+    assert!(prediction.uncertainty.total_variance_v2.is_none());
+    assert!(
+        prediction
+            .uncertainty
+            .missing_sources
+            .iter()
+            .any(|source| source.contains("parameter:offset covariance missing"))
+    );
+
+    let mut missing_derivative = definition();
+    missing_derivative.components.truncate(1);
+    missing_derivative.components[0]
+        .metadata
+        .insert("missing_parameter_derivative".into(), "true".into());
+    let compiled = compile_model(missing_derivative, &registry()).unwrap();
+    let parameters = compiled.default_parameters();
+    let state = compiled.initialize(&parameters).unwrap();
+    let prediction = compiled
+        .observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
+                state_covariance: None,
+                parameter_covariance: None,
+                observation_variance_v2: Some(1.0e-6),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        prediction.uncertainty.status,
+        rust_electroanalysis_cli::model::UncertaintyStatus::Partial
+    );
+    assert!(
+        prediction
+            .uncertainty
+            .missing_sources
+            .iter()
+            .any(|source| source.contains("parameter:offset") && source.contains("unavailable"))
+    );
+}
+
+#[test]
+fn no_uncertainty_inputs_is_unavailable_and_disabled_is_not_requested() {
+    let mut model = definition();
+    model.components.truncate(1);
+    model.states[0].initial_uncertainty = UncertaintySpec::Unknown {
+        reason: "state covariance unavailable".into(),
+    };
+    model.parameters[0].uncertainty = UncertaintySpec::Unknown {
+        reason: "parameter covariance unavailable".into(),
+    };
+    let compiled = compile_model(model, &registry()).unwrap();
+    let parameters = compiled.default_parameters();
+    let state = compiled.initialize(&parameters).unwrap();
+    let unavailable = compiled
+        .observation_prediction(&state, &parameters, &input(), None)
+        .unwrap();
+    assert_eq!(
+        unavailable.uncertainty.status,
+        rust_electroanalysis_cli::model::UncertaintyStatus::Unavailable
+    );
+    assert!(unavailable.uncertainty.state_variance_v2.is_none());
+    assert!(unavailable.uncertainty.parameter_variance_v2.is_none());
+    assert!(unavailable.uncertainty.total_variance_v2.is_none());
+
+    let disabled = compiled
+        .observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: false,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        disabled.uncertainty.status,
+        rust_electroanalysis_cli::model::UncertaintyStatus::NotRequested
+    );
+}
+
+#[test]
+fn legacy_numeric_uncertainty_is_unknown_and_incomplete_legacy_cannot_compile() {
+    let uncertainty: UncertaintySpec = serde_json::from_str("0.0").unwrap();
+    assert!(matches!(uncertainty, UncertaintySpec::Unknown { .. }));
+
+    let mut legacy = definition();
+    legacy.schema_version = 2;
+    legacy.uncertainty_incomplete = true;
+    legacy.states[0].initialization_source = StateInitializationSource::Estimated;
+    legacy.states[0].initial_uncertainty = UncertaintySpec::Unknown {
+        reason: "legacy uncertainty was absent".into(),
+    };
+    assert!(matches!(
+        compile_model(legacy, &registry()),
+        Err(ModelError::InvalidUncertainty { .. })
+    ));
+
+    let mut structurally_legacy = definition();
+    structurally_legacy.schema_version = 2;
+    assert!(matches!(
+        compile_model(structurally_legacy, &registry()),
+        Err(ModelError::LegacyMigrationRequired { found: 2, .. })
+    ));
+}
+
+#[test]
+fn inconsistent_covariance_dimensions_return_typed_error() {
+    let mut model = definition();
+    model.components.truncate(1);
+    let compiled = compile_model(model, &registry()).unwrap();
+    let parameters = compiled.default_parameters();
+    let state = compiled.initialize(&parameters).unwrap();
+    assert!(matches!(
+        compiled.observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
+                state_covariance: Some(vec![vec![1.0, 0.0], vec![0.0, 1.0]]),
+                parameter_covariance: Some(vec![vec![1.0]]),
+                observation_variance_v2: Some(0.0),
+            },
+        ),
+        Err(ModelError::CovarianceDimension {
+            subject: "state",
+            ..
+        })
+    ));
 }

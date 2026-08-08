@@ -66,3 +66,23 @@ The additive `[equilibrium_recognition]` estimation configuration section uses
 documented defaults under schema version 3, so existing schema-3 files require
 no migration. Timestamp-level result fields were already optional; no result
 schema increment is required.
+
+## Version 3: uncertainty and derivative coverage
+
+Model-definition schema 3 adds direct observation state/parameter declarations,
+typed Jacobian coverage/method records, and strict uncertainty compatibility.
+Model compilation and analysis artifacts increment from schema 2 to 3 because
+prediction uncertainty now serializes Jacobian methods and follows stricter
+status semantics. Older model definitions still deserialize. Legacy numeric
+uncertainty becomes `Unknown` with a migration reason; it is never reinterpreted
+as zero.
+
+The configuration adapter can migrate unambiguous composition and built-in
+dependency declarations in memory, but `uncertainty_incomplete` no longer
+bypasses validation. A legacy fitted parameter or estimated state with missing,
+zero, deterministic, or unknown uncertainty returns typed
+`InvalidUncertainty` until the user supplies a positive finite prior/covariance
+or reclassifies a truly fixed quantity. Direct compilation of an unmigrated
+legacy definition returns `LegacyMigrationRequired` once its uncertainty is
+otherwise valid. Writers emit schema 3; model artifact readers retain explicit
+legacy schema 1/2 support.

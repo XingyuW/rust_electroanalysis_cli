@@ -344,6 +344,9 @@ guards this source-level boundary. Workflow adapters consume the core in the
 direction recorded by ADR-0002. Static component registration is the current
 extension mechanism; no dynamic plugin ABI is part of the architecture.
 
-Schema-v2 composition dispatch and first-order prediction uncertainty remain in
-the model core. Estimation may provide covariance to this core, but the core
-does not depend on estimation, results, CLI, reporting, health, or plotting.
+Schema-v3 composition dispatch, stable-ID Jacobian coverage, and first-order
+prediction uncertainty remain in the model core. Estimation may provide neutral
+covariance values through an outer adapter, but the core does not depend on
+estimation, results, CLI, reporting, health, or plotting. The legacy estimation
+adapter maps the resolved initial-covariance configuration into typed state
+uncertainty before calling the core.

@@ -445,3 +445,35 @@ is `R` in V² and cannot be a voltage term. Available uncertainty is propagated
 as `J_x P_x J_x^T + J_theta P_theta J_theta^T + R`; full covariance retains
 correlation and diagonal declarations record an independence assumption.
 Structural and model-form uncertainty remain unquantified.
+
+### EQ-ISM-010: Analytical Observation-Parameter Jacobians
+
+For an explicitly parameterized Nernst form
+`E = E0 + S log10(a)`, the built-in returns `dE/dE0 = 1` and
+`dE/dS = log10(a)`. The default Nernst descriptor instead uses the theoretical
+temperature/charge slope, so it does not pretend that slope is a fitted
+uncertain parameter. Ion charge is a rounded structural parameter; its
+continuous derivative is unavailable, and an uncertain charge therefore makes
+uncertainty incomplete.
+
+For Nicolsky-Eisenman,
+`Aeff = ai + sum(Kij aj^(zi/zj))` and `E = E0 + S log10(Aeff)` when an empirical
+slope is declared. The derivatives are `dE/dE0 = 1`,
+`dE/dS = log10(Aeff)`, and
+`dE/dKij = S aj^(zi/zj) / (ln(10) Aeff)`. With the theoretical slope, the same
+selectivity derivative is evaluated as
+`R T aj^(zi/zj) / (zi F Aeff)`. Interferent parameters are resolved by stable
+parameter ID, never by descriptor-local vector position.
+
+For `E = offset + gain x`, the derivatives are `1` and `x`. For the implemented
+centered covariate form `E = beta (u - uref)`, they are `u - uref` and `-beta`.
+For linear drift `E = k t`, the derivative is `t`. State-output components
+explicitly cover each directly observed state with derivative one, including a
+mathematically zero value when that is the actual analytical result.
+
+Prediction variance is
+`Var(E) = Jx Px Jx^T + Jtheta Ptheta Jtheta^T + R`. Supplied full matrices retain
+off-diagonal cross terms. Per-state/per-parameter uncertainty creates a
+diagonal matrix and records the independence assumption. Structural and
+model-form uncertainty are still not quantified, and no Bayesian propagation
+claim is made.

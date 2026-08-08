@@ -11,6 +11,12 @@ use serde::{Deserialize, Serialize};
 /// public API boundaries.
 pub type ComponentId = String;
 
+/// Stable, schema-persisted identifier for a model state.
+pub type StateId = String;
+
+/// Stable, schema-persisted identifier for a model parameter.
+pub type ParameterId = String;
+
 /// Scientific role of a component's explicit voltage contribution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -75,6 +81,18 @@ pub struct ComponentDescriptor {
     pub state_ids: Vec<String>,
     #[serde(default)]
     pub parameter_ids: Vec<String>,
+    /// States with a direct derivative in this component's scalar observation.
+    /// Process-only states are intentionally excluded.
+    #[serde(default)]
+    pub observation_state_ids: Vec<StateId>,
+    /// Parameters with a direct derivative in this component's scalar
+    /// observation. Process-only parameters are intentionally excluded.
+    #[serde(default)]
+    pub observation_parameter_ids: Vec<ParameterId>,
+    /// Numerical observation derivatives are rejected unless explicitly
+    /// declared. Built-ins leave this false and provide analytical coverage.
+    #[serde(default)]
+    pub numerical_jacobian_supported: bool,
     /// Output unit for an observation-producing component. Additive-potential
     /// outputs use volts and observation-variance outputs use V².
     pub output_unit: Option<String>,
@@ -133,6 +151,42 @@ impl ComponentDescriptor {
             return Err(ModelError::UnsupportedCompositionSemantics {
                 component: self.id.clone(),
                 semantics: rule.clone(),
+            });
+        }
+        for state_id in &self.observation_state_ids {
+            if !self.state_ids.contains(state_id) {
+                return Err(ModelError::InvalidComponentShape {
+                    component: self.id.clone(),
+                    message: format!("observation state '{state_id}' is not declared in state_ids"),
+                });
+            }
+        }
+        for parameter_id in &self.observation_parameter_ids {
+            if !self.parameter_ids.contains(parameter_id) {
+                return Err(ModelError::InvalidComponentShape {
+                    component: self.id.clone(),
+                    message: format!(
+                        "observation parameter '{parameter_id}' is not declared in parameter_ids"
+                    ),
+                });
+            }
+        }
+        if self
+            .observation_state_ids
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != self.observation_state_ids.len()
+            || self
+                .observation_parameter_ids
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != self.observation_parameter_ids.len()
+        {
+            return Err(ModelError::InvalidComponentShape {
+                component: self.id.clone(),
+                message: "direct observation derivative declarations contain duplicate IDs".into(),
             });
         }
         if matches!(self.role, ComponentRole::Unexplained)
@@ -196,6 +250,103 @@ impl ComponentDescriptor {
 /// Dense row-major Jacobian representation used by the core without coupling
 /// it to a particular estimation library.
 pub type Jacobian = Vec<Vec<f64>>;
+
+/// How an observation derivative was evaluated.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum JacobianMethod {
+    Analytic,
+    Numerical {
+        relative_step: f64,
+        absolute_step: f64,
+    },
+    Mixed,
+    NotEvaluated,
+}
+
+/// Coverage of the parameters declared to affect a component observation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum JacobianStatus {
+    Complete,
+    Partial {
+        missing_parameters: Vec<ParameterId>,
+    },
+    Unavailable {
+        reason: String,
+    },
+    NotApplicable,
+}
+
+/// Local parameter derivative values keyed by stable parameter IDs.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ParameterJacobian {
+    pub values: Vec<f64>,
+    pub covered_parameters: Vec<ParameterId>,
+    pub status: JacobianStatus,
+    pub method: JacobianMethod,
+}
+
+impl ParameterJacobian {
+    pub fn analytic(values: impl IntoIterator<Item = (ParameterId, f64)>) -> Self {
+        let (covered_parameters, values) = values.into_iter().unzip();
+        Self {
+            values,
+            covered_parameters,
+            status: JacobianStatus::Complete,
+            method: JacobianMethod::Analytic,
+        }
+    }
+
+    pub fn not_applicable() -> Self {
+        Self {
+            values: Vec::new(),
+            covered_parameters: Vec::new(),
+            status: JacobianStatus::NotApplicable,
+            method: JacobianMethod::NotEvaluated,
+        }
+    }
+}
+
+/// Coverage of states declared to affect a component observation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum StateJacobianStatus {
+    Complete,
+    Partial { missing_states: Vec<StateId> },
+    Unavailable { reason: String },
+    NotApplicable,
+}
+
+/// Local state derivative values keyed by stable state IDs.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StateJacobian {
+    pub values: Vec<f64>,
+    pub covered_states: Vec<StateId>,
+    pub status: StateJacobianStatus,
+    pub method: JacobianMethod,
+}
+
+impl StateJacobian {
+    pub fn analytic(values: impl IntoIterator<Item = (StateId, f64)>) -> Self {
+        let (covered_states, values) = values.into_iter().unzip();
+        Self {
+            values,
+            covered_states,
+            status: StateJacobianStatus::Complete,
+            method: JacobianMethod::Analytic,
+        }
+    }
+
+    pub fn not_applicable() -> Self {
+        Self {
+            values: Vec::new(),
+            covered_states: Vec::new(),
+            status: StateJacobianStatus::NotApplicable,
+            method: JacobianMethod::NotEvaluated,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct ComponentBindings {
@@ -264,28 +415,46 @@ pub trait IsmComponent: Send + Sync {
         Ok(None)
     }
 
-    /// Local derivative of the additive observation with respect to the
-    /// ordered parameter vector. Components that do not expose this derivative
-    /// return a zero vector; callers then report incomplete uncertainty rather
-    /// than inventing parameter variance.
+    /// Local derivative of the additive observation with respect to stable
+    /// parameter IDs. Omission is explicit and is never represented by zero.
     fn observation_parameter_jacobian(
         &self,
-        parameter_dimension: usize,
         _state: &ModelState,
         _parameters: &ParameterValues,
         _input: &ModelInput,
-    ) -> Result<Vec<f64>, ModelError> {
-        Ok(vec![0.0; parameter_dimension])
+    ) -> Result<ParameterJacobian, ModelError> {
+        if self.descriptor().observation_parameter_ids.is_empty() {
+            Ok(ParameterJacobian::not_applicable())
+        } else {
+            Ok(ParameterJacobian {
+                values: Vec::new(),
+                covered_parameters: Vec::new(),
+                status: JacobianStatus::Unavailable {
+                    reason: "component did not implement its declared parameter derivative".into(),
+                },
+                method: JacobianMethod::NotEvaluated,
+            })
+        }
     }
 
-    fn observation_jacobian(
+    fn observation_state_jacobian(
         &self,
-        state_dimension: usize,
         _state: &ModelState,
         _parameters: &ParameterValues,
         _input: &ModelInput,
-    ) -> Result<Vec<f64>, ModelError> {
-        Ok(vec![0.0; state_dimension])
+    ) -> Result<StateJacobian, ModelError> {
+        if self.descriptor().observation_state_ids.is_empty() {
+            Ok(StateJacobian::not_applicable())
+        } else {
+            Ok(StateJacobian {
+                values: Vec::new(),
+                covered_states: Vec::new(),
+                status: StateJacobianStatus::Unavailable {
+                    reason: "component did not implement its declared state derivative".into(),
+                },
+                method: JacobianMethod::NotEvaluated,
+            })
+        }
     }
 
     fn validity_warnings(

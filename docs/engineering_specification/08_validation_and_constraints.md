@@ -162,7 +162,19 @@ one unique owner and explicit composition rule. `ObservationNoise` and
 sum of component contributions is checked against `E_pred` within the configured
 reconstruction tolerance.
 
-Schema-v2 rejects unsupported legacy composition strings, incompatible output
-fields, additive output from state-only/auxiliary components, and fitted or
-estimated quantities with missing/zero uncertainty unless the model explicitly
-declares uncertainty incomplete. Unknown never means numeric zero.
+Schema v3 rejects unsupported legacy composition strings, incompatible output
+fields, additive output from state-only/auxiliary components, inconsistent
+Jacobian dimensions/coverage/ID mapping, and undeclared numerical derivative
+use. A fitted parameter or estimated state requires positive finite variance or
+standard deviation. Deterministic, zero, non-finite, or unknown uncertainty is
+rejected for those sources even when `uncertainty_incomplete` is true. Fixed
+quantities may be deterministic. Unknown never means numeric zero.
+
+`Complete` requires every relevant non-deterministic state and parameter to
+have covariance and derivative coverage, required observation variance, and
+finite propagated values. `Partial` retains a prediction with named missing
+sources when some meaningful uncertainty is available. `Unavailable` means no
+meaningful uncertainty can be calculated. `NotRequested` requires an explicit
+disabled request. Numerical derivatives are accepted only when the descriptor
+declares support and positive relative/absolute steps are recorded; built-ins
+use analytical derivatives.

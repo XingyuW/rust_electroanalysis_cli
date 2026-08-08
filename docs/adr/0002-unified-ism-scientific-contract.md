@@ -115,3 +115,29 @@ alias only. Predictions report complete, partial, unavailable, or
 not-requested uncertainty. First-order propagation uses available `J P Jᵀ`
 terms and records diagonal-independence assumptions. It does not claim full
 Bayesian or model-form uncertainty propagation.
+
+### Schema-v3 derivative-coverage and uncertainty remediation
+
+Schema v3 separates a covered derivative whose analytical value is zero from
+an omitted derivative. Each additive component declares its direct observation
+state and parameter IDs. Local Jacobians return stable IDs, values, coverage
+status (`complete`, `partial`, `unavailable`, or `not_applicable`), and method;
+the compiler validates the local-to-global mapping. Built-ins use analytical
+derivatives. Numerical derivatives require an explicit component declaration
+and recorded positive relative and absolute steps; there is no silent finite-
+difference fallback.
+
+`Complete` now requires covariance and derivative coverage for every
+non-deterministic influencing state and parameter, an available observation
+variance, finite values, and no unresolved source. Missing covariance or
+coverage produces `Partial` when some meaningful uncertainty is available and
+`Unavailable` otherwise. `NotRequested` is emitted only by an explicit request
+flag. Full covariance uses all off-diagonal terms; per-item uncertainty creates
+a documented diagonal covariance and independence assumption.
+
+Fitted parameters and estimated states require positive finite uncertainty.
+`Deterministic`, zero, and `Unknown` are invalid for those sources.
+`uncertainty_incomplete` is retained only as legacy/migration metadata and
+cannot bypass validation. Legacy numeric zero deserializes as `Unknown` and
+must be enriched before compilation. This remains first-order propagation and
+makes no Bayesian or structural/model-form uncertainty claim.

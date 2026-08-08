@@ -44,26 +44,55 @@ impl ModelConfig {
         Ok(config)
     }
 
-    /// Schema-v1 did not carry typed contribution semantics. Its documented
-    /// observation-noise role is migrated to V² variance; components with an
-    /// old voltage owner become additive, and the remaining components are
-    /// state-only. Legacy uncertainty stays explicitly incomplete.
+    /// Legacy definitions are enriched only with structural information that
+    /// is unambiguous. Numeric uncertainty has already deserialized to
+    /// `Unknown`, so validation still requires user-supplied enrichment.
     fn migrate_legacy_model_definition(&mut self) {
-        if self.model.schema_version != 1 {
+        if self.model.schema_version >= MODEL_DEFINITION_SCHEMA_VERSION {
             return;
         }
+        let legacy_version = self.model.schema_version;
         self.model.uncertainty_incomplete = true;
         for component in &mut self.model.components {
-            component.contribution_semantics = if component.role == ComponentRole::ObservationNoise
-            {
-                component.output_unit = Some("V^2".into());
-                component.voltage_contribution_owner = None;
-                ContributionSemantics::ObservationVariance
-            } else if component.voltage_contribution_owner.is_some() {
-                ContributionSemantics::AdditivePotential
-            } else {
-                ContributionSemantics::StateOnly
-            };
+            if legacy_version == 1 {
+                component.contribution_semantics =
+                    if component.role == ComponentRole::ObservationNoise {
+                        component.output_unit = Some("V^2".into());
+                        component.voltage_contribution_owner = None;
+                        ContributionSemantics::ObservationVariance
+                    } else if component.voltage_contribution_owner.is_some() {
+                        ContributionSemantics::AdditivePotential
+                    } else {
+                        ContributionSemantics::StateOnly
+                    };
+            }
+            if component.contribution_semantics == ContributionSemantics::AdditivePotential {
+                match component.kind.as_str() {
+                    "transport.first_order_relaxation"
+                    | "transport.two_mode_relaxation"
+                    | "transport.stretched_relaxation"
+                    | "transport.partition_delay"
+                    | "transduction.solid_contact_rc_candidate"
+                    | "transduction.interfacial_polarization_candidate"
+                    | "disturbance.baseline_random_walk" => {
+                        component.observation_state_ids = component.state_ids.clone();
+                    }
+                    "equilibrium.nernst"
+                    | "equilibrium.nicolsky_eisenman"
+                    | "transduction.ideal"
+                    | "disturbance.linear_drift"
+                    | "disturbance.temperature_covariate"
+                    | "disturbance.conductivity_covariate"
+                    | "disturbance.flow_covariate" => {
+                        component.observation_parameter_ids = component.parameter_ids.clone();
+                    }
+                    _ => {
+                        component.observation_state_ids = component.state_ids.clone();
+                        component.observation_parameter_ids = component.parameter_ids.clone();
+                    }
+                }
+            }
         }
+        self.model.schema_version = MODEL_DEFINITION_SCHEMA_VERSION;
     }
 }

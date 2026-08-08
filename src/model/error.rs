@@ -68,6 +68,20 @@ pub enum ModelError {
     InvalidTimeStep { dt_s: f64 },
     #[error("invalid Jacobian dimensions from component '{component}'")]
     JacobianDimension { component: String },
+    #[error(
+        "invalid {subject} covariance dimensions; expected {expected}x{expected}, found {actual}"
+    )]
+    CovarianceDimension {
+        subject: &'static str,
+        expected: usize,
+        actual: String,
+    },
+    #[error("invalid Jacobian coverage from component '{component}': {message}")]
+    JacobianCoverage { component: String, message: String },
+    #[error(
+        "model schema version {found} must be explicitly migrated to version {expected} before compilation"
+    )]
+    LegacyMigrationRequired { found: u32, expected: u32 },
     #[error("component '{component}' emitted a non-finite voltage contribution")]
     NonFiniteContribution { component: String },
     #[error("component '{component}' emitted a voltage without a declared contribution owner")]

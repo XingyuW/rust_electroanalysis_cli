@@ -5,14 +5,15 @@
 //! observed phenomenology or candidate structures, not confirmed mechanisms.
 
 use super::{
-    ComponentBindings, ComponentDescriptor, ComponentFactory, IsmComponent, Jacobian, ModelError,
-    ModelInput, ModelState, ParameterValues,
+    ComponentBindings, ComponentDescriptor, ComponentFactory, IsmComponent, Jacobian,
+    JacobianMethod, JacobianStatus, ModelError, ModelInput, ModelState, ParameterJacobian,
+    ParameterValues, StateJacobian,
 };
 use crate::potentiometry::{
     calibration::{
         activity::evaluate_model_activity,
-        nernst::evaluate_nernst_auto,
-        nicolsky_eisenman::{InterferentModelInput, evaluate_potential},
+        nernst::{FARADAY_C_PER_MOL, GAS_CONSTANT_J_PER_MOL_K, evaluate_nernst_auto},
+        nicolsky_eisenman::{InterferentModelInput, effective_activity, evaluate_potential},
     },
     transient::models::{TransientModelKind, evaluate as evaluate_transient},
     units::{Quantity, QuantityUnit},
@@ -68,17 +69,20 @@ impl BuiltinComponent {
     }
 
     fn parameter(&self, values: &ParameterValues, id: &str) -> Result<f64, ModelError> {
-        let index = self
-            .bindings
-            .parameter_indices
-            .get(id)
-            .copied()
-            .ok_or_else(|| missing(&self.descriptor.id, "parameter", id))?;
+        let index = self.parameter_index(id)?;
         values
             .values
             .get(index)
             .copied()
             .ok_or_else(|| missing(&self.descriptor.id, "parameter index", id))
+    }
+
+    fn parameter_index(&self, id: &str) -> Result<usize, ModelError> {
+        self.bindings
+            .parameter_indices
+            .get(id)
+            .copied()
+            .ok_or_else(|| missing(&self.descriptor.id, "parameter", id))
     }
 
     fn input(&self, input: &ModelInput, id: &str) -> Result<f64, ModelError> {
@@ -320,27 +324,57 @@ impl IsmComponent for BuiltinComponent {
         let value = match self.descriptor.kind.as_str() {
             "equilibrium.nernst" => {
                 let (activity, _) = self.activity(input, parameters)?;
-                evaluate_nernst_auto(
-                    self.parameter(parameters, &self.descriptor.parameter_ids[0])?,
-                    activity,
-                    self.input(input, "temperature")?,
-                    self.parameter(parameters, &self.descriptor.parameter_ids[1])?
-                        .round() as i32,
-                )
-                .map_err(|error| evaluation(&self.descriptor.id, error))?
+                if let Some(slope_id) = slope_parameter_id(&self.descriptor) {
+                    let value = self.parameter(parameters, &self.descriptor.parameter_ids[0])?
+                        + self.parameter(parameters, slope_id)? * activity.log10();
+                    if !value.is_finite() {
+                        return Err(evaluation(
+                            &self.descriptor.id,
+                            "empirical-slope Nernst prediction was non-finite",
+                        ));
+                    }
+                    value
+                } else {
+                    evaluate_nernst_auto(
+                        self.parameter(parameters, &self.descriptor.parameter_ids[0])?,
+                        activity,
+                        self.input(input, "temperature")?,
+                        self.parameter(parameters, &self.descriptor.parameter_ids[1])?
+                            .round() as i32,
+                    )
+                    .map_err(|error| evaluation(&self.descriptor.id, error))?
+                }
             }
             "equilibrium.nicolsky_eisenman" => {
                 let (activity, _) = self.activity(input, parameters)?;
-                let interferents = parse_interferents(&self.descriptor, parameters, input)?;
-                evaluate_potential(
-                    self.parameter(parameters, &self.descriptor.parameter_ids[0])?,
-                    activity,
-                    self.parameter(parameters, &self.descriptor.parameter_ids[1])?
-                        .round() as i32,
-                    self.input(input, "temperature")?,
-                    &interferents,
-                )
-                .map_err(|error| evaluation(&self.descriptor.id, error))?
+                let interferents =
+                    parse_interferents(&self.descriptor, &self.bindings, parameters, input)?;
+                if let Some(slope_id) = slope_parameter_id(&self.descriptor) {
+                    let charge = self
+                        .parameter(parameters, &self.descriptor.parameter_ids[1])?
+                        .round() as i32;
+                    let effective = effective_activity(activity, charge, &interferents)
+                        .map_err(|error| evaluation(&self.descriptor.id, error))?;
+                    let value = self.parameter(parameters, &self.descriptor.parameter_ids[0])?
+                        + self.parameter(parameters, slope_id)? * effective.log10();
+                    if !value.is_finite() {
+                        return Err(evaluation(
+                            &self.descriptor.id,
+                            "empirical-slope Nicolsky-Eisenman prediction was non-finite",
+                        ));
+                    }
+                    value
+                } else {
+                    evaluate_potential(
+                        self.parameter(parameters, &self.descriptor.parameter_ids[0])?,
+                        activity,
+                        self.parameter(parameters, &self.descriptor.parameter_ids[1])?
+                            .round() as i32,
+                        self.input(input, "temperature")?,
+                        &interferents,
+                    )
+                    .map_err(|error| evaluation(&self.descriptor.id, error))?
+                }
             }
             "transport.first_order_relaxation"
             | "transport.stretched_relaxation"
@@ -399,57 +433,124 @@ impl IsmComponent for BuiltinComponent {
         }
     }
 
-    fn observation_jacobian(
+    fn observation_state_jacobian(
         &self,
-        dimension: usize,
         _state: &ModelState,
         _parameters: &ParameterValues,
         _input: &ModelInput,
-    ) -> Result<Vec<f64>, ModelError> {
-        let mut result = vec![0.0; dimension];
-        match self.descriptor.kind.as_str() {
+    ) -> Result<StateJacobian, ModelError> {
+        let values = match self.descriptor.kind.as_str() {
             "transport.first_order_relaxation"
             | "transport.stretched_relaxation"
             | "transport.partition_delay"
             | "transduction.solid_contact_rc_candidate"
             | "transduction.interfacial_polarization_candidate"
             | "disturbance.baseline_random_walk" => {
-                result[self.state_index(&self.descriptor.state_ids[0])?] = 1.0
+                vec![(self.descriptor.state_ids[0].clone(), 1.0)]
             }
-            "transport.two_mode_relaxation" => {
-                for state_id in &self.descriptor.state_ids {
-                    result[self.state_index(state_id)?] = 1.0;
-                }
-            }
-            _ => {}
-        }
-        Ok(result)
+            "transport.two_mode_relaxation" => self
+                .descriptor
+                .state_ids
+                .iter()
+                .cloned()
+                .map(|id| (id, 1.0))
+                .collect(),
+            _ => return Ok(StateJacobian::not_applicable()),
+        };
+        Ok(StateJacobian::analytic(values))
     }
 
     fn observation_parameter_jacobian(
         &self,
-        dimension: usize,
         _state: &ModelState,
-        _parameters: &ParameterValues,
+        parameters: &ParameterValues,
         input: &ModelInput,
-    ) -> Result<Vec<f64>, ModelError> {
-        let mut result = vec![0.0; dimension];
-        if self.descriptor.kind.as_str() == "disturbance.linear_drift" {
-            let index = self
-                .bindings
-                .parameter_indices
-                .get(&self.descriptor.parameter_ids[0])
-                .copied()
-                .ok_or_else(|| {
-                    missing(
-                        &self.descriptor.id,
-                        "parameter",
-                        &self.descriptor.parameter_ids[0],
-                    )
-                })?;
-            result[index] = input.time_s;
+    ) -> Result<ParameterJacobian, ModelError> {
+        let ids = &self.descriptor.parameter_ids;
+        match self.descriptor.kind.as_str() {
+            "equilibrium.nernst" => {
+                let mut covered_parameters = vec![ids[0].clone()];
+                let mut values = vec![1.0];
+                if let Some(slope_id) = slope_parameter_id(&self.descriptor) {
+                    let (activity, _) = self.activity(input, parameters)?;
+                    covered_parameters.push(slope_id.into());
+                    values.push(activity.log10());
+                }
+                Ok(ParameterJacobian {
+                    values,
+                    covered_parameters,
+                    status: JacobianStatus::Partial {
+                        missing_parameters: vec![ids[1].clone()],
+                    },
+                    method: JacobianMethod::Analytic,
+                })
+            }
+            "equilibrium.nicolsky_eisenman" => {
+                let (primary_activity, _) = self.activity(input, parameters)?;
+                let primary_charge = self.parameter(parameters, &ids[1])?.round() as i32;
+                let interferents = parse_interferents_with_ids(
+                    &self.descriptor,
+                    &self.bindings,
+                    parameters,
+                    input,
+                )?;
+                let models = interferents
+                    .iter()
+                    .map(|(_, model)| model.clone())
+                    .collect::<Vec<_>>();
+                let effective = effective_activity(primary_activity, primary_charge, &models)
+                    .map_err(|error| evaluation(&self.descriptor.id, error))?;
+                let scale = if let Some(slope_id) = slope_parameter_id(&self.descriptor) {
+                    self.parameter(parameters, slope_id)? / (std::f64::consts::LN_10 * effective)
+                } else {
+                    GAS_CONSTANT_J_PER_MOL_K * self.input(input, "temperature")?
+                        / (f64::from(primary_charge) * FARADAY_C_PER_MOL * effective)
+                };
+                let mut covered_parameters = vec![ids[0].clone()];
+                let mut values = vec![1.0];
+                if let Some(slope_id) = slope_parameter_id(&self.descriptor) {
+                    covered_parameters.push(slope_id.into());
+                    values.push(effective.log10());
+                }
+                for (id, interferent) in interferents {
+                    covered_parameters.push(id);
+                    values.push(
+                        scale
+                            * interferent
+                                .activity
+                                .powf(f64::from(primary_charge) / f64::from(interferent.charge)),
+                    );
+                }
+                Ok(ParameterJacobian {
+                    values,
+                    covered_parameters,
+                    status: JacobianStatus::Partial {
+                        missing_parameters: vec![ids[1].clone()],
+                    },
+                    method: JacobianMethod::Analytic,
+                })
+            }
+            "transduction.ideal" => Ok(ParameterJacobian::analytic([
+                (ids[0].clone(), self.input(input, "transduction_drive_v")?),
+                (ids[1].clone(), 1.0),
+            ])),
+            "disturbance.linear_drift" => Ok(ParameterJacobian::analytic([(
+                ids[0].clone(),
+                input.time_s,
+            )])),
+            "disturbance.temperature_covariate"
+            | "disturbance.conductivity_covariate"
+            | "disturbance.flow_covariate" => {
+                let covariate = self.input(input, &self.descriptor.required_inputs[0].id)?;
+                let sensitivity = self.parameter(parameters, &ids[0])?;
+                let reference = self.parameter(parameters, &ids[1])?;
+                Ok(ParameterJacobian::analytic([
+                    (ids[0].clone(), covariate - reference),
+                    (ids[1].clone(), -sensitivity),
+                ]))
+            }
+            _ => Ok(ParameterJacobian::not_applicable()),
         }
-        Ok(result)
     }
 
     fn validity_warnings(
@@ -526,6 +627,60 @@ fn validate_builtin_shape(descriptor: &ComponentDescriptor) -> Result<(), ModelE
             ),
         });
     }
+    if descriptor.kind == "equilibrium.nernst" {
+        let expected = if slope_parameter_id(descriptor).is_some() {
+            3
+        } else {
+            2
+        };
+        if descriptor.parameter_ids.len() != expected {
+            return Err(ModelError::InvalidComponentShape {
+                component: descriptor.id.clone(),
+                message: "Nernst parameters must be E0 and charge, plus only an explicitly named slope parameter".into(),
+            });
+        }
+    }
+    if let Some(slope_id) = slope_parameter_id(descriptor)
+        && (!descriptor.parameter_ids.iter().any(|id| id == slope_id)
+            || descriptor.parameter_ids[0] == slope_id
+            || descriptor.parameter_ids[1] == slope_id)
+    {
+        return Err(ModelError::InvalidComponentShape {
+            component: descriptor.id.clone(),
+            message: "slope_parameter_id must name a distinct declared parameter".into(),
+        });
+    }
+    let expected_observation_states = match descriptor.kind.as_str() {
+        "transport.first_order_relaxation"
+        | "transport.two_mode_relaxation"
+        | "transport.stretched_relaxation"
+        | "transport.partition_delay"
+        | "transduction.solid_contact_rc_candidate"
+        | "transduction.interfacial_polarization_candidate"
+        | "disturbance.baseline_random_walk" => descriptor.state_ids.clone(),
+        _ => Vec::new(),
+    };
+    let expected_observation_parameters = match descriptor.kind.as_str() {
+        "equilibrium.nernst"
+        | "equilibrium.nicolsky_eisenman"
+        | "transduction.ideal"
+        | "disturbance.linear_drift"
+        | "disturbance.temperature_covariate"
+        | "disturbance.conductivity_covariate"
+        | "disturbance.flow_covariate" => descriptor.parameter_ids.clone(),
+        _ => Vec::new(),
+    };
+    if descriptor.observation_state_ids != expected_observation_states
+        || descriptor.observation_parameter_ids != expected_observation_parameters
+    {
+        return Err(ModelError::InvalidComponentShape {
+            component: descriptor.id.clone(),
+            message: format!(
+                "kind '{}' has inconsistent direct observation derivative declarations",
+                descriptor.kind
+            ),
+        });
+    }
     let required_runtime_input = match descriptor.kind.as_str() {
         "transport.first_order_relaxation"
         | "transport.two_mode_relaxation"
@@ -559,6 +714,12 @@ fn validate_builtin_shape(descriptor: &ComponentDescriptor) -> Result<(), ModelE
     }
     Ok(())
 }
+fn slope_parameter_id(descriptor: &ComponentDescriptor) -> Option<&str> {
+    descriptor
+        .metadata
+        .get("slope_parameter_id")
+        .map(String::as_str)
+}
 fn missing(component: &str, kind: &'static str, id: &str) -> ModelError {
     ModelError::MissingReference {
         component: component.into(),
@@ -574,9 +735,24 @@ fn evaluation(component: &str, error: impl std::fmt::Display) -> ModelError {
 }
 fn parse_interferents(
     descriptor: &ComponentDescriptor,
+    bindings: &ComponentBindings,
     parameters: &ParameterValues,
     input: &ModelInput,
 ) -> Result<Vec<InterferentModelInput>, ModelError> {
+    parse_interferents_with_ids(descriptor, bindings, parameters, input).map(|items| {
+        items
+            .into_iter()
+            .map(|(_, interferent)| interferent)
+            .collect()
+    })
+}
+
+fn parse_interferents_with_ids(
+    descriptor: &ComponentDescriptor,
+    bindings: &ComponentBindings,
+    parameters: &ParameterValues,
+    input: &ModelInput,
+) -> Result<Vec<(String, InterferentModelInput)>, ModelError> {
     descriptor
         .metadata
         .get("interferents")
@@ -591,13 +767,14 @@ fn parse_interferents(
                             message: "interferents must be name:charge:input:parameter".into(),
                         });
                     }
-                    let index = descriptor
-                        .parameter_ids
-                        .iter()
-                        .position(|id| id == fields[3])
-                        .ok_or_else(|| {
-                            missing(&descriptor.id, "interferent parameter", fields[3])
-                        })?;
+                    if !descriptor.parameter_ids.iter().any(|id| id == fields[3]) {
+                        return Err(missing(&descriptor.id, "interferent parameter", fields[3]));
+                    }
+                    let index = bindings
+                        .parameter_indices
+                        .get(fields[3])
+                        .copied()
+                        .ok_or_else(|| missing(&descriptor.id, "parameter", fields[3]))?;
                     let charge =
                         fields[1]
                             .parse()
@@ -605,23 +782,26 @@ fn parse_interferents(
                                 component: descriptor.id.clone(),
                                 message: "interferent charge must be integer".into(),
                             })?;
-                    Ok(InterferentModelInput {
-                        name: fields[0].into(),
-                        charge,
-                        activity: input
-                            .values
-                            .get(fields[2])
-                            .ok_or_else(|| ModelError::MissingInput {
-                                component: descriptor.id.clone(),
-                                input: fields[2].into(),
-                            })?
-                            .value,
-                        selectivity_coefficient: parameters
-                            .values
-                            .get(index)
-                            .copied()
-                            .ok_or_else(|| missing(&descriptor.id, "parameter", fields[3]))?,
-                    })
+                    Ok((
+                        fields[3].into(),
+                        InterferentModelInput {
+                            name: fields[0].into(),
+                            charge,
+                            activity: input
+                                .values
+                                .get(fields[2])
+                                .ok_or_else(|| ModelError::MissingInput {
+                                    component: descriptor.id.clone(),
+                                    input: fields[2].into(),
+                                })?
+                                .value,
+                            selectivity_coefficient: parameters
+                                .values
+                                .get(index)
+                                .copied()
+                                .ok_or_else(|| missing(&descriptor.id, "parameter", fields[3]))?,
+                        },
+                    ))
                 })
                 .collect()
         })

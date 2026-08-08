@@ -24,7 +24,8 @@ mod validity;
 pub use compiler::{CompiledIsmModel, compile_model};
 pub use component::{
     ComponentBindings, ComponentDescriptor, ComponentId, ComponentRole, ContributionSemantics,
-    InterpretationStatus, IsmComponent, Jacobian,
+    InterpretationStatus, IsmComponent, Jacobian, JacobianMethod, JacobianStatus, ParameterId,
+    ParameterJacobian, StateId, StateJacobian, StateJacobianStatus,
 };
 pub use defaults::default_model_definition;
 pub use definition::{MODEL_DEFINITION_SCHEMA_VERSION, ModelDefinition};

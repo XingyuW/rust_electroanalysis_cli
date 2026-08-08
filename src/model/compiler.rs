@@ -1,7 +1,7 @@
 use super::{
     component::{
         ComponentBindings, ComponentDescriptor, ContributionSemantics, IsmComponent, Jacobian,
-        identity,
+        JacobianMethod, JacobianStatus, ParameterJacobian, StateJacobianStatus, identity,
     },
     definition::ModelDefinition,
     error::ModelError,
@@ -14,7 +14,7 @@ use super::{
     },
     parameter::{CompiledParameterSpec, ParameterValues},
     registry::ComponentRegistry,
-    state::{CompiledStateSpec, ModelState},
+    state::{CompiledStateSpec, ModelState, UncertaintySpec},
     validity::ValidityReport,
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -214,13 +214,17 @@ impl CompiledIsmModel {
         uncertainty_input: PredictionUncertaintyInput,
     ) -> Result<ObservationPrediction, ModelError> {
         let contributions = self.component_contributions(state, parameters, input)?;
-        let uncertainty = self.prediction_uncertainty(
-            state,
-            parameters,
-            input,
-            &contributions,
-            uncertainty_input,
-        )?;
+        let uncertainty = if uncertainty_input.requested {
+            self.prediction_uncertainty(
+                state,
+                parameters,
+                input,
+                &contributions,
+                uncertainty_input,
+            )?
+        } else {
+            PredictionUncertainty::not_requested()
+        };
         let prediction =
             ObservationPrediction::new(contributions, observed_voltage_v, uncertainty)?;
         prediction.verify_reconstruction(DEFAULT_POTENTIAL_RECONSTRUCTION_TOLERANCE_V)?;
@@ -236,53 +240,216 @@ impl CompiledIsmModel {
         self.validate_state(state)?;
         self.validate_parameters(parameters)?;
         self.validate_input(input)?;
-        let dimension = self.state_definitions.len();
-        let mut result = vec![0.0; dimension];
-        for component in &self.components {
-            if component.descriptor().contribution_semantics
-                != ContributionSemantics::AdditivePotential
-            {
-                continue;
-            }
-            let jacobian = component.observation_jacobian(dimension, state, parameters, input)?;
-            if jacobian.len() != dimension || jacobian.iter().any(|value| !value.is_finite()) {
-                return Err(ModelError::JacobianDimension {
-                    component: component.descriptor().id.clone(),
-                });
-            }
-            for (result_value, component_value) in result.iter_mut().zip(jacobian) {
-                *result_value += component_value;
-            }
+        let result = self.aggregate_state_jacobian(state, parameters, input)?;
+        if let Some((component, _, message)) = result.missing.first() {
+            return Err(ModelError::JacobianCoverage {
+                component: component.clone(),
+                message: message.clone(),
+            });
         }
-        Ok(result)
+        Ok(result.values)
     }
 
-    fn observation_parameter_jacobian(
+    pub fn observation_parameter_jacobian(
         &self,
         state: &ModelState,
         parameters: &ParameterValues,
         input: &ModelInput,
-    ) -> Result<Vec<f64>, ModelError> {
-        let dimension = self.parameter_definitions.len();
-        let mut result = vec![0.0; dimension];
+    ) -> Result<ParameterJacobian, ModelError> {
+        self.validate_state(state)?;
+        self.validate_parameters(parameters)?;
+        self.validate_input(input)?;
+        let result = self.aggregate_parameter_jacobian(state, parameters, input)?;
+        let covered_parameters = result
+            .relevant_ids
+            .iter()
+            .filter(|id| !result.missing_ids.contains(*id))
+            .cloned()
+            .collect::<Vec<_>>();
+        let values = covered_parameters
+            .iter()
+            .map(|id| result.values[self.parameter_indices[id]])
+            .collect();
+        let status = if result.relevant_ids.is_empty() {
+            JacobianStatus::NotApplicable
+        } else if result.missing_ids.is_empty() {
+            JacobianStatus::Complete
+        } else {
+            JacobianStatus::Partial {
+                missing_parameters: result.missing_ids.iter().cloned().collect(),
+            }
+        };
+        Ok(ParameterJacobian {
+            values,
+            covered_parameters,
+            status,
+            method: combined_method(&result.methods),
+        })
+    }
+
+    fn aggregate_state_jacobian(
+        &self,
+        state: &ModelState,
+        parameters: &ParameterValues,
+        input: &ModelInput,
+    ) -> Result<AggregatedJacobian, ModelError> {
+        let mut aggregate = AggregatedJacobian::new(self.state_definitions.len());
         for component in &self.components {
-            if component.descriptor().contribution_semantics
-                != ContributionSemantics::AdditivePotential
-            {
+            let descriptor = component.descriptor();
+            if descriptor.contribution_semantics != ContributionSemantics::AdditivePotential {
                 continue;
             }
-            let jacobian =
-                component.observation_parameter_jacobian(dimension, state, parameters, input)?;
-            if jacobian.len() != dimension || jacobian.iter().any(|value| !value.is_finite()) {
-                return Err(ModelError::JacobianDimension {
-                    component: component.descriptor().id.clone(),
-                });
+            let expected = descriptor
+                .observation_state_ids
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            aggregate.relevant_ids.extend(expected.iter().cloned());
+            let local = component.observation_state_jacobian(state, parameters, input)?;
+            validate_method(descriptor, &local.method)?;
+            validate_local_values(
+                descriptor,
+                &local.covered_states,
+                &local.values,
+                &expected,
+                "state",
+            )?;
+            let covered = local
+                .covered_states
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            let missing = expected
+                .difference(&covered)
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            match &local.status {
+                StateJacobianStatus::Complete if missing.is_empty() => {}
+                StateJacobianStatus::Partial { missing_states }
+                    if missing_states.iter().cloned().collect::<BTreeSet<_>>() == missing => {}
+                StateJacobianStatus::Unavailable { reason } if !reason.trim().is_empty() => {}
+                StateJacobianStatus::NotApplicable if expected.is_empty() && covered.is_empty() => {
+                }
+                _ => {
+                    return Err(ModelError::JacobianCoverage {
+                        component: descriptor.id.clone(),
+                        message: "state Jacobian status is inconsistent with declared coverage"
+                            .into(),
+                    });
+                }
             }
-            for (total, value) in result.iter_mut().zip(jacobian) {
-                *total += value;
+            for (id, value) in local.covered_states.iter().zip(local.values) {
+                let index =
+                    self.state_indices
+                        .get(id)
+                        .ok_or_else(|| ModelError::JacobianCoverage {
+                            component: descriptor.id.clone(),
+                            message: format!("covered state '{id}' has no compiled index"),
+                        })?;
+                aggregate.values[*index] += value;
+            }
+            let unavailable_reason = match local.status {
+                StateJacobianStatus::Unavailable { reason } => Some(reason),
+                _ => None,
+            };
+            for id in missing {
+                aggregate.missing_ids.insert(id.clone());
+                aggregate.missing.push((
+                    descriptor.id.clone(),
+                    id.clone(),
+                    unavailable_reason.as_ref().map_or_else(
+                        || format!("state '{id}' derivative is missing"),
+                        |reason| format!("state '{id}' derivative unavailable: {reason}"),
+                    ),
+                ));
+            }
+            if !expected.is_empty() {
+                aggregate.methods.push(local.method);
             }
         }
-        Ok(result)
+        Ok(aggregate)
+    }
+
+    fn aggregate_parameter_jacobian(
+        &self,
+        state: &ModelState,
+        parameters: &ParameterValues,
+        input: &ModelInput,
+    ) -> Result<AggregatedJacobian, ModelError> {
+        let mut aggregate = AggregatedJacobian::new(self.parameter_definitions.len());
+        for component in &self.components {
+            let descriptor = component.descriptor();
+            if descriptor.contribution_semantics != ContributionSemantics::AdditivePotential {
+                continue;
+            }
+            let expected = descriptor
+                .observation_parameter_ids
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            aggregate.relevant_ids.extend(expected.iter().cloned());
+            let local = component.observation_parameter_jacobian(state, parameters, input)?;
+            validate_method(descriptor, &local.method)?;
+            validate_local_values(
+                descriptor,
+                &local.covered_parameters,
+                &local.values,
+                &expected,
+                "parameter",
+            )?;
+            let covered = local
+                .covered_parameters
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            let missing = expected
+                .difference(&covered)
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            match &local.status {
+                JacobianStatus::Complete if missing.is_empty() => {}
+                JacobianStatus::Partial { missing_parameters }
+                    if missing_parameters.iter().cloned().collect::<BTreeSet<_>>() == missing => {}
+                JacobianStatus::Unavailable { reason } if !reason.trim().is_empty() => {}
+                JacobianStatus::NotApplicable if expected.is_empty() && covered.is_empty() => {}
+                _ => {
+                    return Err(ModelError::JacobianCoverage {
+                        component: descriptor.id.clone(),
+                        message: "parameter Jacobian status is inconsistent with declared coverage"
+                            .into(),
+                    });
+                }
+            }
+            for (id, value) in local.covered_parameters.iter().zip(local.values) {
+                let index =
+                    self.parameter_indices
+                        .get(id)
+                        .ok_or_else(|| ModelError::JacobianCoverage {
+                            component: descriptor.id.clone(),
+                            message: format!("covered parameter '{id}' has no compiled index"),
+                        })?;
+                aggregate.values[*index] += value;
+            }
+            let unavailable_reason = match local.status {
+                JacobianStatus::Unavailable { reason } => Some(reason),
+                _ => None,
+            };
+            for id in missing {
+                aggregate.missing_ids.insert(id.clone());
+                aggregate.missing.push((
+                    descriptor.id.clone(),
+                    id.clone(),
+                    unavailable_reason.as_ref().map_or_else(
+                        || format!("parameter '{id}' derivative is missing"),
+                        |reason| format!("parameter '{id}' derivative unavailable: {reason}"),
+                    ),
+                ));
+            }
+            if !expected.is_empty() {
+                aggregate.methods.push(local.method);
+            }
+        }
+        Ok(aggregate)
     }
 
     fn prediction_uncertainty(
@@ -295,68 +462,132 @@ impl CompiledIsmModel {
     ) -> Result<PredictionUncertainty, ModelError> {
         let mut missing_sources = Vec::new();
         let mut assumptions = Vec::new();
-        let state_covariance = supplied.state_covariance.or_else(|| {
-            diagonal_covariance(
+        let state_jacobian = self.aggregate_state_jacobian(state, parameters, input)?;
+        let parameter_jacobian = self.aggregate_parameter_jacobian(state, parameters, input)?;
+
+        let resolved_state_covariance = resolve_covariance(
+            supplied.state_covariance,
+            self.state_definitions.len(),
+            &state_jacobian.relevant_ids,
+            self.state_definitions.iter().map(|item| {
+                (
+                    item.spec.id.as_str(),
+                    &item.spec.initial_uncertainty,
+                    item.spec.unit.as_str(),
+                )
+            }),
+            "state",
+            &mut missing_sources,
+            &mut assumptions,
+        )?;
+        let resolved_parameter_covariance = resolve_covariance(
+            supplied.parameter_covariance,
+            self.parameter_definitions.len(),
+            &parameter_jacobian.relevant_ids,
+            self.parameter_definitions.iter().map(|item| {
+                (
+                    item.spec.id.as_str(),
+                    &item.spec.uncertainty,
+                    item.spec.unit.as_str(),
+                )
+            }),
+            "parameter",
+            &mut missing_sources,
+            &mut assumptions,
+        )?;
+        let state_covariance = resolved_state_covariance.matrix;
+        let state_has_information = resolved_state_covariance.has_information;
+        let parameter_covariance = resolved_parameter_covariance.matrix;
+        let parameter_has_information = resolved_parameter_covariance.has_information;
+
+        record_relevant_missing_derivatives(
+            &state_jacobian,
+            state_covariance.as_deref(),
+            &self.state_indices,
+            self.state_definitions
+                .iter()
+                .map(|item| (item.spec.id.as_str(), &item.spec.initial_uncertainty)),
+            "state",
+            &mut missing_sources,
+        );
+        record_relevant_missing_derivatives(
+            &parameter_jacobian,
+            parameter_covariance.as_deref(),
+            &self.parameter_indices,
+            self.parameter_definitions
+                .iter()
+                .map(|item| (item.spec.id.as_str(), &item.spec.uncertainty)),
+            "parameter",
+            &mut missing_sources,
+        );
+
+        let state_derivatives_complete = !state_jacobian.missing_ids.iter().any(|id| {
+            derivative_is_required(
+                id,
+                state_covariance.as_deref(),
+                &self.state_indices,
                 self.state_definitions
                     .iter()
-                    .map(|item| (&item.spec.initial_uncertainty, item.spec.unit.as_str())),
-                "state",
-                &mut missing_sources,
-                &mut assumptions,
+                    .map(|item| (item.spec.id.as_str(), &item.spec.initial_uncertainty)),
             )
         });
-        let parameter_covariance = supplied.parameter_covariance.or_else(|| {
-            diagonal_covariance(
+        let parameter_derivatives_complete = !parameter_jacobian.missing_ids.iter().any(|id| {
+            derivative_is_required(
+                id,
+                parameter_covariance.as_deref(),
+                &self.parameter_indices,
                 self.parameter_definitions
                     .iter()
-                    .map(|item| (&item.spec.uncertainty, item.spec.unit.as_str())),
-                "parameter",
-                &mut missing_sources,
-                &mut assumptions,
+                    .map(|item| (item.spec.id.as_str(), &item.spec.uncertainty)),
             )
         });
-        let state_variance_v2 = state_covariance
-            .as_ref()
-            .map(|matrix| {
-                let jacobian = self.observation_jacobian(state, parameters, input)?;
-                quadratic_form(&jacobian, matrix)
-            })
-            .transpose()?;
-        let parameter_variance_v2 = parameter_covariance
-            .as_ref()
-            .map(|matrix| {
-                let jacobian = self.observation_parameter_jacobian(state, parameters, input)?;
-                quadratic_form(&jacobian, matrix)
-            })
-            .transpose()?;
-        let observation_variance_v2 = contributions
-            .iter()
-            .filter_map(|item| item.variance_v2)
-            .try_fold(0.0, |sum, value| {
-                if value.is_finite() && value >= 0.0 {
-                    Ok(sum + value)
-                } else {
-                    Err(ModelError::NonFinite {
-                        subject: "observation variance".into(),
-                    })
+
+        let state_variance_v2 = if state_derivatives_complete {
+            state_covariance
+                .as_ref()
+                .map(|matrix| quadratic_form(&state_jacobian.values, matrix))
+                .transpose()?
+        } else {
+            None
+        };
+        let parameter_variance_v2 = if parameter_derivatives_complete {
+            parameter_covariance
+                .as_ref()
+                .map(|matrix| quadratic_form(&parameter_jacobian.values, matrix))
+                .transpose()?
+        } else {
+            None
+        };
+        let observation_variance_v2 = resolve_observation_variance(
+            supplied.observation_variance_v2,
+            contributions,
+            &mut missing_sources,
+        )?;
+        let known_total = match (
+            state_variance_v2,
+            parameter_variance_v2,
+            observation_variance_v2,
+        ) {
+            (Some(state), Some(parameter), Some(observation)) => {
+                let total = state + parameter + observation;
+                if !total.is_finite() || total < 0.0 {
+                    return Err(ModelError::NonFinite {
+                        subject: "total prediction variance".into(),
+                    });
                 }
-            })?;
-        let has_missing = !missing_sources.is_empty();
-        let known_total = match (state_variance_v2, parameter_variance_v2) {
-            (Some(state), Some(parameter)) => Some(state + parameter + observation_variance_v2),
+                Some(total)
+            }
             _ => None,
         };
-        let status = match (has_missing, known_total) {
-            (false, Some(_)) => UncertaintyStatus::Complete,
-            (true, _)
-                if state_variance_v2.is_some()
-                    || parameter_variance_v2.is_some()
-                    || observation_variance_v2 > 0.0 =>
-            {
-                UncertaintyStatus::Partial
-            }
-            (true, _) => UncertaintyStatus::Unavailable,
-            (false, None) => UncertaintyStatus::Unavailable,
+        let status = if missing_sources.is_empty() && known_total.is_some() {
+            UncertaintyStatus::Complete
+        } else if state_has_information
+            || parameter_has_information
+            || observation_variance_v2.is_some_and(|value| value > 0.0)
+        {
+            UncertaintyStatus::Partial
+        } else {
+            UncertaintyStatus::Unavailable
         };
         Ok(PredictionUncertainty {
             status,
@@ -364,9 +595,11 @@ impl CompiledIsmModel {
             standard_error_v: known_total.map(f64::sqrt),
             state_variance_v2,
             parameter_variance_v2,
-            observation_variance_v2: Some(observation_variance_v2),
+            observation_variance_v2,
             missing_sources,
             assumptions,
+            state_jacobian_methods: state_jacobian.methods,
+            parameter_jacobian_methods: parameter_jacobian.methods,
         })
     }
 
@@ -515,6 +748,12 @@ pub fn compile_model(
     registry: &ComponentRegistry,
 ) -> Result<CompiledIsmModel, ModelError> {
     definition.validate_schema()?;
+    if definition.schema_version < super::definition::MODEL_DEFINITION_SCHEMA_VERSION {
+        return Err(ModelError::LegacyMigrationRequired {
+            found: definition.schema_version,
+            expected: super::definition::MODEL_DEFINITION_SCHEMA_VERSION,
+        });
+    }
     let state_indices = stable_indices(definition.states.iter().map(|state| state.id.as_str()));
     let parameter_indices = stable_indices(
         definition
@@ -670,45 +909,260 @@ fn validate_contribution_owners(components: &[ComponentDescriptor]) -> Result<()
     Ok(())
 }
 
-fn diagonal_covariance<'a>(
-    specifications: impl Iterator<Item = (&'a super::state::UncertaintySpec, &'a str)>,
-    subject: &str,
-    missing: &mut Vec<String>,
-    assumptions: &mut Vec<String>,
-) -> Option<Vec<Vec<f64>>> {
-    let mut diagonal = Vec::new();
-    for (index, (uncertainty, unit)) in specifications.enumerate() {
-        match uncertainty.variance_in(unit) {
-            Ok(Some(value)) => diagonal.push(value),
-            Ok(None) => missing.push(format!(
-                "{subject} covariance for index {index}: {}",
-                uncertainty
-                    .missing_reason()
-                    .unwrap_or_else(|| "unknown source".into())
-            )),
-            Err(_) => missing.push(format!("{subject} covariance for index {index} is invalid")),
+#[derive(Debug)]
+struct AggregatedJacobian {
+    values: Vec<f64>,
+    relevant_ids: BTreeSet<String>,
+    missing_ids: BTreeSet<String>,
+    missing: Vec<(String, String, String)>,
+    methods: Vec<JacobianMethod>,
+}
+
+struct ResolvedCovariance {
+    matrix: Option<Vec<Vec<f64>>>,
+    has_information: bool,
+}
+
+impl AggregatedJacobian {
+    fn new(dimension: usize) -> Self {
+        Self {
+            values: vec![0.0; dimension],
+            relevant_ids: BTreeSet::new(),
+            missing_ids: BTreeSet::new(),
+            missing: Vec::new(),
+            methods: Vec::new(),
         }
     }
-    if !missing.iter().any(|message| message.starts_with(subject)) {
+}
+
+fn validate_local_values(
+    descriptor: &ComponentDescriptor,
+    covered_ids: &[String],
+    values: &[f64],
+    expected: &BTreeSet<String>,
+    kind: &str,
+) -> Result<(), ModelError> {
+    let covered = covered_ids.iter().cloned().collect::<BTreeSet<_>>();
+    if covered_ids.len() != values.len()
+        || covered.len() != covered_ids.len()
+        || !covered.is_subset(expected)
+        || values.iter().any(|value| !value.is_finite())
+    {
+        return Err(ModelError::JacobianCoverage {
+            component: descriptor.id.clone(),
+            message: format!("{kind} Jacobian values and stable-ID coverage are inconsistent"),
+        });
+    }
+    Ok(())
+}
+
+fn validate_method(
+    descriptor: &ComponentDescriptor,
+    method: &JacobianMethod,
+) -> Result<(), ModelError> {
+    match method {
+        JacobianMethod::Numerical {
+            relative_step,
+            absolute_step,
+        } => {
+            if !descriptor.numerical_jacobian_supported
+                || !relative_step.is_finite()
+                || *relative_step <= 0.0
+                || !absolute_step.is_finite()
+                || *absolute_step <= 0.0
+            {
+                return Err(ModelError::JacobianCoverage {
+                    component: descriptor.id.clone(),
+                    message: "numerical Jacobian use was not declared or has an invalid step rule"
+                        .into(),
+                });
+            }
+        }
+        JacobianMethod::Mixed if !descriptor.numerical_jacobian_supported => {
+            return Err(ModelError::JacobianCoverage {
+                component: descriptor.id.clone(),
+                message: "mixed Jacobian use requires declared numerical support".into(),
+            });
+        }
+        JacobianMethod::Analytic | JacobianMethod::Mixed | JacobianMethod::NotEvaluated => {}
+    }
+    Ok(())
+}
+
+fn combined_method(methods: &[JacobianMethod]) -> JacobianMethod {
+    if methods.is_empty() {
+        return JacobianMethod::NotEvaluated;
+    }
+    if methods
+        .iter()
+        .all(|method| matches!(method, JacobianMethod::Analytic))
+    {
+        JacobianMethod::Analytic
+    } else if methods.len() == 1 {
+        methods[0].clone()
+    } else {
+        JacobianMethod::Mixed
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_covariance<'a>(
+    supplied: Option<Vec<Vec<f64>>>,
+    dimension: usize,
+    relevant_ids: &BTreeSet<String>,
+    specifications: impl Iterator<Item = (&'a str, &'a UncertaintySpec, &'a str)>,
+    subject: &'static str,
+    missing: &mut Vec<String>,
+    assumptions: &mut Vec<String>,
+) -> Result<ResolvedCovariance, ModelError> {
+    if let Some(matrix) = supplied {
+        validate_covariance(&matrix, dimension, subject)?;
+        let has_information = matrix.iter().flatten().any(|value| *value != 0.0);
+        return Ok(ResolvedCovariance {
+            matrix: Some(matrix),
+            has_information,
+        });
+    }
+
+    let mut diagonal = vec![0.0; dimension];
+    let mut complete = true;
+    let mut has_information = false;
+    for (index, (id, uncertainty, unit)) in specifications.enumerate() {
+        if !relevant_ids.contains(id) {
+            continue;
+        }
+        match uncertainty.variance_in(unit) {
+            Ok(Some(value)) => {
+                diagonal[index] = value;
+                has_information |= value > 0.0;
+            }
+            Ok(None) => {
+                complete = false;
+                missing.push(format!(
+                    "{subject}:{id} covariance missing: {}",
+                    uncertainty
+                        .missing_reason()
+                        .unwrap_or_else(|| "unknown source".into())
+                ));
+            }
+            Err(_) => {
+                complete = false;
+                missing.push(format!("{subject}:{id} covariance is invalid"));
+            }
+        }
+    }
+    if complete {
         assumptions.push(format!(
             "{subject} uncertainties were propagated as an independent diagonal covariance"
         ));
-        Some(
-            diagonal
-                .iter()
-                .enumerate()
-                .map(|(row, value)| {
-                    diagonal
-                        .iter()
-                        .enumerate()
-                        .map(|(column, _)| if row == column { *value } else { 0.0 })
-                        .collect()
-                })
-                .collect(),
-        )
+        let matrix = (0..dimension)
+            .map(|row| {
+                (0..dimension)
+                    .map(|column| if row == column { diagonal[row] } else { 0.0 })
+                    .collect()
+            })
+            .collect();
+        Ok(ResolvedCovariance {
+            matrix: Some(matrix),
+            has_information,
+        })
     } else {
-        None
+        Ok(ResolvedCovariance {
+            matrix: None,
+            has_information,
+        })
     }
+}
+
+fn validate_covariance(
+    covariance: &[Vec<f64>],
+    expected: usize,
+    subject: &'static str,
+) -> Result<(), ModelError> {
+    if covariance.len() != expected
+        || covariance
+            .iter()
+            .any(|row| row.len() != expected || row.iter().any(|value| !value.is_finite()))
+    {
+        let actual = format!(
+            "{} rows with widths {:?}",
+            covariance.len(),
+            covariance.iter().map(Vec::len).collect::<Vec<_>>()
+        );
+        return Err(ModelError::CovarianceDimension {
+            subject,
+            expected,
+            actual,
+        });
+    }
+    Ok(())
+}
+
+fn derivative_is_required<'a>(
+    id: &str,
+    covariance: Option<&[Vec<f64>]>,
+    indices: &BTreeMap<String, usize>,
+    specifications: impl Iterator<Item = (&'a str, &'a UncertaintySpec)>,
+) -> bool {
+    let Some(index) = indices.get(id).copied() else {
+        return true;
+    };
+    if let Some(matrix) = covariance {
+        return matrix[index].iter().any(|value| *value != 0.0)
+            || matrix.iter().any(|row| row[index] != 0.0);
+    }
+    specifications
+        .filter(|(candidate, _)| *candidate == id)
+        .any(|(_, uncertainty)| !matches!(uncertainty, UncertaintySpec::Deterministic))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_relevant_missing_derivatives<'a>(
+    jacobian: &AggregatedJacobian,
+    covariance: Option<&[Vec<f64>]>,
+    indices: &BTreeMap<String, usize>,
+    specifications: impl Iterator<Item = (&'a str, &'a UncertaintySpec)> + Clone,
+    subject: &str,
+    missing_sources: &mut Vec<String>,
+) {
+    for (component, id, message) in &jacobian.missing {
+        if derivative_is_required(id, covariance, indices, specifications.clone()) {
+            missing_sources.push(format!("{subject}:{id} {message} (component:{component})"));
+        }
+    }
+}
+
+fn resolve_observation_variance(
+    supplied: Option<f64>,
+    contributions: &[ComponentContribution],
+    missing_sources: &mut Vec<String>,
+) -> Result<Option<f64>, ModelError> {
+    if let Some(value) = supplied {
+        if value.is_finite() && value >= 0.0 {
+            return Ok(Some(value));
+        }
+        return Err(ModelError::InvalidUncertainty {
+            subject: "observation variance".into(),
+        });
+    }
+    let values = contributions
+        .iter()
+        .filter_map(|item| item.variance_v2)
+        .collect::<Vec<_>>();
+    if values.is_empty() {
+        missing_sources.push("observation variance missing".into());
+        return Ok(None);
+    }
+    let total = values.into_iter().try_fold(0.0, |sum, value| {
+        if value.is_finite() && value >= 0.0 {
+            Ok(sum + value)
+        } else {
+            Err(ModelError::NonFinite {
+                subject: "observation variance".into(),
+            })
+        }
+    })?;
+    Ok(Some(total))
 }
 
 fn quadratic_form(jacobian: &[f64], covariance: &[Vec<f64>]) -> Result<f64, ModelError> {
