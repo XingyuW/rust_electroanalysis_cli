@@ -78,8 +78,10 @@ impl PredictionUncertainty {
     }
 }
 
-/// Optional full covariance inputs for first-order propagation. Matrices use
-/// compiled state/parameter order and may contain off-diagonal covariance.
+/// Optional caller-supplied runtime covariance inputs for first-order
+/// propagation. Matrices use compiled state/parameter order and may contain
+/// off-diagonal covariance; schema-declared uncertainty is never substituted
+/// when these matrices are absent.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PredictionUncertaintyInput {
     /// `false` is the only path to `NotRequested`.

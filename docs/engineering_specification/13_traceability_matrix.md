@@ -104,6 +104,7 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | EQ-ISM-001 | ISM state-space interface | `model/` | `model_core` | ✅ (contract only) |
 | EQ-ISM-002 | ISM contribution/residual decomposition | `model/output.rs` | `model_core` | ✅ |
 | EQ-ISM-003 | Reduced-order built-in adapters | `model/builtins.rs` | `model_builtins` | ✅ |
+| EQ-ISM-004 | Runtime covariance propagation and semantic-zero contract | `model/compiler.rs` | `model_core`, `model_builtins` | ✅ |
 
 ---
 

@@ -14,7 +14,7 @@ use super::{
     },
     parameter::{CompiledParameterSpec, ParameterValues},
     registry::ComponentRegistry,
-    state::{CompiledStateSpec, DeclaredUncertaintyClass, ModelState, UncertaintySpec},
+    state::{CompiledStateSpec, DeclaredUncertaintyClass, ModelState},
     validity::ValidityReport,
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -461,7 +461,7 @@ impl CompiledIsmModel {
         supplied: PredictionUncertaintyInput,
     ) -> Result<PredictionUncertainty, ModelError> {
         let mut missing_sources = Vec::new();
-        let mut assumptions = Vec::new();
+        let assumptions = Vec::new();
         let state_jacobian = self.aggregate_state_jacobian(state, parameters, input)?;
         let parameter_jacobian = self.aggregate_parameter_jacobian(state, parameters, input)?;
 
@@ -473,13 +473,10 @@ impl CompiledIsmModel {
                 (
                     item.spec.id.as_str(),
                     item.spec.declared_uncertainty_class(),
-                    &item.spec.initial_uncertainty,
-                    item.spec.unit.as_str(),
                 )
             }),
             "state",
             &mut missing_sources,
-            &mut assumptions,
         )?;
         let resolved_parameter_covariance = resolve_covariance(
             supplied.parameter_covariance,
@@ -489,13 +486,10 @@ impl CompiledIsmModel {
                 (
                     item.spec.id.as_str(),
                     item.spec.declared_uncertainty_class(),
-                    &item.spec.uncertainty,
-                    item.spec.unit.as_str(),
                 )
             }),
             "parameter",
             &mut missing_sources,
-            &mut assumptions,
         )?;
         let state_has_information = resolved_state_covariance.has_information;
         let state_covariance_complete = resolved_state_covariance.complete;
@@ -1024,80 +1018,50 @@ fn resolve_covariance<'a>(
     supplied: Option<Vec<Vec<f64>>>,
     dimension: usize,
     relevant_ids: &BTreeSet<String>,
-    specifications: impl Iterator<
-        Item = (
-            &'a str,
-            DeclaredUncertaintyClass,
-            &'a UncertaintySpec,
-            &'a str,
-        ),
-    >,
+    specifications: impl Iterator<Item = (&'a str, DeclaredUncertaintyClass)>,
     subject: &'static str,
     missing: &mut Vec<String>,
-    assumptions: &mut Vec<String>,
 ) -> Result<ResolvedCovariance, ModelError> {
     if let Some(matrix) = supplied {
         validate_covariance(&matrix, dimension, subject)?;
         let missing_before = missing.len();
         validate_covariance_contract(&matrix, specifications, relevant_ids, subject, missing)?;
-        let has_information = matrix.iter().flatten().any(|value| *value != 0.0);
+        let complete = missing.len() == missing_before;
+        let has_nonzero_entry = matrix.iter().flatten().any(|value| *value != 0.0);
         return Ok(ResolvedCovariance {
             matrix: Some(matrix),
-            has_information,
-            complete: missing.len() == missing_before,
+            // A covariance that cannot quantify a relevant schema declaration
+            // (for example, `StochasticUnknown` without explicit enrichment)
+            // is not usable uncertainty information for status calculation.
+            has_information: complete && has_nonzero_entry,
+            complete,
         });
     }
 
-    let mut diagonal = vec![0.0; dimension];
-    let mut complete = true;
-    let mut has_information = false;
-    for (index, (id, class, uncertainty, unit)) in specifications.enumerate() {
-        if !relevant_ids.contains(id) {
-            continue;
-        }
-        match (class, uncertainty.variance_in(unit)) {
-            (DeclaredUncertaintyClass::Deterministic, Ok(Some(value))) => {
-                diagonal[index] = value;
-            }
-            (DeclaredUncertaintyClass::StochasticKnown, Ok(Some(value))) => {
-                diagonal[index] = value;
-                has_information = true;
-            }
-            (DeclaredUncertaintyClass::StochasticUnknown, Ok(None)) => {
-                complete = false;
-                missing.push(format!(
-                    "{subject}:{id} covariance missing: {}",
-                    uncertainty
-                        .missing_reason()
-                        .unwrap_or_else(|| "unknown source".into())
-                ));
-            }
-            _ => {
-                complete = false;
-                missing.push(format!("{subject}:{id} covariance is invalid"));
-            }
-        }
-    }
-    if complete {
-        assumptions.push(format!(
-            "{subject} uncertainties were propagated as an independent diagonal covariance"
-        ));
-        let matrix = (0..dimension)
-            .map(|row| {
-                (0..dimension)
-                    .map(|column| if row == column { diagonal[row] } else { 0.0 })
-                    .collect()
-            })
-            .collect();
+    let missing_runtime_covariance = specifications
+        .filter(|(id, class)| {
+            relevant_ids.contains(*id) && !matches!(class, DeclaredUncertaintyClass::Deterministic)
+        })
+        .map(|(id, _)| id)
+        .collect::<Vec<_>>();
+    if missing_runtime_covariance.is_empty() {
+        // A block with only deterministic relevant quantities needs no runtime
+        // covariance. Its exact zero covariance is a semantic consequence of
+        // the schema, not a schema-derived approximation of posterior data.
         Ok(ResolvedCovariance {
-            matrix: Some(matrix),
-            has_information,
+            matrix: Some(vec![vec![0.0; dimension]; dimension]),
+            has_information: false,
             complete: true,
         })
     } else {
+        missing.extend(
+            missing_runtime_covariance
+                .into_iter()
+                .map(|id| format!("{subject}:{id} runtime covariance missing")),
+        );
         Ok(ResolvedCovariance {
             matrix: None,
-            has_information,
+            has_information: false,
             complete: false,
         })
     }
@@ -1129,7 +1093,7 @@ fn validate_covariance(
                     column,
                 });
             }
-            if (value - covariance[column][row]).abs() > COVARIANCE_TOLERANCE {
+            if (value - covariance[column][row]).abs() > COVARIANCE_SYMMETRY_TOLERANCE {
                 return Err(ModelError::AsymmetricCovariance {
                     subject,
                     row,
@@ -1141,45 +1105,59 @@ fn validate_covariance(
     validate_positive_semidefinite(covariance, subject)
 }
 
-const COVARIANCE_TOLERANCE: f64 = 1.0e-12;
+/// Numerical tolerance for matrix symmetry validation only.
+const COVARIANCE_SYMMETRY_TOLERANCE: f64 = 1.0e-12;
+/// Numerical tolerance for positive-semidefinite matrix validation only.
+const COVARIANCE_PSD_TOLERANCE: f64 = 1.0e-12;
 
 /// A caller-supplied covariance quantifies the schema contract; it cannot
 /// override it. Unknown declarations remain incomplete until an explicit
 /// schema migration/enrichment changes the declaration itself.
 fn validate_covariance_contract<'a>(
     covariance: &[Vec<f64>],
-    specifications: impl Iterator<
-        Item = (
-            &'a str,
-            DeclaredUncertaintyClass,
-            &'a UncertaintySpec,
-            &'a str,
-        ),
-    >,
+    specifications: impl Iterator<Item = (&'a str, DeclaredUncertaintyClass)>,
     relevant_ids: &BTreeSet<String>,
     subject: &'static str,
     missing: &mut Vec<String>,
 ) -> Result<(), ModelError> {
-    for (index, (id, class, _uncertainty, _unit)) in specifications.enumerate() {
+    for (index, (id, class)) in specifications.enumerate() {
         let diagonal = covariance[index][index];
-        let row_or_column_is_nonzero = covariance[index]
-            .iter()
-            .chain(covariance.iter().map(|row| &row[index]))
-            .any(|value| value.abs() > COVARIANCE_TOLERANCE);
         match class {
-            DeclaredUncertaintyClass::Deterministic if row_or_column_is_nonzero => {
-                return Err(ModelError::NonzeroCovarianceForDeterministicQuantity {
+            DeclaredUncertaintyClass::Deterministic => {
+                for (column, covariance_entry) in covariance[index].iter().enumerate() {
+                    if *covariance_entry != 0.0 {
+                        return Err(ModelError::NonzeroCovarianceForDeterministicQuantity {
+                            quantity_id: id.into(),
+                            covariance_entry: *covariance_entry,
+                            row: index,
+                            column,
+                        });
+                    }
+                }
+                for (row, values) in covariance.iter().enumerate() {
+                    let covariance_entry = values[index];
+                    if covariance_entry != 0.0 {
+                        return Err(ModelError::NonzeroCovarianceForDeterministicQuantity {
+                            quantity_id: id.into(),
+                            covariance_entry,
+                            row,
+                            column: index,
+                        });
+                    }
+                }
+            }
+            DeclaredUncertaintyClass::StochasticKnown if diagonal == 0.0 => {
+                return Err(ModelError::ZeroCovarianceForStochasticQuantity {
                     quantity_id: id.into(),
-                    covariance_diagonal: diagonal,
                 });
             }
-            DeclaredUncertaintyClass::StochasticKnown if diagonal <= COVARIANCE_TOLERANCE => {
+            DeclaredUncertaintyClass::StochasticKnown if diagonal < 0.0 => {
                 return Err(ModelError::CovarianceUncertaintyConflict {
                     quantity_id: id.into(),
                     declared_uncertainty: class,
                     covariance_diagonal: Some(diagonal),
                     reason:
-                        "a declared stochastic quantity requires a positive covariance diagonal"
+                        "a declared stochastic quantity requires a strictly positive covariance diagonal"
                             .into(),
                 });
             }
@@ -1208,13 +1186,13 @@ fn validate_positive_semidefinite(
                     .map(|index| lower[row][index] * lower[column][index])
                     .sum::<f64>();
             if row == column {
-                if residual < -COVARIANCE_TOLERANCE {
+                if residual < -COVARIANCE_PSD_TOLERANCE {
                     return Err(ModelError::NonPositiveSemidefiniteCovariance { subject });
                 }
                 lower[row][column] = residual.max(0.0).sqrt();
-            } else if lower[column][column] > COVARIANCE_TOLERANCE {
+            } else if lower[column][column] > COVARIANCE_PSD_TOLERANCE {
                 lower[row][column] = residual / lower[column][column];
-            } else if residual.abs() > COVARIANCE_TOLERANCE {
+            } else if residual.abs() > COVARIANCE_PSD_TOLERANCE {
                 return Err(ModelError::NonPositiveSemidefiniteCovariance { subject });
             }
         }

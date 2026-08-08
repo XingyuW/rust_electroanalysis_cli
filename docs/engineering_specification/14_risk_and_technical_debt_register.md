@@ -124,5 +124,5 @@ supported production path. This is non-blocking provider follow-up debt.
 | RISK-032 | ARCH | The current `ComponentId` string representation is compatibility-preserving; a future extracted crate may need stronger namespaced-ID validation. | Medium | P2 |
 | RISK-033 | SCI | First-order covariance propagation excludes unmodeled structural and model-form uncertainty. | High | P1 |
 | RISK-034 | SCI | Rounded/discrete structural parameters such as ion charge do not have a continuous analytical uncertainty derivative; they must remain deterministic or prediction uncertainty is partial. | Medium | P2 |
-| RISK-035 | SCI | Diagonal state/parameter declarations assume independence when a full covariance artifact is unavailable; the assumption is recorded but may understate correlated uncertainty. | Medium | P2 |
+| RISK-035 | SCI | Complete propagation requires caller-supplied joint runtime covariance; absent covariance intentionally leaves stochastic prediction uncertainty Partial or Unavailable. An explicit independent-prior approximation remains a future, separately-provenanced feature. | Medium | P2 |
 | RISK-036 | SCI | First-order propagation cannot quantify a stochastic discrete valence without an explicitly supported non-differential method; the built-in charge remains fixed/deterministic. | Medium | P2 |

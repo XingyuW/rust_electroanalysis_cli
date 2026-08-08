@@ -169,7 +169,8 @@ and enrichment of legacy estimator states from resolved initial covariance.
 
 Covariance-consistency regressions cover the reviewer Nernst positive-charge
 uncertainty plus zero-row reproduction, a generic missing derivative with a
-zero row, deterministic zero/nonzero rows, stochastic positive/missing rows,
-covered numerical zero derivatives, state equivalents, and dimension,
-non-finite, asymmetric, and non-PSD matrices. The existing Nernst 0.76 V²
-cross-covariance calculation remains covered.
+zero row, missing fitted-parameter and estimated-state runtime covariance,
+deterministic and stochastic `1e-13` state/parameter covariance, covered
+numerical zero derivatives, state equivalents, and dimension, non-finite,
+asymmetric, and non-PSD matrices. The existing Nernst 0.76 V² cross-covariance
+calculation remains covered.

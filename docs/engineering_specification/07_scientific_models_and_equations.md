@@ -442,16 +442,20 @@ change is approved.
 
 For scalar voltage prediction, `E_pred = sum(E_additive)`. Observation noise
 is `R` in V² and cannot be a voltage term. Available uncertainty is propagated
-as `J_x P_x J_x^T + J_theta P_theta J_theta^T + R`; full covariance retains
-correlation and diagonal declarations record an independence assumption.
+as `J_x P_x J_x^T + J_theta P_theta J_theta^T + R`; caller-supplied full
+runtime covariance retains correlation. Declared uncertainty is prior or
+initialization metadata and is not an implicit runtime diagonal covariance.
 Structural and model-form uncertainty remain unquantified.
 
-Covariance supplies the numerical joint distribution only: it may refine a
+Runtime covariance supplies the numerical joint distribution only: it may refine a
 declared stochastic magnitude and cross-correlation, but may not change a
 schema-declared stochastic quantity into deterministic or make a deterministic
 quantity stochastic. Consequently a declared stochastic diagonal must be
 positive when a full matrix is supplied, while deterministic rows/columns must
-be zero. A singular valid covariance remains permitted. Missing Jacobian
+be exactly zero. Symmetry and PSD tolerances apply only to numerical matrix
+validation, never to this semantic-zero rule: `1e-13` is nonzero for a
+deterministic row and remains positive for a stochastic diagonal. A singular
+valid covariance remains permitted. Missing Jacobian
 coverage is different from an explicitly covered zero derivative and cannot be
 converted to zero by inspecting covariance.
 
@@ -488,8 +492,8 @@ explicitly cover each directly observed state with derivative one, including a
 mathematically zero value when that is the actual analytical result.
 
 Prediction variance is
-`Var(E) = Jx Px Jx^T + Jtheta Ptheta Jtheta^T + R`. Supplied full matrices retain
-off-diagonal cross terms. Per-state/per-parameter uncertainty creates a
-diagonal matrix and records the independence assumption. Structural and
-model-form uncertainty are still not quantified, and no Bayesian propagation
-claim is made.
+`Var(E) = Jx Px Jx^T + Jtheta Ptheta Jtheta^T + R`. Supplied full runtime
+matrices retain off-diagonal cross terms. Absent runtime covariance leaves a
+stochastic component unavailable rather than creating a diagonal matrix from
+declared uncertainty. Structural and model-form uncertainty are still not
+quantified, and no Bayesian propagation claim is made.

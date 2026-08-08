@@ -171,13 +171,20 @@ rejected for those sources even when `uncertainty_incomplete` is true. Fixed
 quantities may be deterministic. Unknown never means numeric zero.
 
 `Complete` requires every relevant non-deterministic state and parameter to
-have covariance and derivative coverage, required observation variance, and
-finite propagated values. `Partial` retains a prediction with named missing
-sources when some meaningful uncertainty is available. `Unavailable` means no
-meaningful uncertainty can be calculated. `NotRequested` requires an explicit
-disabled request. Numerical derivatives are accepted only when the descriptor
-declares support and positive relative/absolute steps are recorded; built-ins
-use analytical derivatives.
+have caller-supplied runtime covariance and derivative coverage, required
+observation variance, and finite propagated values. Declared uncertainty is
+prior/initialization metadata, not a fallback runtime covariance. With absent
+runtime covariance, deterministic blocks legitimately contribute `Some(0.0)`;
+each affected stochastic source is named as missing, its component variance is
+`None`, and the total/standard error are `None`. `Partial` retains a prediction
+with named missing sources when some meaningful uncertainty is available.
+`Unavailable` means no meaningful uncertainty can be calculated.
+`NotRequested` requires an explicit disabled request. Deterministic covariance
+rows and columns must be exactly zero; stochastic known diagonals must be
+strictly positive. Symmetry and PSD tolerances do not classify uncertainty.
+Numerical derivatives are accepted only when the descriptor declares support
+and positive relative/absolute steps are recorded; built-ins use analytical
+derivatives.
 
 ### Covariance uncertainty contract
 

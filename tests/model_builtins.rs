@@ -422,8 +422,23 @@ fn nernst_e0_covariance_propagates_and_uncertain_charge_blocks_complete() {
     let model = compile_model(definition.clone(), built_in_registry()).unwrap();
     let parameters = model.default_parameters();
     let state = model.initialize(&parameters).unwrap();
+    let mut parameter_covariance =
+        vec![vec![0.0; model.parameter_definitions().len()]; model.parameter_definitions().len()];
+    let e0_index = model.parameter_index("standard_potential_v").unwrap();
+    parameter_covariance[e0_index][e0_index] = 1.0;
     let prediction = model
-        .observation_prediction(&state, &parameters, &input(0.0), None)
+        .observation_prediction_with_uncertainty(
+            &state,
+            &parameters,
+            &input(0.0),
+            None,
+            rust_electroanalysis_cli::model::PredictionUncertaintyInput {
+                requested: true,
+                state_covariance: None,
+                parameter_covariance: Some(parameter_covariance),
+                observation_variance_v2: None,
+            },
+        )
         .unwrap();
     assert_eq!(
         prediction.uncertainty.status,
@@ -499,7 +514,7 @@ fn reviewer_zero_charge_covariance_row_is_a_typed_contract_error() {
                 observation_variance_v2: Some(1.0e-6),
             },
         ),
-        Err(ModelError::CovarianceUncertaintyConflict { quantity_id, .. }) if quantity_id == "ion_charge"
+        Err(ModelError::ZeroCovarianceForStochasticQuantity { quantity_id }) if quantity_id == "ion_charge"
     ));
 }
 

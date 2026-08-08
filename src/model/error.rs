@@ -102,12 +102,16 @@ pub enum ModelError {
     #[error("stochastic quantity '{quantity_id}' is missing covariance")]
     MissingCovarianceForStochasticQuantity { quantity_id: String },
     #[error(
-        "deterministic quantity '{quantity_id}' has nonzero covariance (diagonal {covariance_diagonal})"
+        "deterministic quantity '{quantity_id}' has nonzero covariance entry {covariance_entry} at ({row}, {column})"
     )]
     NonzeroCovarianceForDeterministicQuantity {
         quantity_id: String,
-        covariance_diagonal: f64,
+        covariance_entry: f64,
+        row: usize,
+        column: usize,
     },
+    #[error("stochastic quantity '{quantity_id}' has an exact-zero covariance diagonal")]
+    ZeroCovarianceForStochasticQuantity { quantity_id: String },
     #[error("invalid Jacobian coverage from component '{component}': {message}")]
     JacobianCoverage { component: String, message: String },
     #[error(

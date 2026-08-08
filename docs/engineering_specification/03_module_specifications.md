@@ -310,6 +310,6 @@ Covered values are paired with stable IDs; `Complete`, `Partial`,
 `Unavailable`, and `NotApplicable` coverage cannot be inferred from numeric
 zeros. `compiler.rs` validates declared direct-observation dependencies,
 coverage sets, finite values, numerical-step policy, and local-to-global ID
-mapping before applying full or explicitly diagonal covariance. `defaults.rs`
+mapping before applying caller-supplied full runtime covariance. `defaults.rs`
 classifies values by the current artifact (fixed, externally supplied, or
 fitted), rather than by whether they might be fitted in a future workflow.

@@ -113,6 +113,7 @@ This list now contains policy-level decisions that still require owner input.
 | OQ-010 | Low | Numerical |
 | OQ-011 | Low | Infrastructure |
 | OQ-ISM-005 | Medium | Discrete uncertainty |
+| OQ-ISM-006 | Medium | Explicit covariance approximation |
 
 ### OQ-012: Operational equilibrium thresholds
 
@@ -148,3 +149,11 @@ If a custom model needs uncertain discrete valence or another enumerated
 structural parameter, which validated non-differential method (for example
 model enumeration) should be added? The current first-order Jacobian contract
 will report it incomplete rather than round a continuous fitted value.
+
+## OQ-ISM-006: Explicit declared-prior approximation
+
+Should a future prediction mode permit declared independent uncertainty as an
+explicit approximation when runtime posterior covariance is unavailable? Any
+such mode must record `DeclaredIndependentApproximation`, an independence
+assumption, and `Partial` status; it must never be reported as complete runtime
+propagation.

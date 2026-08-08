@@ -25,9 +25,11 @@ pub enum StateInitializationSource {
     Estimated,
 }
 
-/// Typed uncertainty declaration. Numeric zero is meaningful only for an
-/// explicitly deterministic quantity; unknown uncertainty is never coerced to
-/// zero.
+/// Typed schema-declared uncertainty. It establishes semantic class and may
+/// describe a prior or initialization, but is not runtime posterior/joint
+/// covariance for prediction propagation. Numeric zero is meaningful only for
+/// an explicitly deterministic quantity; unknown uncertainty is never coerced
+/// to zero.
 #[derive(Debug, Clone, PartialEq)]
 pub enum UncertaintySpec {
     Deterministic,
