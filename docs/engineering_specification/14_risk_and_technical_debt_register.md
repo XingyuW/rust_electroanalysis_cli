@@ -1,5 +1,10 @@
 # 14 — Risk & Technical Debt Register
 
+## Reduced-order ISM components V1
+
+Unresolved mechanism identity, similarly timed modes, and absent runtime
+covariance remain explicit V1 risks; they are not auto-resolved by a fit.
+
 ## Model-core residual risks
 
 The core intentionally does not provide a universal numerical integrator,

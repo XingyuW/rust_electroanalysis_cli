@@ -1,5 +1,10 @@
 # 01 — System Requirements
 
+## Reduced-order ISM components V1
+
+Activity-first, neutral reduced-order component requirements and exclusions are
+maintained in [`docs/model/reduced_order_ism_v1.md`](../model/reduced_order_ism_v1.md).
+
 **Identifier:** `DOC-01`  
 **Status:** Verified from repository inspection  
 **Last Updated:** 2026-07-19

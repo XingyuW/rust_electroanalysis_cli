@@ -309,6 +309,10 @@ fn assess_equilibrium(
             ],
             validity_domain: "legacy estimator calibration domain; no physical equilibrium claim"
                 .into(),
+            satisfied_criteria: Vec::new(),
+            violated_criteria: Vec::new(),
+            confidence: 0.0,
+            warnings: Vec::new(),
         };
     };
     if !evidence.config.enabled {
@@ -319,6 +323,10 @@ fn assess_equilibrium(
             contradictory_evidence: Vec::new(),
             missing_evidence: vec!["equilibrium recognition is disabled by configuration".into()],
             validity_domain: "equilibrium recognition disabled".into(),
+            satisfied_criteria: Vec::new(),
+            violated_criteria: Vec::new(),
+            confidence: 0.0,
+            warnings: Vec::new(),
         };
     }
     let config = &evidence.config;
@@ -463,6 +471,10 @@ fn assess_equilibrium(
         contradictory_evidence: contradictory,
         missing_evidence: missing,
         validity_domain: "configured thresholds within stored calibration and estimator domains; this is an operational equilibrium classification, not physical mechanism validation".into(),
+        satisfied_criteria: Vec::new(),
+        violated_criteria: Vec::new(),
+        confidence: 0.0,
+        warnings: Vec::new(),
     }
 }
 

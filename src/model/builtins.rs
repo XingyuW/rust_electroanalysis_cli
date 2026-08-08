@@ -27,6 +27,12 @@ pub(crate) fn static_factories() -> Vec<(&'static str, ComponentFactory)> {
         "activity.ideal",
         "activity.davies",
         "activity.extended_debye_huckel",
+        "activity.input",
+        "dynamics.first_order",
+        "transduction.first_order_candidate",
+        "reference.offset",
+        "disturbance.linear_covariate",
+        "disturbance.observation_variance",
         "transport.first_order_relaxation",
         "transport.two_mode_relaxation",
         "transport.stretched_relaxation",
@@ -101,6 +107,23 @@ impl BuiltinComponent {
         input: &ModelInput,
         parameters: &ParameterValues,
     ) -> Result<(f64, Vec<String>), ModelError> {
+        // V1 components consume canonical, already-calculated activity.  The
+        // concentration adapter below is retained only for schema-v1 models.
+        let activity_input_id = self
+            .descriptor
+            .metadata
+            .get("activity_input_id")
+            .map(String::as_str)
+            .unwrap_or("target_activity");
+        if let Some(activity) = input.values.get(activity_input_id) {
+            if !activity.value.is_finite() || activity.value <= 0.0 {
+                return Err(evaluation(
+                    &self.descriptor.id,
+                    "target activity must be finite and positive",
+                ));
+            }
+            return Ok((activity.value, Vec::new()));
+        }
         let concentration =
             input
                 .values
@@ -177,6 +200,57 @@ impl BuiltinComponent {
         state.values[index] = decay * state.values[index] + (1.0 - decay) * target;
         Ok(())
     }
+
+    fn process_v1_first_order(
+        &self,
+        state: &mut ModelState,
+        parameters: &ParameterValues,
+        input: &ModelInput,
+        dt_s: f64,
+    ) -> Result<(), ModelError> {
+        let index = self.state_index(&self.descriptor.state_ids[0])?;
+        let tau = self.parameter(parameters, &self.descriptor.parameter_ids[0])?;
+        let gain = self.parameter(parameters, &self.descriptor.parameter_ids[1])?;
+        state.values[index] *= self.decay(tau, dt_s, None)?;
+        // The event is intentionally explicit.  Absence means no event, not
+        // an inferred step from the measured potential.
+        if let Some(event) = input.values.get("delta_log10_activity") {
+            if !event.value.is_finite() {
+                return Err(evaluation(&self.descriptor.id, "event step must be finite"));
+            }
+            state.values[index] += gain * event.value;
+        } else if self.descriptor.kind == "transduction.first_order_candidate"
+            && let Some(drive) = input.values.get("transduction_drive")
+        {
+            if !drive.value.is_finite() {
+                return Err(evaluation(
+                    &self.descriptor.id,
+                    "transduction drive must be finite",
+                ));
+            }
+            state.values[index] += gain * drive.value;
+        }
+        Ok(())
+    }
+
+    fn v1_first_order_derivative(
+        &self,
+        state: &ModelState,
+        parameters: &ParameterValues,
+        dimension: usize,
+    ) -> Result<Vec<f64>, ModelError> {
+        let index = self.state_index(&self.descriptor.state_ids[0])?;
+        let tau = self.parameter(parameters, &self.descriptor.parameter_ids[0])?;
+        if !tau.is_finite() || tau <= 0.0 {
+            return Err(evaluation(
+                &self.descriptor.id,
+                "time constant must be positive",
+            ));
+        }
+        let mut derivative = vec![0.0; dimension];
+        derivative[index] = -state.values[index] / tau;
+        Ok(derivative)
+    }
 }
 
 impl IsmComponent for BuiltinComponent {
@@ -197,6 +271,9 @@ impl IsmComponent for BuiltinComponent {
         dt_s: f64,
     ) -> Result<(), ModelError> {
         match self.descriptor.kind.as_str() {
+            "dynamics.first_order" | "transduction.first_order_candidate" => {
+                self.process_v1_first_order(state, parameters, input, dt_s)
+            }
             "transport.first_order_relaxation" => self.process_mode(
                 state,
                 parameters,
@@ -266,6 +343,22 @@ impl IsmComponent for BuiltinComponent {
         }
     }
 
+    fn process_derivative(
+        &self,
+        state: &ModelState,
+        parameters: &ParameterValues,
+        _input: &ModelInput,
+        state_dimension: usize,
+    ) -> Result<Option<Vec<f64>>, ModelError> {
+        match self.descriptor.kind.as_str() {
+            "dynamics.first_order" | "transduction.first_order_candidate" => Ok(Some(
+                self.v1_first_order_derivative(state, parameters, state_dimension)?,
+            )),
+            "reference.offset" => Ok(Some(vec![0.0; state_dimension])),
+            _ => Ok(None),
+        }
+    }
+
     fn process_jacobian(
         &self,
         dimension: usize,
@@ -276,6 +369,14 @@ impl IsmComponent for BuiltinComponent {
     ) -> Result<Jacobian, ModelError> {
         let mut result = super::component::identity(dimension);
         match self.descriptor.kind.as_str() {
+            "dynamics.first_order" | "transduction.first_order_candidate" => {
+                let index = self.state_index(&self.descriptor.state_ids[0])?;
+                result[index][index] = self.decay(
+                    self.parameter(parameters, &self.descriptor.parameter_ids[0])?,
+                    dt_s,
+                    None,
+                )?;
+            }
             "transport.first_order_relaxation"
             | "transduction.solid_contact_rc_candidate"
             | "transduction.interfacial_polarization_candidate" => {
@@ -384,6 +485,9 @@ impl IsmComponent for BuiltinComponent {
             | "disturbance.baseline_random_walk" => {
                 state.values[self.state_index(&self.descriptor.state_ids[0])?]
             }
+            "dynamics.first_order" | "transduction.first_order_candidate" | "reference.offset" => {
+                state.values[self.state_index(&self.descriptor.state_ids[0])?]
+            }
             "transport.two_mode_relaxation" => {
                 state.values[self.state_index(&self.descriptor.state_ids[0])?]
                     + state.values[self.state_index(&self.descriptor.state_ids[1])?]
@@ -403,7 +507,14 @@ impl IsmComponent for BuiltinComponent {
                     * (self.input(input, &self.descriptor.required_inputs[0].id)?
                         - self.parameter(parameters, &self.descriptor.parameter_ids[1])?)
             }
+            "disturbance.linear_covariate" => {
+                self.parameter(parameters, &self.descriptor.parameter_ids[0])?
+                    * (self.input(input, &self.descriptor.required_inputs[0].id)?
+                        - self.parameter(parameters, &self.descriptor.parameter_ids[1])?)
+            }
             "disturbance.stochastic_observation_noise"
+            | "disturbance.observation_variance"
+            | "activity.input"
             | "activity.ideal"
             | "activity.davies"
             | "activity.extended_debye_huckel" => return Ok(None),
@@ -429,8 +540,54 @@ impl IsmComponent for BuiltinComponent {
                     self.parameter(parameters, &self.descriptor.parameter_ids[0])?;
                 Ok(Some(standard_deviation_v * standard_deviation_v))
             }
+            "disturbance.observation_variance" => {
+                let variance = self.parameter(parameters, &self.descriptor.parameter_ids[0])?;
+                if !variance.is_finite() || variance <= 0.0 {
+                    return Err(evaluation(
+                        &self.descriptor.id,
+                        "observation variance must be finite and positive",
+                    ));
+                }
+                Ok(Some(variance))
+            }
             _ => Ok(None),
         }
+    }
+
+    fn auxiliary_outputs(
+        &self,
+        _state: &ModelState,
+        parameters: &ParameterValues,
+        input: &ModelInput,
+    ) -> Result<std::collections::BTreeMap<String, f64>, ModelError> {
+        let mut result = std::collections::BTreeMap::new();
+        match self.descriptor.kind.as_str() {
+            "activity.input" => {
+                let activity = self.input(input, "target_activity")?;
+                if !activity.is_finite() || activity <= 0.0 {
+                    return Err(evaluation(
+                        &self.descriptor.id,
+                        "target activity must be finite and positive",
+                    ));
+                }
+                result.insert("activity".into(), activity);
+            }
+            "equilibrium.nicolsky_eisenman" => {
+                let (activity, _) = self.activity(input, parameters)?;
+                let interferents =
+                    parse_interferents(&self.descriptor, &self.bindings, parameters, input)?;
+                let charge = self
+                    .parameter(parameters, &self.descriptor.parameter_ids[1])?
+                    .round() as i32;
+                result.insert(
+                    "effective_activity".into(),
+                    effective_activity(activity, charge, &interferents)
+                        .map_err(|error| evaluation(&self.descriptor.id, error))?,
+                );
+            }
+            _ => {}
+        }
+        Ok(result)
     }
 
     fn observation_state_jacobian(
@@ -446,6 +603,9 @@ impl IsmComponent for BuiltinComponent {
             | "transduction.solid_contact_rc_candidate"
             | "transduction.interfacial_polarization_candidate"
             | "disturbance.baseline_random_walk" => {
+                vec![(self.descriptor.state_ids[0].clone(), 1.0)]
+            }
+            "dynamics.first_order" | "transduction.first_order_candidate" | "reference.offset" => {
                 vec![(self.descriptor.state_ids[0].clone(), 1.0)]
             }
             "transport.two_mode_relaxation" => self
@@ -475,6 +635,14 @@ impl IsmComponent for BuiltinComponent {
                     let (activity, _) = self.activity(input, parameters)?;
                     covered_parameters.push(slope_id.into());
                     values.push(activity.log10());
+                }
+                if self.descriptor.metadata.contains_key("activity_input_id") {
+                    return Ok(ParameterJacobian {
+                        values,
+                        covered_parameters,
+                        status: JacobianStatus::Complete,
+                        method: JacobianMethod::Analytic,
+                    });
                 }
                 Ok(ParameterJacobian {
                     values,
@@ -521,6 +689,14 @@ impl IsmComponent for BuiltinComponent {
                                 .powf(f64::from(primary_charge) / f64::from(interferent.charge)),
                     );
                 }
+                if self.descriptor.metadata.contains_key("activity_input_id") {
+                    return Ok(ParameterJacobian {
+                        values,
+                        covered_parameters,
+                        status: JacobianStatus::Complete,
+                        method: JacobianMethod::Analytic,
+                    });
+                }
                 Ok(ParameterJacobian {
                     values,
                     covered_parameters,
@@ -541,6 +717,15 @@ impl IsmComponent for BuiltinComponent {
             "disturbance.temperature_covariate"
             | "disturbance.conductivity_covariate"
             | "disturbance.flow_covariate" => {
+                let covariate = self.input(input, &self.descriptor.required_inputs[0].id)?;
+                let sensitivity = self.parameter(parameters, &ids[0])?;
+                let reference = self.parameter(parameters, &ids[1])?;
+                Ok(ParameterJacobian::analytic([
+                    (ids[0].clone(), covariate - reference),
+                    (ids[1].clone(), -sensitivity),
+                ]))
+            }
+            "disturbance.linear_covariate" => {
                 let covariate = self.input(input, &self.descriptor.required_inputs[0].id)?;
                 let sensitivity = self.parameter(parameters, &ids[0])?;
                 let reference = self.parameter(parameters, &ids[1])?;
@@ -574,6 +759,32 @@ impl IsmComponent for BuiltinComponent {
                     Vec::new()
                 }
             }
+            "dynamics.first_order" => {
+                if let Some(peer_tau) = self
+                    .descriptor
+                    .metadata
+                    .get("peer_tau_s")
+                    .and_then(|value| value.parse::<f64>().ok())
+                {
+                    let tau = self.parameter(parameters, &self.descriptor.parameter_ids[0])?;
+                    let threshold = self
+                        .descriptor
+                        .metadata
+                        .get("separation_threshold")
+                        .and_then(|value| value.parse::<f64>().ok())
+                        .unwrap_or(2.0);
+                    if tau >= peer_tau || peer_tau / tau < threshold {
+                        vec![
+                            "dynamic time constants are poorly separated; modes may be confounded"
+                                .into(),
+                        ]
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                }
+            }
             _ => Vec::new(),
         };
         if let Some(limit) = self
@@ -596,6 +807,11 @@ fn validate_builtin_shape(descriptor: &ComponentDescriptor) -> Result<(), ModelE
     let (states, parameters) = match descriptor.kind.as_str() {
         "equilibrium.nernst" | "equilibrium.nicolsky_eisenman" => (0, 2),
         "activity.ideal" | "activity.davies" | "activity.extended_debye_huckel" => (0, 2),
+        "activity.input" => (0, 0),
+        "dynamics.first_order" | "transduction.first_order_candidate" => (1, 2),
+        "reference.offset" => (1, 0),
+        "disturbance.linear_covariate" => (0, 2),
+        "disturbance.observation_variance" => (0, 1),
         "transport.first_order_relaxation"
         | "transduction.solid_contact_rc_candidate"
         | "transduction.interfacial_polarization_candidate" => (1, 2),
@@ -658,9 +874,33 @@ fn validate_builtin_shape(descriptor: &ComponentDescriptor) -> Result<(), ModelE
         | "transduction.solid_contact_rc_candidate"
         | "transduction.interfacial_polarization_candidate"
         | "disturbance.baseline_random_walk" => descriptor.state_ids.clone(),
+        "dynamics.first_order" | "transduction.first_order_candidate" | "reference.offset" => {
+            descriptor.state_ids.clone()
+        }
         _ => Vec::new(),
     };
     let expected_observation_parameters = match descriptor.kind.as_str() {
+        "equilibrium.nernst" if descriptor.metadata.contains_key("activity_input_id") => {
+            let mut ids = vec![descriptor.parameter_ids[0].clone()];
+            if let Some(slope_id) = slope_parameter_id(descriptor) {
+                ids.push(slope_id.into());
+            }
+            ids
+        }
+        "equilibrium.nicolsky_eisenman"
+            if descriptor.metadata.contains_key("activity_input_id") =>
+        {
+            let mut ids = vec![descriptor.parameter_ids[0].clone()];
+            if let Some(slope_id) = slope_parameter_id(descriptor) {
+                ids.push(slope_id.into());
+            }
+            let interferent_ids = parse_interferent_parameter_ids(descriptor)
+                .into_iter()
+                .filter(|id| !ids.contains(id))
+                .collect::<Vec<_>>();
+            ids.extend(interferent_ids);
+            ids
+        }
         "equilibrium.nernst"
         | "equilibrium.nicolsky_eisenman"
         | "transduction.ideal"
@@ -668,6 +908,7 @@ fn validate_builtin_shape(descriptor: &ComponentDescriptor) -> Result<(), ModelE
         | "disturbance.temperature_covariate"
         | "disturbance.conductivity_covariate"
         | "disturbance.flow_covariate" => descriptor.parameter_ids.clone(),
+        "disturbance.linear_covariate" => descriptor.parameter_ids.clone(),
         _ => Vec::new(),
     };
     if descriptor.observation_state_ids != expected_observation_states
@@ -690,6 +931,10 @@ fn validate_builtin_shape(descriptor: &ComponentDescriptor) -> Result<(), ModelE
         | "transduction.interfacial_polarization_candidate" => Some("driving_step_v"),
         "disturbance.baseline_random_walk" => Some("baseline_increment_v"),
         "transduction.ideal" => Some("transduction_drive_v"),
+        // V1 event inputs are optional at ordinary propagation steps. When
+        // supplied they are explicit model inputs, never inferred from V.
+        "dynamics.first_order" => None,
+        "transduction.first_order_candidate" => None,
         "disturbance.temperature_covariate"
         | "disturbance.conductivity_covariate"
         | "disturbance.flow_covariate" => descriptor
@@ -807,4 +1052,17 @@ fn parse_interferents_with_ids(
         })
         .transpose()
         .map(|value: Option<Vec<_>>| value.unwrap_or_default())
+}
+
+fn parse_interferent_parameter_ids(descriptor: &ComponentDescriptor) -> Vec<String> {
+    descriptor
+        .metadata
+        .get("interferents")
+        .map(|spec| {
+            spec.split(',')
+                .filter_map(|item| item.split(':').nth(3))
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }

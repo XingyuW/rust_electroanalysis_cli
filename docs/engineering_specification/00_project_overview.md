@@ -161,3 +161,9 @@ The ISM framework is an extensible scientific contract, not a completed
 high-fidelity membrane transport model. It records explicit potential terms,
 noise, residuals, uncertainty, validity, and evidence without converting a fit
 into a physical explanation. See `docs/adr/0002-unified-ism-scientific-contract.md`.
+# Reduced-order ISM V1 note
+
+The model-core component library is documented in
+[`docs/model/reduced_order_ism_v1.md`](../model/reduced_order_ism_v1.md). It
+adds activity-first reduced-order components without assigning dynamic modes to
+physical mechanisms or integrating them into workflows.

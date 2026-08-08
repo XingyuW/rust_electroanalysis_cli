@@ -1,5 +1,11 @@
 # 08 — Validation & Constraints
 
+## Reduced-order ISM components V1
+
+V1 requires positive activity/variance, positive time constants, explicit event
+inputs, runtime covariance for complete uncertainty, and evidence-driven
+equilibrium recognition; see [`docs/model/reduced_order_ism_v1.md`](../model/reduced_order_ism_v1.md).
+
 ## Model-core constraints
 
 The compiler rejects duplicate IDs/kinds/contribution owners, missing or

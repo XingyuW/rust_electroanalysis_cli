@@ -30,10 +30,11 @@ pub use component::{
     InterpretationStatus, IsmComponent, Jacobian, JacobianMethod, JacobianStatus, ParameterId,
     ParameterJacobian, StateId, StateJacobian, StateJacobianStatus,
 };
-pub use defaults::default_model_definition;
+pub use defaults::{default_model_definition, reduced_ism_v1_definition};
 pub use definition::{MODEL_DEFINITION_SCHEMA_VERSION, ModelDefinition};
 pub use equilibrium_recognition::{
-    EquilibriumAssessment, EquilibriumEvidenceRequirements, EquilibriumStatus,
+    EquilibriumAssessment, EquilibriumEvidence, EquilibriumEvidenceRequirements,
+    EquilibriumRecognitionConfig, EquilibriumStatus, recognize_equilibrium,
 };
 pub use error::ModelError;
 pub use evidence::{EvidenceAssessment, EvidenceAssessmentStatus, EvidenceRequirement};

@@ -1,5 +1,11 @@
 # 02 — Architecture
 
+## Reduced-order ISM components V1
+
+The V1 component adapters remain inside model core and reuse calibration
+equations without importing workflow modules; see
+[`docs/model/reduced_order_ism_v1.md`](../model/reduced_order_ism_v1.md).
+
 ## ISM model core
 
 `ModelDefinition -> validation -> static registry -> dependency graph ->
