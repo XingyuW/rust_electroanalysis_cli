@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "records": [
+    {
+      "filter": "ekf",
+      "runtime_ms": 0.0,
+      "activity_rmse": null,
+      "innovation_mean": null,
+      "nis_mean": null,
+      "rejected_updates": 0,
+      "numerical_failures": 0,
+      "domain_excursions": 0,
+      "mean_activity_standard_error": null,
+      "warnings": []
+    }
+  ],
+  "warnings": []
+}

@@ -22,6 +22,8 @@ mod state;
 mod validity;
 
 pub use builtins::exact_nonzero_charge;
+#[cfg(test)]
+pub(crate) use compiler::duplicate_input_test_model;
 pub use compiler::{
     CompiledBindingSummary, CompiledIsmModel, CompiledModelSummary, ComponentBindingSummary,
     compile_model,

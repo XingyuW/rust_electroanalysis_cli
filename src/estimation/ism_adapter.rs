@@ -454,7 +454,7 @@ pub fn resolve_model_input_bindings(
             conversion,
             provenance: InputBindingProvenance {
                 target_input_id: input.id.clone(),
-                source_declaration: declaration,
+                source_declaration: declaration.clone(),
                 model_id: model_id.clone(),
                 expected_unit: input.unit.clone(),
             },
@@ -463,7 +463,7 @@ pub fn resolve_model_input_bindings(
         if bindings.insert(input.id.clone(), binding).is_some() {
             return Err(EstimationError::DuplicateModelInputBinding {
                 target_input_id: input.id.clone(),
-                declarations: vec![input.id.clone()],
+                declarations: vec![declaration],
                 model_id: model_id.clone(),
             });
         }
@@ -1384,4 +1384,33 @@ fn parse_metadata(descriptor: &ComponentDescriptor, id: &str) -> Result<f64, Mod
         .get(id)
         .and_then(|value| value.parse().ok())
         .ok_or_else(|| evaluation(descriptor, format!("invalid metadata '{id}'")))
+}
+
+#[cfg(test)]
+mod duplicate_binding_error_tests {
+    use super::*;
+
+    #[test]
+    fn duplicate_binding_key_returns_typed_error_with_target_and_declaration() {
+        let mut config = crate::estimation_config::ResolvedEstimationConfig::default();
+        config
+            .model
+            .input_bindings
+            .custom
+            .insert("flow_drive".into(), "environment:flow".into());
+
+        let error =
+            resolve_model_input_bindings(&crate::model::duplicate_input_test_model(), &config)
+                .unwrap_err();
+        assert!(matches!(
+            error,
+            EstimationError::DuplicateModelInputBinding {
+                target_input_id,
+                declarations,
+                model_id,
+            } if target_input_id == "flow_drive"
+                && declarations == vec!["environment:flow"]
+                && model_id == "duplicate-binding-fixture"
+        ));
+    }
 }

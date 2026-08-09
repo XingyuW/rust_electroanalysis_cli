@@ -60,6 +60,12 @@ boundary:
   and `compiled_legacy_parity_covers_condition_sensitivity_state_for_ekf_and_ukf`
   compare Legacy only with Compiled + LegacyEquivalentV1. The ordinary numeric
   tolerance is `1e-10`; condition/sensitivity UKF compatibility uses `1e-8`.
+- `compiled_legacy_equivalent_nicolsky_interferent_parity_runs_ekf_and_ukf`
+  extends that normal-path parity gate to a real Nicolsky-Eisenman stored
+  calibration with Ca2+ target activity, Cl- interferent activity, active
+  selectivity, signed charges, and an aligned temperature series. It compares
+  EKF and UKF timestamps, named states, covariances, predicted potential,
+  innovation/NIS diagnostics, update status, and calibration-domain status.
 - `compiled_activity_events_are_applied_once_at_irregular_transitions_with_provenance`
   covers irregular, multiple-in-one-interval, multiple-across-interval,
   initial-time, and no-event behavior with dynamic event provenance.
@@ -72,6 +78,13 @@ boundary:
   `old_estimation_artifact_migration_matrix_keeps_identity_honest_and_deterministic`
   protect human-readable model narratives and old config/report/truth/validation/
   comparison compatibility.
+- `tests/estimation_artifact_migration.rs` reads the tracked historical fixtures
+  under `tests/fixtures/estimation_migration/`; omitted compiled fields resolve
+  to honest Legacy/`None` defaults and reserialization is deterministic.
+- `compiled_validation_keeps_absent_truth_metrics_unavailable` proves that a
+  missing stable-ID truth value remains unavailable rather than becoming a
+  fabricated zero metric. The typed duplicate-binding context is covered by
+  `duplicate_binding_key_returns_typed_error_with_target_and_declaration`.
 
 The exact profile, filter, state model, scenario, protected contract, and test
 function mapping is maintained in the testing QA specification and the

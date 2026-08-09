@@ -2611,3 +2611,43 @@ fn multiply(left: &Jacobian, right: &Jacobian) -> Jacobian {
     }
     result
 }
+
+#[cfg(test)]
+pub(crate) fn duplicate_input_test_model() -> CompiledIsmModel {
+    let duplicate_target = "flow_drive";
+    CompiledIsmModel {
+        definition: ModelDefinition {
+            schema_version: crate::model::MODEL_DEFINITION_SCHEMA_VERSION,
+            model_id: "duplicate-binding-fixture".into(),
+            description: "test-only malformed compiled definition".into(),
+            validity_domain: "test".into(),
+            uncertainty_incomplete: false,
+            states: Vec::new(),
+            parameters: Vec::new(),
+            inputs: vec![
+                super::input::InputSpec {
+                    id: duplicate_target.into(),
+                    unit: "m/s".into(),
+                    required: false,
+                    source: "fixture:first".into(),
+                    validity_domain: "test".into(),
+                },
+                super::input::InputSpec {
+                    id: duplicate_target.into(),
+                    unit: "m/s".into(),
+                    required: false,
+                    source: "fixture:second".into(),
+                    validity_domain: "test".into(),
+                },
+            ],
+            components: Vec::new(),
+        },
+        state_definitions: Vec::new(),
+        parameter_definitions: Vec::new(),
+        state_indices: BTreeMap::new(),
+        parameter_indices: BTreeMap::new(),
+        component_bindings: BTreeMap::new(),
+        applicability_bindings: BTreeMap::new(),
+        components: Vec::new(),
+    }
+}

@@ -95,6 +95,34 @@ fn custom_binding_model(
     .unwrap()
 }
 
+fn nicolsky_calibration_model() -> rust_electroanalysis_cli::results::StoredCalibrationModel {
+    let mut model = simulation::simulation_model();
+    model.analyte = "Ca2+".into();
+    model.ion_charge = 2;
+    model.model_kind = rust_electroanalysis_cli::results::CalibrationModelKind::NicolskyEisenman;
+    model.temperature_mode =
+        rust_electroanalysis_cli::results::TemperatureMode::ObservationSpecific;
+    model.parameters[0].value = 0.18;
+    model.selectivity_coefficients =
+        vec![rust_electroanalysis_cli::results::SelectivityCoefficient {
+            primary_analyte: "Ca2+".into(),
+            interferent: "Cl-".into(),
+            value: 0.35,
+            source: "tracked Nicolsky parity fixture".into(),
+            standard_error: None,
+            confidence_interval: None,
+        }];
+    model.configuration.nicolsky_eisenman.interferents = vec![
+        rust_electroanalysis_cli::calibration_config::InterferentConfig {
+            name: "Cl-".into(),
+            charge: -1,
+            selectivity_coefficient: Some(0.35),
+            source: "tracked Nicolsky parity fixture".into(),
+        },
+    ];
+    model
+}
+
 #[test]
 fn custom_flow_drive_binding_executes_in_normal_estimation_runtime() {
     let definition_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1541,6 +1569,180 @@ fn compiled_legacy_equivalent_permanent_parity_matrix_covers_states_filters_and_
 }
 
 #[test]
+fn compiled_legacy_equivalent_nicolsky_interferent_parity_runs_ekf_and_ukf() {
+    let stored = nicolsky_calibration_model();
+    let interferent_activities = [0.02, 0.025, 0.03, 0.035, 0.04];
+    let temperatures_k = [298.15, 298.35, 298.55, 298.75, 298.95];
+    let target_log10_activities = [-3.0, -2.8, -2.6, -2.4, -2.2];
+    let times = vec![0.0, 0.7, 1.9, 3.2, 4.4];
+    let values = target_log10_activities
+        .iter()
+        .zip(interferent_activities)
+        .zip(temperatures_k)
+        .map(|((&log10_activity, interferent_activity), temperature_k)| {
+            rust_electroanalysis_cli::potentiometry::calibration::nicolsky_eisenman::evaluate_potential(
+                stored.parameters[0].value,
+                10_f64.powf(log10_activity),
+                stored.ion_charge,
+                temperature_k,
+                &[rust_electroanalysis_cli::potentiometry::calibration::nicolsky_eisenman::InterferentModelInput {
+                    name: "Cl-".into(),
+                    charge: -1,
+                    activity: interferent_activity,
+                    selectivity_coefficient: 0.35,
+                }],
+            )
+            .unwrap()
+        })
+        .map(Some)
+        .collect::<Vec<_>>();
+    let experiment = ElectrochemicalExperiment::new(
+        "nicolsky-interferent-parity",
+        SensorMetadata::default(),
+        None,
+        MultiChannelMeasurement::new(
+            times.clone(),
+            vec![MeasurementChannel::new("E1", "V", values)],
+        )
+        .unwrap(),
+        vec![
+            EnvironmentalSeries {
+                name: "temperature".into(),
+                unit: "K".into(),
+                time: times.clone(),
+                values: temperatures_k.into_iter().map(Some).collect(),
+                metadata: None,
+            },
+            EnvironmentalSeries {
+                name: "chloride_activity".into(),
+                unit: "activity".into(),
+                time: times.clone(),
+                values: interferent_activities.into_iter().map(Some).collect(),
+                metadata: None,
+            },
+        ],
+        Vec::new(),
+        "buffer",
+        provenance(),
+    )
+    .unwrap();
+
+    for filter in [FilterKind::Ekf, FilterKind::Ukf] {
+        let mut legacy_config = config(StateModelKind::Activity);
+        legacy_config.environment.temperature_series = Some("temperature".into());
+        legacy_config
+            .environment
+            .interferent_series
+            .insert("Cl-".into(), "chloride_activity".into());
+        legacy_config.observability.reject_unobservable_model = false;
+        let legacy = estimation::estimate_experiment(
+            &experiment,
+            "E1",
+            StoredCalibrationObservationModel::new(stored.clone()).unwrap(),
+            &legacy_config,
+            estimation::EstimationContext::default(),
+            filter,
+        )
+        .unwrap();
+
+        let mut compiled_config = legacy_config.clone();
+        compiled_config.model.backend = EstimationModelBackend::Compiled;
+        compiled_config.model.profile = CompiledEstimationProfile::LegacyEquivalentV1;
+        let compiled = estimation::estimate_experiment(
+            &experiment,
+            "E1",
+            StoredCalibrationObservationModel::new(stored.clone()).unwrap(),
+            &compiled_config,
+            estimation::EstimationContext::default(),
+            filter,
+        )
+        .unwrap();
+
+        assert_eq!(legacy.estimates.len(), compiled.estimates.len());
+        assert_eq!(
+            legacy.diagnostics.innovations.len(),
+            compiled.diagnostics.innovations.len()
+        );
+        for (left, right) in legacy.estimates.iter().zip(&compiled.estimates) {
+            assert_eq!(left.timestamp_s, right.timestamp_s);
+            assert_eq!(left.update_status, right.update_status);
+            assert_eq!(
+                left.calibration_domain_status,
+                right.calibration_domain_status
+            );
+            for (a, b) in left
+                .predicted_state
+                .iter()
+                .zip(&right.predicted_state)
+                .chain(left.filtered_state.iter().zip(&right.filtered_state))
+            {
+                assert_eq!(a.name, b.name);
+                assert!((a.value.unwrap() - b.value.unwrap()).abs() < 1e-10);
+            }
+            for (a, b) in left
+                .predicted_covariance
+                .iter()
+                .flatten()
+                .zip(right.predicted_covariance.iter().flatten())
+                .chain(
+                    left.filtered_covariance
+                        .iter()
+                        .flatten()
+                        .zip(right.filtered_covariance.iter().flatten()),
+                )
+            {
+                assert!((a - b).abs() < 1e-10);
+            }
+            for (a, b) in [
+                (left.predicted_measurement_v, right.predicted_measurement_v),
+                (left.innovation_v, right.innovation_v),
+                (left.innovation_variance_v2, right.innovation_variance_v2),
+                (
+                    left.normalized_innovation_squared,
+                    right.normalized_innovation_squared,
+                ),
+            ] {
+                match (a, b) {
+                    (Some(a), Some(b)) => assert!((a - b).abs() < 1e-10),
+                    (None, None) => {}
+                    _ => panic!("Nicolsky parity changed optional diagnostic presence"),
+                }
+            }
+        }
+        for (left, right) in legacy
+            .diagnostics
+            .innovations
+            .iter()
+            .zip(&compiled.diagnostics.innovations)
+        {
+            assert_eq!(left.timestamp_s, right.timestamp_s);
+            assert_eq!(left.accepted, right.accepted);
+            assert_eq!(left.gating_threshold, right.gating_threshold);
+            assert!((left.innovation_v - right.innovation_v).abs() < 1e-10);
+            assert!((left.innovation_variance_v2 - right.innovation_variance_v2).abs() < 1e-10);
+            assert!(
+                (left.normalized_innovation_squared - right.normalized_innovation_squared).abs()
+                    < 1e-10
+            );
+        }
+        assert_eq!(
+            legacy.diagnostics.rejected_update_count,
+            compiled.diagnostics.rejected_update_count
+        );
+        assert_eq!(
+            legacy.diagnostics.predict_only_count,
+            compiled.diagnostics.predict_only_count
+        );
+        assert!(legacy.estimates.iter().all(|estimate| {
+            estimate
+                .environmental_context
+                .interferent_activities
+                .contains_key("Cl-")
+        }));
+    }
+}
+
+#[test]
 fn compiled_legacy_parity_covers_condition_sensitivity_state_for_ekf_and_ukf() {
     for filter in [FilterKind::Ekf, FilterKind::Ukf] {
         let mut legacy_config = config(StateModelKind::ActivityBaselinePolarization);
@@ -2067,6 +2269,82 @@ fn compiled_reduced_active_transduction_truth_and_validation_use_stable_state_id
         assert!(metric.bias.is_some());
         assert!(metric.interval_coverage.is_some());
     }
+}
+
+#[test]
+fn compiled_validation_keeps_absent_truth_metrics_unavailable() {
+    let scenario = simulation::SimulationScenario {
+        sample_count: 12,
+        interval_s: 1.0,
+        activity_step_time_s: Some(4.0),
+        measurement_noise_sd_v: 0.0,
+        model: rust_electroanalysis_cli::estimation_config::EstimationModelConfig {
+            backend: EstimationModelBackend::Compiled,
+            profile: CompiledEstimationProfile::ReducedIsmV1,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let output = simulation::simulate_scenario(&scenario).unwrap();
+    let values = output
+        .observations
+        .iter()
+        .map(|point| point.observed_potential_v)
+        .collect::<Vec<_>>();
+    let times = output
+        .observations
+        .iter()
+        .map(|point| point.timestamp_s)
+        .collect::<Vec<_>>();
+    let mut config = config(StateModelKind::Activity);
+    config.model.backend = EstimationModelBackend::Compiled;
+    config.model.profile = CompiledEstimationProfile::ReducedIsmV1;
+    config.observability.reject_unobservable_model = false;
+    let report = estimation::estimate_experiment(
+        &experiment(values, times),
+        "E1",
+        StoredCalibrationObservationModel::new(simulation::simulation_model()).unwrap(),
+        &config,
+        estimation::EstimationContext::default(),
+        FilterKind::Ekf,
+    )
+    .unwrap();
+
+    let mut truth =
+        rust_electroanalysis_cli::estimation::validation::truth_from_simulation(&output);
+    assert!(
+        truth
+            .iter()
+            .all(|point| point.state_values.contains_key("reference_offset_v"))
+    );
+    for point in &mut truth {
+        point.state_values.remove("reference_offset_v");
+    }
+    let validation = rust_electroanalysis_cli::estimation::validation::validate_report(
+        &report,
+        &truth,
+        Some("compiled simulation truth with omitted reference state".into()),
+    );
+
+    let available = validation
+        .metrics
+        .iter()
+        .find(|metric| metric.state == "dynamic_fast_potential_v")
+        .unwrap();
+    assert!(available.rmse.is_some());
+    assert!(available.mae.is_some());
+    assert!(available.bias.is_some());
+    let omitted = validation
+        .metrics
+        .iter()
+        .find(|metric| metric.state == "reference_offset_v")
+        .unwrap();
+    assert_eq!(omitted.sample_count, 0);
+    assert!(omitted.rmse.is_none());
+    assert!(omitted.mae.is_none());
+    assert!(omitted.bias.is_none());
+    assert!(omitted.interval_coverage.is_none());
+    assert!(validation.matched_sample_count > 0);
 }
 
 #[test]

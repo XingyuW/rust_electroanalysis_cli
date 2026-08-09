@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "scenario": {
+    "schema_version": 2,
+    "seed": 7,
+    "sample_count": 2,
+    "start_time_s": 0.0,
+    "interval_s": 1.0,
+    "irregular_jitter_s": 0.0,
+    "initial_log10_activity": -3.0,
+    "activity_step_time_s": null,
+    "activity_step_log10": 1.0,
+    "activity_pulse_time_s": null,
+    "activity_pulse_duration_s": 10.0,
+    "activity_pulse_log10": 0.0,
+    "activity_ramp_rate_log10_per_s": 0.0,
+    "baseline_initial_v": 0.0,
+    "baseline_drift_v_per_s": 0.0,
+    "baseline_random_walk_sd_v": 0.0,
+    "polarization_initial_v": 0.0,
+    "polarization_tau_s": 30.0,
+    "polarization_pulse_time_s": null,
+    "polarization_pulse_v": 0.0,
+    "polarization_input_model": "none",
+    "polarization_activity_step_gain_v_per_log10": 0.0,
+    "sensitivity_initial": 1.0,
+    "sensitivity_drift_per_s": 0.0,
+    "temperature_celsius": 25.0,
+    "temperature_ramp_celsius_per_s": 0.0,
+    "measurement_noise_sd_v": 0.0,
+    "missing_fraction": 0.0,
+    "outlier_fraction": 0.0,
+    "outlier_magnitude_v": 0.05
+  },
+  "observations": [
+    {
+      "timestamp_s": 0.0,
+      "log10_activity": -3.0,
+      "activity": 0.001,
+      "baseline_offset_v": 0.0,
+      "polarization_v": 0.0,
+      "sensitivity_scale": 1.0,
+      "temperature_k": 298.15,
+      "observed_potential_v": 0.02252,
+      "outlier": false
+    },
+    {
+      "timestamp_s": 1.0,
+      "log10_activity": -3.0,
+      "activity": 0.001,
+      "baseline_offset_v": 0.0,
+      "polarization_v": 0.0,
+      "sensitivity_scale": 1.0,
+      "temperature_k": 298.15,
+      "observed_potential_v": 0.02252,
+      "outlier": false
+    }
+  ],
+  "provenance": null
+}
