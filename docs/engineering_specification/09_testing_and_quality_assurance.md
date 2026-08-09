@@ -155,6 +155,25 @@ reconstruction. `phase6_estimation` verifies that the compiled compatibility
 adapter reproduces legacy equations and that EKF/UKF expose identical named
 scientific contributions.
 
+Phase A0 artifact-contract evidence is permanent and fixture-based:
+
+- `tests/a0_producer_roundtrip.rs::mhi_t02a_current_correct_kind` reads all
+  eight tracked schema-2 fixtures in
+  `tests/fixtures/a0_artifact_contracts/schema2/` through `read_artifact` and
+  asserts representative payload fields.
+- `tests/a0_producer_roundtrip.rs::mhi_t02d_legacy` reads all eight tracked
+  schema-1 fixtures in `tests/fixtures/a0_artifact_contracts/schema1/` through
+  `read_artifact` and asserts representative payload fields.
+- `tests/a0_producer_roundtrip.rs::mhi_t02f_producer_roundtrip` covers the nine
+  producer paths without generating schema-1 compatibility evidence.
+- `tests/artifact_contract.rs::a0_ac_compat_01_preserves_eis_fit_and_health_baseline_matrices`
+  reads tracked missing/correct/wrong-kind fixtures for `eis_fit` and
+  `health_baseline`; it performs no runtime writes below `tests/fixtures/`.
+
+Fixture source and historical schema evidence are recorded in
+`tests/fixtures/a0_artifact_contracts/README.md` and the detailed A0 mapping is
+in `docs/engineering_specification/a0_artifact_contract_traceability.md`.
+
 `estimation::model_output::equilibrium_tests` covers a fully evidenced stable
 timestamp, rejection of slow reference drift, and indeterminate classification
 when history or residual evidence is missing.
