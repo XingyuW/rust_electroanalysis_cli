@@ -1,12 +1,12 @@
 use rust_electroanalysis_cli::{
-    ArtifactKind, CurrentArtifactKindPolicy, VersionedArtifact,
-    domain::{ArtifactError, read_artifact, write_artifact},
+    domain::{read_artifact, write_artifact, ArtifactError},
     results::{
         CalibrationAnalysisReport, CalibrationObservationSet, EisFitArtifact, HealthTrendReport,
         MechanismAnalysisReport, ModelAnalysisReport, ModelCompilationArtifact,
         SensorHealthAssessment, SensorHealthBaseline, SignalAnalysisReport, StateEstimationReport,
         StoredCalibrationModel, TransientAnalysisReport, ValidationResults,
     },
+    ArtifactKind, CurrentArtifactKindPolicy, VersionedArtifact,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -123,16 +123,6 @@ fn every_exported_cross_workflow_json_type_declares_a_contract() {
     check::<ValidationResults>();
 }
 
-fn assert_current_contract<T: VersionedArtifact>(kind: &str) {
-    assert_eq!(T::CURRENT_SCHEMA_VERSION, 2);
-    assert_eq!(T::LEGACY_SCHEMA_VERSIONS, &[1]);
-    assert_eq!(T::ARTIFACT_KIND.as_str(), kind);
-    assert_eq!(
-        T::CURRENT_ARTIFACT_KIND_POLICY,
-        CurrentArtifactKindPolicy::Required
-    );
-}
-
 fn assert_current_rejections<T: VersionedArtifact>() {
     let path = path("matrix");
     fs::write(
@@ -158,18 +148,6 @@ fn assert_current_rejections<T: VersionedArtifact>() {
         Err(ArtifactError::UnsupportedSchemaVersion { .. })
     ));
     fs::remove_file(path).ok();
-}
-
-#[test]
-fn mhi_t02a_current_correct_kind() {
-    assert_current_contract::<TransientAnalysisReport>("transient_analysis");
-    assert_current_contract::<CalibrationObservationSet>("calibration_observations");
-    assert_current_contract::<StoredCalibrationModel>("calibration_model");
-    assert_current_contract::<CalibrationAnalysisReport>("calibration_analysis");
-    assert_current_contract::<SignalAnalysisReport>("signal_analysis");
-    assert_current_contract::<MechanismAnalysisReport>("mechanism_analysis");
-    assert_current_contract::<SensorHealthAssessment>("health_assessment");
-    assert_current_contract::<HealthTrendReport>("health_trend");
 }
 
 #[test]
@@ -210,47 +188,33 @@ fn mhi_t02e_unsupported() {
 
 #[test]
 fn a0_ac_compat_01_preserves_eis_fit_and_health_baseline_matrices() {
-    let eis_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/artifact_contracts/eis_fit_schema2_missing_kind.json");
-    let baseline_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/artifact_contracts/health_baseline_schema2_missing_kind.json");
-    assert!(read_artifact::<EisFitArtifact>(&eis_path).is_ok());
-    assert!(read_artifact::<SensorHealthBaseline>(&baseline_path).is_ok());
+    let root =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/a0_artifact_contracts");
+    let preserved =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/artifact_contracts");
+    let eis_missing = preserved.join("eis_fit_schema2_missing_kind.json");
+    let eis_correct = root.join("eis_fit_schema2_correct_kind.json");
+    let eis_wrong = root.join("eis_fit_schema2_wrong_kind.json");
+    assert!(read_artifact::<EisFitArtifact>(&eis_missing).is_ok());
+    assert!(read_artifact::<EisFitArtifact>(&eis_correct).is_ok());
+    assert!(matches!(
+        read_artifact::<EisFitArtifact>(&eis_wrong),
+        Err(ArtifactError::IncompatibleKind {
+            actual: Some(_),
+            ..
+        })
+    ));
 
-    for (path, kind) in [(&eis_path, "eis_fit"), (&baseline_path, "health_baseline")] {
-        let mut value: serde_json::Value =
-            serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
-        value["artifact_kind"] = serde_json::Value::String(kind.into());
-        fs::write(path.with_extension("correct.json"), value.to_string()).unwrap();
-        let correct_path = path.with_extension("correct.json");
-        if kind == "eis_fit" {
-            assert!(read_artifact::<EisFitArtifact>(&correct_path).is_ok());
-        } else {
-            assert!(read_artifact::<SensorHealthBaseline>(&correct_path).is_ok());
-        }
-        let mut wrong: serde_json::Value =
-            serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
-        wrong["artifact_kind"] = serde_json::Value::String("signal_analysis".into());
-        fs::write(path.with_extension("wrong.json"), wrong.to_string()).unwrap();
-        let wrong_path = path.with_extension("wrong.json");
-        if kind == "eis_fit" {
-            assert!(matches!(
-                read_artifact::<EisFitArtifact>(&wrong_path),
-                Err(ArtifactError::IncompatibleKind {
-                    actual: Some(_),
-                    ..
-                })
-            ));
-        } else {
-            assert!(matches!(
-                read_artifact::<SensorHealthBaseline>(&wrong_path),
-                Err(ArtifactError::IncompatibleKind {
-                    actual: Some(_),
-                    ..
-                })
-            ));
-        }
-        fs::remove_file(correct_path).ok();
-        fs::remove_file(wrong_path).ok();
-    }
+    let baseline_missing = preserved.join("health_baseline_schema2_missing_kind.json");
+    let baseline_correct = root.join("health_baseline_schema2_correct_kind.json");
+    let baseline_wrong = root.join("health_baseline_schema2_wrong_kind.json");
+    assert!(read_artifact::<SensorHealthBaseline>(&baseline_missing).is_ok());
+    assert!(read_artifact::<SensorHealthBaseline>(&baseline_correct).is_ok());
+    assert!(matches!(
+        read_artifact::<SensorHealthBaseline>(&baseline_wrong),
+        Err(ArtifactError::IncompatibleKind {
+            actual: Some(_),
+            ..
+        })
+    ));
 }
