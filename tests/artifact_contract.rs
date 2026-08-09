@@ -12,8 +12,11 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+static NEXT_PATH_ID: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct FixtureArtifact {
@@ -39,9 +42,10 @@ fn path(name: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("clock")
         .as_nanos();
+    let id = NEXT_PATH_ID.fetch_add(1, Ordering::Relaxed);
     std::env::temp_dir().join(format!(
-        "artifact_{name}_{}_{nonce}.json",
-        std::process::id()
+        "artifact_{name}_{}_{}_{}.json",
+        std::process::id(), nonce, id
     ))
 }
 
