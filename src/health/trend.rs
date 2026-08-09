@@ -88,7 +88,7 @@ pub fn report(
     provenance: crate::domain::AnalysisProvenance,
 ) -> HealthTrendReport {
     HealthTrendReport {
-        schema_version: 1,
+        schema_version: 2,
         analysis_id: id.into(),
         trends,
         provenance,

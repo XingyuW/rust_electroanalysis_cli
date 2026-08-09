@@ -47,7 +47,11 @@ pub fn extract(workspace_dir: &Path, options: ExtractOptions<'_>) -> Result<(), 
     let transient = options
         .transient_results_path
         .map(|path| resolve_path(workspace_dir, path))
-        .map(|path| read_json::<crate::results::transient::TransientAnalysisReport>(&path))
+        .map(|path| {
+            crate::domain::read_artifact::<crate::results::transient::TransientAnalysisReport>(
+                &path,
+            )
+        })
         .transpose()?;
     let mut observation_set = extract_observations(
         &experiment,
@@ -90,7 +94,8 @@ pub fn fit(
     }
     let mut config = loaded.config;
     config.apply_cli_overrides(model, selection, bootstrap, seed)?;
-    let mut observation_set: CalibrationObservationSet = read_json(&observations_path)?;
+    let mut observation_set: CalibrationObservationSet =
+        crate::domain::read_artifact(&observations_path)?;
     observation_set.provenance =
         AnalysisProvenance::from_paths(&observations_path, loaded.source_path.as_deref())
             .map_err(DataParsingError::from)?;
@@ -134,8 +139,8 @@ pub fn validate(
 ) -> Result<(), RunnerError> {
     let model_path = resolve_path(workspace_dir, model_path);
     let observations_path = resolve_path(workspace_dir, observations_path);
-    let model: StoredCalibrationModel = read_json(&model_path)?;
-    let observations: CalibrationObservationSet = read_json(&observations_path)?;
+    let model: StoredCalibrationModel = crate::domain::read_artifact(&model_path)?;
+    let observations: CalibrationObservationSet = crate::domain::read_artifact(&observations_path)?;
     let validation = validate_stored_model(&model, &observations.observations)?;
     let output_dir = output_directory(workspace_dir, output_path);
     fs::create_dir_all(&output_dir).map_err(|error| {
@@ -173,7 +178,7 @@ pub fn predict(
     output_path: Option<&Path>,
 ) -> Result<(), RunnerError> {
     let model_path = resolve_path(workspace_dir, model_path);
-    let model: StoredCalibrationModel = read_json(&model_path)?;
+    let model: StoredCalibrationModel = crate::domain::read_artifact(&model_path)?;
     let temperature_k = temperature_celsius.map(|value| value + 273.15);
     let predictions = if let Some(potential) = potential {
         vec![prediction::predict_activity_from_potential(

@@ -40,6 +40,8 @@ pub struct BatchRunSummary {
 #[derive(Debug, ThisError)]
 pub enum RunnerError {
     #[error(transparent)]
+    Artifact(#[from] ArtifactError),
+    #[error(transparent)]
     Configuration(#[from] ConfigurationError),
     #[error(transparent)]
     Data(#[from] DataParsingError),

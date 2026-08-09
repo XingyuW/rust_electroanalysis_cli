@@ -29,6 +29,13 @@ pub fn assemble(
         HealthDomain::Impedance,
         HealthDomain::MechanismEvidence,
     ];
+    if rules
+        .iter()
+        .any(|rule| !rule.contradictory_evidence.is_empty())
+        && !warnings.contains(&HealthWarning::ContradictoryEvidence)
+    {
+        warnings.push(HealthWarning::ContradictoryEvidence);
+    }
     let assessments = domains
         .iter()
         .filter_map(|d| {
@@ -110,7 +117,7 @@ pub fn assemble(
         OverallHealthStatus::WithinBaseline
     };
     SensorHealthAssessment {
-        schema_version: 1,
+        schema_version: 2,
         assessment_id: id.into(),
         sensor_id: sensor,
         experiment_id: experiment,

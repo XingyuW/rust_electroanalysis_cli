@@ -28,8 +28,9 @@ pub fn compare(
     }
     let eis_path = resolve_path(workspace, &eis_path.to_string_lossy());
     let transient_path = resolve_path(workspace, &transient_path.to_string_lossy());
-    let eis: EisFitArtifact = read_json(&eis_path)?;
-    let transient: crate::results::TransientAnalysisReport = read_json(&transient_path)?;
+    let eis: EisFitArtifact = crate::domain::read_artifact(&eis_path)?;
+    let transient: crate::results::TransientAnalysisReport =
+        crate::domain::read_artifact(&transient_path)?;
     let metadata = metadata_path
         .and_then(|path| load_context(&resolve_path(workspace, &path.to_string_lossy())));
     let record = MechanismRecordInput {
@@ -119,7 +120,7 @@ pub fn compare(
         &comparisons,
     );
     let report = MechanismAnalysisReport {
-        schema_version: 1,
+        schema_version: 2,
         analysis_id: format!("mechanism:{}", record.record_id),
         records: vec![summary],
         eis_timescales,
@@ -146,12 +147,13 @@ pub fn trend(
     let manifest =
         load_manifest(&manifest_path).map_err(|e| RunnerError::Message(e.to_string()))?;
     let base = manifest_path.parent().unwrap_or(workspace);
-    let mut report=MechanismAnalysisReport { schema_version:1, analysis_id:"mechanism-trend".to_string(), records:Vec::new(), eis_timescales:Vec::new(), transient_timescales:Vec::new(), comparisons:Vec::new(), hypotheses:manifest.hypotheses.clone().into_iter().map(|h| crate::results::HypothesisAssessment { hypothesis_id:h.hypothesis_id, transient_timescale:h.transient_timescale, eis_role:h.eis_role, description:h.description, assessment:"insufficient evidence".to_string(), supporting_observations:Vec::new(), contradictory_observations:Vec::new(), missing_evidence:vec!["replicate-level hypothesis evaluation is not available from a single manifest record".to_string()], assumptions:Vec::new(), alternative_explanations:Vec::new() }).collect(), trends:Vec::new(), configuration:loaded.config.clone(), provenance:None, warnings:Vec::new(), transient_configuration:None };
+    let mut report=MechanismAnalysisReport { schema_version:2, analysis_id:"mechanism-trend".to_string(), records:Vec::new(), eis_timescales:Vec::new(), transient_timescales:Vec::new(), comparisons:Vec::new(), hypotheses:manifest.hypotheses.clone().into_iter().map(|h| crate::results::HypothesisAssessment { hypothesis_id:h.hypothesis_id, transient_timescale:h.transient_timescale, eis_role:h.eis_role, description:h.description, assessment:"insufficient evidence".to_string(), supporting_observations:Vec::new(), contradictory_observations:Vec::new(), missing_evidence:vec!["replicate-level hypothesis evaluation is not available from a single manifest record".to_string()], assumptions:Vec::new(), alternative_explanations:Vec::new() }).collect(), trends:Vec::new(), configuration:loaded.config.clone(), provenance:None, warnings:Vec::new(), transient_configuration:None };
     for record in manifest.records {
         let eis_path = resolve_path(base, &record.eis_fit);
         let transient_path = resolve_path(base, &record.transient_results);
-        let eis: EisFitArtifact = read_json(&eis_path)?;
-        let transient: crate::results::TransientAnalysisReport = read_json(&transient_path)?;
+        let eis: EisFitArtifact = crate::domain::read_artifact(&eis_path)?;
+        let transient: crate::results::TransientAnalysisReport =
+            crate::domain::read_artifact(&transient_path)?;
         let et = extract_eis_timescales(
             &eis,
             loaded.config.confidence_level,
@@ -238,7 +240,7 @@ pub fn report(
     output_path: Option<&Path>,
 ) -> Result<(), RunnerError> {
     let results_path = resolve_path(workspace, &results_path.to_string_lossy());
-    let report: MechanismAnalysisReport = read_json(&results_path)?;
+    let report: MechanismAnalysisReport = crate::domain::read_artifact(&results_path)?;
     let destination = output_path
         .map(|p| resolve_path(workspace, &p.to_string_lossy()))
         .unwrap_or_else(|| results_path.with_file_name("mechanism_report.txt"));

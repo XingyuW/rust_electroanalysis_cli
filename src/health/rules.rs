@@ -1,11 +1,14 @@
 use crate::{
     health_config::{FeatureCondition, FeatureOperator, HealthRule},
     results::{
-        BaselineComparison, HealthConfidence, HealthEvidence, HealthFeature, HealthFinding,
-        RuleEvaluation,
+        BaselineComparison, HealthConfidence, HealthDomain, HealthEvidence, HealthFeature,
+        HealthFinding, HealthTrend, RuleEvaluation,
     },
 };
 use std::collections::BTreeSet;
+
+/// Evaluate rules without longitudinal evidence. Trend operators are reported
+/// unavailable rather than being approximated from a single observation.
 pub fn evaluate(
     rules: &[HealthRule],
     features: &[HealthFeature],
@@ -33,28 +36,42 @@ pub fn evaluate_with_baseline_records(
         let mut no = Vec::new();
         let mut unavailable = Vec::new();
         let mut domains = BTreeSet::new();
-        for c in rule.all_of.iter().chain(rule.any_of.iter()) {
-            let result = condition(c, features, comparisons);
+        for condition in rule.all_of.iter().chain(rule.any_of.iter()) {
+            let result = condition_result(
+                condition,
+                features,
+                comparisons,
+                trends,
+                rule.minimum_baseline_records,
+            );
             match result {
                 Some(true) => {
-                    ok.push(c.feature.clone());
-                    if let Some(f) = features.iter().find(|f| f.name == c.feature) {
-                        domains.insert(f.domain);
-                    }
+                    ok.push(condition.feature.clone());
+                    domains.insert(domain_for(condition.feature.as_str(), features));
                 }
-                Some(false) => no.push(c.feature.clone()),
-                None => unavailable.push(c.feature.clone()),
+                Some(false) => no.push(condition.feature.clone()),
+                None => unavailable.push(condition.feature.clone()),
             }
         }
-        let all_ok = rule
-            .all_of
-            .iter()
-            .all(|c| condition(c, features, comparisons) == Some(true));
+        let all_ok = rule.all_of.iter().all(|condition| {
+            condition_result(
+                condition,
+                features,
+                comparisons,
+                trends,
+                rule.minimum_baseline_records,
+            ) == Some(true)
+        });
         let any_ok = rule.any_of.is_empty()
-            || rule
-                .any_of
-                .iter()
-                .any(|c| condition(c, features, comparisons) == Some(true));
+            || rule.any_of.iter().any(|condition| {
+                condition_result(
+                    condition,
+                    features,
+                    comparisons,
+                    trends,
+                    rule.minimum_baseline_records,
+                ) == Some(true)
+            });
         let required = rule.minimum_evidence_domains.max(
             if matches!(
                 rule.finding,
@@ -78,18 +95,7 @@ pub fn evaluate_with_baseline_records(
             all_ok && any_ok && unavailable.is_empty() && domains.len() >= required && baseline_ok;
         let evidence = ok
             .iter()
-            .filter_map(|name| features.iter().find(|f| &f.name == name))
-            .map(|f| HealthEvidence {
-                domain: f.domain,
-                feature: f.name.clone(),
-                statement: format!("{} satisfied configured rule condition", f.name),
-                strength: if triggered {
-                    HealthConfidence::Moderate
-                } else {
-                    HealthConfidence::Low
-                },
-                source: f.source.clone(),
-            })
+            .map(|name| evidence(name, features, trends, true, triggered))
             .collect::<Vec<_>>();
         let contradictory_evidence = no
             .iter()
@@ -104,22 +110,14 @@ pub fn evaluate_with_baseline_records(
             .collect::<Vec<_>>();
         let eval = RuleEvaluation {
             rule_id: rule.rule_id.clone(),
-            conditions_satisfied: ok.clone(),
+            conditions_satisfied: ok,
             conditions_not_satisfied: no,
             conditions_unavailable: unavailable.clone(),
             evidence_domains: domains.iter().copied().collect(),
             supporting_evidence: evidence.clone(),
             contradictory_evidence: contradictory_evidence.clone(),
             severity: rule.severity.clone(),
-            confidence: if triggered {
-                if domains.len() >= 3 {
-                    HealthConfidence::High
-                } else {
-                    HealthConfidence::Moderate
-                }
-            } else {
-                HealthConfidence::Insufficient
-            },
+            confidence,
             triggered,
         };
         if triggered {
@@ -134,14 +132,17 @@ pub fn evaluate_with_baseline_records(
                 triggered_rules: vec![rule.rule_id.clone()],
             });
         }
-        evaluations.push(eval);
+        evaluations.push(evaluation);
     }
     (evaluations, findings)
 }
-fn condition(
-    c: &FeatureCondition,
+
+fn condition_result(
+    condition: &FeatureCondition,
     features: &[HealthFeature],
     comparisons: &[BaselineComparison],
+    trends: &[HealthTrend],
+    minimum_baseline_records: usize,
 ) -> Option<bool> {
     let f = features.iter().find(|f| f.name == c.feature);
     let b = comparisons.iter().find(|b| b.feature == c.feature);

@@ -1,7 +1,7 @@
 //! Single-file EIS fit command orchestration.
 
 use crate::data_file::EISData;
-use crate::domain::AnalysisProvenance;
+use crate::domain::{AnalysisProvenance, write_artifact};
 use crate::impedance::fit_circuit_detailed;
 use crate::impedance::reporting::format_circuit_fit_report;
 use crate::results::EisFitArtifact;

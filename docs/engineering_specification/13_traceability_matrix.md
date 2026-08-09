@@ -60,7 +60,7 @@ For any requirement, workflow, equation, or CLI command, this matrix shows:
 | FR-024 | `estimation/` | `estimate run` | `phase6` | StateEstimationReport | Direct | ✅ |
 | FR-025 | `domain/provenance.rs` | All commands (implicit) | `provenance` test | AnalysisProvenance in all reports | Direct | ✅ |
 | FR-026 | `impedance/reporting.rs` | `eis fit`, `eis export-fit --report` | `phase0`, `chi_file` tests | Human-readable EIS fit report | Direct | ✅ |
-| FR-027 | `results/`, `runners/` | All analysis commands (except `plot`) | Integration tests + source inspection | JSON artifacts | Partial | ✅ |
+| FR-027 | `domain/artifact.rs`, `results/`, `runners/` | All analysis commands (except `plot`) | `artifact_contract`, workflow tests | Versioned JSON artifacts | Direct | ✅ |
 | FR-028 | `runners/transient.rs`, `runners/calibration.rs` | `transient fit`, `calibration fit` | `phase2`, `phase3` | CSV feature tables | Partial | ✅ |
 | FR-029 | `model/definition.rs`, `model/registry.rs`, `model/compiler.rs` | None | `model_core` | CompiledIsmModel | Direct | ✅ |
 | FR-030 | `model/state.rs`, `model/parameter.rs` | None | `model_core` | Versioned ModelDefinition | Direct | ✅ |

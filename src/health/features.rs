@@ -23,23 +23,28 @@ pub struct ModelHealthSnapshot {
 
 pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
     let mut f = Vec::new();
-    let add =
-        |v: &mut Vec<HealthFeature>, name: &str, value: Option<f64>, unit: &str, source: &str| {
-            v.push(HealthFeature {
-                name: name.into(),
-                value,
-                unit: unit.into(),
-                domain: HealthDomain::SignalNoise,
-                source: source.into(),
-                warning: None,
-            })
-        };
+    let add = |v: &mut Vec<HealthFeature>,
+               name: &str,
+               value: Option<f64>,
+               unit: &str,
+               source: &str,
+               domain: HealthDomain| {
+        v.push(HealthFeature {
+            name: name.into(),
+            value,
+            unit: unit.into(),
+            domain,
+            source: source.into(),
+            warning: None,
+        })
+    };
     add(
         &mut f,
         "signal.rms_noise",
         r.descriptive.rms,
         &r.unit,
         "signal",
+        HealthDomain::SignalNoise,
     );
     add(
         &mut f,
@@ -47,6 +52,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.descriptive.robust_standard_deviation,
         &r.unit,
         "signal",
+        HealthDomain::SignalNoise,
     );
     add(
         &mut f,
@@ -54,6 +60,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.descriptive.peak_to_peak,
         &r.unit,
         "signal",
+        HealthDomain::SignalNoise,
     );
     add(
         &mut f,
@@ -61,6 +68,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.allan.as_ref().and_then(|a| a.minimum_deviation),
         &r.unit,
         "signal",
+        HealthDomain::SignalNoise,
     );
     add(
         &mut f,
@@ -68,6 +76,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.allan.as_ref().and_then(|a| a.minimum_averaging_time_s),
         "s",
         "signal",
+        HealthDomain::SignalNoise,
     );
     f.push(HealthFeature {
         name: "signal.robust_drift_rate".into(),
@@ -87,6 +96,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.spikes.flagged_fraction,
         "fraction",
         "signal",
+        HealthDomain::SignalNoise,
     );
     add(
         &mut f,
@@ -94,6 +104,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.sampling.missing_fraction,
         "fraction",
         "signal",
+        HealthDomain::DataQuality,
     );
     add(
         &mut f,
@@ -101,6 +112,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.sampling.interval_cv,
         "fraction",
         "signal",
+        HealthDomain::DataQuality,
     );
     add(
         &mut f,
@@ -108,6 +120,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.correlations.first().and_then(|c| c.common_mode_fraction),
         "fraction",
         "signal",
+        HealthDomain::SignalNoise,
     );
     if let Some(psd) = &r.psd {
         for b in &psd.band_powers {
@@ -117,6 +130,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
                 b.integrated_power,
                 &psd.psd_unit,
                 "signal",
+                HealthDomain::SignalNoise,
             );
         }
         add(
@@ -125,6 +139,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
             psd.dominant_peaks.first().map(|p| p.frequency_hz),
             "Hz",
             "signal",
+            HealthDomain::SignalNoise,
         );
     }
     f

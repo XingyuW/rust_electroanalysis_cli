@@ -172,7 +172,7 @@ pub fn analyze_measurement(
     let provenance =
         provenance.ok_or_else(|| SignalError::invalid("signal provenance is required"))?;
     Ok(SignalAnalysisReport {
-        schema_version: 1,
+        schema_version: 2,
         analysis_id: format!("signal:{}:{}", provenance.input_sha256, channel.name),
         experiment_id: None,
         sensor_id: channel.sensor_id.clone(),

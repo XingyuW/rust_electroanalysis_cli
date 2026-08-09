@@ -112,7 +112,10 @@ fn plot_xy(
     if points.len() < 2 {
         return Ok(());
     }
-    let (xmin, xmax) = (points.first().unwrap().0, points.last().unwrap().0);
+    let (Some(first), Some(last)) = (points.first(), points.last()) else {
+        return Ok(());
+    };
+    let (xmin, xmax) = (first.0, last.0);
     let ymin = points.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
     let ymax = points.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
     let pad = ((ymax - ymin).abs() * 0.05).max(1e-12);
