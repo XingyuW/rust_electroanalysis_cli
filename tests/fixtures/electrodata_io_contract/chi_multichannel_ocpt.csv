@@ -1,0 +1,12 @@
+Mar. 6, 2026   13:55:19
+Open Circuit Potential - Time
+File: chi_multichannel_ocpt.csv
+Data Source: Experiment
+Instrument Model: CHI760F
+Run Time (sec) = 2
+
+Time/sec,E1/V,E5/V
+
+0,-0.0963,-0.1051
+1,-0.0950,-0.1040
+2,-0.0935,-0.1028
