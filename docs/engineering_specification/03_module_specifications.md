@@ -184,6 +184,7 @@ trait-object component implementations are intentionally not serialized.
 | `src/model/defaults.rs` | Default reduced-order ISM definition | ✅ |
 | `src/plot_runner.rs` | (Legacy) Plot orchestration adapter | ✅ |
 | `src/search_runner.rs` | (Legacy) Search orchestration adapter | ✅ |
+| `src/model/` | **Planned only** unified ISM scientific core; no source module exists in Phase 01 | 📋 |
 
 **Coverage check:** 159/159 Rust source paths under `src/**/*.rs` are mapped above.
 
