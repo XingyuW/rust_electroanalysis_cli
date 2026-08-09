@@ -45,11 +45,11 @@ pub mod workspace;
 pub use domain::VersionedArtifact;
 pub use domain::{
     AnalysisProvenance, ArtifactError, ArtifactKind, ChannelMetadata, ConfigurationError,
-    DataParsingError, ElectrochemicalExperiment, EnvironmentalSeries, ExperimentEvent,
-    ExperimentEventKind, ExperimentMetadataDocument, FittingError, IngestionDiagnostic,
-    MeasurementChannel, MeasurementParseResult, MultiChannelMeasurement, ParseDiagnostics,
-    PlottingError, ProvenanceError, ReferenceMetadata, ReportingError, SensorMetadata,
-    WorkspaceError, load_experiment_metadata,
+    CurrentArtifactKindPolicy, DataParsingError, ElectrochemicalExperiment, EnvironmentalSeries,
+    ExperimentEvent, ExperimentEventKind, ExperimentMetadataDocument, FittingError,
+    IngestionDiagnostic, MeasurementChannel, MeasurementParseResult, MultiChannelMeasurement,
+    ParseDiagnostics, PlottingError, ProvenanceError, ReferenceMetadata, ReportingError,
+    SensorMetadata, WorkspaceError, load_experiment_metadata,
 };
 pub use model::{
     CompiledIsmModel, ComponentContribution, ComponentDescriptor, ComponentId, ComponentRole,

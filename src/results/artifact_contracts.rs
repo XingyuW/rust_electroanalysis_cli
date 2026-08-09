@@ -1,12 +1,16 @@
 use super::*;
-use crate::domain::{ArtifactError, ArtifactKind, VersionedArtifact, validate_serialized_finite};
+use crate::domain::{
+    ArtifactError, ArtifactKind, CurrentArtifactKindPolicy, VersionedArtifact,
+    validate_serialized_finite,
+};
 
 macro_rules! contract {
-    ($type:ty, $kind:expr, $current:expr, $legacy:expr) => {
+    ($type:ty, $kind:expr, $current:expr, $legacy:expr, $policy:expr) => {
         impl VersionedArtifact for $type {
             const ARTIFACT_KIND: ArtifactKind = $kind;
             const CURRENT_SCHEMA_VERSION: u32 = $current;
             const LEGACY_SCHEMA_VERSIONS: &'static [u32] = $legacy;
+            const CURRENT_ARTIFACT_KIND_POLICY: CurrentArtifactKindPolicy = $policy;
             fn schema_version(&self) -> u32 {
                 self.schema_version
             }
@@ -17,61 +21,89 @@ macro_rules! contract {
     };
 }
 
-contract!(EisFitArtifact, ArtifactKind::EisFit, 2, &[1, 2]);
+contract!(
+    EisFitArtifact,
+    ArtifactKind::EisFit,
+    2,
+    &[1, 2],
+    CurrentArtifactKindPolicy::PreserveLegacyOptional
+);
 contract!(
     TransientAnalysisReport,
     ArtifactKind::TransientAnalysis,
-    1,
-    &[1]
+    2,
+    &[1],
+    CurrentArtifactKindPolicy::Required
 );
 contract!(
     CalibrationObservationSet,
     ArtifactKind::CalibrationObservations,
-    1,
-    &[1]
+    2,
+    &[1],
+    CurrentArtifactKindPolicy::Required
 );
 contract!(
     StoredCalibrationModel,
     ArtifactKind::CalibrationModel,
-    1,
-    &[1]
+    2,
+    &[1],
+    CurrentArtifactKindPolicy::Required
 );
 contract!(
     CalibrationAnalysisReport,
     ArtifactKind::CalibrationAnalysis,
-    1,
-    &[1]
+    2,
+    &[1],
+    CurrentArtifactKindPolicy::Required
 );
-contract!(SignalAnalysisReport, ArtifactKind::SignalAnalysis, 1, &[1]);
+contract!(
+    SignalAnalysisReport,
+    ArtifactKind::SignalAnalysis,
+    2,
+    &[1],
+    CurrentArtifactKindPolicy::Required
+);
 contract!(
     SensorHealthBaseline,
     ArtifactKind::HealthBaseline,
     2,
-    &[1, 2]
+    &[1, 2],
+    CurrentArtifactKindPolicy::PreserveLegacyOptional
 );
 contract!(
     SensorHealthAssessment,
     ArtifactKind::HealthAssessment,
-    1,
-    &[1]
+    2,
+    &[1],
+    CurrentArtifactKindPolicy::Required
 );
-contract!(HealthTrendReport, ArtifactKind::HealthTrend, 1, &[1]);
+contract!(
+    HealthTrendReport,
+    ArtifactKind::HealthTrend,
+    2,
+    &[1],
+    CurrentArtifactKindPolicy::Required
+);
 contract!(
     MechanismAnalysisReport,
     ArtifactKind::MechanismAnalysis,
-    1,
-    &[1]
+    2,
+    &[1],
+    CurrentArtifactKindPolicy::Required
 );
 contract!(
     StateEstimationReport,
     ArtifactKind::StateEstimation,
     3,
-    &[1, 2, 3]
+    &[1, 2, 3],
+    CurrentArtifactKindPolicy::PreserveLegacyOptional
 );
 impl VersionedArtifact for ModelCompilationArtifact {
     const ARTIFACT_KIND: ArtifactKind = ArtifactKind::ModelCompilation;
     const CURRENT_SCHEMA_VERSION: u32 = 4;
     const LEGACY_SCHEMA_VERSIONS: &'static [u32] = &[1, 2, 3, 4];
+    const CURRENT_ARTIFACT_KIND_POLICY: CurrentArtifactKindPolicy =
+        CurrentArtifactKindPolicy::PreserveLegacyOptional;
 
     fn schema_version(&self) -> u32 {
         self.schema_version
@@ -91,6 +123,8 @@ impl VersionedArtifact for ModelAnalysisReport {
     const ARTIFACT_KIND: ArtifactKind = ArtifactKind::ModelAnalysis;
     const CURRENT_SCHEMA_VERSION: u32 = 4;
     const LEGACY_SCHEMA_VERSIONS: &'static [u32] = &[1, 2, 3, 4];
+    const CURRENT_ARTIFACT_KIND_POLICY: CurrentArtifactKindPolicy =
+        CurrentArtifactKindPolicy::PreserveLegacyOptional;
 
     fn schema_version(&self) -> u32 {
         self.schema_version
@@ -105,4 +139,10 @@ impl VersionedArtifact for ModelAnalysisReport {
         validate_serialized_finite(self)
     }
 }
-contract!(ValidationResults, ArtifactKind::ModelValidation, 1, &[1]);
+contract!(
+    ValidationResults,
+    ArtifactKind::ModelValidation,
+    1,
+    &[1],
+    CurrentArtifactKindPolicy::PreserveLegacyOptional
+);

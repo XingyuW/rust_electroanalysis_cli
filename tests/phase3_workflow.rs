@@ -2,7 +2,7 @@ use rust_electroanalysis_cli::calibration_config::ResolvedCalibrationConfig;
 use rust_electroanalysis_cli::data_file::load_experiment;
 use rust_electroanalysis_cli::domain::{
     AnalysisProvenance, ElectrochemicalExperiment, ExperimentEvent, ExperimentEventKind,
-    MeasurementChannel, MultiChannelMeasurement, SensorMetadata,
+    MeasurementChannel, MultiChannelMeasurement, SensorMetadata, write_artifact,
 };
 use rust_electroanalysis_cli::potentiometry::calibration::extract_observations;
 use rust_electroanalysis_cli::potentiometry::calibration::nernst::theoretical_slope_v_per_decade;
@@ -266,7 +266,7 @@ analyte = "Na+"
     )
     .unwrap();
     let transient_path = root.join("transient_results.json");
-    write(&transient_path, &serde_json::to_string(&transient).unwrap());
+    write_artifact(&transient_path, &transient).unwrap();
     let calibration_config = root.join("calibration.toml");
     write(
         &calibration_config,

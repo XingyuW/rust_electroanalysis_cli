@@ -13,8 +13,8 @@ pub mod metadata;
 pub mod provenance;
 
 pub use artifact::{
-    ArtifactError, ArtifactKind, VersionedArtifact, read_artifact, validate_serialized_finite,
-    write_artifact,
+    ArtifactError, ArtifactKind, CurrentArtifactKindPolicy, VersionedArtifact, read_artifact,
+    validate_serialized_finite, write_artifact,
 };
 pub use diagnostics::{IngestionDiagnostic, MeasurementParseResult, ParseDiagnostics};
 pub use errors::{
