@@ -212,7 +212,7 @@ pub fn simulate(
     let dir = output_dir(workspace, output, "estimation_simulation");
     fs::create_dir_all(&dir)?;
     write_json(&dir.join("simulation.json"), &result)?;
-    write_json(
+    crate::domain::write_artifact(
         &dir.join("simulation_calibration_model.json"),
         &simulation::simulation_model(),
     )?;

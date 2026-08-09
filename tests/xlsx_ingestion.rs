@@ -1,7 +1,7 @@
 use rust_electroanalysis_cli::estimation::simulation;
 use rust_electroanalysis_cli::{
     data_file::{EISData, measurement_parser::parse_measurement_file_with_sheet},
-    domain::DataParsingError,
+    domain::{DataParsingError, write_artifact},
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -201,11 +201,7 @@ fn cli_estimate_run_accepts_xlsx_time_series() {
     let estimate_dir = workspace.join("estimate");
     let estimation_config = write_estimation_config_for_short_segments(&workspace);
     let binary = env!("CARGO_BIN_EXE_rust_electroanalysis_cli");
-    fs::write(
-        &model_path,
-        serde_json::to_string_pretty(&simulation::simulation_model()).expect("serialize model"),
-    )
-    .expect("write model");
+    write_artifact(&model_path, &simulation::simulation_model()).expect("write model");
 
     let run = Command::new(binary)
         .args([
@@ -291,11 +287,7 @@ fn estimate_run_and_compare_share_canonical_ingestion_policy() {
     let model_path = workspace.join("simulation_calibration_model.json");
     let config = write_estimation_config_for_short_segments(&workspace);
     let binary = env!("CARGO_BIN_EXE_rust_electroanalysis_cli");
-    fs::write(
-        &model_path,
-        serde_json::to_string_pretty(&simulation::simulation_model()).expect("serialize model"),
-    )
-    .expect("write model");
+    write_artifact(&model_path, &simulation::simulation_model()).expect("write model");
 
     let wholly_missing = workspace.join("wholly_missing.csv");
     fs::write(&wholly_missing, "Time/sec,Potential/V\n0,\n1,\n2,\n")

@@ -45,7 +45,9 @@ fn path(name: &str) -> PathBuf {
     let id = NEXT_PATH_ID.fetch_add(1, Ordering::Relaxed);
     std::env::temp_dir().join(format!(
         "artifact_{name}_{}_{}_{}.json",
-        std::process::id(), nonce, id
+        std::process::id(),
+        nonce,
+        id
     ))
 }
 
