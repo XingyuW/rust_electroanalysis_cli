@@ -2,7 +2,8 @@
 
 use rust_electroanalysis_cli::{
     domain::{
-        ArtifactError, ArtifactKind, VersionedArtifact, validate_serialized_finite, write_artifact,
+        ArtifactError, ArtifactKind, CurrentArtifactKindPolicy, VersionedArtifact,
+        validate_serialized_finite, write_artifact,
     },
     estimation::simulation::simulation_model,
     model::{
@@ -42,6 +43,8 @@ impl VersionedArtifact for RawEquilibriumEvidenceArtifact {
     const ARTIFACT_KIND: ArtifactKind = ArtifactKind::ModelAnalysis;
     const CURRENT_SCHEMA_VERSION: u32 = 4;
     const LEGACY_SCHEMA_VERSIONS: &'static [u32] = &[4];
+    const CURRENT_ARTIFACT_KIND_POLICY: CurrentArtifactKindPolicy =
+        CurrentArtifactKindPolicy::PreserveLegacyOptional;
 
     fn schema_version(&self) -> u32 {
         self.schema_version

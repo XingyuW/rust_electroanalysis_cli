@@ -47,6 +47,12 @@ impl ArtifactKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CurrentArtifactKindPolicy {
+    Required,
+    PreserveLegacyOptional,
+}
+
 impl fmt::Display for ArtifactKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
@@ -57,6 +63,7 @@ pub trait VersionedArtifact: Serialize + DeserializeOwned {
     const ARTIFACT_KIND: ArtifactKind;
     const CURRENT_SCHEMA_VERSION: u32;
     const LEGACY_SCHEMA_VERSIONS: &'static [u32];
+    const CURRENT_ARTIFACT_KIND_POLICY: CurrentArtifactKindPolicy;
     fn schema_version(&self) -> u32;
     /// Must validate the complete typed artifact before JSON can erase a
     /// non-finite float. There is intentionally no accepting default.
@@ -178,19 +185,32 @@ fn validate_value<T: VersionedArtifact>(path: &Path, value: &Value) -> Result<()
         });
     }
     let kind = object.get("artifact_kind").and_then(Value::as_str);
-    if let Some(actual) = kind {
-        if actual != T::ARTIFACT_KIND.as_str() {
+    if schema == T::CURRENT_SCHEMA_VERSION {
+        if let Some(actual) = kind {
+            if actual != T::ARTIFACT_KIND.as_str() {
+                return Err(ArtifactError::IncompatibleKind {
+                    path: path.into(),
+                    expected: T::ARTIFACT_KIND,
+                    actual: Some(actual.into()),
+                });
+            }
+        } else if matches!(
+            T::CURRENT_ARTIFACT_KIND_POLICY,
+            CurrentArtifactKindPolicy::Required
+        ) {
             return Err(ArtifactError::IncompatibleKind {
                 path: path.into(),
                 expected: T::ARTIFACT_KIND,
-                actual: Some(actual.into()),
+                actual: None,
             });
         }
-    } else if !T::LEGACY_SCHEMA_VERSIONS.contains(&schema) {
+    } else if let Some(actual) = kind
+        && actual != T::ARTIFACT_KIND.as_str()
+    {
         return Err(ArtifactError::IncompatibleKind {
             path: path.into(),
             expected: T::ARTIFACT_KIND,
-            actual: None,
+            actual: Some(actual.into()),
         });
     }
     Ok(())

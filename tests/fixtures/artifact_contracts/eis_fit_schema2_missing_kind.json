@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "fit_id": "fixture-fit",
+  "experiment_id": null,
+  "sensor_id": null,
+  "circuit_expression": "R0",
+  "circuit_canonical_form": "R0",
+  "source": {
+    "frequency_hz": [1.0],
+    "z_real_ohm": [1.0],
+    "z_imag_ohm": [0.0],
+    "derived_magnitude_ohm": [1.0],
+    "derived_phase_deg": [0.0]
+  },
+  "fitted": {
+    "z_real_ohm": [1.0],
+    "z_imag_ohm": [0.0],
+    "magnitude_ohm": [1.0],
+    "phase_deg": [0.0]
+  },
+  "parameters": [],
+  "statistics": {
+    "valid_frequency_points": 1,
+    "fitted_parameters": 0,
+    "rss_real": 0.0,
+    "rss_imag": 0.0,
+    "combined_rss": 0.0,
+    "weighted_rss": 0.0,
+    "rmse": 0.0,
+    "weighted_rmse": 0.0,
+    "mae": 0.0,
+    "reduced_chi_squared": null,
+    "aic": null,
+    "aicc": null,
+    "bic": null,
+    "parameter_covariance": null,
+    "condition_number": null,
+    "jacobian_rank": null,
+    "convergence_status": "converged",
+    "optimizer_termination_reason": null
+  },
+  "confidence_intervals": [],
+  "residuals": {"points": []},
+  "diagnostics": {
+    "measured_frequency_min_hz": 1.0,
+    "measured_frequency_max_hz": 1.0,
+    "parameter_at_bound": [],
+    "non_identifiable": false,
+    "lin_kk_mu": null,
+    "lin_kk_terms": null
+  },
+  "provenance": {
+    "software_version": "fixture",
+    "input_path": "fixture.csv",
+    "input_sha256": "fixture",
+    "configuration_path": null,
+    "configuration_sha256": null,
+    "generation_timestamp": 1,
+    "git_commit": null
+  },
+  "warnings": []
+}

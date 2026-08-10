@@ -1,5 +1,5 @@
 use rust_electroanalysis_cli::{
-    ArtifactKind, VersionedArtifact,
+    ArtifactKind, CurrentArtifactKindPolicy, VersionedArtifact,
     domain::{ArtifactError, read_artifact, write_artifact},
     results::{
         CalibrationAnalysisReport, CalibrationObservationSet, EisFitArtifact, HealthTrendReport,
@@ -12,8 +12,11 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+static NEXT_PATH_ID: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct FixtureArtifact {
@@ -24,6 +27,8 @@ impl VersionedArtifact for FixtureArtifact {
     const ARTIFACT_KIND: ArtifactKind = ArtifactKind::SignalAnalysis;
     const CURRENT_SCHEMA_VERSION: u32 = 2;
     const LEGACY_SCHEMA_VERSIONS: &'static [u32] = &[1];
+    const CURRENT_ARTIFACT_KIND_POLICY: CurrentArtifactKindPolicy =
+        CurrentArtifactKindPolicy::Required;
     fn schema_version(&self) -> u32 {
         self.schema_version
     }
@@ -37,9 +42,12 @@ fn path(name: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("clock")
         .as_nanos();
+    let id = NEXT_PATH_ID.fetch_add(1, Ordering::Relaxed);
     std::env::temp_dir().join(format!(
-        "artifact_{name}_{}_{nonce}.json",
-        std::process::id()
+        "artifact_{name}_{}_{}_{}.json",
+        std::process::id(),
+        nonce,
+        id
     ))
 }
 
@@ -113,4 +121,100 @@ fn every_exported_cross_workflow_json_type_declares_a_contract() {
     check::<ModelCompilationArtifact>();
     check::<ModelAnalysisReport>();
     check::<ValidationResults>();
+}
+
+fn assert_current_rejections<T: VersionedArtifact>() {
+    let path = path("matrix");
+    fs::write(
+        &path,
+        format!(r#"{{"schema_version":2,"artifact_kind":"{}"}}"#, "eis_fit"),
+    )
+    .unwrap();
+    assert!(matches!(
+        read_artifact::<T>(&path),
+        Err(ArtifactError::IncompatibleKind {
+            actual: Some(_),
+            ..
+        })
+    ));
+    fs::write(&path, r#"{"schema_version":2}"#).unwrap();
+    assert!(matches!(
+        read_artifact::<T>(&path),
+        Err(ArtifactError::IncompatibleKind { actual: None, .. })
+    ));
+    fs::write(&path, r#"{"schema_version":99,"artifact_kind":"eis_fit"}"#).unwrap();
+    assert!(matches!(
+        read_artifact::<T>(&path),
+        Err(ArtifactError::UnsupportedSchemaVersion { .. })
+    ));
+    fs::remove_file(path).ok();
+}
+
+#[test]
+fn mhi_t02b_current_wrong_kind() {
+    assert_current_rejections::<TransientAnalysisReport>();
+    assert_current_rejections::<CalibrationObservationSet>();
+    assert_current_rejections::<StoredCalibrationModel>();
+    assert_current_rejections::<CalibrationAnalysisReport>();
+    assert_current_rejections::<SignalAnalysisReport>();
+    assert_current_rejections::<MechanismAnalysisReport>();
+    assert_current_rejections::<SensorHealthAssessment>();
+    assert_current_rejections::<HealthTrendReport>();
+}
+
+#[test]
+fn mhi_t02c_current_missing_kind() {
+    assert_current_rejections::<TransientAnalysisReport>();
+    assert_current_rejections::<CalibrationObservationSet>();
+    assert_current_rejections::<StoredCalibrationModel>();
+    assert_current_rejections::<CalibrationAnalysisReport>();
+    assert_current_rejections::<SignalAnalysisReport>();
+    assert_current_rejections::<MechanismAnalysisReport>();
+    assert_current_rejections::<SensorHealthAssessment>();
+    assert_current_rejections::<HealthTrendReport>();
+}
+
+#[test]
+fn mhi_t02e_unsupported() {
+    assert_current_rejections::<TransientAnalysisReport>();
+    assert_current_rejections::<CalibrationObservationSet>();
+    assert_current_rejections::<StoredCalibrationModel>();
+    assert_current_rejections::<CalibrationAnalysisReport>();
+    assert_current_rejections::<SignalAnalysisReport>();
+    assert_current_rejections::<MechanismAnalysisReport>();
+    assert_current_rejections::<SensorHealthAssessment>();
+    assert_current_rejections::<HealthTrendReport>();
+}
+
+#[test]
+fn a0_ac_compat_01_preserves_eis_fit_and_health_baseline_matrices() {
+    let root =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/a0_artifact_contracts");
+    let preserved =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/artifact_contracts");
+    let eis_missing = preserved.join("eis_fit_schema2_missing_kind.json");
+    let eis_correct = root.join("eis_fit_schema2_correct_kind.json");
+    let eis_wrong = root.join("eis_fit_schema2_wrong_kind.json");
+    assert!(read_artifact::<EisFitArtifact>(&eis_missing).is_ok());
+    assert!(read_artifact::<EisFitArtifact>(&eis_correct).is_ok());
+    assert!(matches!(
+        read_artifact::<EisFitArtifact>(&eis_wrong),
+        Err(ArtifactError::IncompatibleKind {
+            actual: Some(_),
+            ..
+        })
+    ));
+
+    let baseline_missing = preserved.join("health_baseline_schema2_missing_kind.json");
+    let baseline_correct = root.join("health_baseline_schema2_correct_kind.json");
+    let baseline_wrong = root.join("health_baseline_schema2_wrong_kind.json");
+    assert!(read_artifact::<SensorHealthBaseline>(&baseline_missing).is_ok());
+    assert!(read_artifact::<SensorHealthBaseline>(&baseline_correct).is_ok());
+    assert!(matches!(
+        read_artifact::<SensorHealthBaseline>(&baseline_wrong),
+        Err(ArtifactError::IncompatibleKind {
+            actual: Some(_),
+            ..
+        })
+    ));
 }
