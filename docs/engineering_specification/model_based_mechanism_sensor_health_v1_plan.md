@@ -1,0 +1,991 @@
+# Model-Based Mechanism and Sensor Health Integration V1 — Final Implementation Contract
+
+**Status:** planning/specification only. This document authorizes no production Rust-code change.
+**Repository:** `/Users/xingyuwang/ProjectOngoing/rust_electroanalysis_cli`
+**Planning branch / base commit:** `plan/ism-mechanism-health-v1` / `83dbb4bf271e26e8819b48de02f911dc1cc75351`.
+
+This is the normative contract for Model-Based Mechanism and Sensor Health Integration V1 (MHI V1). A normative word is binding. A missing required input or configuration never authorizes an implementation default. Existing public behavior remains unless this contract explicitly defines an additive change.
+
+Frozen contracts: SAR-009 phase split; SAR-010 typed health interpretation; SAR-011 residual signs. No default assigns a fast mode to double layer, a slow mode to adsorption/fouling/water layer, a transduction candidate to proven solid contact, a reference offset to reference-electrode failure, or a residual to sensor failure. Timescale agreement alone is not causal proof. Same-source evidence is not independent confirmation. Transitional, Disturbed, and Indeterminate data are not steady-state evidence unless the exact policy below admits it.
+
+## 1. Repository reconciliation and baseline
+
+The authoritative repository workflow is `.ai/CODE_QUALITY_WORKFLOW.md`; it is present in this checkout. The earlier search missed hidden directories. This plan follows that workflow and does not modify it.
+
+| Finding ID | Original severity | Current classification | Repository evidence | Root cause | Required plan correction | Plan section modified |
+|---|---:|---|---|---|---|---|
+| F1 A0 scope / compatibility | P1 | REMEDIATED | `src/domain/artifact.rs::validate_value` presently uses legacy-version membership to permit a missing kind; `src/results/artifact_contracts.rs` shows `eis_fit` and `health_baseline` are current 2 / legacy `[1,2]`. | A0 scope excluded the validator while §11 required changing it. | Contract-owned current-kind policy, exact compatibility table, and validator algorithm. | §§2, 11, 15, 19 |
+| F2 pairwise evidence independence | P1 | REMEDIATED | Existing repository code has no MHI evidence-bundle type; the prior planned `EvidenceRecord` made `independence` unary. | A relation was modeled as an attribute of one record. | Bundle-owned canonical pair assessments, recomputing validator, and clique algorithm. | §§3, 5 |
+| F3 hypothesis history / gate applicability | P1 | REMEDIATED | `src/model/component.rs` owns immutable interpretation status; `src/cli.rs` has no prior-mechanism input. | Aggregate ownership and applicability were implicit. | Serialized definition, required-or-NotApplicable gates, report-owned history, and prior-artifact route. | §§6, 10 |
+| F4 uncertainty serialization / propagation | P1 | PARTIALLY CONFIRMED | The committed plan defines a standalone `TimescalePairUncertainty`, but `EvidenceBundle` has no serialized covariance collection; the type has no provenance, construction route, cardinality, or exact lookup rule. | Pair covariance was specified scientifically but not made durable, uniquely owned, or retrievable by a canonical evidence pair. | Make `EvidenceBundle.timescale_pair_uncertainties` the sole serialized V1 owner; define the shared pair key, provenance, builder, validation, lookup, hashing, compatibility, and permanent tests. | §§5, 8, 15–16, 18 |
+| F5 workflow path | P2 | REMEDIATED | `.ai/CODE_QUALITY_WORKFLOW.md` exists. | Earlier search omitted hidden directories. | Record the exact authoritative path. | §1 |
+| F6 MHI-R2 traceability | P2 | REMEDIATED | A0 requires both `src/results/artifact_contracts.rs` and `src/domain/artifact.rs::validate_value`. | Traceability listed only the contract table. | Name both locations and producer/result modules. | §15 |
+| F7 / SAR-007 | P1 | CONFIRMED | `MechanismCompareCommand` accepts EIS/transient/calibration only; `HealthAssessCommand` accepts legacy inputs; existing negatives are not all CLI fixture paths. | Runtime inputs and behavior were unspecified. | Exact additive flags, order and E2E tests. | §10 |
+| F8 / SAR-009/A0 | P1 | CONFIRMED | `src/results/artifact_contracts.rs` lists current schemas in `LEGACY_SCHEMA_VERSIONS` for current-2 artifacts; `validate_value` consequently accepts a schema-2 missing kind. | Current and readable versions were not separated. | A0 validation, kind matrix and producers. | §11 |
+| F9 / MHI-R14 | P1 | CONFIRMED | `src/results/health.rs::HealthDomain` has seven legacy domains, not nine MHI dimensions. | R14 named but did not enumerate dimensions. | Exact nine-dimension contract. | §12 |
+| F10 / plan tracking | P2 | CONFIRMED | The plan was untracked at inspection (`?? docs/...plan.md`). | Prior review inspected a non-Git artifact. | Stage, verify and commit this plan. | §18 |
+
+### Baseline classification
+
+The following commands must be re-run immediately before an implementation phase starts and in its implementation report:
+
+```bash
+cargo fmt --all --check
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --all
+cargo build --locked --release
+```
+
+Observed on the inspected base: `cargo fmt --all --check` fails only on formatting in `src/health/rules.rs` (**existing unrelated baseline**); clippy fails on unused `write_artifact` in `src/runners/fit.rs` and dead `read_json`/`write_json` helpers in calibration, health (two), mechanism, and signal runners (**six existing unrelated baseline warnings**); `cargo test --locked --all` fails only `phase2_transient::transient_cli_creates_machine_and_human_outputs`, because schema-2 `TransientAnalysisReport` is rejected by its current-1 contract (**A0-related**); `cargo build --locked --release` succeeds, retaining those six unrelated warnings. No new regression was introduced by the documentation change. A0-related failures are only failures asserting current-schema/expected-kind behavior for its eight listed producers. Any other failure is baseline-unrelated unless its first failing stack frame is an A0 file changed by A0. No A0 change may repair unrelated formatting or clippy debt.
+
+## 2. Phase boundary and ownership
+
+| Phase | Scope | Exit criterion | Explicit non-goal |
+|---|---|---|---|
+| A0 | Artifact-contract repair only. | §11 tests pass for all affected kinds. | Lineage, evidence, hypothesis, health, CLI evidence flags. |
+| A1 | Durable lineage, evidence schema/adapters, joins and identifiability representation/assessment. | §§3–5, 7, 9 tests pass. | Mechanism/health conclusion promotion. |
+| B | Mechanism evidence integration. | §§6, 8, 10 mechanism paths pass. | Health causal conclusion. |
+| C | Sensor-health evidence integration. | §12 and health CLI paths pass. | Rendering calculation. |
+| D | Reporting/plotting/public scientific output. | Renderers project serialized assessments only. | New scientific assessment rules. |
+| E | Full compatibility/scientific validation. | §15 matrix and independent re-review GO. | Reopening frozen semantics. |
+
+Each phase has separate review, commit and rollback. **A0 may modify** `src/results/artifact_contracts.rs`, `src/domain/artifact.rs`, the already-enumerated affected producer modules and their artifact result/schema modules, and their production-path tests and fixtures. `src/domain/artifact.rs` is in A0 scope **only** for contract-driven current artifact-kind validation. A0 must not globally tighten or reinterpret artifact kinds whose contracts are outside the A0 repair set. A0 must not modify `ArtifactLineage`, `EvidenceRecord`, `EvidenceBundle`, mechanism assessment, health assessment, new mechanism evidence CLI flags, new health evidence CLI flags, hypothesis assessment, timescale evidence scoring, or identifiability evidence adapters. A1 begins only after an A0 commit.
+
+## 3. Durable lineage contract (A1)
+
+### 3.1 Normative types and serialization
+
+Newtypes serialize as their inner strings. Existing repository types are: `ArtifactKind` at `src/domain/artifact.rs`, `ExperimentId` = new A1 string newtype, and all existing result payload types at `src/results/*.rs`.
+
+```rust
+pub struct ArtifactId(pub String); // exactly "sha256:" + 64 lowercase hex
+pub struct ExperimentId(pub String); // nonempty UTF-8 identifier
+pub enum ScopeKey { Specific(String), All, Unspecified }
+pub enum AcquisitionFamilyId { Known(String), Unknown }
+pub struct ArtifactScope {
+    pub experiment_id: ExperimentId,
+    pub sensor: ScopeKey,
+    pub channel: ScopeKey,
+}
+pub struct ArtifactIdentity {
+    pub artifact_id: ArtifactId,
+    pub artifact_kind: ArtifactKind,
+    pub schema_version: u32,
+    pub producer_version: String,
+    pub experiment_id: ExperimentId,
+    pub sensor_scope: ScopeKey,
+    pub channel_scope: ScopeKey,
+    pub acquisition_family_ids: Vec<AcquisitionFamilyId>,
+    pub semantic_sha256: String,
+}
+pub enum ArtifactDependencyRole {
+    Initialization, Calibration, Prior, Constraint, TransformationInput,
+    AuxiliaryInput, ValidationInput, DerivedFrom,
+}
+pub struct ArtifactDependency {
+    pub artifact_id: ArtifactId,
+    pub artifact_kind: ArtifactKind,
+    pub role: ArtifactDependencyRole,
+}
+pub struct ArtifactLineageNode {
+    pub identity: ArtifactIdentity,
+    pub direct_dependencies: Vec<ArtifactDependency>,
+}
+pub struct ArtifactLineageCatalog {
+    pub schema_version: u32,
+    pub artifacts: BTreeMap<ArtifactId, ArtifactLineageNode>,
+}
+pub enum LineageResolutionStatus { Complete, Incomplete, CycleDetected, RootMissing }
+pub struct LineageResolution {
+    pub root_artifact_id: ArtifactId,
+    pub ancestor_artifact_ids: Vec<ArtifactId>,
+    pub acquisition_family_ids: Vec<AcquisitionFamilyId>,
+    pub missing_artifact_ids: Vec<ArtifactId>,
+    pub status: LineageResolutionStatus,
+}
+pub enum EvidenceIndependence { Independent, PartiallyDependent, SameSource, Unknown }
+```
+
+`Specific` contains a nonempty string. `All` means deliberately broad scope. `Unspecified` means unavailable, never a wildcard. `Known` contains a nonempty string. `Unknown` is serialized literally as `"unknown"`, is retained after deserialization, and is never independent. An acquisition family is the original independent acquisition campaign, experiment, specimen, sensor exposure, or controlled acquisition source from which an artifact derives. It is not a file, artifact ID, algorithm run, or inferred value. Producers inherit the sorted unique union from every direct dependency and append their independently acquired raw-family identity; if that identity is unavailable they append `Unknown`.
+
+`acquisition_family_ids` are sorted `Known` bytewise ascending, then one `Unknown`; duplicate values and duplicate Unknowns are validation errors. Direct dependencies sort by role discriminant, then `artifact_kind.as_str()`, then artifact ID bytes. Artifact catalogs serialize `BTreeMap` key order. All listed vectors are serialized in their stated order.
+
+### 3.2 Closure resolver
+
+`resolve_lineage(root, catalog)` is the sole resolver for transitive closure. It performs deterministic depth-first traversal over sorted dependencies, with `Visiting` and `Visited` sets keyed by `ArtifactId`.
+
+1. If root is absent, return `RootMissing`, empty ancestors/families, and `missing_artifact_ids=[root]`.
+2. Mark root Visiting. For every sorted direct dependency, add its ID to ancestors. If absent, add it to missing IDs and continue. If Visiting, retain all accumulated ancestors and mark a cycle. If unvisited, recurse.
+3. On every present node, union its `acquisition_family_ids`; retain `Unknown`; then mark Visited.
+4. Sort/deduplicate ancestors, families and missing IDs using §3.1 ordering.
+5. Return `CycleDetected` if any back edge; otherwise `Incomplete` if any missing ID; otherwise `Complete`.
+
+The resolver neither drops an absent ancestor nor turns missing metadata into a family. A caller receives all known ancestors/families even when status is not Complete.
+
+`classify_independence(a_source_id, b_source_id, catalog)` first resolves both source identities. It returns `SameSource` for equal source IDs. It returns `Unknown` if either source is missing, either result is not Complete, either family set contains Unknown, or required identity is absent. Otherwise it returns `PartiallyDependent` if ancestor closures intersect or known family sets intersect; it returns `Independent` only for distinct source IDs, complete disjoint ancestor closures, and nonempty disjoint known-family sets. An empty known family set is Unknown. Only `Independent` is independent confirmation; every other value is NotIndependent.
+
+Permanent A1 production-path test MHI-T05d: serialize transient artifact → use it as estimation initialization or prior → serialize `StateEstimationReport` → mechanism evidence adapter reads both plus the catalog. The later transient evidence resolves SameSource or PartiallyDependent, never Independent; JSON and human outputs state the relationship.
+
+### 3.3 Canonical semantic identity and hash ownership
+
+`ArtifactId = "sha256:" + SHA256(canonical_semantic_bytes)` and `semantic_sha256` is the same lowercase hex without prefix. Canonical bytes are UTF-8 RFC 8785 canonical JSON for a named, owned hash-view struct. Reject non-finite numbers before producing bytes. Include kind, schema version, scientific payload, scope, sorted family IDs, scientifically meaningful producer algorithm/config identity, and sorted `(role, dependency ID)` pairs. Exclude artifact ID, semantic hash, absolute paths, output directory, generated timestamp, human text, and formatting. A dependency is represented by role + ID only; it is not embedded recursively.
+
+| Artifact kind | Hash-view owner | Included payload | Excluded / dependency treatment | Ordering |
+|---|---|---|---|---|
+| `eis_fit` | `src/results/eis.rs` | circuit, source/fitted/residual data, diagnostics, fit config | provenance paths/timestamp; direct dependencies by role+ID | arrays input order; dependencies §3.1 |
+| `transient_analysis` | `src/results/transient.rs` | experiment/channel, events/fits/config | provenance paths/timestamp; direct dependencies | event index order; dependencies §3.1 |
+| `calibration_observations` | `src/results/calibration.rs` | observations, units, steady-state/context | provenance paths/timestamp; direct dependencies | observation ID bytes |
+| `calibration_model` | `src/results/calibration.rs` | parameters/domain/training/config | provenance paths/timestamp; direct dependencies | parameter ID bytes |
+| `calibration_analysis` | `src/results/calibration.rs` | model results/validation/config | provenance paths/timestamp; direct dependencies | candidate kind bytes |
+| `signal_analysis` | `src/results/signal.rs` | scientific features/config/identity | provenance paths/timestamp; direct dependencies | feature name bytes |
+| `health_baseline` | `src/results/health.rs` | baseline context, distributions, records/config | provenance paths/timestamp; direct dependencies | feature then record ID |
+| `state_estimation` | `src/results/estimation.rs` | state definitions, initialization, estimates, covariance, config | provenance paths/timestamp; every consumed artifact direct dependency | timestamps increasing; dependencies §3.1 |
+| `ism_model_compilation` | `src/results/model.rs` | definition, validity, declarative requirements | generated location; direct dependencies | model canonical order; dependencies §3.1 |
+| `ism_model_analysis` | `src/results/model.rs` | definition, points, equilibrium | generated location; direct dependencies | point time increasing; dependencies §3.1 |
+| `mechanism_analysis` | `src/results/mechanism.rs` | evidence bundle, assessment/config | prose report/timestamp; all consumed artifacts direct dependencies | evidence §5.3 |
+| `health_assessment` | `src/results/health.rs` | evidence bundle, dimensions/findings/config | prose report/timestamp; all consumed artifacts direct dependencies | dimension enum then finding ID |
+| `health_trend` | `src/results/health.rs` | trend inputs/results/config | provenance paths/timestamp; direct dependencies | feature then point record ID |
+
+Schema/version is included for every row. Producer modules own their named view and no alternate hasher may create an ID.
+
+## 4. A1 artifact evolution and compatibility
+
+Every listed producer adds `identity: ArtifactIdentity` and `direct_dependencies: Vec<ArtifactDependency>` in A1, wrapped in a new `ArtifactLineageNode` at catalog emission. New fields are additive. Existing artifacts with no fields yield `Unknown` lineage, never inferred from provenance paths. A1 schema contracts are exact: transient, all three calibration artifacts, signal, EIS, and health baseline current 3 / legacy `[1,2]`; state estimation current 4 / legacy `[1,2,3]`; model compilation and analysis current 5 / legacy `[1,2,3,4]`; mechanism analysis, health assessment, and health trend current 3 / legacy `[1,2]`. Current schema is never listed as legacy. A1 tests prove each legacy read → Unknown lineage and reject unknown schemas.
+
+## 5. Serialized evidence contract (A1)
+
+```rust
+pub struct EvidenceId(pub String); // nonempty, stable within a bundle
+pub struct EvidencePairKey {
+    pub left_evidence_id: EvidenceId,
+    pub right_evidence_id: EvidenceId,
+}
+pub struct HypothesisId(pub String);
+pub struct EvidenceRequirementId(pub String);
+pub struct HealthFindingId(pub String);
+pub struct RequirementId(pub String);
+pub struct ComponentId(pub String);
+pub enum EvidenceTarget {
+    MechanismHypothesis(HypothesisId), HealthFinding(HealthFindingId),
+    HealthDimension(HealthDimension), IdentifiabilityRequirement(RequirementId),
+    ModelComponent(ComponentId),
+}
+pub struct EvidenceSourceRef { pub artifact_id: ArtifactId, pub artifact_kind: ArtifactKind, pub field_path: String }
+pub enum EvidenceSourceClass { Observed, ModelDerived, ProducerAssessment, ExternalReference }
+pub enum EvidenceDirection { Supports, Contradicts, Neutral, NotApplicable }
+pub enum EvidenceAvailability { Available, Missing, NotApplicable }
+pub enum EvidenceStrength { NotAssessed, Weak, Moderate, Strong }
+pub enum EvidenceValidity { Valid, OutsideDomain, Invalid, NotAssessed }
+pub enum EvidenceUncertaintyModel {
+    None,
+    ExplicitLogInterval {
+        lower_ln_tau_s: f64, upper_ln_tau_s: f64, confidence_level: f64,
+    },
+    LogNormal { variance_ln_tau_s: f64 },
+    DeltaMethodTauVariance { variance_tau_s2: f64 },
+}
+pub struct EvidenceQuantity { pub value: f64, pub unit: String, pub uncertainty: Option<EvidenceUncertaintyModel> }
+pub enum StrengthSource { NotAssessed, PreservedProducerAssessment, MechanismAssessor, HealthAssessor }
+pub struct EvidenceRef { pub evidence_id: EvidenceId }
+pub enum TimescaleCovarianceUse {
+    ProducerBacked { pair: EvidencePairKey },
+    IndependenceBasedZeroCovariance { pair: EvidencePairKey },
+}
+pub struct StrengthDerivation {
+    pub algorithm_id: String, pub algorithm_version: String,
+    pub source_evidence: Vec<EvidenceRef>, pub metric_values: BTreeMap<String, f64>,
+    pub timescale_covariance_use: Option<TimescaleCovarianceUse>,
+}
+pub enum ThresholdSource { UserConfiguration, ValidatedDomain, ProducerContract, PublishedReference }
+pub struct ThresholdProvenance {
+    pub threshold_id: String, pub source: ThresholdSource, pub value: f64,
+    pub unit: String, pub configuration_hash: Option<String>,
+}
+pub struct EvidenceRecord {
+    pub evidence_id: EvidenceId, pub target: EvidenceTarget, pub source: EvidenceSourceRef,
+    pub source_class: EvidenceSourceClass, pub direction: EvidenceDirection,
+    pub availability: EvidenceAvailability,
+    pub strength: EvidenceStrength, pub validity: EvidenceValidity,
+    pub quantity: Option<EvidenceQuantity>, pub strength_source: StrengthSource,
+    pub strength_derivation: Option<StrengthDerivation>,
+    pub threshold_provenance: Vec<ThresholdProvenance>,
+    pub lineage_artifact_ids: Vec<ArtifactId>, pub warnings: Vec<String>,
+}
+pub struct EvidenceIndependenceAssessment {
+    pub pair: EvidencePairKey,
+    pub classification: EvidenceIndependence, pub algorithm_id: String,
+    pub left_lineage_status: LineageResolutionStatus,
+    pub right_lineage_status: LineageResolutionStatus,
+    pub shared_ancestor_artifact_ids: Vec<ArtifactId>,
+    pub shared_acquisition_family_ids: Vec<AcquisitionFamilyId>,
+    pub reasons: Vec<EvidenceIndependenceReason>,
+}
+pub enum EvidenceIndependenceReason {
+    SameSourceArtifact, SharedAncestor, SharedAcquisitionFamily,
+    IncompleteLineage, UnknownAcquisitionFamily, MissingAcquisitionFamily,
+}
+pub struct EvidenceBundle {
+    pub schema_version: u32, pub experiment_id: ExperimentId,
+    pub sensor_scope: ScopeKey, pub channel_scope: ScopeKey,
+    pub records: Vec<EvidenceRecord>,
+    pub independence_assessments: Vec<EvidenceIndependenceAssessment>,
+    pub timescale_pair_uncertainties: Vec<TimescalePairUncertainty>,
+    pub lineage_catalog: ArtifactLineageCatalog,
+    pub warnings: Vec<String>,
+}
+```
+
+`EvidenceUncertainty` is not a separate V1 type: `EvidenceQuantity.uncertainty` is `Option<EvidenceUncertaintyModel>`, and `None` means no uncertainty model. All IDs/paths/units are nonempty. Quantity values and derivation metrics are finite. Units are exact UCUM strings; a unit-bearing and a dimensionless quantity may not be compared unless the assessor explicitly defines conversion. `source_evidence`, threshold provenance, lineage IDs and warnings sort bytewise; empty `source_evidence` is invalid for an assessed strength. Evidence records sort by target discriminant + target ID, source kind, source ID, field path, evidence ID. Evidence references must resolve exactly once in the bundle.
+
+`EvidencePairKey` is the sole V1 representation of an unordered evidence pair. Its invariant is `left_evidence_id < right_evidence_id` in the existing stable bytewise serialized `EvidenceId` ordering. Thus `(A,B)` and `(B,A)` are the same logical pair. `canonical_pair(a,b)` rejects `a == b` and returns the ascending key. Every `EvidenceIndependenceAssessment` and every `TimescalePairUncertainty` uses this exact type and convention; neither may introduce left/right fields or an alternative pair ordering. `TimescaleCovarianceUse::IndependenceBasedZeroCovariance` is required when a timescale strength is assessed using the approved Independent zero-covariance rule; no other strength derivation may claim that use.
+
+### 5.1 Combination validator
+
+The validator returns one typed error per invalid rule: `MissingEvidenceCombination`, `NotApplicableEvidenceCombination`, `AssessedStrengthMissingSource`, `AssessedStrengthMissingDerivation`, `InvalidEvidenceReference`, `QuantityAvailabilityConflict`, `NonFiniteEvidenceValue`, `DuplicateEvidenceId`, `UnknownEvidenceReference`, `SelfIndependenceComparison`, `NonCanonicalEvidencePair`, `DuplicateEvidencePair`, `EvidenceIndependenceMismatch`, `DuplicateTimescalePairUncertainty`, `NonCanonicalTimescalePair`, `UnknownTimescaleEvidenceReference`, `InvalidTimescaleCovarianceSource`, or `TimescaleCovarianceUnitMismatch`.
+
+The builder and deserializer return these typed variants through the closed `EvidenceBundleError` contract:
+
+```rust
+pub enum EvidenceBundleError {
+    MissingEvidenceCombination, NotApplicableEvidenceCombination,
+    AssessedStrengthMissingSource, AssessedStrengthMissingDerivation,
+    InvalidEvidenceReference, QuantityAvailabilityConflict, NonFiniteEvidenceValue,
+    DuplicateEvidenceId, UnknownEvidenceReference, SelfIndependenceComparison,
+    NonCanonicalEvidencePair, DuplicateEvidencePair, EvidenceIndependenceMismatch,
+    DuplicateTimescalePairUncertainty, NonCanonicalTimescalePair,
+    UnknownTimescaleEvidenceReference, InvalidTimescaleCovarianceSource,
+    TimescaleCovarianceUnitMismatch,
+}
+```
+
+| Condition | Required values | Failure |
+|---|---|---|
+| `availability=Missing` | `strength=NotAssessed`, `quantity=None`, `direction=Neutral`, `validity=NotAssessed` | `MissingEvidenceCombination` |
+| `availability=NotApplicable` | `direction=NotApplicable`, `strength=NotAssessed`, `quantity=None`, `validity=NotAssessed` | `NotApplicableEvidenceCombination` |
+| `availability=Available` | source resolves, direction is not `NotApplicable` | `MissingEvidenceCombination` |
+| assessed strength | `strength_source != NotAssessed` and derivation exists | `AssessedStrengthMissingSource/Derivation` |
+| `strength=NotAssessed` | source is `NotAssessed` and derivation is None | `AssessedStrengthMissingSource` |
+| `validity=OutsideDomain or Invalid` | record is retained but excluded from promotion/counts | assessment exclusion |
+
+`strength_source=PreservedProducerAssessment` requires an artifact field recording producer algorithm/version and threshold provenance. `MechanismAssessor` and `HealthAssessor` require a registered algorithm ID in this document. Missing configuration produces `NotAssessed`, never a strength.
+
+### 5.2 Pairwise independence
+
+Independence is a relation owned by `EvidenceBundle`, never a unary `EvidenceRecord` field. Every assessment serializes an `EvidencePairKey`; reversed keys are invalid, not distinct. Both IDs must exist exactly once in the same bundle, must differ, and no pair may occur twice.
+
+For records A and B, the builder recomputes §3.2 lineage resolution. It yields `SameSource` when source artifact IDs are equal. With distinct sources, it yields `Unknown` if either closure is not `Complete`, either required acquisition-family identity is unknown, or either known-family set is empty. It yields `PartiallyDependent` if complete ancestor closures intersect or known acquisition-family sets intersect. It yields `Independent` only if sources differ, both closures are complete, both known nonempty family sets are known, and both ancestor and family sets are disjoint. The builder records the two statuses, sorted intersections, and every applicable typed reason. The validator recomputes this algorithm and rejects a serialized classification, status, intersection, or reason that disagrees with it as `EvidenceIndependenceMismatch`; callers cannot serialize an arbitrary `Independent`.
+
+For a requirement needing N independent supporting evidence items, form a graph whose vertices are eligible supporting `EvidenceRecord`s and whose edges are the recomputed pair classifications equal to `Independent`. V1 performs deterministic exhaustive subset search: enumerate subsets in descending cardinality and, within one cardinality, lexicographic `EvidenceId` order; select the first subset for which every pair is an Independent edge. Its cardinality is the independent-confirmation count. A missing pair caused by unresolved lineage is not an edge and those records cannot contribute. Required tests cover same artifact → `SameSource`; shared ancestor → `PartiallyDependent`; shared family → `PartiallyDependent`; complete disjoint lineage/family → `Independent`; missing ancestor → `Unknown`; unknown family → `Unknown`; reversed pair rejection; serialized/computed mismatch rejection; and A-B Independent, A-C Independent, B-C PartiallyDependent → largest subset size 2.
+
+### 5.3 Pairwise timescale-covariance ownership, validation, and construction (A1)
+
+`EvidenceBundle.timescale_pair_uncertainties` is the sole V1 serialized owner of normalized pairwise timescale covariance. It is a sparse collection: for each canonical `EvidencePairKey`, zero or one entry may exist, never more than one. `MechanismAnalysisReport`, `StateEstimationReport`, `ModelAnalysisReport`, a standalone covariance sidecar, a process-global cache, and assessor-performed filesystem lookup are expressly prohibited as V1 covariance owners. Those artifacts may be already-loaded sources from which an adapter extracts covariance, but the only covariance used by the V1 evidence assessor is the normalized entry persisted in `EvidenceBundle.timescale_pair_uncertainties`.
+
+For every entry, validation requires: (1) both IDs resolve exactly once in `EvidenceBundle.records`; (2) both resolved records are eligible positive timescale quantities for §8—Available `tau`, finite `value > 0`, exact UCUM `s`, or the existing contract's explicitly normalized compatible timescale representation; (3) the key is canonical; (4) `LogSpace` covariance is finite dimensionless log covariance and `TauSpace` covariance is finite `s^2`; and (5) `source.source_artifact_id` and `source.source_artifact_kind` resolve as a matching identity either in `lineage_catalog` or as one of the two records' direct `source.artifact_id` identities under the existing lineage contract. An unresolvable, mismatched, or non-producer-backed source is `InvalidTimescaleCovarianceSource`; a bad record reference is `UnknownTimescaleEvidenceReference`; a non-timescale record is the same typed validation failure; and incompatible covariance units are `TimescaleCovarianceUnitMismatch`. Duplicate canonical keys fail with `DuplicateTimescalePairUncertainty`; there is no first-wins, latest-wins, merging, averaging, or precedence.
+
+There is exactly one production construction route:
+
+```text
+already-loaded producer artifacts
+        ↓
+artifact-specific evidence adapters
+        ↓
+EvidenceRecords + optional producer-backed pair covariance
+        ↓
+EvidenceBundleBuilder
+        ↓
+validated EvidenceBundle
+```
+
+The normative conceptual interface is:
+
+```rust
+pub struct EvidenceBundleBuilder { /* bundle state */ }
+impl EvidenceBundleBuilder {
+    pub fn add_record(&mut self, record: EvidenceRecord);
+    pub fn add_independence_assessment(&mut self, assessment: EvidenceIndependenceAssessment);
+    pub fn add_timescale_pair_uncertainty(&mut self, uncertainty: TimescalePairUncertainty);
+    pub fn build(self) -> Result<EvidenceBundle, EvidenceBundleError>;
+}
+```
+
+The builder canonicalizes pair keys before insertion, rejects duplicate canonical pairs, validates evidence references, covariance units, and covariance provenance, and deterministically sorts every serialized collection. It may accept a reversed in-memory pair and canonicalize it; a serialized bundle must already be canonical and validation rejects a reversed pair. The builder cannot invent covariance. An adapter may create an entry only when an already-loaded producer artifact explicitly serializes covariance connecting the exact two quantities represented by the records: e.g., a parameter covariance-matrix entry, state/parameter covariance, fit covariance, or another explicitly serialized scientific covariance field. The adapter records the exact left field, right field, and covariance field; it must never infer covariance from parameter-name similarity, vector position, display/component names, nearest timescale, same artifact alone, or default zero.
+
+The collection serializes sorted by `pair.left_evidence_id`, then `pair.right_evidence_id`, never by artifact, magnitude, insertion order, or field path. The canonical `EvidenceBundle` semantic hash is the SHA-256 of the §3.3 RFC 8785 canonical-JSON semantic hash view of the complete bundle, after all required sorting. It includes this sorted collection, including pair IDs, covariance variant and value, source artifact identity, all source field paths, and derivation. Therefore any scientific pair-covariance change changes the bundle identity. Pair covariance and independence are orthogonal collections: the former does not encode independence and the latter does not encode covariance; for every assessed pair the assessor resolves both collections with the same `EvidencePairKey`.
+
+No public `EvidenceBundle` schema has shipped in this repository, so no backward migration is required before A1 creates its first public schema. EvidenceBundle V1 serializes `timescale_pair_uncertainties` explicitly. If a future implementation supports an older representation without that field, it migrates it exactly to `timescale_pair_uncertainties=[]`; it fabricates no covariance, and a dependent pair consequently becomes `NotAssessed / JointUncertaintyUnavailable` where §8 requires covariance.
+
+**F4-AC-01:** the only V1 answer to “where is `TimescalePairUncertainty` persisted and how is the exact covariance for an `EvidenceId` pair found at runtime?” is: it is persisted in `EvidenceBundle.timescale_pair_uncertainties` and found by `lookup_exact(canonical_pair(left_evidence_id, right_evidence_id))`.
+
+## 6. Deterministic hypothesis lifecycle (B)
+
+```rust
+pub enum HypothesisEvidenceLevel { Unassessed, Hypothesized, ExperimentallySupported, ValidatedForDomain }
+pub enum HypothesisReasonCode {
+    Declared, MissingConfiguration, MissingRequiredEvidence, InsufficientIndependentFamilies,
+    MissingNonTimescaleEvidence, TimescaleNotAssessed, AmplitudeNotAssessed,
+    AmplitudeFailed, RepeatabilityNotAssessed, RepeatabilityFailed, CriticalContradiction,
+    IdentifiabilityNotSatisfied, InvalidEvidence, OutsideDomain, LineageReclassified,
+    UncertaintyUnavailable, ValidationProtocolMissing, ValidationFailed,
+}
+pub struct HypothesisAssessment {
+    pub hypothesis_id: HypothesisId,
+    pub component_interpretation_status: InterpretationStatus,
+    pub hypothesis_evidence_level: HypothesisEvidenceLevel,
+    pub supporting_evidence: Vec<EvidenceRef>, pub contradictory_evidence: Vec<EvidenceRef>,
+    pub excluded_evidence: Vec<EvidenceRef>, pub reason_codes: Vec<HypothesisReasonCode>,
+    pub assessed_at: Timestamp,
+}
+pub struct Timestamp(pub String); // RFC 3339 UTC instant
+pub enum HypothesisGateApplicability<T> {
+    Required(T),
+    NotApplicable { reason: String },
+}
+pub struct TimescaleGateDefinition {
+    pub evidence_requirement_ids: Vec<EvidenceRequirementId>,
+    pub minimum_strength: EvidenceStrength,
+}
+pub struct EvidenceQuantitySelector { pub source_class: EvidenceSourceClass, pub field_path: String }
+pub struct AmplitudeGateDefinition {
+    pub predicted_quantity: EvidenceQuantitySelector,
+    pub observed_quantity: EvidenceQuantitySelector,
+    pub amplitude_floor: f64,
+    pub maximum_relative_amplitude_error: f64,
+}
+pub struct RepeatabilityGateDefinition {
+    pub evidence_requirement_ids: Vec<EvidenceRequirementId>,
+    pub minimum_replicates: usize,
+    pub maximum_log_tau_standard_deviation: f64,
+}
+pub struct HypothesisEvidenceRequirement {
+    pub requirement_id: EvidenceRequirementId,
+    pub source_classes: Vec<EvidenceSourceClass>,
+    pub required_direction: EvidenceDirection,
+    pub minimum_strength: EvidenceStrength,
+    pub require_valid: bool,
+    pub require_independent_confirmation: bool,
+    pub minimum_acquisition_families: usize,
+}
+pub struct MechanismHypothesisDefinition {
+    pub hypothesis_id: HypothesisId, pub name: String,
+    pub target_component_ids: Vec<ComponentId>,
+    pub timescale_gate: HypothesisGateApplicability<TimescaleGateDefinition>,
+    pub amplitude_gate: HypothesisGateApplicability<AmplitudeGateDefinition>,
+    pub repeatability_gate: HypothesisGateApplicability<RepeatabilityGateDefinition>,
+    pub required_evidence: Vec<HypothesisEvidenceRequirement>,
+    pub critical_evidence_requirement_ids: Vec<EvidenceRequirementId>,
+    pub required_identifiability_requirement_ids: Vec<RequirementId>,
+    pub validation_domain: Option<ValidationDomain>, pub validation_protocol_id: Option<String>,
+}
+pub struct HypothesisAssessmentEvent {
+    pub assessment_run_id: String,
+    pub previous_level: HypothesisEvidenceLevel, pub new_level: HypothesisEvidenceLevel,
+    pub reason_codes: Vec<HypothesisReasonCode>, pub evidence_bundle_hash: String,
+    pub assessed_at: Timestamp,
+}
+pub struct HypothesisAssessmentRecord {
+    pub definition: MechanismHypothesisDefinition,
+    pub current: HypothesisAssessment,
+    pub history: Vec<HypothesisAssessmentEvent>,
+}
+pub struct ValidationDomain { pub domain_id: String, pub declared_applicability: String }
+pub struct ValidationProtocol { pub protocol_id: String, pub acceptance_criteria: Vec<ValidationAcceptanceCriterion> }
+pub struct ValidationAcceptanceCriterion { pub criterion_id: String, pub passed: bool, pub threshold: ThresholdProvenance }
+```
+
+All IDs, names, selector field paths, and `NotApplicable.reason` values are nonempty. Requirement IDs are unique within a definition; every gate-reference and critical-requirement ID resolves to exactly one `required_evidence` entry; every listed target component ID is unique. `EvidenceQuantitySelector` selects exactly one eligible quantity by matching its source class and field path; zero or multiple matches make the gate `NotAssessed`. `InterpretationStatus` is the existing immutable type at `src/model/component.rs` and is copied unchanged. `MechanismAnalysisReport` is the existing repository type at `src/results/mechanism.rs::MechanismAnalysisReport`; B changes its existing `hypotheses` field to `Vec<HypothesisAssessmentRecord>` and preserves its other declared fields.
+
+Every gate is serialized as `Required` or `NotApplicable`; it is never an `Option`, and applicability is determined only by that serialized variant. A `Required` timescale gate evaluates its listed requirements at the stated minimum strength. A `Required` amplitude gate selects the declared predicted and observed quantities, requires finite compatible units and `amplitude_floor > 0`, and evaluates `abs(A_predicted-A_observed)/max(abs(A_predicted),abs(A_observed),amplitude_floor) <= maximum_relative_amplitude_error`, with finite nonnegative maximum. A `Required` repeatability gate selects valid positive tau quantities for its stated requirements, requires at least `minimum_replicates >= 2`, and evaluates the sample standard deviation of `ln(tau_s / 1 second)` against the finite nonnegative maximum. Any missing, invalid, ambiguous, or insufficient required input makes that required gate `NotAssessed`; a present value above a required maximum fails it.
+
+Each requirement applies its declared source classes, direction, strength, validity, and minimum acquisition families. If it requires independent confirmation, use the §5.2 exhaustive clique count; otherwise count eligible records without the pairwise clique criterion. `minimum_acquisition_families` is finite by type and must be at least one. A critical requirement is exactly one whose ID is listed in `critical_evidence_requirement_ids`; every listed one is evaluated. A critical requirement in `Missing`, `NotAssessed`, `Invalid`, or `OutsideDomain` blocks `ExperimentallySupported` and `ValidatedForDomain`. V1 defines no exception field for those states, so no exception is permitted. A valid critical contradiction is one `Strong` contradictory record or the configured `critical_moderate_contradiction_count: usize >= 1` `Moderate` contradictory records, each from the mutually-independent subset required by the corresponding requirement. The configured count is provenance-bearing; missing it is `Unassessed`.
+
+Every `required_identifiability_requirement_id` resolves to an assessment defined in §9, and all listed assessments must be `Satisfied` for `ExperimentallySupported` or higher. `NotAssessed`, `NotSatisfied`, and `NotApplicable` block promotion. `Hypothesized` requires a definition and one valid available association. `ExperimentallySupported` requires Hypothesized plus every required evidence requirement, required gate, critical requirement, and listed identifiability requirement to pass; a required timescale gate does not alone satisfy a non-timescale evidence requirement. `ValidatedForDomain` additionally requires `ExperimentallySupported`, a `ValidationDomain`, a nonempty matching `validation_protocol_id`, `minimum_validation_acquisition_families >= 1`, every matching `ValidationAcceptanceCriterion.passed=true`, and no critical contradiction. No missing protocol authorizes validation.
+
+`MechanismAnalysisReport` is the durable owner of hypothesis history. With no prior mechanism artifact, each current hypothesis starts with `history=[]`, recomputes `current`, then appends exactly one event from `Unassessed` to the current level. With `mechanism compare --prior-mechanism-artifact <PATH>`, the runner validates the prior artifact contract and experiment/sensor/channel scope, matches records by stable `HypothesisId`, copies matched history, recomputes `current` from current evidence, and appends exactly one event from the prior current level (or `Unassessed` if no matching prior record) to the new level. Events are append-only in the newly produced artifact. Prior artifacts lacking history deserialize as `history=[]` and fabricate no event. Current configuration owns the new report: hypotheses absent from it are not carried forward; an unknown prior ID does not initialize a current hypothesis. A future configuration may retain or retire one only through an explicit serialized migration/retirement policy; V1 defines none. Recalculation can increase or decrease level; failure by any required current gate produces the lower level and its event records the corresponding reason codes.
+
+## 7. Temporal/equilibrium joins (A1/B/C)
+
+```rust
+pub enum ClockBasis { ExperimentElapsedSeconds, AbsoluteUtcSeconds }
+pub struct ClockConversionProvenance { pub source_artifact_id: ArtifactId, pub method_id: String, pub shared_experiment_start_ref: String }
+pub struct ScopeManifestBinding { pub artifact_id: ArtifactId, pub sensor: Option<String>, pub channel: Option<String> }
+pub struct ClockConversion { pub source: ClockBasis, pub target: ClockBasis, pub experiment_start_ref: String, pub conversion_provenance: ClockConversionProvenance }
+pub enum JoinIdentityStatus { Resolved, Unresolved }
+pub enum JoinOutcome { Joined, MissingEvidence, Ambiguous, Indeterminate }
+pub enum MixedStatePolicy {
+    RequireAllSteady { allow_quasi_equilibrium: bool },
+    MinimumSteadyFraction { minimum_fraction: f64, allow_quasi_equilibrium: bool, reject_if_disturbed: bool },
+    WorstCase,
+}
+pub struct TemporalJoinConfig {
+    pub maximum_timestamp_difference_s: f64,
+    pub minimum_classified_fraction: f64,
+    pub mixed_state_policy: MixedStatePolicy,
+    pub threshold_provenance: Vec<ThresholdProvenance>,
+}
+```
+
+Cross-artifact joins require equal `experiment_id`. Specific/Specific scopes must equal; Specific/All and All/All are compatible. Either Unspecified requires two `ScopeManifestBinding` entries, one for each artifact ID, whose relevant concrete values are equal; without them identity is Unresolved. Sensor and channel apply the same rule. The result is MissingEvidence + Indeterminate and cannot produce strong evidence. Equilibrium values are the existing `src/model/equilibrium_recognition.rs::EquilibriumStatus` variants.
+
+Normalize to elapsed seconds from experiment start. Absolute timestamps convert only through an identical shared experiment-start reference and serialized `ClockConversion`; otherwise clocks are unresolved. Target point `t` selects a source point minimizing `abs(t_source-t)` when at most `maximum_timestamp_difference_s`. An exact tie is Ambiguous → MissingEvidence. Window join is `[start_s,end_s)`. Event window is `[event_time-pre_event_s,event_time+post_event_s]` (both endpoints included); pre/post must be finite and nonnegative.
+
+For a target window, `N_target` is expected target observations, `N_classified` is successfully joined target observations with Available equilibrium classification, `classified_fraction=N_classified/N_target`. If `N_target=0`, evidence is Missing. `N_equilibrium` counts Equilibrium; `N_quasi` counts QuasiEquilibrium. If `N_classified=0`, all fractions are unavailable, not zero. `equilibrium_fraction=N_equilibrium/N_classified`; `steady_state_fraction=(N_equilibrium+N_quasi)/N_classified`. `minimum_classified_fraction` and MinimumSteadyFraction threshold lie in `[0,1]` and are required/provenance-bearing.
+
+Processing is exactly: (1) identity scope; (2) clock resolution; (3) point/window/event matching; (4) minimum classified fraction; (5) MixedStatePolicy; (6) scientific use. `RequireAllSteady` requires every classified state Equilibrium or, if allowed, Equilibrium/Quasi. `MinimumSteadyFraction` uses its allowed numerator, requires it ≥ minimum, and rejects any Disturbed if flag set. `WorstCase` returns precedence Indeterminate > Disturbed > Transitional > QuasiEquilibrium > Equilibrium. No hard-coded precedence may bypass the selected policy.
+
+MHI-T11a–k exercise: perfect alignment, partial alignment, below minimum, equilibrium+quasi, equilibrium+transitional, disturbed, Indeterminate, clock mismatch, scope mismatch, missing experiment ID, and nearest-time tie. Each unresolved fixture asserts MissingEvidence + Indeterminate.
+
+## 8. Timescale evidence algorithm (B)
+
+```rust
+pub struct TimescaleEvidenceConfig {
+    pub confidence_level: f64,
+    pub strong_max_log_distance: f64, pub moderate_max_log_distance: f64,
+    pub weak_max_log_distance: f64, pub minimum_observation_duration_ratio: f64,
+    pub minimum_samples_per_tau: f64, pub minimum_mode_separation_ratio: f64,
+    pub threshold_provenance: Vec<ThresholdProvenance>,
+}
+```
+
+All values are required: `0.5<confidence_level<1`; `0<=strong<=moderate<=weak`; all resolution thresholds `>0`. Each appears once in provenance with the named field and unit `1`. Missing/invalid configuration means strength NotAssessed. `confidence_level_tolerance = 1e-12` is numerical identity tolerance only, not a scientific threshold; `numerical_variance_tolerance = 1e-15` is numerical roundoff tolerance only.
+
+All timescale quantities assessed here have `quantity=tau`, exact UCUM unit `s`, and finite `value=tau_s>0`; `ln_tau_s = ln(tau_s / 1 second)` is dimensionless. The closed V1 `EvidenceUncertaintyModel` is defined in §5. `None` or absent uncertainty is `NotAssessed` whenever this contract requires uncertainty; there is no point-estimate fallback. `ExplicitLogInterval` requires finite bounds with `lower_ln_tau_s <= upper_ln_tau_s` and `0.5 < confidence_level < 1.0`; its bounds are a two-sided central confidence/credible interval for `ln(tau / 1 second)` at exactly its `confidence_level`. It is not transformed to another confidence level: `abs(interval.confidence_level-config.confidence_level) > 1e-12` produces `NotAssessed` with `ConfidenceLevelMismatch`. `LogNormal.value` is the geometric-mean/median tau and its finite dimensionless variance is nonnegative. `DeltaMethodTauVariance.value` is positive tau and its finite `variance_tau_s2` is nonnegative with units `s^2`; convert it to `Var[ln(tau)] = variance_tau_s2/tau_s^2`.
+
+```rust
+pub struct TimescalePairUncertainty {
+    pub pair: EvidencePairKey,
+    pub covariance: TimescaleCrossCovariance,
+    pub source: TimescalePairUncertaintySource,
+}
+pub struct TimescalePairUncertaintySource {
+    pub source_artifact_id: ArtifactId,
+    pub source_artifact_kind: ArtifactKind,
+    pub left_source_field_path: String,
+    pub right_source_field_path: String,
+    pub covariance_source_field_path: String,
+    pub derivation: PairCovarianceDerivation,
+}
+pub enum PairCovarianceDerivation {
+    PreservedProducerCovariance,
+    ExtractedCovarianceMatrixEntry,
+    UnitConvertedProducerCovariance,
+}
+pub enum TimescaleCrossCovariance {
+    LogSpace { covariance_ln_tau: f64 },
+    TauSpace { covariance_tau_s2: f64 },
+}
+```
+
+`TimescalePairUncertainty` is present only for producer-backed covariance; it has no optional covariance field and V1 defines no `UserAssumed`, `DefaultZero`, or `EstimatedByMechanismAssessor` derivation. Its `pair`, source, finite covariance, unit compatibility, cardinality, referential integrity, serialization, and validation behavior are exactly §5.3. `TauSpace` conversion is `Cov[ln(tau1),ln(tau2)] ≈ covariance_tau_s2/(tau1*tau2)`; its covariance has units `s^2`.
+
+The supported pair matrix is exhaustive and model-pair rows are unordered; the calculation always preserves the serialized left/right evidence orientation:
+
+| Left + right models | Required independence/covariance | Result |
+|---|---|---|
+| `None` + any | n/a | `NotAssessed` when uncertainty is required |
+| `ExplicitLogInterval` + `ExplicitLogInterval` | both confidence levels equal configured level within `1e-12`; relation `Independent` | use conservative interval subtraction |
+| `ExplicitLogInterval` + `ExplicitLogInterval` | `SameSource`, `PartiallyDependent`, or `Unknown` | `NotAssessed: JointUncertaintyUnavailable` |
+| `LogNormal` + `LogNormal` | `Independent`: derived covariance=0; dependent: exact serialized LogSpace or TauSpace covariance; `Unknown`: unsupported | normal-pair direct ratio, otherwise `NotAssessed` |
+| `DeltaMethodTauVariance` + `DeltaMethodTauVariance` | same as LogNormal after log-variance conversion | normal-pair direct ratio, otherwise `NotAssessed` |
+| `LogNormal` + `DeltaMethodTauVariance` | same as LogNormal after log-variance conversion | normal-pair direct ratio, otherwise `NotAssessed` |
+| `ExplicitLogInterval` + `LogNormal` | `Independent` and explicit confidence equal configured level within `1e-12` | transform normal to configured central interval; independent interval subtraction |
+| `ExplicitLogInterval` + `DeltaMethodTauVariance` | `Independent` and explicit confidence equal configured level within `1e-12` | transform delta-normal to configured central interval; independent interval subtraction |
+| either mixed interval/distribution pair | `SameSource`, `PartiallyDependent`, or `Unknown` | `NotAssessed: MixedModelJointUncertaintyUnavailable` |
+
+For normal-pair direct ratio, `alpha=1-confidence_level`, `z=standard_normal_quantile(1-alpha/2)` using IEEE-754 double inverse standard-normal CDF, `mu_r=mu1-mu2`, `Var[r]=Var1+Var2-2Cov12`, and `[r_low,r_high]=[mu_r-z*sqrt(Var[r]), mu_r+z*sqrt(Var[r])]`. If `-1e-15 <= Var[r] < 0`, clamp to zero; if it is less than `-1e-15`, return typed `InvalidTimescaleCovariance`. For an independent interval pair `[L1,U1]` for the left record and `[L2,U2]` for the right, use `[r_low,r_high]=[L1-U2,U1-L2]`. The normal side of an independent mixed pair becomes `[mu-z*sigma,mu+z*sigma]` at configured confidence, placed on its actual left or right side, before that same oriented subtraction.
+
+For every supported pair, convert the signed ratio interval exactly: if `r_low <= 0 <= r_high`, `d_low=0` and `d_high=max(abs(r_low),abs(r_high))`; otherwise `d_low=min(abs(r_low),abs(r_high))` and `d_high=max(abs(r_low),abs(r_high))`. Strength uses only `d_high`: Strong `<=strong`; Moderate `(strong,moderate]`; Weak `(moderate,weak]`; above weak produces Neutral + NotAssessed, never causal contradiction. In the relevant window every `dt_i=t_i-t_(i-1)` must be finite positive, `effective_sampling_interval_s=max(dt_i)`, `samples_per_tau=tau/effective_sampling_interval_s`, and it passes at least minimum samples. `observation_duration_ratio=(t_last-t_first)/tau` passes at least its minimum. `mode_separation_ratio=max(tau_1,tau_2)/min(tau_1,tau_2)` passes at least its minimum.
+
+For a pair of candidate records, the assessor performs no covariance search other than this exact algorithm:
+
+```text
+pair = canonical_pair(left_evidence.evidence_id, right_evidence.evidence_id)
+independence = EvidenceBundle.independence_assessments.lookup_exact(pair)
+pair_uncertainty = EvidenceBundle.timescale_pair_uncertainties.lookup_exact(pair)
+apply the preceding uncertainty-pair matrix
+```
+
+`lookup_exact` returns `None` for zero matches and the unique entry for one match. More than one match is impossible in a valid bundle; deserialization/validation returns `DuplicateTimescalePairUncertainty` and invalidates the bundle. The assessor never searches by artifact ID, parameter name, field path, component ID, state ID, array location, nearest match, source-artifact heuristic, or a reversed-pair fallback beyond `canonical_pair`.
+
+No pair-covariance entry is required merely because a pair is considered. Its absence means exactly that no producer-backed pair covariance was normalized into the bundle. For an Independent normal/delta pair where the matrix permits `Cov=0`, no entry is stored: the assessor derives zero solely from the exact `Independent` assessment and records `StrengthDerivation.timescale_covariance_use=IndependenceBasedZeroCovariance { pair }`. For a `SameSource` or `PartiallyDependent` normal/delta pair that requires covariance, `None` yields `NotAssessed / JointUncertaintyUnavailable`; it is not a validation error and it never assumes zero. For `Unknown` independence, an entry never changes the required `NotAssessed` outcome. An entry also cannot make a dependent explicit-interval combination assessable unless the preceding matrix expressly permits that pair.
+
+MHI-T09 additionally covers: explicit+explicit independent; explicit+explicit dependent NotAssessed; lognormal+lognormal independent; dependent with/without covariance; delta+delta independent and dependent TauSpace covariance; lognormal+delta independent and dependent covariance; explicit+lognormal independent; explicit+delta independent; mixed dependent NotAssessed; confidence mismatch; Unknown independence; invalid negative resulting variance; interval crossing zero; entirely positive and negative intervals; and an interval crossing Strong/Moderate where `d_high` controls the result. F4-T01 through F4-T16 are the permanent ownership and production-path requirements in §15.1.
+
+Current repository permitted EIS sources are direct fitted time parameters in `src/mechanism/timescale.rs` for `ElementType::{Wo,Ws,G,Gs,K,Zarc}` and derived `tau=R*C` / `tau_c=(R*Q)^(1/alpha)` in an explicitly modeled parallel R-C/R-CPE branch. No current serialized EIS feature kind declares approved single-relaxation frequency semantics; therefore frequency-to-tau conversion is NotApplicable in V1. It remains forbidden for Nyquist extrema, Bode extrema, DRT peaks and generic fitted frequencies until a future artifact adds approved feature metadata.
+
+## 9. Identifiability contract (A1/B)
+
+Replace the closed `src/model/identifiability.rs::IdentifiabilityRequirementKind` only in A1 with:
+
+```rust
+pub enum IdentifiabilityRequirementKind { Known(KnownIdentifiabilityRequirementKind), Custom(String) }
+pub enum KnownIdentifiabilityRequirementKind {
+    ActivityExcitation, TransientExcitation, ObservationDurationRelativeToTimescale,
+    ModeSeparation, ReferenceAnchor, IndependentCovariateVariation,
+    InterferentVariation, TemperatureVariation, RepeatedStandards, AuxiliaryObservation,
+}
+pub enum IdentifiabilityAssessmentStatus { Satisfied, NotSatisfied, NotAssessed, NotApplicable }
+pub struct IdentifiabilityAssessment {
+    pub requirement_id: RequirementId, pub kind: IdentifiabilityRequirementKind,
+    pub assessor_id: String, pub algorithm_id: String, pub source_fields: Vec<String>,
+    pub metrics: BTreeMap<String, f64>, pub thresholds: Vec<ThresholdProvenance>,
+    pub status: IdentifiabilityAssessmentStatus, pub reasons: Vec<String>,
+}
+```
+
+Serde serializes one string using the current known spellings; any nonempty unknown string deserializes to `Custom(original_string)`. Empty string is an error. Existing known strings round-trip byte-for-byte. Tests cover every known old string, an unknown string, reserialization, and empty rejection.
+
+| Current kind | assessor / algorithm | source fields and required input | threshold/result/missing behavior |
+|---|---|---|---|
+| ActivityExcitation | `identifiability.not_assessed` / `not_assessed.v1` | `[]` | NotAssessed, `UnsupportedRequirementKind` |
+| TransientExcitation | `identifiability.transient_excitation` / `transient_excitation.v1` | event ID/type/time, log10 activity step, pre/post point counts | required absolute log10 step, pre/post counts; passing eligible event Satisfied; missing NotAssessed; otherwise NotSatisfied |
+| ObservationDurationRelativeToTimescale | `identifiability.observation_duration` / `timescale_resolution.v1` | time window, positive tau | §8 duration ratio; missing NotAssessed; below NotSatisfied |
+| ModeSeparation | `identifiability.mode_separation` / `timescale_resolution.v1` | two positive taus | §8 separation ratio; missing NotAssessed; below NotSatisfied |
+| ReferenceAnchor | `identifiability.reference_anchor` / `reference_anchor.v1` | known-standard/reference-control/approved anchor artifact through lineage | valid declared domain + complete lineage + anchor present Satisfied; unknown lineage/missing input NotAssessed; invalid/out-of-domain NotSatisfied |
+| IndependentCovariateVariation | `identifiability.independent_covariate` / `covariate_variation.v1` | aligned `(u_i,target_activity_i)` | N, range, Pearson limit below; missing NotAssessed; zero variance or gate fail NotSatisfied |
+| InterferentVariation | `identifiability.interferent_variation` / `interferent_variation.v1` | positive interferent activities | log10 N/range below; missing NotAssessed; gate fail NotSatisfied |
+| TemperatureVariation | `identifiability.not_assessed` / `not_assessed.v1` | `[]` | NotAssessed, `UnsupportedRequirementKind` |
+| RepeatedStandards | `identifiability.not_assessed` / `not_assessed.v1` | `[]` | NotAssessed, `UnsupportedRequirementKind` |
+| AuxiliaryObservation | `identifiability.not_assessed` / `not_assessed.v1` | `[]` | NotAssessed, `UnsupportedRequirementKind` |
+
+Covariate requires finite aligned data, `N>=minimum_covariate_samples`, `max(u)-min(u)>=minimum_covariate_range`, and `abs(Pearson(u,target_activity))<=maximum_absolute_pearson_correlation`. Zero variance is NotSatisfied. Interferent uses `log10(activity)`, `N>=minimum_interferent_samples`, and `max-min>=minimum_interferent_log10_range`. Transient requires an explicit event, `abs(log10(post/pre))>=minimum_absolute_log10_activity_step`, and counts at least configured pre/post points. All named values are required configuration/provenance; sample counts are integers ≥1, ranges/steps >0, correlation `[0,1]`. A Custom uses `identifiability.custom.not_assessed` / `not_assessed.v1`, NotAssessed, unless a future registered custom assessor is explicitly added. It never auto-satisfies.
+
+## 10. Exact CLI production interfaces (B/C)
+
+Preserve current flags. Add to `mechanism compare`: `--estimation-artifact <PATH>`, `--model-artifact <PATH>`, `--lineage-catalog <PATH>`, and `--prior-mechanism-artifact <PATH>`. Add to `health assess`: `--estimation-artifact <PATH>`, `--model-artifact <PATH>`, `--mechanism-artifact <PATH>`, `--lineage-catalog <PATH>`. These are optional. Absent model/estimation yields Missing model-derived evidence; absent catalog yields Unknown independence; neither is fabricated. When supplied, `--prior-mechanism-artifact` follows the exact §6 validation, scope-match, stable-ID history-copy, recompute, and one-event append procedure. Existing `--mechanism-results` remains accepted; `--mechanism-artifact` is its additive explicit artifact alias only if the paths resolve to the same artifact identity, otherwise `ConflictingEvidenceInput`.
+
+Both runners execute exactly: (1) parse CLI; (2) load configuration; (3) load legacy required inputs; (4) load optional model/estimation/mechanism; (5) validate artifact contracts; (6) validate experiment/sensor/channel scope; (7) load/resolve catalog if supplied; (8) build normalized EvidenceBundle; (9) assess; (10) serialize typed output; (11) render human output. A model/estimation identity conflict is typed `ConflictingEvidenceInput`. Any duplicated scientific evidence with unequal IDs is the same error; equal IDs deduplicate by ArtifactId.
+
+MHI-T20a–g run the actual binary/runner with real serialized fixtures and flags. They assert process result, typed report, JSON, human report and forbidden conclusion absence: a timescale match alone does not prove mechanism; slow mode alone does not diagnose fouling; reference offset alone does not diagnose reference failure; missing evidence cannot be Strong; dependent evidence cannot independently confirm; out-of-domain evidence downgrades; Transitional/Disturbed/Indeterminate cannot silently support steady state.
+
+## 11. Phase A0 schema and artifact-kind repair
+
+Phase A0 may modify `src/domain/artifact.rs` **only** to make artifact-kind validation explicitly controlled by each `ArtifactContract`; it must not globally tighten or reinterpret kinds outside the A0 repair set. A0 modifies `src/results/artifact_contracts.rs`, that policy-aware validator, the eight affected producer/result-schema modules already listed below, and their production-path tests/fixtures. It does not modify any A1/B/C type or route named prohibited in §2.
+
+```rust
+pub enum CurrentArtifactKindPolicy { Required, PreserveLegacyOptional }
+pub trait VersionedArtifact { // existing repository trait: src/domain/artifact.rs
+    const ARTIFACT_KIND: ArtifactKind;
+    const CURRENT_SCHEMA_VERSION: u32;
+    const LEGACY_SCHEMA_VERSIONS: &'static [u32];
+    const CURRENT_ARTIFACT_KIND_POLICY: CurrentArtifactKindPolicy;
+}
+```
+
+Every artifact contract declares this policy. `Required` means, at current schema only, correct kind passes and missing/wrong kind fails. `PreserveLegacyOptional` means, at current schema only, present correct kind passes, present wrong kind fails, and missing kind preserves the contract’s pre-A0 behavior. It is selected only where currently supported public compatibility requires a kind-less current-schema artifact to remain readable; never merely to pass a test. Legacy schema behavior follows only that contract’s documented migration rules. No missing-current-kind decision may follow merely from `version in LEGACY_SCHEMA_VERSIONS`.
+
+`validate_value(contract, artifact)` is exactly:
+
+```text
+version = read schema_version
+if version == contract.CURRENT_SCHEMA_VERSION:
+    switch contract.CURRENT_ARTIFACT_KIND_POLICY:
+        Required:
+            if artifact_kind missing: return MissingArtifactKind
+            if artifact_kind != contract.expected_artifact_kind: return WrongArtifactKind
+            continue current-schema validation
+        PreserveLegacyOptional:
+            if artifact_kind present and != expected: return WrongArtifactKind
+            continue current-schema validation
+else if version in contract.LEGACY_SCHEMA_VERSIONS:
+    apply that contract's explicitly documented legacy migration rules
+else:
+    return UnsupportedSchemaVersion
+```
+
+The implementation maps `MissingArtifactKind` and `WrongArtifactKind` to the repository-compatible typed `src/domain/artifact.rs::ArtifactError::IncompatibleKind { actual: None/Some(_) }`; this is a naming mapping, not a second behavior. The table is the complete policy assignment for every current `src/results/artifact_contracts.rs` contract relevant to this decision.
+
+| Artifact kind / contract | CURRENT_SCHEMA_VERSION | LEGACY_SCHEMA_VERSIONS | CurrentArtifactKindPolicy | A0 repair set? | Compatibility reason / legacy migration |
+|---|---:|---|---|---|---|
+| `transient_analysis` / `TransientAnalysisReport` | 2 | `[1]` | Required | yes | schema-1 missing kind remains accepted |
+| `calibration_observations` / `CalibrationObservationSet` | 2 | `[1]` | Required | yes | schema-1 missing kind remains accepted |
+| `calibration_model` / `StoredCalibrationModel` | 2 | `[1]` | Required | yes | schema-1 missing kind remains accepted |
+| `calibration_analysis` / `CalibrationAnalysisReport` | 2 | `[1]` | Required | yes | schema-1 missing kind remains accepted |
+| `signal_analysis` / `SignalAnalysisReport` | 2 | `[1]` | Required | yes | schema-1 missing kind remains accepted |
+| `mechanism_analysis` / `MechanismAnalysisReport` | 2 | `[1]` | Required | yes | schema-1 missing kind remains accepted |
+| `health_assessment` / `SensorHealthAssessment` | 2 | `[1]` | Required | yes | schema-1 missing kind remains accepted |
+| `health_trend` / `HealthTrendReport` | 2 | `[1]` | Required | yes | schema-1 missing kind remains accepted |
+| `eis_fit` / `EisFitArtifact` | 2 | `[1,2]` | PreserveLegacyOptional | no | inspection confirms kind-less schema-2 reads today; preserve it |
+| `health_baseline` / `SensorHealthBaseline` | 2 | `[1,2]` | PreserveLegacyOptional | no | inspection confirms kind-less schema-2 reads today; preserve it |
+| `state_estimation` / `StateEstimationReport` | 3 | `[1,2,3]` | PreserveLegacyOptional | no | retain current accepted/rejected matrix, including current-schema missing-kind acceptance |
+| `ism_model_compilation` / `ModelCompilationArtifact` | 4 | `[1,2,3,4]` | PreserveLegacyOptional | no | retain current accepted/rejected matrix, including current-schema missing-kind acceptance |
+| `ism_model_analysis` / `ModelAnalysisReport` | 4 | `[1,2,3,4]` | PreserveLegacyOptional | no | retain current accepted/rejected matrix, including current-schema missing-kind acceptance |
+| `ism_model_validation` / `ValidationResults` | 1 | `[1]` | PreserveLegacyOptional | no | retain current accepted/rejected matrix, including current-schema missing-kind acceptance |
+
+The eight repair kinds have nine producer construction sites because `MechanismAnalysisReport` has `src/runners/mechanism.rs::{compare,trend}` writers. Their affected producer/result-schema modules are `src/potentiometry/transient/mod.rs`, `src/potentiometry/calibration/observations.rs`, `src/potentiometry/calibration/mod.rs`, `src/signal/mod.rs`, `src/runners/mechanism.rs`, `src/health/assessment.rs`, and `src/health/trend.rs`, plus their existing result/schema modules. For every repair-set row, MHI-T02a correct schema-2 kind passes; T02b wrong kind fails; T02c missing schema-2 kind fails; T02d documented schema-1 fixture passes; T02e unsupported version fails; T02f producer serialize→validate→reread passes. Fixtures are real JSON under the existing artifact fixture location; no fixture invents unknown data fields.
+
+**A0-AC-COMPAT-01:** for every contract outside the A0 repair set, the pre-A0 compatibility matrix for schema version, artifact-kind present/missing, and artifact-kind correct/wrong remains unchanged. Fixture regressions specifically prove `eis_fit` and `health_baseline` retain their present correct/pass, present wrong/fail, and schema-2 missing/pass behavior.
+
+## 12. MHI-R14: nine health dimensions (C)
+
+```rust
+pub enum HealthDimension {
+    SignalIntegrity, CalibrationHealth, DynamicResponseHealth, ReferenceStability,
+    EnvironmentalRobustness, ModelConsistency, Observability, UncertaintyHealth, DataQuality,
+}
+pub enum HealthInterpretationCategory { ObservedBehavior, ModelInconsistency, EnvironmentalEffect, CalibrationIssue, PossiblePhysicalDegradation }
+pub enum CausalStatus { Observed, Associated, Hypothesized, ExperimentallySupported, ValidatedForDomain, Indeterminate }
+```
+
+Possible statuses are existing `OverallHealthStatus::{WithinBaseline,Watch,Degraded,Critical,DataQualityInsufficient,Indeterminate}`; no missing dimension is silently WithinBaseline. Legacy domain mapping is an input view, not a causal proof.
+
+| Dimension | Meaning / allowed source | minimum evidence and missing behavior | legacy mapping / limitation |
+|---|---|---|---|
+| SignalIntegrity | noise, spikes, drift from signal artifact | one Valid signal feature; absent → Indeterminate | SignalNoise/Drift; does not prove degradation |
+| CalibrationHealth | calibration validity/prediction | Valid calibration artifact + applicable domain; absent → Indeterminate | Calibration; does not identify cause |
+| DynamicResponseHealth | transient amplitude/tau/recovery | Valid transient evidence and §7 state policy; absent → Indeterminate | DynamicResponse; slow mode is noncausal |
+| ReferenceStability | independently anchored reference behavior | Valid reference anchor + independent confirmation; absent → Indeterminate | no direct domain; offset alone is insufficient |
+| EnvironmentalRobustness | environmental covariate response | Valid environment/covariate artifact; absent → Indeterminate | DataQuality; correlation is not cause |
+| ModelConsistency | observed-predicted residual, model validity | Valid model/estimation plus residual sign contract; absent → Indeterminate | MechanismEvidence; residual is not sensor failure |
+| Observability | §9 requirement results | all declared critical results; absent → Indeterminate | MechanismEvidence; filter observability alone is insufficient |
+| UncertaintyHealth | uncertainty completeness/conditioning | Valid uncertainty metadata; absent → Indeterminate | DataQuality; incomplete uncertainty is no defect diagnosis |
+| DataQuality | finite, aligned, complete input | Valid parse/alignment diagnostics; absent → DataQualityInsufficient | DataQuality; no physical inference |
+
+Every health finding retains separate `HealthInterpretationCategory` and `CausalStatus` per frozen SAR-010. Physical degradation is at most Hypothesized without §6 independent gates. MHI-T14a–i are one stable assertion per listed dimension; MHI-T14j asserts a missing dimension is Indeterminate.
+
+## 13. Frozen residual contract
+
+For model/estimation potentiometric data only, `unexplained_residual_v=measured_potential_v-predicted_potential_v`. Legacy EIS residual `real`, `imaginary`, `magnitude`, and `phase_deg` remains fitted minus measured; no EIS value is sign-inverted. Any future cross-domain normalization adds a separately named value containing original convention and explicit transform.
+
+## 14. Configuration registry and absence behavior
+
+Every scientific threshold above is configuration, finite, serialized, and recorded by `ThresholdProvenance`; no code constant is a scientific threshold.
+
+| Name | type/unit/range | required | absent/invalid behavior |
+|---|---|---|---|
+| `critical_moderate_contradiction_count` | usize, ≥1 | B | Unassessed |
+| `minimum_independent_supporting_families`, `minimum_non_timescale_supporting_families`, `minimum_validation_acquisition_families` | usize, ≥1 | B | Unassessed |
+| `AmplitudeGateDefinition.amplitude_floor` | f64, response unit, >0; `maximum_relative_amplitude_error` f64 ≥0 | exactly when `amplitude_gate=Required` | amplitude NotAssessed |
+| `RepeatabilityGateDefinition.minimum_replicates` usize ≥2; `maximum_log_tau_standard_deviation` f64 ≥0 | exactly when `repeatability_gate=Required` | repeatability NotAssessed |
+| `maximum_timestamp_difference_s` f64 seconds ≥0; `minimum_classified_fraction` f64 [0,1] | temporal evidence | MissingEvidence/Indeterminate |
+| `minimum_fraction` | f64 [0,1] | MinimumSteadyFraction | config startup error |
+| all `TimescaleEvidenceConfig` fields | §8 ranges, dimensionless except seconds intervals calculated from input | timescale | strength NotAssessed |
+| `minimum_covariate_samples` usize ≥1; `minimum_covariate_range` f64 >0; `maximum_absolute_pearson_correlation` f64 [0,1] | covariate | NotAssessed |
+| `minimum_interferent_samples` usize ≥1; `minimum_interferent_log10_range` f64 >0 | interferent | NotAssessed |
+| `minimum_absolute_log10_activity_step` f64 >0; `minimum_pre_event_points`, `minimum_post_event_points` usize ≥1 | excitation | NotAssessed |
+
+## 15. Complete traceability matrix
+
+| Requirement | Normative behavior | module/symbol | AC | Test IDs | objective failure | compatibility | scientific risk | phase |
+|---|---|---|---|---|---|---|---|---|
+| MHI-R1 | frozen contracts preserved | all | AC1 | T01a,b | forbidden causal/default output | additive | invalid science | all |
+| MHI-R2 | A0 eight contracts fixed and non-A0 matrix preserved | `src/results/artifact_contracts.rs`; `src/domain/artifact.rs::validate_value`; §11 producer/result modules | AC2 / A0-AC-COMPAT-01 | T02a-f, preserved-contract fixtures | any matrix mismatch | schema1 readable; `eis_fit`/`health_baseline` unchanged | broken IO | A0 |
+| MHI-R3 | outer adapter only | evidence module | AC3 | T03a,b | model imports evidence | additive | coupling | A1 |
+| MHI-R4 | orthogonal evidence | evidence types | AC4 | T04a-d | invalid combo accepted | additive | fabricated strength | A1 |
+| MHI-R5 | lineage closure | lineage resolver | AC5 | T05a-d | Unknown Independent | legacy Unknown | false independence | A1 |
+| MHI-R6 | absence preserved | adapters | AC6 | T06a-c | missing gains value | legacy retained | false certainty | A1 |
+| MHI-R7 | component/status separate | mechanism assessment | AC7 | T07a,b | component mutates | additive | identity conflation | B |
+| MHI-R8 | deterministic lifecycle | hypothesis assessor | AC8 | T08a-d | gate skipped | additive | causal overclaim | B |
+| MHI-R9 | exact timescale science | timescale assessor | AC9 | T09a-f, F4-T10–14,16 | wrong interval/class or wrong pair used | additive | false match | B |
+| MHI-R10 | EIS authorization | timescale adapter | AC10 | T10a,b | generic frequency converts | existing EIS preserved | invalid conversion | B |
+| MHI-R11 | temporal join | temporal adapter | AC11 | T11a-k | unresolved supports | additive | temporal misuse | A1 |
+| MHI-R12 | residual signs | result adapters | AC12 | T12a,b | sign inversion | EIS preserved | wrong diagnosis | B/C |
+| MHI-R13 | identifiability | identifiability assessor | AC13 | T13a-l | unknown deserialize fails/satisfies | strings stable | false ID | A1/B |
+| MHI-R14 | nine dimensions | health assessment | AC14 | T14a-j | dimension omitted | domain views retained | health gap | C |
+| MHI-R15 | stable diagnostics | runners | AC15 | T15a-g | helper-only pass | additive | unwired behavior | B/C |
+| MHI-R16 | provenance baselines | health adapters | AC16 | T16a-c | absent baseline healthy | old baseline indeterminate | false health | C |
+| MHI-R17 | category/causality | results health | AC17 | T17a,b | physical cause lacks gate | legacy map | causal overclaim | C |
+| MHI-R18 | confounding separation | health rules | AC18 | T18a-d | residual→failure | additive | wrong cause | C |
+| MHI-R19 | compatibility | artifact readers | AC19 | T19a-f | promised input fails | explicit migration | data loss | A0–E |
+| MHI-R20 | exact CLI | cli/runners | AC20 | T20a-g | flags ignored/conflict wins | old invocation works | hidden path | B/C |
+| MHI-R21 | render-only | plottings | AC21 | T21a | renderer assesses | additive | opaque science | D |
+| MHI-R22 | units/signs/variance | adapters | AC22 | T22a-d, F4-T08–09 | unit/sign violation | preserve stored | invalid math | A1–C |
+| MHI-R23 | production validation | tests | AC23 | T23a-d, F4-T16 | helper replaces CLI | additive | false coverage | E |
+| MHI-R24 | explainable conclusion | reports | AC24 | T24a,b | cannot reconstruct IDs | additive | unauditable | D/E |
+| MHI-R25 | named strength authority | evidence | AC25 | T25a,b | raw gets strength | additive | invented authority | A1 |
+| MHI-R26 | independent reviews | docs | AC26 | T26a | review absent | none | release risk | E |
+| MHI-R27 | pairwise timescale covariance is durable, unique, producer-backed, and exactly retrievable | `EvidenceBundle`; `EvidenceBundleBuilder`; artifact-specific evidence adapters; mechanism timescale assessor | F4-AC-01 | F4-T01–16 | covariance has no owner, invalid pair survives, or a non-exact pair is used | V1 explicit collection; future older-field migration is `[]` only | fabricated/incorrect covariance and false agreement | A1/B |
+
+### 15.1 Stable test-variant registry
+
+The abbreviated references in §15 expand to the following exact IDs; a range in §15 is not a substitute for this registry.
+
+| Stable ID | Exact variant / assertion |
+|---|---|
+| MHI-T01a-frozen | no newly implemented default produces a forbidden causal assignment |
+| MHI-T01b-residual | both frozen residual sign fixtures retain their declared signs |
+| MHI-T02a-current-correct-kind | every A0 kind accepts schema 2 with its exact kind |
+| MHI-T02b-current-wrong-kind | every A0 kind rejects schema 2 with another kind |
+| MHI-T02c-current-missing-kind | every A0 kind rejects schema 2 without kind |
+| MHI-T02d-legacy | every A0 documented schema-1 fixture reads |
+| MHI-T02e-unsupported | every A0 kind rejects unsupported schema |
+| MHI-T02f-producer-roundtrip | each A0 producer serializes, validates and rereads |
+| MHI-T03a-dependency | model core has no evidence-module dependency |
+| MHI-T03b-adapter | outer adapter consumes only public result contracts |
+| MHI-T04a-valid | every permitted EvidenceRecord combination round-trips |
+| MHI-T04b-missing | invalid Missing combination returns typed error |
+| MHI-T04c-not-applicable | invalid NotApplicable combination returns typed error |
+| MHI-T04d-strength | invalid strength/derivation combination returns typed error |
+| MHI-T05a-closure | sorted transitive closure contains all ancestors |
+| MHI-T05b-cycle | cycle is reported without lost known ancestors |
+| MHI-T05c-missing | missing ancestor yields Incomplete and Unknown independence |
+| MHI-T05d-initialization | production prior/initialization reuse is SameSource or PartiallyDependent |
+| MHI-T06a-missing | absent input yields Missing/NotAssessed, no quantity |
+| MHI-T06b-na | non-applicable input yields NotApplicable only |
+| MHI-T06c-legacy | legacy lineage stays Unknown |
+| MHI-T07a-immutable | hypothesis level never mutates component interpretation |
+| MHI-T07b-independent | supported hypothesis does not upgrade component physical identity |
+| MHI-T08a-timescale-only | match alone stops below ExperimentallySupported |
+| MHI-T08b-contradiction | critical contradiction lowers current level and appends history |
+| MHI-T08c-amplitude | amplitude missing/failure blocks its required gate |
+| MHI-T08d-validation | missing protocol forbids ValidatedForDomain |
+| MHI-T09a-log-distance | signed log ratio and absolute distance match reference values |
+| MHI-T09b-resolution | sampling/duration/separation failures are deterministic |
+| MHI-T09c-interval-zero | zero-crossing signed interval converts to specified d bounds |
+| MHI-T09d-threshold | conservative upper bound selects exact strength bin |
+| MHI-T09e-covariance | same-fit omitted covariance returns NotAssessed |
+| MHI-T09f-above-weak | above weak emits Neutral/NotAssessed |
+| MHI-T10a-direct-parameter | permitted direct fitted EIS tau remains usable |
+| MHI-T10b-frequency | unapproved EIS frequency is NotApplicable |
+| MHI-T11a-perfect | perfect point alignment joins |
+| MHI-T11b-partial | partial alignment yields the exact classified fraction |
+| MHI-T11c-below-minimum | below minimum fraction is Missing/Indeterminate |
+| MHI-T11d-quasi | equilibrium plus quasi obeys both allow settings |
+| MHI-T11e-transitional | equilibrium plus transitional obeys selected policy |
+| MHI-T11f-disturbed | disturbed obeys reject/worst-case policy |
+| MHI-T11g-indeterminate | indeterminate obeys worst-case policy |
+| MHI-T11h-clock | unresolved clocks are Missing/Indeterminate |
+| MHI-T11i-scope | unresolved scopes are Missing/Indeterminate |
+| MHI-T11j-experiment | missing experiment ID is Missing/Indeterminate |
+| MHI-T11k-tie | nearest-time tie is Ambiguous/MissingEvidence |
+| MHI-T12a-model | model/estimation residual equals measured minus predicted |
+| MHI-T12b-eis | stored EIS residual equals fitted minus measured |
+| MHI-T13a-known | all ten known strings deserialize and serialize unchanged |
+| MHI-T13b-custom | unknown nonempty string becomes Custom unchanged |
+| MHI-T13c-empty | empty unknown string rejects |
+| MHI-T13d-mode | ModeSeparation exact assessor behavior |
+| MHI-T13e-anchor | ReferenceAnchor complete-lineage/domain behavior |
+| MHI-T13f-duration | ObservationDuration exact assessor behavior |
+| MHI-T13g-covariate | IndependentCovariateVariation exact assessor behavior |
+| MHI-T13h-interferent | InterferentVariation exact assessor behavior |
+| MHI-T13i-excitation | TransientExcitation exact assessor behavior |
+| MHI-T13j-unsupported | each unsupported known kind is deterministic NotAssessed |
+| MHI-T13k-custom-assessor | custom without registration is deterministic NotAssessed |
+| MHI-T13l-observability | filter observability alone does not satisfy a requirement |
+| MHI-T14a-signal through MHI-T14i-data | one test per ordered §12 dimension verifies minimum/missing behavior |
+| MHI-T14j-missing-dimension | absent dimension is never WithinBaseline |
+| MHI-T15a-mechanism-cli through MHI-T15g-health-cli | each §10 negative executes a real runner, JSON and human output |
+| MHI-T16a-baseline through MHI-T16c-domain | missing/inadequate/out-of-domain baseline cannot make a healthy or causal conclusion |
+| MHI-T17a-category | finding serializes category and causal status separately |
+| MHI-T17b-physical | physical finding without §6 gates does not exceed Hypothesized |
+| MHI-T18a-residual through MHI-T18d-confounded | anomaly alternatives stay separated from sensor failure |
+| MHI-T19a-schema through MHI-T19f-future | every §4 compatibility row has read/reject fixture |
+| MHI-T20a-timescale through MHI-T20g-steady-state | seven named §10 CLI negatives |
+| MHI-T21a-renderer | renderer has no assessment calculation and DTO projection matches |
+| MHI-T22a-units through MHI-T22d-variance | V, s, Hz, unit and covariance semantics retained |
+| MHI-T23a-unit through MHI-T23d-cli | full suite retains production rather than helper-only coverage |
+| MHI-T24a-json | consumer reconstructs conclusion from serialized IDs/lineage |
+| MHI-T24b-text | human report projects, rather than substitutes for, serialized evidence |
+| MHI-T25a-raw | raw adapter evidence is NotAssessed |
+| MHI-T25b-derived | assessed strength records authority/version/configuration |
+| MHI-T26a-rereview | independent scientific and architecture GO records are attached |
+| F4-T01 | EvidenceBundle containing pair covariance serializes and rereads with the pair entry intact. |
+| F4-T02 | EvidenceBundle with no pair covariance is valid. |
+| F4-T03 | One canonical pair has exactly one retrievable entry. |
+| F4-T04 | Duplicate entries for the same canonical pair are rejected. |
+| F4-T05 | Builder canonicalizes input orientation; serialized validator rejects noncanonical orientation. |
+| F4-T06 | Pair covariance referencing an unknown EvidenceId is rejected. |
+| F4-T07 | Pair covariance referencing evidence that is not a timescale quantity is rejected. |
+| F4-T08 | TauSpace covariance with incompatible units is rejected. |
+| F4-T09 | An unresolvable covariance source artifact is rejected. |
+| F4-T10 | An Independent LogNormal/Delta pair without stored covariance uses the approved zero-covariance independence assumption and records it in StrengthDerivation. |
+| F4-T11 | A PartiallyDependent normal/delta pair with one stored covariance is assessed using that exact entry. |
+| F4-T12 | A PartiallyDependent normal/delta pair without stored covariance is `NotAssessed / JointUncertaintyUnavailable`. |
+| F4-T13 | Unknown independence remains NotAssessed even when a covariance entry exists where the matrix requires resolved dependence. |
+| F4-T14 | Covariance from a different EvidencePairKey is never used as fallback. |
+| F4-T15 | Different insertion orders serialize in identical pair order and produce the identical EvidenceBundle semantic hash. |
+| F4-T16 | A real serialized producer artifact containing covariance flows through its production evidence adapter and EvidenceBundleBuilder into `EvidenceBundle.timescale_pair_uncertainties`, and the mechanism timescale assessor uses the expected exact entry. |
+
+`MHI-T14a-signal` through `MHI-T14i-data`, `MHI-T15a-mechanism-cli` through `MHI-T15g-health-cli`, `MHI-T16a-baseline` through `MHI-T16c-domain`, `MHI-T18a-residual` through `MHI-T18d-confounded`, `MHI-T19a-schema` through `MHI-T19f-future`, `MHI-T20a-timescale` through `MHI-T20g-steady-state`, `MHI-T22a-units` through `MHI-T22d-variance`, and `MHI-T23a-unit` through `MHI-T23d-cli` are literal individual IDs, not parameterized test names.
+
+### 15.2 F4 ownership traceability
+
+| Requirement | Acceptance criterion | Implementation owner | Serialized owner | Construction path | Lookup path | Test IDs | Failure criterion | Compatibility implication | Scientific risk | Phase |
+|---|---|---|---|---|---|---|---|---|---|---|
+| MHI-R9 | AC9: the timescale matrix uses only the exact covariance for the assessed canonical pair | B mechanism timescale assessor | `EvidenceBundle.timescale_pair_uncertainties` | A1 artifact-specific evidence adapters → A1 EvidenceBundleBuilder | `canonical_pair` → exact independence and covariance collection lookups | MHI-T09a-f, F4-T10–14,16 | wrong pair, fallback, unknown-dependence override, or missing-required covariance is used | additive V1 collection; no historical covariance is fabricated | false agreement or causal overclaim | A1/B |
+| MHI-R22 | AC22: covariance representation and units remain dimensionally valid | A1 evidence adapters + EvidenceBundleBuilder | `EvidenceBundle.timescale_pair_uncertainties` | producer explicit covariance field → adapter records source/units → builder validates | exact key lookup after unit-valid bundle construction | MHI-T22a-d, F4-T08–09 | invalid units or unverifiable source is retained | explicit V1 field; future missing field migrates to `[]` | invalid uncertainty propagation | A1/B |
+| MHI-R23 | AC23: real producer-to-assessor execution—not helper-only coverage—uses normalized covariance | A1 adapters/Builder and B timescale assessor | `EvidenceBundle.timescale_pair_uncertainties` | serialized producer artifact → adapter → builder → validated bundle | B assessor `lookup_exact(canonical_pair(...))` | MHI-T23a-d, F4-T16 | an integration path can bypass the bundle or use a helper-only result | no sidecar/global/assessor filesystem route | unwired scientific input | A1/B/E |
+| MHI-R27 | F4-AC-01: one durable owner, 0-or-1 canonical entry, producer-backed provenance, deterministic serialization/hash, and exact lookup | A1 EvidenceBundleBuilder + artifact-specific evidence adapters; B mechanism timescale assessor consumes | `EvidenceBundle.timescale_pair_uncertainties` | already-loaded producer artifact → adapter → builder → validated bundle | exact canonical `EvidencePairKey`, no heuristics | F4-T01–16 | duplicate, noncanonical, unknown/non-timescale reference, invalid source/unit, or non-exact selection survives | V1 field explicit; pre-public-schema no migration; future old form is `[]` | fabricated covariance, false independence, or non-reproducible conclusion | A1/B |
+
+## 16. Pre-review self-audit
+
+| Review blocker | Exact plan section | Exact defined interface/algorithm | Remaining invention required? |
+|---|---|---|---|
+| Lineage transitive closure | §3.2 | `resolve_lineage` | NO |
+| AcquisitionFamilyId | §3.1 | enum, inheritance and Unknown rule | NO |
+| Canonical hash ownership | §3.3 | owner hash-view table | NO |
+| Dependency ordering | §3.1 | role/kind/ID sorting | NO |
+| Missing-ancestor behavior | §3.2 | `Incomplete` plus missing IDs | NO |
+| EvidenceRecord | §5 | full struct | NO |
+| EvidencePairKey | §§5, 5.3 | full struct, canonical ordering, and shared pair semantics | NO |
+| EvidenceRef | §5 | full struct and resolver rule | NO |
+| EvidenceBundle | §§5, 5.3 | full struct, sole covariance ownership, ordering, and hash behavior | NO |
+| ThresholdProvenance | §5 | full struct/source enum | NO |
+| Combination validator | §5.1 | exhaustive combination table/errors | NO |
+| Hypothesis downgrade | §6 | recomputation/history causes | NO |
+| Critical contradiction | §6 | Strong or configured Moderate rule | NO |
+| Amplitude agreement | §6 | relative-error equation | NO |
+| Repeatability | §6 | log-space sample SD | NO |
+| ExperimentallySupported gate | §6 | ten required gates | NO |
+| ValidatedForDomain gate | §6 | protocol/domain/criteria gate | NO |
+| Scope identity | §7 | ScopeKey and bindings | NO |
+| MixedStatePolicy | §7 | three exact enum variants | NO |
+| equilibrium_fraction denominator | §7 | `N_equilibrium/N_classified` | NO |
+| classified_fraction denominator | §7 | `N_classified/N_target` | NO |
+| Temporal precedence | §7 | six-step order | NO |
+| confidence level | §8 | range and alpha equation | NO |
+| z quantile | §8 | inverse standard-normal CDF | NO |
+| signed log-ratio interval | §8 | r/sigma/r_low/r_high equations | NO |
+| d_tau interval conversion | §8 | zero-containing/nonzero rules | NO |
+| threshold-crossing rule | §8 | conservative `d_high` bins | NO |
+| unknown identifiability serialization | §9 | `Custom(String)` serde | NO |
+| unsupported kind result construction | §9 | `identifiability.not_assessed` rows | NO |
+| custom kind result construction | §9 | custom not-assessed rule | NO |
+| mechanism CLI estimation/model route | §10 | three optional mechanism flags | NO |
+| health CLI estimation/model/mechanism route | §10 | four optional health flags | NO |
+| lineage catalog route | §10 | catalog flag/load step | NO |
+| schema-2 current version | §11 | current `2` rule | NO |
+| legacy version list | §11 | `&[1]` rule | NO |
+| schema-2 missing-kind rejection | §11 | validator order/test T02c | NO |
+| nine health dimensions | §12 | enum/nine-dimension matrix | NO |
+| plan tracked in Git | §18 | staged commit procedure | NO |
+
+Acceptance-critical text contains no TBD, suitable, reasonable, or implementation-choice threshold. The type audit confirms every new normative type is defined in §§3, 5–9, 12 or cited as an existing exact source path.
+
+### 16.1 Final normative-type audit
+
+| Normative type/reference | Definition or exact existing source | Undefined? |
+|---|---|---|
+| `CurrentArtifactKindPolicy` | §11 complete enum | NO |
+| `EvidenceIndependenceAssessment` | §5 complete struct | NO |
+| `EvidenceIndependenceReason` | §5 complete enum | NO |
+| `EvidenceRecord` / `EvidenceBundle` | §§5, 5.3 complete structs, sole covariance owner, and ordering | NO |
+| `EvidencePairKey` / `TimescaleCovarianceUse` | §5 complete shared-key and derivation-recording types | NO |
+| `EvidenceUncertaintyModel` | §5 complete closed enum | NO |
+| `TimescalePairUncertainty` / `TimescaleCrossCovariance` | §§5.3, 8 complete types, sole owner, units, and exact lookup | NO |
+| `TimescalePairUncertaintySource` / `PairCovarianceDerivation` | §8 complete producer-backed provenance types | NO |
+| `EvidenceBundleBuilder` / `EvidenceBundleError` | §5.3 conceptual interface, construction behavior, and typed errors | NO |
+| `MechanismHypothesisDefinition` | §6 complete struct | NO |
+| `HypothesisAssessmentRecord` / `HypothesisAssessmentEvent` | §6 complete structs | NO |
+| `HypothesisGateApplicability` | §6 complete generic enum | NO |
+| `TimescaleGateDefinition` / `AmplitudeGateDefinition` / `RepeatabilityGateDefinition` | §6 complete structs | NO |
+| `HypothesisEvidenceRequirement` / `EvidenceRequirementId` | §§5–6 complete types | NO |
+| `MechanismAnalysisReport` | existing `src/results/mechanism.rs::MechanismAnalysisReport`; §6 names the sole changed field | NO |
+| `ArtifactKind`, `VersionedArtifact`, `ArtifactError` | existing `src/domain/artifact.rs` | NO |
+| `IdentifiabilityAssessmentStatus` / `IdentifiabilityAssessment` | §9 complete types | NO |
+
+### 16.2 Final contradiction audit
+
+| Topic | Normative sections checked | Contradiction found? | Resolution |
+|---|---|---|---|
+| A0 allowed files | §§2, 11, 15, 19 | NO | validator explicitly limited to policy-aware validation |
+| A0 prohibited files | §§2, 11, 19 | NO | A1/B types and routes are explicitly excluded |
+| schema-2 artifact-kind behavior | §§2, 11, 15, 19 | NO | behavior is contract policy, not legacy-list membership |
+| `eis_fit` compatibility | §§1, 11, 15, 19 | NO | `PreserveLegacyOptional`, missing schema-2 kind remains accepted |
+| `health_baseline` compatibility | §§1, 11, 15, 19 | NO | `PreserveLegacyOptional`, missing schema-2 kind remains accepted |
+| EvidenceRecord independence | §§3, 5 | NO | no unary field is serialized |
+| EvidenceBundle independence | §§3, 5, 8 | NO | canonical pair assessments own all relational decisions |
+| history ownership | §§6, 10 | NO | report owns append-only per-hypothesis history |
+| prior mechanism artifact | §§6, 10 | NO | input, validation, matching, and append behavior are exact |
+| hypothesis gate applicability | §§6, 14 | NO | every gate is `Required` or `NotApplicable` |
+| uncertainty pair behavior | §§5, 8 | NO | closed models and exhaustive pair matrix |
+| F4 covariance ownership and lookup | §§5.3, 8, 15.2 | NO | EvidenceBundle is sole owner; builder is sole route; assessor uses exact canonical key only |
+| F4 compatibility | §§5.3, 15.2 | NO | V1 explicit field; no pre-public-schema migration; any future old form migrates to `[]` |
+| confidence semantics | §§5, 8 | NO | central interval, exact configured level, and numerical tolerance stated |
+
+### 16.3 Final implementation-discretion audit
+
+| Prior blocker | Could two compliant implementation agents make materially different scientific/interface/compatibility decisions? | Result |
+|---|---|---|
+| F1 A0 scope / compatibility | No: scope, per-contract table, validator branch order, and compatibility invariant are exact. | NO |
+| F2 evidence independence | No: owner, canonical ordering, recomputation, and exhaustive clique algorithm are exact. | NO |
+| F3 hypothesis lifecycle / applicability | No: aggregate owner, declared gates, prior load path, and promotion checks are exact. | NO |
+| F4 uncertainty propagation | No: sole serialized owner, shared pair key, 0-or-1 cardinality, provenance, builder, units/references, exact lookup, missing behavior, hashing, compatibility, and production test are exact. | NO |
+
+### 16.4 Final planning self-review
+
+```text
+Undefined normative types: 0
+Unspecified scientific algorithms: 0
+Unspecified compatibility decisions: 0
+Normative contradictions: 0
+Implementation invention still required: no
+
+A0 scope: unambiguous yes
+Evidence independence: pairwise and serializable yes
+Hypothesis history owner: defined yes
+Gate applicability: fully serialized yes
+Uncertainty pair matrix: complete yes
+Workflow path corrected: yes
+MHI-R2 traceability corrected: yes
+A0 regression check: PASS — this F4 clarification changes only future A1/B planning; A0 remains artifact-contract repair only and still prohibits EvidenceBundle, TimescalePairUncertainty, evidence-adapter, mechanism-scoring, health-integration, and timescale-assessment implementation.
+```
+
+### 16.5 F4 P1 closure self-audit
+
+```text
+Where is TimescalePairUncertainty serialized?
+EvidenceBundle.timescale_pair_uncertainties
+
+How many entries may exist per unordered EvidenceId pair?
+0 or 1
+
+What key identifies the entry?
+canonical EvidencePairKey
+
+What happens with duplicate entries?
+bundle validation fails
+
+Who constructs entries?
+artifact-specific evidence adapters, through EvidenceBundleBuilder
+
+Can EvidenceBundleBuilder invent covariance?
+No
+
+How does the assessor find covariance?
+exact canonical EvidencePairKey lookup
+
+Can it search by parameter/artifact/name heuristics?
+No
+
+What happens if a dependent pair requires covariance and none exists?
+NotAssessed / JointUncertaintyUnavailable
+
+What happens for an Independent pair where the approved matrix permits zero covariance?
+no stored covariance required; zero derived from proven independence and recorded in StrengthDerivation
+
+Does covariance override Unknown independence?
+No
+
+Is pair covariance included in EvidenceBundle semantic hashing?
+Yes
+
+Is F4 behavior still implementation-defined anywhere?
+No
+
+F4 status after remediation: RESOLVED
+READY_FOR_FINAL_PLAN_REVIEW = yes
+```
+
+## 17. Implementation acceptance and reporting
+
+Each phase report gives changed files, test IDs/results, exact command output classification, compatibility fixtures, remaining known baseline failures, commit, and rollback target. No phase reports GO with a failed required test. E runs all §1 commands, full CLI negatives, migration tests, and independent Scientific and Architecture re-review against the committed plan and committed implementation.
+
+## 18. Plan tracking and final validation
+
+After this document is finalized, execute:
+
+```bash
+git add docs/engineering_specification/model_based_mechanism_sensor_health_v1_plan.md
+git ls-files --error-unmatch docs/engineering_specification/model_based_mechanism_sensor_health_v1_plan.md
+git diff --cached --check
+git commit -m "docs(plan): close timescale pair uncertainty ownership contract"
+git status
+git rev-parse HEAD
+shasum -a 256 docs/engineering_specification/model_based_mechanism_sensor_health_v1_plan.md
+git hash-object docs/engineering_specification/model_based_mechanism_sensor_health_v1_plan.md
+```
+
+## 19. Phase A0 — Artifact Contract Repair implementation prompt
+
+Implement Phase A0 only in `/Users/xingyuwang/ProjectOngoing/rust_electroanalysis_cli`. Inspect Git status, branch, base commit, `src/domain/artifact.rs`, `src/results/artifact_contracts.rs`, all eight artifact types and nine producer construction sites in §11, existing artifact tests and fixtures. **`src/domain/artifact.rs` is in A0 scope only for contract-driven current artifact-kind validation.** Add the §11 `CurrentArtifactKindPolicy` declaration to every contract and implement the exact §11 `validate_value` algorithm. For exactly the eight A0 repair-set contracts set `CURRENT_SCHEMA_VERSION=2`, `LEGACY_SCHEMA_VERSIONS=&[1]`, and `CurrentArtifactKindPolicy=Required`. Preserve non-A0 contracts’ prior accepted/rejected matrix; in particular, retain `eis_fit` and `health_baseline` schema-2 behavior and fixture-regress present-correct/pass, present-wrong/fail, and missing/pass. Add real production-path fixtures/tests per repair-set kind: correct schema-2 kind pass, wrong-kind fail, missing-kind schema-2 fail, documented schema-1 form pass, unsupported version fail, and producer serialize → validate → reread pass. Verify every current producer output is accepted by its declared contract. Do not add durable-lineage types, `EvidenceRecord`, `EvidenceBundle`, `EvidenceIndependenceAssessment`, `HypothesisAssessmentRecord`, `TimescalePairUncertainty`, hypothesis assessment, mechanism/health assessment, or evidence CLI flags. Do not modify unrelated baseline formatting/clippy debt. Run the four §1 validation commands and classify failures as existing unrelated, A0-related, new regression, or resolved. Provide traceability to MHI-R2/T02a-f and A0-AC-COMPAT-01, exact compatibility behavior, all changed paths, commands/results, commit ID, and rollback target.
