@@ -1,12 +1,12 @@
 use rust_electroanalysis_cli::{
-    domain::{read_artifact, write_artifact, ArtifactError},
+    ArtifactKind, CurrentArtifactKindPolicy, VersionedArtifact,
+    domain::{ArtifactError, read_artifact, write_artifact},
     results::{
         CalibrationAnalysisReport, CalibrationObservationSet, EisFitArtifact, HealthTrendReport,
         MechanismAnalysisReport, ModelAnalysisReport, ModelCompilationArtifact,
         SensorHealthAssessment, SensorHealthBaseline, SignalAnalysisReport, StateEstimationReport,
         StoredCalibrationModel, TransientAnalysisReport, ValidationResults,
     },
-    ArtifactKind, CurrentArtifactKindPolicy, VersionedArtifact,
 };
 use serde::{Deserialize, Serialize};
 use std::{
