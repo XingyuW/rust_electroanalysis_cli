@@ -27,6 +27,9 @@ The authoritative repository workflow is `.ai/CODE_QUALITY_WORKFLOW.md`; it is p
 | A1-C1 aggregate experiment scope | P1 | CONFIRMED | `CalibrationAnalysisReport.source_experiments` is a vector; `health::baseline::build_with_contexts` consumes multiple manifest records; `health trend` and `mechanism trend` consume manifest record collections. These workflows cannot truthfully emit one mandatory experiment ID. | The approved A1 identity modeled every artifact as single-experiment and provided no aggregate identity. | Replace the mandatory field with `ArtifactExperimentScope`; define aggregate IDs, source authority, propagation, Unknown behavior, and temporal narrowing. | §§3, 4, 5, 7, 15, 16 |
 | A1-C2 legacy lineage representation | P1 | CONFIRMED | Current result schemas have no `lineage`/`ArtifactIdentity` field. `read_artifact` validates only schema/kind and then uses serde deserialization; no migration object can distinguish absent historical lineage from a current known identity. | “Missing fields yield Unknown” was stated without a serialized state or migration representation. | Add explicit `ArtifactLineageState::LegacyUnknown` with a serde default and prohibit fabricated identity during read or reserialization. | §§3, 4, 15, 16 |
 | A1-C3 labeled covariance | P1 | CONFIRMED | `EisFitStatistics.parameter_covariance`, `CalibrationFitStatistics.parameter_covariance`, and estimation covariance fields are `Vec<Vec<f64>>`; `src/mechanism/timescale.rs` and calibration uncertainty code use positional indexing. Model artifacts contain no scientific covariance field. | The approved plan prohibited positional adapter semantics but did not require producer-owned serialized axis labels. | Add producer-owned `LabeledCovarianceMatrix`, exact axis validation/lookup, explicit producer decisions, and unavailable behavior for unlabeled legacy covariance. | §§5.3, 8, 15, 16 |
+| A1-RR-01 unique EIS covariance axes | P1 | CONFIRMED | `src/results/eis.rs::element_id_for_name` maps both `Q_CPE1` and `alpha_CPE1` to `CPE1`, while `parameter_covariance` remains an unlabeled positional matrix. | An EIS element instance was incorrectly treated as the individual covariance parameter. | Define producer-owned `EisParameterIdentity`, a complete element/parameter-key table, canonical `eis.parameter:<element_instance_id>:<parameter_key>` axes, and 1:1 labeled construction. | §§3.1, 5.3, 8, 15.1A, 15.3, 16 |
+| A1-RR-02 LegacyUnknown lineage root | P1 | CONFIRMED | §3.1 keys `ArtifactLineageCatalog.artifacts` by `ArtifactId`, but §3.2 requires every resolver root to be found in that map; `LegacyUnknown` has no `ArtifactId`. | The catalog lookup model was used as the resolver root model, making the required legacy state unresolvable without fabrication. | Make `resolve_lineage(&ArtifactLineageState, ...)` the primary entrypoint, keep known nodes only in the catalog, and define deterministic Known/LegacyUnknown results plus the separate known-ID `RootMissing` API. | §§3.1–3.2, 5, 15.1A, 15.3, 16 |
+| A1-RR-03 acquisition-family identity | P1 | CONFIRMED | `AcquisitionFamilyId` and `acquisition_family_ids` are used throughout §§3–5 and 15 but no type or unknown-family representation is defined. | Family identity was normative before its identity type, validation, producer authority, and Unknown semantics were specified. | Define `AcquisitionFamilyId`, `ArtifactAcquisitionFamilies`, `ResolvedAcquisitionFamilies`, family propagation, independence behavior, and producer authority table. | §§3.1–3.2, 5.2, 15.1A, 15.3, 16 |
 
 ### Baseline classification
 
@@ -64,6 +67,15 @@ Newtypes serialize as their inner strings. Existing repository types are: `Artif
 pub struct ArtifactId(pub String); // exactly "sha256:" + 64 lowercase hex
 pub struct ExperimentId(pub String); // nonempty UTF-8 identifier
 pub struct AggregateExperimentScopeId(pub String); // "sha256:" + 64 lowercase hex
+pub struct AcquisitionFamilyId(pub String);
+pub enum ArtifactAcquisitionFamilies {
+    Known(Vec<AcquisitionFamilyId>),
+    Unknown,
+}
+pub enum ResolvedAcquisitionFamilies {
+    Known(Vec<AcquisitionFamilyId>),
+    Unknown,
+}
 pub enum ScopeKey { Specific(String), All, Unspecified }
 pub enum ArtifactExperimentScope {
     Single { experiment_id: ExperimentId },
@@ -81,7 +93,7 @@ pub struct ArtifactIdentity {
     pub experiment_scope: ArtifactExperimentScope,
     pub sensor_scope: ScopeKey,
     pub channel_scope: ScopeKey,
-    pub acquisition_family_ids: Vec<AcquisitionFamilyId>,
+    pub acquisition_families: ArtifactAcquisitionFamilies,
     pub semantic_sha256: String,
 }
 pub enum ArtifactDependencyRole {
@@ -101,13 +113,22 @@ pub struct ArtifactLineageCatalog {
     pub schema_version: u32,
     pub artifacts: BTreeMap<ArtifactId, ArtifactLineageNode>,
 }
-pub enum LineageResolutionStatus { Complete, Incomplete, CycleDetected, RootMissing }
-pub struct LineageResolution {
-    pub root_artifact_id: ArtifactId,
-    pub ancestor_artifact_ids: Vec<ArtifactId>,
-    pub acquisition_family_ids: Vec<AcquisitionFamilyId>,
-    pub missing_artifact_ids: Vec<ArtifactId>,
+pub enum LineageResolutionStatus {
+    Complete, Incomplete, CycleDetected, Inconsistent, RootMissing,
+}
+pub struct ResolvedArtifactLineage {
     pub status: LineageResolutionStatus,
+    pub root_artifact_id: Option<ArtifactId>,
+    pub ancestor_artifact_ids: Vec<ArtifactId>,
+    pub missing_artifact_ids: Vec<ArtifactId>,
+    pub acquisition_families: ResolvedAcquisitionFamilies,
+    pub reasons: Vec<LineageResolutionReason>,
+}
+pub enum LineageResolutionReason {
+    LegacyUnknownRoot,
+    MissingDependency(ArtifactId),
+    CycleDetected { cycle_artifact_ids: Vec<ArtifactId> },
+    CatalogRootInconsistent,
 }
 pub enum EvidenceIndependence { Independent, PartiallyDependent, SameSource, Unknown }
 pub enum ArtifactLineageState {
@@ -127,9 +148,15 @@ pub enum UnknownLineageReason {
 }
 ```
 
-`Specific` contains a nonempty string. `All` means deliberately broad scope. `Unspecified` means unavailable, never a wildcard. `Known` contains a nonempty string. `Unknown` is serialized literally as `"unknown"`, is retained after deserialization, and is never independent. An acquisition family is the original independent acquisition campaign, experiment, specimen, sensor exposure, or controlled acquisition source from which an artifact derives. It is not a file, artifact ID, algorithm run, or inferred value. Producers inherit the sorted unique union from every direct dependency and append their independently acquired raw-family identity; if that identity is unavailable they append `Unknown`.
+`Specific` contains a nonempty string. `All` means deliberately broad scope. `Unspecified` means unavailable, never a wildcard. `AcquisitionFamilyId` is a newtype over a nonempty UTF-8 string. Its canonicalization is: trim leading and trailing Unicode whitespace, reject the empty result, then preserve the remaining string exactly, including case. It is stable across derived artifacts and is never generated from an artifact path, output filename, or processing timestamp. No silent lowercasing is permitted because repository experiment identifiers are case-sensitive.
 
-`acquisition_family_ids` are sorted `Known` bytewise ascending, then one `Unknown`; duplicate values and duplicate Unknowns are validation errors. Direct dependencies sort by role discriminant, then `artifact_kind.as_str()`, then artifact ID bytes. Artifact catalogs serialize `BTreeMap` key order. All listed vectors are serialized in their stated order.
+`ArtifactAcquisitionFamilies::Known` and `ResolvedAcquisitionFamilies::Known` contain deterministically bytewise-sorted, duplicate-free, nonempty family IDs when the source asserts a known family set. `Unknown` is a distinct serialized enum state; it is not the string `"Unknown"` and is not an empty known vector. A raw acquisition with an authoritative family has a nonempty `Known` set; a derived artifact may contain one or more families. An artifact with no family membership because the producer cannot establish it is `Unknown`, not `Known([])`.
+
+An acquisition family is the original independent acquisition campaign, controlled replicate family, sensor exposure, or acquisition session from which an artifact derives. It is not a file, artifact ID, algorithm run, or inferred value. Producers inherit the sorted unique union from every direct dependency and add a raw-family identity only when the producer has an authoritative acquisition-level mapping. Any required `Unknown` source propagates to `Unknown` unless that producer records an independent authoritative family mapping. `ArtifactIdentity` uses `ArtifactAcquisitionFamilies`; lineage resolution uses `ResolvedAcquisitionFamilies`.
+
+Family propagation is exact: `Known(A) + Known(B) -> Known(sorted_unique_union(A,B))`; any required `Unknown` source -> `Unknown`, subject only to the explicitly recorded independent-authority exception above. `Known([])` is not a valid known family state and is never used to mean Unknown.
+
+Direct dependencies sort by role discriminant, then `artifact_kind.as_str()`, then artifact ID bytes. Artifact catalogs serialize `BTreeMap` key order. All listed vectors are serialized in their stated order.
 
 `ArtifactExperimentScope::Single` means the complete artifact belongs to one authoritative experiment and uses that exact `ExperimentId`; no synthetic ID is permitted. `Aggregate` means the artifact combines at least two experiments. Its member IDs are nonempty, bytewise sorted, deduplicated, and contain at least two unique IDs. `AggregateExperimentScopeId` is not an `ExperimentId` and is exactly:
 
@@ -157,25 +184,45 @@ The current aggregate-capable workflows and their authoritative sources are:
 
 The trend builders do not infer membership from `record_id`, path, row order, or the independent-variable value. A trend with missing member scopes is `Unknown`, not Aggregate.
 
+The acquisition-family assignment contract for A1 source artifacts is:
+
+| Artifact/source | Authoritative family source | Behavior when authority is absent |
+|---|---|---|
+| EIS fit raw acquisition | acquisition campaign/session metadata attached to the measured EIS input | `ArtifactAcquisitionFamilies::Unknown`; circuit label, output path, and fit timestamp are rejected as substitutes |
+| transient raw acquisition | acquisition session/campaign metadata attached to the measured transient input | `Unknown` |
+| calibration observation/raw measurement | controlled acquisition campaign or replicate-family metadata on the retained observation set | `Unknown`; observation ID alone is not a family |
+| signal/raw sensor acquisition | sensor exposure/acquisition-session metadata in the source record | `Unknown` |
+| imported legacy/external artifact | no current authoritative acquisition identity | `Unknown`; a `LegacySourceFingerprint` is not a family |
+| derived A1 artifact | sorted union of authoritative direct-dependency families, plus an independently acquired raw family only when explicitly recorded by the producer | `Unknown` if any required source is Unknown |
+
+Generic A1 adapters never guess a family from a path, filename, timestamp, record ID, or algorithm run. A producer may supply an independent authoritative mapping that resolves an otherwise Unknown family only when it records that mapping and its source field in the artifact provenance.
+
 ### 3.2 Closure resolver
 
-`resolve_lineage(root, catalog)` is the sole resolver for transitive closure. It performs deterministic depth-first traversal over sorted dependencies, with `Visiting` and `Visited` sets keyed by `ArtifactId`.
+`resolve_lineage` has exactly this public interface and is the sole primary resolver for transitive closure:
 
-1. If root is absent, return `RootMissing`, empty ancestors/families, and `missing_artifact_ids=[root]`.
-2. Mark root Visiting. For every sorted direct dependency, add its ID to ancestors. If absent, add it to missing IDs and continue. If Visiting, retain all accumulated ancestors and mark a cycle. If unvisited, recurse.
-3. On every present node, union its `acquisition_family_ids`; retain `Unknown`; then mark Visited.
-4. Sort/deduplicate ancestors, families and missing IDs using §3.1 ordering.
-5. Return `CycleDetected` if any back edge; otherwise `Incomplete` if any missing ID; otherwise `Complete`.
+```rust
+pub fn resolve_lineage(
+    root: &ArtifactLineageState,
+    catalog: &ArtifactLineageCatalog,
+) -> ResolvedArtifactLineage
+```
 
-The resolver neither drops an absent ancestor nor turns missing metadata into a family. A caller receives all known ancestors/families even when status is not Complete.
+The catalog contains known nodes only. Every stored node has `ArtifactLineageState::Known` semantics represented by its `ArtifactIdentity` and direct dependencies. `LegacyUnknown` is never inserted into `artifacts` and no placeholder `ArtifactId` is created.
 
-`classify_independence(a_source_id, b_source_id, catalog)` first resolves both source identities. It returns `SameSource` for equal source IDs. It returns `Unknown` if either source is missing, either result is not Complete, either family set contains Unknown, or required identity is absent. Otherwise it returns `PartiallyDependent` if ancestor closures intersect or known family sets intersect; it returns `Independent` only for distinct source IDs, complete disjoint ancestor closures, and nonempty disjoint known-family sets. An empty known family set is Unknown. Only `Independent` is independent confirmation; every other value is NotIndependent.
+For a `Known { identity, direct_dependencies }` root, the resolver treats the supplied identity and dependencies as authoritative root data and does not require the root to be duplicated in the catalog. It sets `root_artifact_id=Some(identity.artifact_id)`, includes the root family state, and recursively resolves every sorted direct dependency through the catalog. If the root ID is present in the catalog, its node must be semantically identical to the supplied identity/dependencies; otherwise the result is `Inconsistent` with `CatalogRootInconsistent`. A separate `resolve_known_artifact_id(root_id, catalog)` helper may resolve a known ID solely from the catalog; only that explicit ID-root API returns `RootMissing` for an absent root.
+
+Traversal is deterministic depth-first over sorted dependencies, with `Visiting` and `Visited` sets keyed by `ArtifactId`. For each dependency, add its ID to `ancestor_artifact_ids`; if absent, add the exact ID to `missing_artifact_ids` and reason `MissingDependency(id)`; if Visiting, report one deterministic cycle consisting of the active stack slice from the first occurrence of that ID through the repeated ID, and reason `CycleDetected { cycle_artifact_ids }`; otherwise recurse. On every present node, union its `ArtifactAcquisitionFamilies` into the result. Sort and deduplicate ancestors and missing IDs bytewise. Return `CycleDetected` if any back edge, otherwise `Incomplete` if any dependency is missing, otherwise `Complete`. Known ancestors and their family information are retained for both `Incomplete` and `CycleDetected` results.
+
+For a `LegacyUnknown { .. }` root, return exactly `status=Incomplete`, `root_artifact_id=None`, empty ancestor IDs, empty missing IDs, `acquisition_families=Unknown`, and `reasons=[LegacyUnknownRoot]`. It must not return `RootMissing`, inspect a fabricated ID, create a synthetic ID, or classify the root as complete. `RootMissing` is therefore retained only for the explicit known-ID helper and is not a possible LegacyUnknown result.
+
+The resolver neither drops a missing ancestor nor turns missing metadata into a family. `classify_independence(a, b, bundle)` first resolves each evidence source from its `ArtifactLineageState` root. It returns `SameSource` only when known source identity proves equal artifact IDs. Otherwise it returns `Unknown` if either root is `LegacyUnknown`, either result is not `Complete`, either family state is `Unknown`, or either known family set is empty. If both are complete with known nonempty families, it returns `PartiallyDependent` when ancestor closures intersect or family intersections are nonempty, and `Independent` only when source IDs differ, closures are disjoint, and family sets are disjoint. Only `Independent` is independent confirmation; every other value is NotIndependent.
 
 Permanent A1 production-path test MHI-T05d: serialize transient artifact → use it as estimation initialization or prior → serialize `StateEstimationReport` → mechanism evidence adapter reads both plus the catalog. The later transient evidence resolves SameSource or PartiallyDependent, never Independent; JSON and human outputs state the relationship.
 
 ### 3.3 Canonical semantic identity and hash ownership
 
-`ArtifactId = "sha256:" + SHA256(canonical_semantic_bytes)` and `semantic_sha256` is the same lowercase hex without prefix. Canonical bytes are UTF-8 RFC 8785 canonical JSON for a named, owned hash-view struct. Reject non-finite numbers before producing bytes. Include kind, schema version, scientific payload, scope, sorted family IDs, scientifically meaningful producer algorithm/config identity, and sorted `(role, dependency ID)` pairs. Exclude artifact ID, semantic hash, absolute paths, output directory, generated timestamp, human text, and formatting. A dependency is represented by role + ID only; it is not embedded recursively.
+`ArtifactId = "sha256:" + SHA256(canonical_semantic_bytes)` and `semantic_sha256` is the same lowercase hex without prefix. Canonical bytes are UTF-8 RFC 8785 canonical JSON for a named, owned hash-view struct. Reject non-finite numbers before producing bytes. Include kind, schema version, scientific payload, scope, the exact serialized `ArtifactAcquisitionFamilies` state and sorted known family IDs, scientifically meaningful producer algorithm/config identity, and sorted `(role, dependency ID)` pairs. Exclude artifact ID, semantic hash, absolute paths, output directory, generated timestamp, human text, and formatting. A dependency is represented by role + ID only; it is not embedded recursively.
 
 | Artifact kind | Hash-view owner | Included payload | Excluded / dependency treatment | Ordering |
 |---|---|---|---|---|
@@ -243,12 +290,20 @@ pub struct EvidenceRequirementId(pub String);
 pub struct HealthFindingId(pub String);
 pub struct RequirementId(pub String);
 pub struct ComponentId(pub String);
+pub struct LegacySourceFingerprint(pub String);
 pub enum EvidenceTarget {
     MechanismHypothesis(HypothesisId), HealthFinding(HealthFindingId),
     HealthDimension(HealthDimension), IdentifiabilityRequirement(RequirementId),
     ModelComponent(ComponentId),
 }
-pub struct EvidenceSourceRef { pub artifact_id: ArtifactId, pub artifact_kind: ArtifactKind, pub field_path: String }
+pub enum EvidenceArtifactSource {
+    Known { artifact_id: ArtifactId, artifact_kind: ArtifactKind },
+    LegacyUnknown {
+        artifact_kind: ArtifactKind,
+        source_fingerprint: LegacySourceFingerprint,
+    },
+}
+pub struct EvidenceSourceRef { pub artifact: EvidenceArtifactSource, pub field_path: String }
 pub enum EvidenceSourceClass { Observed, ModelDerived, ProducerAssessment, ExternalReference }
 pub enum EvidenceScopeDerivation {
     ArtifactScope,
@@ -308,7 +363,7 @@ pub struct EvidenceIndependenceAssessment {
     pub left_lineage_status: LineageResolutionStatus,
     pub right_lineage_status: LineageResolutionStatus,
     pub shared_ancestor_artifact_ids: Vec<ArtifactId>,
-    pub shared_acquisition_family_ids: Vec<AcquisitionFamilyId>,
+    pub shared_acquisition_families: Vec<AcquisitionFamilyId>,
     pub reasons: Vec<EvidenceIndependenceReason>,
 }
 pub enum EvidenceIndependenceReason {
@@ -325,6 +380,8 @@ pub struct EvidenceBundle {
     pub warnings: Vec<String>,
 }
 ```
+
+`EvidenceArtifactSource::Known` is used only when the source artifact has a known `ArtifactId`. `EvidenceArtifactSource::LegacyUnknown` represents a readable legacy artifact without an artifact ID and never fabricates one. `LegacySourceFingerprint` is an audit/deduplication locator only: its canonical value is the lowercase hexadecimal SHA-256 of the exact serialized legacy artifact bytes, or, when raw bytes are unavailable at the adapter boundary, the public-reader source-content hash already exposed by the repository. It is not an `ArtifactId`, lineage identity, proof of independence, or acquisition-family identity. The fingerprint and `artifact_kind` remain serializable even though lineage resolution for this source is `LegacyUnknown`.
 
 `EvidenceExperimentScope::Single` carries the actual member `ExperimentId` and a derivation. An adapter may narrow `Aggregate` to `Single` only from the exact selected source record/field that explicitly carries that member ID; membership in the aggregate set alone is insufficient. The adapter preserves the selected ID, `source_field_path`, and `EvidenceScopeDerivation::MemberRecord` in the evidence record. `ArtifactScope` is valid only when the selected artifact itself is Single. An aggregate evidence record is not point-temporally joinable.
 
@@ -366,7 +423,7 @@ pub enum EvidenceBundleError {
 
 Independence is a relation owned by `EvidenceBundle`, never a unary `EvidenceRecord` field. Every assessment serializes an `EvidencePairKey`; reversed keys are invalid, not distinct. Both IDs must exist exactly once in the same bundle, must differ, and no pair may occur twice.
 
-For records A and B, the builder recomputes §3.2 lineage resolution. It yields `SameSource` when source artifact IDs are equal. With distinct sources, it yields `Unknown` if either closure is not `Complete`, either required acquisition-family identity is unknown, or either known-family set is empty. It yields `PartiallyDependent` if complete ancestor closures intersect or known acquisition-family sets intersect. It yields `Independent` only if sources differ, both closures are complete, both known nonempty family sets are known, and both ancestor and family sets are disjoint. The builder records the two statuses, sorted intersections, and every applicable typed reason. The validator recomputes this algorithm and rejects a serialized classification, status, intersection, or reason that disagrees with it as `EvidenceIndependenceMismatch`; callers cannot serialize an arbitrary `Independent`.
+For records A and B, the builder recomputes §3.2 lineage resolution. It yields `SameSource` only when both `EvidenceArtifactSource` values are `Known` and their artifact IDs are equal. If either source is `LegacyUnknown`, the result is `Unknown` permanently, even when the other source is complete and even when a second complete source is compared. With distinct known sources, it yields `Unknown` if either closure is not `Complete`, either resolved family state is `Unknown`, or either known family set is empty. It yields `PartiallyDependent` if complete ancestor closures intersect or both known family sets intersect. It yields `Independent` only if sources differ, both closures are complete, both family states are `Known` with nonempty sets, and both ancestor and family sets are disjoint. The builder records sorted intersections and every applicable typed reason. The validator recomputes this algorithm and rejects a serialized classification, status, intersection, or reason that disagrees with it as `EvidenceIndependenceMismatch`; callers cannot serialize an arbitrary `Independent`.
 
 For a requirement needing N independent supporting evidence items, form a graph whose vertices are eligible supporting `EvidenceRecord`s and whose edges are the recomputed pair classifications equal to `Independent`. V1 performs deterministic exhaustive subset search: enumerate subsets in descending cardinality and, within one cardinality, lexicographic `EvidenceId` order; select the first subset for which every pair is an Independent edge. Its cardinality is the independent-confirmation count. A missing pair caused by unresolved lineage is not an edge and those records cannot contribute. Required tests cover same artifact → `SameSource`; shared ancestor → `PartiallyDependent`; shared family → `PartiallyDependent`; complete disjoint lineage/family → `Independent`; missing ancestor → `Unknown`; unknown family → `Unknown`; reversed pair rejection; serialized/computed mismatch rejection; and A-B Independent, A-C Independent, B-C PartiallyDependent → largest subset size 2.
 
@@ -389,13 +446,70 @@ pub struct LabeledCovarianceMatrix {
     pub axes: Vec<CovarianceAxis>,
     pub values: Vec<Vec<f64>>,
 }
+pub enum CovarianceAxisValidationError {
+    EisParameterAxisCardinalityMismatch,
+    DuplicateCovarianceAxisId,
+    UnknownEisParameterKey,
+}
 ```
 
-Axis IDs are nonempty, stable, producer-owned, and unique within a matrix. `values` is square with `axes.len()` rows/columns; every value is finite; every unit is present and valid; and symmetry is checked with the already-approved numerical tolerance. Consumers use only exact `CovarianceAxisId` equality. They may not infer meaning from row/column position, display labels, parameter-name guessing, matrix dimension, component order, neighboring fields, or a fallback axis.
+Axis IDs are nonempty, stable, producer-owned, and unique within a matrix. For every `LabeledCovarianceMatrix`, `(element_instance_id, parameter_key)` is unique among EIS descriptors and all generated `CovarianceAxisId` values are unique; a duplicate is a typed validation failure, never first-wins or last-wins. `values` is square with `axes.len()` rows/columns; every value is finite; every unit is present and valid; and symmetry is checked with the already-approved numerical tolerance. Consumers use only exact `CovarianceAxisId` equality. They may not infer meaning from row/column position, display labels, parameter-name guessing, matrix dimension, component order, neighboring fields, or a fallback axis.
 
-The producer may label rows and columns from its authoritative internal descriptor order at the moment the covariance is constructed. After serialization, that ordering is not a consumer contract. Stable namespaces are `eis.parameter:<stable-id>`, `calibration.parameter:<stable-id>`, `estimation.state:<StateId>`, `estimation.parameter:<ParameterId>`, `model.parameter:<ParameterId>`, `model.state:<StateId>`, and `derived.timescale:<stable-derived-id>`. An adapter may not generate IDs from display labels.
+The producer may label rows and columns from its authoritative internal descriptor order at the moment the covariance is constructed. After serialization, that ordering is not a consumer contract. Stable namespaces are `eis.parameter:<element_instance_id>:<parameter_key>`, `calibration.parameter:<stable-id>`, `estimation.state:<StateId>`, `estimation.parameter:<ParameterId>`, `model.parameter:<ParameterId>`, `model.state:<StateId>`, and `derived.timescale:<stable-derived-id>`. An adapter may not generate IDs from display labels, fitted-value order, local vector index, matrix position, or generic element ID.
 
-For every entry, validation requires: (1) both IDs resolve exactly once in `EvidenceBundle.records`; (2) both resolved records are eligible positive timescale quantities for §8—Available `tau`, finite `value > 0`, exact UCUM `s`, or the existing contract's explicitly normalized compatible timescale representation; (3) the key is canonical; (4) `LogSpace` covariance is finite dimensionless log covariance and `TauSpace` covariance is finite `s^2`; and (5) `source.source_artifact_id` and `source.source_artifact_kind` resolve as a matching identity either in `lineage_catalog` or as one of the two records' direct `source.artifact_id` identities under the existing lineage contract. An unresolvable, mismatched, or non-producer-backed source is `InvalidTimescaleCovarianceSource`; a bad record reference is `UnknownTimescaleEvidenceReference`; a non-timescale record is the same typed validation failure; and incompatible covariance units are `TimescaleCovarianceUnitMismatch`. Duplicate canonical keys fail with `DuplicateTimescalePairUncertainty`; there is no first-wins, latest-wins, merging, averaging, or precedence.
+For EIS, the producer-owned identity is:
+
+```rust
+pub struct EisParameterIdentity {
+    pub element_instance_id: String,
+    pub parameter_key: EisParameterKey,
+}
+pub struct EisParameterKey(pub String);
+```
+
+`element_instance_id` is the canonical machine ID from the parsed circuit instance, preserving the producer’s exact case and form, such as `R1`, `C1`, `CPE1`, or `W1`. `EisParameterKey` is a producer-authoritative lowercase ASCII token. The canonical EIS axis ID is exactly `eis.parameter:<element_instance_id>:<parameter_key>`. Namespace and parameter-key tokens are ASCII lowercase; the element instance ID preserves canonical producer spelling. `:` is reserved as the namespace delimiter. Current circuit labels are the restricted `<ElementType><digits>` form accepted by `src/impedance/circuits.rs`; therefore a producer rejects any element instance ID containing `:` rather than escaping it. No alternate escaping is defined in V1.
+
+The complete mapping for every current `src/impedance/elements.rs::ElementType` parameter is:
+
+| Element kind | Element instance form | Parameter | Stable `parameter_key` | Unit |
+|---|---|---|---|---|
+| `R` | `R<n>` | `R` | `r` | `Ohm` |
+| `C` | `C<n>` | `C` | `c` | `F` |
+| `L` | `L<n>` | `L` | `l` | `H` |
+| `W` | `W<n>` | `sigma` | `sigma` | `Ohm s^-1/2` |
+| `CPE` | `CPE<n>` | `Q` | `q` | `Ohm^-1 s^alpha` |
+| `CPE` | `CPE<n>` | `alpha` | `alpha` | dimensionless |
+| `Wo` | `Wo<n>` | `Z0` | `z0` | `Ohm` |
+| `Wo` | `Wo<n>` | `tau` | `tau` | `s` |
+| `Ws` | `Ws<n>` | `Z0` | `z0` | `Ohm` |
+| `Ws` | `Ws<n>` | `tau` | `tau` | `s` |
+| `La` | `La<n>` | `L` | `l` | `H s^(alpha-1)` |
+| `La` | `La<n>` | `alpha` | `alpha` | dimensionless |
+| `Gw` | `Gw<n>` | `sigma` | `sigma` | `Ohm s^alpha` |
+| `Gw` | `Gw<n>` | `alpha` | `alpha` | dimensionless |
+| `G` | `G<n>` | `R_G` | `r_g` | `Ohm` |
+| `G` | `G<n>` | `t_G` | `t_g` | `s` |
+| `Gs` | `Gs<n>` | `R_G` | `r_g` | `Ohm` |
+| `Gs` | `Gs<n>` | `t_G` | `t_g` | `s` |
+| `Gs` | `Gs<n>` | `phi` | `phi` | dimensionless |
+| `K` | `K<n>` | `R` | `r` | `Ohm` |
+| `K` | `K<n>` | `tau_k` | `tau_k` | `s` |
+| `Zarc` | `Zarc<n>` | `R` | `r` | `Ohm` |
+| `Zarc` | `Zarc<n>` | `tau_k` | `tau_k` | `s` |
+| `Zarc` | `Zarc<n>` | `gamma` | `gamma` | dimensionless |
+| `TLMQ` | `TLMQ<n>` | `Rion` | `r_ion` | `Ohm` |
+| `TLMQ` | `TLMQ<n>` | `Qs` | `q_s` | `Ohm^-1 s^gamma` |
+| `TLMQ` | `TLMQ<n>` | `gamma` | `gamma` | dimensionless |
+| `T` | `T<n>` | `A` | `a_upper` | `Ohm` |
+| `T` | `T<n>` | `B` | `b_upper` | `Ohm` |
+| `T` | `T<n>` | `a` | `a_lower` | dimensionless |
+| `T` | `T<n>` | `b` | `b_lower` | `s` |
+
+The empty units returned by the current element metadata are represented as `dimensionless` in this contract. Thus a CPE covariance containing both parameters must serialize, for example, as `eis.parameter:CPE1:q` and `eis.parameter:CPE1:alpha`; one `eis.parameter:CPE1` axis is invalid. The producer performs an exhaustive descriptor-to-axis mapping audit: every authoritative ordered fit-parameter descriptor maps to exactly one `EisParameterIdentity` and one covariance axis, and every covariance row/column maps back to exactly one descriptor. A descriptor count different from the axis count, a dropped descriptor, or a duplicate identity is a typed serialization failure (`EisParameterAxisCardinalityMismatch`, `DuplicateCovarianceAxisId`, or `UnknownEisParameterKey`).
+
+The EIS production boundary is the only place allowed to use internal order: authoritative ordered fit descriptor + matching covariance row/column → `EisParameterIdentity` → canonical `CovarianceAxisId`. After labeled serialization, consumers use exact-axis lookup only. `lookup_exact(CovarianceAxisId)` returns the unique axis or no result; a wrong key, including a key differing only by parameter, never falls back to element ID, position, display name, or nearest axis.
+
+For every entry, validation requires: (1) both IDs resolve exactly once in `EvidenceBundle.records`; (2) both resolved records are eligible positive timescale quantities for §8—Available `tau`, finite `value > 0`, exact UCUM `s`, or the existing contract's explicitly normalized compatible timescale representation; (3) the key is canonical; (4) `LogSpace` covariance is finite dimensionless log covariance and `TauSpace` covariance is finite `s^2`; and (5) a `Known` covariance source resolves as a matching identity either in `lineage_catalog` or as one of the two records' direct `EvidenceArtifactSource::Known` identities. A `LegacyUnknown` evidence source cannot provide producer-backed covariance or lineage identity. An unresolvable, mismatched, or non-producer-backed source is `InvalidTimescaleCovarianceSource`; a bad record reference is `UnknownTimescaleEvidenceReference`; a non-timescale record is the same typed validation failure; and incompatible covariance units are `TimescaleCovarianceUnitMismatch`. Duplicate canonical keys fail with `DuplicateTimescalePairUncertainty`; there is no first-wins, latest-wins, merging, averaging, or precedence.
 
 There is exactly one production construction route:
 
@@ -574,8 +688,7 @@ pub struct TimescalePairUncertainty {
     pub source: TimescalePairUncertaintySource,
 }
 pub struct TimescalePairUncertaintySource {
-    pub source_artifact_id: ArtifactId,
-    pub source_artifact_kind: ArtifactKind,
+    pub source_artifact: EvidenceArtifactSource,
     pub left_source_field_path: String,
     pub right_source_field_path: String,
     pub covariance_source_field_path: String,
@@ -644,7 +757,7 @@ The A1 producer decisions are normative:
 
 | Producer | Classification | Current evidence | A1 decision |
 |---|---|---|---|
-| EIS | A — add labeled covariance | `EisFitArtifact` stores `parameter_covariance` and serialized `EisFittedParameter.element_id`; the fit owns `fit.parameter_names` ordering at construction | Add `LabeledCovarianceMatrix` at the EIS writer boundary using validated producer-owned `eis.parameter:<element_id>` axes in the exact fit descriptor order. Keep legacy `parameter_covariance` readable; A1 adapters consume only the labeled field. |
+| EIS | A — add labeled covariance | `EisFitArtifact` stores `parameter_covariance`; `CircuitNode::get_param_names/get_param_units` and `src/results/eis.rs` own the ordered descriptor metadata at fit construction. `EisFittedParameter.element_id` is only an element-instance projection and is insufficient as an axis. | Add `LabeledCovarianceMatrix` at the EIS writer boundary using the complete §5.3 mapping and validated `eis.parameter:<element_instance_id>:<parameter_key>` axes in exact descriptor order. Keep legacy `parameter_covariance` and unlabeled artifacts readable; A1 adapters consume only the labeled field. |
 | calibration | A — producer covariance exists, but pair covariance unavailable in A1 V1 | `CalibrationFitStatistics.parameter_covariance` is positional; `CalibrationParameter` has a `name` but no stable producer-owned parameter ID contract | Do not invent IDs from names. Keep old covariance readable, but declare calibration pair covariance unavailable in A1 V1 until a stable serialized calibration parameter-ID contract exists. |
 | estimation | A — add labels only where stable IDs resolve | report covariance is positional; model/component contracts provide `StateId`/`ParameterId` only when the serialized model definition/bindings are present | Add labels from exact `estimation.state:<StateId>` / `estimation.parameter:<ParameterId>` bindings at covariance construction. If any required axis cannot resolve to a serialized stable ID, the adapter emits no pair covariance. |
 | model | C — not consumed for pair covariance | `ModelCompilationArtifact`/`ModelAnalysisReport` expose model definitions and identifiability metadata but no serialized scientific covariance matrix | Do not add labeled covariance or pair-covariance adapters for model artifacts in A1. |
@@ -652,6 +765,8 @@ The A1 producer decisions are normative:
 Legacy EIS, calibration, and estimation positional matrices remain readable for compatibility, but an A1 evidence adapter must treat them as unlabeled and return unavailable pair covariance. The current mechanism implementation's positional lookup is therefore an A1 implementation site to remove from the evidence path, not an approved A1 semantic.
 
 No universal EIS transformation is permitted. A1 must not apply `tau=1/(2*pi*f)` or `tau=R*C` to arbitrary features. `tau=R*C` and `tau_c=(R*Q)^(1/alpha)` remain available only through the existing producer/model semantics in `src/mechanism/timescale.rs`, after the exact circuit branch and parameter axes are authorized. No conversion is permitted for CPE, Warburg, DRT peak, arbitrary Bode feature, or generic fitted frequency without a registered current producer/model transform.
+
+Where the existing approved R-CPE producer/model transform is applicable, its source-axis contract is explicit: `eis.parameter:CPE1:q` for `Q`, `eis.parameter:CPE1:alpha` for `alpha`, and the corresponding exact `eis.parameter:<R-instance>:r` for the resistor term. The delta-method registry must name all required source axes; it may not represent the CPE calculation as one `CPE1` axis. This paragraph does not authorize a new CPE timescale transformation and does not alter the existing CPE/Warburg/DRT restrictions.
 
 Current repository permitted EIS sources are direct fitted time parameters in `src/mechanism/timescale.rs` for `ElementType::{Wo,Ws,G,Gs,K,Zarc}` and derived `tau=R*C` / `tau_c=(R*Q)^(1/alpha)` in an explicitly modeled parallel R-C/R-CPE branch. No current serialized EIS feature kind declares approved single-relaxation frequency semantics; therefore frequency-to-tau conversion is NotApplicable in V1. It remains forbidden for Nyquist extrema, Bode extrema, DRT peaks and generic fitted frequencies until a future artifact adds approved feature metadata.
 
@@ -841,6 +956,9 @@ Every scientific threshold above is configuration, finite, serialized, and recor
 | MHI-R29 / A1-C2 | legacy lineage is explicit and never fabricated or upgraded by reserialization | artifact readers/writers; `ArtifactLineageState`; migration boundary | A1-C2-AC-01 | A1-T09–14 | missing lineage becomes Known, identity is synthesized, or LegacyUnknown counts as independent | schema 1/2/3/4 legacy payloads remain readable with explicit Unknown lineage | false lineage closure and false independence | A1 |
 | MHI-R30 / A1-C3 | covariance semantics are producer-labeled, validated, and exact-axis-only | EIS/estimation producers; covariance adapter; `LabeledCovarianceMatrix` | A1-C3-AC-01 | A1-T15–28 | consumer uses position/name/dimension or legacy unlabeled covariance | old covariance fields remain readable but unavailable to A1 | fabricated pair uncertainty and false agreement | A1 |
 | MHI-R31 | registered direct/delta covariance is the only route to `TimescalePairUncertainty` | covariance registry and adapter; `PairCovarianceDerivation` | A1-C3-AC-02 | A1-T29–35 | unregistered transform, finite-difference Jacobian, or wrong axis is used | additive labeled covariance; no legacy covariance reinterpretation | invalid uncertainty propagation | A1/B |
+| A1-RR-01 / MHI-R32 | every EIS fit parameter has a unique producer-owned covariance axis, including separate CPE Q and alpha axes | `src/impedance/elements.rs`; `src/impedance/circuits.rs`; `src/results/eis.rs`; EIS covariance adapter; `EisParameterIdentity`; `LabeledCovarianceMatrix` | A1-RR-01-AC-01 | EIS-AXIS-01–05 | any descriptor is dropped, duplicated, positionally inferred, or CPE Q/alpha share an axis | legacy unlabeled matrices remain readable but unavailable to A1; current labeled field is additive | wrong cross-parameter covariance and invalid uncertainty propagation | A1 |
+| A1-RR-02 / MHI-R33 | lineage resolution accepts a state root, catalogs only known nodes, and deterministically resolves Known and LegacyUnknown | lineage resolver; `ArtifactLineageState`; `ArtifactLineageCatalog`; `ResolvedArtifactLineage`; `EvidenceArtifactSource` | A1-RR-02-AC-01 | LINEAGE-ROOT-01–06 | LegacyUnknown becomes RootMissing/Complete, root is self-looked-up, or an ID is fabricated | legacy lineage remains readable and Unknown; known-ID `RootMissing` is retained only for the explicit ID API | false closure and false independence | A1 |
+| A1-RR-03 / MHI-R34 | acquisition family identity and Unknown state are explicit, authoritative, propagated, and used by independence | `src/domain/provenance.rs` as repository hash authority; lineage/evidence schema; `AcquisitionFamilyId`; `ArtifactAcquisitionFamilies`; `ResolvedAcquisitionFamilies` | A1-RR-03-AC-01 | ACQ-FAMILY-01–08 | family ID is undefined, guessed from path/time, encoded as magic string/empty vector, or Unknown is dropped | existing artifacts without authority remain Unknown; no fabricated family identity | false independent confirmation and cross-acquisition scientific overclaim | A1 |
 
 ### 15.1 Stable test-variant registry
 
@@ -981,6 +1099,25 @@ The abbreviated references in §15 expand to the following exact IDs; a range in
 | A1-T33 | Type audit finds zero undefined amendment types. |
 | A1-T34 | Algorithm audit finds zero unspecified amendment algorithms. |
 | A1-T35 | Compatibility/contradiction audits find zero unspecified decisions or contradictions. |
+| EIS-AXIS-01 | A valid CPE covariance containing Q and alpha serializes as distinct `eis.parameter:CPE<n>:q` and `eis.parameter:CPE<n>:alpha` axes; both exact lookups succeed and `axis(Q) != axis(alpha)`. |
+| EIS-AXIS-02 | Every current EIS fit descriptor in the §5.3 mapping maps 1:1 to one covariance axis; descriptor count, axis count, and matrix dimension agree. |
+| EIS-AXIS-03 | Duplicate EIS parameter identities or axis IDs are rejected with a typed validation error. |
+| EIS-AXIS-04 | Lookup with a wrong parameter key returns no result and never falls back to element ID, display label, or position. |
+| EIS-AXIS-05 | Legacy unlabeled EIS covariance remains readable but is ineligible for A1 pair covariance and is never interpreted by row position. |
+| LINEAGE-ROOT-01 | A Known root resolves direct and transitive dependencies without requiring the root to be duplicated in `ArtifactLineageCatalog`. |
+| LINEAGE-ROOT-02 | A LegacyUnknown root returns `Incomplete`, not `RootMissing`, with the exact empty-ID/Unknown-family result. |
+| LINEAGE-ROOT-03 | A LegacyUnknown root has no fabricated or synthetic `ArtifactId`. |
+| LINEAGE-ROOT-04 | A Known root with a missing ancestor returns `Incomplete` and the exact missing dependency ID. |
+| LINEAGE-ROOT-05 | A reachable cycle returns `CycleDetected` with deterministic cycle artifact IDs and retains known ancestors. |
+| LINEAGE-ROOT-06 | Evidence resolved from a LegacyUnknown root yields `Unknown` independence and cannot become `Independent` through comparison with a complete source. |
+| ACQ-FAMILY-01 | A valid `AcquisitionFamilyId` round-trips after trim/canonical validation. |
+| ACQ-FAMILY-02 | An empty or whitespace-only family ID is rejected. |
+| ACQ-FAMILY-03 | Known family sets sort bytewise and deduplicate deterministically. |
+| ACQ-FAMILY-04 | `ResolvedAcquisitionFamilies::Unknown` remains distinct from `Known([])`; the latter is invalid. |
+| ACQ-FAMILY-05 | `Known(A) + Known(B)` produces the sorted unique union. |
+| ACQ-FAMILY-06 | `Known(A) + Unknown` produces `Unknown`. |
+| ACQ-FAMILY-07 | Two complete sources with a shared known family produce `PartiallyDependent`. |
+| ACQ-FAMILY-08 | An unknown family blocks `Independent`, even when lineage ancestors are disjoint. |
 
 `MHI-T14a-signal` through `MHI-T14i-data`, `MHI-T15a-mechanism-cli` through `MHI-T15g-health-cli`, `MHI-T16a-baseline` through `MHI-T16c-domain`, `MHI-T18a-residual` through `MHI-T18d-confounded`, `MHI-T19a-schema` through `MHI-T19f-future`, `MHI-T20a-timescale` through `MHI-T20g-steady-state`, `MHI-T22a-units` through `MHI-T22d-variance`, and `MHI-T23a-unit` through `MHI-T23d-cli` are literal individual IDs, not parameterized test names.
 
@@ -993,12 +1130,21 @@ The abbreviated references in §15 expand to the following exact IDs; a range in
 | MHI-R23 | AC23: real producer-to-assessor execution—not helper-only coverage—uses normalized covariance | A1 adapters/Builder and B timescale assessor | `EvidenceBundle.timescale_pair_uncertainties` | serialized producer artifact → adapter → builder → validated bundle | B assessor `lookup_exact(canonical_pair(...))` | MHI-T23a-d, F4-T16 | an integration path can bypass the bundle or use a helper-only result | no sidecar/global/assessor filesystem route | unwired scientific input | A1/B/E |
 | MHI-R27 | F4-AC-01: one durable owner, 0-or-1 canonical entry, producer-backed provenance, deterministic serialization/hash, and exact lookup | A1 EvidenceBundleBuilder + artifact-specific evidence adapters; B mechanism timescale assessor consumes | `EvidenceBundle.timescale_pair_uncertainties` | already-loaded producer artifact → adapter → builder → validated bundle | exact canonical `EvidencePairKey`, no heuristics | F4-T01–16 | duplicate, noncanonical, unknown/non-timescale reference, invalid source/unit, or non-exact selection survives | V1 field explicit; pre-public-schema no migration; future old form is `[]` | fabricated covariance, false independence, or non-reproducible conclusion | A1/B |
 
+### 15.3 Re-review defect closure traceability
+
+| Finding | Exact requirement ID | Acceptance criterion | Implementation modules / public schema | Test IDs | Explicit failure criterion | Compatibility impact | Scientific risk | Phase |
+|---|---|---|---|---|---|---|---|---|
+| A1-RR-01 | `A1-RR-01-AC-01` | `EisParameterIdentity` maps every current descriptor exactly once; `CPE<n>:q` and `CPE<n>:alpha` serialize as distinct exact axes; duplicate and count mismatch fail | `src/impedance/elements.rs`, `src/impedance/circuits.rs`, `src/results/eis.rs`; `EisParameterIdentity`, `EisParameterKey`, `CovarianceAxisId`, `LabeledCovarianceMatrix` | EIS-AXIS-01–05 | dropped/duplicated descriptor, shared element-only axis, positional/name fallback, or wrong-key lookup succeeds | legacy unlabeled EIS covariance remains readable and unavailable to A1; current labeled covariance is additive | cross-parameter covariance can be assigned to the wrong scientific quantity | A1 |
+| A1-RR-02 | `A1-RR-02-AC-01` | `resolve_lineage(&ArtifactLineageState, ...)` returns the exact Known/LegacyUnknown result; root self-duplication is optional; catalog stores known nodes only; RootMissing exists only on explicit known-ID lookup | lineage resolver and migration boundary; `ArtifactLineageState`, `ArtifactLineageCatalog`, `ArtifactLineageNode`, `ResolvedArtifactLineage`, `LineageResolutionReason`, `EvidenceArtifactSource` | LINEAGE-ROOT-01–06 | LegacyUnknown is RootMissing/Complete, a root is required in catalog, a synthetic ID is created, or a cycle/missing ancestor is hidden | historical lineage remains readable as Incomplete/Unknown; known root behavior is additive | false transitive closure and false evidence independence | A1 |
+| A1-RR-03 | `A1-RR-03-AC-01` | family IDs validate/canonicalize exactly; Unknown is explicit; propagation and independence follow §§3.1–3.2/5.2; authority table is followed | lineage/evidence schema; existing `src/domain/provenance.rs` SHA-256 utility for legacy fingerprints; `AcquisitionFamilyId`, `ArtifactAcquisitionFamilies`, `ResolvedAcquisitionFamilies` | ACQ-FAMILY-01–08 | undefined/magic/empty family state, guessed family authority, dropped Unknown, or Independent emitted with unknown family | artifacts lacking authoritative family identity remain Unknown; no fabricated family ID | false independent confirmation across shared or unknown acquisition sources | A1 |
+
 ## 16. Pre-review self-audit
 
 | Review blocker | Exact plan section | Exact defined interface/algorithm | Remaining invention required? |
 |---|---|---|---|
-| Lineage transitive closure | §3.2 | `resolve_lineage` | NO |
-| AcquisitionFamilyId | §3.1 | enum, inheritance and Unknown rule | NO |
+| Lineage transitive closure | §3.2 | `resolve_lineage(&ArtifactLineageState, &ArtifactLineageCatalog) -> ResolvedArtifactLineage` | NO |
+| AcquisitionFamilyId | §3.1 | `pub struct AcquisitionFamilyId(pub String)` with trim/preserve-case validation | NO |
+| ArtifactAcquisitionFamilies / ResolvedAcquisitionFamilies | §§3.1–3.2 | explicit `Known(Vec<AcquisitionFamilyId>)` or `Unknown` enums and union/propagation rules | NO |
 | Canonical hash ownership | §3.3 | owner hash-view table | NO |
 | Dependency ordering | §3.1 | role/kind/ID sorting | NO |
 | Missing-ancestor behavior | §3.2 | `Incomplete` plus missing IDs | NO |
@@ -1043,6 +1189,11 @@ Acceptance-critical text contains no TBD, suitable, reasonable, or implementatio
 | Normative type/reference | Definition or exact existing source | Undefined? |
 |---|---|---|
 | `CurrentArtifactKindPolicy` | §11 complete enum | NO |
+| `AcquisitionFamilyId` / `ArtifactAcquisitionFamilies` / `ResolvedAcquisitionFamilies` | §§3.1–3.2 complete definitions, canonicalization, and propagation | NO |
+| `EisParameterIdentity` / `EisParameterKey` | §5.3 complete producer-owned EIS identity and exhaustive mapping table | NO |
+| `CovarianceAxisValidationError` | §5.3 complete typed EIS axis validation errors | NO |
+| `ResolvedArtifactLineage` / `LineageResolutionReason` | §3.2 complete result and deterministic reason variants | NO |
+| `EvidenceArtifactSource` / `LegacySourceFingerprint` | §5 complete Known/LegacyUnknown source representation and SHA-256 locator rule | NO |
 | `EvidenceIndependenceAssessment` | §5 complete struct | NO |
 | `EvidenceIndependenceReason` | §5 complete enum | NO |
 | `EvidenceRecord` / `EvidenceBundle` | §§5, 5.3 complete structs, sole covariance owner, and ordering | NO |
@@ -1078,6 +1229,9 @@ Acceptance-critical text contains no TBD, suitable, reasonable, or implementatio
 | F4 covariance ownership and lookup | §§5.3, 8, 15.2 | NO | EvidenceBundle is sole owner; builder is sole route; assessor uses exact canonical key only |
 | F4 compatibility | §§5.3, 15.2 | NO | V1 explicit field; no pre-public-schema migration; any future old form migrates to `[]` |
 | confidence semantics | §§5, 8 | NO | central interval, exact configured level, and numerical tolerance stated |
+| A1-RR-01 EIS identity | §§5.3, 8, 15.1A, 15.3 | NO | complete mapping table and exact three-token axis prevent element-only CPE axes and positional fallback |
+| A1-RR-02 LegacyUnknown root | §§3.1–3.2, 5, 15.1A, 15.3 | NO | state-root resolver handles LegacyUnknown; catalog remains known-only; RootMissing is ID-API-only |
+| A1-RR-03 acquisition family | §§3.1–3.2, 5.2, 15.1A, 15.3 | NO | family identity, Unknown variant, producer authority, propagation, and independence all use one definition |
 
 ### 16.3 Final implementation-discretion audit
 
@@ -1087,6 +1241,9 @@ Acceptance-critical text contains no TBD, suitable, reasonable, or implementatio
 | F2 evidence independence | No: owner, canonical ordering, recomputation, and exhaustive clique algorithm are exact. | NO |
 | F3 hypothesis lifecycle / applicability | No: aggregate owner, declared gates, prior load path, and promotion checks are exact. | NO |
 | F4 uncertainty propagation | No: sole serialized owner, shared pair key, 0-or-1 cardinality, provenance, builder, units/references, exact lookup, missing behavior, hashing, compatibility, and production test are exact. | NO |
+| A1-RR-01 EIS parameter identity | No: element instance, complete parameter table, canonical axis syntax, producer boundary, duplicate/count failures, and exact lookup are fixed. | NO |
+| A1-RR-02 lineage root | No: root input, known-only catalog, Known traversal, LegacyUnknown result, cycle reporting, and RootMissing distinction are fixed. | NO |
+| A1-RR-03 acquisition family | No: ID canonicalization, authoritative assignment, explicit Unknown representation, propagation, and independence rule are fixed. | NO |
 
 ### 16.4 Final planning self-review
 
@@ -1102,6 +1259,9 @@ Evidence independence: pairwise and serializable yes
 Hypothesis history owner: defined yes
 Gate applicability: fully serialized yes
 Uncertainty pair matrix: complete yes
+EIS per-parameter covariance axes: complete yes
+LegacyUnknown root resolution: complete yes
+Acquisition-family identity and propagation: complete yes
 Workflow path corrected: yes
 MHI-R2 traceability corrected: yes
 A0 regression check: PASS — this F4 clarification changes only future A1/B planning; A0 remains artifact-contract repair only and still prohibits EvidenceBundle, TimescalePairUncertainty, evidence-adapter, mechanism-scoring, health-integration, and timescale-assessment implementation.
@@ -1157,13 +1317,15 @@ READY_FOR_FINAL_PLAN_REVIEW = yes
 
 | Audit | Result | Evidence |
 |---|---:|---|
-| Undefined normative types | 0 | `ArtifactExperimentScope`, `AggregateExperimentScopeId`, `EvidenceExperimentScope`, `EvidenceScopeDerivation`, `ArtifactLineageState`, `UnknownLineageReason`, `CovarianceAxisId`, `CovarianceAxis`, `CovarianceQuantityKind`, `LabeledCovarianceMatrix`, `TimescaleDerivedQuantityDefinition`, and `TimescaleJacobianDefinition` are defined in §§3, 5.3, and 8 or mapped to exact existing IDs. |
-| Unspecified A1 algorithms | 0 | aggregate ID bytes, scope propagation, member narrowing, legacy default, axis validation/lookup, direct extraction, delta method, unsupported transform, and unavailable behavior are exact. |
-| Unspecified A1 compatibility decisions | 0 | §4 lists every modified artifact, old/new schema, legacy versions, kind policy, lineage, scope, covariance, and read behavior; `ism_model_validation` is explicitly unchanged. |
-| Normative contradictions | 0 | §§3–5 no longer require a single experiment ID; §7 requires Single+same-ID temporal joins; §§5.3/8 prohibit unlabeled positional covariance and universal transforms. |
-| Implementation invention still required | 0 | Producer ownership, exact source fields, registered transform boundary, tests, failure criteria, and traceability are enumerated. |
+| Undefined normative types | 0 | `AcquisitionFamilyId`, `ArtifactAcquisitionFamilies`, `ResolvedAcquisitionFamilies`, `EisParameterIdentity`, `EisParameterKey`, `CovarianceAxisValidationError`, `ResolvedArtifactLineage`, `LineageResolutionReason`, `EvidenceArtifactSource`, `LegacySourceFingerprint`, `ArtifactExperimentScope`, `AggregateExperimentScopeId`, `EvidenceExperimentScope`, `EvidenceScopeDerivation`, `ArtifactLineageState`, `UnknownLineageReason`, `CovarianceAxisId`, `CovarianceAxis`, `CovarianceQuantityKind`, `LabeledCovarianceMatrix`, `TimescaleDerivedQuantityDefinition`, and `TimescaleJacobianDefinition` are defined in §§3, 5.3, and 8 or mapped to exact existing IDs. |
+| Unspecified A1 algorithms | 0 | aggregate ID bytes, family ID canonicalization/union, scope propagation, member narrowing, legacy default, Known/LegacyUnknown root resolution, deterministic cycle reporting, exact axis construction/lookup, direct extraction, delta method, unsupported transform, and unavailable behavior are exact. |
+| Unspecified A1 compatibility decisions | 0 | §4 and §§3.2/5 define legacy EIS readability, unlabeled covariance unavailability, legacy lineage Unknown, non-fabricated IDs/fingerprints/families, root `RootMissing` scope, and `EvidenceArtifactSource` representation; `ism_model_validation` is explicitly unchanged. |
+| Normative contradictions | 0 | unique per-parameter axes agree with the complete mapping table; LegacyUnknown is state-rooted and never catalog/fabricated-ID resolved; every AcquisitionFamilyId use has one definition and Unknown is not an empty set. |
+| Implementation invention still required | 0 | producer ownership, exact source fields, complete EIS table, root interface/results, family authority table, registered transform boundary, tests, failure criteria, and traceability are enumerated. |
 
 `A1-C1-AC-01` is satisfied only when aggregate workflows use `Aggregate` or `Unknown` according to §3 and no synthetic `ExperimentId` exists. `A1-C2-AC-01` is satisfied only when every missing lineage field deserializes to explicit `LegacyUnknown` and reserialization preserves it. `A1-C3-AC-01` is satisfied only when A1 adapters consume labeled axes or return unavailable; `A1-C3-AC-02` additionally requires the direct/registered-delta production path. These acceptance criteria do not authorize mechanism scoring, health interpretation, or Phase B/C implementation.
+
+`A1-RR-01-AC-01` is satisfied only when the complete §5.3 EIS mapping is exhaustive, every current descriptor maps 1:1 to a unique axis, CPE Q and alpha are independently addressable, and wrong-key lookup has no positional fallback. `A1-RR-02-AC-01` is satisfied only when `resolve_lineage` accepts the state root, handles Known without root self-lookup, handles LegacyUnknown as the exact Incomplete result, and reserves RootMissing for the explicit known-ID API. `A1-RR-03-AC-01` is satisfied only when the typed family ID, explicit Unknown state, producer authority table, propagation, and independence behavior are all implemented as written. These three acceptance criteria authorize planning only; they do not authorize production Rust changes in this documentation remediation.
 
 ## 17. Implementation acceptance and reporting
 
