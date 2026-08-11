@@ -1009,13 +1009,13 @@ impl CompiledIsmModel {
                 requirements.sort_by(|left, right| {
                     (
                         left.scope.clone(),
-                        left.kind,
+                        left.kind.clone(),
                         &left.component_ids,
                         &left.requirement_id,
                     )
                         .cmp(&(
                             right.scope.clone(),
-                            right.kind,
+                            right.kind.clone(),
                             &right.component_ids,
                             &right.requirement_id,
                         ))

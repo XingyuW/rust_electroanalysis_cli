@@ -75,6 +75,10 @@ pub struct EisFitStatistics {
     pub aicc: Option<f64>,
     pub bic: Option<f64>,
     pub parameter_covariance: Option<Vec<Vec<f64>>>,
+    /// A1 producer-owned covariance labels.  The positional field above is
+    /// retained for legacy readability and is never a consumer mapping.
+    #[serde(default)]
+    pub labeled_parameter_covariance: Option<crate::evidence::LabeledCovarianceMatrix>,
     pub condition_number: Option<f64>,
     pub jacobian_rank: Option<usize>,
     pub convergence_status: String,
@@ -336,6 +340,27 @@ impl EisFitArtifact {
             .copied()
             .filter(|v| v.is_finite() && *v > 0.0)
             .reduce(f64::max);
+        let labeled_parameter_covariance = covariance.as_ref().and_then(|matrix| {
+            let descriptors = parameters
+                .iter()
+                .map(|parameter| {
+                    let parameter_name = fit
+                        .parameter_names
+                        .iter()
+                        .find(|name| **name == parameter.name)
+                        .and_then(|name| {
+                            name.rsplit_once('_').map(|(prefix, _)| prefix.to_string())
+                        })
+                        .unwrap_or_else(|| parameter.name.clone());
+                    (
+                        parameter.element_id.clone(),
+                        parameter_name,
+                        parameter.unit.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            crate::evidence::labeled_eis_covariance(&descriptors, matrix.clone()).ok()
+        });
         let statistics = EisFitStatistics {
             valid_frequency_points: n,
             fitted_parameters: fit.fitted_parameters.len(),
@@ -351,6 +376,7 @@ impl EisFitArtifact {
             aicc,
             bic: finite_option(bic),
             parameter_covariance: covariance,
+            labeled_parameter_covariance,
             condition_number,
             jacobian_rank,
             convergence_status: "converged".to_string(),

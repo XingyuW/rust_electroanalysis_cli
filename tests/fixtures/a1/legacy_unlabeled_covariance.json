@@ -1,0 +1,4 @@
+{
+  "parameter_covariance": [[1.0, 0.1], [0.1, 2.0]],
+  "labeled_parameter_covariance": null
+}

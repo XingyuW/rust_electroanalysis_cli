@@ -344,6 +344,7 @@ fn estimate_single_segment(
         initialization,
         process_covariance: process,
         measurement_covariance,
+        labeled_covariance: None,
         observability,
         estimates: run.estimates,
         diagnostics: run.diagnostics,

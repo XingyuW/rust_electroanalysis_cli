@@ -242,6 +242,10 @@ pub struct StateEstimationReport {
     pub initialization: InitializationReport,
     pub process_covariance: CovarianceResolution,
     pub measurement_covariance: CovarianceResolution,
+    /// Producer-owned labels are additive.  Positional legacy covariance is
+    /// still readable but is not consumed by A1 pair-covariance adapters.
+    #[serde(default)]
+    pub labeled_covariance: Option<crate::evidence::LabeledCovarianceMatrix>,
     pub observability: ObservabilityReport,
     pub estimates: Vec<StateEstimatePoint>,
     pub diagnostics: FilterDiagnostics,

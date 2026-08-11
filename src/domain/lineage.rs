@@ -1,0 +1,821 @@
+//! Durable artifact lineage and experiment-scope contracts.
+//!
+//! This module is deliberately independent of the mechanism and health
+//! assessors.  It records what an artifact is derived from and preserves
+//! uncertainty when historical provenance is unavailable.
+
+use super::artifact::ArtifactKind;
+use serde::{Deserialize, Serialize, de};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, BTreeSet};
+use thiserror::Error;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct ArtifactId(pub String);
+
+impl ArtifactId {
+    pub fn new(value: impl Into<String>) -> Result<Self, LineageError> {
+        let value = value.into();
+        if is_sha256_id(&value) {
+            Ok(Self(value))
+        } else {
+            Err(LineageError::InvalidArtifactId(value))
+        }
+    }
+
+    pub fn from_semantic_bytes(bytes: &[u8]) -> Self {
+        Self(format!("sha256:{}", hex_sha256(bytes)))
+    }
+}
+
+impl<'de> Deserialize<'de> for ArtifactId {
+    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        Self::new(value).map_err(de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct ExperimentId(pub String);
+
+impl ExperimentId {
+    pub fn new(value: impl Into<String>) -> Result<Self, LineageError> {
+        let value = value.into();
+        if value.is_empty() {
+            return Err(LineageError::EmptyIdentifier("experiment_id"));
+        }
+        Ok(Self(value))
+    }
+}
+
+impl<'de> Deserialize<'de> for ExperimentId {
+    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::new(String::deserialize(deserializer)?).map_err(de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct AggregateExperimentScopeId(pub String);
+
+impl AggregateExperimentScopeId {
+    pub fn derive(
+        aggregation_kind: &str,
+        member_experiment_ids: &[ExperimentId],
+    ) -> Result<Self, LineageError> {
+        if aggregation_kind.is_empty() {
+            return Err(LineageError::EmptyIdentifier("aggregation_kind"));
+        }
+        let members = unique_sorted_experiment_ids(member_experiment_ids)?;
+        if members.len() < 2 {
+            return Err(LineageError::AggregateNeedsTwoMembers);
+        }
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"aggregate-experiment-scope-v1");
+        bytes.push(0);
+        bytes.extend_from_slice(aggregation_kind.as_bytes());
+        bytes.push(0);
+        for (index, member) in members.iter().enumerate() {
+            if index != 0 {
+                bytes.push(0);
+            }
+            bytes.extend_from_slice(member.0.as_bytes());
+        }
+        Ok(Self(ArtifactId::from_semantic_bytes(&bytes).0))
+    }
+}
+
+impl<'de> Deserialize<'de> for AggregateExperimentScopeId {
+    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        if is_sha256_id(&value) {
+            Ok(Self(value))
+        } else {
+            Err(de::Error::custom("invalid aggregate scope ID"))
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct AcquisitionFamilyId(pub String);
+
+impl AcquisitionFamilyId {
+    pub fn new(value: impl Into<String>) -> Result<Self, LineageError> {
+        let value = value.into();
+        let canonical = value.trim().to_string();
+        if canonical.is_empty() {
+            return Err(LineageError::EmptyIdentifier("acquisition_family_id"));
+        }
+        Ok(Self(canonical))
+    }
+}
+
+impl<'de> Deserialize<'de> for AcquisitionFamilyId {
+    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::new(String::deserialize(deserializer)?).map_err(de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ArtifactAcquisitionFamilies {
+    Known(Vec<AcquisitionFamilyId>),
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ResolvedAcquisitionFamilies {
+    Known(Vec<AcquisitionFamilyId>),
+    Unknown,
+}
+
+impl ArtifactAcquisitionFamilies {
+    pub fn known(
+        values: impl IntoIterator<Item = AcquisitionFamilyId>,
+    ) -> Result<Self, LineageError> {
+        let values = normalize_families(values)?;
+        if values.is_empty() {
+            return Err(LineageError::EmptyKnownFamilySet);
+        }
+        Ok(Self::Known(values))
+    }
+
+    pub fn union(&self, other: &Self) -> Self {
+        match (self, other) {
+            (Self::Known(left), Self::Known(right)) => {
+                let mut values = left.clone();
+                values.extend(right.clone());
+                Self::Known(normalize_families(values).unwrap_or_default())
+            }
+            _ => Self::Unknown,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), LineageError> {
+        match self {
+            Self::Known(values) if values.is_empty() => Err(LineageError::EmptyKnownFamilySet),
+            Self::Known(values) => validate_normalized_families(values),
+            Self::Unknown => Ok(()),
+        }
+    }
+}
+
+impl ResolvedAcquisitionFamilies {
+    pub fn known(
+        values: impl IntoIterator<Item = AcquisitionFamilyId>,
+    ) -> Result<Self, LineageError> {
+        let values = normalize_families(values)?;
+        if values.is_empty() {
+            return Err(LineageError::EmptyKnownFamilySet);
+        }
+        Ok(Self::Known(values))
+    }
+
+    pub fn union(&self, other: &Self) -> Self {
+        match (self, other) {
+            (Self::Known(left), Self::Known(right)) => {
+                let mut values = left.clone();
+                values.extend(right.clone());
+                Self::Known(normalize_families(values).unwrap_or_default())
+            }
+            _ => Self::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ScopeKey {
+    Specific(String),
+    All,
+    Unspecified,
+}
+
+impl ScopeKey {
+    pub fn specific(value: impl Into<String>) -> Result<Self, LineageError> {
+        let value = value.into();
+        if value.is_empty() {
+            return Err(LineageError::EmptyIdentifier("scope"));
+        }
+        Ok(Self::Specific(value))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ArtifactExperimentScope {
+    Single {
+        experiment_id: ExperimentId,
+    },
+    Aggregate {
+        aggregate_scope_id: AggregateExperimentScopeId,
+        member_experiment_ids: Vec<ExperimentId>,
+    },
+    Unknown,
+}
+
+impl ArtifactExperimentScope {
+    pub fn single(experiment_id: ExperimentId) -> Result<Self, LineageError> {
+        ExperimentId::new(experiment_id.0.clone())?;
+        Ok(Self::Single { experiment_id })
+    }
+
+    pub fn aggregate(
+        aggregation_kind: &str,
+        member_experiment_ids: impl IntoIterator<Item = ExperimentId>,
+    ) -> Result<Self, LineageError> {
+        let members = unique_sorted_experiment_ids(
+            member_experiment_ids
+                .into_iter()
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )?;
+        let aggregate_scope_id = AggregateExperimentScopeId::derive(aggregation_kind, &members)?;
+        Ok(Self::Aggregate {
+            aggregate_scope_id,
+            member_experiment_ids: members,
+        })
+    }
+
+    pub fn validate(&self) -> Result<(), LineageError> {
+        match self {
+            Self::Single { experiment_id } => {
+                ExperimentId::new(experiment_id.0.clone()).map(|_| ())
+            }
+            Self::Aggregate {
+                aggregate_scope_id,
+                member_experiment_ids,
+            } => {
+                let members = unique_sorted_experiment_ids(member_experiment_ids)?;
+                if members.len() < 2 || members.as_slice() != member_experiment_ids.as_slice() {
+                    return Err(LineageError::NonCanonicalAggregateMembers);
+                }
+                let expected = AggregateExperimentScopeId::derive("validation", &members)?;
+                if aggregate_scope_id.0.is_empty() || !is_sha256_id(&aggregate_scope_id.0) {
+                    return Err(LineageError::InvalidAggregateScopeId(
+                        aggregate_scope_id.0.clone(),
+                    ));
+                }
+                // The aggregation kind is intentionally producer-owned and is
+                // not recoverable from the serialized digest.  Structural
+                // validation therefore checks shape here; constructors verify
+                // the exact kind before serialization.
+                let _ = expected;
+                Ok(())
+            }
+            Self::Unknown => Ok(()),
+        }
+    }
+
+    pub fn propagate(scopes: impl IntoIterator<Item = ArtifactExperimentScope>) -> Self {
+        let mut singles = BTreeSet::new();
+        let mut has_aggregate = false;
+        for scope in scopes {
+            match scope {
+                Self::Single { experiment_id } => {
+                    singles.insert(experiment_id);
+                }
+                Self::Aggregate {
+                    member_experiment_ids,
+                    ..
+                } => {
+                    has_aggregate = true;
+                    singles.extend(member_experiment_ids);
+                }
+                Self::Unknown => return Self::Unknown,
+            }
+        }
+        let members = singles.into_iter().collect::<Vec<_>>();
+        match members.len() {
+            0 => Self::Unknown,
+            1 if !has_aggregate => Self::Single {
+                experiment_id: members[0].clone(),
+            },
+            _ => Self::aggregate("propagated-v1", members).unwrap_or(Self::Unknown),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ArtifactDependencyRole {
+    Initialization,
+    Calibration,
+    Prior,
+    Constraint,
+    TransformationInput,
+    AuxiliaryInput,
+    ValidationInput,
+    DerivedFrom,
+}
+
+impl ArtifactDependencyRole {
+    pub fn discriminant(&self) -> u8 {
+        match self {
+            Self::Initialization => 0,
+            Self::Calibration => 1,
+            Self::Prior => 2,
+            Self::Constraint => 3,
+            Self::TransformationInput => 4,
+            Self::AuxiliaryInput => 5,
+            Self::ValidationInput => 6,
+            Self::DerivedFrom => 7,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArtifactDependency {
+    pub artifact_id: ArtifactId,
+    pub artifact_kind: ArtifactKind,
+    pub role: ArtifactDependencyRole,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArtifactIdentity {
+    pub artifact_id: ArtifactId,
+    pub artifact_kind: ArtifactKind,
+    pub schema_version: u32,
+    pub producer_version: String,
+    pub experiment_scope: ArtifactExperimentScope,
+    pub sensor_scope: ScopeKey,
+    pub channel_scope: ScopeKey,
+    pub acquisition_families: ArtifactAcquisitionFamilies,
+    pub semantic_sha256: String,
+}
+
+impl ArtifactIdentity {
+    pub fn validate(&self) -> Result<(), LineageError> {
+        if !is_sha256_id(&self.artifact_id.0)
+            || !is_sha256_hex(&self.semantic_sha256)
+            || self.artifact_id.0 != format!("sha256:{}", self.semantic_sha256)
+        {
+            return Err(LineageError::InvalidArtifactIdentity);
+        }
+        if self.producer_version.is_empty() || self.schema_version == 0 {
+            return Err(LineageError::InvalidArtifactIdentity);
+        }
+        self.experiment_scope.validate()?;
+        self.acquisition_families.validate()
+    }
+}
+
+/// Creates an artifact identity from an owned semantic payload.  The hash
+/// view includes only stable scientific identity and dependency descriptors;
+/// callers do not pass paths, timestamps, prose, artifact IDs, or hashes.
+#[allow(clippy::too_many_arguments)]
+pub fn artifact_identity_from_payload<T: Serialize>(
+    artifact_kind: ArtifactKind,
+    schema_version: u32,
+    producer_version: impl Into<String>,
+    experiment_scope: ArtifactExperimentScope,
+    sensor_scope: ScopeKey,
+    channel_scope: ScopeKey,
+    acquisition_families: ArtifactAcquisitionFamilies,
+    dependencies: &[ArtifactDependency],
+    scientific_payload: &T,
+) -> Result<ArtifactIdentity, LineageError> {
+    let mut dependency_view = dependencies
+        .iter()
+        .map(|dependency| {
+            (
+                dependency.role.discriminant(),
+                dependency.artifact_kind.as_str(),
+                dependency.artifact_id.0.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    dependency_view.sort();
+    let view = serde_json::json!({
+        "artifact_kind": artifact_kind,
+        "schema_version": schema_version,
+        "producer_version": producer_version.into(),
+        "experiment_scope": experiment_scope,
+        "sensor_scope": sensor_scope,
+        "channel_scope": channel_scope,
+        "acquisition_families": acquisition_families,
+        "dependencies": dependency_view,
+        "scientific_payload": scientific_payload,
+    });
+    let semantic_sha256 = semantic_sha256(&view)?;
+    let identity = ArtifactIdentity {
+        artifact_id: ArtifactId(format!("sha256:{semantic_sha256}")),
+        artifact_kind,
+        schema_version,
+        producer_version: view["producer_version"].as_str().unwrap_or_default().into(),
+        experiment_scope: serde_json::from_value(view["experiment_scope"].clone())
+            .map_err(|error| LineageError::Serialization(error.to_string()))?,
+        sensor_scope: serde_json::from_value(view["sensor_scope"].clone())
+            .map_err(|error| LineageError::Serialization(error.to_string()))?,
+        channel_scope: serde_json::from_value(view["channel_scope"].clone())
+            .map_err(|error| LineageError::Serialization(error.to_string()))?,
+        acquisition_families: serde_json::from_value(view["acquisition_families"].clone())
+            .map_err(|error| LineageError::Serialization(error.to_string()))?,
+        semantic_sha256,
+    };
+    identity.validate()?;
+    Ok(identity)
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ArtifactLineageState {
+    Known {
+        identity: ArtifactIdentity,
+        direct_dependencies: Vec<ArtifactDependency>,
+    },
+    LegacyUnknown {
+        source_schema_version: Option<u32>,
+        reason: UnknownLineageReason,
+    },
+}
+
+impl Default for ArtifactLineageState {
+    fn default() -> Self {
+        Self::LegacyUnknown {
+            source_schema_version: None,
+            reason: UnknownLineageReason::FieldAbsentInLegacyArtifact,
+        }
+    }
+}
+
+pub fn legacy_unknown_lineage() -> ArtifactLineageState {
+    ArtifactLineageState::default()
+}
+
+pub fn artifact_scope_from_experiment_ids(
+    aggregation_kind: &str,
+    experiment_ids: impl IntoIterator<Item = ExperimentId>,
+) -> ArtifactExperimentScope {
+    let ids = experiment_ids.into_iter().collect::<Vec<_>>();
+    let unique = unique_sorted_experiment_ids(&ids).unwrap_or_default();
+    match unique.as_slice() {
+        [] => ArtifactExperimentScope::Unknown,
+        [experiment_id] => ArtifactExperimentScope::Single {
+            experiment_id: experiment_id.clone(),
+        },
+        _ => ArtifactExperimentScope::aggregate(aggregation_kind, unique)
+            .unwrap_or(ArtifactExperimentScope::Unknown),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnknownLineageReason {
+    FieldAbsentInLegacyArtifact,
+    ExternalArtifactWithoutLineage,
+    MigrationInformationUnavailable,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArtifactLineageNode {
+    pub identity: ArtifactIdentity,
+    pub direct_dependencies: Vec<ArtifactDependency>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArtifactLineageCatalog {
+    pub schema_version: u32,
+    pub artifacts: BTreeMap<ArtifactId, ArtifactLineageNode>,
+}
+
+impl Default for ArtifactLineageCatalog {
+    fn default() -> Self {
+        Self {
+            schema_version: 1,
+            artifacts: BTreeMap::new(),
+        }
+    }
+}
+
+impl ArtifactLineageCatalog {
+    pub fn insert(&mut self, node: ArtifactLineageNode) -> Result<(), LineageError> {
+        node.identity.validate()?;
+        if node.identity.artifact_id.0.is_empty() {
+            return Err(LineageError::InvalidArtifactIdentity);
+        }
+        self.artifacts
+            .insert(node.identity.artifact_id.clone(), node);
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LineageResolutionStatus {
+    Complete,
+    Incomplete,
+    CycleDetected,
+    Inconsistent,
+    RootMissing,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LineageResolutionReason {
+    LegacyUnknownRoot,
+    MissingDependency(ArtifactId),
+    CycleDetected { cycle_artifact_ids: Vec<ArtifactId> },
+    CatalogRootInconsistent,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResolvedArtifactLineage {
+    pub status: LineageResolutionStatus,
+    pub root_artifact_id: Option<ArtifactId>,
+    pub ancestor_artifact_ids: Vec<ArtifactId>,
+    pub missing_artifact_ids: Vec<ArtifactId>,
+    pub acquisition_families: ResolvedAcquisitionFamilies,
+    pub reasons: Vec<LineageResolutionReason>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EvidenceIndependence {
+    Independent,
+    PartiallyDependent,
+    SameSource,
+    Unknown,
+}
+
+pub fn resolve_lineage(
+    root: &ArtifactLineageState,
+    catalog: &ArtifactLineageCatalog,
+) -> ResolvedArtifactLineage {
+    let ArtifactLineageState::Known {
+        identity,
+        direct_dependencies,
+    } = root
+    else {
+        return ResolvedArtifactLineage {
+            status: LineageResolutionStatus::Incomplete,
+            root_artifact_id: None,
+            ancestor_artifact_ids: Vec::new(),
+            missing_artifact_ids: Vec::new(),
+            acquisition_families: ResolvedAcquisitionFamilies::Unknown,
+            reasons: vec![LineageResolutionReason::LegacyUnknownRoot],
+        };
+    };
+
+    let mut result = ResolvedArtifactLineage {
+        status: LineageResolutionStatus::Complete,
+        root_artifact_id: Some(identity.artifact_id.clone()),
+        ancestor_artifact_ids: Vec::new(),
+        missing_artifact_ids: Vec::new(),
+        acquisition_families: match &identity.acquisition_families {
+            ArtifactAcquisitionFamilies::Known(values) => {
+                ResolvedAcquisitionFamilies::Known(values.clone())
+            }
+            ArtifactAcquisitionFamilies::Unknown => ResolvedAcquisitionFamilies::Unknown,
+        },
+        reasons: Vec::new(),
+    };
+    if let Some(node) = catalog.artifacts.get(&identity.artifact_id)
+        && (node.identity != *identity || node.direct_dependencies != *direct_dependencies)
+    {
+        result.status = LineageResolutionStatus::Inconsistent;
+        result
+            .reasons
+            .push(LineageResolutionReason::CatalogRootInconsistent);
+        return result;
+    }
+    let mut visiting = vec![identity.artifact_id.clone()];
+    let mut visited = BTreeSet::new();
+    walk_dependencies(
+        direct_dependencies,
+        catalog,
+        &mut visiting,
+        &mut visited,
+        &mut result,
+    );
+    visiting.pop();
+    result.ancestor_artifact_ids.sort();
+    result.ancestor_artifact_ids.dedup();
+    result.missing_artifact_ids.sort();
+    result.missing_artifact_ids.dedup();
+    result.reasons.sort_by_key(reason_sort_key);
+    result.reasons.dedup();
+    if result
+        .reasons
+        .iter()
+        .any(|reason| matches!(reason, LineageResolutionReason::CycleDetected { .. }))
+    {
+        result.status = LineageResolutionStatus::CycleDetected;
+    } else if !result.missing_artifact_ids.is_empty() {
+        result.status = LineageResolutionStatus::Incomplete;
+    }
+    result
+}
+
+fn walk_dependencies(
+    dependencies: &[ArtifactDependency],
+    catalog: &ArtifactLineageCatalog,
+    visiting: &mut Vec<ArtifactId>,
+    visited: &mut BTreeSet<ArtifactId>,
+    result: &mut ResolvedArtifactLineage,
+) {
+    let mut dependencies = dependencies.to_vec();
+    dependencies.sort_by(|left, right| {
+        left.role
+            .discriminant()
+            .cmp(&right.role.discriminant())
+            .then_with(|| {
+                left.artifact_kind
+                    .as_str()
+                    .cmp(right.artifact_kind.as_str())
+            })
+            .then_with(|| left.artifact_id.cmp(&right.artifact_id))
+    });
+    for dependency in dependencies {
+        result
+            .ancestor_artifact_ids
+            .push(dependency.artifact_id.clone());
+        if let Some(start) = visiting.iter().position(|id| id == &dependency.artifact_id) {
+            let mut cycle = visiting[start..].to_vec();
+            cycle.push(dependency.artifact_id.clone());
+            result.reasons.push(LineageResolutionReason::CycleDetected {
+                cycle_artifact_ids: cycle,
+            });
+            continue;
+        }
+        let Some(node) = catalog.artifacts.get(&dependency.artifact_id) else {
+            result
+                .missing_artifact_ids
+                .push(dependency.artifact_id.clone());
+            result
+                .reasons
+                .push(LineageResolutionReason::MissingDependency(
+                    dependency.artifact_id,
+                ));
+            continue;
+        };
+        if visited.contains(&dependency.artifact_id) {
+            continue;
+        }
+        visited.insert(dependency.artifact_id.clone());
+        if let ArtifactAcquisitionFamilies::Known(families) = &node.identity.acquisition_families {
+            result.acquisition_families = result
+                .acquisition_families
+                .union(&ResolvedAcquisitionFamilies::Known(families.clone()));
+        } else {
+            result.acquisition_families = ResolvedAcquisitionFamilies::Unknown;
+        }
+        visiting.push(dependency.artifact_id.clone());
+        walk_dependencies(
+            &node.direct_dependencies,
+            catalog,
+            visiting,
+            visited,
+            result,
+        );
+        visiting.pop();
+    }
+}
+
+pub fn resolve_known_artifact_id(
+    root_id: &ArtifactId,
+    catalog: &ArtifactLineageCatalog,
+) -> ResolvedArtifactLineage {
+    let Some(node) = catalog.artifacts.get(root_id) else {
+        return ResolvedArtifactLineage {
+            status: LineageResolutionStatus::RootMissing,
+            root_artifact_id: Some(root_id.clone()),
+            ancestor_artifact_ids: Vec::new(),
+            missing_artifact_ids: vec![root_id.clone()],
+            acquisition_families: ResolvedAcquisitionFamilies::Unknown,
+            reasons: vec![LineageResolutionReason::MissingDependency(root_id.clone())],
+        };
+    };
+    resolve_lineage(
+        &ArtifactLineageState::Known {
+            identity: node.identity.clone(),
+            direct_dependencies: node.direct_dependencies.clone(),
+        },
+        catalog,
+    )
+}
+
+pub fn semantic_sha256<T: Serialize>(value: &T) -> Result<String, LineageError> {
+    let value = serde_json::to_value(value)
+        .map_err(|error| LineageError::Serialization(error.to_string()))?;
+    reject_nonfinite_json(&value)?;
+    let canonical = canonical_json(&value);
+    Ok(hex_sha256(canonical.as_bytes()))
+}
+
+fn canonical_json(value: &Value) -> String {
+    match value {
+        Value::Object(object) => {
+            let mut entries = object.iter().collect::<Vec<_>>();
+            entries.sort_by(|left, right| left.0.cmp(right.0));
+            let body = entries
+                .into_iter()
+                .map(|(key, value)| {
+                    format!(
+                        "{}:{}",
+                        serde_json::to_string(key).unwrap(),
+                        canonical_json(value)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("{{{body}}}")
+        }
+        Value::Array(values) => format!(
+            "[{}]",
+            values
+                .iter()
+                .map(canonical_json)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        _ => serde_json::to_string(value).unwrap_or_else(|_| "null".into()),
+    }
+}
+
+fn reject_nonfinite_json(value: &Value) -> Result<(), LineageError> {
+    match value {
+        Value::Object(object) => object.values().try_for_each(reject_nonfinite_json),
+        Value::Array(values) => values.iter().try_for_each(reject_nonfinite_json),
+        _ => Ok(()),
+    }
+}
+
+fn hex_sha256(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn is_sha256_hex(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+fn is_sha256_id(value: &str) -> bool {
+    value.strip_prefix("sha256:").is_some_and(is_sha256_hex)
+}
+
+fn unique_sorted_experiment_ids(
+    values: &[ExperimentId],
+) -> Result<Vec<ExperimentId>, LineageError> {
+    let mut result = values.to_vec();
+    if result.iter().any(|value| value.0.is_empty()) {
+        return Err(LineageError::EmptyIdentifier("experiment_id"));
+    }
+    result.sort();
+    result.dedup();
+    Ok(result)
+}
+
+fn normalize_families(
+    values: impl IntoIterator<Item = AcquisitionFamilyId>,
+) -> Result<Vec<AcquisitionFamilyId>, LineageError> {
+    let mut values = values
+        .into_iter()
+        .map(|value| AcquisitionFamilyId::new(value.0))
+        .collect::<Result<Vec<_>, _>>()?;
+    values.sort();
+    values.dedup();
+    Ok(values)
+}
+
+fn validate_normalized_families(values: &[AcquisitionFamilyId]) -> Result<(), LineageError> {
+    if values.windows(2).any(|window| window[0] >= window[1])
+        || values
+            .iter()
+            .any(|value| value.0.trim() != value.0 || value.0.is_empty())
+    {
+        Err(LineageError::NonCanonicalFamilySet)
+    } else {
+        Ok(())
+    }
+}
+
+fn reason_sort_key(reason: &LineageResolutionReason) -> (u8, String) {
+    match reason {
+        LineageResolutionReason::LegacyUnknownRoot => (0, String::new()),
+        LineageResolutionReason::MissingDependency(id) => (1, id.0.clone()),
+        LineageResolutionReason::CycleDetected { cycle_artifact_ids } => {
+            (2, format!("{cycle_artifact_ids:?}"))
+        }
+        LineageResolutionReason::CatalogRootInconsistent => (3, String::new()),
+    }
+}
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum LineageError {
+    #[error("invalid ArtifactId: {0}")]
+    InvalidArtifactId(String),
+    #[error("invalid aggregate scope ID: {0}")]
+    InvalidAggregateScopeId(String),
+    #[error("empty {0}")]
+    EmptyIdentifier(&'static str),
+    #[error("aggregate scope requires at least two unique members")]
+    AggregateNeedsTwoMembers,
+    #[error("aggregate members are not canonical")]
+    NonCanonicalAggregateMembers,
+    #[error("known acquisition-family set must be nonempty")]
+    EmptyKnownFamilySet,
+    #[error("acquisition-family set is not canonical")]
+    NonCanonicalFamilySet,
+    #[error("artifact identity is invalid")]
+    InvalidArtifactIdentity,
+    #[error("semantic value serialization failed: {0}")]
+    Serialization(String),
+}

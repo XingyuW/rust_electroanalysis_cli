@@ -1,0 +1,6 @@
+{
+  "Aggregate": {
+    "aggregate_scope_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "member_experiment_ids": ["fixture-experiment-a", "fixture-experiment-b"]
+  }
+}
