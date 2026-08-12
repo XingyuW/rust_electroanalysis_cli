@@ -4,8 +4,8 @@ use crate::{
     results::{HealthDomain, HealthWarning, SensorHealthAssessment, SensorHealthBaseline},
     runners::RunnerError,
 };
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeSet,
     fs,
@@ -49,31 +49,52 @@ pub fn baseline(
     }
     let base = path.parent().unwrap_or(workspace);
     let mut records = Vec::new();
+    let mut lineage_sources = Vec::new();
     let mut provenance = None;
     for r in &man.records {
         let signal_path = resolve(base, &r.signal_results);
         let signal: crate::results::SignalAnalysisReport =
             crate::domain::read_artifact(&signal_path)?;
+        lineage_sources.push((
+            signal.lineage.clone(),
+            crate::domain::ArtifactDependencyRole::DerivedFrom,
+        ));
         provenance.get_or_insert(signal.provenance.clone());
         let mut fs = health::features::from_signal(&signal);
         if let Some(p) = &r.transient_results {
             let t: crate::results::TransientAnalysisReport =
                 crate::domain::read_artifact(&resolve(base, p))?;
+            lineage_sources.push((
+                t.lineage.clone(),
+                crate::domain::ArtifactDependencyRole::TransformationInput,
+            ));
             fs.extend(health::features::from_transient(&t));
         }
         if let Some(p) = &r.calibration_results {
             let c: crate::results::CalibrationAnalysisReport =
                 crate::domain::read_artifact(&resolve(base, p))?;
+            lineage_sources.push((
+                c.lineage.clone(),
+                crate::domain::ArtifactDependencyRole::TransformationInput,
+            ));
             fs.extend(health::features::from_calibration(&c));
         }
         if let Some(p) = &r.eis_fit {
             let e: crate::results::EisFitArtifact =
                 crate::domain::read_artifact(&resolve(base, p))?;
+            lineage_sources.push((
+                e.lineage.clone(),
+                crate::domain::ArtifactDependencyRole::TransformationInput,
+            ));
             fs.extend(health::features::from_eis(&e));
         }
         if let Some(p) = &r.mechanism_results {
             let m: crate::results::MechanismAnalysisReport =
                 crate::domain::read_artifact(&resolve(base, p))?;
+            lineage_sources.push((
+                m.lineage.clone(),
+                crate::domain::ArtifactDependencyRole::TransformationInput,
+            ));
             fs.extend(health::features::from_mechanism(&m));
         }
         let context = r
@@ -86,11 +107,18 @@ pub fn baseline(
     }
     let provenance = provenance
         .ok_or_else(|| RunnerError::Message("health baseline manifest is empty".into()))?;
-    let b = health::baseline::build_with_contexts(
+    let mut b = health::baseline::build_with_contexts(
         "health-baseline",
         &records,
         provenance,
         loaded.config.baseline.minimum_required_records,
+    );
+    let fallback_scope = lineage_scope(&b.lineage);
+    b.lineage = derived_lineage(
+        crate::domain::ArtifactKind::HealthBaseline,
+        &b,
+        &lineage_sources,
+        fallback_scope,
     );
     let dest = output_file(workspace, output, &loaded.config.export.baseline_filename);
     crate::domain::write_artifact(&dest, &b)?;
@@ -113,11 +141,19 @@ pub fn assess(
     let loaded = LoadedHealthConfig::load(workspace, config_path)?;
     let signal_path = resolve(workspace, signal_path);
     let signal: crate::results::SignalAnalysisReport = crate::domain::read_artifact(&signal_path)?;
+    let mut lineage_sources = vec![(
+        signal.lineage.clone(),
+        crate::domain::ArtifactDependencyRole::DerivedFrom,
+    )];
     let mut features = health::features::from_signal(&signal);
     let mut missing = Vec::new();
     if let Some(p) = transient {
         let r: crate::results::TransientAnalysisReport =
             crate::domain::read_artifact(&resolve(workspace, p))?;
+        lineage_sources.push((
+            r.lineage.clone(),
+            crate::domain::ArtifactDependencyRole::TransformationInput,
+        ));
         features.extend(health::features::from_transient(&r));
     } else {
         missing.push(HealthDomain::DynamicResponse);
@@ -125,6 +161,10 @@ pub fn assess(
     if let Some(p) = calibration {
         let r: crate::results::CalibrationAnalysisReport =
             crate::domain::read_artifact(&resolve(workspace, p))?;
+        lineage_sources.push((
+            r.lineage.clone(),
+            crate::domain::ArtifactDependencyRole::TransformationInput,
+        ));
         features.extend(health::features::from_calibration(&r));
     } else {
         missing.push(HealthDomain::Calibration);
@@ -132,6 +172,10 @@ pub fn assess(
     if let Some(p) = eis {
         let r: crate::results::EisFitArtifact =
             crate::domain::read_artifact(&resolve(workspace, p))?;
+        lineage_sources.push((
+            r.lineage.clone(),
+            crate::domain::ArtifactDependencyRole::TransformationInput,
+        ));
         features.extend(health::features::from_eis(&r));
     } else {
         missing.push(HealthDomain::Impedance);
@@ -139,6 +183,10 @@ pub fn assess(
     if let Some(p) = mechanism {
         let r: crate::results::MechanismAnalysisReport =
             crate::domain::read_artifact(&resolve(workspace, p))?;
+        lineage_sources.push((
+            r.lineage.clone(),
+            crate::domain::ArtifactDependencyRole::TransformationInput,
+        ));
         features.extend(health::features::from_mechanism(&r));
     } else {
         missing.push(HealthDomain::MechanismEvidence);
@@ -151,6 +199,10 @@ pub fn assess(
     let base = baseline_path.map(|p| resolve(workspace, p));
     let baseline: Option<SensorHealthBaseline> = if let Some(p) = base.as_deref() {
         let baseline: SensorHealthBaseline = crate::domain::read_artifact(p)?;
+        lineage_sources.push((
+            baseline.lineage.clone(),
+            crate::domain::ArtifactDependencyRole::Prior,
+        ));
         if baseline.records.len() < loaded.config.baseline.minimum_required_records {
             warnings.push(HealthWarning::InsufficientBaselineRecords);
         }
@@ -236,7 +288,7 @@ pub fn assess(
     if domains.len() < loaded.config.assessment.minimum_domains_for_assessment {
         warnings.push(HealthWarning::InsufficientEvidenceDomains);
     }
-    let assessment = health::assessment::assemble(
+    let mut assessment = health::assessment::assemble(
         &format!("health:{}", signal.analysis_id),
         signal.sensor_id.clone(),
         signal.experiment_id.clone(),
@@ -248,6 +300,13 @@ pub fn assess(
         loaded.config,
         signal.provenance,
         warnings,
+    );
+    let fallback_scope = lineage_scope(&assessment.lineage);
+    assessment.lineage = derived_lineage(
+        crate::domain::ArtifactKind::HealthAssessment,
+        &assessment,
+        &lineage_sources,
+        fallback_scope,
     );
     export_assessment(workspace, output, &assessment)
 }
@@ -270,12 +329,25 @@ pub fn trend(
     let baseline = baseline_path
         .map(|p| crate::domain::read_artifact::<SensorHealthBaseline>(&resolve(workspace, p)))
         .transpose()?;
+    let mut lineage_sources = baseline
+        .as_ref()
+        .map(|artifact| {
+            vec![(
+                artifact.lineage.clone(),
+                crate::domain::ArtifactDependencyRole::Prior,
+            )]
+        })
+        .unwrap_or_default();
     let mut all =
         std::collections::BTreeMap::<String, Vec<(String, Option<f64>, Option<f64>)>>::new();
     let mut provenance = None;
     for r in man.records {
         let a: SensorHealthAssessment =
             crate::domain::read_artifact(&resolve(base, &r.assessment))?;
+        lineage_sources.push((
+            a.lineage.clone(),
+            crate::domain::ArtifactDependencyRole::DerivedFrom,
+        ));
         provenance.get_or_insert(a.provenance.clone());
         for f in a.features {
             all.entry(f.name.clone()).or_default().push((
@@ -297,7 +369,14 @@ pub fn trend(
     }
     let p =
         provenance.ok_or_else(|| RunnerError::Message("health trend manifest is empty".into()))?;
-    let report = health::trend::report("health-trend", trends, p);
+    let mut report = health::trend::report("health-trend", trends, p);
+    let fallback_scope = lineage_scope(&report.lineage);
+    report.lineage = derived_lineage(
+        crate::domain::ArtifactKind::HealthTrend,
+        &report,
+        &lineage_sources,
+        fallback_scope,
+    );
     let dir = output_dir(workspace, output, "health_trend");
     fs::create_dir_all(&dir)?;
     crate::domain::write_artifact(&dir.join(&loaded.config.export.trends_filename), &report)?;
@@ -383,6 +462,52 @@ fn export_assessment(
     }
     println!("Health assessment written to {}", dir.display());
     Ok(())
+}
+
+fn lineage_scope(
+    lineage: &crate::domain::ArtifactLineageState,
+) -> crate::domain::ArtifactExperimentScope {
+    match lineage {
+        crate::domain::ArtifactLineageState::Known { identity, .. } => {
+            identity.experiment_scope.clone()
+        }
+        crate::domain::ArtifactLineageState::LegacyUnknown { .. } => {
+            crate::domain::ArtifactExperimentScope::Unknown
+        }
+    }
+}
+
+fn derived_lineage<T: Serialize>(
+    artifact_kind: crate::domain::ArtifactKind,
+    artifact: &T,
+    sources: &[(
+        crate::domain::ArtifactLineageState,
+        crate::domain::ArtifactDependencyRole,
+    )],
+    fallback_scope: crate::domain::ArtifactExperimentScope,
+) -> crate::domain::ArtifactLineageState {
+    let (source_scope, acquisition_families) =
+        crate::domain::lineage_scope_and_families(sources.iter().map(|(lineage, _)| lineage));
+    let experiment_scope = match source_scope {
+        crate::domain::ArtifactExperimentScope::Unknown => fallback_scope,
+        scope => scope,
+    };
+    let dependencies = sources
+        .iter()
+        .filter_map(|(lineage, role)| crate::domain::dependency_from_lineage(lineage, role.clone()))
+        .collect::<Vec<_>>();
+    crate::domain::known_lineage_from_artifact(
+        artifact_kind,
+        3,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        experiment_scope,
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ScopeKey::Unspecified,
+        acquisition_families,
+        dependencies,
+        artifact,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3))
 }
 fn human_report(r: &SensorHealthAssessment) -> String {
     let mut s = format!(

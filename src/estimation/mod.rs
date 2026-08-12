@@ -285,8 +285,9 @@ fn estimate_single_segment(
             "configured transient prior was unavailable; configured tau was used",
         ));
     }
-    Ok(StateEstimationReport {
-        schema_version: 3,
+    let mut report = StateEstimationReport {
+        schema_version: 4,
+        lineage: crate::domain::current_unknown_lineage(4),
         analysis_id: format!(
             "estimate:{}:{}",
             experiment.provenance.input_sha256, logical_channel_name
@@ -358,7 +359,63 @@ fn estimate_single_segment(
         was_preprocessed: false,
         ingestion_diagnostics: crate::domain::ParseDiagnostics::default(),
         warnings,
-    })
+    };
+    report.labeled_covariance = labeled_state_covariance(&report);
+    report.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::StateEstimation,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        crate::domain::ExperimentId::new(report.experiment_id.clone())
+            .and_then(crate::domain::ArtifactExperimentScope::single)
+            .unwrap_or(crate::domain::ArtifactExperimentScope::Unknown),
+        report
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ScopeKey::specific(report.channel.clone())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &report,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(4));
+    Ok(report)
+}
+
+fn labeled_state_covariance(
+    report: &StateEstimationReport,
+) -> Option<crate::evidence::LabeledCovarianceMatrix> {
+    let point = report.estimates.last()?;
+    if report.state_bindings.len() != point.filtered_covariance.len()
+        || point
+            .filtered_covariance
+            .iter()
+            .any(|row| row.len() != report.state_bindings.len())
+    {
+        return None;
+    }
+    let axes = report
+        .state_bindings
+        .iter()
+        .enumerate()
+        .map(|(row_index, binding)| {
+            let state = point.filtered_state.get(binding.estimator_index)?;
+            (binding.estimator_index == row_index).then_some(crate::evidence::CovarianceAxis {
+                axis_id: crate::evidence::CovarianceAxisId(format!(
+                    "estimation.state:{}",
+                    binding.state_id
+                )),
+                source_field_path: format!(
+                    "$.estimates[{}].filtered_covariance[{row_index}]",
+                    report.estimates.len() - 1
+                ),
+                quantity_kind: crate::evidence::CovarianceQuantityKind::State,
+                unit: state.unit.clone(),
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    crate::evidence::LabeledCovarianceMatrix::new(axes, point.filtered_covariance.clone()).ok()
 }
 
 fn slice_measurement(

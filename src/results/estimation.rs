@@ -207,6 +207,8 @@ pub struct StateFilterComparison {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateEstimationReport {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub analysis_id: String,
     pub experiment_id: String,
     pub sensor_id: Option<String>,

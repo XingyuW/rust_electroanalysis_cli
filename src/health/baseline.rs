@@ -168,8 +168,9 @@ pub fn build_with_contexts(
         warnings.push(HealthWarning::MixedTemperatureContext);
     }
 
-    SensorHealthBaseline {
-        schema_version: 2,
+    let mut baseline = SensorHealthBaseline {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         baseline_id: id.into(),
         sensor_type,
         sensor_design,
@@ -185,7 +186,28 @@ pub fn build_with_contexts(
         metadata_sources: metadata_sources.into_iter().collect(),
         provenance,
         warnings,
-    }
+    };
+    baseline.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::HealthBaseline,
+        baseline.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        crate::domain::artifact_scope_from_experiment_ids(
+            "health-baseline-v1",
+            baseline.records.iter().filter_map(|record| {
+                record
+                    .experiment_id
+                    .clone()
+                    .and_then(|id| crate::domain::ExperimentId::new(id).ok())
+            }),
+        ),
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &baseline,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3));
+    baseline
 }
 
 fn consistent_context(

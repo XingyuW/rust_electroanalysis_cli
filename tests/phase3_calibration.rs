@@ -144,6 +144,7 @@ fn activity_models_keep_concentration_and_activity_distinct() {
 fn report_bootstrap_is_reproducible_and_prediction_warns_on_extrapolation() {
     let observation_set = CalibrationObservationSet {
         schema_version: 1,
+        lineage: rust_electroanalysis_cli::domain::legacy_unknown_lineage(),
         observations: nernst_observations(),
         provenance: provenance(),
         warnings: Vec::new(),
@@ -181,6 +182,7 @@ fn fit_calibration_handles_small_observation_sets_without_panicking() {
     let slope = theoretical_slope_v_per_decade(298.15, 1).unwrap();
     let observation_set = CalibrationObservationSet {
         schema_version: 1,
+        lineage: rust_electroanalysis_cli::domain::legacy_unknown_lineage(),
         observations: [1e-4, 1e-3, 1e-2]
             .into_iter()
             .map(|activity| observation(activity, e0 + slope * activity.log10()))

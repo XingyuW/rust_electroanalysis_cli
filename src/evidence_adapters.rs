@@ -5,6 +5,7 @@
 //! evidence strength from raw values.
 
 use crate::{
+    domain::{ArtifactKind, ArtifactLineageState},
     evidence::{
         ComponentId, EvidenceArtifactSource, EvidenceAvailability, EvidenceDirection,
         EvidenceExperimentScope, EvidenceId, EvidenceQuantity, EvidenceRecord, EvidenceSourceClass,
@@ -30,6 +31,38 @@ impl AdapterContext {
             source,
             experiment_scope,
             lineage_artifact_ids: Vec::new(),
+        }
+    }
+
+    /// Constructs the source reference from the serialized A1 lineage state.
+    /// A legacy state remains a legacy source fingerprint; it is never
+    /// upgraded to a Known artifact ID by an adapter.
+    pub fn from_artifact<T: serde::Serialize>(
+        artifact: &T,
+        artifact_kind: ArtifactKind,
+        lineage: &ArtifactLineageState,
+    ) -> Self {
+        match lineage {
+            ArtifactLineageState::Known {
+                identity,
+                direct_dependencies,
+            } => Self {
+                source: EvidenceArtifactSource::Known {
+                    artifact_id: identity.artifact_id.clone(),
+                    artifact_kind,
+                },
+                experiment_scope: EvidenceExperimentScope::from_artifact_scope(
+                    &identity.experiment_scope,
+                ),
+                lineage_artifact_ids: direct_dependencies
+                    .iter()
+                    .map(|dependency| dependency.artifact_id.clone())
+                    .collect(),
+            },
+            ArtifactLineageState::LegacyUnknown { .. } => {
+                let serialized = serde_json::to_vec(artifact).unwrap_or_default();
+                legacy_context(artifact_kind, &serialized, EvidenceExperimentScope::Unknown)
+            }
         }
     }
 }

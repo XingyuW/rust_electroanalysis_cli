@@ -127,6 +127,7 @@ pub enum EisFitWarningKind {
     MissingCircuitIdentity,
     SingularCovariance,
     MissingCovariance,
+    CovarianceLabelsUnavailable,
     ParameterAtBound,
     NonIdentifiable,
     PoorResiduals,
@@ -143,6 +144,8 @@ pub struct EisFitWarning {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EisFitArtifact {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub fit_id: String,
     pub experiment_id: Option<String>,
     pub sensor_id: Option<String>,
@@ -257,9 +260,10 @@ impl EisFitArtifact {
                 })
                 .collect::<Vec<_>>()
         });
-        let bounds = crate::impedance::parse_circuit_string(circuit_expression)
-            .ok()
-            .map(|circuit| circuit.get_bounds())
+        let parsed_circuit = crate::impedance::parse_circuit_string(circuit_expression).ok();
+        let bounds = parsed_circuit
+            .as_ref()
+            .map(CircuitNode::get_bounds)
             .unwrap_or_default();
         let parameters = fit
             .parameter_names
@@ -341,25 +345,24 @@ impl EisFitArtifact {
             .filter(|v| v.is_finite() && *v > 0.0)
             .reduce(f64::max);
         let labeled_parameter_covariance = covariance.as_ref().and_then(|matrix| {
-            let descriptors = parameters
-                .iter()
-                .map(|parameter| {
-                    let parameter_name = fit
-                        .parameter_names
-                        .iter()
-                        .find(|name| **name == parameter.name)
-                        .and_then(|name| {
-                            name.rsplit_once('_').map(|(prefix, _)| prefix.to_string())
-                        })
-                        .unwrap_or_else(|| parameter.name.clone());
-                    (
-                        parameter.element_id.clone(),
-                        parameter_name,
-                        parameter.unit.clone(),
-                    )
-                })
-                .collect::<Vec<_>>();
-            crate::evidence::labeled_eis_covariance(&descriptors, matrix.clone()).ok()
+            let descriptors = parsed_circuit
+                .as_ref()
+                .ok_or(crate::evidence::CovarianceAxisValidationError::UnknownEisParameterKey)
+                .and_then(|circuit| eis_covariance_descriptors(circuit, fit));
+            match descriptors.and_then(|descriptors| {
+                crate::evidence::labeled_eis_covariance(&descriptors, matrix.clone())
+            }) {
+                Ok(labeled) => Some(labeled),
+                Err(error) => {
+                    warnings.push(EisFitWarning {
+                        kind: EisFitWarningKind::CovarianceLabelsUnavailable,
+                        message: format!(
+                            "parameter covariance could not be labeled from the authoritative fit parameter order: {error}"
+                        ),
+                    });
+                    None
+                }
+            }
         });
         let statistics = EisFitStatistics {
             valid_frequency_points: n,
@@ -410,8 +413,9 @@ impl EisFitArtifact {
             .map(|parameter| parameter.name.clone())
             .collect();
         let _ = PI;
-        Self {
-            schema_version: 2,
+        let mut artifact = Self {
+            schema_version: 3,
+            lineage: crate::domain::current_unknown_lineage(3),
             fit_id: format!("{}:{}", input.label, circuit_expression),
             experiment_id: input.metadata.get("experiment_id").cloned(),
             sensor_id: input.metadata.get("sensor_id").cloned(),
@@ -435,7 +439,31 @@ impl EisFitArtifact {
             },
             provenance,
             warnings,
-        }
+        };
+        let experiment_scope = artifact
+            .experiment_id
+            .clone()
+            .and_then(|id| crate::domain::ExperimentId::new(id).ok())
+            .and_then(|id| crate::domain::ArtifactExperimentScope::single(id).ok())
+            .unwrap_or(crate::domain::ArtifactExperimentScope::Unknown);
+        let sensor_scope = artifact
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified);
+        artifact.lineage = crate::domain::known_lineage_from_artifact(
+            crate::domain::ArtifactKind::EisFit,
+            artifact.schema_version,
+            format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+            experiment_scope,
+            sensor_scope,
+            crate::domain::ScopeKey::Unspecified,
+            crate::domain::ArtifactAcquisitionFamilies::Unknown,
+            Vec::new(),
+            &artifact,
+        )
+        .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3));
+        artifact
     }
 
     pub fn validate_finite(&self) -> bool {
@@ -446,6 +474,54 @@ impl EisFitArtifact {
 
 fn finite_option(value: f64) -> Option<f64> {
     value.is_finite().then_some(value)
+}
+
+/// Maps the circuit AST and authoritative `CircuitFitResult` order into
+/// complete element/parameter covariance axes.  Each descriptor is built
+/// from the parsed element type and label, then verified against the fitter's
+/// aligned name/unit vectors; no display-name lookup is involved.
+fn eis_covariance_descriptors(
+    circuit: &CircuitNode,
+    fit: &CircuitFitResult,
+) -> Result<Vec<(String, String, String)>, crate::evidence::CovarianceAxisValidationError> {
+    fn append_descriptors(node: &CircuitNode, descriptors: &mut Vec<(String, String, String)>) {
+        match node {
+            CircuitNode::Element(element_type, _, label) => {
+                let element_id = format!("{}{}", element_type.code(), label);
+                descriptors.extend(
+                    element_type
+                        .param_names()
+                        .into_iter()
+                        .zip(element_type.param_units())
+                        .map(|(parameter, unit)| {
+                            (element_id.clone(), parameter.to_string(), unit.to_string())
+                        }),
+                );
+            }
+            CircuitNode::Series(nodes) | CircuitNode::Parallel(nodes) => {
+                for node in nodes {
+                    append_descriptors(node, descriptors);
+                }
+            }
+        }
+    }
+
+    let mut descriptors = Vec::new();
+    append_descriptors(circuit, &mut descriptors);
+    let expected_names = descriptors
+        .iter()
+        .map(|(_, parameter, _)| parameter)
+        .zip(circuit.get_param_names())
+        .all(|(parameter, expected_name)| expected_name.starts_with(&format!("{parameter}_")));
+    if !expected_names
+        || descriptors.len() != fit.parameter_names.len()
+        || descriptors.len() != fit.parameter_units.len()
+        || fit.parameter_names != circuit.get_param_names()
+        || fit.parameter_units != circuit.get_param_units()
+    {
+        return Err(crate::evidence::CovarianceAxisValidationError::UnknownEisParameterKey);
+    }
+    Ok(descriptors)
 }
 
 fn element_id_for_name(name: &str) -> String {

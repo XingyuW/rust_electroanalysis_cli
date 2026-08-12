@@ -541,6 +541,7 @@ fn nested_nonfinite_outputs_cannot_serialize_as_json_null() {
         .insert("bad".into(), f64::NAN);
     let report = ModelAnalysisReport {
         schema_version: rust_electroanalysis_cli::results::MODEL_RESULT_SCHEMA_VERSION,
+        lineage: rust_electroanalysis_cli::domain::legacy_unknown_lineage(),
         artifact_kind: "ism_model_analysis".into(),
         model_definition: model.definition().clone(),
         points: vec![ModelAnalysisPoint {
@@ -583,6 +584,7 @@ fn generic_artifact_writer_rejects_nested_nonfinite_before_json_conversion() {
         .insert("bad".into(), f64::NEG_INFINITY);
     let report = ModelAnalysisReport {
         schema_version: rust_electroanalysis_cli::results::MODEL_RESULT_SCHEMA_VERSION,
+        lineage: rust_electroanalysis_cli::domain::legacy_unknown_lineage(),
         artifact_kind: "ism_model_analysis".into(),
         model_definition: model.definition().clone(),
         points: vec![ModelAnalysisPoint {

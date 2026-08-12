@@ -511,10 +511,23 @@ pub struct CovarianceAxis {
     pub unit: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct LabeledCovarianceMatrix {
     pub axes: Vec<CovarianceAxis>,
     pub values: Vec<Vec<f64>>,
+}
+
+#[derive(Deserialize)]
+struct LabeledCovarianceMatrixWire {
+    axes: Vec<CovarianceAxis>,
+    values: Vec<Vec<f64>>,
+}
+
+impl<'de> Deserialize<'de> for LabeledCovarianceMatrix {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = LabeledCovarianceMatrixWire::deserialize(deserializer)?;
+        Self::new(wire.axes, wire.values).map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -814,7 +827,7 @@ pub fn analytic_delta_method_covariance(
     })
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct EvidenceBundle {
     pub schema_version: u32,
     pub experiment_scope: EvidenceExperimentScope,
@@ -825,6 +838,56 @@ pub struct EvidenceBundle {
     pub timescale_pair_uncertainties: Vec<TimescalePairUncertainty>,
     pub lineage_catalog: ArtifactLineageCatalog,
     pub warnings: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct EvidenceBundleWire {
+    schema_version: u32,
+    experiment_scope: EvidenceExperimentScope,
+    sensor_scope: ScopeKey,
+    channel_scope: ScopeKey,
+    records: Vec<EvidenceRecord>,
+    independence_assessments: Vec<EvidenceIndependenceAssessment>,
+    timescale_pair_uncertainties: Vec<TimescalePairUncertainty>,
+    lineage_catalog: ArtifactLineageCatalog,
+    warnings: Vec<String>,
+}
+
+impl<'de> Deserialize<'de> for EvidenceBundle {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = EvidenceBundleWire::deserialize(deserializer)?;
+        let mut builder = EvidenceBundleBuilder::new(
+            wire.experiment_scope,
+            wire.sensor_scope,
+            wire.channel_scope,
+            wire.lineage_catalog,
+        );
+        builder.schema_version = wire.schema_version;
+        for record in wire.records {
+            record.validate().map_err(serde::de::Error::custom)?;
+            builder.add_record(record);
+        }
+        for assessment in wire.independence_assessments {
+            if !assessment.pair.is_canonical() {
+                return Err(serde::de::Error::custom(
+                    EvidenceBundleError::NonCanonicalEvidencePair,
+                ));
+            }
+            builder.add_independence_assessment(assessment);
+        }
+        for uncertainty in wire.timescale_pair_uncertainties {
+            if !uncertainty.pair.is_canonical() {
+                return Err(serde::de::Error::custom(
+                    EvidenceBundleError::NonCanonicalTimescalePair,
+                ));
+            }
+            builder.add_timescale_pair_uncertainty(uncertainty);
+        }
+        for warning in wire.warnings {
+            builder.warning(warning);
+        }
+        builder.build().map_err(serde::de::Error::custom)
+    }
 }
 
 impl EvidenceBundle {

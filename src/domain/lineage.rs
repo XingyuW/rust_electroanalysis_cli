@@ -413,8 +413,113 @@ pub fn artifact_identity_from_payload<T: Serialize>(
     Ok(identity)
 }
 
+/// Builds a current `Known` lineage state from a producer-owned artifact
+/// payload. The stable view deliberately drops output location, generation
+/// time, warnings, and the lineage field itself before hashing.
+#[allow(clippy::too_many_arguments)]
+pub fn known_lineage_from_artifact<T: Serialize>(
+    artifact_kind: ArtifactKind,
+    schema_version: u32,
+    producer_version: impl Into<String>,
+    experiment_scope: ArtifactExperimentScope,
+    sensor_scope: ScopeKey,
+    channel_scope: ScopeKey,
+    acquisition_families: ArtifactAcquisitionFamilies,
+    direct_dependencies: impl IntoIterator<Item = ArtifactDependency>,
+    artifact: &T,
+) -> Result<ArtifactLineageState, LineageError> {
+    let mut scientific_payload = serde_json::to_value(artifact)
+        .map_err(|error| LineageError::Serialization(error.to_string()))?;
+    if let Value::Object(object) = &mut scientific_payload {
+        object.remove("lineage");
+        object.remove("schema_version");
+        object.remove("artifact_kind");
+        object.remove("warnings");
+        if let Some(Value::Object(provenance)) = object.get_mut("provenance") {
+            provenance.remove("input_path");
+            provenance.remove("configuration_path");
+            provenance.remove("generation_timestamp");
+        }
+    }
+    let mut direct_dependencies = direct_dependencies.into_iter().collect::<Vec<_>>();
+    direct_dependencies.sort_by(|left, right| {
+        left.role
+            .discriminant()
+            .cmp(&right.role.discriminant())
+            .then_with(|| {
+                left.artifact_kind
+                    .as_str()
+                    .cmp(right.artifact_kind.as_str())
+            })
+            .then_with(|| left.artifact_id.cmp(&right.artifact_id))
+    });
+    direct_dependencies.dedup();
+    let identity = artifact_identity_from_payload(
+        artifact_kind,
+        schema_version,
+        producer_version,
+        experiment_scope,
+        sensor_scope,
+        channel_scope,
+        acquisition_families,
+        &direct_dependencies,
+        &scientific_payload,
+    )?;
+    Ok(ArtifactLineageState::Known {
+        identity,
+        direct_dependencies,
+    })
+}
+
+/// Preserves a known upstream artifact as one sorted direct dependency. A
+/// legacy upstream artifact has no fabricable ID and therefore contributes no
+/// dependency descriptor.
+pub fn dependency_from_lineage(
+    lineage: &ArtifactLineageState,
+    role: ArtifactDependencyRole,
+) -> Option<ArtifactDependency> {
+    match lineage {
+        ArtifactLineageState::Known { identity, .. } => Some(ArtifactDependency {
+            artifact_id: identity.artifact_id.clone(),
+            artifact_kind: identity.artifact_kind,
+            role,
+        }),
+        ArtifactLineageState::LegacyUnknown { .. } => None,
+    }
+}
+
+/// Propagates scope and family identity only from explicit serialized lineage.
+/// Any legacy/unknown source remains Unknown rather than being guessed from a
+/// file path or result identifier.
+pub fn lineage_scope_and_families<'a>(
+    lineages: impl IntoIterator<Item = &'a ArtifactLineageState>,
+) -> (ArtifactExperimentScope, ArtifactAcquisitionFamilies) {
+    let mut scopes = Vec::new();
+    let mut families = Vec::new();
+    for lineage in lineages {
+        let ArtifactLineageState::Known { identity, .. } = lineage else {
+            return (
+                ArtifactExperimentScope::Unknown,
+                ArtifactAcquisitionFamilies::Unknown,
+            );
+        };
+        scopes.push(identity.experiment_scope.clone());
+        let ArtifactAcquisitionFamilies::Known(values) = &identity.acquisition_families else {
+            return (
+                ArtifactExperimentScope::propagate(scopes),
+                ArtifactAcquisitionFamilies::Unknown,
+            );
+        };
+        families.extend(values.clone());
+    }
+    let scope = ArtifactExperimentScope::propagate(scopes);
+    let families = ArtifactAcquisitionFamilies::known(families)
+        .unwrap_or(ArtifactAcquisitionFamilies::Unknown);
+    (scope, families)
+}
+
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum ArtifactLineageState {
     Known {
         identity: ArtifactIdentity,
@@ -424,6 +529,44 @@ pub enum ArtifactLineageState {
         source_schema_version: Option<u32>,
         reason: UnknownLineageReason,
     },
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Deserialize)]
+enum ArtifactLineageStateWire {
+    Known {
+        identity: ArtifactIdentity,
+        direct_dependencies: Vec<ArtifactDependency>,
+    },
+    LegacyUnknown {
+        source_schema_version: Option<u32>,
+        reason: UnknownLineageReason,
+    },
+}
+
+impl<'de> Deserialize<'de> for ArtifactLineageState {
+    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match ArtifactLineageStateWire::deserialize(deserializer)? {
+            ArtifactLineageStateWire::Known {
+                identity,
+                direct_dependencies,
+            } => {
+                identity.validate().map_err(de::Error::custom)?;
+                validate_dependencies(&direct_dependencies).map_err(de::Error::custom)?;
+                Ok(Self::Known {
+                    identity,
+                    direct_dependencies,
+                })
+            }
+            ArtifactLineageStateWire::LegacyUnknown {
+                source_schema_version,
+                reason,
+            } => Ok(Self::LegacyUnknown {
+                source_schema_version,
+                reason,
+            }),
+        }
+    }
 }
 
 impl Default for ArtifactLineageState {
@@ -437,6 +580,16 @@ impl Default for ArtifactLineageState {
 
 pub fn legacy_unknown_lineage() -> ArtifactLineageState {
     ArtifactLineageState::default()
+}
+
+/// Conservative lineage state for a current producer that cannot establish a
+/// complete authoritative identity. This is intentionally not an identity
+/// synthesis path: callers retain an explicit, schema-versioned unknown.
+pub fn current_unknown_lineage(schema_version: u32) -> ArtifactLineageState {
+    ArtifactLineageState::LegacyUnknown {
+        source_schema_version: Some(schema_version),
+        reason: UnknownLineageReason::MigrationInformationUnavailable,
+    }
 }
 
 pub fn artifact_scope_from_experiment_ids(
@@ -489,10 +642,36 @@ impl ArtifactLineageCatalog {
         if node.identity.artifact_id.0.is_empty() {
             return Err(LineageError::InvalidArtifactIdentity);
         }
+        validate_dependencies(&node.direct_dependencies)?;
         self.artifacts
             .insert(node.identity.artifact_id.clone(), node);
         Ok(())
     }
+}
+
+fn validate_dependencies(dependencies: &[ArtifactDependency]) -> Result<(), LineageError> {
+    for dependency in dependencies {
+        ArtifactId::new(dependency.artifact_id.0.clone())?;
+    }
+    let mut expected = dependencies.to_vec();
+    expected.sort_by(|left, right| {
+        left.role
+            .discriminant()
+            .cmp(&right.role.discriminant())
+            .then_with(|| {
+                left.artifact_kind
+                    .as_str()
+                    .cmp(right.artifact_kind.as_str())
+            })
+            .then_with(|| left.artifact_id.cmp(&right.artifact_id))
+    });
+    if expected != dependencies {
+        return Err(LineageError::NonCanonicalDependencies);
+    }
+    if dependencies.windows(2).any(|window| window[0] == window[1]) {
+        return Err(LineageError::DuplicateDependency);
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -816,6 +995,10 @@ pub enum LineageError {
     NonCanonicalFamilySet,
     #[error("artifact identity is invalid")]
     InvalidArtifactIdentity,
+    #[error("dependencies are not in canonical order")]
+    NonCanonicalDependencies,
+    #[error("duplicate artifact dependency")]
+    DuplicateDependency,
     #[error("semantic value serialization failed: {0}")]
     Serialization(String),
 }

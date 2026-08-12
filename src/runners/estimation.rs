@@ -11,7 +11,7 @@ use crate::{
     results::{
         CalibrationAnalysisReport, EisFitArtifact, MechanismAnalysisReport, SensorHealthAssessment,
         SensorHealthBaseline, SignalAnalysisReport, StateEstimationReport, StateFilterComparison,
-        StateValidationResult, TransientAnalysisReport,
+        StateValidationResult, StoredCalibrationModel, TransientAnalysisReport,
     },
 };
 use std::{
@@ -69,10 +69,9 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         &options.channel,
         &config,
     )?;
-    let calibration = StoredCalibrationObservationModel::new(read_versioned(&resolve(
-        workspace,
-        &options.calibration_model,
-    ))?)?;
+    let calibration_artifact: StoredCalibrationModel =
+        read_versioned(&resolve(workspace, &options.calibration_model))?;
+    let calibration = StoredCalibrationObservationModel::new(calibration_artifact.clone())?;
     let signal = read_optional::<SignalAnalysisReport>(workspace, options.signal_results.as_ref())?;
     let transient =
         read_optional::<TransientAnalysisReport>(workspace, options.transient_results.as_ref())?;
@@ -105,6 +104,78 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
     )?;
     report.warnings.extend(validated.warnings);
     report.ingestion_diagnostics = validated.ingestion;
+    let mut source_lineages = vec![(
+        &calibration_artifact.lineage,
+        crate::domain::ArtifactDependencyRole::Calibration,
+    )];
+    for (lineage, role) in [
+        (
+            signal.as_ref().map(|artifact| &artifact.lineage),
+            crate::domain::ArtifactDependencyRole::AuxiliaryInput,
+        ),
+        (
+            transient.as_ref().map(|artifact| &artifact.lineage),
+            crate::domain::ArtifactDependencyRole::Initialization,
+        ),
+        (
+            calibration_results
+                .as_ref()
+                .map(|artifact| &artifact.lineage),
+            crate::domain::ArtifactDependencyRole::AuxiliaryInput,
+        ),
+        (
+            eis.as_ref().map(|artifact| &artifact.lineage),
+            crate::domain::ArtifactDependencyRole::AuxiliaryInput,
+        ),
+        (
+            mechanism.as_ref().map(|artifact| &artifact.lineage),
+            crate::domain::ArtifactDependencyRole::AuxiliaryInput,
+        ),
+        (
+            baseline.as_ref().map(|artifact| &artifact.lineage),
+            crate::domain::ArtifactDependencyRole::Prior,
+        ),
+        (
+            assessment.as_ref().map(|artifact| &artifact.lineage),
+            crate::domain::ArtifactDependencyRole::AuxiliaryInput,
+        ),
+    ] {
+        if let Some(lineage) = lineage {
+            source_lineages.push((lineage, role));
+        }
+    }
+    let (dependency_scope, acquisition_families) = crate::domain::lineage_scope_and_families(
+        source_lineages.iter().map(|(lineage, _)| *lineage),
+    );
+    let experiment_scope = match dependency_scope {
+        crate::domain::ArtifactExperimentScope::Unknown => {
+            crate::domain::ExperimentId::new(report.experiment_id.clone())
+                .and_then(crate::domain::ArtifactExperimentScope::single)
+                .unwrap_or(crate::domain::ArtifactExperimentScope::Unknown)
+        }
+        scope => scope,
+    };
+    let dependencies = source_lineages
+        .iter()
+        .filter_map(|(lineage, role)| crate::domain::dependency_from_lineage(lineage, role.clone()))
+        .collect::<Vec<_>>();
+    report.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::StateEstimation,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        experiment_scope,
+        report
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ScopeKey::specific(report.channel.clone())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        acquisition_families,
+        dependencies,
+        &report,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(report.schema_version));
     export_report(workspace, options.output.as_deref(), &report)
 }
 

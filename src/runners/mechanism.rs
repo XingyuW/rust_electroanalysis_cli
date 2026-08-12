@@ -119,8 +119,9 @@ pub fn compare(
         &transient_timescales,
         &comparisons,
     );
-    let report = MechanismAnalysisReport {
-        schema_version: 2,
+    let mut report = MechanismAnalysisReport {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         analysis_id: format!("mechanism:{}", record.record_id),
         records: vec![summary],
         eis_timescales,
@@ -133,6 +134,7 @@ pub fn compare(
         warnings,
         transient_configuration: Some(transient.configuration.clone()),
     };
+    report.lineage = mechanism_lineage(&report, [&eis.lineage, &transient.lineage]);
     export_report(workspace, output_path, &report)
 }
 
@@ -147,13 +149,49 @@ pub fn trend(
     let manifest =
         load_manifest(&manifest_path).map_err(|e| RunnerError::Message(e.to_string()))?;
     let base = manifest_path.parent().unwrap_or(workspace);
-    let mut report=MechanismAnalysisReport { schema_version:2, analysis_id:"mechanism-trend".to_string(), records:Vec::new(), eis_timescales:Vec::new(), transient_timescales:Vec::new(), comparisons:Vec::new(), hypotheses:manifest.hypotheses.clone().into_iter().map(|h| crate::results::HypothesisAssessment { hypothesis_id:h.hypothesis_id, transient_timescale:h.transient_timescale, eis_role:h.eis_role, description:h.description, assessment:"insufficient evidence".to_string(), supporting_observations:Vec::new(), contradictory_observations:Vec::new(), missing_evidence:vec!["replicate-level hypothesis evaluation is not available from a single manifest record".to_string()], assumptions:Vec::new(), alternative_explanations:Vec::new() }).collect(), trends:Vec::new(), configuration:loaded.config.clone(), provenance:None, warnings:Vec::new(), transient_configuration:None };
+    let mut report = MechanismAnalysisReport {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
+        analysis_id: "mechanism-trend".to_string(),
+        records: Vec::new(),
+        eis_timescales: Vec::new(),
+        transient_timescales: Vec::new(),
+        comparisons: Vec::new(),
+        hypotheses: manifest
+            .hypotheses
+            .clone()
+            .into_iter()
+            .map(|h| crate::results::HypothesisAssessment {
+                hypothesis_id: h.hypothesis_id,
+                transient_timescale: h.transient_timescale,
+                eis_role: h.eis_role,
+                description: h.description,
+                assessment: "insufficient evidence".to_string(),
+                supporting_observations: Vec::new(),
+                contradictory_observations: Vec::new(),
+                missing_evidence: vec![
+                    "replicate-level hypothesis evaluation is not available from a single manifest record"
+                        .to_string(),
+                ],
+                assumptions: Vec::new(),
+                alternative_explanations: Vec::new(),
+            })
+            .collect(),
+        trends: Vec::new(),
+        configuration: loaded.config.clone(),
+        provenance: None,
+        warnings: Vec::new(),
+        transient_configuration: None,
+    };
+    let mut source_lineages = Vec::new();
     for record in manifest.records {
         let eis_path = resolve_path(base, &record.eis_fit);
         let transient_path = resolve_path(base, &record.transient_results);
         let eis: EisFitArtifact = crate::domain::read_artifact(&eis_path)?;
         let transient: crate::results::TransientAnalysisReport =
             crate::domain::read_artifact(&transient_path)?;
+        source_lineages.push(eis.lineage.clone());
+        source_lineages.push(transient.lineage.clone());
         let et = extract_eis_timescales(
             &eis,
             loaded.config.confidence_level,
@@ -231,7 +269,72 @@ pub fn trend(
         &report.configuration.trend_independent_variable,
         report.configuration.trend_minimum_records,
     ));
+    report.lineage = mechanism_lineage(&report, source_lineages.iter());
     export_report(workspace, output_path, &report)
+}
+
+fn mechanism_lineage<'a>(
+    report: &MechanismAnalysisReport,
+    source_lineages: impl IntoIterator<Item = &'a crate::domain::ArtifactLineageState>,
+) -> crate::domain::ArtifactLineageState {
+    let mut scopes = Vec::new();
+    let mut dependencies = Vec::new();
+    let mut families = crate::domain::ArtifactAcquisitionFamilies::Known(Vec::new());
+    let mut has_unknown_family = false;
+    for lineage in source_lineages {
+        match lineage {
+            crate::domain::ArtifactLineageState::Known {
+                identity,
+                direct_dependencies: _,
+            } => {
+                scopes.push(identity.experiment_scope.clone());
+                dependencies.push(crate::domain::ArtifactDependency {
+                    artifact_id: identity.artifact_id.clone(),
+                    artifact_kind: identity.artifact_kind,
+                    role: crate::domain::ArtifactDependencyRole::TransformationInput,
+                });
+                if has_unknown_family {
+                    continue;
+                }
+                families = match (&families, &identity.acquisition_families) {
+                    (
+                        crate::domain::ArtifactAcquisitionFamilies::Known(left),
+                        crate::domain::ArtifactAcquisitionFamilies::Known(right),
+                    ) if !left.is_empty() && !right.is_empty() => {
+                        crate::domain::ArtifactAcquisitionFamilies::known(
+                            left.iter().cloned().chain(right.iter().cloned()),
+                        )
+                        .unwrap_or(crate::domain::ArtifactAcquisitionFamilies::Unknown)
+                    }
+                    _ => {
+                        has_unknown_family = true;
+                        crate::domain::ArtifactAcquisitionFamilies::Unknown
+                    }
+                };
+            }
+            crate::domain::ArtifactLineageState::LegacyUnknown { .. } => {
+                has_unknown_family = true;
+                families = crate::domain::ArtifactAcquisitionFamilies::Unknown;
+                scopes.push(crate::domain::ArtifactExperimentScope::Unknown);
+            }
+        }
+    }
+    if matches!(families, crate::domain::ArtifactAcquisitionFamilies::Known(ref values) if values.is_empty())
+    {
+        families = crate::domain::ArtifactAcquisitionFamilies::Unknown;
+    }
+    crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::MechanismAnalysis,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        crate::domain::ArtifactExperimentScope::propagate(scopes),
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ScopeKey::Unspecified,
+        families,
+        dependencies,
+        report,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(report.schema_version))
 }
 
 pub fn report(

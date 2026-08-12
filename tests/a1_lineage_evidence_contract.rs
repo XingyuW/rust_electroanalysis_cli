@@ -7,8 +7,8 @@ use rust_electroanalysis_cli::domain::{
 };
 use rust_electroanalysis_cli::evidence::{
     CovarianceAxisId, CovarianceAxisValidationError, CovarianceQuantityKind,
-    EvidenceArtifactSource, EvidenceAvailability, EvidenceBundleBuilder, EvidenceBundleError,
-    EvidenceDirection, EvidenceExperimentScope, EvidenceIndependence,
+    EvidenceArtifactSource, EvidenceAvailability, EvidenceBundle, EvidenceBundleBuilder,
+    EvidenceBundleError, EvidenceDirection, EvidenceExperimentScope, EvidenceIndependence,
     EvidenceIndependenceAssessment, EvidencePairKey, EvidenceQuantity, EvidenceRecord,
     EvidenceScopeDerivation, EvidenceSourceClass, EvidenceSourceRef, EvidenceStrength,
     EvidenceTarget, EvidenceUncertaintyModel, EvidenceValidity, LegacySourceFingerprint,
@@ -670,4 +670,68 @@ fn a1_adapter_reads_public_transient_artifact_without_inventing_strength() {
         },
         EvidenceExperimentScope::Unknown,
     );
+}
+
+#[test]
+fn a1_deserializers_reject_invalid_axes_pairs_and_known_lineage() {
+    let matrix =
+        labeled_eis_covariance(&[("R1".into(), "R".into(), "Ohm".into())], vec![vec![1.0]])
+            .unwrap();
+    let mut invalid_matrix = serde_json::to_value(&matrix).unwrap();
+    invalid_matrix["axes"] = serde_json::json!([matrix.axes[0].clone(), matrix.axes[0].clone()]);
+    invalid_matrix["values"] = serde_json::json!([[1.0, 0.0], [0.0, 1.0]]);
+    assert!(
+        serde_json::from_value::<rust_electroanalysis_cli::evidence::LabeledCovarianceMatrix>(
+            invalid_matrix
+        )
+        .is_err()
+    );
+
+    let left_id = id("deserialize-left");
+    let right_id = id("deserialize-right");
+    let mut catalog = ArtifactLineageCatalog::default();
+    catalog
+        .insert(known_node(left_id.clone(), "left-family"))
+        .unwrap();
+    catalog
+        .insert(known_node(right_id.clone(), "right-family"))
+        .unwrap();
+    let left = record("left", left_id, None);
+    let right = record("right", right_id, None);
+    let expected = classify_independence(&left, &right, &catalog);
+    let pair =
+        EvidencePairKey::canonical(left.evidence_id.clone(), right.evidence_id.clone()).unwrap();
+    let mut builder = EvidenceBundleBuilder::new(
+        EvidenceExperimentScope::Unknown,
+        ScopeKey::Unspecified,
+        ScopeKey::Unspecified,
+        catalog,
+    );
+    builder.add_record(left);
+    builder.add_record(right);
+    builder.add_independence_assessment(EvidenceIndependenceAssessment {
+        pair: pair.clone(),
+        classification: expected.classification,
+        algorithm_id: "lineage.v1".into(),
+        left_lineage_status: expected.left_lineage_status,
+        right_lineage_status: expected.right_lineage_status,
+        shared_ancestor_artifact_ids: expected.shared_ancestor_artifact_ids,
+        shared_acquisition_families: expected.shared_acquisition_families,
+        reasons: expected.reasons,
+    });
+    let bundle = builder.build().unwrap();
+    let mut invalid_bundle = serde_json::to_value(&bundle).unwrap();
+    invalid_bundle["independence_assessments"][0]["pair"] = serde_json::json!({
+        "left_evidence_id": pair.right_evidence_id,
+        "right_evidence_id": pair.left_evidence_id,
+    });
+    assert!(serde_json::from_value::<EvidenceBundle>(invalid_bundle).is_err());
+
+    let mut invalid_lineage = serde_json::to_value(ArtifactLineageState::Known {
+        identity: identity(id("valid-lineage"), ArtifactAcquisitionFamilies::Unknown),
+        direct_dependencies: vec![],
+    })
+    .unwrap();
+    invalid_lineage["Known"]["identity"]["artifact_id"] = serde_json::json!("invalid");
+    assert!(serde_json::from_value::<ArtifactLineageState>(invalid_lineage).is_err());
 }

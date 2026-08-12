@@ -75,10 +75,7 @@ pub trait VersionedArtifact: Serialize + DeserializeOwned {
     /// A1's migration boundary can always preserve an explicit lineage state
     /// even for historical result structs that predate the typed field.
     fn lineage_state(&self) -> crate::domain::ArtifactLineageState {
-        crate::domain::ArtifactLineageState::LegacyUnknown {
-            source_schema_version: Some(self.schema_version()),
-            reason: crate::domain::UnknownLineageReason::MigrationInformationUnavailable,
-        }
+        crate::domain::current_unknown_lineage(self.schema_version())
     }
     fn require_kind_for_previous_schema_static() -> bool {
         false
@@ -188,6 +185,31 @@ pub fn write_artifact<T: VersionedArtifact>(
             })
         })
     });
+    // A typed A1 artifact carries lineage directly. If it was read from a
+    // historical payload with the field absent, retain that explicit state
+    // while recording the schema observed at this writer boundary. This never
+    // upgrades a legacy artifact into a fabricated identity.
+    if let Some(lineage) = object.get_mut("lineage") {
+        let parsed = serde_json::from_value::<crate::domain::ArtifactLineageState>(lineage.clone())
+            .map_err(|source| ArtifactError::Json {
+                path: path.into(),
+                source,
+            })?;
+        if let crate::domain::ArtifactLineageState::LegacyUnknown {
+            source_schema_version: None,
+            reason,
+        } = parsed
+        {
+            *lineage = serde_json::to_value(crate::domain::ArtifactLineageState::LegacyUnknown {
+                source_schema_version: Some(artifact.schema_version()),
+                reason,
+            })
+            .map_err(|source| ArtifactError::Json {
+                path: path.into(),
+                source,
+            })?;
+        }
+    }
     validate_value::<T>(path, &value)?;
     let text = serde_json::to_string_pretty(&value).map_err(|source| ArtifactError::Json {
         path: path.into(),

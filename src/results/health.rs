@@ -87,6 +87,8 @@ pub struct BaselineContextConflict {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SensorHealthBaseline {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub baseline_id: String,
     pub sensor_type: Option<String>,
     pub sensor_design: Option<String>,
@@ -213,6 +215,8 @@ pub enum HealthWarning {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SensorHealthAssessment {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub assessment_id: String,
     pub sensor_id: Option<String>,
     pub experiment_id: Option<String>,
@@ -251,6 +255,8 @@ pub struct HealthTrend {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct HealthTrendReport {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub analysis_id: String,
     pub trends: Vec<HealthTrend>,
     pub provenance: AnalysisProvenance,
