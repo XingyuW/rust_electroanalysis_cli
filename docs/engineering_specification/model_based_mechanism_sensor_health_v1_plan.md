@@ -2094,3 +2094,518 @@ Implementation invention still required: no
 ```
 
 Could two competent implementation agents differ about required experiment scopes, the critical contradiction candidate set, config file ownership, validation optionality, CLI precedence, validation fixture contents, or negative error variants? **NO** for every question.
+
+## 23. Phase B Contract Remediation V — controlling executable contract
+
+**Authority and supersession.** This section is the sole controlling contract for
+Phase B. It supersedes every Phase-B rule, type, fixture, CLI table, test table,
+and self-audit in §§6--10, 14--18, and 20--22. Earlier A1 sections remain frozen
+and are not reinterpreted. In particular, Phase B must not add a field to, change
+the serialized meaning of, or change the semantic hash of `EvidenceRecord`,
+`EvidenceQuantity`, `EvidencePairKey`, `ArtifactLineageState`,
+`TimescalePairUncertainty`, or A1 `EvidenceBundle`.
+
+This remediation is documentation only. It authorizes a later implementation
+agent to create the Phase-B types and tests named below, but not to alter A1 or
+the legacy mechanism path. The implementation traceability document has one
+fixed path: `docs/engineering_specification/phase_b_mechanism_evidence_traceability.md`.
+The implementation agent must create or update exactly that path; this planning
+amendment does not create a placeholder for it.
+
+### 23.1 PB-HO-01 — one serialized hypothesis owner
+
+`mechanism compare --mechanism-evidence-config <PATH>` is the only serialized
+owner of Phase-B hypothesis definitions. It reads exactly one TOML document.
+The legacy `--config` remains the owner of legacy comparison settings only;
+it must neither deserialize, default, override, nor merge any Phase-B field.
+There is no second hypothesis-definition file and no legacy `hypotheses`
+ownership for Phase-B assessment.
+
+```rust
+pub struct MechanismEvidenceConfig {
+    pub schema_version: u32, // exactly 1
+    pub hypotheses: Vec<MechanismHypothesisDefinition>,
+    pub temporal: TemporalAssessmentPolicy,
+}
+pub struct MechanismHypothesisDefinition {
+    pub hypothesis_id: HypothesisId,
+    pub target_components: Vec<ComponentId>,
+    pub evidence_requirements: Vec<EvidenceRequirementBinding>,
+    pub critical_requirement_ids: Vec<EvidenceRequirementId>,
+    pub gates: HypothesisGates,
+    pub identifiability_requirements: Vec<IdentifiabilityBinding>,
+    pub validation_applicability: ValidationApplicability,
+    pub role_bindings: Vec<EvidenceRoleBinding>,
+}
+pub struct EvidenceRequirementBinding {
+    pub requirement_id: EvidenceRequirementId,
+    pub role: MechanismEvidenceRole,
+    pub target: EvidenceTarget,
+    pub source_class: EvidenceSourceClass,
+    pub field_path: String,
+    pub quantity_semantic: PhaseBQuantitySemantic,
+    pub required_unit: String,
+    pub direction: RequiredEvidenceDirection,
+    pub required: bool,
+}
+pub struct HypothesisGates {
+    pub timescale: Option<TimescaleGate>,
+    pub amplitude: Option<AmplitudeGate>,
+    pub repeatability: Option<RepeatabilityGate>,
+}
+```
+
+The remaining closed Phase-B types used above are defined here, rather than
+inferred from a legacy similarly named type:
+
+```rust
+pub struct TemporalAssessmentPolicy { pub point_tolerance_s: f64 }
+pub enum PhaseBQuantitySemantic {
+    TimeConstant, ElectricalPotential, CalibrationPotential, ComponentScalar,
+}
+pub enum RequiredEvidenceDirection { CandidatePresence, TimescalePairMember }
+pub struct TimescaleGate {
+    pub left_requirement_id: EvidenceRequirementId,
+    pub right_requirement_id: EvidenceRequirementId,
+    pub maximum_log_distance: f64,
+}
+pub struct IdentifiabilityBinding {
+    pub requirement_id: RequirementId,
+    pub kind: IdentifiabilityRequirementKind,
+    pub threshold: f64,
+}
+pub struct ValidationApplicability {
+    pub required: bool,
+    pub validation_requirement_ids: Vec<EvidenceRequirementId>,
+    pub minimum_independent_validation_families: usize,
+}
+pub enum MechanismEvidenceRole { Support, Validation, Calibration, Training }
+pub struct EvidenceRoleBinding {
+    pub evidence_id: EvidenceId,
+    pub role: MechanismEvidenceRole,
+}
+pub enum ExpectedEffect { Increase, Decrease, SameSign }
+pub enum RepeatabilityStatus { Satisfied, NotSatisfied, NotAssessed }
+pub enum AmplitudeReasonCode {
+    MissingCandidate, AmbiguousCandidate, InvalidUnit, UnitMismatch,
+    DirectionMismatch, RelativeErrorExceeded,
+}
+pub enum RepeatabilityReasonCode {
+    MissingCandidate, ScopeMismatch, IncompatibleUnit,
+    InsufficientIndependentRecords, UnknownAcquisitionFamily,
+}
+```
+
+All TOML fields represented above are required when their containing table is
+present; `hypotheses` is nonempty; all IDs are nonempty and unique within their
+declared scope; each target component is unique; each `field_path` is a literal
+JSONPath emitted by the listed adapter; and unknown TOML fields are rejected.
+`None` means that a gate does not apply. A required requirement with no eligible
+record is `NotAssessed`, never silently omitted. The exact TOML root is
+`schema_version = 1`, `[[hypotheses]]`, then per-hypothesis
+`[[hypotheses.evidence_requirements]]`, optional `[hypotheses.gates.timescale]`,
+`[hypotheses.gates.amplitude]`, `[hypotheses.gates.repeatability]`, repeated
+`[[hypotheses.identifiability_requirements]]`, and
+`[hypotheses.validation_applicability]`. The TOML representation uses the
+serde snake-case form of the types in this section.
+
+`TimescaleGate.maximum_log_distance` and every identifiability threshold are
+finite and `>=0`; a timescale gate selects exactly one left and one right
+TimeConstant candidate and is Satisfied iff `abs(ln(left/right)) <=` its
+threshold, NotSatisfied iff both candidates exist and exceed it, otherwise
+NotAssessed. `ValidationApplicability.required=false` requires an empty
+validation requirement list and `minimum_independent_validation_families=0`.
+When true, the list is nonempty, unique, and `minimum_independent_validation_families>=1`.
+Each role binding ID is unique and resolves to exactly one named requirement.
+`TemporalAssessmentPolicy.point_tolerance_s` is finite and `>=0` seconds.
+`CandidatePresence` is the only legal direction for a single-value requirement;
+`TimescalePairMember` is legal only for one of the two requirements named by a
+timescale gate. Directional scientific claims are made only by an
+`AmplitudeGate` and its explicit `ExpectedEffect`; Phase B does not inspect or
+overwrite A1 `EvidenceRecord.direction` or `EvidenceRecord.strength`.
+
+Promotion is deterministic. Start at `Hypothesized`. A hypothesis is
+`ExperimentallySupported` iff every `required=true` Support binding has exactly
+one eligible candidate, every present gate is Satisfied, every required
+identifiability binding is Satisfied, and no critical requirement is missing or
+belongs to a NotSatisfied gate. Otherwise it remains `Hypothesized` when any
+required item is NotAssessed and becomes `Unassessed` only when config itself
+is invalid. `ValidatedForDomain` is considered only after
+`ExperimentallySupported` and follows §23.8. Validation failure never
+downgrades the support result below `ExperimentallySupported`.
+
+### 23.2 PB-HO-02 — exact quantity semantics without an A1 change
+
+`EvidenceQuantity` remains exactly `{ value, unit, uncertainty }`; it has no
+`quantity_kind`. Phase B therefore uses the following literal, closed mapping.
+It is structural enum matching, not a display-name, unit-only, field-path, or
+component-name inference:
+
+| `EvidenceTarget` variant | Phase-B target semantic | Eligibility |
+|---|---|---|
+| `ModelComponent(ComponentId)` | `ComponentScalar` | eligible only when an `EvidenceRequirementBinding` has structural equality for this exact variant and component ID |
+| `MechanismHypothesis(HypothesisId)` | unmapped | ineligible |
+| `HealthFinding(HealthFindingId)` | unmapped | ineligible |
+| `HealthDimension(HealthDimension)` | unmapped | ineligible |
+| `IdentifiabilityRequirement(RequirementId)` | unmapped | ineligible as measurement evidence; it is consumed only by the separate `IdentifiabilityBinding` route in §23.9 |
+
+`PhaseBQuantitySemantic` is a Phase-B requirement property, never an A1
+field: `TimeConstant`, `ElectricalPotential`, `CalibrationPotential`, or
+`ComponentScalar`. A binding is eligible only if its target maps to
+`ComponentScalar` above, its exact source class and exact source field path
+match, its value is finite and `Available`, its unit validates through
+`validate_ucum_unit`, and its declared semantic/unit pair is one of:
+
+| semantic | accepted candidate units | required-unit rule |
+|---|---|---|
+| `TimeConstant` | `s` | required unit is exactly `s` |
+| `ElectricalPotential` or `CalibrationPotential` | `V`, `mV`, `µV` | required unit is one of `V`, `mV`, `µV` |
+| `ComponentScalar` | `1`, `dimensionless`, or exactly equal validated unit | `1`/`dimensionless` are mutually convertible; any other unit must equal the required unit byte-for-byte |
+
+Any other target, semantic, unit, availability, duplicate exact candidate, or
+unit mismatch is ineligible and records a typed Phase-B reason; there is no
+fallback selection. This is the complete Phase-B quantity mapping.
+
+### 23.3 PB-HO-03 and PB-HO-04 — source assembly and legally producible E2E
+
+`--evidence-artifact` is **RETIRED**. `EvidenceBundle` is an in-memory A1
+assembly object, not a `VersionedArtifact`; it has no artifact kind, artifact
+envelope, independent `ArtifactId`, standalone reader, fixture grammar, or
+migration route. Phase B receives only individually versioned source artifacts,
+uses `runners::evidence::assemble_evidence_bundle`, then assesses that transient
+bundle in the same command invocation.
+
+The only V1 source inputs and adapter outputs are below. IDs are generated by
+the cited current adapter, not supplied by a fixture author.
+
+| CLI input / artifact kind | approved adapter and exact `EvidenceId` | exact target / source field | unit / temporal support |
+|---|---|---|---|
+| `--eis-fit`, `eis_fit` | `adapt_eis_fit`: `eis.parameter.{parameter_index}` | `ModelComponent(parameters[index].element_id)` / `$.parameters[index].value` | serialized parameter unit, or `1` only when it is empty / `Unknown` |
+| `--transient-results`, `transient_analysis` | `adapt_transient_analysis`: `transient.event.{event_index}.parameter.{parameter_index}` | `ModelComponent(parameter.name)` / `$.events[event_index].candidate_fits[].parameters[parameter_index].value` | serialized parameter unit / `Window` from the selected event's `time_local` bounds only when nonempty finite and ordered; otherwise `Unknown` |
+| `--transient-results`, `transient_analysis` | `adapt_transient_analysis`: `transient.event.{event_index}.tau_fast_s` or `.tau_slow_s` | `ModelComponent(tau_fast_s|tau_slow_s)` / exact `derived_features` path | `s` / same event-window rule |
+| `--calibration-observations`, `calibration_observations` | `try_adapt_calibration_observations`: `calibration.observation.{index}` | `ModelComponent(observation.analyte)` / `$.observations[index].potential_v` | `V` / `Unknown` |
+| `--estimation-results`, `state_estimation` | `adapt_state_estimation`: `estimation.point.{point_index}.state.{state_index}` | `ModelComponent(filtered_state[state_index].name)` / `$.estimates[point_index].filtered_state[state_index].value` | serialized state unit / `Point` at `timestamp_s` only when finite; clock is the serialized estimation timestamp basis |
+| `--model-analysis`, `ism_model_analysis` | `adapt_model_analysis`: `model.point.{point_index}.component.{component_index}` | `ModelComponent(contribution.component_id)` / `$.points[point_index].contributions[component_index].potential_v` | `V` / `Point` at `points[point_index].time_s` only when finite; clock is model relative-time basis |
+
+The current assembly function must be extended only to call the already-approved
+model adapter when `--model-analysis` is present. `--calibration-results` and a
+stored calibration model remain computational context, not evidence, because
+there is no approved calibration-model adapter. Signal, health, arbitrary JSON,
+and model-validation artifacts are not Phase-B source inputs. Source order is
+irrelevant: the A1 builder's canonical ordering controls the assembled bundle.
+
+Phase B must not manufacture direction, strength, validity, an EvidenceId, a
+timestamp, a role, or a model evidence record. It may persist its own assessment
+of an immutable record. The production E2E scenarios are:
+
+| scenario | legal inputs and generated IDs | required result |
+|---|---|---|
+| E2E-1 `ExperimentallySupported` | one EIS parameter with unit `s` (`eis.parameter.0`) and one selected transient derived `tau_fast_s` (`transient.event.0.tau_fast_s`), each bound by exact target/source/field-path requirements; no records have the `Validation` role | all required support gates pass; validation is absent or `NotAssessed`; result is exactly `ExperimentallySupported`, never `ValidatedForDomain` |
+| E2E-2 `ValidatedForDomain` | E2E-1 inputs plus one `calibration_observations` record (`calibration.observation.0`) and one `ism_model_analysis` contribution (`model.point.0.component.0`), originating from distinct known independent acquisition families; each is explicitly role-bound as `Validation` and bound to a separate validation requirement | support gates pass, each validation requirement has an eligible Validation-role record, the two validation families are independent from each other and from support families; result is `ValidatedForDomain` |
+
+The E2E test creates real serialized source artifacts through their production
+types and reads them through `read_artifact`; it does not serialize an
+`EvidenceBundle` or inject IDs/fields that a named adapter cannot emit.
+
+### 23.4 PB-HO-05 — temporal authority
+
+```rust
+pub enum EvidenceTemporalSupport {
+    Point { timestamp_s: f64, clock_basis: TemporalClockBasis },
+    Window { start_s: f64, end_s: f64, clock_basis: TemporalClockBasis },
+    Unknown,
+}
+pub enum TemporalClockBasis { EstimationTimestamp, ModelRelativeTime, TransientRelativeTime }
+pub enum TemporalAssessmentReason {
+    UnknownSupport, ClockMismatch, ScopeMismatch, PointToleranceExceeded,
+    WindowNoPositiveOverlap, PointOutsideWindow, AmbiguousNearestPoint,
+}
+```
+
+`EisFitArtifact` has no authoritative timestamp, so every EIS-derived record
+has `EvidenceTemporalSupport::Unknown`. No implementation may derive an EIS
+time from file metadata, wall clock, runner time, neighboring artifacts, or
+experiment ID. A point temporal join must never require EIS. Point tests use
+only estimation and/or model source records with their documented timestamps.
+Transient event support is a window, not a fabricated point; calibration is
+unknown. A temporal-required binding accepts only equal clock bases and either
+two points within the configured inclusive tolerance, two windows with positive
+half-open overlap, or a point lying in a window. Any Unknown, aggregate, clock
+mismatch, scope mismatch, or multiple equally-near points is `NotAssessed`.
+
+### 23.5 PB-HO-06/07 — amplitude assessment and unit-bearing threshold
+
+The global bare `amplitude_floor` is retired. Each amplitude gate contains:
+
+```rust
+pub struct AmplitudeThreshold { pub value: f64, pub unit: String }
+pub struct AmplitudeGate {
+    pub predicted_requirement_id: EvidenceRequirementId,
+    pub observed_requirement_id: EvidenceRequirementId,
+    pub expected_effect: ExpectedEffect, // Increase, Decrease, SameSign
+    pub maximum_relative_error: f64,
+    pub threshold: AmplitudeThreshold,
+}
+pub enum AmplitudeStatus { Satisfied, NotSatisfied, NotAssessed }
+pub struct AmplitudeAssessment {
+    pub status: AmplitudeStatus,
+    pub predicted_evidence_id: Option<EvidenceId>,
+    pub observed_evidence_id: Option<EvidenceId>,
+    pub threshold: AmplitudeThreshold,
+    pub predicted_value_in_threshold_unit: Option<f64>,
+    pub observed_value_in_threshold_unit: Option<f64>,
+    pub relative_error: Option<f64>,
+    pub reason_codes: Vec<AmplitudeReasonCode>,
+}
+```
+
+Threshold value is finite and `>0`; `maximum_relative_error` is finite and
+`>=0`; the threshold unit must pass `validate_ucum_unit`. Candidate selection
+uses the binding algorithm in §23.2 separately for the predicted and observed
+requirement. Exactly one candidate on each side is required; zero or more than
+one yields `NotAssessed` (`MissingCandidate` or `AmbiguousCandidate`). Both
+units must be compatible with the threshold. Conversion is exact: V→V is 1,
+mV→V is `1e-3`, µV→V is `1e-6` (and inverses); `s`, `1`, and
+`dimensionless` only use the conversions in §23.2. No other conversion is V1.
+
+Let converted values be `p` and `o`, and threshold value be `f`. The direction
+condition is `o-p > 0` for Increase, `o-p < 0` for Decrease, and `p*o > 0` for
+SameSign. The error is `abs(p-o) / max(abs(p), abs(o), f)`. Uncertainty does
+not enlarge or shrink this deterministic V1 comparison; it is persisted as
+source context only. The result is Satisfied iff the direction condition holds
+and error `<= maximum_relative_error`; it is NotSatisfied if both candidates
+are valid and either condition fails; otherwise NotAssessed. The assessment is
+persisted in the Phase-B report only and never writes to A1 evidence.
+
+### 23.6 PB-HO-06B — repeatability assessment
+
+```rust
+pub struct RepeatabilityGate {
+    pub requirement_ids: Vec<EvidenceRequirementId>,
+    pub minimum_count: usize, // >= 2
+    pub maximum_log_tau_sample_standard_deviation: f64, // >= 0
+}
+pub struct RepeatabilityAssessment {
+    pub status: RepeatabilityStatus,
+    pub selected_evidence_ids: Vec<EvidenceId>,
+    pub grouping_key: RepeatabilityGroupingKey,
+    pub sample_standard_deviation_ln_tau: Option<f64>,
+    pub reason_codes: Vec<RepeatabilityReasonCode>,
+}
+pub struct RepeatabilityGroupingKey {
+    pub hypothesis_id: HypothesisId,
+    pub requirement_ids: Vec<EvidenceRequirementId>,
+    pub target_components: Vec<ComponentId>,
+    pub experiment_scope: EvidenceExperimentScope,
+    pub sensor_scope: ScopeKey,
+    pub channel_scope: ScopeKey,
+}
+```
+
+Eligible records are the union of the named bindings after §23.2 selection,
+with semantic `TimeConstant`, exact unit `s`, positive finite value, valid
+scope equal to the first eligible record, and a known acquisition family. Sort
+by EvidenceId. Retain the lexicographically first maximum-cardinality subset
+whose pairs have A1 `EvidenceIndependence::Independent` and whose acquisition
+family sets are disjoint; ties use the sorted EvidenceId vector. Unknown,
+same-source, partially dependent, or missing pair independence never counts.
+The grouping key above is exact; records from another target, scope, channel,
+or hypothesis do not pool.
+
+With selected values `tau_i`, compute `x_i=ln(tau_i / 1 s)`, mean
+`x_bar=sum(x_i)/n`, and sample SD
+`sqrt(sum((x_i-x_bar)^2)/(n-1))`. Population SD is prohibited. Fewer than
+`minimum_count`, no independent subset, incompatible unit, or absent scope is
+`NotAssessed` with the corresponding reason code. Otherwise `<=` threshold is
+Satisfied and `>` is NotSatisfied. It is a Phase-B-owned persisted assessment;
+no A1 record changes.
+
+### 23.7 PB-HO-08 — exact mechanism schema 3 → 4 migration
+
+`MechanismAnalysisReport` is a `VersionedArtifact` of kind
+`mechanism_analysis`, current schema 3 and legacy schemas 1/2 before B. Phase
+B advances only this artifact to current schema 4, with readable legacy
+versions `[1,2,3]`. Artifact identity remains in the existing outer artifact
+envelope/lineage; the report payload must not gain an `artifact_id` field.
+
+```rust
+pub enum HypothesisEvidenceLevel {
+    Unassessed, Hypothesized, ExperimentallySupported, ValidatedForDomain,
+}
+pub struct PhaseBHypothesisAssessment {
+    pub hypothesis_id: HypothesisId,
+    pub level: HypothesisEvidenceLevel,
+    pub supporting_evidence_ids: Vec<EvidenceId>,
+    pub contradictory_evidence_ids: Vec<EvidenceId>,
+    pub excluded_evidence_ids: Vec<EvidenceId>,
+    pub amplitude: Option<AmplitudeAssessment>,
+    pub repeatability: Option<RepeatabilityAssessment>,
+    pub identifiability: Vec<IdentifiabilityAssessment>,
+    pub validation_status: ValidationStatus,
+    pub reason_codes: Vec<PhaseBHypothesisReasonCode>,
+}
+pub struct PhaseBHypothesisHistory {
+    pub hypothesis_id: HypothesisId,
+    pub prior_level: HypothesisEvidenceLevel,
+    pub new_level: HypothesisEvidenceLevel,
+    pub assessment_index: u64,
+    pub reason_codes: Vec<PhaseBHypothesisReasonCode>,
+}
+pub struct IdentifiabilityAssessment {
+    pub requirement_id: RequirementId,
+    pub status: IdentifiabilityStatus,
+    pub metric: Option<f64>,
+    pub unit: String,
+    pub source_evidence_ids: Vec<EvidenceId>,
+}
+pub enum IdentifiabilityStatus { Satisfied, NotSatisfied, NotAssessed, NotApplicable }
+pub enum ValidationStatus { NotApplicable, NotAssessed, Satisfied, NotSatisfied }
+pub enum PhaseBHypothesisReasonCode {
+    MissingRequiredEvidence, GateNotAssessed, GateNotSatisfied,
+    CriticalContradiction, IdentifiabilityNotSatisfied,
+    ValidationAbsent, ValidationNotAssessed, ValidationNotSatisfied,
+}
+```
+
+All ID vectors serialize bytewise sorted and duplicate-free. Assessment order
+is bytewise hypothesis-ID order. A history row is appended only when a prior
+Phase-B assessment for the same hypothesis is an explicit input to a later
+Phase-B run; otherwise the first assessment has no history row. Phase B never
+rewrites a legacy hypothesis assessment into the new type.
+
+| schema-3 payload field | schema-4 disposition |
+|---|---|
+| `schema_version` | write `4`; readers accept `1`, `2`, `3`, and `4` |
+| `lineage`, `analysis_id`, `records`, `eis_timescales`, `transient_timescales`, `comparisons`, `trends`, `configuration`, `provenance`, `warnings`, `transient_configuration` | retained byte-for-byte in meaning and serde shape |
+| `hypotheses: Vec<HypothesisAssessment>` | retained as `legacy_hypotheses: Vec<HypothesisAssessment>` with `#[serde(default)]`; no information is dropped or reinterpreted |
+| absent Phase-B assessment | add `hypothesis_assessments: Vec<PhaseBHypothesisAssessment>` with `#[serde(default)]`; legacy reads get `[]` |
+| absent Phase-B history | add `hypothesis_history: Vec<PhaseBHypothesisHistory>` with `#[serde(default)]`; legacy reads get `[]` |
+| absent role bindings/temporal/amplitude/repeatability detail | reside inside the new Phase-B assessment/history records only; legacy reads contain no fabricated values |
+
+On reading schemas 1--3, serde defaults retain existing fields and produce the
+empty new vectors. Writing any report through the Phase-B writer emits schema
+4, preserves `legacy_hypotheses`, and emits both new vectors (possibly empty).
+The schema-4 semantic hash is computed under the existing artifact semantic
+identity policy over every retained and new serialized field. A schema-3 hash
+is never claimed to equal its schema-4 rewrite; no historical Phase-B decision,
+role, timestamp, or identity is fabricated. Artifact kind remains
+`mechanism_analysis` and still follows `CurrentArtifactKindPolicy::Required`.
+
+### 23.8 PB-HO-09 — Phase-B role bindings and validation
+
+`EvidenceRecord` has no role and remains unchanged. The config owns an explicit
+binding keyed by generated `EvidenceId`:
+
+`MechanismEvidenceRole` and `EvidenceRoleBinding` are exactly the closed
+config-owned types defined in §23.1.
+
+Each role binding is serialized inside the owning hypothesis definition; an ID
+may occur once only. Before assessment, every binding must resolve to exactly
+one assembled A1 record and that record must also satisfy the corresponding
+requirement's exact target/source-class/field-path constraints. A missing,
+ambiguous, or mismatched binding is a typed configuration/input error. There is
+no artifact-kind role inference. Unbound evidence is `Unknown` for role
+purposes and does not count in any validation family.
+
+`ValidatedForDomain` additionally requires a present validation applicability
+table, every named validation requirement satisfied by a Validation-role record,
+and the selected validation records to form an A1-independent subset with the
+configured minimum count and no shared known acquisition family with selected
+Support or Training records. Calibration-role evidence can satisfy only a
+calibration requirement, not a validation requirement. Failure or absence
+downgrades only to `ExperimentallySupported` when all support gates pass; it
+does not invalidate support evidence.
+
+### 23.9 Identifiability, conflicting evidence, and exact errors
+
+For each supported identifiability binding, configuration contains the model
+`requirement_id`, its kind, threshold, and one declared input. The complete V1
+mapping is:
+
+| kind | input artifact / field | metric and threshold | status rules |
+|---|---|---|---|
+| `ObservationDurationRelativeToTimescale` | selected transient event `$.events[i].segment.fitted_time_local` and selected `TimeConstant` record | duration `(last-first) / tau`, threshold `minimum_duration_ratio` | finite ordered nonempty interval and ratio `>=` threshold → Satisfied; available values below → NotSatisfied; missing/nonfinite/Unknown → NotAssessed |
+| `ModeSeparation` | two selected `TimeConstant` records | `max(tau)/min(tau)`, threshold `minimum_mode_separation_ratio` | finite positive values and ratio `>=` threshold → Satisfied; below → NotSatisfied; otherwise NotAssessed |
+| `TransientExcitation` | selected transient event `$.events[i].concentration_before` and `.concentration_after` | `abs(log10(after/before))`, threshold `minimum_absolute_log10_concentration_step` | positive finite values and metric `>=` → Satisfied; below → NotSatisfied; otherwise NotAssessed |
+
+All other known kinds (`ActivityExcitation`, `ReferenceAnchor`,
+`IndependentCovariateVariation`, `InterferentVariation`, `TemperatureVariation`,
+`RepeatedStandards`, `AuxiliaryObservation`) and `Custom(_)` are `NotAssessed`
+in V1 because no approved adapter exposes their required metric. Only an
+explicitly inapplicable binding is `NotApplicable`; no unavailable metric is
+converted to that status.
+
+Conflicting evidence is supplied through the same source flags and assembly
+route in §23.3. Accepted kinds are exactly `eis_fit`, `transient_analysis`,
+`calibration_observations`, `state_estimation`, and `ism_model_analysis`.
+Each input flag accepts exactly one path; a repeated flag is a CLI parse error.
+Duplicate `EvidenceId`s from assembled sources are rejected by the A1 builder;
+duplicate role bindings are rejected by config validation; distinct records may
+be considered conflicting only when they resolve the same requirement and have
+opposite Phase-B required-effect outcomes. Scope equality is mandatory. The
+typed errors are `UnsupportedEvidenceSourceArtifact`, `DuplicateSourceInput`,
+`DuplicateEvidenceId`, `RoleBindingUnresolved`, `RoleBindingMismatch`,
+`ScopeMismatch`, and `ConflictingEvidence`; no generic bundle-file error exists.
+
+### 23.10 Final Phase-B CLI, fixtures, traceability, and audit
+
+The complete Phase-B `mechanism compare` interface is:
+
+| flag | status and meaning |
+|---|---|
+| `--mechanism-evidence-config PATH` | required for Phase-B assessment; sole owner of hypotheses, thresholds, roles, validation applicability, and identifiability bindings |
+| `--eis-fit PATH` | optional approved EIS source |
+| `--transient-results PATH` | optional approved transient source |
+| `--calibration-observations PATH` | optional approved calibration-observation source |
+| `--estimation-results PATH` | optional approved state-estimation source |
+| `--model-analysis PATH` | optional approved model-analysis source |
+| `--config PATH` | legacy/general comparison config only; cannot affect Phase B |
+| `--output PATH` | mechanism-analysis output |
+| `--evidence-artifact` | retired; parse rejection with migration guidance |
+| `--validation-protocol` | retired; parse rejection because validation applicability is config-owned |
+
+The legacy `mechanism compare` invocation without
+`--mechanism-evidence-config` continues to run only legacy comparison and
+schema-3 output. Supplying the evidence config selects Phase B and schema-4
+output. A Phase-B config that names a missing required source is a typed input
+error, not a legacy fallback.
+
+Fixtures are source-artifact fixtures only. Each fixture registry row in the
+implementation traceability document must state the exact envelope
+(`artifact_kind`, readable schema version, lineage), real payload fields,
+scope, adapter-generated EvidenceIds, temporal support, explicit role,
+assessment, and expected typed error. Retire all direct-bundle JSON grammar and
+all former fixtures that assign `artifact_id`, timestamp, direction, strength,
+or role directly to an evidence record. Required exact test functions are:
+`phase_b_e2e_experimentally_supported_from_sources`,
+`phase_b_e2e_validated_for_domain_from_sources`,
+`phase_b_eis_temporal_support_is_unknown`,
+`phase_b_point_temporal_join_uses_estimation_or_model_source`,
+`phase_b_amplitude_unit_threshold_and_direction`,
+`phase_b_repeatability_uses_sample_sd_and_independent_families`,
+`phase_b_schema3_to_schema4_preserves_legacy_hypotheses`, and
+`phase_b_validation_counts_only_explicit_roles`.
+
+The traceability file at the exact fixed path in the opening paragraph has
+these required columns: `Requirement ID`, `Acceptance Criterion`,
+`Implementation Symbol`, `Production Execution Path`, `Exact Test Function`,
+`Fixture/Data Source`, `Result`, `Compatibility Impact`, and `Scientific Risk`.
+
+**Final self-audit.**
+
+```text
+Undefined normative types: 0
+Undefined normative owners: 0
+Unspecified Phase B algorithms: 0
+Unspecified scientific thresholds/units: 0
+Unspecified compatibility decisions: 0
+Normative contradictions: 0
+Fixture-to-real-schema contradictions: 0
+Implementation invention still required: no
+Frozen A1 compatibility: YES
+```
+
+Two competent implementation agents cannot differ about hypothesis definition
+source, quantity semantics, direct EvidenceBundle support, amplitude selection
+or units, repeatability grouping, EIS temporal handling, schema-3 hypothesis
+migration, validation roles, or the traceability path: **NO** for each.
