@@ -159,7 +159,11 @@ pub fn adapt_eis_fit(artifact: &EisFitArtifact, context: &AdapterContext) -> Vec
                 format!("$.parameters[{index}].value"),
                 EvidenceSourceClass::ModelDerived,
                 Some(parameter.value),
-                parameter.unit.clone(),
+                if parameter.unit.is_empty() {
+                    "1".into()
+                } else {
+                    parameter.unit.clone()
+                },
                 if parameter.value.is_finite() {
                     EvidenceValidity::Valid
                 } else {
@@ -223,7 +227,7 @@ pub fn adapt_calibration_observations(
         .iter()
         .enumerate()
         .map(|(index, observation)| {
-            scalar_record(
+            let mut record = scalar_record(
                 format!("calibration.observation.{index}"),
                 EvidenceTarget::ModelComponent(ComponentId(observation.analyte.clone())),
                 context,
@@ -232,7 +236,21 @@ pub fn adapt_calibration_observations(
                 Some(observation.potential_v),
                 "V".into(),
                 EvidenceValidity::Valid,
-            )
+            );
+            if context.experiment_scope.is_aggregate() {
+                // A `Single` scope is permitted only after this adapter has
+                // read the authoritative observation.experiment_id itself.
+                if let Ok(selected) =
+                    crate::evidence::SelectedExperimentRecord::calibration_observation(
+                        observation,
+                        index,
+                    )
+                    && let Ok(scope) = context.experiment_scope.narrow_selected_record(selected)
+                {
+                    record.experiment_scope = scope;
+                }
+            }
+            record
         })
         .collect()
 }

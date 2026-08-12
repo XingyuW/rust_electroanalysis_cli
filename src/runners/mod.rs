@@ -15,6 +15,7 @@ use thiserror::Error as ThisError;
 
 pub mod calibration;
 pub mod estimation;
+pub mod evidence;
 pub mod fit;
 pub mod health;
 pub mod mechanism;

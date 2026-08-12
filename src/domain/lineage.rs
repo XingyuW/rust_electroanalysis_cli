@@ -264,7 +264,13 @@ impl ArtifactExperimentScope {
         }
     }
 
-    pub fn propagate(scopes: impl IntoIterator<Item = ArtifactExperimentScope>) -> Self {
+    /// Propagate input scopes into this producer's persisted scope.  The
+    /// producer-owned aggregation kind is mandatory: a generic propagated
+    /// scope is not a durable artifact identity.
+    pub fn propagate_with_kind(
+        aggregation_kind: &str,
+        scopes: impl IntoIterator<Item = ArtifactExperimentScope>,
+    ) -> Self {
         let mut singles = BTreeSet::new();
         let mut has_aggregate = false;
         for scope in scopes {
@@ -288,7 +294,7 @@ impl ArtifactExperimentScope {
             1 if !has_aggregate => Self::Single {
                 experiment_id: members[0].clone(),
             },
-            _ => Self::aggregate("propagated-v1", members).unwrap_or(Self::Unknown),
+            _ => Self::aggregate(aggregation_kind, members).unwrap_or(Self::Unknown),
         }
     }
 }
@@ -371,6 +377,10 @@ pub fn artifact_identity_from_payload<T: Serialize>(
     dependencies: &[ArtifactDependency],
     scientific_payload: &T,
 ) -> Result<ArtifactIdentity, LineageError> {
+    // `serde_json::Value` maps non-finite floats to null; validate the source
+    // payload with the RFC 8785 serializer before constructing that hash view.
+    serde_jcs::to_vec(scientific_payload)
+        .map_err(|error| LineageError::Serialization(error.to_string()))?;
     let mut dependency_view = dependencies
         .iter()
         .map(|dependency| {
@@ -428,6 +438,7 @@ pub fn known_lineage_from_artifact<T: Serialize>(
     direct_dependencies: impl IntoIterator<Item = ArtifactDependency>,
     artifact: &T,
 ) -> Result<ArtifactLineageState, LineageError> {
+    serde_jcs::to_vec(artifact).map_err(|error| LineageError::Serialization(error.to_string()))?;
     let mut scientific_payload = serde_json::to_value(artifact)
         .map_err(|error| LineageError::Serialization(error.to_string()))?;
     if let Value::Object(object) = &mut scientific_payload {
@@ -492,6 +503,7 @@ pub fn dependency_from_lineage(
 /// Any legacy/unknown source remains Unknown rather than being guessed from a
 /// file path or result identifier.
 pub fn lineage_scope_and_families<'a>(
+    aggregation_kind: &str,
     lineages: impl IntoIterator<Item = &'a ArtifactLineageState>,
 ) -> (ArtifactExperimentScope, ArtifactAcquisitionFamilies) {
     let mut scopes = Vec::new();
@@ -506,13 +518,13 @@ pub fn lineage_scope_and_families<'a>(
         scopes.push(identity.experiment_scope.clone());
         let ArtifactAcquisitionFamilies::Known(values) = &identity.acquisition_families else {
             return (
-                ArtifactExperimentScope::propagate(scopes),
+                ArtifactExperimentScope::propagate_with_kind(aggregation_kind, scopes),
                 ArtifactAcquisitionFamilies::Unknown,
             );
         };
         families.extend(values.clone());
     }
-    let scope = ArtifactExperimentScope::propagate(scopes);
+    let scope = ArtifactExperimentScope::propagate_with_kind(aggregation_kind, scopes);
     let families = ArtifactAcquisitionFamilies::known(families)
         .unwrap_or(ArtifactAcquisitionFamilies::Unknown);
     (scope, families)
@@ -867,49 +879,12 @@ pub fn resolve_known_artifact_id(
 }
 
 pub fn semantic_sha256<T: Serialize>(value: &T) -> Result<String, LineageError> {
-    let value = serde_json::to_value(value)
-        .map_err(|error| LineageError::Serialization(error.to_string()))?;
-    reject_nonfinite_json(&value)?;
-    let canonical = canonical_json(&value);
-    Ok(hex_sha256(canonical.as_bytes()))
-}
-
-fn canonical_json(value: &Value) -> String {
-    match value {
-        Value::Object(object) => {
-            let mut entries = object.iter().collect::<Vec<_>>();
-            entries.sort_by(|left, right| left.0.cmp(right.0));
-            let body = entries
-                .into_iter()
-                .map(|(key, value)| {
-                    format!(
-                        "{}:{}",
-                        serde_json::to_string(key).unwrap(),
-                        canonical_json(value)
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(",");
-            format!("{{{body}}}")
-        }
-        Value::Array(values) => format!(
-            "[{}]",
-            values
-                .iter()
-                .map(canonical_json)
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-        _ => serde_json::to_string(value).unwrap_or_else(|_| "null".into()),
-    }
-}
-
-fn reject_nonfinite_json(value: &Value) -> Result<(), LineageError> {
-    match value {
-        Value::Object(object) => object.values().try_for_each(reject_nonfinite_json),
-        Value::Array(values) => values.iter().try_for_each(reject_nonfinite_json),
-        _ => Ok(()),
-    }
+    // serde_jcs implements RFC 8785/JCS, including ECMAScript number
+    // formatting and UTF-16 property ordering.  It rejects non-finite floats
+    // before any semantic bytes or artifact ID can be produced.
+    let canonical =
+        serde_jcs::to_vec(value).map_err(|error| LineageError::Serialization(error.to_string()))?;
+    Ok(hex_sha256(&canonical))
 }
 
 fn hex_sha256(bytes: &[u8]) -> String {

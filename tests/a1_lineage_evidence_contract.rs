@@ -4,6 +4,7 @@ use rust_electroanalysis_cli::domain::{
     ArtifactIdentity, ArtifactKind, ArtifactLineageCatalog, ArtifactLineageNode,
     ArtifactLineageState, ExperimentId, LineageResolutionReason, LineageResolutionStatus,
     ResolvedAcquisitionFamilies, ScopeKey, artifact_identity_from_payload, resolve_lineage,
+    semantic_sha256,
 };
 use rust_electroanalysis_cli::evidence::{
     CovarianceAxisId, CovarianceAxisValidationError, CovarianceQuantityKind,
@@ -14,10 +15,13 @@ use rust_electroanalysis_cli::evidence::{
     EvidenceTarget, EvidenceUncertaintyModel, EvidenceValidity, LegacySourceFingerprint,
     PairCovarianceDerivation, StrengthSource, TimescaleCrossCovariance, TimescalePairUncertainty,
     TimescalePairUncertaintySource, TimescaleTransformRegistry, analytic_delta_method_covariance,
-    classify_independence, extract_direct_covariance, labeled_eis_covariance,
+    classify_independence, extract_direct_covariance, labeled_eis_covariance, validate_ucum_unit,
 };
 use rust_electroanalysis_cli::model::IdentifiabilityRequirementKind;
-use rust_electroanalysis_cli::{AdapterContext, adapt_transient_analysis, legacy_context};
+use rust_electroanalysis_cli::{
+    AdapterContext, EvidenceBundleInputs, adapt_transient_analysis, assemble_evidence_bundle,
+    legacy_context,
+};
 
 fn id(label: &str) -> ArtifactId {
     ArtifactId::from_semantic_bytes(label.as_bytes())
@@ -117,25 +121,133 @@ fn a1_t01_t04_scope_identity_and_propagation_are_deterministic() {
     );
     assert!(ArtifactExperimentScope::aggregate("bad", [experiment("only")]).is_err());
     assert!(matches!(
-        ArtifactExperimentScope::propagate([
-            ArtifactExperimentScope::Single {
-                experiment_id: experiment("exp-a")
-            },
-            ArtifactExperimentScope::Single {
-                experiment_id: experiment("exp-b")
-            },
-        ]),
+        ArtifactExperimentScope::propagate_with_kind(
+            "test-propagation-v1",
+            [
+                ArtifactExperimentScope::Single {
+                    experiment_id: experiment("exp-a")
+                },
+                ArtifactExperimentScope::Single {
+                    experiment_id: experiment("exp-b")
+                },
+            ]
+        ),
         ArtifactExperimentScope::Aggregate { .. }
     ));
     assert!(matches!(
-        ArtifactExperimentScope::propagate([
-            ArtifactExperimentScope::Unknown,
-            ArtifactExperimentScope::Single {
-                experiment_id: experiment("exp-a")
-            },
-        ]),
+        ArtifactExperimentScope::propagate_with_kind(
+            "test-propagation-v1",
+            [
+                ArtifactExperimentScope::Unknown,
+                ArtifactExperimentScope::Single {
+                    experiment_id: experiment("exp-a")
+                },
+            ]
+        ),
         ArtifactExperimentScope::Unknown
     ));
+}
+
+#[test]
+fn a1_rv002_producer_scopes_are_specific_and_deterministic() {
+    let members = [
+        experiment("exp-a"),
+        experiment("exp-b"),
+        experiment("exp-a"),
+    ];
+    let mechanism =
+        ArtifactExperimentScope::aggregate("mechanism-trend-v1", members.clone()).unwrap();
+    let health = ArtifactExperimentScope::aggregate("health-trend-v1", members).unwrap();
+    assert_ne!(mechanism, health);
+    let ArtifactExperimentScope::Aggregate {
+        member_experiment_ids,
+        ..
+    } = mechanism
+    else {
+        panic!("aggregate")
+    };
+    assert_eq!(
+        member_experiment_ids,
+        vec![experiment("exp-a"), experiment("exp-b")]
+    );
+}
+
+#[test]
+fn a1_rv004_ucum_units_reject_arbitrary_and_check_timescale_dimension() {
+    assert!(validate_ucum_unit("V").is_ok());
+    assert!(validate_ucum_unit("s").is_ok());
+    assert!(validate_ucum_unit("not-a-unit").is_err());
+    let invalid_tau = record(
+        "bad-tau",
+        id("bad-tau"),
+        Some(EvidenceQuantity {
+            value: 1.0,
+            unit: "V".into(),
+            uncertainty: None,
+        }),
+    );
+    let valid_tau = record(
+        "good-tau",
+        id("good-tau"),
+        Some(EvidenceQuantity {
+            value: 2.0,
+            unit: "s".into(),
+            uncertainty: None,
+        }),
+    );
+    let pair = EvidencePairKey::canonical(
+        invalid_tau.evidence_id.clone(),
+        valid_tau.evidence_id.clone(),
+    )
+    .unwrap();
+    let mut catalog = ArtifactLineageCatalog::default();
+    catalog
+        .insert(known_node(id("bad-tau"), "family-a"))
+        .unwrap();
+    catalog
+        .insert(known_node(id("good-tau"), "family-b"))
+        .unwrap();
+    let mut builder = EvidenceBundleBuilder::new(
+        EvidenceExperimentScope::Unknown,
+        ScopeKey::Unspecified,
+        ScopeKey::Unspecified,
+        catalog,
+    );
+    builder.add_record(invalid_tau);
+    builder.add_record(valid_tau);
+    builder.add_timescale_pair_uncertainty(TimescalePairUncertainty {
+        pair,
+        covariance: TimescaleCrossCovariance::TauSpace {
+            covariance_tau_s2: 0.1,
+        },
+        source: TimescalePairUncertaintySource {
+            source_artifact: EvidenceArtifactSource::Known {
+                artifact_id: id("bad-tau"),
+                artifact_kind: ArtifactKind::SignalAnalysis,
+            },
+            left_source_field_path: "$.a".into(),
+            right_source_field_path: "$.b".into(),
+            covariance_source_field_path: "$.c".into(),
+            derivation: PairCovarianceDerivation::ExtractedCovarianceMatrixEntry,
+        },
+    });
+    assert!(matches!(
+        builder.build(),
+        Err(EvidenceBundleError::InvalidTimescaleCovarianceSource)
+    ));
+}
+
+#[test]
+fn a1_rv005_rfc8785_hashes_normalize_numbers_keys_and_strings() {
+    assert_eq!(
+        semantic_sha256(&serde_json::json!({"b": 1e-7, "a": -0.0, "text": "€"})).unwrap(),
+        semantic_sha256(&serde_json::json!({"text": "€", "a": 0.0, "b": 0.0000001})).unwrap()
+    );
+    assert_ne!(
+        semantic_sha256(&serde_json::json!({"a": 1})).unwrap(),
+        semantic_sha256(&serde_json::json!({"a": 2})).unwrap()
+    );
+    assert!(semantic_sha256(&f64::NAN).is_err());
 }
 
 #[test]
@@ -669,6 +781,27 @@ fn a1_adapter_reads_public_transient_artifact_without_inventing_strength() {
             source_fingerprint: LegacySourceFingerprint::from_bytes(b"same"),
         },
         EvidenceExperimentScope::Unknown,
+    );
+}
+
+#[test]
+fn a1_rv003_production_assembly_reads_public_artifact_and_builds_relations() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/a0_artifact_contracts/schema1/transient_analysis.schema1.json");
+    let transient: rust_electroanalysis_cli::results::TransientAnalysisReport =
+        rust_electroanalysis_cli::domain::read_artifact(&path).unwrap();
+    let bundle = assemble_evidence_bundle(EvidenceBundleInputs {
+        transient: Some(transient),
+        ..EvidenceBundleInputs::default()
+    })
+    .unwrap();
+    assert!(!bundle.records.is_empty());
+    assert!(!bundle.independence_assessments.is_empty());
+    assert!(
+        bundle
+            .records
+            .iter()
+            .all(|record| record.strength == EvidenceStrength::NotAssessed)
     );
 }
 

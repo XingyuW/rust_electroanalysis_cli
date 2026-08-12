@@ -104,47 +104,56 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
     )?;
     report.warnings.extend(validated.warnings);
     report.ingestion_diagnostics = validated.ingestion;
+    // Persist only artifacts that this execution can use in estimator science.
+    // Supplied mechanism and health reports are not estimator inputs; EIS is
+    // currently consulted only for an identifiability message and is likewise
+    // not a scientific dependency of the emitted estimate.
     let mut source_lineages = vec![(
         &calibration_artifact.lineage,
         crate::domain::ArtifactDependencyRole::Calibration,
     )];
+    let transient_consumed = matches!(
+        config.polarization.tau_source,
+        crate::estimation_config::TauSourceKind::Transient
+    ) && matches!(
+        config.state_model.kind,
+        crate::estimation_config::StateModelKind::ActivityBaselinePolarization
+            | crate::estimation_config::StateModelKind::Custom
+    );
+    let signal_consumed = matches!(
+        config.measurement_noise.source,
+        crate::estimation_config::MeasurementNoiseSourceKind::SignalRobustVariance
+            | crate::estimation_config::MeasurementNoiseSourceKind::StableWindowVariance
+    );
+    let calibration_results_consumed = matches!(
+        config.measurement_noise.source,
+        crate::estimation_config::MeasurementNoiseSourceKind::CalibrationResidualVariance
+    );
     for (lineage, role) in [
-        (
-            signal.as_ref().map(|artifact| &artifact.lineage),
-            crate::domain::ArtifactDependencyRole::AuxiliaryInput,
-        ),
-        (
-            transient.as_ref().map(|artifact| &artifact.lineage),
-            crate::domain::ArtifactDependencyRole::Initialization,
-        ),
-        (
-            calibration_results
-                .as_ref()
-                .map(|artifact| &artifact.lineage),
-            crate::domain::ArtifactDependencyRole::AuxiliaryInput,
-        ),
-        (
-            eis.as_ref().map(|artifact| &artifact.lineage),
-            crate::domain::ArtifactDependencyRole::AuxiliaryInput,
-        ),
-        (
-            mechanism.as_ref().map(|artifact| &artifact.lineage),
-            crate::domain::ArtifactDependencyRole::AuxiliaryInput,
-        ),
-        (
-            baseline.as_ref().map(|artifact| &artifact.lineage),
-            crate::domain::ArtifactDependencyRole::Prior,
-        ),
-        (
-            assessment.as_ref().map(|artifact| &artifact.lineage),
-            crate::domain::ArtifactDependencyRole::AuxiliaryInput,
-        ),
-    ] {
-        if let Some(lineage) = lineage {
-            source_lineages.push((lineage, role));
-        }
+        signal_consumed
+            .then(|| signal.as_ref().map(|artifact| &artifact.lineage))
+            .flatten()
+            .map(|x| (x, crate::domain::ArtifactDependencyRole::AuxiliaryInput)),
+        transient_consumed
+            .then(|| transient.as_ref().map(|artifact| &artifact.lineage))
+            .flatten()
+            .map(|x| (x, crate::domain::ArtifactDependencyRole::Initialization)),
+        calibration_results_consumed
+            .then(|| {
+                calibration_results
+                    .as_ref()
+                    .map(|artifact| &artifact.lineage)
+            })
+            .flatten()
+            .map(|x| (x, crate::domain::ArtifactDependencyRole::Calibration)),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        source_lineages.push((lineage, role));
     }
     let (dependency_scope, acquisition_families) = crate::domain::lineage_scope_and_families(
+        "state-estimation-v1",
         source_lineages.iter().map(|(lineage, _)| *lineage),
     );
     let experiment_scope = match dependency_scope {
@@ -176,6 +185,21 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         &report,
     )
     .unwrap_or_else(|_| crate::domain::current_unknown_lineage(report.schema_version));
+    // A1's neutral evidence infrastructure is part of the production
+    // transient → estimation integrity route.  It validates loaded source
+    // artifacts and the finished estimation lineage without producing a
+    // mechanism or health conclusion.
+    crate::runners::evidence::assemble_evidence_bundle(
+        crate::runners::evidence::EvidenceBundleInputs {
+            transient,
+            estimation: Some(report.clone()),
+            eis_fit: eis,
+            calibration_observations: None,
+        },
+    )
+    .map_err(|error| {
+        RunnerError::Message(format!("A1 evidence bundle validation failed: {error}"))
+    })?;
     export_report(workspace, options.output.as_deref(), &report)
 }
 

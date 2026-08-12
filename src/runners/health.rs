@@ -486,8 +486,15 @@ fn derived_lineage<T: Serialize>(
     )],
     fallback_scope: crate::domain::ArtifactExperimentScope,
 ) -> crate::domain::ArtifactLineageState {
-    let (source_scope, acquisition_families) =
-        crate::domain::lineage_scope_and_families(sources.iter().map(|(lineage, _)| lineage));
+    let (source_scope, acquisition_families) = crate::domain::lineage_scope_and_families(
+        match artifact_kind {
+            crate::domain::ArtifactKind::HealthBaseline => "health-baseline-v1",
+            crate::domain::ArtifactKind::HealthAssessment => "health-assessment-v1",
+            crate::domain::ArtifactKind::HealthTrend => "health-trend-v1",
+            _ => return crate::domain::current_unknown_lineage(3),
+        },
+        sources.iter().map(|(lineage, _)| lineage),
+    );
     let experiment_scope = match source_scope {
         crate::domain::ArtifactExperimentScope::Unknown => fallback_scope,
         scope => scope,

@@ -127,6 +127,40 @@ pub enum EvidenceScopeDerivation {
     },
 }
 
+/// A producer-owned source path.  Its constructor is private so aggregate
+/// membership and an arbitrary caller string cannot prove member scope.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceFieldPath(String);
+
+impl EvidenceFieldPath {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Proof that a selected public record actually carries an experiment ID.
+/// The only current constructor is the calibration-observation adapter route.
+pub struct SelectedExperimentRecord<'a, T> {
+    record: &'a T,
+    experiment_id: ExperimentId,
+    source_field_path: EvidenceFieldPath,
+}
+
+impl<'a> SelectedExperimentRecord<'a, crate::results::CalibrationObservation> {
+    pub fn calibration_observation(
+        record: &'a crate::results::CalibrationObservation,
+        index: usize,
+    ) -> Result<Self, EvidenceBundleError> {
+        let experiment_id = ExperimentId::new(record.experiment_id.clone())
+            .map_err(|_| EvidenceBundleError::ScopeRecordMissingExperimentId)?;
+        Ok(Self {
+            record,
+            experiment_id,
+            source_field_path: EvidenceFieldPath(format!("$.observations[{index}].experiment_id")),
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EvidenceExperimentScope {
     Single {
@@ -158,26 +192,23 @@ impl EvidenceExperimentScope {
         }
     }
 
-    pub fn narrow_member(
+    pub fn narrow_selected_record<T>(
         &self,
-        experiment_id: ExperimentId,
-        source_field_path: impl Into<String>,
+        selected: SelectedExperimentRecord<'_, T>,
     ) -> Result<Self, EvidenceBundleError> {
-        let source_field_path = source_field_path.into();
-        if source_field_path.is_empty() {
-            return Err(EvidenceBundleError::EmptyIdentifier);
-        }
+        let _record = selected.record;
         match self {
             Self::Aggregate {
                 member_experiment_ids,
                 ..
-            } if member_experiment_ids.contains(&experiment_id) => Ok(Self::Single {
-                experiment_id: experiment_id.clone(),
+            } if member_experiment_ids.contains(&selected.experiment_id) => Ok(Self::Single {
+                experiment_id: selected.experiment_id.clone(),
                 derivation: EvidenceScopeDerivation::MemberRecord {
-                    experiment_id,
-                    source_field_path,
+                    experiment_id: selected.experiment_id,
+                    source_field_path: selected.source_field_path.0,
                 },
             }),
+            Self::Aggregate { .. } => Err(EvidenceBundleError::ScopeMemberRecordMismatch),
             _ => Err(EvidenceBundleError::ScopeCannotBeNarrowed),
         }
     }
@@ -236,6 +267,84 @@ pub struct EvidenceQuantity {
     pub value: f64,
     pub unit: String,
     pub uncertainty: Option<EvidenceUncertaintyModel>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EvidenceUnitDimension {
+    Dimensionless,
+    Time,
+    TimeSquared,
+    Potential,
+    PotentialSquared,
+    Temperature,
+    Concentration,
+    Conductivity,
+    Impedance,
+    OtherApproved,
+}
+
+/// Validates the project-approved UCUM vocabulary used by A1 artifacts.
+/// Existing potentiometry units are delegated to `QuantityUnit`; EIS's
+/// declared parameter grammar is retained as an explicit producer contract.
+pub fn validate_ucum_unit(unit: &str) -> Result<EvidenceUnitDimension, EvidenceBundleError> {
+    if unit.is_empty() {
+        return Err(EvidenceBundleError::InvalidUnitSyntax { unit: unit.into() });
+    }
+    let exact = match unit {
+        "1" | "dimensionless" | "dimensionless^2" => Some(EvidenceUnitDimension::Dimensionless),
+        "s" => Some(EvidenceUnitDimension::Time),
+        "s^2" => Some(EvidenceUnitDimension::TimeSquared),
+        "V" | "mV" | "µV" => Some(EvidenceUnitDimension::Potential),
+        "V^2" => Some(EvidenceUnitDimension::PotentialSquared),
+        "K" | "°C" | "degC" => Some(EvidenceUnitDimension::Temperature),
+        "Ohm" => Some(EvidenceUnitDimension::Impedance),
+        "F" | "H" | "Hz" | "V/s" | "V/decade" | "Ohm s^-1/2" | "Ohm^-1 s^alpha"
+        | "H s^(alpha-1)" | "Ohm s^alpha" | "Ohm^-1 s^gamma" => {
+            Some(EvidenceUnitDimension::OtherApproved)
+        }
+        _ => None,
+    };
+    if let Some(dimension) = exact {
+        return Ok(dimension);
+    }
+    match unit.parse::<crate::potentiometry::units::QuantityUnit>() {
+        Ok(parsed) => Ok(match parsed.dimension() {
+            crate::potentiometry::units::QuantityDimension::Concentration => {
+                EvidenceUnitDimension::Concentration
+            }
+            crate::potentiometry::units::QuantityDimension::Activity => {
+                EvidenceUnitDimension::Dimensionless
+            }
+            crate::potentiometry::units::QuantityDimension::Potential => {
+                EvidenceUnitDimension::Potential
+            }
+            crate::potentiometry::units::QuantityDimension::Temperature => {
+                EvidenceUnitDimension::Temperature
+            }
+            crate::potentiometry::units::QuantityDimension::Conductivity => {
+                EvidenceUnitDimension::Conductivity
+            }
+        }),
+        Err(_) if unit.bytes().any(|byte| byte.is_ascii_whitespace()) => {
+            Err(EvidenceBundleError::InvalidUnitSyntax { unit: unit.into() })
+        }
+        Err(_) => Err(EvidenceBundleError::UnknownUnit { unit: unit.into() }),
+    }
+}
+
+fn require_unit_dimension(
+    unit: &str,
+    expected: EvidenceUnitDimension,
+) -> Result<(), EvidenceBundleError> {
+    let actual = validate_ucum_unit(unit)?;
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(EvidenceBundleError::UnitDimensionMismatch {
+            unit: unit.into(),
+            expected: format!("{expected:?}"),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -407,12 +516,11 @@ impl EvidenceRecord {
                 return Err(EvidenceBundleError::NonFiniteEvidenceValue);
             }
         }
-        if self.threshold_provenance.iter().any(|threshold| {
-            threshold.threshold_id.is_empty()
-                || threshold.unit.is_empty()
-                || !threshold.value.is_finite()
-        }) {
-            return Err(EvidenceBundleError::NonFiniteEvidenceValue);
+        for threshold in &self.threshold_provenance {
+            if threshold.threshold_id.is_empty() || !threshold.value.is_finite() {
+                return Err(EvidenceBundleError::NonFiniteEvidenceValue);
+            }
+            validate_ucum_unit(&threshold.unit)?;
         }
         if self
             .lineage_artifact_ids
@@ -426,9 +534,10 @@ impl EvidenceRecord {
 }
 
 fn validate_quantity(quantity: &EvidenceQuantity) -> Result<(), EvidenceBundleError> {
-    if !quantity.value.is_finite() || quantity.unit.is_empty() {
+    if !quantity.value.is_finite() {
         return Err(EvidenceBundleError::NonFiniteEvidenceValue);
     }
+    validate_ucum_unit(&quantity.unit)?;
     if let Some(model) = &quantity.uncertainty {
         match model {
             EvidenceUncertaintyModel::None => {}
@@ -544,6 +653,8 @@ pub enum CovarianceAxisValidationError {
     NonFinite,
     #[error("covariance axis is missing a unit")]
     MissingUnit,
+    #[error("covariance axis has an invalid unit: {0}")]
+    InvalidUnit(String),
     #[error("covariance matrix is not symmetric")]
     NotSymmetric,
 }
@@ -561,9 +672,8 @@ impl LabeledCovarianceMatrix {
             if axis.axis_id.0.is_empty() || axis.source_field_path.is_empty() {
                 return Err(CovarianceAxisValidationError::MissingUnit);
             }
-            if axis.unit.is_empty() {
-                return Err(CovarianceAxisValidationError::MissingUnit);
-            }
+            validate_ucum_unit(&axis.unit)
+                .map_err(|_| CovarianceAxisValidationError::InvalidUnit(axis.unit.clone()))?;
             if !ids.insert(axis.axis_id.clone()) {
                 return Err(CovarianceAxisValidationError::DuplicateCovarianceAxisId);
             }
@@ -908,10 +1018,10 @@ impl EvidenceBundle {
             .find(|item| &item.pair == pair)
     }
     pub fn semantic_hash(&self) -> Result<String, EvidenceBundleError> {
-        let value = serde_json::to_value(self)
+        self.validate()?;
+        let canonical = serde_jcs::to_vec(self)
             .map_err(|error| EvidenceBundleError::Serialization(error.to_string()))?;
-        let text = canonical_json(&value);
-        Ok(Sha256::digest(text.as_bytes())
+        Ok(Sha256::digest(&canonical)
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect())
@@ -1002,6 +1112,9 @@ impl EvidenceBundleBuilder {
     }
     pub fn warning(&mut self, warning: impl Into<String>) {
         self.warnings.push(warning.into());
+    }
+    pub(crate) fn lineage_catalog(&self) -> &ArtifactLineageCatalog {
+        &self.lineage_catalog
     }
     pub fn build(mut self) -> Result<EvidenceBundle, EvidenceBundleError> {
         self.records.sort_by(record_order);
@@ -1097,7 +1210,9 @@ impl EvidenceBundleBuilder {
 fn validate_timescale_record(record: &EvidenceRecord) -> Result<(), EvidenceBundleError> {
     if record.availability != EvidenceAvailability::Available
         || record.quantity.as_ref().is_none_or(|quantity| {
-            quantity.unit != "s" || !quantity.value.is_finite() || quantity.value <= 0.0
+            require_unit_dimension(&quantity.unit, EvidenceUnitDimension::Time).is_err()
+                || !quantity.value.is_finite()
+                || quantity.value <= 0.0
         })
     {
         return Err(EvidenceBundleError::InvalidTimescaleCovarianceSource);
@@ -1324,36 +1439,6 @@ fn pair_order(left: &EvidencePairKey, right: &EvidencePairKey) -> std::cmp::Orde
         .cmp(&right.left_evidence_id)
         .then_with(|| left.right_evidence_id.cmp(&right.right_evidence_id))
 }
-fn canonical_json(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Object(object) => {
-            let mut entries = object.iter().collect::<Vec<_>>();
-            entries.sort_by(|left, right| left.0.cmp(right.0));
-            format!(
-                "{{{}}}",
-                entries
-                    .into_iter()
-                    .map(|(key, value)| format!(
-                        "{}:{}",
-                        serde_json::to_string(key).unwrap(),
-                        canonical_json(value)
-                    ))
-                    .collect::<Vec<_>>()
-                    .join(",")
-            )
-        }
-        serde_json::Value::Array(values) => format!(
-            "[{}]",
-            values
-                .iter()
-                .map(canonical_json)
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-        _ => serde_json::to_string(value).unwrap_or_else(|_| "null".into()),
-    }
-}
-
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum EvidenceBundleError {
     #[error("missing evidence combination")]
@@ -1392,12 +1477,24 @@ pub enum EvidenceBundleError {
     InvalidTimescaleCovarianceSource,
     #[error("timescale covariance units mismatch")]
     TimescaleCovarianceUnitMismatch,
+    #[error("invalid UCUM unit syntax: {unit}")]
+    InvalidUnitSyntax { unit: String },
+    #[error("unknown UCUM unit: {unit}")]
+    UnknownUnit { unit: String },
+    #[error("unit '{unit}' is incompatible with {expected}")]
+    UnitDimensionMismatch { unit: String, expected: String },
+    #[error("covariance unit mismatch: {unit}")]
+    CovarianceUnitMismatch { unit: String },
     #[error("empty identifier")]
     EmptyIdentifier,
     #[error("invalid legacy source fingerprint")]
     InvalidLegacyFingerprint,
     #[error("scope cannot be narrowed without an explicit member record")]
     ScopeCannotBeNarrowed,
+    #[error("selected record's experiment ID is not a member of the aggregate scope")]
+    ScopeMemberRecordMismatch,
+    #[error("selected record has no trustworthy experiment ID")]
+    ScopeRecordMissingExperimentId,
     #[error("serialization failed: {0}")]
     Serialization(String),
 }

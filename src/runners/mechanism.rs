@@ -134,7 +134,11 @@ pub fn compare(
         warnings,
         transient_configuration: Some(transient.configuration.clone()),
     };
-    report.lineage = mechanism_lineage(&report, [&eis.lineage, &transient.lineage]);
+    report.lineage = mechanism_lineage(
+        &report,
+        "mechanism-analysis-v1",
+        [&eis.lineage, &transient.lineage],
+    );
     export_report(workspace, output_path, &report)
 }
 
@@ -269,12 +273,13 @@ pub fn trend(
         &report.configuration.trend_independent_variable,
         report.configuration.trend_minimum_records,
     ));
-    report.lineage = mechanism_lineage(&report, source_lineages.iter());
+    report.lineage = mechanism_lineage(&report, "mechanism-trend-v1", source_lineages.iter());
     export_report(workspace, output_path, &report)
 }
 
 fn mechanism_lineage<'a>(
     report: &MechanismAnalysisReport,
+    aggregation_kind: &str,
     source_lineages: impl IntoIterator<Item = &'a crate::domain::ArtifactLineageState>,
 ) -> crate::domain::ArtifactLineageState {
     let mut scopes = Vec::new();
@@ -327,7 +332,7 @@ fn mechanism_lineage<'a>(
         crate::domain::ArtifactKind::MechanismAnalysis,
         report.schema_version,
         format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
-        crate::domain::ArtifactExperimentScope::propagate(scopes),
+        crate::domain::ArtifactExperimentScope::propagate_with_kind(aggregation_kind, scopes),
         crate::domain::ScopeKey::Unspecified,
         crate::domain::ScopeKey::Unspecified,
         families,

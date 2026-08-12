@@ -84,6 +84,7 @@ pub use results::signal::SignalAnalysisReport;
 pub use results::transient::{
     TransientAnalysisReport, TransientEventResult, TransientFeatures, TransientFitResult,
 };
+pub use runners::evidence::{EvidenceBundleInputs, assemble_evidence_bundle};
 
 /// Default logarithm base used whenever a log axis or log transform is enabled
 /// without an explicit base override.
