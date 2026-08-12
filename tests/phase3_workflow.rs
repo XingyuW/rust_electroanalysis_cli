@@ -126,6 +126,7 @@ fn calibration_observations() -> CalibrationObservationSet {
         .collect();
     CalibrationObservationSet {
         schema_version: 1,
+        lineage: rust_electroanalysis_cli::domain::legacy_unknown_lineage(),
         observations,
         provenance: AnalysisProvenance {
             software_version: "test".to_string(),

@@ -55,6 +55,23 @@ use measurement::observations;
 use model::StateModel;
 use observability::diagnose;
 
+/// Records which optional artifacts supplied values to one completed
+/// estimation execution.  These flags are produced by the same resolution
+/// paths that selected the scientific inputs; callers must not infer them
+/// from whether an artifact was loaded.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct EstimationInputUsage {
+    pub transient_tau: bool,
+    pub signal_measurement_variance: bool,
+    pub calibration_measurement_variance: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct EstimationExecution {
+    pub report: StateEstimationReport,
+    pub input_usage: EstimationInputUsage,
+}
+
 #[derive(Default, Clone, Copy)]
 pub struct EstimationContext<'a> {
     pub signal: Option<&'a SignalAnalysisReport>,
@@ -74,6 +91,20 @@ pub fn estimate_experiment(
     context: EstimationContext<'_>,
     filter: FilterKind,
 ) -> Result<StateEstimationReport, EstimationError> {
+    Ok(
+        estimate_experiment_with_usage(experiment, channel, calibration, config, context, filter)?
+            .report,
+    )
+}
+
+pub fn estimate_experiment_with_usage(
+    experiment: &ElectrochemicalExperiment,
+    channel: &str,
+    calibration: StoredCalibrationObservationModel,
+    config: &ResolvedEstimationConfig,
+    context: EstimationContext<'_>,
+    filter: FilterKind,
+) -> Result<EstimationExecution, EstimationError> {
     config
         .validate()
         .map_err(|x| EstimationError::config(x.to_string()))?;
@@ -81,6 +112,7 @@ pub fn estimate_experiment(
         timestamp::preprocess_measurement(experiment.measurement(), &config.timestamp_handling)
             .map_err(EstimationError::invalid)?;
     let mut segment_reports = Vec::with_capacity(preprocessed.segments.len());
+    let mut input_usage = EstimationInputUsage::default();
     for segment in &preprocessed.segments {
         let segment_measurement = slice_measurement(
             &preprocessed.measurement,
@@ -89,7 +121,7 @@ pub fn estimate_experiment(
         )?;
         let mut segment_experiment = experiment.clone();
         segment_experiment.measurement_data = segment_measurement;
-        let mut report = estimate_single_segment(
+        let (mut report, segment_usage) = estimate_single_segment(
             &segment_experiment,
             channel,
             &calibration,
@@ -97,6 +129,10 @@ pub fn estimate_experiment(
             context,
             filter,
         )?;
+        input_usage.transient_tau |= segment_usage.transient_tau;
+        input_usage.signal_measurement_variance |= segment_usage.signal_measurement_variance;
+        input_usage.calibration_measurement_variance |=
+            segment_usage.calibration_measurement_variance;
         for (index, point) in report.estimates.iter_mut().enumerate() {
             point.segment_id = segment.segment_index;
             point.original_row_index = preprocessed
@@ -130,7 +166,10 @@ pub fn estimate_experiment(
     final_report.timestamp_segments = preprocessed.segments;
     final_report.skipped_timestamp_segments = preprocessed.skipped_segments;
     final_report.was_preprocessed = preprocessed.was_transformed;
-    Ok(final_report)
+    Ok(EstimationExecution {
+        report: final_report,
+        input_usage,
+    })
 }
 
 fn estimate_single_segment(
@@ -140,10 +179,10 @@ fn estimate_single_segment(
     config: &ResolvedEstimationConfig,
     context: EstimationContext<'_>,
     filter: FilterKind,
-) -> Result<StateEstimationReport, EstimationError> {
+) -> Result<(StateEstimationReport, EstimationInputUsage), EstimationError> {
     let calibration = Box::new(calibration.clone());
     let tau = resolve_tau(config, context.transient)?;
-    let model = StateModel::new_compiled(config, tau.0, tau.1, &calibration.model)?;
+    let model = StateModel::new_compiled(config, tau.value, tau.uncertainty, &calibration.model)?;
     let logical_channel_name = experiment
         .measurement()
         .channel(channel)
@@ -279,14 +318,15 @@ fn estimate_single_segment(
     for e in &environments {
         warnings.extend(e.warnings.clone());
     }
-    if tau.2 {
+    if tau.fallback {
         warnings.push(crate::estimation::state::EstimationWarning::new(
             crate::estimation::state::EstimationWarningKind::TransientPriorUnavailable,
             "configured transient prior was unavailable; configured tau was used",
         ));
     }
-    Ok(StateEstimationReport {
-        schema_version: 3,
+    let mut report = StateEstimationReport {
+        schema_version: 4,
+        lineage: crate::domain::current_unknown_lineage(4),
         analysis_id: format!(
             "estimate:{}:{}",
             experiment.provenance.input_sha256, logical_channel_name
@@ -344,6 +384,7 @@ fn estimate_single_segment(
         initialization,
         process_covariance: process,
         measurement_covariance,
+        labeled_covariance: None,
         observability,
         estimates: run.estimates,
         diagnostics: run.diagnostics,
@@ -357,7 +398,83 @@ fn estimate_single_segment(
         was_preprocessed: false,
         ingestion_diagnostics: crate::domain::ParseDiagnostics::default(),
         warnings,
-    })
+    };
+    report.labeled_covariance = labeled_state_covariance(&report);
+    report.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::StateEstimation,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        crate::domain::ExperimentId::new(report.experiment_id.clone())
+            .and_then(crate::domain::ArtifactExperimentScope::single)
+            .unwrap_or(crate::domain::ArtifactExperimentScope::Unknown),
+        report
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ScopeKey::specific(report.channel.clone())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &report,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(4));
+    let input_usage = EstimationInputUsage {
+        transient_tau: matches!(tau.source, ResolvedTauSource::Transient),
+        signal_measurement_variance: matches!(
+            config.measurement_noise.source,
+            crate::estimation_config::MeasurementNoiseSourceKind::SignalRobustVariance
+                | crate::estimation_config::MeasurementNoiseSourceKind::StableWindowVariance
+        ) && context.signal.is_some()
+            && matches!(
+                report.measurement_covariance.selected_source,
+                crate::estimation::covariance::CovarianceSource::SignalArtifact
+            ),
+        calibration_measurement_variance: matches!(
+            config.measurement_noise.source,
+            crate::estimation_config::MeasurementNoiseSourceKind::CalibrationResidualVariance
+        ) && context.calibration_results.is_some()
+            && matches!(
+                report.measurement_covariance.selected_source,
+                crate::estimation::covariance::CovarianceSource::CalibrationArtifact
+            ),
+    };
+    Ok((report, input_usage))
+}
+
+fn labeled_state_covariance(
+    report: &StateEstimationReport,
+) -> Option<crate::evidence::LabeledCovarianceMatrix> {
+    let point = report.estimates.last()?;
+    if report.state_bindings.len() != point.filtered_covariance.len()
+        || point
+            .filtered_covariance
+            .iter()
+            .any(|row| row.len() != report.state_bindings.len())
+    {
+        return None;
+    }
+    let axes = report
+        .state_bindings
+        .iter()
+        .enumerate()
+        .map(|(row_index, binding)| {
+            let state = point.filtered_state.get(binding.estimator_index)?;
+            (binding.estimator_index == row_index).then_some(crate::evidence::CovarianceAxis {
+                axis_id: crate::evidence::CovarianceAxisId(format!(
+                    "estimation.state:{}",
+                    binding.state_id
+                )),
+                source_field_path: format!(
+                    "$.estimates[{}].filtered_covariance[{row_index}]",
+                    report.estimates.len() - 1
+                ),
+                quantity_kind: crate::evidence::CovarianceQuantityKind::State,
+                unit: state.unit.clone(),
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    crate::evidence::LabeledCovarianceMatrix::new(axes, point.filtered_covariance.clone()).ok()
 }
 
 fn slice_measurement(
@@ -386,15 +503,34 @@ fn slice_measurement(
         .map_err(|error| EstimationError::invalid(error.to_string()))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ResolvedTauSource {
+    Configured,
+    Transient,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ResolvedTau {
+    value: f64,
+    uncertainty: Option<f64>,
+    fallback: bool,
+    source: ResolvedTauSource,
+}
+
 fn resolve_tau(
     config: &ResolvedEstimationConfig,
     transient: Option<&TransientAnalysisReport>,
-) -> Result<(f64, Option<f64>, bool), EstimationError> {
+) -> Result<ResolvedTau, EstimationError> {
     if !matches!(
         config.state_model.kind,
         StateModelKind::ActivityBaselinePolarization | StateModelKind::Custom
     ) {
-        return Ok((config.polarization.configured_tau_s, None, false));
+        return Ok(ResolvedTau {
+            value: config.polarization.configured_tau_s,
+            uncertainty: None,
+            fallback: false,
+            source: ResolvedTauSource::Configured,
+        });
     }
     let mut values = Vec::new();
     if matches!(
@@ -443,21 +579,31 @@ fn resolve_tau(
         }
     };
     if let Some(t) = tau {
-        return Ok((t, None, false));
+        return Ok(ResolvedTau {
+            value: t,
+            uncertainty: None,
+            fallback: false,
+            source: ResolvedTauSource::Transient,
+        });
     }
     if matches!(
         config.polarization.tau_source,
         crate::estimation_config::TauSourceKind::Configured
     ) {
-        return Ok((
-            config.polarization.configured_tau_s,
-            config.polarization.tau_uncertainty_s,
-            false,
-        ));
+        return Ok(ResolvedTau {
+            value: config.polarization.configured_tau_s,
+            uncertainty: config.polarization.tau_uncertainty_s,
+            fallback: false,
+            source: ResolvedTauSource::Configured,
+        });
     }
-    Ok((
-        config.polarization.configured_tau_s,
-        config.polarization.tau_uncertainty_s,
-        true,
-    ))
+    Ok(ResolvedTau {
+        value: config.polarization.configured_tau_s,
+        uncertainty: config.polarization.tau_uncertainty_s,
+        fallback: matches!(
+            config.polarization.tau_source,
+            crate::estimation_config::TauSourceKind::Transient
+        ),
+        source: ResolvedTauSource::Configured,
+    })
 }

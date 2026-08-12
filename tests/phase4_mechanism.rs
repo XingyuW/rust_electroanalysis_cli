@@ -247,6 +247,7 @@ fn mechanism_human_report_contains_non_causality_statement() {
     let output = root.join("mechanism_report.txt");
     let report = MechanismAnalysisReport {
         schema_version: 1,
+        lineage: rust_electroanalysis_cli::domain::legacy_unknown_lineage(),
         analysis_id: "m1".to_string(),
         records: Vec::new(),
         eis_timescales: Vec::new(),

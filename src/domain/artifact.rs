@@ -1,6 +1,6 @@
 //! Stable, validated JSON boundaries between analysis workflows.
 
-use serde::{Serialize, de::DeserializeOwned, ser};
+use serde::{Deserialize, Serialize, de::DeserializeOwned, ser};
 use serde_json::{Map, Value};
 use std::{
     fmt, fs,
@@ -8,7 +8,8 @@ use std::{
 };
 use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ArtifactKind {
     EisFit,
     TransientAnalysis,
@@ -21,8 +22,11 @@ pub enum ArtifactKind {
     HealthTrend,
     MechanismAnalysis,
     StateEstimation,
+    #[serde(rename = "ism_model_compilation")]
     ModelCompilation,
+    #[serde(rename = "ism_model_analysis")]
     ModelAnalysis,
+    #[serde(rename = "ism_model_validation")]
     ModelValidation,
 }
 
@@ -68,6 +72,14 @@ pub trait VersionedArtifact: Serialize + DeserializeOwned {
     /// Must validate the complete typed artifact before JSON can erase a
     /// non-finite float. There is intentionally no accepting default.
     fn validate_before_json(&self) -> Result<(), ArtifactError>;
+    /// A1's migration boundary can always preserve an explicit lineage state
+    /// even for historical result structs that predate the typed field.
+    fn lineage_state(&self) -> crate::domain::ArtifactLineageState {
+        crate::domain::current_unknown_lineage(self.schema_version())
+    }
+    fn require_kind_for_previous_schema_static() -> bool {
+        false
+    }
 }
 
 #[derive(Debug, Error)]
@@ -127,7 +139,9 @@ pub fn write_artifact<T: VersionedArtifact>(
     path: &Path,
     artifact: &T,
 ) -> Result<(), ArtifactError> {
-    if artifact.schema_version() != T::CURRENT_SCHEMA_VERSION {
+    if artifact.schema_version() != T::CURRENT_SCHEMA_VERSION
+        && !T::LEGACY_SCHEMA_VERSIONS.contains(&artifact.schema_version())
+    {
         return Err(ArtifactError::UnsupportedSchemaVersion {
             path: path.into(),
             expected: T::ARTIFACT_KIND,
@@ -150,10 +164,52 @@ pub fn write_artifact<T: VersionedArtifact>(
     let object = value
         .as_object_mut()
         .ok_or_else(|| ArtifactError::InvalidRoot { path: path.into() })?;
+    // A supported legacy value is migrated at the public writer boundary.
+    // Its scientific payload remains untouched; A1's additive lineage field
+    // is inserted below and the artifact contract version is advanced here.
+    object.insert(
+        "schema_version".into(),
+        Value::Number(serde_json::Number::from(T::CURRENT_SCHEMA_VERSION)),
+    );
     object.insert(
         "artifact_kind".into(),
         Value::String(T::ARTIFACT_KIND.as_str().into()),
     );
+    object.entry("lineage").or_insert_with(|| {
+        serde_json::to_value(artifact.lineage_state()).unwrap_or_else(|_| {
+            serde_json::json!({
+                "LegacyUnknown": {
+                    "source_schema_version": artifact.schema_version(),
+                    "reason": "MigrationInformationUnavailable"
+                }
+            })
+        })
+    });
+    // A typed A1 artifact carries lineage directly. If it was read from a
+    // historical payload with the field absent, retain that explicit state
+    // while recording the schema observed at this writer boundary. This never
+    // upgrades a legacy artifact into a fabricated identity.
+    if let Some(lineage) = object.get_mut("lineage") {
+        let parsed = serde_json::from_value::<crate::domain::ArtifactLineageState>(lineage.clone())
+            .map_err(|source| ArtifactError::Json {
+                path: path.into(),
+                source,
+            })?;
+        if let crate::domain::ArtifactLineageState::LegacyUnknown {
+            source_schema_version: None,
+            reason,
+        } = parsed
+        {
+            *lineage = serde_json::to_value(crate::domain::ArtifactLineageState::LegacyUnknown {
+                source_schema_version: Some(artifact.schema_version()),
+                reason,
+            })
+            .map_err(|source| ArtifactError::Json {
+                path: path.into(),
+                source,
+            })?;
+        }
+    }
     validate_value::<T>(path, &value)?;
     let text = serde_json::to_string_pretty(&value).map_err(|source| ArtifactError::Json {
         path: path.into(),
@@ -204,14 +260,30 @@ fn validate_value<T: VersionedArtifact>(path: &Path, value: &Value) -> Result<()
                 actual: None,
             });
         }
-    } else if let Some(actual) = kind
-        && actual != T::ARTIFACT_KIND.as_str()
-    {
-        return Err(ArtifactError::IncompatibleKind {
-            path: path.into(),
-            expected: T::ARTIFACT_KIND,
-            actual: Some(actual.into()),
-        });
+    } else {
+        if let Some(actual) = kind {
+            if actual != T::ARTIFACT_KIND.as_str() {
+                return Err(ArtifactError::IncompatibleKind {
+                    path: path.into(),
+                    expected: T::ARTIFACT_KIND,
+                    actual: Some(actual.into()),
+                });
+            }
+        } else if schema + 1 == T::CURRENT_SCHEMA_VERSION
+            && matches!(
+                T::CURRENT_ARTIFACT_KIND_POLICY,
+                CurrentArtifactKindPolicy::Required
+            )
+            && T::require_kind_for_previous_schema_static()
+        {
+            // A1 keeps the A0 schema-2 kind requirement intact while adding a
+            // new current schema. Older historical versions remain readable.
+            return Err(ArtifactError::IncompatibleKind {
+                path: path.into(),
+                expected: T::ARTIFACT_KIND,
+                actual: None,
+            });
+        }
     }
     Ok(())
 }

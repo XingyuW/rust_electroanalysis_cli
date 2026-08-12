@@ -302,6 +302,7 @@ fn analysis_report() -> ModelAnalysisReport {
     };
     ModelAnalysisReport {
         schema_version: MODEL_RESULT_SCHEMA_VERSION,
+        lineage: rust_electroanalysis_cli::domain::legacy_unknown_lineage(),
         artifact_kind: "ism_model_analysis".into(),
         model_definition: model.definition().clone(),
         points: vec![ModelAnalysisPoint {

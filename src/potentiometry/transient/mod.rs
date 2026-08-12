@@ -103,8 +103,9 @@ pub fn analyze_experiment(
         events.push(result);
     }
 
-    Ok(TransientAnalysisReport {
-        schema_version: 2,
+    let mut report = TransientAnalysisReport {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         experiment_id: experiment.experiment_id.clone(),
         channel: channel.name.clone(),
         channel_unit: channel.unit.clone(),
@@ -112,7 +113,30 @@ pub fn analyze_experiment(
         configuration: options.config.clone(),
         provenance: experiment.provenance.clone(),
         events,
-    })
+    };
+    let experiment_scope = crate::domain::ExperimentId::new(experiment.experiment_id.clone())
+        .and_then(crate::domain::ArtifactExperimentScope::single)
+        .unwrap_or(crate::domain::ArtifactExperimentScope::Unknown);
+    let sensor_scope = experiment
+        .sensor_metadata
+        .sensor_id
+        .clone()
+        .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+        .unwrap_or(crate::domain::ScopeKey::Unspecified);
+    report.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::TransientAnalysis,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        experiment_scope,
+        sensor_scope,
+        crate::domain::ScopeKey::specific(report.channel.clone())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &report,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3));
+    Ok(report)
 }
 
 fn analyze_one_event(

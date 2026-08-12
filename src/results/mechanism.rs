@@ -264,6 +264,8 @@ impl Default for ResolvedMechanismConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MechanismAnalysisReport {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub analysis_id: String,
     pub records: Vec<MechanismRecordSummary>,
     pub eis_timescales: Vec<CharacteristicTimescale>,

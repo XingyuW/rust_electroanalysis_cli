@@ -207,6 +207,8 @@ pub struct StateFilterComparison {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateEstimationReport {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub analysis_id: String,
     pub experiment_id: String,
     pub sensor_id: Option<String>,
@@ -242,6 +244,10 @@ pub struct StateEstimationReport {
     pub initialization: InitializationReport,
     pub process_covariance: CovarianceResolution,
     pub measurement_covariance: CovarianceResolution,
+    /// Producer-owned labels are additive.  Positional legacy covariance is
+    /// still readable but is not consumed by A1 pair-covariance adapters.
+    #[serde(default)]
+    pub labeled_covariance: Option<crate::evidence::LabeledCovarianceMatrix>,
     pub observability: ObservabilityReport,
     pub estimates: Vec<StateEstimatePoint>,
     pub diagnostics: FilterDiagnostics,

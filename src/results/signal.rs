@@ -262,6 +262,8 @@ pub enum SignalWarning {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SignalAnalysisReport {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub analysis_id: String,
     pub experiment_id: Option<String>,
     pub sensor_id: Option<String>,

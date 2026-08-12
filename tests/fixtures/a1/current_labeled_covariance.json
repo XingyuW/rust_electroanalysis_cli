@@ -1,0 +1,17 @@
+{
+  "axes": [
+    {
+      "axis_id": "eis.parameter:CPE1:q",
+      "source_field_path": "parameters[CPE1:Q]",
+      "quantity_kind": "Parameter",
+      "unit": "Ohm^-1 s^alpha"
+    },
+    {
+      "axis_id": "eis.parameter:CPE1:alpha",
+      "source_field_path": "parameters[CPE1:alpha]",
+      "quantity_kind": "Parameter",
+      "unit": "dimensionless"
+    }
+  ],
+  "values": [[1.0, 0.1], [0.1, 2.0]]
+}

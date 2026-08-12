@@ -147,6 +147,7 @@ fn calibration_input(path: &Path) -> CalibrationObservationSet {
         .collect();
     CalibrationObservationSet {
         schema_version: 2,
+        lineage: rust_electroanalysis_cli::domain::legacy_unknown_lineage(),
         observations,
         provenance: provenance(path),
         warnings: Vec::new(),
@@ -263,6 +264,10 @@ fn mhi_t02a_current_correct_kind() {
     let transient: TransientAnalysisReport =
         read_artifact(&root.join("transient_analysis.schema2.json")).expect("transient");
     assert_eq!(transient.schema_version, 2);
+    assert!(matches!(
+        transient.lineage,
+        rust_electroanalysis_cli::domain::ArtifactLineageState::LegacyUnknown { .. }
+    ));
     assert_eq!(transient.channel, "E1");
     assert_eq!(transient.events.len(), 1);
 
@@ -343,7 +348,11 @@ fn mhi_t02f_producer_roundtrip() {
         },
     )
     .expect("transient producer");
-    assert_eq!(transient.schema_version, 2);
+    assert_eq!(transient.schema_version, 3);
+    assert!(matches!(
+        transient.lineage,
+        rust_electroanalysis_cli::domain::ArtifactLineageState::Known { .. }
+    ));
     let transient: TransientAnalysisReport = roundtrip(&root.join("transient.json"), &transient);
 
     let mut extraction_config =

@@ -17,6 +17,7 @@ nom = "8"
 num-complex = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_jcs = "0.2.0"
 sha2 = "0.10"
 thiserror = "2"
 toml = "1.1.2"

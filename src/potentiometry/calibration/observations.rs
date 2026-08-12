@@ -267,12 +267,59 @@ pub fn extract_observations(
     if observations.is_empty() {
         return Err(CalibrationError::NoObservations);
     }
-    Ok(CalibrationObservationSet {
-        schema_version: 2,
+    let mut result = CalibrationObservationSet {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         observations,
         provenance: experiment.provenance.clone(),
         warnings,
-    })
+    };
+    let experiment_scope = crate::domain::artifact_scope_from_experiment_ids(
+        "calibration-observation-set-v1",
+        result.observations.iter().filter_map(|observation| {
+            crate::domain::ExperimentId::new(observation.experiment_id.clone()).ok()
+        }),
+    );
+    let transient_used = result.observations.iter().any(|observation| {
+        matches!(
+            observation.source,
+            CalibrationPotentialSource::TransientEquilibrium
+        )
+    });
+    let direct_dependencies = transient_used
+        .then_some(transient_results)
+        .flatten()
+        .and_then(|report| match &report.lineage {
+            crate::domain::ArtifactLineageState::Known { identity, .. } => {
+                Some(crate::domain::ArtifactDependency {
+                    artifact_id: identity.artifact_id.clone(),
+                    artifact_kind: crate::domain::ArtifactKind::TransientAnalysis,
+                    role: crate::domain::ArtifactDependencyRole::TransformationInput,
+                })
+            }
+            crate::domain::ArtifactLineageState::LegacyUnknown { .. } => None,
+        })
+        .into_iter()
+        .collect::<Vec<_>>();
+    result.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::CalibrationObservations,
+        result.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        experiment_scope,
+        experiment
+            .sensor_metadata
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ScopeKey::specific(channel.name.clone())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        direct_dependencies,
+        &result,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3));
+    Ok(result)
 }
 
 fn event_concentration(

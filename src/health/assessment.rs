@@ -116,8 +116,9 @@ pub fn assemble(
     } else {
         OverallHealthStatus::WithinBaseline
     };
-    SensorHealthAssessment {
-        schema_version: 2,
+    let mut assessment = SensorHealthAssessment {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         assessment_id: id.into(),
         sensor_id: sensor,
         experiment_id: experiment,
@@ -131,7 +132,29 @@ pub fn assemble(
         configuration: config,
         provenance,
         warnings,
-    }
+    };
+    assessment.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::HealthAssessment,
+        assessment.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        assessment
+            .experiment_id
+            .clone()
+            .and_then(|id| crate::domain::ExperimentId::new(id).ok())
+            .and_then(|id| crate::domain::ArtifactExperimentScope::single(id).ok())
+            .unwrap_or(crate::domain::ArtifactExperimentScope::Unknown),
+        assessment
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &assessment,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3));
+    assessment
 }
 
 fn finding_status<'a>(

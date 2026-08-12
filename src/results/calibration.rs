@@ -184,6 +184,8 @@ impl CalibrationObservation {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CalibrationObservationSet {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub observations: Vec<CalibrationObservation>,
     pub provenance: AnalysisProvenance,
     pub warnings: Vec<CalibrationWarning>,
@@ -410,6 +412,8 @@ pub struct CalibrationValidationResult {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CalibrationAnalysisReport {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub calibration_id: String,
     pub analyte: String,
     pub ion_charge: i32,
@@ -427,6 +431,8 @@ pub struct CalibrationAnalysisReport {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StoredCalibrationModel {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub analyte: String,
     pub ion_charge: i32,
     pub model_kind: CalibrationModelKind,

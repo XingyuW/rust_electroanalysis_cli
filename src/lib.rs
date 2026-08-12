@@ -24,6 +24,8 @@ pub mod cli;
 pub mod domain;
 pub mod estimation;
 pub mod estimation_config;
+pub mod evidence;
+pub mod evidence_adapters;
 pub mod fitting;
 pub mod health;
 pub mod health_config;
@@ -51,6 +53,17 @@ pub use domain::{
     ParseDiagnostics, PlottingError, ProvenanceError, ReferenceMetadata, ReportingError,
     SensorMetadata, WorkspaceError, load_experiment_metadata,
 };
+pub use evidence::{
+    EvidenceArtifactSource, EvidenceBundle, EvidenceBundleBuilder, EvidenceBundleError,
+    EvidenceExperimentScope, EvidenceIndependenceAssessment, EvidenceIndependenceReason,
+    EvidencePairKey, EvidenceRecord, EvidenceSourceRef, EvidenceTarget, LabeledCovarianceMatrix,
+    TimescalePairUncertainty,
+};
+pub use evidence_adapters::{
+    AdapterContext, adapt_calibration_observations, adapt_eis_fit, adapt_model_analysis,
+    adapt_signal_scalar, adapt_state_estimation, adapt_transient_analysis, legacy_context,
+    try_adapt_calibration_observations,
+};
 pub use model::{
     CompiledIsmModel, ComponentContribution, ComponentDescriptor, ComponentId, ComponentRole,
     EquilibriumAssessment, EquilibriumEvidenceRequirements, EquilibriumStatus, EvidenceAssessment,
@@ -72,6 +85,7 @@ pub use results::signal::SignalAnalysisReport;
 pub use results::transient::{
     TransientAnalysisReport, TransientEventResult, TransientFeatures, TransientFitResult,
 };
+pub use runners::evidence::{EvidenceBundleInputs, assemble_evidence_bundle};
 
 /// Default logarithm base used whenever a log axis or log transform is enabled
 /// without an explicit base override.

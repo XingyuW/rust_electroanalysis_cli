@@ -455,7 +455,8 @@ fn normal(rng: &mut impl Rng) -> f64 {
 
 pub fn simulation_model() -> StoredCalibrationModel {
     StoredCalibrationModel {
-        schema_version: 2,
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         analyte: "synthetic".into(),
         ion_charge: 1,
         model_kind: CalibrationModelKind::Nernst,

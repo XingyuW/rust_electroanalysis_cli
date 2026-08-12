@@ -7,7 +7,7 @@ use crate::model::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const MODEL_RESULT_SCHEMA_VERSION: u32 = 4;
+pub const MODEL_RESULT_SCHEMA_VERSION: u32 = 5;
 pub const MODEL_COMPILATION_ARTIFACT_KIND: &str = "ism_model_compilation";
 pub const MODEL_ANALYSIS_ARTIFACT_KIND: &str = "ism_model_analysis";
 
@@ -16,6 +16,8 @@ pub const MODEL_ANALYSIS_ARTIFACT_KIND: &str = "ism_model_analysis";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelCompilationArtifact {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub artifact_kind: String,
     pub model_definition: ModelDefinition,
     pub definition_validity: ValidityReport,
@@ -40,6 +42,8 @@ pub struct ModelAnalysisPoint {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelAnalysisReport {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub artifact_kind: String,
     pub model_definition: ModelDefinition,
     pub points: Vec<ModelAnalysisPoint>,
@@ -72,8 +76,9 @@ fn validate_model_artifact_finite<T: Serialize>(artifact: &T) -> Result<(), Mode
 
 impl ModelCompilationArtifact {
     pub fn from_compiled(model: &CompiledIsmModel) -> Self {
-        Self {
+        let mut artifact = Self {
             schema_version: MODEL_RESULT_SCHEMA_VERSION,
+            lineage: crate::domain::current_unknown_lineage(MODEL_RESULT_SCHEMA_VERSION),
             artifact_kind: MODEL_COMPILATION_ARTIFACT_KIND.into(),
             model_definition: model.definition().clone(),
             definition_validity: ValidityReport {
@@ -86,7 +91,20 @@ impl ModelCompilationArtifact {
                 ],
             },
             identifiability: model.identifiability_report(),
-        }
+        };
+        artifact.lineage = crate::domain::known_lineage_from_artifact(
+            crate::domain::ArtifactKind::ModelCompilation,
+            artifact.schema_version,
+            format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+            crate::domain::ArtifactExperimentScope::Unknown,
+            crate::domain::ScopeKey::Unspecified,
+            crate::domain::ScopeKey::Unspecified,
+            crate::domain::ArtifactAcquisitionFamilies::Unknown,
+            Vec::new(),
+            &artifact,
+        )
+        .unwrap_or_else(|_| crate::domain::current_unknown_lineage(MODEL_RESULT_SCHEMA_VERSION));
+        artifact
     }
 
     /// The supported serialization path validates all numeric definition

@@ -48,8 +48,8 @@ pub use evidence::{
 };
 pub use identifiability::{
     AssessmentStatus, IdentifiabilityMetadata, IdentifiabilityReport, IdentifiabilityRequirement,
-    IdentifiabilityRequirementKind, IdentifiabilityScope, ParameterIdentifiabilityRequirement,
-    RequirementSeverity,
+    IdentifiabilityRequirementKind, IdentifiabilityScope, KnownIdentifiabilityRequirementKind,
+    ParameterIdentifiabilityRequirement, RequirementSeverity,
 };
 pub(crate) use input::units_compatible;
 pub use input::{

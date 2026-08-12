@@ -17,6 +17,9 @@ macro_rules! contract {
             fn validate_before_json(&self) -> Result<(), crate::domain::ArtifactError> {
                 crate::domain::artifact::validate_serialized_finite(self)
             }
+            fn require_kind_for_previous_schema_static() -> bool {
+                true
+            }
         }
     };
 }
@@ -24,83 +27,83 @@ macro_rules! contract {
 contract!(
     EisFitArtifact,
     ArtifactKind::EisFit,
-    2,
+    3,
     &[1, 2],
     CurrentArtifactKindPolicy::PreserveLegacyOptional
 );
 contract!(
     TransientAnalysisReport,
     ArtifactKind::TransientAnalysis,
-    2,
-    &[1],
+    3,
+    &[1, 2],
     CurrentArtifactKindPolicy::Required
 );
 contract!(
     CalibrationObservationSet,
     ArtifactKind::CalibrationObservations,
-    2,
-    &[1],
+    3,
+    &[1, 2],
     CurrentArtifactKindPolicy::Required
 );
 contract!(
     StoredCalibrationModel,
     ArtifactKind::CalibrationModel,
-    2,
-    &[1],
+    3,
+    &[1, 2],
     CurrentArtifactKindPolicy::Required
 );
 contract!(
     CalibrationAnalysisReport,
     ArtifactKind::CalibrationAnalysis,
-    2,
-    &[1],
+    3,
+    &[1, 2],
     CurrentArtifactKindPolicy::Required
 );
 contract!(
     SignalAnalysisReport,
     ArtifactKind::SignalAnalysis,
-    2,
-    &[1],
+    3,
+    &[1, 2],
     CurrentArtifactKindPolicy::Required
 );
 contract!(
     SensorHealthBaseline,
     ArtifactKind::HealthBaseline,
-    2,
+    3,
     &[1, 2],
     CurrentArtifactKindPolicy::PreserveLegacyOptional
 );
 contract!(
     SensorHealthAssessment,
     ArtifactKind::HealthAssessment,
-    2,
-    &[1],
+    3,
+    &[1, 2],
     CurrentArtifactKindPolicy::Required
 );
 contract!(
     HealthTrendReport,
     ArtifactKind::HealthTrend,
-    2,
-    &[1],
+    3,
+    &[1, 2],
     CurrentArtifactKindPolicy::Required
 );
 contract!(
     MechanismAnalysisReport,
     ArtifactKind::MechanismAnalysis,
-    2,
-    &[1],
+    3,
+    &[1, 2],
     CurrentArtifactKindPolicy::Required
 );
 contract!(
     StateEstimationReport,
     ArtifactKind::StateEstimation,
-    3,
+    4,
     &[1, 2, 3],
     CurrentArtifactKindPolicy::PreserveLegacyOptional
 );
 impl VersionedArtifact for ModelCompilationArtifact {
     const ARTIFACT_KIND: ArtifactKind = ArtifactKind::ModelCompilation;
-    const CURRENT_SCHEMA_VERSION: u32 = 4;
+    const CURRENT_SCHEMA_VERSION: u32 = 5;
     const LEGACY_SCHEMA_VERSIONS: &'static [u32] = &[1, 2, 3, 4];
     const CURRENT_ARTIFACT_KIND_POLICY: CurrentArtifactKindPolicy =
         CurrentArtifactKindPolicy::PreserveLegacyOptional;
@@ -121,7 +124,7 @@ impl VersionedArtifact for ModelCompilationArtifact {
 
 impl VersionedArtifact for ModelAnalysisReport {
     const ARTIFACT_KIND: ArtifactKind = ArtifactKind::ModelAnalysis;
-    const CURRENT_SCHEMA_VERSION: u32 = 4;
+    const CURRENT_SCHEMA_VERSION: u32 = 5;
     const LEGACY_SCHEMA_VERSIONS: &'static [u32] = &[1, 2, 3, 4];
     const CURRENT_ARTIFACT_KIND_POLICY: CurrentArtifactKindPolicy =
         CurrentArtifactKindPolicy::PreserveLegacyOptional;

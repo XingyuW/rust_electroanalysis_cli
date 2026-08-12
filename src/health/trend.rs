@@ -87,11 +87,25 @@ pub fn report(
     trends: Vec<HealthTrend>,
     provenance: crate::domain::AnalysisProvenance,
 ) -> HealthTrendReport {
-    HealthTrendReport {
-        schema_version: 2,
+    let mut report = HealthTrendReport {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         analysis_id: id.into(),
         trends,
         provenance,
         warnings: Vec::<HealthWarning>::new(),
-    }
+    };
+    report.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::HealthTrend,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        crate::domain::ArtifactExperimentScope::Unknown,
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &report,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3));
+    report
 }

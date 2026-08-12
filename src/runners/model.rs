@@ -79,20 +79,19 @@ pub fn simulate(
             .process_transition(&state, &parameters, &input, dt_s)
             .map_err(|error| RunnerError::Message(error.to_string()))?;
     }
-    export(
-        workspace,
-        output,
-        ModelAnalysisReport {
-            schema_version: MODEL_RESULT_SCHEMA_VERSION,
-            artifact_kind: MODEL_ANALYSIS_ARTIFACT_KIND.into(),
-            model_definition: compiled.definition().clone(),
-            points,
-            identifiability: compiled.identifiability_report(),
-            evidence: vec![
-                "Deterministic synthetic scenario; values are not fitted physical evidence.".into(),
-            ],
-        },
-    )
+    let mut report = ModelAnalysisReport {
+        schema_version: MODEL_RESULT_SCHEMA_VERSION,
+        lineage: crate::domain::current_unknown_lineage(MODEL_RESULT_SCHEMA_VERSION),
+        artifact_kind: MODEL_ANALYSIS_ARTIFACT_KIND.into(),
+        model_definition: compiled.definition().clone(),
+        points,
+        identifiability: compiled.identifiability_report(),
+        evidence: vec![
+            "Deterministic synthetic scenario; values are not fitted physical evidence.".into(),
+        ],
+    };
+    report.lineage = model_analysis_lineage(&report);
+    export(workspace, output, report)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -165,18 +164,32 @@ pub fn decompose(
         points.push(evaluate(&compiled, &state, &parameters, input, observed)?);
     }
     evidence.push("Optional artifacts were schema-validated and retained as evidence; no physical mechanism identity was inferred.".into());
-    export(
-        workspace,
-        output,
-        ModelAnalysisReport {
-            schema_version: MODEL_RESULT_SCHEMA_VERSION,
-            artifact_kind: MODEL_ANALYSIS_ARTIFACT_KIND.into(),
-            model_definition: compiled.definition().clone(),
-            points,
-            identifiability: compiled.identifiability_report(),
-            evidence,
-        },
+    let mut report = ModelAnalysisReport {
+        schema_version: MODEL_RESULT_SCHEMA_VERSION,
+        lineage: crate::domain::current_unknown_lineage(MODEL_RESULT_SCHEMA_VERSION),
+        artifact_kind: MODEL_ANALYSIS_ARTIFACT_KIND.into(),
+        model_definition: compiled.definition().clone(),
+        points,
+        identifiability: compiled.identifiability_report(),
+        evidence,
+    };
+    report.lineage = model_analysis_lineage(&report);
+    export(workspace, output, report)
+}
+
+fn model_analysis_lineage(report: &ModelAnalysisReport) -> crate::domain::ArtifactLineageState {
+    crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::ModelAnalysis,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        crate::domain::ArtifactExperimentScope::Unknown,
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        report,
     )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(report.schema_version))
 }
 
 pub fn report(workspace: &Path, results: &Path, output: Option<&Path>) -> Result<(), RunnerError> {
