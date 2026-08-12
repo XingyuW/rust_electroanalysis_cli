@@ -2,7 +2,7 @@
 
 **Status:** planning/specification only. This document authorizes no production Rust-code change.
 **Repository:** `/Users/xingyuwang/ProjectOngoing/rust_electroanalysis_cli`
-**Planning branch / base commit:** `plan/mhi-v1-a1-contract-amendment` / `f6e18bfed97a399b6e20de09f7348d7ffe910c77`.
+**Planning branch / base commit:** `plan/mhi-v1-b-contract-amendment` / `d1fcb5125326d6118fd848bb76c37adc4b5fa7ef`.
 
 This is the normative contract for Model-Based Mechanism and Sensor Health Integration V1 (MHI V1). A normative word is binding. A missing required input or configuration never authorizes an implementation default. Existing public behavior remains unless this contract explicitly defines an additive change.
 
@@ -1355,3 +1355,191 @@ The required post-commit state is a clean tree, no production Rust changes, an a
 ## 19. Phase A0 — Artifact Contract Repair implementation prompt
 
 Implement Phase A0 only in `/Users/xingyuwang/ProjectOngoing/rust_electroanalysis_cli`. Inspect Git status, branch, base commit, `src/domain/artifact.rs`, `src/results/artifact_contracts.rs`, all eight artifact types and nine producer construction sites in §11, existing artifact tests and fixtures. **`src/domain/artifact.rs` is in A0 scope only for contract-driven current artifact-kind validation.** Add the §11 `CurrentArtifactKindPolicy` declaration to every contract and implement the exact §11 `validate_value` algorithm. For exactly the eight A0 repair-set contracts set `CURRENT_SCHEMA_VERSION=2`, `LEGACY_SCHEMA_VERSIONS=&[1]`, and `CurrentArtifactKindPolicy=Required`. Preserve non-A0 contracts’ prior accepted/rejected matrix; in particular, retain `eis_fit` and `health_baseline` schema-2 behavior and fixture-regress present-correct/pass, present-wrong/fail, and missing/pass. Add real production-path fixtures/tests per repair-set kind: correct schema-2 kind pass, wrong-kind fail, missing-kind schema-2 fail, documented schema-1 form pass, unsupported version fail, and producer serialize → validate → reread pass. Verify every current producer output is accepted by its declared contract. Do not add durable-lineage types, `EvidenceRecord`, `EvidenceBundle`, `EvidenceIndependenceAssessment`, `HypothesisAssessmentRecord`, `TimescalePairUncertainty`, hypothesis assessment, mechanism/health assessment, or evidence CLI flags. Do not modify unrelated baseline formatting/clippy debt. Run the four §1 validation commands and classify failures as existing unrelated, A0-related, new regression, or resolved. Provide traceability to MHI-R2/T02a-f and A0-AC-COMPAT-01, exact compatibility behavior, all changed paths, commands/results, commit ID, and rollback target.
+
+## 20. Phase B contract amendment — mechanism evidence integration
+
+This amendment is normative for Phase B and supersedes only the Phase-B portions of §§6--10, 15--18 where it differs. It neither changes the frozen A1 lineage, `EvidenceBundle`, covariance, artifact-identity, or schema semantics, nor authorizes Phase B implementation. The current tree confirms all nine findings below: `src/mechanism_config.rs` still defaults its legacy configuration; `src/runners/evidence.rs::EvidenceBundleInputs` has no model input; `src/results/mechanism.rs` has schema 3 and no durable B assessment/history; `src/model/identifiability.rs` serializes requirements but has no mechanism assessor; `EvidenceRecord` has no temporal field; and the current CLI has only legacy mechanism flags. Therefore the classifications are **CONFIRMED** for gaps 1--9.
+
+### 20.1 Configuration owner, TOML, and scientific thresholds (B-CONFIG)
+
+Phase B owns `src/mechanism/config.rs::MechanismEvidenceConfig` and the loader called by `src/runners/mechanism.rs`; it does not change the legacy `ResolvedMechanismConfig` scientific defaults. The serialized root is exactly `[mechanism.evidence]` in the same TOML passed through `mechanism compare --config`; the legacy no-config fallback remains valid only for legacy comparison output and **must reject a request to perform Phase B assessment** with `MechanismEvidenceInputError::MissingMechanismEvidenceConfig`. The B raw and resolved structs use `#[serde(deny_unknown_fields)]`; every B section is required; every listed field is required and has no default. A missing section/field, non-finite number, range violation, duplicate ID, unknown field, or unsupported `schema_version != 1` is a typed configuration parse/validation error before artifacts are read.
+
+```rust
+pub struct MechanismEvidenceConfig {
+    pub schema_version: u32, // exactly 1
+    pub timescale: TimescaleEvidenceConfig,
+    pub amplitude: AmplitudeEvidenceConfig,
+    pub repeatability: RepeatabilityEvidenceConfig,
+    pub temporal: TemporalJoinConfig,
+    pub identifiability: IdentifiabilityGateConfig,
+    pub validation: ValidationProtocolConfig,
+    pub promotion: HypothesisPromotionConfig,
+}
+pub struct TimescaleEvidenceConfig {
+    pub confidence_level: f64, pub strong_max_log_distance: f64,
+    pub moderate_max_log_distance: f64, pub weak_max_log_distance: f64,
+    pub minimum_observation_duration_ratio: f64, pub minimum_samples_per_tau: f64,
+    pub minimum_mode_separation_ratio: f64,
+}
+pub struct AmplitudeEvidenceConfig { pub amplitude_floor: f64, pub maximum_relative_amplitude_error: f64, pub minimum_strength: EvidenceStrength }
+pub struct RepeatabilityEvidenceConfig { pub minimum_replicates: usize, pub maximum_log_tau_standard_deviation: f64, pub minimum_independent_acquisition_families: usize }
+pub struct IdentifiabilityGateConfig { pub minimum_covariate_samples: usize, pub minimum_covariate_range: f64, pub maximum_absolute_pearson_correlation: f64, pub minimum_interferent_samples: usize, pub minimum_interferent_log10_range: f64, pub minimum_absolute_log10_activity_step: f64, pub minimum_pre_event_points: usize, pub minimum_post_event_points: usize }
+pub struct HypothesisPromotionConfig { pub critical_moderate_contradiction_count: usize, pub minimum_supporting_evidence: usize, pub minimum_independent_acquisition_families: usize, pub minimum_validation_acquisition_families: usize, pub evidence_level_minimum_strength: EvidenceStrength }
+pub enum WindowOverlapRule { PositiveDuration }
+pub enum EventIdentityRule { Exact }
+pub enum ClockMismatchBehavior { Indeterminate }
+pub enum ScopeMismatchBehavior { Indeterminate }
+pub struct TemporalJoinConfig { pub point_tolerance_s: f64, pub window_overlap_rule: WindowOverlapRule, pub event_identity_rule: EventIdentityRule, pub minimum_classified_fraction: f64, pub minimum_equilibrium_fraction: f64, pub mixed_state_policy: MixedStatePolicy, pub clock_mismatch_behavior: ClockMismatchBehavior, pub scope_mismatch_behavior: ScopeMismatchBehavior }
+pub struct ValidationProtocolConfig { pub protocol: Option<ValidationProtocol> }
+pub struct ValidationProtocol { pub protocol_id: String, pub version: String, pub required_acquisition_families: usize, pub minimum_validation_acquisition_families: usize, pub required_experiment_scopes: usize, pub required_conditions: Vec<ValidationCondition> }
+pub struct ValidationCondition { pub condition_id: String, pub requirement_ids: Vec<EvidenceRequirementId>, pub experiment_scope: EvidenceExperimentScope, pub sensor_scope: ScopeKey, pub channel_scope: ScopeKey }
+```
+
+The exact TOML shape is `[mechanism.evidence]` with `schema_version=1`, and mandatory child tables `[mechanism.evidence.timescale]`, `.amplitude`, `.repeatability`, `.temporal`, `.identifiability`, `.validation`, and `.promotion`. `ValidationProtocolConfig` owns `protocol` directly under the validation table. Threshold provenance is emitted for every numeric field with the TOML field path and the semantic SHA-256 of the complete `MechanismEvidenceConfig`; that hash is included in a B assessment hash.
+
+| Threshold | equation / unit | config field | allowed range; default | boundary behavior / consumer |
+|---|---|---|---|---|
+| timescale distance | `r=ln(tau1/tau2)`, `d_tau=abs(r)`; 1 | `timescale.{strong,moderate,weak}_max_log_distance` | `0<=strong<=moderate<=weak`; none | upper boundary belongs to lower-distance level; §8 pair classifier |
+| timescale confidence | central interval confidence; 1 | `timescale.confidence_level` | `0.5<c<1`; none | mismatch > `1e-12` is NotAssessed; numerical tolerance is not config |
+| duration / sampling / separation | ratios; 1 | three remaining timescale fields | each `>0`; none | equality passes; timescale gate |
+| amplitude | `abs(pred-obs)/max(abs(pred),abs(obs),floor)`; quantity unit / 1 | `amplitude.{amplitude_floor,maximum_relative_amplitude_error}` | floor `>0`, error `>=0`; none | equality passes; amplitude gate |
+| repeatability | sample SD of `ln(tau/1 s)`; 1 | `repeatability.maximum_log_tau_standard_deviation` | `>=0`; none | equality passes; repeatability gate |
+| repeat count | count | `repeatability.minimum_replicates` | integer `>=2`; none | fewer is NotAssessed |
+| independent/supporting/contradiction counts | count | `promotion.*` excluding strength | independent/validation/supporting `>=1`; contradiction `>=1`; none | exact count passes; promotion engine |
+| temporal fractions | classified/equilibrium fractions; 1 | `temporal.{minimum_classified_fraction,minimum_equilibrium_fraction}` | `[0,1]`; none | equality passes; temporal join |
+| temporal tolerance | seconds | `temporal.point_tolerance_s` | `>=0`; none | equality is eligible |
+| identifiability thresholds | counts, source units, `log10(activity)`, correlation 1 | every `identifiability.*` field | counts `>=1`, ranges/step `>0`, correlation `[0,1]`; none | equality passes; §20.3 assessor |
+
+Every `ValidationCondition` ID is nonempty and unique; its requirement IDs are nonempty, sorted, and resolve in the owning hypothesis. Protocol IDs/versions are nonempty; all its counts are integers `>=1`. The closed temporal enums above are required and have no defaults. This table is the complete B scientific-threshold inventory: an unconfigured threshold never yields support.
+
+### 20.2 Deterministic evidence-requirement binding (B-BIND)
+
+Replace the underspecified `HypothesisEvidenceRequirement` use in §6 with the following complete B requirement. It retains the existing `EvidenceRequirementId` newtype and `EvidenceTarget`/`EvidenceSourceClass` enums from `src/evidence.rs`.
+
+```rust
+pub enum RequirementGate { Required, NotApplicable { reason: String } }
+pub enum EvidenceTargetSelector { ExactTarget(EvidenceTarget), ExactComponent(ComponentId), ExactIdentifiabilityRequirement(RequirementId), ExactDerivedQuantity { target: EvidenceTarget, quantity_kind: String, unit: String } }
+pub enum EvidenceDirectionRequirement { Supports, Contradicts, Neutral }
+pub enum EvidenceStrengthRequirement { AtLeast(EvidenceStrength) }
+pub enum EvidenceValidityRequirement { ValidOnly, ValidOrWarning }
+pub struct EvidenceQuantityRequirement { pub quantity_kind: String, pub unit: String }
+pub struct IndependenceRequirement { pub required: bool, pub minimum_acquisition_families: usize }
+pub struct EvidenceScopeRequirement { pub experiment_scope: EvidenceExperimentScope, pub sensor_scope: ScopeKey, pub channel_scope: ScopeKey, pub temporal_required: bool }
+pub struct EvidenceRequirement { pub requirement_id: EvidenceRequirementId, pub target_selector: EvidenceTargetSelector, pub source_class_selector: Vec<EvidenceSourceClass>, pub direction_requirement: EvidenceDirectionRequirement, pub minimum_strength: EvidenceStrengthRequirement, pub validity_requirement: EvidenceValidityRequirement, pub quantity_requirement: Option<EvidenceQuantityRequirement>, pub independence_requirement: IndependenceRequirement, pub scope_requirement: EvidenceScopeRequirement, pub gate: RequirementGate }
+pub struct EvidencePairSelector { pub left_evidence_id: EvidenceId, pub right_evidence_id: EvidenceId }
+```
+
+All selector strings/IDs are nonempty, source classes are sorted/deduplicated and nonempty, `minimum_acquisition_families>=1`, and an exact target comparison is structural enum equality--never a display name, substring, parameter position, or heuristic. `ExactComponent` compares only `EvidenceTarget::ModelComponent(component_id)`; it does not reinterpret a hypothesis target. A timescale requirement carries `EvidencePairSelector`; it is canonicalized through `EvidencePairKey::canonical` and requires those exact two eligible record IDs. A pair is never inferred from record ordering.
+
+Candidate selection is exactly: `EvidenceBundle.records` -> exact target selector -> source class -> `availability=Available` -> validity requirement -> direction -> required quantity kind plus exact UCUM unit -> scope/temporal eligibility -> `strength >= minimum` -> sort by `(evidence_id bytes, source.artifact sort key, source.field_path bytes)`. It retains every eligible candidate. The independent subset is the lexicographically first maximum-cardinality mutually Independent clique computed with the existing §5.2 exhaustive clique algorithm; ties are resolved by the sorted evidence-ID vector. Its count and distinct known acquisition-family count decide the `IndependenceRequirement`; an Unknown family never counts. Any other candidate subset is forbidden.
+
+### 20.3 Identifiability assessment and production inputs (B-IDENT)
+
+Phase B owns `src/mechanism/identifiability.rs::assess_identifiability`; A1's `src/model/identifiability.rs` remains the serializer of requirements only. The assessor emits one assessment per declared requirement, in bytewise requirement-ID order.
+
+```rust
+pub enum IdentifiabilityAssessmentStatus { Satisfied, NotSatisfied, NotAssessed, NotApplicable }
+pub struct IdentifiabilityMetric { pub name: String, pub value: f64, pub unit: String, pub threshold_field: String }
+pub struct IdentifiabilityAssessment { pub requirement_id: RequirementId, pub requirement_kind: IdentifiabilityRequirementKind, pub status: IdentifiabilityAssessmentStatus, pub assessor_id: String, pub assessor_version: String, pub source_artifact_ids: Vec<ArtifactId>, pub evidence_ids: Vec<EvidenceId>, pub metric: Option<IdentifiabilityMetric>, pub reasons: Vec<String> }
+```
+
+The assessor uses existing artifact fields only: `TransientAnalysisReport` retained time/event observations for `TransientExcitation` and duration; exact eligible tau `EvidenceRecord`s for duration/mode separation; `ModelAnalysisReport.model_definition` and `points[*].equilibrium` only as declared model context; and `EvidenceBundle` records/family lineage for covariate/interferent/anchor evidence. `ReferenceAnchor` requires a valid `ExternalReference` record with complete Known lineage and matching scope. For `TransientExcitation`, a selected event needs finite positive pre/post activity, an exact event ID, enough pre/post points, and `abs(log10(post/pre))` at least config. Covariate/interferent conditions use the exact §9 equations and named config fields. A present applicable input below a threshold is NotSatisfied; missing/invalid/unknown lineage input is NotAssessed. `ActivityExcitation`, `TemperatureVariation`, `RepeatedStandards`, and `AuxiliaryObservation` remain NotAssessed until a registered B assessor is added. `Custom(_)` always yields `assessor_id="identifiability.custom.not_assessed"`, `assessor_version="not_assessed.v1"`, status NotAssessed, never Satisfied. Only `RequirementGate::NotApplicable` produces NotApplicable.
+
+### 20.4 Temporal/equilibrium metadata and join (B-TEMP)
+
+Temporal support is additive bundle-owned metadata, never a field added to frozen A1 `EvidenceRecord`:
+
+```rust
+pub enum EvidenceTemporalSupport { Point { timestamp: Timestamp, clock: ClockBasis }, Window { start: Timestamp, end: Timestamp, clock: ClockBasis }, Event { event_id: String, start: Timestamp, end: Timestamp, clock: ClockBasis }, Aggregate, Unknown }
+pub struct EvidenceTemporalMetadata { pub evidence_id: EvidenceId, pub support: EvidenceTemporalSupport, pub equilibrium_source_artifact_id: Option<ArtifactId>, pub equilibrium_field_path: Option<String>, pub phase_event_id: Option<String>, pub clock_id: Option<String> }
+pub enum TemporalJoinOutcome { Eligible, Ineligible { reason: TemporalJoinReason }, Indeterminate { reason: TemporalJoinReason }, MissingEvidence { reason: TemporalJoinReason } }
+pub enum TemporalJoinReason { MissingMetadata, AggregateOrUnknownSupport, ScopeMismatch, ClockMismatch, EventIdentityMismatch, PointToleranceExceeded, WindowNoOverlap, AmbiguousNearestPoint, ClassifiedFractionBelowMinimum, EquilibriumFractionBelowMinimum, MixedStateRejected, NoTargetObservations, NoClassifiedObservations }
+```
+
+`EvidenceBundle.temporal_metadata: Vec<EvidenceTemporalMetadata>` is schema-1 additive B metadata, sorted by `evidence_id`, exactly one entry per referenced evidence ID, and included in the bundle semantic hash. It is optional only for A1-created bundles; missing metadata deserializes to `[]` and is treated as MissingEvidence, never temporal support. The Phase B builder accepts it only through already loaded `TransientAnalysisReport` event/time fields and `ModelAnalysisReport.points[*].{time_s,equilibrium}`. Equilibrium is exactly `src/model/equilibrium_recognition.rs::EquilibriumStatus`; no new classifier is permitted. The classification fraction, equilibrium fraction, scope/clock conversion, point matching, window semantics, MixedStatePolicy precedence, and failure ordering remain §7; B adds the required `minimum_equilibrium_fraction` check after classified fraction and before mixed-state policy. Point/Event identities must match exact string IDs under `event_identity_rule=Exact`; window overlap uses `[max(start), min(end))` and requires positive overlap under `PositiveDuration`; clock/scope mismatch returns Indeterminate, aggregate/unknown support returns MissingEvidence, and neither can support a point conclusion.
+
+### 20.5 Multi-component, validation, promotion, and history (B-LIFECYCLE)
+
+V1 preserves existing multi-component definitions without collapsing component meaning. `HypothesisAssessment` contains `component_assessments: Vec<ComponentInterpretationAssessment>`, one per sorted distinct `target_component_id`; it removes the single `component_interpretation_status` field. The complete replacement types are:
+
+```rust
+pub enum ComponentInterpretationBasis { HypothesisEvidence { hypothesis_id: HypothesisId, evidence_level: HypothesisEvidenceLevel, assessment_hash: String } }
+pub struct ComponentInterpretationAssessment { pub component_id: ComponentId, pub interpretation_status: InterpretationStatus, pub basis: ComponentInterpretationBasis }
+pub struct HypothesisAssessment { pub hypothesis_id: HypothesisId, pub hypothesis_evidence_level: HypothesisEvidenceLevel, pub component_assessments: Vec<ComponentInterpretationAssessment>, pub supporting_evidence: Vec<EvidenceRef>, pub contradictory_evidence: Vec<EvidenceRef>, pub excluded_evidence: Vec<EvidenceRef>, pub identifiability_assessments: Vec<IdentifiabilityAssessment>, pub temporal_outcomes: Vec<TemporalJoinOutcome>, pub reason_codes: Vec<HypothesisReasonCode>, pub assessment_hash: String }
+pub struct HypothesisHistoryEntry { pub history_id: String, pub hypothesis_id: HypothesisId, pub prior_level: HypothesisEvidenceLevel, pub new_level: HypothesisEvidenceLevel, pub assessment_hash: String, pub reason_codes: Vec<HypothesisReasonCode>, pub source_evidence_ids: Vec<EvidenceId>, pub sequence: u64, pub assessed_at: Option<Timestamp> }
+pub struct HypothesisAssessmentRecord { pub definition: MechanismHypothesisDefinition, pub current: HypothesisAssessment }
+```
+
+The only B component effect is the existing component's transition to `Hypothesized` when the hypothesis reaches `Hypothesized`, and to `ExperimentallySupported` when it reaches that level; it never sets `ValidatedForDomain` until the validation row below passes. A component absent from the definition is untouched. A shared hypothesis result is copied to each listed component; no aggregate or inferred component status exists.
+
+`ValidationProtocol` is embedded as `MechanismEvidenceConfig.validation.protocol` and passed only through the B config--there is no `--validation-protocol` flag. It is required when a definition names `validation_protocol_id`; otherwise `protocol=None` is permitted and validation is unavailable. Its exact fields are `protocol_id`, `version`, `required_acquisition_families`, `minimum_validation_acquisition_families`, `required_experiment_scopes`, and `required_conditions: Vec<ValidationCondition>`. A validation family is a Known `AcquisitionFamilyId` on an eligible validation-role evidence record, from an exact distinct acquisition family and experiment scope, not present in any supporting/training/calibration candidate used to establish ExperimentalSupport. Unknown lineage/family never counts. Each required condition must have an eligible supporting record in the declared scope; no missing condition passes.
+
+| Result | deterministic requirements |
+|---|---|
+| Unassessed | missing B config, no valid available candidate, or any Required gate is NotAssessed/NotSatisfied |
+| Hypothesized | definition exists and at least one valid Available selected record supports it |
+| ExperimentallySupported | Hypothesized; all Required requirements/gates Satisfied; support count at least promotion minimum; independent known family count at least promotion minimum; critical contradiction count below configured limit; all required identifiability Satisfied |
+| ValidatedForDomain | ExperimentallySupported plus matching embedded protocol, all required conditions, distinct validation families at least `max(protocol.required_acquisition_families, protocol.minimum_validation_acquisition_families, promotion.minimum_validation_acquisition_families)`, required experiment scopes, and no critical contradiction |
+
+`MechanismAnalysisReport` owns `hypothesis_assessments: Vec<HypothesisAssessmentRecord>` and `hypothesis_history: Vec<HypothesisHistoryEntry>` in schema 4. An entry has `history_id=SHA256(hypothesis_id || NUL || prior_level || NUL || new_level || NUL || assessment_hash)`, hypothesis ID, prior/new level, assessment hash, sorted reason codes, sorted source EvidenceIds, sequence number, and optional RFC-3339 timestamp excluded from equality/hash. `assessment_hash` is RFC-8785 SHA-256 of the deterministic scientific assessment view (definition ID, requirement results, component assessments, sorted evidence IDs, config hash, protocol ID/version, identifiability, temporal outcomes); no timestamp/human text. On each run, compute then append only if no prior entry for that hypothesis has equal `(prior_level,new_level,assessment_hash)`; sequence is prior maximum plus one. History content is sorted by hypothesis ID then sequence for serialization. Current assessment and history scientific fields are included in the report semantic hash; timestamps are excluded.
+
+### 20.6 Schema, runner inputs, CLI, and errors (B-COMPAT)
+
+`mechanism_analysis` changes from current schema **3** to **4**, with supported legacy versions `[1,2,3]` (the existing artifact-kind policy remains `Required`). Schema-3 artifacts deserialize with `hypothesis_assessments=[]`, `hypothesis_history=[]`; their absence means NotAssessed, never support. Schema-1/2 retain their documented historical migrations. A schema-4 writer never fabricates a history entry for a legacy read. All current B assessment/history fields participate in semantic hashing as specified above; legacy writers/readers retain old hashes only for their old payload representations.
+
+| Artifact | before / after | legacy | B fields and migration |
+|---|---|---|---|
+| `mechanism_analysis` | 3 / 4 | `[1,2,3]` | `hypothesis_assessments`, `hypothesis_history`; serde `[]`; missing = NotAssessed |
+| `EvidenceBundle` | 1 / 1 | `[1]` | additive `temporal_metadata`; missing = `[]`, MissingEvidence only |
+| `ism_model_analysis` | 5 / 5 | `[1,2,3,4,5]` | unchanged; accepted read-only B input |
+
+`EvidenceBundleInputs` gains `model_artifact: Option<ModelAnalysisReport>` and includes its known lineage in the catalog. It accepts only artifact kind `ism_model_analysis`, schema versions `[1,2,3,4,5]` readable by its existing contract, and scope compatible with the mechanism target. `src/evidence_adapters.rs::adapt_model_analysis` maps a model point only to `source_class=ModelDerived`, its exact `ModelComponent(ComponentId)` target, direction derived solely from the declared requirement/field semantics, `availability=Available` only for finite source values, `strength=NotAssessed` until a B assessor derives it, `validity` from the point validity/domain, exact quantity/unit from the source state/contribution, producer uncertainty if serialized, model identifiability relevance only through §20.3, and artifact/member scope. Raw model records never become Strong automatically.
+
+```rust
+pub struct ArtifactReference { pub path: String, pub expected_artifact_kind: ArtifactKind, pub expected_schema_versions: Vec<u32> }
+pub struct ConflictingEvidenceInput { pub artifact: ArtifactReference, pub expected_scope: EvidenceScopeRequirement, pub role: ConflictingEvidenceRole }
+pub enum ConflictingEvidenceRole { EisFit, Transient, Calibration, Estimation, Model, PriorMechanism, EvidenceBundle }
+pub enum MechanismEvidenceInputError { ArtifactKindMismatch { role: ConflictingEvidenceRole }, UnsupportedSchemaVersion { role: ConflictingEvidenceRole, schema_version: u32 }, ExperimentScopeConflict, SensorScopeConflict, ChannelScopeConflict, ClockScopeConflict, MissingRequiredEvidence, MissingMechanismEvidenceConfig, ConflictingEvidenceInput }
+```
+
+Any artifact scope conflict returns the named typed error and is never silently dropped. Phase B adds exactly `--mechanism-evidence-config <PATH>` (required for B assessment), `--model-artifact <PATH>` (optional), `--evidence-artifact <PATH>` (optional, at most once), `--prior-mechanism-artifact <PATH>` (optional), and `--lineage-catalog <PATH>` (optional); it retains existing `--config`, EIS, transient, calibration, metadata, and output flags. `--evidence-artifact` accepts only an `EvidenceBundle` schema 1 artifact; if present it is the only bundle source and may not be combined with `--model-artifact`/legacy evidence inputs except as an exact same-ID deduplication, otherwise `ConflictingEvidenceInput`. A missing optional model yields Missing model-derived evidence. `--validation-protocol` is expressly prohibited in B because protocol ownership is config. No Phase-E flag is introduced.
+
+### 20.7 Permanent fixture/data matrix and traceability (B-TEST)
+
+Phase B creates only the following tracked files during implementation; each is an exact data binding, not an instruction to invent appropriate evidence. `tests/fixtures/a1/current_labeled_covariance.json`, `legacy_unlabeled_covariance.json`, `current_known_lineage_state.json`, `aggregate_scope.json`, and `tests/fixtures/a0_artifact_contracts/schema2/{transient_analysis,mechanism_analysis}.schema2.json` are the immutable upstream source data. Generated artifacts use public `read_artifact`/`write_artifact` and the existing `assemble_evidence_bundle` route.
+
+| Permanent test ID | exact tracked fixture or deterministic source route |
+|---|---|
+| `MHI-B-T00-config` | `tests/fixtures/phase_b/e2e/mechanism.toml`; assert missing child/unknown field/no-default rejection through the public config loader |
+| `MHI-B-T01-timescale-independent`, `MHI-B-T01-timescale-dependent`, `MHI-B-T01-timescale-with-covariance`, `MHI-B-T01-timescale-without-covariance`, `MHI-B-T01-timescale-boundary`, `MHI-B-T01-timescale-out-of-domain` | `tests/fixtures/phase_b/timescale/{independent,dependent,with_covariance,without_covariance,boundary,out_of_domain}.json`; covariance source is `tests/fixtures/a1/current_labeled_covariance.json`; unavailable case is `legacy_unlabeled_covariance.json`; IDs are literal `b-ts-eis-01` / `b-ts-transient-01` |
+| `MHI-B-T02-amplitude-sign`, `MHI-B-T02-amplitude-opposite`, `MHI-B-T02-amplitude-indeterminate` | `tests/fixtures/phase_b/amplitude/{expected_sign,opposite_sign,indeterminate}.json`; literal quantity IDs `b-amp-predicted-01`, `b-amp-observed-01` |
+| `MHI-B-T03-repeat-independent`, `MHI-B-T03-repeat-dependent`, `MHI-B-T03-repeat-insufficient`, `MHI-B-T03-repeat-unknown-family` | `tests/fixtures/phase_b/repeatability/{independent,dependent,insufficient,unknown_family}.json`; literal families `b-family-a`, `b-family-b`, `b-family-shared`, and serialized `Unknown` |
+| `MHI-B-T04-temporal-point`, `MHI-B-T04-temporal-window`, `MHI-B-T04-temporal-event`, `MHI-B-T04-temporal-clock-mismatch`, `MHI-B-T04-temporal-scope-mismatch`, `MHI-B-T04-temporal-aggregate-unknown` | respectively `tests/fixtures/phase_b/temporal/{point,window,event,clock_mismatch,scope_mismatch,aggregate_unknown}.json`; literal UTC timestamps `2025-01-01T00:00:00Z`, `2025-01-01T00:00:10Z`, and event `b-step-01`; equilibrium source route is `ModelAnalysisReport.points[*].equilibrium` |
+| `MHI-B-T05-ident-satisfied`, `MHI-B-T05-ident-not-satisfied`, `MHI-B-T05-ident-not-assessed`, `MHI-B-T05-ident-custom-unsupported` | respectively `tests/fixtures/phase_b/identifiability/{satisfied,not_satisfied,not_assessed,custom_unsupported}.json`, each naming the §20.3 field path and literal requirement ID |
+| `MHI-B-T06-validation-pass`, `MHI-B-T06-validation-insufficient`, `MHI-B-T06-validation-unknown-family`, `MHI-B-T06-validation-training-overlap` | respectively `tests/fixtures/phase_b/validation/{pass,insufficient,unknown_family,training_overlap}.json`, literal family sets and protocol count |
+| `MHI-B-T07-e2e` | `tests/fixtures/phase_b/e2e/{mechanism.toml,eis_fit.json,transient.json,model_analysis.json}.json`; public readers -> `assemble_evidence_bundle` -> B assessment -> schema-4 mechanism artifact -> public reread -> exact assessment/history assertion |
+
+| Requirement | normative behavior / public type | implementation module | AC and exact test ID | fixture/data | compatibility / scientific risk |
+|---|---|---|---|---|---|
+| `MHI-B-R01` | required no-default config; `MechanismEvidenceConfig` | `src/mechanism/config.rs` | `B-CONFIG-AC-01`; `MHI-B-T00-config` | `phase_b/e2e/mechanism.toml` | additive config / hidden threshold |
+| `MHI-B-R02` | exact selectors, full candidate retention, exact pair IDs; `EvidenceRequirement` | `src/mechanism/evidence.rs` | `B-BIND-AC-01`; `MHI-B-T01-timescale-independent` | `phase_b/timescale/independent.json` | additive / non-deterministic support |
+| `MHI-B-R03` | one conservative result per requirement; `IdentifiabilityAssessment` | `src/mechanism/identifiability.rs` | `B-IDENT-AC-01`; four literal `MHI-B-T05-ident-*` IDs above | `phase_b/identifiability/*.json` | additive / false identifiability |
+| `MHI-B-R04` | bundle-owned temporal metadata and typed outcome; `TemporalJoinOutcome` | `src/mechanism/temporal.rs` | `B-TEMP-AC-01`; six literal `MHI-B-T04-temporal-*` IDs above | `phase_b/temporal/*.json` | additive field / temporal leakage |
+| `MHI-B-R05` | per-component outcome; `ComponentInterpretationAssessment` | `src/results/mechanism.rs` | `B-MULTI-AC-01`; `MHI-B-T07-e2e` | `phase_b/e2e/*.json` | schema 4 / component overclaim |
+| `MHI-B-R06` | config-owned protocol and family exclusions; `ValidationProtocol` | `src/mechanism/validation.rs` | `B-VALID-AC-01`; four literal `MHI-B-T06-validation-*` IDs above | `phase_b/validation/*.json` | additive config / false validation |
+| `MHI-B-R07` | schema 3->4 migration and scientific hash; `HypothesisHistoryEntry` | `src/results/{mechanism,artifact_contracts}.rs` | `B-MIGRATION-AC-01`; `MHI-B-T07-e2e` | `phase_b/e2e/*.json`, existing schema2 mechanism fixture | legacy readable / fabricated support |
+| `MHI-B-R08` | model adapter and typed scope errors; `ConflictingEvidenceInput` | `src/{runners/evidence.rs,evidence_adapters.rs,runners/mechanism.rs,cli.rs}` | `B-INPUT-AC-01`; `MHI-B-T07-e2e` | `phase_b/e2e/model_analysis.json` | additive input / scope-conflicted evidence |
+| `MHI-B-R09` | exact test/data matrix and public E2E path | `tests/phase_b_mechanism_evidence.rs` | `B-TEST-AC-01`; `MHI-B-T01`--`MHI-B-T07` literals above | all `tests/fixtures/phase_b/**` paths above | test-only files / fixture-only coverage |
+
+### 20.8 Phase B amendment self-audit and delivery
+
+```text
+Undefined normative types: 0
+Unspecified Phase B algorithms: 0
+Unspecified scientific thresholds: 0
+Unspecified compatibility decisions: 0
+Normative contradictions: 0
+Implementation invention still required: no
+```
+
+Two compliant implementation agents cannot make materially different choices about configuration defaults, candidate/pair selection, identifiability status, temporal join, multi-component semantics, validation, migration, model input behavior, or fixture binding: all are fixed in §§20.1--20.7. This amendment modifies documentation only. Before commit, stage only this file, run `git diff --check`, inspect the cached diff, commit `docs(plan): close Phase B mechanism evidence contract gaps`, calculate its SHA-256/blob ID, and push only `plan/mhi-v1-b-contract-amendment`. Do not merge or tag it and do not change `main` or `codex/mhi-v1-b-mechanism-evidence-integration`.
