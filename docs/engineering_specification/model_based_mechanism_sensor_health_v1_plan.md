@@ -2540,9 +2540,8 @@ route in §23.3. Accepted kinds are exactly `eis_fit`, `transient_analysis`,
 `calibration_observations`, `state_estimation`, and `ism_model_analysis`.
 Each input flag accepts exactly one path; a repeated flag is a CLI parse error.
 Duplicate `EvidenceId`s from assembled sources are rejected by the A1 builder;
-duplicate role bindings are rejected by config validation; distinct records may
-be considered conflicting only when they resolve the same requirement and have
-opposite Phase-B required-effect outcomes. Scope equality is mandatory. The
+duplicate role bindings are rejected by config validation; direct-conflict
+classification is defined exclusively by §24.11. Scope equality is mandatory. The
 typed errors are `UnsupportedEvidenceSourceArtifact`, `DuplicateSourceInput`,
 `DuplicateEvidenceId`, `RoleBindingUnresolved`, `RoleBindingMismatch`,
 `ScopeMismatch`, and `ConflictingEvidence`; no generic bundle-file error exists.
@@ -2609,3 +2608,416 @@ Two competent implementation agents cannot differ about hypothesis definition
 source, quantity semantics, direct EvidenceBundle support, amplitude selection
 or units, repeatability grouping, EIS temporal handling, schema-3 hypothesis
 migration, validation roles, or the traceability path: **NO** for each.
+
+## 24. Phase B Contract Remediation VI — integrated executable bindings
+
+**Authority and reconciliation.** This section is the controlling Phase-B
+amendment after the integration of A1 into `main`.  It supersedes only the
+conflicting Phase-B statements in §23 (in particular the one-field
+`EvidenceRoleBinding`, deferred fixture registry, and undefined prior
+conflict terminology).  All other §23 rules remain in force.
+Sections 3--5 remain frozen.  This is a documentation-only amendment: it
+does not authorize a change to production Rust, tests, fixtures, the A1
+serialized schema, or A1 semantic identity.
+
+### 24.1 Independent-finding reconciliation
+
+| finding | classification | current evidence and disposition |
+|---|---|---|
+| PB-EX-01 temporal `EvidenceId` association | CONFIRMED | `EvidenceRecord` in `src/evidence.rs` has no temporal member and the §23 temporal policy has no keyed owner. §§24.2--24.4 add the Phase-B-only catalog. |
+| PB-EX-02 requirement-scoped roles | CONFIRMED | §23.1/§23.8 key a role by `EvidenceId` alone. §§24.5--24.6 replace it with a hypothesis/requirement/evidence tuple. |
+| PB-EX-03 identifiability inputs | CONFIRMED | §23.9 names artifact fields but does not bind exact requirement candidates. §24.7 supplies the closed bindings and metric table. |
+| PB-EX-04 fixture/source registry | CONFIRMED | §23.10 assigns fixture semantics to a future traceability file. §§24.8--24.10 make the plan itself the normative registry. |
+| PB-EX-05 conflicting-evidence outcomes | CONFIRMED | §23.9 used undefined conflict terminology. §24.11 defines direct and amplitude contradictions separately. |
+| PB-HO-01 one hypothesis owner | ALREADY RESOLVED, rechecked | `MechanismEvidenceConfig.hypotheses` remains the sole serialized owner; every new binding below is nested under its owning `MechanismHypothesisDefinition`. |
+| PB-HO-02 quantity semantics | ALREADY RESOLVED, rechecked | §23.2 continues to use structural `EvidenceTarget` mapping plus `validate_ucum_unit`; no A1 `quantity_kind` or field-path heuristic is added. |
+
+### 24.2 PB-EX-01 — one exact temporal metadata owner
+
+Phase B owns a separate, additive, non-A1 catalog.  It is constructed by the
+**Phase-B preparation / evidence-assembly layer** immediately after
+`runners::evidence::assemble_evidence_bundle` returns and before hypothesis
+definition validation.  It is not a member of `EvidenceRecord`, is not added
+to A1 `EvidenceBundle`, and does not participate in any A1 semantic hash.
+
+```rust
+pub struct EvidenceTemporalMetadata {
+    pub evidence_id: EvidenceId,
+    pub support: EvidenceTemporalSupport,
+    pub provenance: TemporalSupportProvenance,
+}
+pub struct EvidenceTemporalMetadataCatalog {
+    pub entries: BTreeMap<EvidenceId, EvidenceTemporalMetadata>,
+}
+pub enum EvidenceTemporalSupport {
+    Point { timestamp_s: f64, clock_basis: TemporalClockBasis },
+    Window { start_s: f64, end_s: f64, clock_basis: TemporalClockBasis },
+    Unknown,
+}
+pub enum TemporalClockBasis {
+    EstimationTimestamp,
+    ModelRelativeTime,
+    TransientRelativeTime,
+}
+pub struct TemporalSupportProvenance {
+    pub adapter: String,
+    pub source_artifact_kind: ArtifactKind,
+    pub source_field_paths: Vec<String>,
+    pub fallback: TemporalMetadataFallback,
+}
+pub enum TemporalMetadataFallback { None, UnknownNoAuthoritativeTime }
+pub enum TemporalMetadataError {
+    UnknownEvidenceId { evidence_id: EvidenceId },
+    KeyValueEvidenceIdMismatch { map_key: EvidenceId, value_id: EvidenceId },
+    MissingTemporalMetadata { evidence_id: EvidenceId },
+    DuplicateTemporalMetadata { evidence_id: EvidenceId },
+    NonFiniteTemporalSupport { evidence_id: EvidenceId },
+    InvalidTemporalWindow { evidence_id: EvidenceId },
+}
+```
+
+The one serialized representation is `BTreeMap<EvidenceId,
+EvidenceTemporalMetadata>` in the Phase-B preparation object.  It is never a
+parallel vector.  The map key and `value.evidence_id` must be bytewise equal,
+each key must resolve to `EvidenceBundle.records`, and every record consumed by
+a Phase-B hypothesis has exactly one entry.  A record with no lawful source
+gets an explicit `Unknown` entry; omission is never an alias for Unknown.
+Map construction from any future deserialized entry list must reject repeated
+IDs as `DuplicateTemporalMetadata` before forming the map.  Unknown IDs,
+missing entries, non-finite points, and `start_s >= end_s` are the exact typed
+errors above.
+
+The only temporal API is therefore:
+
+```rust
+pub fn evaluate_temporal_join(
+    left: EvidenceId,
+    right: EvidenceId,
+    temporal_metadata: &EvidenceTemporalMetadataCatalog,
+    config: &TemporalJoinConfig,
+) -> TemporalJoinAssessment;
+```
+
+It may inspect the two supplied IDs, the supplied catalog, and the existing A1
+scope/identity facts for those records.  It may not read artifacts, file mtimes,
+paths, the wall clock, or a hidden timestamp cache.  Its point/window/equality
+rules remain §23.4.  Missing catalog entries yield the typed validation error
+above; lawful `Unknown` support yields `NotAssessed(UnknownSupport)`.
+
+### 24.3 Exact source-field temporal mapping
+
+This table is normative for every current adapter output.  Array indices are
+the same zero-based indices used in the generated `EvidenceId`; no adapter may
+substitute a neighboring record's time.
+
+| artifact kind / adapter | adapter-produced ID target | support and authoritative source field(s) | clock identity | fallback |
+|---|---|---|---|---|
+| `eis_fit` / `adapt_eis_fit` | `eis.parameter.{i}` | `Unknown`; `EisFitArtifact` has no timestamp field | none | `UnknownNoAuthoritativeTime` |
+| `transient_analysis` / `adapt_transient_analysis` selected-fit parameter or `tau_fast_s`/`tau_slow_s` | `transient.event.{i}.parameter.{j}`, `transient.event.{i}.tau_fast_s`, or `.tau_slow_s` | `Window { start_s=fitted_time_local[0], end_s=fitted_time_local[last] }` only when `$.events[i].segment.fitted_time_local` is nonempty, every value is finite, strictly increasing in serialized order, and first `<` last | `TransientRelativeTime` | explicit `Unknown` |
+| `state_estimation` / `adapt_state_estimation` | `estimation.point.{i}.state.{j}` | `Point { timestamp_s=$.estimates[i].timestamp_s }` only when finite | `EstimationTimestamp` | explicit `Unknown` |
+| `ism_model_analysis` / `adapt_model_analysis` | `model.point.{i}.component.{j}` | `Point { timestamp_s=$.points[i].time_s }` only when finite | `ModelRelativeTime` | explicit `Unknown` |
+| `calibration_observations` / `try_adapt_calibration_observations` | `calibration.observation.{i}` | `Unknown`; `$.observations[i].timestamp` has no declared clock identity in the current public contract, so it is not a lawful Phase-B join time | none | `UnknownNoAuthoritativeTime` |
+
+This defines the production flow exactly:
+
+```text
+versioned source artifact → A1 EvidenceRecord → artifact-specific temporal binding
+→ same generated EvidenceId → temporal_metadata[EvidenceId]
+```
+
+No generic hypothesis logic reconstructs timestamps.  In particular, EIS
+remains Unknown; it is never given time from an experiment ID, provenance,
+file metadata, runner time, or another artifact.
+
+### 24.4 Temporal construction and validation order
+
+The preparation layer performs this deterministic sequence: (1) read the
+versioned source artifacts through their public readers; (2) assemble and
+validate the A1 bundle; (3) visit `bundle.records` in bytewise `EvidenceId`
+order; (4) dispatch by the record's `source.artifact.artifact_kind` and exact
+adapter ID grammar in §24.3; (5) insert exactly one catalog entry; (6) validate
+the catalog against the immutable bundle.  A record with an unsupported
+artifact kind is not Phase-B-consumable and is rejected before assessment as
+`UnsupportedEvidenceSourceArtifact`; it is never given guessed temporal
+support.
+
+### 24.5 PB-EX-02 — requirement-scoped role binding
+
+`EvidenceRoleBinding` is retired.  The only role type and semantic key are:
+
+```rust
+pub type MechanismHypothesisId = HypothesisId;
+pub struct MechanismEvidenceRoleBinding {
+    pub hypothesis_id: MechanismHypothesisId,
+    pub requirement_id: EvidenceRequirementId,
+    pub evidence_id: EvidenceId,
+    pub role: MechanismEvidenceRole,
+}
+// semantic key: (hypothesis_id, requirement_id, evidence_id)
+```
+
+`MechanismHypothesisDefinition.role_bindings` is
+`Vec<MechanismEvidenceRoleBinding>` and is the one owner.  For serialization,
+the `hypothesis_id` in every nested row must equal the containing hypothesis;
+cross-hypothesis rows are rejected, never silently relocated.  The vector is
+sorted on the three-part key before persistence.
+
+Validation is exact: the hypothesis exists; the requirement belongs to that
+hypothesis; the evidence ID resolves in the assembled bundle; the record is a
+candidate under §23.2 for that exact requirement; and there is one role for a
+tuple.  A duplicate tuple, whether its role agrees or disagrees, is
+`DuplicateMechanismEvidenceRoleBinding`; a wrong owner is
+`RoleBindingHypothesisMismatch`; missing requirement/evidence is
+`RoleBindingUnresolved`; and an otherwise ineligible record is
+`RoleBindingMismatch`.  These names replace the ambiguous generic role error.
+
+`Support` may satisfy that referenced requirement.  `Validation` may count
+only for the referenced validation requirement.  `Calibration` may satisfy a
+calibration-only requirement but is excluded from validation-family counting.
+`Training` is excluded from validation-family counting.  An unbound tuple is
+not Validation and cannot be inferred from artifact kind, source class, or
+field path.
+
+### 24.6 Validation-family rule
+
+For a hypothesis, select only bindings where: (a) `hypothesis_id` is that
+hypothesis, (b) `requirement_id` is in its
+`ValidationApplicability.validation_requirement_ids`, (c) the role is exactly
+`Validation`, and (d) the evidence remains eligible after all target, source,
+quantity, scope, temporal, and validity filters.  Sort selected IDs bytewise,
+deduplicate IDs only after rejecting duplicate tuple bindings, then use the
+existing A1 pairwise `EvidenceIndependence::Independent` assessments and known
+disjoint acquisition-family sets to choose the lexicographically first maximum
+cardinality subset.  It passes only if its cardinality is at least
+`minimum_independent_validation_families`.  Support, Calibration, Training,
+and unbound records never contribute a validation family.
+
+### 24.7 PB-EX-03 — explicit identifiability inputs
+
+The §23.1 `IdentifiabilityBinding` is replaced by the following closed form;
+`IdentifiabilityRequirementId` is a Phase-B alias of frozen A1 `RequirementId`.
+
+```rust
+pub type IdentifiabilityRequirementId = RequirementId;
+pub struct IdentifiabilityBinding {
+    pub identifiability_requirement_id: IdentifiabilityRequirementId,
+    pub kind: IdentifiabilityRequirementKind,
+    pub threshold: f64,
+    pub input: IdentifiabilityInputBinding,
+}
+pub struct IdentifiabilityInputBinding {
+    pub identifiability_requirement_id: IdentifiabilityRequirementId,
+    pub input_requirement_ids: Vec<EvidenceRequirementId>,
+    pub selection: IdentifiabilityInputSelection,
+}
+pub enum IdentifiabilityInputSelection {
+    AllEligible,
+    MutuallyIndependentSubset,
+    ExactPair { pair_requirement_id: EvidenceRequirementId },
+}
+pub struct EvidencePairRequirement {
+    pub pair_requirement_id: EvidenceRequirementId,
+    pub left_requirement_id: EvidenceRequirementId,
+    pub right_requirement_id: EvidenceRequirementId,
+}
+```
+
+`MechanismHypothesisDefinition` additionally owns
+`pair_requirements: Vec<EvidencePairRequirement>`.  IDs are unique across the
+hypothesis's evidence and pair requirements.  Each identifiability ID is
+unique; its nested and outer IDs must agree; every input requirement belongs to
+the same hypothesis and is unique; and the selection must be permitted by the
+table below.  `ExactPair` resolves the named pair requirement, whose two sides
+must each have exactly one eligible candidate; it then produces the canonical
+A1 `EvidencePairKey`.  Any missing or non-unique side is `NotAssessed`, not a
+fallback pair.  No assessor may search arbitrary bundle records.
+
+Candidate processing is common to all rows: collect only the named
+requirements' eligible, role-authorized records; order by `EvidenceId`; remove
+the same ID occurring through two named requirements only once; and reject
+non-finite, unavailable, invalid, or unit-incompatible records before
+selection. `AllEligible` returns the full ordered set. `MutuallyIndependentSubset`
+uses A1 `largest_independent_subset` over that set. `ExactPair` uses only the
+canonical pair just defined. Missing input, an Unknown independence result, or
+a non-finite metric is `NotAssessed`; no candidate outside the binding enters.
+
+| requirement kind | required input IDs / selection | count | formula and threshold field | Satisfied / NotSatisfied / NotAssessed / NotApplicable |
+|---|---|---:|---|---|
+| `ObservationDurationRelativeToTimescale` | one `TimeConstant` requirement / `AllEligible` | exactly 1 | `duration_s/tau_s`, where `duration_s=end_s-start_s` from that record's catalog `Window`; `minimum_duration_ratio` | finite positive window and ratio `>=` threshold / below / no exact record, no Window, or nonfinite / only explicitly inapplicable config |
+| `ModeSeparation` | the two sides of one `EvidencePairRequirement` / `ExactPair` | exactly 2 | `max(tau)/min(tau)`; `minimum_mode_separation_ratio` | finite positive ratio `>=` threshold / below / missing or non-unique pair side / explicitly inapplicable config |
+| `TransientExcitation` | `[]` / `AllEligible` | 0 | no approved A1 evidence adapter exposes before/after concentration pairs | never / never / always `NotAssessed(UnsupportedMetricInput)` / explicitly inapplicable config |
+| `ActivityExcitation` | `[]` / `AllEligible` | 0 | no approved adapter | never / never / `NotAssessed(UnsupportedMetricInput)` / explicit only |
+| `ReferenceAnchor` | `[]` / `AllEligible` | 0 | no approved adapter | never / never / `NotAssessed(UnsupportedMetricInput)` / explicit only |
+| `IndependentCovariateVariation` | `[]` / `AllEligible` | 0 | no approved aligned covariate adapter | never / never / `NotAssessed(UnsupportedMetricInput)` / explicit only |
+| `InterferentVariation` | `[]` / `AllEligible` | 0 | no approved adapter | never / never / `NotAssessed(UnsupportedMetricInput)` / explicit only |
+| `TemperatureVariation` | `[]` / `AllEligible` | 0 | no approved adapter | never / never / `NotAssessed(UnsupportedMetricInput)` / explicit only |
+| `RepeatedStandards` | `[]` / `AllEligible` | 0 | no approved adapter | never / never / `NotAssessed(UnsupportedMetricInput)` / explicit only |
+| `AuxiliaryObservation` | `[]` / `AllEligible` | 0 | no approved adapter | never / never / `NotAssessed(UnsupportedMetricInput)` / explicit only |
+| `Custom(_)` | `[]` / `AllEligible` | 0 | no registered custom assessor | never / never / `NotAssessed(UnsupportedMetricInput)` / explicit only |
+
+Thresholds are finite and positive ratios.  `MutuallyIndependentSubset` is
+reserved for a future registered metric and is invalid for all V1 rows above;
+a config using it now is `InvalidIdentifiabilityInputSelection`.  The table is
+therefore complete without inventing proxy scientific metrics.
+
+### 24.8 PB-EX-04 — canonical Phase-B fixture registry
+
+The normative fixture root is **`tests/fixtures/phase_b/`**.  These are new
+future implementation fixtures; none exists on the frozen A1 branch.  Source
+artifacts are serialized through their production types/readers and all
+lineage is `Known`.  Every unlisted producer field uses the exact valid value
+emitted by the named production constructor; it is not a fixture-only schema
+extension.  The listed fields are the complete fields consumed by Phase B.
+
+| fixture ID and literal path | kind/schema/current scope and acquisition family | literal consumed payload and adapter output | temporal / role / expected result | exact test IDs |
+|---|---|---|---|---|
+| PB-FX-01 `e2e/eis_fit_e2e_1.json` | `eis_fit`/3/current; experiment `b-e2e-1`, sensor `b-sensor-1`, channel `Unspecified`, family `b-family-eis` | `parameters[0]={element_id:"b-eis-tau",unit:"s",value:1.000}` → `eis.parameter.0`, target `ModelComponent("b-eis-tau")` | Unknown; Support for `b-eis-tau`; Independent with PB-FX-02; no direct contradiction | MHI-B-T07-e2e-1, MHI-B-T04-eis-unknown |
+| PB-FX-02 `e2e/transient_analysis_e2e_1.json` | `transient_analysis`/3/current; experiment `b-e2e-1`, sensor/channel `b-sensor-1`/`b-channel-1`, family `b-family-transient` | selected event `0`; `segment.fitted_time_local=[0.0,10.0]`; successful fit `derived_features.tau_fast_s=1.000` → `transient.event.0.tau_fast_s`, target `ModelComponent("tau_fast_s")` | Window `[0,10]` TransientRelativeTime; Support for `b-transient-tau`; Independent with PB-FX-01 | MHI-B-T07-e2e-1, MHI-B-T05-duration |
+| PB-FX-03 `e2e/calibration_observations_e2e_2.json` | `calibration_observations`/3/current; experiment `b-e2e-1`, sensor/channel `b-sensor-1`/`b-channel-1`, family `b-family-calibration` | `observations[0]={experiment_id:"b-e2e-1",analyte:"b-validation-calibration",potential_v:0.250,timestamp:20.0}` → `calibration.observation.0`, target `ModelComponent("b-validation-calibration")` | Unknown; Validation for `b-validation-calibration`; Independent with PB-FX-04 and support families | MHI-B-T07-e2e-2, MHI-B-T06-validation-pass |
+| PB-FX-04 `e2e/model_analysis_e2e_2.json` | `ism_model_analysis`/5/current; experiment `b-e2e-1`, sensor/channel `b-sensor-1`/`b-channel-1`, family `b-family-model` | `points[0]={time_s:5.0,contributions:[{component_id:"b-validation-model",potential_v:0.250}]}` → `model.point.0.component.0` | Point `5.0` ModelRelativeTime; Validation for `b-validation-model` | MHI-B-T07-e2e-2, MHI-B-T06-validation-pass |
+| PB-FX-05 `temporal/state_estimation_point.json` | `state_estimation`/4/current; experiment `b-temporal-1`, family `b-family-estimation` | `estimates[0].timestamp_s=4.0`; `filtered_state[0]={name:"b-state",value:2.0,unit:"1"}` → `estimation.point.0.state.0` | Point `4.0` EstimationTimestamp; Support | MHI-B-T04-estimation-point |
+| PB-FX-06 `temporal/model_analysis_point.json` | `ism_model_analysis`/5/current; experiment `b-temporal-1`, family `b-family-model-temporal` | `points[0].time_s=4.0`; `contributions[0]={component_id:"b-model",potential_v:0.1}` → `model.point.0.component.0` | Point `4.0` ModelRelativeTime; Support; join is ClockMismatch with PB-FX-05 | MHI-B-T04-clock-mismatch |
+| PB-FX-07 `temporal/transient_analysis_window.json` | `transient_analysis`/3/current; experiment `b-temporal-1`, family `b-family-transient-temporal` | event `0`, successful selected fit, `segment.fitted_time_local=[3.0,5.0]`, `tau_fast_s=2.0` → `transient.event.0.tau_fast_s` | Window `[3,5]` TransientRelativeTime; Support | MHI-B-T04-window |
+| PB-FX-08 `negative/transient_nonmonotonic_time.json` | `transient_analysis`/3/current; experiment `b-temporal-2`, family `b-family-negative` | selected event `0`, `segment.fitted_time_local=[0.0,0.0,1.0]`, `tau_fast_s=1.0` → `transient.event.0.tau_fast_s` | explicit Unknown, not a synthesized Window; `NotAssessed(UnknownSupport)` | MHI-B-T04-invalid-window |
+| PB-FX-09 `config/e2e_experimentally_supported.toml` | Phase-B config/1/current | hypothesis `b-hypothesis`; requirements `b-eis-tau`, `b-transient-tau`; pair `b-timescale-pair`; roles bind PB-FX-01/PB-FX-02 as Support; mode-separation threshold `1.0`; validation `required=false` | E2E-1 level `ExperimentallySupported`, component `ExperimentallySupported`, `ValidatedForDomain=false` | MHI-B-T07-e2e-1 |
+| PB-FX-10 `config/e2e_validated_for_domain.toml` | Phase-B config/1/current | PB-FX-09 plus validation requirements `b-validation-calibration`, `b-validation-model`; roles bind PB-FX-03/PB-FX-04 as Validation; minimum independent families `2` | E2E-2 level `ValidatedForDomain`; two independent validation families | MHI-B-T07-e2e-2, MHI-B-T06-validation-pass |
+| PB-FX-11 `config/duplicate_role_tuple.toml` | Phase-B config/1/current | two rows with `(b-hypothesis,b-eis-tau,eis.parameter.0)` | `DuplicateMechanismEvidenceRoleBinding` | MHI-B-T06-duplicate-role |
+| PB-FX-12 `config/unbound_validation.toml` | Phase-B config/1/current | PB-FX-10 with the model Validation row absent | exactly `ValidationStatus::NotAssessed`; level remains `ExperimentallySupported` | MHI-B-T06-unbound-validation |
+| PB-FX-13 `config/invalid_identifiability_input.toml` | Phase-B config/1/current | `ModeSeparation` with `AllEligible` instead of `ExactPair` | `InvalidIdentifiabilityInputSelection` | MHI-B-T05-invalid-selection |
+
+The `Known` lineage records for PB-FX-01--04 have distinct artifact IDs
+`b-artifact-eis`, `b-artifact-transient`, `b-artifact-calibration`, and
+`b-artifact-model` and exactly the family strings shown above.  Their lineage
+catalog has no shared ancestor.  This is the exact independence proof needed
+by E2E-2; no fixture claims independence from path names.
+
+The complete Phase-B fields in the two positive config fixtures are literal:
+
+| config | required binding fields | pair/identifiability fields | validation fields |
+|---|---|---|---|
+| PB-FX-09 | `b-eis-tau`: target `ModelComponent("b-eis-tau")`, `ModelDerived`, `$.parameters[0].value`, `TimeConstant`, `s`, required; `b-transient-tau`: target `ModelComponent("tau_fast_s")`, `ModelDerived`, `$.events[0].candidate_fits[].derived_features.tau_fast_s`, `TimeConstant`, `s`, required | pair `b-timescale-pair=(b-eis-tau,b-transient-tau)`; `ModeSeparation` input `[b-eis-tau,b-transient-tau]`, `ExactPair{b-timescale-pair}`, threshold `1.0` | `required=false`, IDs `[]`, minimum `0` |
+| PB-FX-10 | PB-FX-09 plus `b-validation-calibration`: target `ModelComponent("b-validation-calibration")`, `Observed`, `$.observations[0].potential_v`, `CalibrationPotential`, `V`; and `b-validation-model`: target `ModelComponent("b-validation-model")`, `ModelDerived`, `$.points[0].contributions[0].potential_v`, `ElectricalPotential`, `V` | same pair and identifiability fields as PB-FX-09 | `required=true`, IDs `[b-validation-calibration,b-validation-model]`, minimum `2` |
+
+PB-FX-09's role rows are exactly `(b-hypothesis,b-eis-tau,eis.parameter.0,Support)`
+and `(b-hypothesis,b-transient-tau,transient.event.0.tau_fast_s,Support)`.
+PB-FX-10 contains those rows plus
+`(b-hypothesis,b-validation-calibration,calibration.observation.0,Validation)`
+and `(b-hypothesis,b-validation-model,model.point.0.component.0,Validation)`.
+
+### 24.9 Normative source-artifact → EvidenceId map
+
+Every E2E ID is in this table.  Directions below are the actual frozen A1
+adapter result (`Neutral`), not a Phase-B interpretation.
+
+| source fixture | source field | adapter | generated ID | target / direction / unit | temporal support | hypothesis requirement / role |
+|---|---|---|---|---|---|---|
+| `e2e/eis_fit_e2e_1.json` | `$.parameters[0].value=1.000` | `adapt_eis_fit` | `eis.parameter.0` | `ModelComponent("b-eis-tau")` / Neutral / `s` | Unknown | `b-eis-tau` / Support |
+| `e2e/transient_analysis_e2e_1.json` | `$.events[0].candidate_fits[].derived_features.tau_fast_s=1.000` | `adapt_transient_analysis` | `transient.event.0.tau_fast_s` | `ModelComponent("tau_fast_s")` / Neutral / `s` | Window `[0,10]` TransientRelativeTime | `b-transient-tau` / Support |
+| `e2e/calibration_observations_e2e_2.json` | `$.observations[0].potential_v=0.250` | `try_adapt_calibration_observations` | `calibration.observation.0` | `ModelComponent("b-validation-calibration")` / Neutral / `V` | Unknown | `b-validation-calibration` / Validation |
+| `e2e/model_analysis_e2e_2.json` | `$.points[0].contributions[0].potential_v=0.250` | `adapt_model_analysis` | `model.point.0.component.0` | `ModelComponent("b-validation-model")` / Neutral / `V` | Point `5.0` ModelRelativeTime | `b-validation-model` / Validation |
+
+Thus E2E-1 is legally producible from PB-FX-01 and PB-FX-02 through public
+readers and both approved adapters.  E2E-2 is legally producible by adding
+PB-FX-03 and PB-FX-04, whose known acquisition families are pairwise
+independent under frozen A1 rules.
+
+### 24.10 Fixture and traceability responsibilities
+
+The plan is the normative fixture/data contract: §§24.8--24.9 define literal
+paths, values, mappings, expected errors, and legal production construction.
+`docs/engineering_specification/phase_b_mechanism_evidence_traceability.md`
+is only the future implementation/result mapping.  It must reference the
+fixture IDs above and must not become the first definition of fixture meaning.
+No Phase-B test may serialize an `EvidenceBundle`, assign an `EvidenceId`,
+temporal support, direction, strength, or role directly to an A1 record, or
+use a file mtime/path as data.
+
+### 24.11 PB-EX-05 — direct conflict and amplitude contradiction
+
+A direct source-evidence conflict for a hypothesis requirement is exactly an
+assembled A1 `EvidenceRecord` for which: (1) the record is eligible for the
+same `EvidenceRequirementBinding`; (2) its temporal, scope, validity, and
+quantity filters pass; and (3) `record.direction == EvidenceDirection::Contradicts`.
+It is requirement-scoped.  It is not an undefined derived outcome.
+
+The frozen current adapters in `src/evidence_adapters.rs` create Neutral
+directions for all five accepted V1 source kinds.  Consequently no current
+source-only V1 fixture can legally produce a direct contradiction, and there
+is no separate conflicting-bundle input or artificial contradiction fixture.
+The configured source flags remain the only route; each accepts one path and
+the accepted kinds are exactly `eis_fit`, `transient_analysis`,
+`calibration_observations`, `state_estimation`, and `ism_model_analysis`.
+
+For a direct contradiction, persist its sorted ID in
+`contradictory_evidence_ids`, increment the requirement's direct contradiction
+count once per distinct ID, add `PhaseBHypothesisReasonCode::ConflictingEvidence`,
+and exclude it from Support/Validation candidate satisfaction.  A non-critical
+direct contradiction does not by itself demote a hypothesis: promotion follows
+the existing required-binding/gate matrix using remaining eligible Support
+records.  A critical direct contradiction blocks `ExperimentallySupported`
+only when it is for a `critical_requirement_id`, has `direction=Contradicts`,
+and `strength >= EvidenceStrength::Strong`; it then adds
+`CriticalContradiction`.  The critical pipeline consumes no amplitude result.
+
+The distinct amplitude outcome is closed and Phase-B-owned:
+
+```rust
+pub enum RequirementAssessmentStatus {
+    Satisfied, NotSatisfied, NotAssessed, Contradicted,
+}
+```
+
+An amplitude gate returns `Contradicted` only when both exact candidates are
+valid and the observed-minus-predicted sign is opposite its `ExpectedEffect`.
+It returns `NotSatisfied` when the required sign holds but the relative-error
+threshold fails, and `NotAssessed` for missing/ambiguous/invalid candidates.
+An amplitude `Contradicted` blocks the amplitude gate and is persisted with
+`AmplitudeReasonCode::DirectionMismatch`; it is never copied into
+`contradictory_evidence_ids`, never counted as a direct A1 contradiction, and
+never feeds the critical-direct-contradiction pipeline.
+
+### 24.12 Complete Phase-B production path and compatibility decision
+
+The only integrated Phase-B path is:
+
+```text
+mechanism compare CLI source artifacts
+→ public readers
+→ A1 EvidenceBundle assembly
+→ EvidenceId-stable temporal catalog construction
+→ MechanismEvidenceConfig.hypotheses
+→ requirement candidate binding
+→ requirement-scoped role binding validation
+→ direct critical-contradiction evaluation
+→ timescale/amplitude/repeatability gates
+→ identifiability with §24.7 inputs
+→ validation-family assessment
+→ promotion
+→ optional history append
+→ schema-4 MechanismAnalysisReport
+```
+
+Every stage has one owner.  Frozen A1 compatibility is **YES**: the serialized
+meaning of `EvidenceRecord`, `EvidenceQuantity`, `EvidencePairKey`,
+`ArtifactLineageState`, `TimescalePairUncertainty`, and A1 semantic identity
+does not change.  Temporal metadata is the Phase-B-only additive mechanism
+defined in §24.2, never an A1 change.
+
+**Final remediation audit.**
+
+```text
+Undefined normative types: 0
+Undefined normative owners: 0
+Unspecified Phase B algorithms: 0
+Unspecified scientific thresholds/units: 0
+Unspecified compatibility decisions: 0
+Normative contradictions: 0
+Fixture-to-real-schema contradictions: 0
+Implementation invention still required: no
+```
+
+Two competent implementers cannot differ about EvidenceId-to-temporal support,
+role-binding scope, validation-role ownership, identifiability inputs,
+multi-record selection, fixture contents, source-artifact-to-EvidenceId
+mapping, direct conflict, or amplitude-versus-direct contradiction: **NO** for
+each question.
