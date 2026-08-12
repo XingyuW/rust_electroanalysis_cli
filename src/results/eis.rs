@@ -265,6 +265,9 @@ impl EisFitArtifact {
             .as_ref()
             .map(CircuitNode::get_bounds)
             .unwrap_or_default();
+        let authoritative_descriptors = parsed_circuit
+            .as_ref()
+            .and_then(|circuit| eis_covariance_descriptors(circuit, fit).ok());
         let parameters = fit
             .parameter_names
             .iter()
@@ -278,8 +281,16 @@ impl EisFitArtifact {
                 });
                 EisFittedParameter {
                     name: name.clone(),
-                    element_id: element_id_for_name(name),
-                    element_type: element_type_for_name(name),
+                    element_id: authoritative_descriptors
+                        .as_ref()
+                        .and_then(|descriptors| descriptors.get(i))
+                        .map(|descriptor| descriptor.0.clone())
+                        .unwrap_or_else(|| element_id_for_name(name)),
+                    element_type: authoritative_descriptors
+                        .as_ref()
+                        .and_then(|descriptors| descriptors.get(i))
+                        .map(|descriptor| element_type_for_id(&descriptor.0))
+                        .unwrap_or_else(|| element_type_for_name(name)),
                     semantic_role: None,
                     unit: fit.parameter_units.get(i).cloned().unwrap_or_default(),
                     value,
@@ -539,6 +550,13 @@ fn element_type_for_name(name: &str) -> String {
             .collect();
     };
     element_prefix(prefix).to_string()
+}
+
+fn element_type_for_id(element_id: &str) -> String {
+    element_id
+        .chars()
+        .take_while(|character| character.is_ascii_alphabetic())
+        .collect()
 }
 
 fn element_prefix(parameter_prefix: &str) -> &'static str {

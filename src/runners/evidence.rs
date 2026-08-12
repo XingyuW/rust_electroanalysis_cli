@@ -16,12 +16,17 @@ use crate::{
         try_adapt_calibration_observations,
     },
     results::{
-        CalibrationObservationSet, EisFitArtifact, StateEstimationReport, TransientAnalysisReport,
+        CalibrationObservationSet, EisFitArtifact, StateEstimationReport, StoredCalibrationModel,
+        TransientAnalysisReport,
     },
 };
 
 #[derive(Debug, Default, Clone)]
 pub struct EvidenceBundleInputs {
+    /// Computational calibration context is cataloged so a state-estimation
+    /// lineage that consumes it can be resolved during bundle validation. It
+    /// is not adapted into an evidence record by this neutral boundary.
+    pub calibration_model: Option<StoredCalibrationModel>,
     pub transient: Option<TransientAnalysisReport>,
     pub estimation: Option<StateEstimationReport>,
     pub eis_fit: Option<EisFitArtifact>,
@@ -34,6 +39,7 @@ pub fn assemble_evidence_bundle(
     let mut catalog = ArtifactLineageCatalog::default();
     for lineage in [
         inputs.transient.as_ref().map(|v| &v.lineage),
+        inputs.calibration_model.as_ref().map(|v| &v.lineage),
         inputs.estimation.as_ref().map(|v| &v.lineage),
         inputs.eis_fit.as_ref().map(|v| &v.lineage),
         inputs.calibration_observations.as_ref().map(|v| &v.lineage),
@@ -154,9 +160,15 @@ fn add_eis_pair_covariances(
         .filter_map(|(index, parameter)| {
             (parameter.unit == "s")
                 .then(|| {
+                    let parameter_name = parameter
+                        .name
+                        .rsplit_once('_')
+                        .filter(|(_, suffix)| suffix.bytes().all(|byte| byte.is_ascii_digit()))
+                        .map(|(name, _)| name)
+                        .unwrap_or(parameter.name.as_str());
                     let axis = crate::evidence::EisParameterIdentity::from_descriptor(
                         &parameter.element_id,
-                        &parameter.name,
+                        parameter_name,
                     )
                     .ok()?
                     .axis_id();
