@@ -291,7 +291,8 @@ pub fn validate_ucum_unit(unit: &str) -> Result<EvidenceUnitDimension, EvidenceB
         return Err(EvidenceBundleError::InvalidUnitSyntax { unit: unit.into() });
     }
     let exact = match unit {
-        "1" | "dimensionless" | "dimensionless^2" => Some(EvidenceUnitDimension::Dimensionless),
+        "1" | "dimensionless" | "dimensionless^2" | "activity" | "log10(activity)"
+        | "log10(activity)^2" => Some(EvidenceUnitDimension::Dimensionless),
         "s" => Some(EvidenceUnitDimension::Time),
         "s^2" => Some(EvidenceUnitDimension::TimeSquared),
         "V" | "mV" | "µV" => Some(EvidenceUnitDimension::Potential),
@@ -299,7 +300,7 @@ pub fn validate_ucum_unit(unit: &str) -> Result<EvidenceUnitDimension, EvidenceB
         "K" | "°C" | "degC" => Some(EvidenceUnitDimension::Temperature),
         "Ohm" => Some(EvidenceUnitDimension::Impedance),
         "F" | "H" | "Hz" | "V/s" | "V/decade" | "Ohm s^-1/2" | "Ohm^-1 s^alpha"
-        | "H s^(alpha-1)" | "Ohm s^alpha" | "Ohm^-1 s^gamma" => {
+        | "H s^(alpha-1)" | "Ohm s^alpha" | "Ohm^-1 s^gamma" | "a.u." => {
             Some(EvidenceUnitDimension::OtherApproved)
         }
         _ => None,
@@ -1208,13 +1209,16 @@ impl EvidenceBundleBuilder {
 }
 
 fn validate_timescale_record(record: &EvidenceRecord) -> Result<(), EvidenceBundleError> {
-    if record.availability != EvidenceAvailability::Available
-        || record.quantity.as_ref().is_none_or(|quantity| {
-            require_unit_dimension(&quantity.unit, EvidenceUnitDimension::Time).is_err()
-                || !quantity.value.is_finite()
-                || quantity.value <= 0.0
-        })
-    {
+    if record.availability != EvidenceAvailability::Available {
+        return Err(EvidenceBundleError::InvalidTimescaleCovarianceSource);
+    }
+    let quantity = record
+        .quantity
+        .as_ref()
+        .ok_or(EvidenceBundleError::InvalidTimescaleCovarianceSource)?;
+    require_unit_dimension(&quantity.unit, EvidenceUnitDimension::Time)
+        .map_err(|_| EvidenceBundleError::TimescaleCovarianceUnitMismatch)?;
+    if !quantity.value.is_finite() || quantity.value <= 0.0 {
         return Err(EvidenceBundleError::InvalidTimescaleCovarianceSource);
     }
     Ok(())

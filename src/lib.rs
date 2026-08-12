@@ -62,6 +62,7 @@ pub use evidence::{
 pub use evidence_adapters::{
     AdapterContext, adapt_calibration_observations, adapt_eis_fit, adapt_model_analysis,
     adapt_signal_scalar, adapt_state_estimation, adapt_transient_analysis, legacy_context,
+    try_adapt_calibration_observations,
 };
 pub use model::{
     CompiledIsmModel, ComponentContribution, ComponentDescriptor, ComponentId, ComponentRole,

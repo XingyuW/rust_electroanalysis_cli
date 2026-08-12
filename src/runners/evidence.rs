@@ -12,8 +12,8 @@ use crate::{
         TimescalePairUncertainty, TimescalePairUncertaintySource, classify_independence,
     },
     evidence_adapters::{
-        AdapterContext, adapt_calibration_observations, adapt_eis_fit, adapt_state_estimation,
-        adapt_transient_analysis,
+        AdapterContext, adapt_eis_fit, adapt_state_estimation, adapt_transient_analysis,
+        try_adapt_calibration_observations,
     },
     results::{
         CalibrationObservationSet, EisFitArtifact, StateEstimationReport, TransientAnalysisReport,
@@ -73,7 +73,7 @@ pub fn assemble_evidence_bundle(
             crate::domain::ArtifactKind::CalibrationObservations,
             &artifact.lineage,
         );
-        records.extend(adapt_calibration_observations(artifact, &context));
+        records.extend(try_adapt_calibration_observations(artifact, &context)?);
     }
     let mut eis_records = Vec::new();
     if let Some(artifact) = &inputs.eis_fit {

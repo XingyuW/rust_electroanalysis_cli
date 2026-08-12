@@ -222,36 +222,46 @@ pub fn adapt_calibration_observations(
     artifact: &CalibrationObservationSet,
     context: &AdapterContext,
 ) -> Vec<EvidenceRecord> {
+    try_adapt_calibration_observations(artifact, context).unwrap_or_default()
+}
+
+/// Checked calibration adapter used by production assembly. Aggregate scopes
+/// may only narrow when the producer-owned observation record proves the
+/// member experiment; mismatches are returned as typed contract errors.
+pub fn try_adapt_calibration_observations(
+    artifact: &CalibrationObservationSet,
+    context: &AdapterContext,
+) -> Result<Vec<EvidenceRecord>, crate::evidence::EvidenceBundleError> {
     artifact
         .observations
         .iter()
         .enumerate()
-        .map(|(index, observation)| {
-            let mut record = scalar_record(
-                format!("calibration.observation.{index}"),
-                EvidenceTarget::ModelComponent(ComponentId(observation.analyte.clone())),
-                context,
-                format!("$.observations[{index}].potential_v"),
-                EvidenceSourceClass::Observed,
-                Some(observation.potential_v),
-                "V".into(),
-                EvidenceValidity::Valid,
-            );
-            if context.experiment_scope.is_aggregate() {
-                // A `Single` scope is permitted only after this adapter has
-                // read the authoritative observation.experiment_id itself.
-                if let Ok(selected) =
-                    crate::evidence::SelectedExperimentRecord::calibration_observation(
-                        observation,
-                        index,
-                    )
-                    && let Ok(scope) = context.experiment_scope.narrow_selected_record(selected)
-                {
-                    record.experiment_scope = scope;
+        .map(
+            |(index, observation)| -> Result<EvidenceRecord, crate::evidence::EvidenceBundleError> {
+                let mut record = scalar_record(
+                    format!("calibration.observation.{index}"),
+                    EvidenceTarget::ModelComponent(ComponentId(observation.analyte.clone())),
+                    context,
+                    format!("$.observations[{index}].potential_v"),
+                    EvidenceSourceClass::Observed,
+                    Some(observation.potential_v),
+                    "V".into(),
+                    EvidenceValidity::Valid,
+                );
+                if context.experiment_scope.is_aggregate() {
+                    // A `Single` scope is permitted only after this adapter has
+                    // read the authoritative observation.experiment_id itself.
+                    let selected =
+                        crate::evidence::SelectedExperimentRecord::calibration_observation(
+                            observation,
+                            index,
+                        )?;
+                    record.experiment_scope =
+                        context.experiment_scope.narrow_selected_record(selected)?;
                 }
-            }
-            record
-        })
+                Ok(record)
+            },
+        )
         .collect()
 }
 

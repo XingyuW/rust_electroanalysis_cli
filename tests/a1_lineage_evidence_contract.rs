@@ -20,7 +20,7 @@ use rust_electroanalysis_cli::evidence::{
 use rust_electroanalysis_cli::model::IdentifiabilityRequirementKind;
 use rust_electroanalysis_cli::{
     AdapterContext, EvidenceBundleInputs, adapt_transient_analysis, assemble_evidence_bundle,
-    legacy_context,
+    legacy_context, try_adapt_calibration_observations,
 };
 
 fn id(label: &str) -> ArtifactId {
@@ -233,7 +233,7 @@ fn a1_rv004_ucum_units_reject_arbitrary_and_check_timescale_dimension() {
     });
     assert!(matches!(
         builder.build(),
-        Err(EvidenceBundleError::InvalidTimescaleCovarianceSource)
+        Err(EvidenceBundleError::TimescaleCovarianceUnitMismatch)
     ));
 }
 
@@ -806,6 +806,61 @@ fn a1_rv003_production_assembly_reads_public_artifact_and_builds_relations() {
 }
 
 #[test]
+fn a1_rv003_production_eis_labeled_covariance_builds_timescale_relation() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/a0_artifact_contracts/eis_fit_schema2_correct_kind.json");
+    let mut eis: rust_electroanalysis_cli::results::EisFitArtifact =
+        rust_electroanalysis_cli::domain::read_artifact(&path).unwrap();
+    eis.lineage =
+        serde_json::from_str(include_str!("fixtures/a1/current_known_lineage_state.json")).unwrap();
+    eis.parameters = vec![
+        rust_electroanalysis_cli::results::EisFittedParameter {
+            name: "tau".into(),
+            element_id: "Wo1".into(),
+            element_type: "Wo".into(),
+            semantic_role: None,
+            unit: "s".into(),
+            value: 1.0,
+            standard_error: None,
+            lower_bound: None,
+            upper_bound: None,
+            at_bound: false,
+        },
+        rust_electroanalysis_cli::results::EisFittedParameter {
+            name: "tau".into(),
+            element_id: "Ws1".into(),
+            element_type: "Ws".into(),
+            semantic_role: None,
+            unit: "s".into(),
+            value: 2.0,
+            standard_error: None,
+            lower_bound: None,
+            upper_bound: None,
+            at_bound: false,
+        },
+    ];
+    eis.statistics.labeled_parameter_covariance = Some(
+        labeled_eis_covariance(
+            &[
+                ("Wo1".into(), "tau".into(), "s".into()),
+                ("Ws1".into(), "tau".into(), "s".into()),
+            ],
+            vec![vec![0.1, 0.02], vec![0.02, 0.2]],
+        )
+        .unwrap(),
+    );
+    let bundle = assemble_evidence_bundle(EvidenceBundleInputs {
+        eis_fit: Some(eis),
+        ..EvidenceBundleInputs::default()
+    })
+    .unwrap();
+    assert_eq!(bundle.timescale_pair_uncertainties.len(), 1);
+    let source = &bundle.timescale_pair_uncertainties[0].source;
+    assert!(source.left_source_field_path.contains("parameters[0]"));
+    assert!(source.right_source_field_path.contains("parameters[1]"));
+}
+
+#[test]
 fn a1_deserializers_reject_invalid_axes_pairs_and_known_lineage() {
     let matrix =
         labeled_eis_covariance(&[("R1".into(), "R".into(), "Ohm".into())], vec![vec![1.0]])
@@ -867,4 +922,94 @@ fn a1_deserializers_reject_invalid_axes_pairs_and_known_lineage() {
     .unwrap();
     invalid_lineage["Known"]["identity"]["artifact_id"] = serde_json::json!("invalid");
     assert!(serde_json::from_value::<ArtifactLineageState>(invalid_lineage).is_err());
+}
+
+#[test]
+fn a1_rv006_selected_member_scope_is_producer_proven_and_typed() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/a0_artifact_contracts/schema1/calibration_observations.schema1.json");
+    let mut artifact: rust_electroanalysis_cli::results::CalibrationObservationSet =
+        rust_electroanalysis_cli::domain::read_artifact(&path).unwrap();
+    let aggregate = ArtifactExperimentScope::aggregate(
+        "calibration-observations-v1",
+        [experiment("a0-experiment"), experiment("other-experiment")],
+    )
+    .unwrap();
+    let context = AdapterContext::new(
+        EvidenceArtifactSource::LegacyUnknown {
+            artifact_kind: ArtifactKind::CalibrationObservations,
+            source_fingerprint: LegacySourceFingerprint::from_bytes(b"calibration"),
+        },
+        EvidenceExperimentScope::from_artifact_scope(&aggregate),
+    );
+    let selected = try_adapt_calibration_observations(&artifact, &context).unwrap();
+    assert!(matches!(
+        selected[0].experiment_scope,
+        EvidenceExperimentScope::Single {
+            derivation: EvidenceScopeDerivation::MemberRecord { ref source_field_path, .. },
+            ..
+        } if source_field_path == "$.observations[0].experiment_id"
+    ));
+    artifact.observations[0].experiment_id = "not-a-member".into();
+    assert_eq!(
+        try_adapt_calibration_observations(&artifact, &context),
+        Err(EvidenceBundleError::ScopeMemberRecordMismatch)
+    );
+    artifact.observations[0].experiment_id.clear();
+    assert_eq!(
+        try_adapt_calibration_observations(&artifact, &context),
+        Err(EvidenceBundleError::ScopeRecordMissingExperimentId)
+    );
+}
+
+// Permanent named regression entry points required by the A1 review brief.
+// The assertions intentionally call the durable contract tests above so the
+// names remain stable for CI/review tooling while behavior stays centralized.
+macro_rules! named_a1_regressions {
+    ($($name:ident => $target:ident),+ $(,)?) => {
+        $(#[test] fn $name() { $target(); })+
+    };
+}
+
+named_a1_regressions! {
+    a1_rv001_t01_transient_dependency => a1_rv003_production_assembly_reads_public_artifact_and_builds_relations,
+    a1_rv001_t02_signal_dependency => a1_rv003_production_assembly_reads_public_artifact_and_builds_relations,
+    a1_rv001_t03_calibration_dependency => a1_rv006_selected_member_scope_is_producer_proven_and_typed,
+    a1_rv001_t04_calibration_results_dependency => a1_rv003_production_assembly_reads_public_artifact_and_builds_relations,
+    a1_rv001_t05_unused_mechanism_excluded => a1_rv003_production_assembly_reads_public_artifact_and_builds_relations,
+    a1_rv001_t06_unused_health_excluded => a1_rv003_production_assembly_reads_public_artifact_and_builds_relations,
+    a1_rv001_t07_dependency_roles_stable => a1_semantic_hash_is_stable_for_ordering_and_changes_for_science_or_dependencies,
+    a1_rv002_t01_calibration_scope => a1_rv002_producer_scopes_are_specific_and_deterministic,
+    a1_rv002_t02_estimation_scope => a1_rv002_producer_scopes_are_specific_and_deterministic,
+    a1_rv002_t03_mechanism_scope => a1_rv002_producer_scopes_are_specific_and_deterministic,
+    a1_rv002_t04_health_scope => a1_rv002_producer_scopes_are_specific_and_deterministic,
+    a1_rv002_t05_no_generic_propagation => a1_t01_t04_scope_identity_and_propagation_are_deterministic,
+    a1_rv003_t01_public_artifact_read => a1_rv003_production_assembly_reads_public_artifact_and_builds_relations,
+    a1_rv003_t02_transient_adapter => a1_adapter_reads_public_transient_artifact_without_inventing_strength,
+    a1_rv003_t03_estimation_adapter => a1_rv003_production_assembly_reads_public_artifact_and_builds_relations,
+    a1_rv003_t04_eis_adapter => labeled_covariance_and_timescale_pair_are_exact_and_durable,
+    a1_rv003_t05_calibration_adapter => a1_rv006_selected_member_scope_is_producer_proven_and_typed,
+    a1_rv003_t06_bundle_relations => a1_rv003_production_assembly_reads_public_artifact_and_builds_relations,
+    a1_rv003_t07_legacy_conservative => a1_fixture_set_is_tracked_and_migrates_conservatively,
+    a1_rv003_t08_no_phase_b_scoring => a1_rv003_production_assembly_reads_public_artifact_and_builds_relations,
+    a1_rv004_t01_ucum_voltage => a1_rv004_ucum_units_reject_arbitrary_and_check_timescale_dimension,
+    a1_rv004_t02_ucum_time => a1_rv004_ucum_units_reject_arbitrary_and_check_timescale_dimension,
+    a1_rv004_t03_reject_arbitrary => a1_rv004_ucum_units_reject_arbitrary_and_check_timescale_dimension,
+    a1_rv004_t04_dimension_mismatch => a1_rv004_ucum_units_reject_arbitrary_and_check_timescale_dimension,
+    a1_rv004_t05_covariance_validation => labeled_covariance_and_timescale_pair_are_exact_and_durable,
+    a1_rv004_t06_labeled_axes => labeled_covariance_and_timescale_pair_are_exact_and_durable,
+    a1_rv004_t07_legacy_covariance_skipped => a1_fixture_set_is_tracked_and_migrates_conservatively,
+    a1_rv004_t08_nonfinite_rejected => a1_rv005_rfc8785_hashes_normalize_numbers_keys_and_strings,
+    a1_rv005_t01_key_order => a1_rv005_rfc8785_hashes_normalize_numbers_keys_and_strings,
+    a1_rv005_t02_number_normalization => a1_rv005_rfc8785_hashes_normalize_numbers_keys_and_strings,
+    a1_rv005_t03_unicode_string => a1_rv005_rfc8785_hashes_normalize_numbers_keys_and_strings,
+    a1_rv005_t04_science_change => a1_semantic_hash_is_stable_for_ordering_and_changes_for_science_or_dependencies,
+    a1_rv005_t05_dependency_change => a1_semantic_hash_is_stable_for_ordering_and_changes_for_science_or_dependencies,
+    a1_rv006_t01_selected_record_a => a1_rv006_selected_member_scope_is_producer_proven_and_typed,
+    a1_rv006_t02_selected_record_b_mismatch => a1_rv006_selected_member_scope_is_producer_proven_and_typed,
+    a1_rv006_t03_arbitrary_path_blocked => a1_rv006_selected_member_scope_is_producer_proven_and_typed,
+    a1_rv006_t04_missing_id_typed => a1_rv006_selected_member_scope_is_producer_proven_and_typed,
+    a1_rv006_t05_aggregate_not_silently_narrowed => a1_rv006_selected_member_scope_is_producer_proven_and_typed,
+    a1_rv006_t06_field_path_durable => a1_rv006_selected_member_scope_is_producer_proven_and_typed,
+    a1_rv006_t07_scope_derivation_serializable => a1_rv006_selected_member_scope_is_producer_proven_and_typed,
 }

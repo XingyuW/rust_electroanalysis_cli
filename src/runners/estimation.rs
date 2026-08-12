@@ -105,9 +105,10 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
     report.warnings.extend(validated.warnings);
     report.ingestion_diagnostics = validated.ingestion;
     // Persist only artifacts that this execution can use in estimator science.
-    // Supplied mechanism and health reports are not estimator inputs; EIS is
-    // currently consulted only for an identifiability message and is likewise
-    // not a scientific dependency of the emitted estimate.
+    // Supplied mechanism and health reports are not estimator inputs. EIS is
+    // read by the observability/identifiability gate, so retain it as a
+    // validation dependency whenever supplied even though it is not a state
+    // update measurement.
     let mut source_lineages = vec![(
         &calibration_artifact.lineage,
         crate::domain::ArtifactDependencyRole::Calibration,
@@ -151,6 +152,12 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
     .flatten()
     {
         source_lineages.push((lineage, role));
+    }
+    if let Some(eis) = eis.as_ref() {
+        source_lineages.push((
+            &eis.lineage,
+            crate::domain::ArtifactDependencyRole::ValidationInput,
+        ));
     }
     let (dependency_scope, acquisition_families) = crate::domain::lineage_scope_and_families(
         "state-estimation-v1",
