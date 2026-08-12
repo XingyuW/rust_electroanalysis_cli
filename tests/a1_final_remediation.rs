@@ -9,7 +9,7 @@ use rust_electroanalysis_cli::{
     },
     estimation::simulation,
     impedance::parse_circuit_string,
-    potentiometry::calibration::observations::extract_observations,
+    potentiometry::calibration::{fit_calibration, observations::extract_observations},
     results::{
         CalibrationAnalysisReport, CalibrationPotentialSource, CircuitFitResult, EisFitArtifact,
         StateEstimationReport, StoredCalibrationModel, TransientAnalysisReport,
@@ -93,6 +93,79 @@ fn tracked_model(path: &Path) -> StoredCalibrationModel {
     read_artifact(path).unwrap()
 }
 
+/// Create a current calibration report through the production observation and
+/// fitting paths, then cross the public artifact writer/reader boundary.
+fn current_known_calibration(path: &Path) -> CalibrationAnalysisReport {
+    let mut config = ResolvedCalibrationConfig::default();
+    config.analyte.name = "Na+".into();
+    config.observation_extraction.preferred_source =
+        CalibrationPotentialSource::SteadyStateWindowMean;
+    config.observation_extraction.steady_state_start_s = 0.0;
+    config.observation_extraction.steady_state_end_s = 4.0;
+    config.observation_extraction.minimum_points = 2;
+    config.uncertainty.bootstrap_iterations = 0;
+
+    let measurement = rust_electroanalysis_cli::domain::MultiChannelMeasurement::new(
+        (0..=24).map(f64::from).collect(),
+        vec![rust_electroanalysis_cli::domain::MeasurementChannel::new(
+            "E1",
+            "V",
+            (0..=24)
+                .map(|time| {
+                    Some(if time <= 4 {
+                        0.10
+                    } else if time <= 14 {
+                        0.16
+                    } else {
+                        0.22
+                    })
+                })
+                .collect(),
+        )],
+    )
+    .unwrap();
+    let experiment = rust_electroanalysis_cli::domain::ElectrochemicalExperiment::new(
+        "current-known-calibration",
+        Default::default(),
+        None,
+        measurement,
+        Vec::new(),
+        [(0.0, 0.001), (10.0, 0.01), (20.0, 0.1)]
+            .into_iter()
+            .map(
+                |(timestamp, value)| rust_electroanalysis_cli::domain::ExperimentEvent {
+                    timestamp,
+                    kind: rust_electroanalysis_cli::domain::ExperimentEventKind::ConcentrationStep,
+                    value: Some(value),
+                    unit: Some("mol/L".into()),
+                    analyte: Some("Na+".into()),
+                    annotation: None,
+                    metadata: None,
+                },
+            )
+            .collect(),
+        "buffer",
+        AnalysisProvenance {
+            software_version: "test".into(),
+            input_path: "current-known-calibration.csv".into(),
+            input_sha256: "test".into(),
+            configuration_path: None,
+            configuration_sha256: None,
+            generation_timestamp: 1,
+            git_commit: None,
+        },
+    )
+    .unwrap();
+    let observations = extract_observations(&experiment, "E1", None, &config).unwrap();
+    let report = fit_calibration(&observations, &config).unwrap();
+    assert!(matches!(
+        report.lineage,
+        rust_electroanalysis_cli::domain::ArtifactLineageState::Known { .. }
+    ));
+    write_artifact(path, &report).unwrap();
+    read_artifact(path).unwrap()
+}
+
 fn estimation_config(
     root: &Path,
     tau_source: &str,
@@ -151,9 +224,51 @@ fn run_estimate(
     health_baseline: Option<&Path>,
     health_assessment: Option<&Path>,
 ) -> (PathBuf, StateEstimationReport) {
+    run_estimate_with_polarization(
+        label,
+        tau_source,
+        transient_parameter,
+        noise_source,
+        30.0,
+        0.0,
+        transient,
+        model_known,
+        calibration_results,
+        mechanism,
+        health_baseline,
+        health_assessment,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_estimate_with_polarization(
+    label: &str,
+    tau_source: &str,
+    transient_parameter: &str,
+    noise_source: &str,
+    configured_tau_s: f64,
+    initial_polarization_v: f64,
+    transient: Option<&Path>,
+    model_known: bool,
+    calibration_results: Option<&Path>,
+    mechanism: Option<&Path>,
+    health_baseline: Option<&Path>,
+    health_assessment: Option<&Path>,
+) -> (PathBuf, StateEstimationReport) {
     let root = temp_workspace(label);
     let metadata = write_metadata(&root);
     let config = estimation_config(&root, tau_source, transient_parameter, noise_source);
+    let config_text = fs::read_to_string(&config)
+        .unwrap()
+        .replace(
+            "configured_tau_s = 30.0",
+            &format!("configured_tau_s = {configured_tau_s}"),
+        )
+        .replace(
+            "polarization_v = 0.0",
+            &format!("polarization_v = {initial_polarization_v}"),
+        );
+    fs::write(&config, config_text).unwrap();
     let model_path = root.join("calibration_model.json");
     if model_known {
         tracked_model(&model_path);
@@ -284,14 +399,17 @@ fn a1_fr001_t01_transient_used_by_estimation_is_persisted_as_dependency() {
 
 #[test]
 fn a1_fr001_t02_transient_fallback_does_not_persist_dependency() {
+    const FALLBACK_TAU_S: f64 = 43.25;
     let root = temp_workspace("t02-input");
     let transient_path = root.join("transient.json");
     tracked_transient(&transient_path);
-    let (workspace, report) = run_estimate(
+    let (workspace, report) = run_estimate_with_polarization(
         "t02",
         "transient",
         "tau_slow",
         "configured",
+        FALLBACK_TAU_S,
+        0.071,
         Some(&transient_path),
         false,
         None,
@@ -304,6 +422,24 @@ fn a1_fr001_t02_transient_fallback_does_not_persist_dependency() {
             .iter()
             .all(|d| d.artifact_kind != ArtifactKind::TransientAnalysis)
     );
+    let first = &report.estimates[0];
+    let second = &report.estimates[1];
+    let first_polarization = first
+        .filtered_state
+        .iter()
+        .find(|state| state.name == "polarization")
+        .and_then(|state| state.value)
+        .unwrap();
+    let second_predicted_polarization = second
+        .predicted_state
+        .iter()
+        .find(|state| state.name == "polarization")
+        .and_then(|state| state.value)
+        .unwrap();
+    assert!(first_polarization.abs() > 1.0e-12);
+    let expected =
+        first_polarization * (-(second.timestamp_s - first.timestamp_s) / FALLBACK_TAU_S).exp();
+    assert!((second_predicted_polarization - expected).abs() < 1.0e-12);
     assert!(
         report
             .warnings
@@ -418,17 +554,13 @@ fn a1_fr001_t06_supplied_health_assessment_is_not_an_estimator_dependency() {
 fn a1_fr001_t07_calibration_variance_used_by_estimation_is_persisted() {
     let root = temp_workspace("t07-input");
     let path = root.join("calibration_results.json");
-    let mut artifact: CalibrationAnalysisReport = read_artifact(&fixture_path(
-        "tests/fixtures/a0_artifact_contracts/schema2/calibration_analysis.schema2.json",
-    ))
-    .unwrap();
-    artifact.schema_version = CalibrationAnalysisReport::CURRENT_SCHEMA_VERSION;
-    artifact.lineage = known_lineage(
-        ArtifactKind::CalibrationAnalysis,
-        artifact.schema_version,
-        &artifact,
-    );
-    write_artifact(&path, &artifact).unwrap();
+    let artifact = current_known_calibration(&path);
+    let calibration_id = match artifact.lineage {
+        rust_electroanalysis_cli::domain::ArtifactLineageState::Known { ref identity, .. } => {
+            identity.artifact_id.clone()
+        }
+        _ => panic!("current calibration producer must create Known lineage"),
+    };
     let (workspace, report) = run_estimate(
         "t07",
         "configured",
@@ -449,12 +581,9 @@ fn a1_fr001_t07_calibration_variance_used_by_estimation_is_persisted() {
             .count(),
         1
     );
-    assert!(
-        dependencies
-            .iter()
-            .any(|d| d.artifact_kind == ArtifactKind::CalibrationAnalysis
-                && d.role == ArtifactDependencyRole::Calibration)
-    );
+    assert!(dependencies.iter().any(|d| d.artifact_id == calibration_id
+        && d.artifact_kind == ArtifactKind::CalibrationAnalysis
+        && d.role == ArtifactDependencyRole::Calibration));
     fs::remove_dir_all(root).ok();
     fs::remove_dir_all(workspace).ok();
 }
@@ -465,11 +594,13 @@ fn a1_fr001_t08_optional_artifacts_present_but_not_selected_are_not_dependencies
     let transient_path = root.join("transient.json");
     tracked_transient(&transient_path);
     let calibration_path = root.join("calibration_results.json");
-    let calibration: CalibrationAnalysisReport = read_artifact(&fixture_path(
-        "tests/fixtures/a0_artifact_contracts/schema2/calibration_analysis.schema2.json",
-    ))
-    .unwrap();
-    write_artifact(&calibration_path, &calibration).unwrap();
+    let calibration = current_known_calibration(&calibration_path);
+    let calibration_id = match calibration.lineage {
+        rust_electroanalysis_cli::domain::ArtifactLineageState::Known { ref identity, .. } => {
+            identity.artifact_id.clone()
+        }
+        _ => panic!("current calibration producer must create Known lineage"),
+    };
     let (workspace, report) = run_estimate(
         "t08",
         "configured",
@@ -482,10 +613,16 @@ fn a1_fr001_t08_optional_artifacts_present_but_not_selected_are_not_dependencies
         None,
         None,
     );
-    assert!(dependency_entries(&report).iter().all(|d| !matches!(
-        d.artifact_kind,
-        ArtifactKind::TransientAnalysis | ArtifactKind::CalibrationAnalysis
-    )));
+    assert!(
+        dependency_entries(&report)
+            .iter()
+            .all(|dependency| dependency.artifact_id != calibration_id)
+    );
+    assert!(
+        dependency_entries(&report)
+            .iter()
+            .all(|dependency| dependency.artifact_kind != ArtifactKind::TransientAnalysis)
+    );
     fs::remove_dir_all(root).ok();
     fs::remove_dir_all(workspace).ok();
 }
