@@ -280,7 +280,15 @@ pub fn extract_observations(
             crate::domain::ExperimentId::new(observation.experiment_id.clone()).ok()
         }),
     );
-    let direct_dependencies = transient_results
+    let transient_used = result.observations.iter().any(|observation| {
+        matches!(
+            observation.source,
+            CalibrationPotentialSource::TransientEquilibrium
+        )
+    });
+    let direct_dependencies = transient_used
+        .then_some(transient_results)
+        .flatten()
         .and_then(|report| match &report.lineage {
             crate::domain::ArtifactLineageState::Known { identity, .. } => {
                 Some(crate::domain::ArtifactDependency {

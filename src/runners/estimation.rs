@@ -86,7 +86,7 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         read_optional::<SensorHealthBaseline>(workspace, options.health_baseline.as_ref())?;
     let assessment =
         read_optional::<SensorHealthAssessment>(workspace, options.health_assessment.as_ref())?;
-    let mut report = estimation::estimate_experiment(
+    let execution = estimation::estimate_experiment_with_usage(
         &validated.experiment,
         &options.channel,
         calibration,
@@ -102,6 +102,10 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         },
         config.filter.kind,
     )?;
+    let estimation::EstimationExecution {
+        mut report,
+        input_usage,
+    } = execution;
     report.warnings.extend(validated.warnings);
     report.ingestion_diagnostics = validated.ingestion;
     // Persist only artifacts that this execution can use in estimator science.
@@ -113,33 +117,19 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         &calibration_artifact.lineage,
         crate::domain::ArtifactDependencyRole::Calibration,
     )];
-    let transient_consumed = matches!(
-        config.polarization.tau_source,
-        crate::estimation_config::TauSourceKind::Transient
-    ) && matches!(
-        config.state_model.kind,
-        crate::estimation_config::StateModelKind::ActivityBaselinePolarization
-            | crate::estimation_config::StateModelKind::Custom
-    );
-    let signal_consumed = matches!(
-        config.measurement_noise.source,
-        crate::estimation_config::MeasurementNoiseSourceKind::SignalRobustVariance
-            | crate::estimation_config::MeasurementNoiseSourceKind::StableWindowVariance
-    );
-    let calibration_results_consumed = matches!(
-        config.measurement_noise.source,
-        crate::estimation_config::MeasurementNoiseSourceKind::CalibrationResidualVariance
-    );
     for (lineage, role) in [
-        signal_consumed
+        input_usage
+            .signal_measurement_variance
             .then(|| signal.as_ref().map(|artifact| &artifact.lineage))
             .flatten()
             .map(|x| (x, crate::domain::ArtifactDependencyRole::AuxiliaryInput)),
-        transient_consumed
+        input_usage
+            .transient_tau
             .then(|| transient.as_ref().map(|artifact| &artifact.lineage))
             .flatten()
             .map(|x| (x, crate::domain::ArtifactDependencyRole::Initialization)),
-        calibration_results_consumed
+        input_usage
+            .calibration_measurement_variance
             .then(|| {
                 calibration_results
                     .as_ref()
@@ -198,6 +188,7 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
     // mechanism or health conclusion.
     crate::runners::evidence::assemble_evidence_bundle(
         crate::runners::evidence::EvidenceBundleInputs {
+            calibration_model: Some(calibration_artifact),
             transient,
             estimation: Some(report.clone()),
             eis_fit: eis,
