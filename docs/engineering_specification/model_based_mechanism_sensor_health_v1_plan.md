@@ -7112,29 +7112,32 @@ remains sorted by `hypothesis_id`, then `assessment_index`.
 
 ### 31.5 PB-HASH-01 fixed RFC-8785 vector
 
-PB-HASH-01 is a complete literal normalized view with every root member
-present, every collection empty, and the one optional member explicitly null:
+PB-HASH-01 is the complete normalized semantic
+`HypothesisAssessmentHashView` with `hypothesis_id="pb-hash-01"`,
+`evidence_level=NotAssessed`, every collection empty, and the one optional
+member explicitly `None`/`null`. Every root member is present. Its exact
+snake-case enum token is therefore `not_assessed`:
 
 ```json
-{"amplitude_assessments":[],"component_assessments":[],"contradiction_summaries":[],"evidence_level":"unassessed","hypothesis_id":"pb-hash-01","identifiability_assessments":[],"reason_codes":[],"repeatability_assessments":[],"source_evidence_ids":[],"temporal_join_assessments":[],"timescale_assessments":[],"validation_assessment":null}
+{"amplitude_assessments":[],"component_assessments":[],"contradiction_summaries":[],"evidence_level":"not_assessed","hypothesis_id":"pb-hash-01","identifiability_assessments":[],"reason_codes":[],"repeatability_assessments":[],"source_evidence_ids":[],"temporal_join_assessments":[],"timescale_assessments":[],"validation_assessment":null}
 ```
 
 That literal JSON string is the exact UTF-8 JCS byte sequence (no newline).
 It was computed with this repository's locked `serde_jcs = 0.2.0` semantics.
 Its expected SHA-256 is
-`7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290`,
+`c0d071e535bef8d14993e3a3e5b2a8209e38771655d2582e605c93096e7c6bd1`,
 and its expected `assessment_hash` is
-`7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290`.
+`c0d071e535bef8d14993e3a3e5b2a8209e38771655d2582e605c93096e7c6bd1`.
 
 The PB-HASH-01 history preimage is exactly:
 
 ```json
-{"assessment_hash":"7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290","hypothesis_id":"pb-hash-01","new_level":"unassessed","prior_level":"hypothesized"}
+{"assessment_hash":"c0d071e535bef8d14993e3a3e5b2a8209e38771655d2582e605c93096e7c6bd1","hypothesis_id":"pb-hash-01","new_level":"not_assessed","prior_level":"hypothesized"}
 ```
 
 That literal JSON string is likewise the exact UTF-8 JCS byte sequence (no
 newline). Its expected SHA-256 and `history_id` are both
-`7a1d581a1e9bccc4cf21503b4f9f4766a19a11086b8faba8c257edff4ef54d0f`,
+`4de00157ee00baa8f1ff5dc89297464668d39f08392293ca48446fa9e6127bd3`,
 respectively.
 
 ### 31.6 Fixture, API, inventory, and test alignment
@@ -7175,11 +7178,22 @@ previous history + current PhaseBHypothesisAssessment + canonical component rows
 The 18-stage pipeline and all other stage APIs are unchanged. Required exact
 tests are `phase_b_assessment_hash_view_normalizes_order`,
 `phase_b_assessment_hash_rfc8785_vector`,
+`phase_b_assessment_hash_rfc8785_validated_vector`,
 `phase_b_assessment_hash_rejects_non_finite_float`,
 `phase_b_history_id_is_deterministic`,
 `phase_b_history_duplicate_suppression_uses_semantic_identity`,
 `phase_b_fx09_history_hash_matches_canonical_view`, and
 `phase_b_fx10_history_hash_matches_canonical_view`.
+
+**PB-HASH-VECTOR-INTEGRITY.** For every fixed Phase-B hash vector,
+`SHA256(exact documented RFC-8785/JCS UTF-8 bytes)` MUST equal the documented
+expected SHA-256. The documented history-ID preimage MUST likewise hash to the
+documented history ID. A mismatch is a P1 contract error, not an
+implementation failure. The exact tests are
+`phase_b_assessment_hash_rfc8785_vector`,
+`phase_b_assessment_hash_rfc8785_validated_vector`, and
+`phase_b_history_id_is_deterministic`; they MUST hash the literal documented
+JCS bytes and MUST NOT hard-code an unrelated expected digest.
 
 ### 31.7 Supersession and final audit
 
@@ -7189,6 +7203,7 @@ tests are `phase_b_assessment_hash_view_normalizes_order`,
 | pre-§31 `history_id` concatenated-key construction | SUPERSEDED | §31.4 `HypothesisHistoryIdView` JCS construction |
 | §30 eight-field `HypothesisHistoryEntry` wire shape and source-ID meaning | ACTIVE NORMATIVE | unchanged by this section |
 | PB-FX-09/10 placeholder history digest prose | SUPERSEDED | §31.6 canonical-function assertions |
+| PB-HASH-01's pre-§31 `Unassessed`/`unassessed` vector spelling | SUPERSEDED | §31.5's canonical `NotAssessed`/`not_assessed` semantic vector |
 | RFC-8785/JCS mentions outside this identity contract | DESCRIPTIVE or their separately owned active contract | no second Phase-B assessment/history preimage |
 
 All previously passed Phase-B areas remain PASS without redesign: temporal
@@ -7216,6 +7231,10 @@ Serialized active types without exact wire shape = 0
 Competing active production-order definitions = 0
 Unmapped acceptance criteria = 0
 Missing exact test names = 0
+Fixed hash vectors whose literal JCS bytes do not match documented digest = 0
+Fixed history vectors whose literal JCS preimage does not match documented history ID = 0
+PB-HASH-01 mathematical inconsistencies = 0
+PB-HASH-02 mathematical inconsistencies = 0
 Assessment-hash fields with unspecified inclusion/exclusion = 0
 Assessment-hash vectors with unspecified ordering = 0
 Assessment-hash Option/null semantics unspecified = 0
@@ -7468,11 +7487,12 @@ the 18 stages retains an exact API.
 
 ### 32.7 Fixed vectors and PB-FX regression paths
 
-PB-HASH-01 is unchanged: its full validation input is absent, its canonical
-JCS bytes remain the literal in §31.5, its assessment hash remains
-`7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290`, and
-its history ID remains
-`7a1d581a1e9bccc4cf21503b4f9f4766a19a11086b8faba8c257edff4ef54d0f`.
+PB-HASH-01 has absent full validation input. Its canonical JCS assessment
+bytes and history-ID preimage are the literal corrected `not_assessed` vectors
+in §31.5. Their SHA-256 values, and therefore its `assessment_hash` and
+`history_id`, are respectively
+`c0d071e535bef8d14993e3a3e5b2a8209e38771655d2582e605c93096e7c6bd1` and
+`4de00157ee00baa8f1ff5dc89297464668d39f08392293ca48446fa9e6127bd3`.
 
 PB-HASH-02 is the second fixed, validated-domain cross-implementation vector.
 Its complete literal durable summary, full gate aggregate, component input,
@@ -7603,6 +7623,10 @@ Validation hash fields without canonical data path = 0
 Active hash-builder APIs lacking full validation input = 0
 Canonical fixed hash test vectors = 2
 Validated fixed hash test vectors = 1
+Fixed hash vectors whose literal JCS bytes do not match documented digest = 0
+Fixed history vectors whose literal JCS preimage does not match documented history ID = 0
+PB-HASH-01 mathematical inconsistencies = 0
+PB-HASH-02 mathematical inconsistencies = 0
 Frozen A1 semantic/API changes required = no
 Implementation invention still required = no
 ```
