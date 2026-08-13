@@ -5073,7 +5073,7 @@ The variables are runtime-derived identities, not serialized placeholders.
 | fixture path | artifact kind/schema | runtime ArtifactId variable | exact source field(s) | adapter | EvidenceId | EvidenceTarget | adapter direction | unit | temporal metadata | role | requirement ID |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `e2e/eis_fit_e2e_1.json` | `eis_fit` / 3 / current | `EIS_ARTIFACT_ID` | `$.parameters[0].element_id="b-eis-tau"`, `$.parameters[0].unit="s"`, `$.parameters[0].value=1.0`; all remaining `EisFitArtifact` fields are valid constructor output | `adapt_eis_fit` | `eis.parameter.0` | `ModelComponent("b-eis-tau")` | `Neutral` | `s` | `Unknown`; `clock_id=null`; all fractions unavailable | `Support` | `b-eis-tau` |
-| `e2e/transient_analysis_e2e_1.json` | `transient_analysis` / 3 / current | `TRANSIENT_ARTIFACT_ID` | selected `events[0]`; `segment.fitted_time_local=[0.0,10.0]`; selected successful fit `derived_features.tau_fast_s=1.0`; all remaining `TransientAnalysisReport` fields are valid constructor output | `adapt_transient_analysis` | `transient.event.0.tau_fast_s` | `ModelComponent("tau_fast_s")` | `Neutral` | `s` | `Event { event_id="0", start_s=0.0, end_s=10.0 }`; `clock_id=null`; fractions unavailable | `Support` | `b-transient-tau` |
+| `e2e/transient_analysis_e2e_1.json` | `transient_analysis` / 3 / current | `TRANSIENT_ARTIFACT_ID` | selected `events[0]`; `segment.fitted_time_local=[0.0,10.0]`; selected successful fit `derived_features.tau_fast_s=1.0`; all remaining `TransientAnalysisReport` fields are valid constructor output | `adapt_transient_analysis` | `transient.event.0.tau_fast_s` | `ModelComponent("tau_fast_s")` | `Neutral` | `s` | `Window { start_s=0.0, end_s=10.0 }`; `clock_id=null`; fractions unavailable | `Support` | `b-transient-tau` |
 | `e2e/calibration_observations_e2e_2.json` | `calibration_observations` / 3 / current | `CALIBRATION_ARTIFACT_ID` | `$.observations[0].experiment_id="b-e2e-1"`, `analyte="b-validation-calibration"`, `potential_v=0.25`; all remaining `CalibrationObservationSet` fields are valid constructor output | `try_adapt_calibration_observations` | `calibration.observation.0` | `ModelComponent("b-validation-calibration")` | `Neutral` | `V` | `Unknown`; `clock_id=null`; all fractions unavailable | `Validation` | `b-validation-calibration` |
 | `e2e/state_estimation_e2e_2.json` | `state_estimation` / 4 / current | `ESTIMATION_ARTIFACT_ID` | `$.estimates[0].timestamp_s=5.0`, `filtered_state[0].name="b-validation-estimation"`, `.value=0.25`, `.unit="V"`; all remaining `StateEstimationReport` fields are valid constructor output | `adapt_state_estimation` | `estimation.point.0.state.0` | `ModelComponent("b-validation-estimation")` | `Neutral` | `V` | `Point { timestamp_s=5.0 }`; `clock_id=null`; no producer classification means all fractions unavailable | `Validation` | `b-validation-estimation` |
 
@@ -5221,7 +5221,7 @@ The complete Phase-B portion of the expected schema-4 report is:
   "eis_timescales": [],
   "transient_timescales": [],
   "comparisons": [],
-  "hypotheses": [],
+  "legacy_hypotheses": [],
   "trends": [],
   "configuration": {
     "schema_version": 1,
@@ -5532,7 +5532,7 @@ permitted cross-reference.
   "eis_timescales": [],
   "transient_timescales": [],
   "comparisons": [],
-  "hypotheses": [],
+  "legacy_hypotheses": [],
   "trends": [],
   "configuration": {"schema_version":1,"confidence_level":0.95,"allow_warning_fits":true,"ratio_weak":10.0,"ratio_moderate":3.0,"ratio_strong":1.5,"log_distance_weak":1.0,"log_distance_moderate":0.5,"log_distance_strong":0.1761,"minimum_fit_quality":0.0,"compatibility_ratio_lower":0.5,"compatibility_ratio_upper":2.0,"require_experiment_id":true,"require_sensor_id":false,"minimum_replicates_for_strong":3,"trend_minimum_records":3,"trend_independent_variable":"sensor_age_days","frequency_boundary_margin":0.1,"monte_carlo_samples":10000,"seed":42,"selected_model_only":true,"hypotheses":[]},
   "provenance": null,
@@ -6468,3 +6468,1147 @@ promotion, components, history, report assembly, traceability, wire formats,
 CLI consistency, and frozen A1 evidence semantics.
 
 READY_FOR_PHASE_B_SOURCE_COMPATIBILITY_REREVIEW = yes
+
+## 30. Phase B Contract Remediation XII — final wire, history, schema-4, and transient-temporal reconciliation
+
+### 30.1 Authority and blocker classification
+
+This section is the final documentation-only amendment for the four remaining
+wire/history/schema/source contradictions. It supersedes earlier Phase-B
+definitions, fixture fragments, wire tables, API rows, test plans, and
+self-audits only where this section defines `TemporalJoinConfig`,
+`HypothesisHistoryEntry`, schema-4 legacy hypothesis naming, or transient
+temporal support. Sections 27--29 remain controlling for all other Phase-B
+areas. Frozen A1 APIs and serialized meaning, the legacy mechanism path,
+`main`, and `codex/mhi-v1-b-mechanism-evidence-integration` remain unchanged.
+This section authorizes no production Rust, test, or fixture modification.
+
+| blocker | classification before this amendment | repository/specification evidence | final disposition |
+|---|---|---|---|
+| PB-FINAL-WIRE-01 `TemporalJoinConfig` mismatch | CONFIRMED | The final temporal algorithm uses overlap, event identity, clock mismatch, and scope mismatch policies; the later active declaration omitted those four fields while PB-FX-09/10 serialized them. | One eight-field config below is authoritative; PB-FX-09/10 use it exactly. |
+| PB-FINAL-WIRE-02 `HypothesisHistoryEntry` mismatch | CONFIRMED | The approved history algorithm defines deterministic identity and provenance, while the later six-field declaration omitted `history_id` and `source_evidence_ids`, which PB-FX-10 serializes. | One eight-field history type below is authoritative; both fixture locations use it exactly. |
+| PB-FINAL-WIRE-03 schema-4 hypothesis naming | CONFIRMED | The migration table already assigns schema-3 `hypotheses` to schema-4 `legacy_hypotheses`, but the canonical schema-4 report examples still emitted `hypotheses`. | Schema 3 reads `hypotheses`; schema 4 reads/writes `legacy_hypotheses`; new `hypothesis_assessments` is distinct. |
+| PB-FINAL-WIRE-04 transient temporal support | CONFIRMED | `TransientEventResult` exposes `event_index`, an `ExperimentEvent` without a stable event ID, and `segment.fitted_time_local` start/end values. | Transient is `Window` when the fitted time vector is valid; otherwise `Unknown`; it is never `Event` in V1. |
+
+No production or test inspection changed this classification. The actual
+transient source fields are `TransientEventResult.event_index`,
+`TransientEventResult.event`, and `TransientEventResult.segment.fitted_time_local`;
+`ExperimentEvent` has timestamp/kind/value/annotation metadata but no stable
+`event_id`. An array index is not an event identity contract.
+
+### 30.2 PB-FINAL-WIRE-01 — one authoritative `TemporalJoinConfig`
+
+`src/mechanism/temporal.rs::TemporalJoinConfig` is the sole active owner. Its
+exact complete declaration is:
+
+```rust
+#[serde(deny_unknown_fields)]
+pub struct TemporalJoinConfig {
+    pub point_tolerance_s: f64,
+    pub window_overlap_rule: WindowOverlapRule,
+    pub event_identity_rule: EventIdentityRule,
+    pub minimum_classified_fraction: f64,
+    pub minimum_equilibrium_fraction: f64,
+    pub mixed_state_policy: MixedStatePolicy,
+    pub clock_mismatch_behavior: ClockMismatchBehavior,
+    pub scope_mismatch_behavior: ScopeMismatchBehavior,
+}
+
+#[serde(rename_all = "snake_case")]
+pub enum WindowOverlapRule { PositiveDuration }
+#[serde(rename_all = "snake_case")]
+pub enum EventIdentityRule { Exact }
+#[serde(rename_all = "snake_case")]
+pub enum ClockMismatchBehavior { Indeterminate }
+#[serde(rename_all = "snake_case")]
+pub enum ScopeMismatchBehavior { Indeterminate }
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum MixedStatePolicy {
+    RequireAllSteady { allow_quasi_equilibrium: bool },
+    MinimumSteadyFraction {
+        minimum_fraction: f64,
+        allow_quasi_equilibrium: bool,
+        reject_if_disturbed: bool,
+    },
+    WorstCase,
+}
+```
+
+All eight fields are required in the present `[temporal]` TOML table. No
+field has a default. The four policy fields are active algorithm inputs, not
+descriptive annotations or fixture-only fields. The exact wire table is:
+
+| Rust field | wire name | type / serde representation | required/default | validation | consumer |
+|---|---|---|---|---|---|
+| `point_tolerance_s` | `point_tolerance_s` | finite `f64` | required / none | `>= 0` seconds | Point–Point join |
+| `window_overlap_rule` | `window_overlap_rule` | `WindowOverlapRule`, snake-case scalar | required / none | only `positive_duration` | Window–Window join |
+| `event_identity_rule` | `event_identity_rule` | `EventIdentityRule`, snake-case scalar | required / none | only `exact` | Event–Event join when an Event source exists |
+| `minimum_classified_fraction` | `minimum_classified_fraction` | finite `f64` | required / none | `[0,1]` | classification gate |
+| `minimum_equilibrium_fraction` | `minimum_equilibrium_fraction` | finite `f64` | required / none | `[0,1]` | equilibrium gate |
+| `mixed_state_policy` | `mixed_state_policy` | internally tagged table `{kind=...}` | required / none | exact variant fields; no unknown fields | mixed-state evaluation |
+| `clock_mismatch_behavior` | `clock_mismatch_behavior` | `ClockMismatchBehavior`, snake-case scalar | required / none | only `indeterminate` | clock mismatch result |
+| `scope_mismatch_behavior` | `scope_mismatch_behavior` | `ScopeMismatchBehavior`, snake-case scalar | required / none | only `indeterminate` | scope mismatch result |
+
+The complete PB-FX-09 and PB-FX-10 temporal table is therefore:
+
+```toml
+[temporal]
+point_tolerance_s = 0.0
+window_overlap_rule = "positive_duration"
+event_identity_rule = "exact"
+minimum_classified_fraction = 0.0
+minimum_equilibrium_fraction = 0.0
+clock_mismatch_behavior = "indeterminate"
+scope_mismatch_behavior = "indeterminate"
+
+[temporal.mixed_state_policy]
+kind = "require_all_steady"
+allow_quasi_equilibrium = false
+```
+
+`MechanismEvidenceConfig` and all nested Phase-B configuration structs use
+`deny_unknown_fields` or the equivalent strict parser policy. Missing fields,
+unknown fields, duplicate fields, invalid enum values, invalid tagged-table
+shape, non-finite numbers, and range violations are configuration errors.
+PB-FX-09 and PB-FX-10 must each deserialize this table into
+`TemporalJoinConfig`, serialize it, reload it, and compare semantic equality;
+the round-trip does not add, drop, or rename a field. The temporal config /
+fixture contradiction count is zero.
+
+### 30.3 PB-FINAL-WIRE-02 — one authoritative `HypothesisHistoryEntry`
+
+`src/mechanism/history.rs::HypothesisHistoryEntry` is the sole active
+history-entry type. The complete final declaration is:
+
+```rust
+#[serde(deny_unknown_fields)]
+pub struct HypothesisHistoryEntry {
+    pub history_id: String,
+    pub hypothesis_id: MechanismHypothesisId,
+    pub prior_level: HypothesisEvidenceLevel,
+    pub new_level: HypothesisEvidenceLevel,
+    pub assessment_target: Option<InterpretationStatus>,
+    pub assessment_index: u64,
+    pub reason_codes: Vec<PhaseBHypothesisReasonCode>,
+    pub source_evidence_ids: Vec<EvidenceId>,
+}
+```
+
+Every field is serialized with its Rust snake-case name. There are no defaults
+for a persisted history entry. The field contract is:
+
+| field | type | source and deterministic construction | semantic-hash participation |
+|---|---|---|---|
+| `history_id` | `String` | lowercase 64-hex SHA-256 of `hypothesis_id || NUL || prior_level || NUL || new_level || NUL || assessment_hash`; no random UUID | persisted schema-4 field; derived from the same scientific transition |
+| `hypothesis_id` | `MechanismHypothesisId` | current assessment hypothesis ID | yes |
+| `prior_level` | `HypothesisEvidenceLevel` | explicit prior schema-4 assessment state | yes |
+| `new_level` | `HypothesisEvidenceLevel` | current assessment result | yes |
+| `assessment_target` | `Option<InterpretationStatus>` | current component-promotion target; `None` means no promotion | yes |
+| `assessment_index` | `u64` | prior maximum for the hypothesis plus one; first appended transition is `1` | yes |
+| `reason_codes` | `Vec<PhaseBHypothesisReasonCode>` | reasons that caused the transition, bytewise sorted and duplicate-free | yes |
+| `source_evidence_ids` | `Vec<EvidenceId>` | only EvidenceIds actually consumed by the persisted transition: the sorted, duplicate-free union of evidence IDs used by the current gate/validation assessment and its component assessment rows; unused eligible candidates are excluded | yes |
+
+`assessment_hash` is the existing internal RFC-8785 SHA-256 of the
+deterministic scientific assessment view. It is an input to `history_id` and
+duplicate suppression but is not an additional serialized history field in
+the final six-field declaration plus the two reconciled fields. A transition
+is appended only when no prior entry for the hypothesis has the same
+`(prior_level, new_level, assessment_hash)`. History entries serialize sorted
+by `hypothesis_id`, then `assessment_index`.
+
+PB-FX-09 has no prior schema-4 transition and therefore serializes empty
+history at both the current-assessment and report-history locations. PB-FX-10
+has exactly one entry. Its `source_evidence_ids` are exactly the four consumed
+IDs, sorted bytewise:
+
+```json
+{
+  "history_id": "SHA256(exact declared history-key bytes)",
+  "hypothesis_id": "b-hypothesis",
+  "prior_level": "experimentally_supported",
+  "new_level": "validated_for_domain",
+  "assessment_target": "validated_for_domain",
+  "assessment_index": 1,
+  "reason_codes": ["validation_satisfied"],
+  "source_evidence_ids": [
+    "calibration.observation.0",
+    "eis.parameter.0",
+    "estimation.point.0.state.0",
+    "transient.event.0.tau_fast_s"
+  ]
+}
+```
+
+The placeholder notation above denotes the deterministic digest assertion,
+not arbitrary fixture text. PB-FX-09 and PB-FX-10 deserialize and reserialize
+the exact same `HypothesisHistoryEntry` type; the history type / fixture
+contradiction count is zero. Earlier declarations containing a different
+history shape (`PhaseBHypothesisHistory`, serialized `assessment_hash`,
+`sequence`, or `assessed_at`) are historical/superseded for this final wire
+contract; the existing internal assessment hash and duplicate rule remain.
+
+### 30.4 PB-FINAL-WIRE-03 — singular schema-4 legacy hypothesis name
+
+The current schema-3 `MechanismAnalysisReport` payload fields, verified in
+`src/results/mechanism.rs`, are:
+
+```text
+schema_version, lineage, analysis_id, records, eis_timescales,
+transient_timescales, comparisons, hypotheses, trends, configuration,
+provenance, warnings, transient_configuration
+```
+
+The final ownership rule is singular:
+
+| concept | schema-3 read field | schema-4 canonical field | meaning |
+|---|---|---|---|
+| preserved legacy payload | `hypotheses` | `legacy_hypotheses` | exact schema-3 `Vec<HypothesisAssessment>` payload; preserved, not reinterpreted |
+| new Phase-B output | absent | `hypothesis_assessments` | `Vec<HypothesisAssessmentRecord>` containing the new definition/current assessment |
+| new Phase-B history | absent | `hypothesis_history` | `Vec<HypothesisHistoryEntry>` |
+
+Reader and writer behavior is exact:
+
+1. Reading schema 3 accepts `hypotheses` and maps it in memory to
+   `legacy_hypotheses`; missing new Phase-B vectors become empty and mean
+   `NotAssessed`.
+2. Reading schema 4 expects `legacy_hypotheses`,
+   `hypothesis_assessments`, and `hypothesis_history`. An input-only serde
+   alias for schema-3 `hypotheses` may be used by the compatibility reader,
+   but both names in one payload are rejected as ambiguous.
+3. Writing schema 4 always emits `legacy_hypotheses`; it never emits the old
+   top-level `hypotheses` name. It writes `hypothesis_assessments` and
+   `hypothesis_history`, including empty vectors when no Phase-B result exists.
+4. The nested `configuration.hypotheses` field is unrelated legacy
+   `ResolvedMechanismConfig` data and remains unchanged; it is not the
+   schema-4 report field.
+
+The schema-4 report wire table is:
+
+| Rust field | wire name | type | required/default | serde representation and validation |
+|---|---|---|---|---|
+| `schema_version` | `schema_version` | `u32` | required; writer `4` | exact integer; readable versions `1..=4` per artifact policy |
+| `lineage` | `lineage` | `ArtifactLineageState` | required in canonical output; legacy reader default remains existing A1 default | existing lineage representation and validation |
+| `analysis_id` | `analysis_id` | `String` | required | nonempty existing report ID rules |
+| `records` | `records` | `Vec<MechanismRecordSummary>` | required; empty allowed | array; existing element validation |
+| `eis_timescales` | `eis_timescales` | `Vec<CharacteristicTimescale>` | required; empty allowed | array; existing element validation |
+| `transient_timescales` | `transient_timescales` | `Vec<CharacteristicTimescale>` | required; empty allowed | array; existing element validation |
+| `comparisons` | `comparisons` | `Vec<TimescaleComparison>` | required; empty allowed | array; existing element validation |
+| legacy payload field | `legacy_hypotheses` | `Vec<HypothesisAssessment>` | required in schema-4 writer; empty allowed | array; read alias `hypotheses` is migration-only; no dual names |
+| `trends` | `trends` | `Vec<MechanismTrendResult>` | required; empty allowed | array; existing element validation |
+| `configuration` | `configuration` | `ResolvedMechanismConfig` | required | existing legacy config shape, including nested `hypotheses` |
+| `provenance` | `provenance` | `Option<AnalysisProvenance>` | required; `null` allowed | nullable object |
+| `warnings` | `warnings` | `Vec<MechanismWarning>` | required; empty allowed | array |
+| `transient_configuration` | `transient_configuration` | `Option<ResolvedTransientConfig>` | required; `null` allowed | nullable object |
+| `hypothesis_assessments` | `hypothesis_assessments` | `Vec<HypothesisAssessmentRecord>` | required; empty allowed | array; complete Phase-B record shape |
+| `hypothesis_history` | `hypothesis_history` | `Vec<HypothesisHistoryEntry>` | required; empty allowed | array; complete final history shape above |
+
+PB-FX-09 and PB-FX-10 canonical schema-4 report examples now use
+`"legacy_hypotheses": []` at the report level. They contain zero report-level
+`"hypotheses"` fields and retain only the nested legacy configuration field.
+The schema-3 prior input alone uses report-level `"hypotheses": []`.
+Schema-3 migration, schema-4 writer naming, and fixture naming are therefore
+singular and contradiction-free.
+
+### 30.5 PB-FINAL-WIRE-04 — transient is `Window`, not `Event`
+
+The canonical transient route is:
+
+```text
+TransientAnalysisReport.events[i].segment.fitted_time_local
+  → start_s = first value, end_s = last value
+  → EvidenceTemporalSupport::Window { start_s, end_s }
+```
+
+This support is emitted only when the vector is nonempty, every value is
+finite, values are strictly increasing in serialized order, and
+`start_s < end_s`. Otherwise the support is `Unknown`. The event's
+`event_index` is used only to construct the adapter EvidenceId family; it is
+not an `EventId`, and the embedded `ExperimentEvent` has no stable event ID.
+The transient adapter therefore cannot satisfy the contracted Event identity
+semantics. It must not emit `Event { event_id: i.to_string(), ... }`.
+
+The single active V1 source map is:
+
+| accepted source | adapter EvidenceId | authoritative temporal field | support |
+|---|---|---|---|
+| `EisFitArtifact` | `eis.parameter.{i}` | none | `Unknown` |
+| `TransientAnalysisReport` | `transient.event.{i}.parameter.{j}`, `.tau_fast_s`, `.tau_slow_s` | `events[i].segment.fitted_time_local` | `Window` when valid; otherwise `Unknown` |
+| `StateEstimationReport` | `estimation.point.{i}.state.{j}` | `estimates[i].timestamp_s` | `Point` when finite; otherwise `Unknown` |
+| `CalibrationObservationSet` | `calibration.observation.{i}` | no comparable V1 clock | `Unknown` |
+
+The PB-FX-09 registry uses the transient `Window { start_s=0.0,
+end_s=10.0 }` row, and PB-FX-10 uses the same row. Every active source table,
+fixture registry, temporal catalog expectation, and route map uses this one
+mapping. Event remains a defined support variant for a future source that
+provides a stable event ID and interval; no current V1 source claims it.
+
+### 30.6 Canonical fixture re-audit, acceptance mapping, and regression
+
+The final PB-FX-09/PB-FX-10 checks are exact:
+
+| acceptance criterion | PB-FX-09 | PB-FX-10 | exact test |
+|---|---|---|---|
+| temporal config deserializes and round-trips semantically | yes | yes | `phase_b_fx09_temporal_config_deserializes`, `phase_b_fx10_temporal_config_deserializes` |
+| history type matches serialized fixture | empty history | one complete eight-field entry | `phase_b_history_entry_roundtrip`, `phase_b_history_entry_matches_fixture` |
+| schema-3 legacy payload migrates | read `hypotheses` → in-memory `legacy_hypotheses` | same prior-input rule | `phase_b_schema3_hypotheses_migrate_to_legacy_hypotheses` |
+| schema-4 writer uses canonical legacy name | `legacy_hypotheses`; no report-level `hypotheses` | `legacy_hypotheses`; no report-level `hypotheses` | `phase_b_schema4_writer_emits_legacy_hypotheses` |
+| transient source route matches actual fields | `Window` | `Window` | `phase_b_transient_temporal_support_matches_source_contract` |
+
+No test is retained for the retired transient Event route or for a
+fixture-only history field. Missing exact test names = 0 and unmapped
+acceptance criteria = 0.
+
+The 18-stage pipeline remains exactly the §29/§28 pipeline: source loading,
+preparation, binding, eligibility, contradiction assessment, all scientific
+gates, validation, promotion, component assessment, history update, schema-4
+assembly, and writing are unchanged. Only the affected config input, history
+wire shape, schema-4 legacy field name, and transient source-support row are
+updated. The production API table remains complete; no A1 API is changed.
+
+Previously passed Phase-B areas remain PASS: accepted source set;
+`ModelAnalysisReport` exclusion; direct `EvidenceBundle` retirement;
+canonical evidence-state model; Bound structural-only; eligible gate input;
+eligibility API; temporal mode and temporal-before-contradiction ordering;
+role/stage/gate; amplitude; repeatability; identifiability; validation;
+critical contradictions; 4×4 component matrix; PB-FX-09; PB-FX-10; ArtifactId
+policy; production API table; 18-stage pipeline; promotion; components;
+history algorithm; traceability; CLI; source compatibility; and frozen A1
+compatibility.
+
+### 30.7 Supersession audit and final self-audit
+
+The required terminology has one active interpretation:
+
+| occurrence | classification | controlling rule |
+|---|---|---|
+| `TemporalJoinConfig` declarations before §30 | SUPERSEDED where their field set differs | §30.2 eight-field declaration is sole active type |
+| `window_overlap_rule`, `event_identity_rule`, `clock_mismatch_behavior`, `scope_mismatch_behavior` in PB-FX-09/10 | ACTIVE NORMATIVE | required fields and exact enum values in §30.2 |
+| older temporal policy names | SUPERSEDED or DESCRIPTIVE | no second config owner or wire shape |
+| `HypothesisHistoryEntry` declarations before §30 | SUPERSEDED where their field set differs | §30.3 eight-field declaration is sole active type |
+| `history_id` and `source_evidence_ids` | ACTIVE NORMATIVE | deterministic identity and consumed-evidence provenance in §30.3 |
+| schema-3 report-level `hypotheses` | MIGRATION-ONLY | accepted on schema-3 read and mapped to `legacy_hypotheses` |
+| schema-4 report-level `legacy_hypotheses` | ACTIVE NORMATIVE | canonical writer field and canonical fixture field |
+| nested `configuration.hypotheses` | ACTIVE legacy field | not the report-level migration field |
+| `EvidenceTemporalSupport::Window` for transient | ACTIVE NORMATIVE | derived from fitted time interval |
+| `EvidenceTemporalSupport::Event` for transient | SUPERSEDED / unsupported V1 route | no stable event identity in the actual source |
+| generic `Event` support variant | ACTIVE type, not transient mapping | reserved for a source with the contracted event ID |
+
+Final self-audit:
+
+```text
+Undefined normative types = 0
+Undefined normative owners = 0
+Unspecified Phase B algorithms = 0
+Unspecified scientific thresholds/units = 0
+Unspecified compatibility decisions = 0
+Normative contradictions = 0
+Fixture-to-real-schema contradictions = 0
+Fixture-to-source-route contradictions = 0
+Fixture-to-wire-contract contradictions = 0
+Incomplete normative positive fixtures = 0
+Unmapped active normative types = 0
+Pipeline stages without exact API = 0
+Serialized active types without exact wire shape = 0
+Competing active production-order definitions = 0
+Unmapped acceptance criteria = 0
+Missing exact test names = 0
+Frozen A1 semantic/API changes required = no
+Implementation invention still required = no
+Production Rust modified = NONE
+Tests modified = NONE
+Fixtures modified = NONE
+Main unchanged = YES
+Phase B implementation branch unchanged = YES
+```
+
+Could two competent implementers differ about which fields
+`TemporalJoinConfig` contains? **NO.** Could they differ about whether PB-FX
+temporal config deserializes? **NO.** Could they differ about whether
+`HypothesisHistoryEntry` contains `history_id` or `source_evidence_ids`?
+**NO.** Could they differ about whether the schema-4 writer emits
+`hypotheses` or `legacy_hypotheses`? **NO.** Could they differ about whether
+transient support is `Event` or `Window`? **NO.**
+
+READY_FOR_PHASE_B_FINAL_WIRE_CONTRACT_REREVIEW = yes
+
+## 31. Phase B Contract Remediation XIII — canonical assessment-hash preimage and history identity
+
+### 31.1 Authority, confirmed finding, and scope
+
+This documentation-only section resolves **PB-HISTORY-HASH-01** and is the
+sole ACTIVE NORMATIVE Phase-B definition of the `assessment_hash` preimage,
+`assessment_hash` algorithm, `history_id` preimage/algorithm, and history
+duplicate rule. The P1 is **CONFIRMED**: §30 correctly makes `history_id`
+depend on `assessment_hash`, but its phrase “deterministic scientific
+assessment view” does not define one canonical payload, ordering, null rule,
+or float rule. No production Rust, test, fixture, frozen A1 API, serialized
+schema-4 report field, pipeline stage count, `main`, or
+`codex/mhi-v1-b-mechanism-evidence-integration` is changed by this amendment.
+
+`src/mechanism/history.rs` owns this Phase-B-only identity contract. It may
+reuse the repository's existing `serde_jcs` plus SHA-256 utility, but it MUST
+NOT repurpose an A1 semantic-hash type or change A1 identity semantics.
+There is exactly one assessment-hash preimage type:
+
+```rust
+// Non-wire helper: not an independently persisted schema-4 object and not a
+// replacement for PhaseBHypothesisAssessment.
+pub struct HypothesisAssessmentHashView {
+    pub hypothesis_id: MechanismHypothesisId,
+    pub evidence_level: HypothesisEvidenceLevel,
+    pub temporal_join_assessments: Vec<TemporalJoinAssessmentHashView>,
+    pub timescale_assessments: Vec<TimescaleAssessmentHashView>,
+    pub amplitude_assessments: Vec<AmplitudeAssessmentHashView>,
+    pub repeatability_assessments: Vec<RepeatabilityAssessmentHashView>,
+    pub identifiability_assessments: Vec<IdentifiabilityAssessmentHashView>,
+    pub contradiction_summaries: Vec<RequirementContradictionSummaryHashView>,
+    pub validation_assessment: Option<ValidationAssessmentHashView>,
+    pub reason_codes: Vec<PhaseBHypothesisReasonCode>,
+    pub component_assessments: Vec<ComponentInterpretationAssessmentHashView>,
+    pub source_evidence_ids: Vec<EvidenceId>,
+}
+
+// Non-wire typed string. Its serde representation, when required by a helper
+// or test, is exactly 64 lowercase hexadecimal digits (no prefix), matching
+// the already-approved internal semantic-hash convention.
+pub struct AssessmentHash(pub String);
+
+// Non-wire canonical preimage for history identity.
+pub struct HypothesisHistoryIdView {
+    pub hypothesis_id: MechanismHypothesisId,
+    pub prior_level: HypothesisEvidenceLevel,
+    pub new_level: HypothesisEvidenceLevel,
+    pub assessment_hash: AssessmentHash,
+}
+```
+
+No `hash_domain` field is added. The approved identity architecture did not
+already use a Phase-B domain-separation wrapper; adding one would be a new
+cryptographic design rather than a remediation of the ambiguous payload.
+
+### 31.2 Exact semantic field set and nested views
+
+The view contains semantic assessment results and their semantic inputs. It
+excludes presentation, runtime, and recursive identity fields. In particular,
+`history_id`, `assessment_hash`, sequence/index, wall-clock time, paths, CLI
+strings, map insertion order, display labels, diagnostic prose, serializer
+formatting, process time, and random values are excluded. `history_id` and
+`assessment_hash` can therefore never recursively participate in their own
+preimages.
+
+The complete nested helper types are exact; a nested persisted object is never
+described merely as “its semantic parts.” All fields below serialize with their
+shown snake-case names and use the existing snake-case serde token of each
+existing enum.
+
+```rust
+pub struct TemporalJoinAssessmentHashView {
+    pub requirement_id: EvidenceRequirementId,
+    pub left_evidence_id: EvidenceId,
+    pub right_evidence_id: EvidenceId,
+    pub mode: TemporalJoinMode,
+    pub outcome: TemporalJoinOutcome,
+    pub classified_fraction: Option<f64>,
+    pub equilibrium_fraction: Option<f64>,
+    pub steady_state_fraction: Option<f64>,
+    pub reasons: Vec<TemporalJoinReasonCode>,
+}
+pub struct TimescaleAssessmentHashView {
+    pub pair_requirement_id: EvidenceRequirementId,
+    pub status: TimescaleStatus,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub log_distance: Option<f64>,
+}
+pub struct AmplitudeThresholdHashView { pub value: f64, pub unit: String }
+pub struct AmplitudeAssessmentHashView {
+    pub predicted_requirement_id: EvidenceRequirementId,
+    pub observed_requirement_id: EvidenceRequirementId,
+    pub status: AmplitudeStatus,
+    pub predicted_evidence_id: Option<EvidenceId>,
+    pub observed_evidence_id: Option<EvidenceId>,
+    pub threshold: AmplitudeThresholdHashView,
+    pub relative_error: Option<f64>,
+    pub reasons: Vec<AmplitudeReasonCode>,
+}
+pub struct RepeatabilityAssessmentHashView {
+    pub requirement_ids: Vec<EvidenceRequirementId>,
+    pub status: RepeatabilityStatus,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub sample_standard_deviation_ln_tau: Option<f64>,
+}
+pub struct IdentifiabilityAssessmentHashView {
+    pub requirement_id: IdentifiabilityRequirementId,
+    pub status: IdentifiabilityAssessmentStatus,
+    pub metric_value: Option<f64>,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub reasons: Vec<IdentifiabilityAssessmentReasonCode>,
+}
+pub struct RequirementContradictionSummaryHashView {
+    pub requirement_id: EvidenceRequirementId,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub contradiction_count: usize,
+    pub strong_critical_count: usize,
+}
+pub struct ValidationAssessmentHashView {
+    pub protocol_id: String,
+    pub status: ValidationProtocolStatus,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub acquisition_family_ids: Vec<AcquisitionFamilyId>,
+    pub passed_condition_ids: Vec<String>,
+    pub reasons: Vec<ValidationReasonCode>,
+}
+pub struct ComponentInterpretationAssessmentHashView {
+    pub component_id: ComponentId,
+    pub prior_status: InterpretationStatus,
+    pub assessment_target: Option<InterpretationStatus>,
+    pub resulting_status: InterpretationStatus,
+    pub supporting_hypothesis_id: MechanismHypothesisId,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub reasons: Vec<ComponentInterpretationReasonCode>,
+}
+```
+
+The source-to-view inclusion decision is exhaustive:
+
+| Source field | Included? | hash-view path / normalization | Reason |
+|---|---:|---|---|
+| `PhaseBHypothesisAssessment.hypothesis_id` | yes | `hypothesis_id`; canonical ID string | identifies the assessed hypothesis |
+| `.evidence_level` | yes | `evidence_level`; existing enum token | resulting semantic level |
+| `.temporal_join_assessments` | yes | `temporal_join_assessments`; nested view | gate outcome is scientific meaning |
+| `.timescale_assessments` | yes | `timescale_assessments`; nested view | gate outcome is scientific meaning |
+| `.amplitude_assessments` | yes | `amplitude_assessments`; nested view | gate outcome is scientific meaning |
+| `.repeatability_assessments` | yes | `repeatability_assessments`; nested view | gate outcome is scientific meaning |
+| `.identifiability_assessments` | yes | `identifiability_assessments`; nested view | gate outcome is scientific meaning |
+| `.contradiction_summaries` | yes | `contradiction_summaries`; nested view | direct contradiction result is scientific meaning |
+| `.reason_codes` | yes | `reason_codes`; enum-token sorted/deduplicated | machine explanation of the result |
+| `.component_assessments` | yes | `component_assessments`; nested view | persisted component result is assessment meaning |
+| `.validation_status` / the active validation result | yes | `validation_assessment`; `Some` exact nested view, `None` is JSON `null` | protocol result, families, conditions, and reasons are semantic |
+| `.history` / report `hypothesis_history` | no | excluded | prior transition log and derived IDs are not the current assessment; including it would make identity history-position dependent |
+| `MechanismEvidenceConfig`, including `display_name`, CLI and source-path metadata | no | excluded | config is report/config identity, not a field of the persisted assessment result; every resulting gate/config consequence is represented by the included assessment rows |
+| consumed transition evidence, derived from the preceding included nested rows | yes | `source_evidence_ids`; sorted/deduplicated union | history provenance is part of transition identity and appears once as the canonical root collection |
+| `HypothesisHistoryEntry.history_id` | no | excluded | recursive derived identity |
+| `HypothesisHistoryEntry.assessment_index` | no | excluded | append position, not assessment meaning |
+| generated timestamp, `assessed_at`, current process time | no | excluded | runtime/presentation metadata |
+| paths, CLI invocation, labels, diagnostic prose, formatting/order | no | excluded | incidental presentation/runtime state |
+
+Every nested field is likewise decided; “same as the persisted type” means the
+corresponding exact helper declaration above, not implicit direct serialization.
+
+| Nested source | Included fields | Excluded fields |
+|---|---|---|
+| `TemporalJoinAssessment` | `requirement_id,left_evidence_id,right_evidence_id,mode,outcome,classified_fraction,equilibrium_fraction,steady_state_fraction,reasons` | none |
+| `TimescaleAssessment` | `pair_requirement_id,status,evidence_ids,log_distance` | none |
+| `AmplitudeAssessment` and `AmplitudeThreshold` | `predicted_requirement_id,observed_requirement_id,status,predicted_evidence_id,observed_evidence_id,threshold.value,threshold.unit,relative_error,reasons` | none |
+| `RepeatabilityAssessment` | `requirement_ids,status,evidence_ids,sample_standard_deviation_ln_tau` | none |
+| `IdentifiabilityAssessment` | `requirement_id,status,metric_value,evidence_ids,reasons` | none |
+| `RequirementContradictionSummary` | `requirement_id,evidence_ids,contradiction_count,strong_critical_count` | none |
+| `ValidationAssessment` | `protocol_id,status,evidence_ids,acquisition_family_ids,passed_condition_ids,reasons` | none |
+| `ComponentInterpretationAssessment` | `component_id,prior_status,assessment_target,resulting_status,supporting_hypothesis_id,evidence_ids,reasons` | none |
+
+### 31.3 Normalization, null, map, and float rules
+
+RFC 8785 canonicalizes object members only. The builder MUST apply these rules
+before JCS serialization; a duplicate row with a semantic key is a typed error
+rather than a traversal-order-dependent choice.
+
+| Collection | Exact canonical order and duplicate rule |
+|---|---|
+| root `source_evidence_ids`; every nested `evidence_ids` | canonical `EvidenceId` ascending; deduplicate |
+| `temporal_join_assessments` | `(requirement_id,left_evidence_id,right_evidence_id,mode-token)` ascending; duplicate tuple rejected |
+| `timescale_assessments` | `pair_requirement_id` ascending; duplicate rejected |
+| `amplitude_assessments` | `(predicted_requirement_id,observed_requirement_id)` ascending; duplicate rejected |
+| `repeatability_assessments` | lexicographic sorted `requirement_ids` tuple ascending; duplicate tuple rejected |
+| `repeatability_assessments[*].requirement_ids` | requirement ID ascending; deduplicate before the row key is formed |
+| `identifiability_assessments` | `requirement_id` ascending; duplicate rejected |
+| `contradiction_summaries` | `requirement_id` ascending; duplicate rejected |
+| `reason_codes` and every nested `reasons` vector | canonical serialized snake-case enum token ascending; deduplicate |
+| `component_assessments` | `component_id` ascending; duplicate rejected |
+| validation `acquisition_family_ids`, `passed_condition_ids`, and `evidence_ids` | canonical ID/string ascending; deduplicate |
+
+`source_evidence_ids` is exactly the sorted, duplicate-free union of every
+`EvidenceId` present in the canonical nested gate, validation, and component
+views (including temporal left/right and populated amplitude options). The
+builder rejects a caller-provided source list that differs from that union.
+Thus source evidence is included exactly once as a root identity collection,
+while each assessment row retains its own source reference as required to
+express that row's meaning.
+
+The hash view contains no map. If a future revision introduces one, it MUST
+use a `BTreeMap<String, _>` in the hash view, convert each typed key to its
+canonical string before insertion, reject duplicate semantic keys, and only
+then rely on RFC-8785 object-member ordering; `HashMap` iteration is forbidden.
+
+Every `Option<T>` in every hash-view declaration serializes with normal serde
+as an explicit JSON `null` for `None`; `skip_serializing_if` is forbidden on a
+hash-view type. Every hashed float, including floats nested in optional fields,
+MUST be finite. `NaN`, `+∞`, and `-∞` are invalid hash input.
+Before constructing the view, `-0.0` is normalized to `0.0`; no approved
+Phase-B semantic distinguishes them. JCS/`serde_jcs` solely owns final JSON
+number rendering after this validation and normalization.
+
+### 31.4 Canonical procedures, errors, and wire form
+
+The only assessment procedure is:
+
+```rust
+pub fn build_hypothesis_assessment_hash_view(
+    assessment: &PhaseBHypothesisAssessment,
+    component_assessments: &[ComponentInterpretationAssessment],
+) -> Result<HypothesisAssessmentHashView, HypothesisAssessmentHashError>;
+
+pub fn compute_assessment_hash(
+    view: &HypothesisAssessmentHashView,
+) -> Result<AssessmentHash, HypothesisAssessmentHashError>;
+
+pub fn compute_history_id(
+    view: &HypothesisHistoryIdView,
+) -> Result<String, HypothesisAssessmentHashError>;
+```
+
+`build_hypothesis_assessment_hash_view` validates all semantic values,
+verifies the separately supplied component slice is equal to the assessment's
+canonical component rows, derives/verifies `source_evidence_ids`, applies every
+rule in §31.3, and returns the one view above. It neither reads a config hash
+or clock nor accepts a history ID/hash from its caller.
+
+`compute_assessment_hash` serializes that view with the repository's existing
+RFC-8785/JCS implementation (`serde_jcs::to_vec`), hashes those exact UTF-8
+bytes with SHA-256, and returns:
+
+```text
+assessment_hash = lowercase_hex(SHA-256(jcs_bytes))
+```
+
+`AssessmentHash` validation rejects a prefix, uppercase, non-hex data, and any
+length other than 64 characters. This preserves the already-approved internal
+semantic-hash representation; it is not the frozen A1 `ArtifactId` wrapper.
+JCS
+serialization is not replaceable with `serde_json` or implementation-specific
+float formatting.
+
+The complete current approved history distinction is hypothesis, prior level,
+new level, and the canonical assessment result. Therefore `compute_history_id`
+JCS-serializes exactly `HypothesisHistoryIdView`, then returns:
+
+```text
+history_id = lowercase_hex(SHA-256(history_id_jcs_bytes))
+```
+
+The typed failures are added to the existing Phase-B history/assessment error
+surface, not to A1: `NonFiniteHashedFloat { path }`,
+`DuplicateSemanticKey { collection, key }`, `InvalidAssessmentHashEncoding`,
+`JcsSerialization { detail }`, and `HistoryHashConstruction { detail }`.
+
+Two history entries are semantically duplicate **iff** their
+`(hypothesis_id, prior_level, new_level, assessment_hash)` tuples are equal.
+`update_hypothesis_history` computes the candidate `HypothesisHistoryIdView`
+and uses its `history_id` to recognize that tuple among persisted history rows;
+this is the required implementation of the canonical tuple test because the
+wire history row intentionally does not persist `assessment_hash` separately.
+It appends no new entry when the candidate ID already exists for the same
+hypothesis. `assessment_index` is assigned only after the no-duplicate decision
+as the prior maximum index for that hypothesis plus one. The serialized history
+remains sorted by `hypothesis_id`, then `assessment_index`.
+
+### 31.5 PB-HASH-01 fixed RFC-8785 vector
+
+PB-HASH-01 is a complete literal normalized view with every root member
+present, every collection empty, and the one optional member explicitly null:
+
+```json
+{"amplitude_assessments":[],"component_assessments":[],"contradiction_summaries":[],"evidence_level":"unassessed","hypothesis_id":"pb-hash-01","identifiability_assessments":[],"reason_codes":[],"repeatability_assessments":[],"source_evidence_ids":[],"temporal_join_assessments":[],"timescale_assessments":[],"validation_assessment":null}
+```
+
+That literal JSON string is the exact UTF-8 JCS byte sequence (no newline).
+It was computed with this repository's locked `serde_jcs = 0.2.0` semantics.
+Its expected SHA-256 is
+`7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290`,
+and its expected `assessment_hash` is
+`7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290`.
+
+The PB-HASH-01 history preimage is exactly:
+
+```json
+{"assessment_hash":"7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290","hypothesis_id":"pb-hash-01","new_level":"unassessed","prior_level":"hypothesized"}
+```
+
+That literal JSON string is likewise the exact UTF-8 JCS byte sequence (no
+newline). Its expected SHA-256 and `history_id` are both
+`7a1d581a1e9bccc4cf21503b4f9f4766a19a11086b8faba8c257edff4ef54d0f`,
+respectively.
+
+### 31.6 Fixture, API, inventory, and test alignment
+
+PB-FX-09 remains an empty-history first run. It nonetheless builds its
+canonical assessment view with source IDs
+`[eis.parameter.0, transient.event.0.tau_fast_s]`, computes
+`assessment_hash` through `compute_assessment_hash`, and asserts the view's
+sorted source union and hash match the production result.
+
+PB-FX-10 remains the one-transition run. It builds its full canonical
+assessment view from the declared current assessment and four component rows,
+asserts source IDs
+`[calibration.observation.0, eis.parameter.0, estimation.point.0.state.0,
+transient.event.0.tau_fast_s]`, computes `assessment_hash`, constructs the
+exact `HypothesisHistoryIdView { hypothesis_id: "b-hypothesis",
+prior_level: ExperimentallySupported, new_level: ValidatedForDomain,
+assessment_hash }`, and asserts the persisted `history_id` equals
+`compute_history_id`. No fixture contains a placeholder digest. Fixture tests
+may derive these two hashes through the canonical production functions because
+PB-HASH-01 is the fixed byte-level cross-implementation vector.
+
+The controlling inventory gains the following non-wire items, all owned by
+`src/mechanism/history.rs`: `HypothesisAssessmentHashView`, every named nested
+`*HashView`, `AssessmentHash`, `HypothesisHistoryIdView`,
+`build_hypothesis_assessment_hash_view`, `compute_assessment_hash`, and
+`compute_history_id`. Each has serialized report field **no**; its purpose,
+input, output, and error are exactly §§31.2–31.4. The stage-16 API row is
+superseded only as follows:
+
+```text
+previous history + current PhaseBHypothesisAssessment + canonical component rows
+→ build_hypothesis_assessment_hash_view → assessment_hash
+→ HypothesisHistoryIdView → history_id → semantic duplicate check
+→ update_hypothesis_history(...) → updated Vec<HypothesisHistoryEntry>
+```
+
+The 18-stage pipeline and all other stage APIs are unchanged. Required exact
+tests are `phase_b_assessment_hash_view_normalizes_order`,
+`phase_b_assessment_hash_rfc8785_vector`,
+`phase_b_assessment_hash_rejects_non_finite_float`,
+`phase_b_history_id_is_deterministic`,
+`phase_b_history_duplicate_suppression_uses_semantic_identity`,
+`phase_b_fx09_history_hash_matches_canonical_view`, and
+`phase_b_fx10_history_hash_matches_canonical_view`.
+
+### 31.7 Supersession and final audit
+
+| occurrence | classification | controlling rule |
+|---|---|---|
+| pre-§31 phrases “deterministic scientific assessment view” / category-only `assessment_hash` descriptions | SUPERSEDED | §31.2–31.5 are the one payload and algorithm |
+| pre-§31 `history_id` concatenated-key construction | SUPERSEDED | §31.4 `HypothesisHistoryIdView` JCS construction |
+| §30 eight-field `HypothesisHistoryEntry` wire shape and source-ID meaning | ACTIVE NORMATIVE | unchanged by this section |
+| PB-FX-09/10 placeholder history digest prose | SUPERSEDED | §31.6 canonical-function assertions |
+| RFC-8785/JCS mentions outside this identity contract | DESCRIPTIVE or their separately owned active contract | no second Phase-B assessment/history preimage |
+
+All previously passed Phase-B areas remain PASS without redesign: temporal
+config/serde, transient Window mapping, schema 3→4 naming, source
+compatibility, `ModelAnalysisReport` exclusion, direct `EvidenceBundle`
+retirement, evidence-state/eligibility/contradiction/role/stage/gate behavior,
+amplitude, repeatability, identifiability, validation, component matrix,
+source-evidence semantics, the 18-stage pipeline, production API table,
+PB-FX-09/10 source routes, traceability, CLI, and frozen A1 compatibility.
+
+```text
+Undefined normative types = 0
+Undefined normative owners = 0
+Unspecified Phase B algorithms = 0
+Unspecified scientific thresholds/units = 0
+Unspecified compatibility decisions = 0
+Normative contradictions = 0
+Fixture-to-real-schema contradictions = 0
+Fixture-to-source-route contradictions = 0
+Fixture-to-wire-contract contradictions = 0
+Incomplete normative positive fixtures = 0
+Unmapped active normative types = 0
+Pipeline stages without exact API = 0
+Serialized active types without exact wire shape = 0
+Competing active production-order definitions = 0
+Unmapped acceptance criteria = 0
+Missing exact test names = 0
+Assessment-hash fields with unspecified inclusion/exclusion = 0
+Assessment-hash vectors with unspecified ordering = 0
+Assessment-hash Option/null semantics unspecified = 0
+Assessment-hash float semantics unspecified = 0
+Canonical fixed hash test vectors = 1
+Frozen A1 semantic/API changes required = no
+Implementation invention still required = no
+```
+
+Could two conforming implementations produce different `assessment_hash`
+values from the same semantic Phase-B assessment? **NO.** Could two conforming
+implementations produce different `history_id` values from the same semantic
+history transition? **NO.**
+
+READY_FOR_PHASE_B_HISTORY_IDENTITY_REREVIEW = yes
+
+## 32. Phase B Contract Remediation XIV — wire full validation assessment into history identity
+
+### 32.1 Authority, finding reconciliation, scope, and ownership
+
+This documentation-only section resolves **PB-HISTORY-HASH-02**. The finding is
+**CONFIRMED**. The active §31 builder accepted only
+`PhaseBHypothesisAssessment` plus component rows, while the complete
+`ValidationAssessment` is produced before promotion and is retained by
+`HypothesisGateAssessments`. `validation_status` cannot recreate its protocol,
+consumed EvidenceIds, acquisition families, condition IDs, or reasons. The
+earliest divergence is therefore the old stage-16 call boundary, not JCS,
+SHA-256, the history-ID preimage, duplicate suppression, or a scientific gate.
+
+This section is the sole ACTIVE NORMATIVE amendment for the Phase-B
+validation-to-history data path. It changes no production Rust, tests,
+fixtures, frozen A1 API, A1 semantic identity, serialized Phase-B wire field,
+CLI behavior, pipeline-stage count, `main`, or
+`codex/mhi-v1-b-mechanism-evidence-integration`. It neither redesigns
+validation nor adds a second persisted copy of `ValidationAssessment`.
+
+The following ownership model is literal and exclusive:
+
+```text
+ValidationAssessment
+= complete output of the validation gate.
+
+HypothesisGateAssessments
+= complete transient/deterministic collection of scientific gate outputs,
+  including the complete ValidationAssessment when validation is evaluated.
+
+PhaseBHypothesisAssessment
+= durable hypothesis-level summarized result. It retains validation_status but
+  does NOT duplicate the entire ValidationAssessment payload merely for
+  history hashing.
+
+HypothesisAssessmentHashView
+= canonical semantic history-hash preimage. It is constructed using BOTH the
+  durable PhaseBHypothesisAssessment and the full gate results required for
+  canonical history identity.
+```
+
+Existing serialized assessment rows remain outputs required by their already
+approved schema, but they are projections, not an alternative authoritative
+owner for history construction. For the hash builder, the canonical owner of
+every full gate row is exactly `HypothesisGateAssessments`; the canonical owner
+of the durable summary is exactly `PhaseBHypothesisAssessment`.
+
+The already-active aggregate is sufficient and remains exact:
+
+```rust
+pub struct HypothesisGateAssessments {
+    pub contradiction_summaries: Vec<RequirementContradictionSummary>,
+    pub timescale_assessments: Vec<TimescaleAssessment>,
+    pub amplitude_assessments: Vec<AmplitudeAssessment>,
+    pub repeatability_assessments: Vec<RepeatabilityAssessment>,
+    pub identifiability_assessments: Vec<IdentifiabilityAssessment>,
+    pub validation_assessment: Option<ValidationAssessment>,
+}
+```
+
+It must remain alive after `assess_hypothesis(...)` returns and until history
+identity has been constructed. No new type, module, global lookup, report
+reread, artifact search, or hidden runner state is permitted.
+
+The controlling §28.7 type-inventory row is amended in place as follows:
+
+| type | serialized? | owner module | owning parent | purpose |
+|---|---:|---|---|---|
+| `HypothesisGateAssessments` | no | `src/mechanism/promotion.rs` | promotion and history-identity inputs | authoritative transient/full gate-result owner used by both promotion and history identity construction |
+
+No new type is required for this P1.
+
+### 32.2 Summary/full-result invariant and canonical source mapping
+
+The builder first enforces this invariant using the existing
+`HypothesisAssessmentHashError` surface (the history module's existing
+Phase-B assessment/history error type):
+
+```text
+If gates.validation_assessment = Some(v),
+assessment.validation_status MUST equal v.status.
+
+If gates.validation_assessment = None,
+assessment.validation_status MUST equal ValidationProtocolStatus::NotAssessed.
+```
+
+The exact failure is
+`ValidationAssessmentStatusMismatch { summary, full_status }`; `full_status`
+is `None` for the no-validation case. A required validation result missing from
+the aggregate, or malformed full validation semantic input, remains a typed
+error at the existing validation/history boundary only when illegal under the
+active validation applicability configuration. No new error architecture is
+created.
+
+This is the controlling source map. A hash-view field must never be
+reconstructed from a summary if its full authoritative gate object exists.
+
+| HypothesisAssessmentHashView field | Canonical source object | Canonical source field | Transformation / normalization |
+|---|---|---|---|
+| `hypothesis_id` | `PhaseBHypothesisAssessment` | `hypothesis_id` | canonical ID string |
+| `evidence_level` | `PhaseBHypothesisAssessment` | `evidence_level` | existing snake-case enum token |
+| `reason_codes` | `PhaseBHypothesisAssessment` | `reason_codes` | canonical token ascending; deduplicate |
+| `temporal_join_assessments` | `PhaseBHypothesisAssessment` | existing durable temporal-join rows | §31.3 stable key; duplicate rejected; no separate full temporal aggregate exists in the approved type |
+| `timescale_assessments` | `HypothesisGateAssessments` | `timescale_assessments` | §31.3 stable key; duplicate rejected |
+| `amplitude_assessments` | `HypothesisGateAssessments` | `amplitude_assessments` | §31.3 stable key; duplicate rejected |
+| `repeatability_assessments` | `HypothesisGateAssessments` | `repeatability_assessments` | §31.3 stable key; duplicate rejected |
+| `identifiability_assessments` | `HypothesisGateAssessments` | `identifiability_assessments` | §31.3 stable key; duplicate rejected |
+| `contradiction_summaries` | `HypothesisGateAssessments` | `contradiction_summaries` | §31.3 stable key; duplicate rejected |
+| `validation_assessment` | `HypothesisGateAssessments` | `validation_assessment` | exact nested `ValidationAssessmentHashView`; `None` is explicit JSON `null` |
+| `component_assessments` | stage-15 argument | `component_assessments` | §31.3 `component_id` order; duplicate rejected |
+| `source_evidence_ids` | stage-16 argument | canonical consumed source list | §32.4 sorted/unique exact-union verification |
+
+The temporal rows remain the already-approved durable temporal-join output:
+the approved `HypothesisGateAssessments` type has no separately owned temporal
+field, so no full temporal object is reconstructed or moved by this amendment.
+This is not a new scientific evaluation or a source traversal.
+
+### 32.3 Validation hash view, inclusion, normalization, and absence
+
+`ValidationAssessmentHashView` in §31.2 remains the one canonical nested
+representation, with no field added or removed. Its inclusion decisions are
+exhaustive:
+
+| ValidationAssessment field | Included in hash view? | Hash-view field | Normalization |
+|---|---:|---|---|
+| `protocol_id` | yes | `protocol_id` | exact UTF-8 string; no display transformation |
+| `status` | yes | `status` | existing snake-case enum token |
+| `evidence_ids` | yes | `evidence_ids` | canonical `EvidenceId` ascending; deduplicate |
+| `acquisition_family_ids` | yes | `acquisition_family_ids` | canonical serialized ID ascending; deduplicate because families are a semantic set |
+| `passed_condition_ids` | yes | `passed_condition_ids` | canonical condition-ID ascending; deduplicate because conditions are a semantic set |
+| `reasons` | yes | `reasons` | existing canonical validation-reason token ascending; deduplicate |
+
+Any future validation family/condition assessment vector must declare a stable
+semantic key before it can enter this view; source traversal order is forbidden.
+All §31 finite-float, `-0.0`, map, duplicate-key, Option, and RFC-8785/JCS
+rules remain unchanged. In particular, when
+`gates.validation_assessment == None`,
+`HypothesisAssessmentHashView.validation_assessment == None` and normal serde
+emits the already-approved explicit JSON `null`; it must not synthesize a
+`ValidationAssessment { status: NotAssessed, ... }`.
+
+### 32.4 Canonical consumed source evidence and consistency invariants
+
+The caller supplies `source_evidence_ids` as the already-approved canonical
+consumed-evidence set. The builder independently computes and requires exact
+equality to this algorithm:
+
+```text
+sorted_unique_union(
+  EvidenceIds used by eligible temporal assessments,
+  EvidenceIds used by direct contradiction summaries,
+  EvidenceIds used by timescale assessments,
+  EvidenceIds used by amplitude assessments,
+  EvidenceIds used by repeatability assessments,
+  EvidenceIds used by identifiability assessments,
+  EvidenceIds consumed by ValidationAssessment
+)
+```
+
+Only eligible evidence actually consumed by those assessments enters the
+union. It excludes temporally ineligible candidates, indeterminate candidates
+that did not contribute, loaded training/calibration records that were not
+consumed, and the remainder of `EvidenceBundle`. Component-row EvidenceIds are
+verified to be members of this union when they refer to the same derived gate
+evidence; they do not add a second source or alter the union. The root vector
+is canonical `EvidenceId` ascending and duplicate-free.
+
+Every EvidenceId in `ValidationAssessmentHashView.evidence_ids` representing
+consumed validation evidence MUST occur in canonical `source_evidence_ids`.
+Protocol, family, and condition IDs are not EvidenceIds and never enter that
+root vector. A missing validation EvidenceId is a typed
+`SourceEvidenceIdsMismatch` error, not a silently accepted incomplete
+provenance list.
+
+### 32.5 Superseding history APIs and the unchanged identity algorithms
+
+The only active hash-builder and history-stage APIs are:
+
+```rust
+pub fn build_hypothesis_assessment_hash_view(
+    assessment: &PhaseBHypothesisAssessment,
+    gates: &HypothesisGateAssessments,
+    component_assessments: &[ComponentInterpretationAssessment],
+    source_evidence_ids: &[EvidenceId],
+) -> Result<HypothesisAssessmentHashView, HypothesisAssessmentHashError>;
+
+pub fn compute_assessment_hash(
+    view: &HypothesisAssessmentHashView,
+) -> Result<AssessmentHash, HypothesisAssessmentHashError>;
+
+pub fn compute_history_id(
+    view: &HypothesisHistoryIdView,
+) -> Result<String, HypothesisAssessmentHashError>;
+
+pub fn update_hypothesis_history(
+    previous_history: &[HypothesisHistoryEntry],
+    assessment: &PhaseBHypothesisAssessment,
+    gates: &HypothesisGateAssessments,
+    component_assessments: &[ComponentInterpretationAssessment],
+    source_evidence_ids: &[EvidenceId],
+) -> Result<Vec<HypothesisHistoryEntry>, MechanismAssessmentError>;
+```
+
+`update_hypothesis_history` calls the builder, then the unchanged
+`compute_assessment_hash`, constructs the unchanged `HypothesisHistoryIdView`,
+calls the unchanged `compute_history_id`, and applies the unchanged semantic
+duplicate suppression. `serde_jcs::to_vec`, SHA-256 encoding, the history-ID
+preimage, Option/null wire semantics, map rules, float rules, and the approved
+PB-HASH-01 input all remain frozen.
+
+### 32.6 Stage 13--16 flow and production API table amendment
+
+The pipeline remains exactly 18 stages. Only its stage 13--16 data flow is
+amended:
+
+```text
+Stage 13: evaluate validation -> ValidationAssessment
+gate aggregation: all gate outputs -> HypothesisGateAssessments
+Stage 14: assess_hypothesis(hypothesis, eligible, &gates, config)
+          -> PhaseBHypothesisAssessment; gates remains available
+Stage 15: assess_components(...) -> component assessments
+Stage 16: history identity/update receives assessment + gates + component
+          assessments + canonical source_evidence_ids + prior history
+```
+
+The authoritative stage-16 production API row is:
+
+| Stage | Function | Owner | Inputs | Output | Internal deterministic operations |
+|---:|---|---|---|---|---|
+| 16 | `update_hypothesis_history` | `src/mechanism/history.rs` | prior history; `PhaseBHypothesisAssessment`; `HypothesisGateAssessments`; `Vec<ComponentInterpretationAssessment>`; canonical `source_evidence_ids` | updated history | `build_hypothesis_assessment_hash_view`; `compute_assessment_hash`; `compute_history_id`; duplicate suppression |
+
+No runner may consume or drop the aggregate after stage 14. Thus every one of
+the 18 stages retains an exact API.
+
+### 32.7 Fixed vectors and PB-FX regression paths
+
+PB-HASH-01 is unchanged: its full validation input is absent, its canonical
+JCS bytes remain the literal in §31.5, its assessment hash remains
+`7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290`, and
+its history ID remains
+`7a1d581a1e9bccc4cf21503b4f9f4766a19a11086b8faba8c257edff4ef54d0f`.
+
+PB-HASH-02 is the second fixed, validated-domain cross-implementation vector.
+Its complete literal durable summary, full gate aggregate, component input,
+and canonical source input are:
+
+```text
+PhaseBHypothesisAssessment {
+  hypothesis_id: "pb-hash-02", evidence_level: ValidatedForDomain,
+  temporal_join_assessments: [], timescale_assessments: [],
+  amplitude_assessments: [], repeatability_assessments: [],
+  identifiability_assessments: [], contradiction_summaries: [],
+  reason_codes: [ValidationSatisfied], component_assessments: [],
+  validation_status: Satisfied, history: []
+}
+HypothesisGateAssessments {
+  contradiction_summaries: [], timescale_assessments: [],
+  amplitude_assessments: [], repeatability_assessments: [],
+  identifiability_assessments: [],
+  validation_assessment: Some(ValidationAssessment {
+    protocol_id: "pb-hash-02-protocol", status: Satisfied,
+    evidence_ids: ["validation.evidence.a", "validation.evidence.b"],
+    acquisition_family_ids: ["family-a", "family-b"],
+    passed_condition_ids: ["condition-a", "condition-b"], reasons: [Passed]
+  })
+}
+component_assessments = []
+source_evidence_ids = ["validation.evidence.a", "validation.evidence.b"]
+```
+
+Its complete normalized `HypothesisAssessmentHashView` is represented by this
+exact RFC-8785/JCS UTF-8 string (no newline):
+
+```json
+{"amplitude_assessments":[],"component_assessments":[],"contradiction_summaries":[],"evidence_level":"validated_for_domain","hypothesis_id":"pb-hash-02","identifiability_assessments":[],"reason_codes":["validation_satisfied"],"repeatability_assessments":[],"source_evidence_ids":["validation.evidence.a","validation.evidence.b"],"temporal_join_assessments":[],"timescale_assessments":[],"validation_assessment":{"acquisition_family_ids":["family-a","family-b"],"evidence_ids":["validation.evidence.a","validation.evidence.b"],"passed_condition_ids":["condition-a","condition-b"],"protocol_id":"pb-hash-02-protocol","reasons":["passed"],"status":"satisfied"}}
+```
+
+The exact SHA-256 and canonical `assessment_hash` are both
+`6a540a332d57d763cefaa05ba46a663ba97e019649df1d531e8c430da047d4ec`.
+Its exact history-ID view/JCS UTF-8 string is:
+
+```json
+{"assessment_hash":"6a540a332d57d763cefaa05ba46a663ba97e019649df1d531e8c430da047d4ec","hypothesis_id":"pb-hash-02","new_level":"validated_for_domain","prior_level":"experimentally_supported"}
+```
+
+Its exact SHA-256 and `history_id` are both
+`0f4f48e1bd076897520a1e6a43a870cf22bec202ac272fc3ab4d3fea707cd70c`.
+These values were computed from the above exact JCS bytes using the locked
+`serde_jcs = 0.2.0` semantic procedure and SHA-256; they are not placeholders.
+
+PB-FX-09 continues to pass: its no-validation path supplies the aggregate and
+uses the already-approved `NotApplicable` full assessment representation when
+the validation evaluator ran, or the `None`/`NotAssessed` invariant only when
+validation was not evaluated. It retains its exact absence/null behavior and
+unrelated fixture content.
+
+PB-FX-10 now traces the executable path:
+
+```text
+accepted source artifacts -> eligible Validation-role evidence
+-> ValidationAssessment -> HypothesisGateAssessments.validation_assessment
+-> build_hypothesis_assessment_hash_view(..., &gates, ...)
+-> ValidationAssessmentHashView -> assessment_hash -> history_id
+-> persisted HypothesisHistoryEntry
+```
+
+Each arrow is owned by stages 3/7/13, gate aggregation, stage 16's explicit
+history API, or the persisted history writer respectively. PB-FX-10 compares
+runtime-derived production hashes with its fully specified semantic view; it
+does not retain a placeholder digest and does not reconstruct validation from
+`validation_status`.
+
+### 32.8 Tests, supersession, and final audit
+
+The exact required implementation tests are:
+
+```text
+phase_b_assessment_hash_includes_full_validation_assessment
+phase_b_validation_summary_must_match_full_assessment
+phase_b_validated_source_evidence_ids_include_consumed_validation_evidence
+phase_b_hash_builder_accepts_gate_assessments
+phase_b_hash_builder_validation_none_matches_not_assessed_summary
+phase_b_assessment_hash_rfc8785_validated_vector
+phase_b_fx10_validation_payload_reaches_history_hash
+phase_b_fx10_history_hash_matches_canonical_validation_view
+```
+
+They supplement, rather than replace, every approved PB-HASH-01, PB-FX-09,
+and history duplicate-suppression test. Requirement-to-test mapping is one to
+one: full payload, summary invariant, source evidence, builder API, absence,
+fixed vector, E2E propagation, and E2E canonical hash respectively.
+
+| occurrence | classification | controlling rule |
+|---|---|---|
+| §31.2 source-map row `.validation_status / the active validation result` | SUPERSEDED | §32.2 separates the durable summary from the full gate-owned result |
+| §31.3 `source_evidence_ids` union that adds component-row IDs as an independent source | SUPERSEDED | §32.4 gate/validation consumed-evidence union and component-subset verification |
+| §31.4 two-argument `build_hypothesis_assessment_hash_view` | SUPERSEDED | §32.5 four-input builder |
+| §31.6 previous-history plus assessment/component-only stage-16 flow | SUPERSEDED | §32.5--32.6 explicit gates and source IDs |
+| §28.4 three-input `update_hypothesis_history` | SUPERSEDED | §32.5 explicit gates and source IDs |
+| §28.5 stage-16 row without gates/source IDs | SUPERSEDED | §32.6 stage-16 row |
+| §28.6 PB-FX history descriptions that pass only component rows | SUPERSEDED | §32.7 explicit aggregate flow |
+| §28.7 inventory description limiting `HypothesisGateAssessments` to promotion input | SUPERSEDED | §32.1 inventory amendment |
+| any active instruction reconstructing validation from `validation_status` | SUPERSEDED | §32.1--32.3 |
+| all other §31 hash schemas, ordering, JCS, float, null, hash, history-ID, and duplicate rules | ACTIVE NORMATIVE | unchanged except for the explicit input path |
+
+```text
+Undefined normative types = 0
+Undefined normative owners = 0
+Unspecified Phase B algorithms = 0
+Unspecified scientific thresholds/units = 0
+Unspecified compatibility decisions = 0
+Normative contradictions = 0
+Fixture-to-real-schema contradictions = 0
+Fixture-to-source-route contradictions = 0
+Fixture-to-wire-contract contradictions = 0
+Incomplete normative positive fixtures = 0
+Unmapped active normative types = 0
+Pipeline stages without exact API = 0
+Serialized active types without exact wire shape = 0
+Competing active production-order definitions = 0
+Unmapped acceptance criteria = 0
+Missing exact test names = 0
+Assessment-hash fields with unspecified inclusion/exclusion = 0
+Assessment-hash vectors with unspecified ordering = 0
+Assessment-hash Option/null semantics unspecified = 0
+Assessment-hash float semantics unspecified = 0
+Hash-view fields with unavailable canonical source = 0
+Validation hash fields without canonical data path = 0
+Active hash-builder APIs lacking full validation input = 0
+Canonical fixed hash test vectors = 2
+Validated fixed hash test vectors = 1
+Frozen A1 semantic/API changes required = no
+Implementation invention still required = no
+```
+
+Can conforming implementations disagree on `assessment_hash`? **NO.** Can
+they disagree on `history_id`? **NO.** Can they disagree on where full
+validation data used by the hash comes from? **NO.**
+
+READY_FOR_PHASE_B_VALIDATION_TO_HISTORY_REREVIEW = yes
