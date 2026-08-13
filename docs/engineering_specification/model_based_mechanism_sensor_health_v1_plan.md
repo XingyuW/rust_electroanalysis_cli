@@ -5073,7 +5073,7 @@ The variables are runtime-derived identities, not serialized placeholders.
 | fixture path | artifact kind/schema | runtime ArtifactId variable | exact source field(s) | adapter | EvidenceId | EvidenceTarget | adapter direction | unit | temporal metadata | role | requirement ID |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `e2e/eis_fit_e2e_1.json` | `eis_fit` / 3 / current | `EIS_ARTIFACT_ID` | `$.parameters[0].element_id="b-eis-tau"`, `$.parameters[0].unit="s"`, `$.parameters[0].value=1.0`; all remaining `EisFitArtifact` fields are valid constructor output | `adapt_eis_fit` | `eis.parameter.0` | `ModelComponent("b-eis-tau")` | `Neutral` | `s` | `Unknown`; `clock_id=null`; all fractions unavailable | `Support` | `b-eis-tau` |
-| `e2e/transient_analysis_e2e_1.json` | `transient_analysis` / 3 / current | `TRANSIENT_ARTIFACT_ID` | selected `events[0]`; `segment.fitted_time_local=[0.0,10.0]`; selected successful fit `derived_features.tau_fast_s=1.0`; all remaining `TransientAnalysisReport` fields are valid constructor output | `adapt_transient_analysis` | `transient.event.0.tau_fast_s` | `ModelComponent("tau_fast_s")` | `Neutral` | `s` | `Event { event_id="0", start_s=0.0, end_s=10.0 }`; `clock_id=null`; fractions unavailable | `Support` | `b-transient-tau` |
+| `e2e/transient_analysis_e2e_1.json` | `transient_analysis` / 3 / current | `TRANSIENT_ARTIFACT_ID` | selected `events[0]`; `segment.fitted_time_local=[0.0,10.0]`; selected successful fit `derived_features.tau_fast_s=1.0`; all remaining `TransientAnalysisReport` fields are valid constructor output | `adapt_transient_analysis` | `transient.event.0.tau_fast_s` | `ModelComponent("tau_fast_s")` | `Neutral` | `s` | `Window { start_s=0.0, end_s=10.0 }`; `clock_id=null`; fractions unavailable | `Support` | `b-transient-tau` |
 | `e2e/calibration_observations_e2e_2.json` | `calibration_observations` / 3 / current | `CALIBRATION_ARTIFACT_ID` | `$.observations[0].experiment_id="b-e2e-1"`, `analyte="b-validation-calibration"`, `potential_v=0.25`; all remaining `CalibrationObservationSet` fields are valid constructor output | `try_adapt_calibration_observations` | `calibration.observation.0` | `ModelComponent("b-validation-calibration")` | `Neutral` | `V` | `Unknown`; `clock_id=null`; all fractions unavailable | `Validation` | `b-validation-calibration` |
 | `e2e/state_estimation_e2e_2.json` | `state_estimation` / 4 / current | `ESTIMATION_ARTIFACT_ID` | `$.estimates[0].timestamp_s=5.0`, `filtered_state[0].name="b-validation-estimation"`, `.value=0.25`, `.unit="V"`; all remaining `StateEstimationReport` fields are valid constructor output | `adapt_state_estimation` | `estimation.point.0.state.0` | `ModelComponent("b-validation-estimation")` | `Neutral` | `V` | `Point { timestamp_s=5.0 }`; `clock_id=null`; no producer classification means all fractions unavailable | `Validation` | `b-validation-estimation` |
 
@@ -5221,7 +5221,7 @@ The complete Phase-B portion of the expected schema-4 report is:
   "eis_timescales": [],
   "transient_timescales": [],
   "comparisons": [],
-  "hypotheses": [],
+  "legacy_hypotheses": [],
   "trends": [],
   "configuration": {
     "schema_version": 1,
@@ -5532,7 +5532,7 @@ permitted cross-reference.
   "eis_timescales": [],
   "transient_timescales": [],
   "comparisons": [],
-  "hypotheses": [],
+  "legacy_hypotheses": [],
   "trends": [],
   "configuration": {"schema_version":1,"confidence_level":0.95,"allow_warning_fits":true,"ratio_weak":10.0,"ratio_moderate":3.0,"ratio_strong":1.5,"log_distance_weak":1.0,"log_distance_moderate":0.5,"log_distance_strong":0.1761,"minimum_fit_quality":0.0,"compatibility_ratio_lower":0.5,"compatibility_ratio_upper":2.0,"require_experiment_id":true,"require_sensor_id":false,"minimum_replicates_for_strong":3,"trend_minimum_records":3,"trend_independent_variable":"sensor_age_days","frequency_boundary_margin":0.1,"monte_carlo_samples":10000,"seed":42,"selected_model_only":true,"hypotheses":[]},
   "provenance": null,
@@ -6468,3 +6468,365 @@ promotion, components, history, report assembly, traceability, wire formats,
 CLI consistency, and frozen A1 evidence semantics.
 
 READY_FOR_PHASE_B_SOURCE_COMPATIBILITY_REREVIEW = yes
+
+## 30. Phase B Contract Remediation XII — final wire, history, schema-4, and transient-temporal reconciliation
+
+### 30.1 Authority and blocker classification
+
+This section is the final documentation-only amendment for the four remaining
+wire/history/schema/source contradictions. It supersedes earlier Phase-B
+definitions, fixture fragments, wire tables, API rows, test plans, and
+self-audits only where this section defines `TemporalJoinConfig`,
+`HypothesisHistoryEntry`, schema-4 legacy hypothesis naming, or transient
+temporal support. Sections 27--29 remain controlling for all other Phase-B
+areas. Frozen A1 APIs and serialized meaning, the legacy mechanism path,
+`main`, and `codex/mhi-v1-b-mechanism-evidence-integration` remain unchanged.
+This section authorizes no production Rust, test, or fixture modification.
+
+| blocker | classification before this amendment | repository/specification evidence | final disposition |
+|---|---|---|---|
+| PB-FINAL-WIRE-01 `TemporalJoinConfig` mismatch | CONFIRMED | The final temporal algorithm uses overlap, event identity, clock mismatch, and scope mismatch policies; the later active declaration omitted those four fields while PB-FX-09/10 serialized them. | One eight-field config below is authoritative; PB-FX-09/10 use it exactly. |
+| PB-FINAL-WIRE-02 `HypothesisHistoryEntry` mismatch | CONFIRMED | The approved history algorithm defines deterministic identity and provenance, while the later six-field declaration omitted `history_id` and `source_evidence_ids`, which PB-FX-10 serializes. | One eight-field history type below is authoritative; both fixture locations use it exactly. |
+| PB-FINAL-WIRE-03 schema-4 hypothesis naming | CONFIRMED | The migration table already assigns schema-3 `hypotheses` to schema-4 `legacy_hypotheses`, but the canonical schema-4 report examples still emitted `hypotheses`. | Schema 3 reads `hypotheses`; schema 4 reads/writes `legacy_hypotheses`; new `hypothesis_assessments` is distinct. |
+| PB-FINAL-WIRE-04 transient temporal support | CONFIRMED | `TransientEventResult` exposes `event_index`, an `ExperimentEvent` without a stable event ID, and `segment.fitted_time_local` start/end values. | Transient is `Window` when the fitted time vector is valid; otherwise `Unknown`; it is never `Event` in V1. |
+
+No production or test inspection changed this classification. The actual
+transient source fields are `TransientEventResult.event_index`,
+`TransientEventResult.event`, and `TransientEventResult.segment.fitted_time_local`;
+`ExperimentEvent` has timestamp/kind/value/annotation metadata but no stable
+`event_id`. An array index is not an event identity contract.
+
+### 30.2 PB-FINAL-WIRE-01 — one authoritative `TemporalJoinConfig`
+
+`src/mechanism/temporal.rs::TemporalJoinConfig` is the sole active owner. Its
+exact complete declaration is:
+
+```rust
+#[serde(deny_unknown_fields)]
+pub struct TemporalJoinConfig {
+    pub point_tolerance_s: f64,
+    pub window_overlap_rule: WindowOverlapRule,
+    pub event_identity_rule: EventIdentityRule,
+    pub minimum_classified_fraction: f64,
+    pub minimum_equilibrium_fraction: f64,
+    pub mixed_state_policy: MixedStatePolicy,
+    pub clock_mismatch_behavior: ClockMismatchBehavior,
+    pub scope_mismatch_behavior: ScopeMismatchBehavior,
+}
+
+#[serde(rename_all = "snake_case")]
+pub enum WindowOverlapRule { PositiveDuration }
+#[serde(rename_all = "snake_case")]
+pub enum EventIdentityRule { Exact }
+#[serde(rename_all = "snake_case")]
+pub enum ClockMismatchBehavior { Indeterminate }
+#[serde(rename_all = "snake_case")]
+pub enum ScopeMismatchBehavior { Indeterminate }
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum MixedStatePolicy {
+    RequireAllSteady { allow_quasi_equilibrium: bool },
+    MinimumSteadyFraction {
+        minimum_fraction: f64,
+        allow_quasi_equilibrium: bool,
+        reject_if_disturbed: bool,
+    },
+    WorstCase,
+}
+```
+
+All eight fields are required in the present `[temporal]` TOML table. No
+field has a default. The four policy fields are active algorithm inputs, not
+descriptive annotations or fixture-only fields. The exact wire table is:
+
+| Rust field | wire name | type / serde representation | required/default | validation | consumer |
+|---|---|---|---|---|---|
+| `point_tolerance_s` | `point_tolerance_s` | finite `f64` | required / none | `>= 0` seconds | Point–Point join |
+| `window_overlap_rule` | `window_overlap_rule` | `WindowOverlapRule`, snake-case scalar | required / none | only `positive_duration` | Window–Window join |
+| `event_identity_rule` | `event_identity_rule` | `EventIdentityRule`, snake-case scalar | required / none | only `exact` | Event–Event join when an Event source exists |
+| `minimum_classified_fraction` | `minimum_classified_fraction` | finite `f64` | required / none | `[0,1]` | classification gate |
+| `minimum_equilibrium_fraction` | `minimum_equilibrium_fraction` | finite `f64` | required / none | `[0,1]` | equilibrium gate |
+| `mixed_state_policy` | `mixed_state_policy` | internally tagged table `{kind=...}` | required / none | exact variant fields; no unknown fields | mixed-state evaluation |
+| `clock_mismatch_behavior` | `clock_mismatch_behavior` | `ClockMismatchBehavior`, snake-case scalar | required / none | only `indeterminate` | clock mismatch result |
+| `scope_mismatch_behavior` | `scope_mismatch_behavior` | `ScopeMismatchBehavior`, snake-case scalar | required / none | only `indeterminate` | scope mismatch result |
+
+The complete PB-FX-09 and PB-FX-10 temporal table is therefore:
+
+```toml
+[temporal]
+point_tolerance_s = 0.0
+window_overlap_rule = "positive_duration"
+event_identity_rule = "exact"
+minimum_classified_fraction = 0.0
+minimum_equilibrium_fraction = 0.0
+clock_mismatch_behavior = "indeterminate"
+scope_mismatch_behavior = "indeterminate"
+
+[temporal.mixed_state_policy]
+kind = "require_all_steady"
+allow_quasi_equilibrium = false
+```
+
+`MechanismEvidenceConfig` and all nested Phase-B configuration structs use
+`deny_unknown_fields` or the equivalent strict parser policy. Missing fields,
+unknown fields, duplicate fields, invalid enum values, invalid tagged-table
+shape, non-finite numbers, and range violations are configuration errors.
+PB-FX-09 and PB-FX-10 must each deserialize this table into
+`TemporalJoinConfig`, serialize it, reload it, and compare semantic equality;
+the round-trip does not add, drop, or rename a field. The temporal config /
+fixture contradiction count is zero.
+
+### 30.3 PB-FINAL-WIRE-02 — one authoritative `HypothesisHistoryEntry`
+
+`src/mechanism/history.rs::HypothesisHistoryEntry` is the sole active
+history-entry type. The complete final declaration is:
+
+```rust
+#[serde(deny_unknown_fields)]
+pub struct HypothesisHistoryEntry {
+    pub history_id: String,
+    pub hypothesis_id: MechanismHypothesisId,
+    pub prior_level: HypothesisEvidenceLevel,
+    pub new_level: HypothesisEvidenceLevel,
+    pub assessment_target: Option<InterpretationStatus>,
+    pub assessment_index: u64,
+    pub reason_codes: Vec<PhaseBHypothesisReasonCode>,
+    pub source_evidence_ids: Vec<EvidenceId>,
+}
+```
+
+Every field is serialized with its Rust snake-case name. There are no defaults
+for a persisted history entry. The field contract is:
+
+| field | type | source and deterministic construction | semantic-hash participation |
+|---|---|---|---|
+| `history_id` | `String` | lowercase 64-hex SHA-256 of `hypothesis_id || NUL || prior_level || NUL || new_level || NUL || assessment_hash`; no random UUID | persisted schema-4 field; derived from the same scientific transition |
+| `hypothesis_id` | `MechanismHypothesisId` | current assessment hypothesis ID | yes |
+| `prior_level` | `HypothesisEvidenceLevel` | explicit prior schema-4 assessment state | yes |
+| `new_level` | `HypothesisEvidenceLevel` | current assessment result | yes |
+| `assessment_target` | `Option<InterpretationStatus>` | current component-promotion target; `None` means no promotion | yes |
+| `assessment_index` | `u64` | prior maximum for the hypothesis plus one; first appended transition is `1` | yes |
+| `reason_codes` | `Vec<PhaseBHypothesisReasonCode>` | reasons that caused the transition, bytewise sorted and duplicate-free | yes |
+| `source_evidence_ids` | `Vec<EvidenceId>` | only EvidenceIds actually consumed by the persisted transition: the sorted, duplicate-free union of evidence IDs used by the current gate/validation assessment and its component assessment rows; unused eligible candidates are excluded | yes |
+
+`assessment_hash` is the existing internal RFC-8785 SHA-256 of the
+deterministic scientific assessment view. It is an input to `history_id` and
+duplicate suppression but is not an additional serialized history field in
+the final six-field declaration plus the two reconciled fields. A transition
+is appended only when no prior entry for the hypothesis has the same
+`(prior_level, new_level, assessment_hash)`. History entries serialize sorted
+by `hypothesis_id`, then `assessment_index`.
+
+PB-FX-09 has no prior schema-4 transition and therefore serializes empty
+history at both the current-assessment and report-history locations. PB-FX-10
+has exactly one entry. Its `source_evidence_ids` are exactly the four consumed
+IDs, sorted bytewise:
+
+```json
+{
+  "history_id": "SHA256(exact declared history-key bytes)",
+  "hypothesis_id": "b-hypothesis",
+  "prior_level": "experimentally_supported",
+  "new_level": "validated_for_domain",
+  "assessment_target": "validated_for_domain",
+  "assessment_index": 1,
+  "reason_codes": ["validation_satisfied"],
+  "source_evidence_ids": [
+    "calibration.observation.0",
+    "eis.parameter.0",
+    "estimation.point.0.state.0",
+    "transient.event.0.tau_fast_s"
+  ]
+}
+```
+
+The placeholder notation above denotes the deterministic digest assertion,
+not arbitrary fixture text. PB-FX-09 and PB-FX-10 deserialize and reserialize
+the exact same `HypothesisHistoryEntry` type; the history type / fixture
+contradiction count is zero. Earlier declarations containing a different
+history shape (`PhaseBHypothesisHistory`, serialized `assessment_hash`,
+`sequence`, or `assessed_at`) are historical/superseded for this final wire
+contract; the existing internal assessment hash and duplicate rule remain.
+
+### 30.4 PB-FINAL-WIRE-03 — singular schema-4 legacy hypothesis name
+
+The current schema-3 `MechanismAnalysisReport` payload fields, verified in
+`src/results/mechanism.rs`, are:
+
+```text
+schema_version, lineage, analysis_id, records, eis_timescales,
+transient_timescales, comparisons, hypotheses, trends, configuration,
+provenance, warnings, transient_configuration
+```
+
+The final ownership rule is singular:
+
+| concept | schema-3 read field | schema-4 canonical field | meaning |
+|---|---|---|---|
+| preserved legacy payload | `hypotheses` | `legacy_hypotheses` | exact schema-3 `Vec<HypothesisAssessment>` payload; preserved, not reinterpreted |
+| new Phase-B output | absent | `hypothesis_assessments` | `Vec<HypothesisAssessmentRecord>` containing the new definition/current assessment |
+| new Phase-B history | absent | `hypothesis_history` | `Vec<HypothesisHistoryEntry>` |
+
+Reader and writer behavior is exact:
+
+1. Reading schema 3 accepts `hypotheses` and maps it in memory to
+   `legacy_hypotheses`; missing new Phase-B vectors become empty and mean
+   `NotAssessed`.
+2. Reading schema 4 expects `legacy_hypotheses`,
+   `hypothesis_assessments`, and `hypothesis_history`. An input-only serde
+   alias for schema-3 `hypotheses` may be used by the compatibility reader,
+   but both names in one payload are rejected as ambiguous.
+3. Writing schema 4 always emits `legacy_hypotheses`; it never emits the old
+   top-level `hypotheses` name. It writes `hypothesis_assessments` and
+   `hypothesis_history`, including empty vectors when no Phase-B result exists.
+4. The nested `configuration.hypotheses` field is unrelated legacy
+   `ResolvedMechanismConfig` data and remains unchanged; it is not the
+   schema-4 report field.
+
+The schema-4 report wire table is:
+
+| Rust field | wire name | type | required/default | serde representation and validation |
+|---|---|---|---|---|
+| `schema_version` | `schema_version` | `u32` | required; writer `4` | exact integer; readable versions `1..=4` per artifact policy |
+| `lineage` | `lineage` | `ArtifactLineageState` | required in canonical output; legacy reader default remains existing A1 default | existing lineage representation and validation |
+| `analysis_id` | `analysis_id` | `String` | required | nonempty existing report ID rules |
+| `records` | `records` | `Vec<MechanismRecordSummary>` | required; empty allowed | array; existing element validation |
+| `eis_timescales` | `eis_timescales` | `Vec<CharacteristicTimescale>` | required; empty allowed | array; existing element validation |
+| `transient_timescales` | `transient_timescales` | `Vec<CharacteristicTimescale>` | required; empty allowed | array; existing element validation |
+| `comparisons` | `comparisons` | `Vec<TimescaleComparison>` | required; empty allowed | array; existing element validation |
+| legacy payload field | `legacy_hypotheses` | `Vec<HypothesisAssessment>` | required in schema-4 writer; empty allowed | array; read alias `hypotheses` is migration-only; no dual names |
+| `trends` | `trends` | `Vec<MechanismTrendResult>` | required; empty allowed | array; existing element validation |
+| `configuration` | `configuration` | `ResolvedMechanismConfig` | required | existing legacy config shape, including nested `hypotheses` |
+| `provenance` | `provenance` | `Option<AnalysisProvenance>` | required; `null` allowed | nullable object |
+| `warnings` | `warnings` | `Vec<MechanismWarning>` | required; empty allowed | array |
+| `transient_configuration` | `transient_configuration` | `Option<ResolvedTransientConfig>` | required; `null` allowed | nullable object |
+| `hypothesis_assessments` | `hypothesis_assessments` | `Vec<HypothesisAssessmentRecord>` | required; empty allowed | array; complete Phase-B record shape |
+| `hypothesis_history` | `hypothesis_history` | `Vec<HypothesisHistoryEntry>` | required; empty allowed | array; complete final history shape above |
+
+PB-FX-09 and PB-FX-10 canonical schema-4 report examples now use
+`"legacy_hypotheses": []` at the report level. They contain zero report-level
+`"hypotheses"` fields and retain only the nested legacy configuration field.
+The schema-3 prior input alone uses report-level `"hypotheses": []`.
+Schema-3 migration, schema-4 writer naming, and fixture naming are therefore
+singular and contradiction-free.
+
+### 30.5 PB-FINAL-WIRE-04 — transient is `Window`, not `Event`
+
+The canonical transient route is:
+
+```text
+TransientAnalysisReport.events[i].segment.fitted_time_local
+  → start_s = first value, end_s = last value
+  → EvidenceTemporalSupport::Window { start_s, end_s }
+```
+
+This support is emitted only when the vector is nonempty, every value is
+finite, values are strictly increasing in serialized order, and
+`start_s < end_s`. Otherwise the support is `Unknown`. The event's
+`event_index` is used only to construct the adapter EvidenceId family; it is
+not an `EventId`, and the embedded `ExperimentEvent` has no stable event ID.
+The transient adapter therefore cannot satisfy the contracted Event identity
+semantics. It must not emit `Event { event_id: i.to_string(), ... }`.
+
+The single active V1 source map is:
+
+| accepted source | adapter EvidenceId | authoritative temporal field | support |
+|---|---|---|---|
+| `EisFitArtifact` | `eis.parameter.{i}` | none | `Unknown` |
+| `TransientAnalysisReport` | `transient.event.{i}.parameter.{j}`, `.tau_fast_s`, `.tau_slow_s` | `events[i].segment.fitted_time_local` | `Window` when valid; otherwise `Unknown` |
+| `StateEstimationReport` | `estimation.point.{i}.state.{j}` | `estimates[i].timestamp_s` | `Point` when finite; otherwise `Unknown` |
+| `CalibrationObservationSet` | `calibration.observation.{i}` | no comparable V1 clock | `Unknown` |
+
+The PB-FX-09 registry uses the transient `Window { start_s=0.0,
+end_s=10.0 }` row, and PB-FX-10 uses the same row. Every active source table,
+fixture registry, temporal catalog expectation, and route map uses this one
+mapping. Event remains a defined support variant for a future source that
+provides a stable event ID and interval; no current V1 source claims it.
+
+### 30.6 Canonical fixture re-audit, acceptance mapping, and regression
+
+The final PB-FX-09/PB-FX-10 checks are exact:
+
+| acceptance criterion | PB-FX-09 | PB-FX-10 | exact test |
+|---|---|---|---|
+| temporal config deserializes and round-trips semantically | yes | yes | `phase_b_fx09_temporal_config_deserializes`, `phase_b_fx10_temporal_config_deserializes` |
+| history type matches serialized fixture | empty history | one complete eight-field entry | `phase_b_history_entry_roundtrip`, `phase_b_history_entry_matches_fixture` |
+| schema-3 legacy payload migrates | read `hypotheses` → in-memory `legacy_hypotheses` | same prior-input rule | `phase_b_schema3_hypotheses_migrate_to_legacy_hypotheses` |
+| schema-4 writer uses canonical legacy name | `legacy_hypotheses`; no report-level `hypotheses` | `legacy_hypotheses`; no report-level `hypotheses` | `phase_b_schema4_writer_emits_legacy_hypotheses` |
+| transient source route matches actual fields | `Window` | `Window` | `phase_b_transient_temporal_support_matches_source_contract` |
+
+No test is retained for the retired transient Event route or for a
+fixture-only history field. Missing exact test names = 0 and unmapped
+acceptance criteria = 0.
+
+The 18-stage pipeline remains exactly the §29/§28 pipeline: source loading,
+preparation, binding, eligibility, contradiction assessment, all scientific
+gates, validation, promotion, component assessment, history update, schema-4
+assembly, and writing are unchanged. Only the affected config input, history
+wire shape, schema-4 legacy field name, and transient source-support row are
+updated. The production API table remains complete; no A1 API is changed.
+
+Previously passed Phase-B areas remain PASS: accepted source set;
+`ModelAnalysisReport` exclusion; direct `EvidenceBundle` retirement;
+canonical evidence-state model; Bound structural-only; eligible gate input;
+eligibility API; temporal mode and temporal-before-contradiction ordering;
+role/stage/gate; amplitude; repeatability; identifiability; validation;
+critical contradictions; 4×4 component matrix; PB-FX-09; PB-FX-10; ArtifactId
+policy; production API table; 18-stage pipeline; promotion; components;
+history algorithm; traceability; CLI; source compatibility; and frozen A1
+compatibility.
+
+### 30.7 Supersession audit and final self-audit
+
+The required terminology has one active interpretation:
+
+| occurrence | classification | controlling rule |
+|---|---|---|
+| `TemporalJoinConfig` declarations before §30 | SUPERSEDED where their field set differs | §30.2 eight-field declaration is sole active type |
+| `window_overlap_rule`, `event_identity_rule`, `clock_mismatch_behavior`, `scope_mismatch_behavior` in PB-FX-09/10 | ACTIVE NORMATIVE | required fields and exact enum values in §30.2 |
+| older temporal policy names | SUPERSEDED or DESCRIPTIVE | no second config owner or wire shape |
+| `HypothesisHistoryEntry` declarations before §30 | SUPERSEDED where their field set differs | §30.3 eight-field declaration is sole active type |
+| `history_id` and `source_evidence_ids` | ACTIVE NORMATIVE | deterministic identity and consumed-evidence provenance in §30.3 |
+| schema-3 report-level `hypotheses` | MIGRATION-ONLY | accepted on schema-3 read and mapped to `legacy_hypotheses` |
+| schema-4 report-level `legacy_hypotheses` | ACTIVE NORMATIVE | canonical writer field and canonical fixture field |
+| nested `configuration.hypotheses` | ACTIVE legacy field | not the report-level migration field |
+| `EvidenceTemporalSupport::Window` for transient | ACTIVE NORMATIVE | derived from fitted time interval |
+| `EvidenceTemporalSupport::Event` for transient | SUPERSEDED / unsupported V1 route | no stable event identity in the actual source |
+| generic `Event` support variant | ACTIVE type, not transient mapping | reserved for a source with the contracted event ID |
+
+Final self-audit:
+
+```text
+Undefined normative types = 0
+Undefined normative owners = 0
+Unspecified Phase B algorithms = 0
+Unspecified scientific thresholds/units = 0
+Unspecified compatibility decisions = 0
+Normative contradictions = 0
+Fixture-to-real-schema contradictions = 0
+Fixture-to-source-route contradictions = 0
+Fixture-to-wire-contract contradictions = 0
+Incomplete normative positive fixtures = 0
+Unmapped active normative types = 0
+Pipeline stages without exact API = 0
+Serialized active types without exact wire shape = 0
+Competing active production-order definitions = 0
+Unmapped acceptance criteria = 0
+Missing exact test names = 0
+Frozen A1 semantic/API changes required = no
+Implementation invention still required = no
+Production Rust modified = NONE
+Tests modified = NONE
+Fixtures modified = NONE
+Main unchanged = YES
+Phase B implementation branch unchanged = YES
+```
+
+Could two competent implementers differ about which fields
+`TemporalJoinConfig` contains? **NO.** Could they differ about whether PB-FX
+temporal config deserializes? **NO.** Could they differ about whether
+`HypothesisHistoryEntry` contains `history_id` or `source_evidence_ids`?
+**NO.** Could they differ about whether the schema-4 writer emits
+`hypotheses` or `legacy_hypotheses`? **NO.** Could they differ about whether
+transient support is `Event` or `Window`? **NO.**
+
+READY_FOR_PHASE_B_FINAL_WIRE_CONTRACT_REREVIEW = yes
