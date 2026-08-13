@@ -6155,3 +6155,316 @@ gate input, refilter generic eligibility, or modify any previously passed
 scientific, wire, compatibility, fixture, or A1 contract area.
 
 READY_FOR_PHASE_B_PIPELINE_REREVIEW = yes
+
+## 29. Phase B Contract Remediation XI — final source-route compatibility
+
+### 29.1 Authority and finding verification
+
+This section is the final and sole active Phase B V1 source-route contract. It
+supersedes every earlier Phase-B statement in §§20--28, and every earlier
+source-route, temporal-source, CLI, fixture, test, API-table, and readiness
+statement, **only** where this section addresses the two source-route
+contradictions resolved here. Earlier occurrences that differ are historical,
+descriptive, future/non-V1, or superseded as classified by §29.9. Frozen A1
+behavior, serialized meaning, semantic hashes, legacy mechanism behavior,
+`main`, and `codex/mhi-v1-b-mechanism-evidence-integration` remain unchanged.
+This is a documentation-only amendment and authorizes no production Rust,
+test, or fixture change.
+
+The frozen-tree verification is:
+
+| finding | classification | repository evidence | final V1 disposition |
+|---|---|---|---|
+| `EvidenceBundleInputs` fields | CONFIRMED | `src/runners/evidence.rs::EvidenceBundleInputs` contains `calibration_model`, `transient`, `estimation`, `eis_fit`, and `calibration_observations`; it has no model field. | The exact existing A1 fields are frozen. |
+| `assemble_evidence_bundle(...)` | CONFIRMED | It calls the transient, estimation, calibration-observation, and EIS adapters; it does not call `adapt_model_analysis`. | Phase B reuses it unchanged. |
+| `adapt_model_analysis(...)` | CONFIRMED | `src/evidence_adapters.rs` exposes a standalone adapter for `ModelAnalysisReport`. | It remains available but is outside the Phase B V1 production path. |
+| `ModelAnalysisReport` artifact contract | CONFIRMED | `src/results/model.rs` defines the report, and `ArtifactKind::ModelAnalysis` is readable as a public artifact type. | Public readability does not make it a Phase B V1 source. |
+| `EvidenceBundle` artifact status | CONFIRMED | `EvidenceBundle` is returned by `assemble_evidence_bundle(...)` and is not a `VersionedArtifact`; it has no public artifact envelope/reader contract. | It is internal assembled evidence only, never an external Phase B V1 input. |
+
+The final compatibility rule is therefore: Phase B V1 adds no model route and
+no direct-bundle route. It loads only source artifacts already represented by
+the frozen A1 assembly boundary, then creates one in-memory `EvidenceBundle`.
+
+### 29.2 Authoritative ModelAnalysisReport policy
+
+`ModelAnalysisReport` is **NOT** a Phase B V1 production source artifact.
+`adapt_model_analysis(...)` may remain in `src/evidence_adapters.rs` for
+future additive work, but it is not called by Phase B V1 source loading,
+preparation, or any production pipeline stage. Phase B V1 MUST NOT:
+
+1. add a model field to frozen `EvidenceBundleInputs`;
+2. change `assemble_evidence_bundle(...)` to consume model reports;
+3. create a Phase-B-private model evidence path that bypasses A1 assembly; or
+4. fabricate model evidence, timestamps, equilibrium classifications, or
+   `EvidenceId`s into the bundle.
+
+Model evidence, model-derived temporal metadata, model-source fixture rows, and
+model-source acceptance criteria are **OUT OF SCOPE FOR PHASE B V1**. A future
+phase may define an additive versioned contract, but that future possibility is
+not an active V1 requirement.
+
+### 29.3 Authoritative direct EvidenceBundle policy
+
+Phase B V1 does **NOT** accept a standalone `EvidenceBundle` file, path,
+artifact ID, or public reference as CLI or production input. `EvidenceBundle`
+exists only as the in-memory output of the canonical source preparation path:
+
+```text
+CLI source-artifact references
+  → public VersionedArtifact readers
+  → loaded EvidenceBundleInputs source objects
+  → PhaseBEvidencePreparationInputs
+  → frozen assemble_evidence_bundle(...)
+  → in-memory EvidenceBundle
+```
+
+`PhaseBEvidencePreparationInputs` contains only the loaded source objects (or
+their source-object container) needed by the frozen A1 assembly. It contains
+no `EvidenceBundle`, `PathBuf` to a bundle, direct bundle artifact ID, bundle
+reader result, or direct-bundle mode. A bundle received from a previous
+preparation invocation is not a valid preparation input; preparation begins
+with source artifacts and creates the bundle itself.
+
+The `--evidence-artifact` flag and every spelling of direct-bundle mode are
+**RETIRED FROM PHASE B V1**. They are not aliases and are not accepted by the
+active Phase B CLI. The active CLI has only the source-artifact references in
+§29.4. Any stale earlier table that lists `--evidence-artifact` as required,
+optional, or mutually exclusive is SUPERSEDED and is not an implementation
+requirement.
+
+### 29.4 Phase B V1 accepted production source artifacts
+
+The following is the sole canonical source table. “Accepted” means accepted as
+an external Phase B V1 source artifact and loaded into the corresponding
+frozen-A1 input field. The `calibration_model` row is included to distinguish
+an existing A1 lineage/context field from an evidence-producing source.
+
+| Source artifact type | Accepted in Phase B V1? | Frozen A1 `EvidenceBundleInputs` field | A1 adapter | Public reader | Temporal capability | Used by PB-FX-09? | Used by PB-FX-10? | Notes |
+|---|---|---|---|---|---|---:|---:|---|
+| `EisFitArtifact` / `eis_fit` | YES | `eis_fit` | `adapt_eis_fit` | `read_artifact::<EisFitArtifact>` | `Unknown`; no lawful timestamp/clock field | YES | YES | Records use `eis.parameter.{index}`; pair covariance comes only from the frozen labeled EIS covariance path. |
+| `TransientAnalysisReport` / `transient_analysis` | YES | `transient` | `adapt_transient_analysis` | `read_artifact::<TransientAnalysisReport>` | `Window` only from the selected event’s finite, ordered `segment.fitted_time_local`; otherwise `Unknown` | YES | YES | Records include selected fit parameters and finite `tau_fast_s`/`tau_slow_s` derived fields. |
+| `StateEstimationReport` / `state_estimation` | YES | `estimation` | `adapt_state_estimation` | `read_artifact::<StateEstimationReport>` | `Point` from finite `estimates[index].timestamp_s`; otherwise `Unknown`; equilibrium classification only from producer `equilibrium_assessment` | NO | YES | Records use `estimation.point.{point}.state.{state}`. |
+| `CalibrationObservationSet` / `calibration_observations` | YES | `calibration_observations` | `try_adapt_calibration_observations` | `read_artifact::<CalibrationObservationSet>` | `Point` is not lawful for V1 because `timestamp` has no declared comparable clock; use `Unknown` | NO | YES | Records use `calibration.observation.{index}` and retain producer observation scope. |
+| `StoredCalibrationModel` / `calibration_model` | NO as an evidence source | `calibration_model` (context/lineage only) | none | Public reader may load it for existing computational context | no Phase B evidence temporal support | NO | NO | Frozen A1 catalogs lineage context but does not adapt it into an `EvidenceRecord`. |
+| `ModelAnalysisReport` / `ism_model_analysis` | NO | NONE | `adapt_model_analysis` exists but is not wired into this field or assembly | Public reader may read the artifact outside Phase B | NONE for Phase B V1 | NO | NO | Explicitly out of V1 production scope; no model fixture or model EvidenceId is legal. |
+| `EvidenceBundle` | NO as an external source | NONE | none | no `VersionedArtifact` reader | NONE as an input | NO | NO | Internal output of A1 assembly only; no standalone bundle grammar. |
+
+The accepted source set is therefore exactly `eis_fit`, `transient`,
+`state_estimation`, and `calibration_observations`. Every accepted source has
+one real frozen-A1 field, one real adapter, one public reader, and one
+adapter-generated EvidenceId family. No accepted source is selected by path,
+position, file timestamp, or fixture-supplied identity.
+
+The active Phase B CLI source flags are exactly:
+
+| flag | loaded type | A1 field | status |
+|---|---|---|---|
+| `--eis-artifact PATH` | `EisFitArtifact` | `eis_fit` | accepted |
+| `--transient-artifact PATH` | `TransientAnalysisReport` | `transient` | accepted |
+| `--estimation-artifact PATH` | `StateEstimationReport` | `estimation` | optional accepted source |
+| `--calibration-observations-artifact PATH` | `CalibrationObservationSet` | `calibration_observations` | optional accepted source |
+| `--evidence-artifact PATH` | `EvidenceBundle` | none | retired and rejected; never read |
+| `--model-analysis PATH` / `--model-artifact PATH` | `ModelAnalysisReport` | none | out of scope and rejected for Phase B V1 |
+
+The Phase B configuration flag and legacy mechanism flags retain the ownership
+rules already frozen in §28; this table changes only the source-route details.
+
+### 29.5 Canonical temporal source map
+
+The active V1 temporal map uses only the accepted source set above:
+
+| source artifact | adapter-generated EvidenceId | authoritative time field | classification/equilibrium field | temporal support | fallback |
+|---|---|---|---|---|---|
+| `EisFitArtifact` | `eis.parameter.{i}` | none | none | `Unknown` | `Unknown`; EIS cannot satisfy a required temporal join |
+| `TransientAnalysisReport` | `transient.event.{i}.parameter.{j}`, `transient.event.{i}.tau_fast_s`, or `transient.event.{i}.tau_slow_s` | selected event `segment.fitted_time_local` | no producer equilibrium classification in this artifact | `Window` only when values are finite, ordered, and nonempty | `Unknown`; never infer a clock or equilibrium state |
+| `StateEstimationReport` | `estimation.point.{i}.state.{j}` | `estimates[i].timestamp_s` | `estimates[i].equilibrium_assessment.classification` when present | `Point` only for a finite timestamp; clock is the producer timestamp basis | `Unknown` time; unavailable classification remains unavailable |
+| `CalibrationObservationSet` | `calibration.observation.{i}` | `observations[i].timestamp` is not a comparable V1 clock | none | `Unknown` | `Unknown`; no fabricated point support |
+
+No row for `ModelAnalysisReport` is active. No model timestamp, model
+EvidenceId, model temporal support, or model equilibrium field participates in
+Phase B V1. EIS remains `Unknown` exactly because no lawful timestamp exists.
+
+### 29.6 Canonical stage 3 and unchanged 18-stage pipeline
+
+The sole active 18-stage pipeline remains the §28 pipeline, with its source
+details replaced by this section:
+
+```text
+1.  parse CLI
+2.  load MechanismEvidenceConfig
+3.  load ONLY accepted Phase B V1 versioned source artifacts through public readers
+4.  construct PhaseBEvidencePreparationInputs from those loaded source objects
+5.  prepare_phase_b_evidence
+      → PhaseBEvidencePreparation { bundle, temporal_metadata }
+6.  bind_hypothesis_evidence
+7.  evaluate_hypothesis_evidence_eligibility
+8.  evaluate_direct_contradictions
+9.  timescale
+10. amplitude
+11. repeatability
+12. identifiability
+13. validation
+14. assess_hypothesis
+15. assess_components
+16. update_hypothesis_history
+17. assemble_phase_b_mechanism_report
+18. serialize/write
+```
+
+Stage 3 loads only `EisFitArtifact`, `TransientAnalysisReport`,
+`StateEstimationReport`, and `CalibrationObservationSet`, subject to the
+optional-source rules in §29.4. It never loads `EvidenceBundle` or
+`ModelAnalysisReport`. Stages 4 and 5 receive the actual loaded
+`EvidenceBundleInputs` source objects and call/reuse frozen
+`assemble_evidence_bundle(...)` unchanged. All stages 6--18 and their exact
+APIs remain as specified in §28, except that any stale source-route wording is
+classified by §29.9.
+
+The affected production API rows are therefore:
+
+| Stage | Exact active API contract |
+|---:|---|
+| 3 | `load_phase_b_source_artifacts(&PhaseBSourceArtifactRefs)` reads only the four accepted public artifact types and returns loaded source objects suitable for frozen `EvidenceBundleInputs`; direct bundle and model routes are rejected. |
+| 4 | `construct_phase_b_evidence_preparation_inputs(EvidenceBundleInputs)` constructs `PhaseBEvidencePreparationInputs` containing source objects only; it does not accept a bundle. |
+| 5 | `prepare_phase_b_evidence(PhaseBEvidencePreparationInputs)` invokes unchanged A1 assembly and returns the in-memory `EvidenceBundle` plus Phase-B temporal metadata derived only from accepted source fields. |
+
+The other fifteen stages are unchanged. Thus the canonical stage count is 18,
+the stage/API mapping is complete, and there is no competing production order.
+
+### 29.7 PB-FX-09 and PB-FX-10 source regression
+
+PB-FX-09 uses exactly two accepted source artifacts:
+
+```text
+EisFitArtifact → adapt_eis_fit → eis.parameter.0
+TransientAnalysisReport → adapt_transient_analysis → transient.event.0.tau_fast_s
+```
+
+PB-FX-10 uses exactly four accepted source artifacts:
+
+```text
+EisFitArtifact → adapt_eis_fit → eis.parameter.0
+TransientAnalysisReport → adapt_transient_analysis → transient.event.0.tau_fast_s
+CalibrationObservationSet → try_adapt_calibration_observations → calibration.observation.0
+StateEstimationReport → adapt_state_estimation → estimation.point.0.state.0
+```
+
+PB-FX-09 contains zero `ModelAnalysisReport` fixtures and zero standalone
+`EvidenceBundle` inputs. PB-FX-10 contains zero `ModelAnalysisReport` fixtures
+and zero standalone `EvidenceBundle` inputs. The PB-FX-10 validation rows are
+the calibration-observation and state-estimation rows above, with their two
+real source artifact IDs and two known acquisition families. The earlier
+`b-validation-model` requirement, `model.point.0.component.0` role, and
+`model_analysis_e2e_2.json` fixture are **SUPERSEDED and retired from Phase B
+V1**; they are not replaced by a model-shaped placeholder.
+
+Every PB-FX-09/PB-FX-10 EvidenceId is generated by the named adapter during
+the actual frozen A1 assembly. Fixture authors provide complete real
+versioned source artifacts and producer lineage only; they do not provide an
+EvidenceBundle, EvidenceId, temporal metadata, direction, strength, role, or
+model evidence record. Fixture-to-real-schema contradictions and
+fixture-to-source-route contradictions are both zero.
+
+### 29.8 Test and acceptance-contract correction
+
+The mandatory Phase B V1 test plan contains no model-source preparation,
+model-source temporal metadata, model evidence assembly, standalone bundle
+reading, or direct-bundle CLI support. The exact former test name
+`phase_b_point_temporal_join_uses_estimation_or_model_source` is **RETIRED
+FROM PHASE B V1** because its model alternative is unsupported. Its supported
+replacement is `phase_b_point_temporal_join_uses_estimation_source`, which
+tests the same point-join behavior using `StateEstimationReport` only.
+
+The retained canonical positive tests are:
+
+```text
+phase_b_e2e_experimentally_supported_from_sources
+phase_b_e2e_validated_for_domain_from_sources
+phase_b_eis_temporal_support_is_unknown
+phase_b_point_temporal_join_uses_estimation_source
+phase_b_amplitude_unit_threshold_and_direction
+phase_b_repeatability_uses_sample_sd_and_independent_families
+phase_b_schema3_to_schema4_preserves_legacy_hypotheses
+phase_b_validation_counts_only_explicit_roles
+```
+
+Their source fixtures are limited to the accepted table in §29.4. No exact
+mandatory test name remains mapped to a model source or direct bundle. Missing
+exact test names = 0 and unmapped active acceptance criteria = 0.
+
+### 29.9 Supersession audit and compatibility decision
+
+The complete active-plan audit classifies all occurrences of the required
+terms as follows:
+
+| term/occurrence | classification after §29 | rule |
+|---|---|---|
+| `ModelAnalysisReport` in A1 covariance/schema inventories | DESCRIPTIVE or FUTURE/NON-V1 | The artifact remains a repository type, but is not a Phase B V1 source. |
+| `ModelAnalysisReport` or `adapt_model_analysis` in prior Phase-B source, temporal, fixture, CLI, or acceptance text | SUPERSEDED | §29.2 and §29.4 control; active V1 count is zero. |
+| `adapt_model_analysis` as a standalone repository adapter | OUT OF SCOPE / FUTURE | It remains callable only outside the Phase B V1 production path. |
+| `model source`, `model evidence`, `model-derived`, `model point`, or `model temporal` in retained explanatory text | DESCRIPTIVE or OUT OF SCOPE / FUTURE | No retained occurrence is an active V1 source requirement. |
+| `direct-bundle`, `direct bundle`, `EvidenceBundle input`, or `--evidence-artifact` in older Phase-B text | SUPERSEDED | Standalone/direct bundle input is retired and unsupported. |
+| `EvidenceBundle` as the output of `assemble_evidence_bundle` or preparation | ACTIVE V1 INTERNAL OUTPUT | It is never an external source artifact. |
+
+The authoritative compatibility decision is:
+
+```text
+PHASE B V1 SOURCE COMPATIBILITY DECISION
+1. ModelAnalysisReport is NOT a Phase B V1 production evidence source.
+2. adapt_model_analysis may remain in the repository but is outside the
+   Phase B V1 production path.
+3. Frozen EvidenceBundleInputs and assemble_evidence_bundle are not expanded
+   for model evidence in Phase B V1.
+4. Standalone/direct EvidenceBundle input is RETIRED and unsupported.
+5. EvidenceBundle exists only as the in-memory result of canonical source
+   assembly/preparation.
+6. Phase B V1 fixtures, CLI, tests, temporal mappings, and acceptance criteria
+   must use only the frozen-A1-supported source set.
+```
+
+Could two competent implementers differ about whether `ModelAnalysisReport` is
+supported? **NO.** Could they differ about whether `adapt_model_analysis`
+belongs in the Phase B V1 production route? **NO.** Could they differ about
+whether `EvidenceBundleInputs` gains a model field? **NO.** Could they differ
+about whether Phase B accepts a direct `EvidenceBundle` input? **NO.** Could
+they differ about what stage 3 loads, how `EvidenceBundle` is created, or which
+source types PB-FX-09/PB-FX-10 use? **NO** for every item.
+
+### 29.10 Final remediation self-audit
+
+```text
+Undefined normative types = 0
+Undefined normative owners = 0
+Unspecified Phase B algorithms = 0
+Unspecified scientific thresholds/units = 0
+Unspecified compatibility decisions = 0
+Normative contradictions = 0
+Fixture-to-real-schema contradictions = 0
+Fixture-to-source-route contradictions = 0
+Incomplete normative positive fixtures = 0
+Unmapped active normative types = 0
+Pipeline stages without exact API = 0
+Serialized active types without exact wire shape = 0
+Competing active production-order definitions = 0
+Scientific gate APIs consuming Bound after eligibility = 0
+ACTIVE V1 model production source references = 0
+ACTIVE V1 direct EvidenceBundle source references = 0
+Model temporal source references remaining = 0
+Unmapped acceptance criteria = 0
+Missing exact test names = 0
+Frozen A1 semantic/API changes required = no
+Implementation invention still required = no
+Production Rust modified = NONE
+Tests modified = NONE
+Fixtures modified = NONE
+Main unchanged = YES
+Phase B implementation branch unchanged = YES
+```
+
+The previously passed Phase B areas listed in §28.9 remain PASS without
+redesign, including the evidence-state model, eligibility ordering, temporal
+support/serde, contradiction eligibility, all scientific gates, validation,
+promotion, components, history, report assembly, traceability, wire formats,
+CLI consistency, and frozen A1 evidence semantics.
+
+READY_FOR_PHASE_B_SOURCE_COMPATIBILITY_REREVIEW = yes
