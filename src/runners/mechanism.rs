@@ -24,10 +24,11 @@ pub fn compare_phase_b(
     transient_path: &Path,
     estimation_path: Option<&Path>,
     calibration_observations_path: Option<&Path>,
+    prior_mechanism_path: Option<&Path>,
     output_path: Option<&Path>,
 ) -> Result<(), RunnerError> {
-    let config: crate::mechanism::config::MechanismEvidenceConfig =
-        toml::from_str(&fs::read_to_string(config_path)?)?;
+    let config = crate::mechanism::config::load_mechanism_evidence_config(config_path)
+        .map_err(|error| RunnerError::Message(error.to_string()))?;
     let eis: EisFitArtifact = crate::domain::read_artifact(eis_path)?;
     let transient: crate::results::TransientAnalysisReport =
         crate::domain::read_artifact(transient_path)?;
@@ -37,13 +38,16 @@ pub fn compare_phase_b(
     let calibration_observations = calibration_observations_path
         .map(crate::domain::read_artifact)
         .transpose()?;
+    let prior_report: Option<MechanismAnalysisReport> = prior_mechanism_path
+        .map(crate::domain::read_artifact)
+        .transpose()?;
     let preparation = crate::mechanism::preparation::prepare_phase_b_evidence(
         crate::mechanism::preparation::PhaseBEvidencePreparationInputs {
             evidence_inputs: crate::runners::evidence::EvidenceBundleInputs {
                 eis_fit: Some(eis.clone()),
                 transient: Some(transient.clone()),
-                estimation,
-                calibration_observations,
+                estimation: estimation.clone(),
+                calibration_observations: calibration_observations.clone(),
                 calibration_model: None,
             },
         },
@@ -180,21 +184,31 @@ pub fn compare_phase_b(
         let mut components = crate::mechanism::promotion::assess_components(
             hypothesis,
             &assessment,
-            &std::collections::BTreeMap::new(),
+            &prior_component_statuses(prior_report.as_ref(), &assessment.hypothesis_id),
         )
         .map_err(|e| RunnerError::Message(e.to_string()))?;
         for component in &mut components {
             component.evidence_ids = ids.clone();
         }
         assessment.component_assessments = components.clone();
-        history = crate::mechanism::history::update_hypothesis_history(
-            &history,
-            &assessment,
-            &gates,
-            &components,
-            &ids,
-        )
-        .map_err(|e| RunnerError::Message(e.to_string()))?;
+        let previous_history = prior_report
+            .as_ref()
+            .map(|report| report.hypothesis_history.as_slice())
+            .unwrap_or(&history);
+        history = if prior_report.is_none() {
+            // A first-run report records the current assessment but does not
+            // fabricate a transition from an invented prior level.
+            Vec::new()
+        } else {
+            crate::mechanism::history::update_hypothesis_history(
+                previous_history,
+                &assessment,
+                &gates,
+                &components,
+                &ids,
+            )
+            .map_err(|e| RunnerError::Message(e.to_string()))?
+        };
         assessment.history = history
             .iter()
             .filter(|x| x.hypothesis_id == assessment.hypothesis_id)
@@ -205,6 +219,28 @@ pub fn compare_phase_b(
             current: assessment,
         });
     }
+    let report = assemble_phase_b_mechanism_report(
+        &eis,
+        &transient,
+        estimation.as_ref(),
+        calibration_observations.as_ref(),
+        phase_assessments,
+        history,
+    );
+    export_report(workspace, output_path, &report)
+}
+
+/// Stage 17: the sole Phase-B report assembler.  Keeping assembly here makes
+/// lineage, schema-4 fields, and retained source dependencies deterministic
+/// rather than an ad-hoc runner literal.
+pub fn assemble_phase_b_mechanism_report(
+    eis: &EisFitArtifact,
+    transient: &crate::results::TransientAnalysisReport,
+    estimation: Option<&crate::results::StateEstimationReport>,
+    calibration_observations: Option<&crate::results::CalibrationObservationSet>,
+    hypothesis_assessments: Vec<crate::results::HypothesisAssessmentRecord>,
+    hypothesis_history: Vec<crate::mechanism::history::HypothesisHistoryEntry>,
+) -> MechanismAnalysisReport {
     let mut report = MechanismAnalysisReport {
         schema_version: 4,
         lineage: crate::domain::current_unknown_lineage(4),
@@ -219,15 +255,39 @@ pub fn compare_phase_b(
         provenance: Some(eis.provenance.clone()),
         warnings: Vec::new(),
         transient_configuration: Some(transient.configuration.clone()),
-        hypothesis_assessments: phase_assessments,
-        hypothesis_history: history,
+        hypothesis_assessments,
+        hypothesis_history,
     };
-    report.lineage = mechanism_lineage(
-        &report,
-        "mechanism-analysis-phase-b-v1",
-        [&eis.lineage, &transient.lineage],
-    );
-    export_report(workspace, output_path, &report)
+    let mut sources = vec![&eis.lineage, &transient.lineage];
+    if let Some(estimation) = estimation {
+        sources.push(&estimation.lineage);
+    }
+    if let Some(calibration_observations) = calibration_observations {
+        sources.push(&calibration_observations.lineage);
+    }
+    report.lineage = mechanism_lineage(&report, "mechanism-analysis-phase-b-v1", sources);
+    report
+}
+
+fn prior_component_statuses(
+    prior: Option<&MechanismAnalysisReport>,
+    hypothesis_id: &str,
+) -> BTreeMap<String, crate::model::InterpretationStatus> {
+    prior
+        .and_then(|report| {
+            report
+                .hypothesis_assessments
+                .iter()
+                .find(|row| row.current.hypothesis_id == hypothesis_id)
+        })
+        .map(|row| {
+            row.current
+                .component_assessments
+                .iter()
+                .map(|component| (component.component_id.clone(), component.resulting_status))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub fn compare(

@@ -7,7 +7,7 @@ use crate::results::{
 use crate::{
     evidence::{
         EvidenceAvailability, EvidenceBundle, EvidenceDirection, EvidenceId, EvidenceTarget,
-        EvidenceValidity,
+        EvidenceUnitDimension, EvidenceValidity, validate_ucum_unit,
     },
     mechanism::{
         config::*,
@@ -253,6 +253,9 @@ pub fn evaluate_hypothesis_evidence_eligibility(
             if record.availability != EvidenceAvailability::Available || !validity_matches {
                 continue;
             }
+            if !quantity_matches_requirement(record, rule) {
+                continue;
+            }
             if let Some(a) = &temporal {
                 match a.outcome {
                     TemporalJoinOutcome::Ineligible => {
@@ -266,11 +269,19 @@ pub fn evaluate_hypothesis_evidence_eligibility(
                     TemporalJoinOutcome::Eligible => {}
                 }
             }
-            match record.direction {
-                EvidenceDirection::Contradicts => {
+            match (rule.expected_direction, record.direction) {
+                (_, EvidenceDirection::Contradicts) => {
                     result.contradictory_evidence_ids.push(id.clone())
                 }
-                _ => result.support_evidence_ids.push(id.clone()),
+                (RequiredEvidenceDirection::Contradicts, _) => {}
+                (
+                    RequiredEvidenceDirection::CandidatePresence,
+                    EvidenceDirection::Supports | EvidenceDirection::Neutral,
+                )
+                | (RequiredEvidenceDirection::Supports, EvidenceDirection::Supports) => {
+                    result.support_evidence_ids.push(id.clone())
+                }
+                _ => {}
             }
         }
         result.support_evidence_ids.sort();
@@ -282,6 +293,24 @@ pub fn evaluate_hypothesis_evidence_eligibility(
         hypothesis_id: h.hypothesis_id.clone(),
         requirements: out,
     })
+}
+
+fn quantity_matches_requirement(
+    record: &crate::evidence::EvidenceRecord,
+    requirement: &EvidenceRequirementBinding,
+) -> bool {
+    let Some(quantity) = &record.quantity else {
+        return false;
+    };
+    let expected_dimension = match requirement.quantity_semantic {
+        PhaseBQuantitySemantic::TimeConstant => EvidenceUnitDimension::Time,
+        PhaseBQuantitySemantic::Potential => EvidenceUnitDimension::Potential,
+        PhaseBQuantitySemantic::Dimensionless => EvidenceUnitDimension::Dimensionless,
+        PhaseBQuantitySemantic::Other => return false,
+    };
+    validate_ucum_unit(&quantity.unit).ok() == Some(expected_dimension)
+        && validate_ucum_unit(&requirement.required_unit).ok() == Some(expected_dimension)
+        && quantity.value.is_finite()
 }
 pub fn evaluate_direct_contradictions(
     h: &MechanismHypothesisDefinition,

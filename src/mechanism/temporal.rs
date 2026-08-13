@@ -185,6 +185,13 @@ pub fn evaluate_temporal_join(
     if !config.point_tolerance_s.is_finite() || config.point_tolerance_s < 0.0 {
         return Err(TemporalJoinError::InvalidConfig);
     };
+    if !config.minimum_classified_fraction.is_finite()
+        || !config.minimum_equilibrium_fraction.is_finite()
+        || !(0.0..=1.0).contains(&config.minimum_classified_fraction)
+        || !(0.0..=1.0).contains(&config.minimum_equilibrium_fraction)
+    {
+        return Err(TemporalJoinError::InvalidConfig);
+    }
     let left = bundle
         .records
         .iter()
@@ -297,7 +304,41 @@ pub fn evaluate_temporal_join(
             }
             TemporalJoinMode::WindowWindow => TemporalJoinReasonCode::WindowNoPositiveOverlap,
             TemporalJoinMode::EventEvent => TemporalJoinReasonCode::EventIdentityMismatch,
-        })
-    };
+        });
+        return Ok(a);
+    }
+    // Classification is producer-owned metadata.  The policy consumes the
+    // configured fractions without manufacturing a steady-state conclusion
+    // when the source cannot provide one.
+    a.classified_fraction = combine_fraction(
+        l.classification.classified_fraction,
+        r.classification.classified_fraction,
+    );
+    a.equilibrium_fraction = combine_fraction(
+        l.classification.equilibrium_fraction,
+        r.classification.equilibrium_fraction,
+    );
+    a.steady_state_fraction = combine_fraction(
+        l.classification.steady_state_fraction,
+        r.classification.steady_state_fraction,
+    );
+    if a.classified_fraction
+        .is_some_and(|value| value < config.minimum_classified_fraction)
+    {
+        a.outcome = TemporalJoinOutcome::Ineligible;
+        a.reasons
+            .push(TemporalJoinReasonCode::ClassifiedFractionBelowMinimum);
+    }
+    if a.equilibrium_fraction
+        .is_some_and(|value| value < config.minimum_equilibrium_fraction)
+    {
+        a.outcome = TemporalJoinOutcome::Ineligible;
+        a.reasons
+            .push(TemporalJoinReasonCode::EquilibriumFractionBelowMinimum);
+    }
     Ok(a)
+}
+
+fn combine_fraction(left: Option<f64>, right: Option<f64>) -> Option<f64> {
+    left.zip(right).map(|(left, right)| left.min(right))
 }

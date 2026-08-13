@@ -613,10 +613,10 @@ pub struct EisExportFitCommand {
 
 #[derive(Debug, Args)]
 pub struct MechanismCompareCommand {
-    #[arg(long, value_name = "PATH")]
-    pub eis_fit: PathBuf,
-    #[arg(long, value_name = "PATH")]
-    pub transient_results: PathBuf,
+    #[arg(long = "eis-fit-artifact", value_name = "PATH")]
+    pub eis_fit_artifact: PathBuf,
+    #[arg(long = "transient-results-artifact", value_name = "PATH")]
+    pub transient_results_artifact: PathBuf,
     #[arg(long, value_name = "PATH")]
     pub calibration_results: Option<PathBuf>,
     #[arg(long, value_name = "PATH")]
@@ -629,10 +629,12 @@ pub struct MechanismCompareCommand {
     /// general mechanism configuration.
     #[arg(long = "mechanism-evidence-config", value_name = "PATH")]
     pub mechanism_evidence_config: Option<PathBuf>,
-    #[arg(long = "state-estimation", value_name = "PATH")]
-    pub state_estimation: Option<PathBuf>,
-    #[arg(long = "calibration-observations", value_name = "PATH")]
-    pub calibration_observations: Option<PathBuf>,
+    #[arg(long = "state-estimation-artifact", value_name = "PATH")]
+    pub state_estimation_artifact: Option<PathBuf>,
+    #[arg(long = "calibration-observations-artifact", value_name = "PATH")]
+    pub calibration_observations_artifact: Option<PathBuf>,
+    #[arg(long = "prior-mechanism-artifact", value_name = "PATH")]
+    pub prior_mechanism_artifact: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -779,6 +781,7 @@ pub enum CommandSpec {
         mechanism_evidence_config: Option<PathBuf>,
         state_estimation: Option<PathBuf>,
         calibration_observations: Option<PathBuf>,
+        prior_mechanism_artifact: Option<PathBuf>,
     },
     MechanismTrend {
         manifest: PathBuf,
@@ -1154,15 +1157,16 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
             },
             Command::Mechanism { command } => match command {
                 MechanismCommand::Compare(command) => CommandSpec::MechanismCompare {
-                    eis_fit: command.eis_fit,
-                    transient_results: command.transient_results,
+                    eis_fit: command.eis_fit_artifact,
+                    transient_results: command.transient_results_artifact,
                     calibration_results: command.calibration_results,
                     metadata: command.metadata,
                     config_path: command.config,
                     output: command.output,
                     mechanism_evidence_config: command.mechanism_evidence_config,
-                    state_estimation: command.state_estimation,
-                    calibration_observations: command.calibration_observations,
+                    state_estimation: command.state_estimation_artifact,
+                    calibration_observations: command.calibration_observations_artifact,
+                    prior_mechanism_artifact: command.prior_mechanism_artifact,
                 },
                 MechanismCommand::Trend(command) => CommandSpec::MechanismTrend {
                     manifest: command.manifest,

@@ -240,6 +240,17 @@ fn validate_value<T: VersionedArtifact>(path: &Path, value: &Value) -> Result<()
             actual: schema,
         });
     }
+    // `hypotheses` is the schema-3 report field.  Schema 4 uses the distinct
+    // `legacy_hypotheses` name; accepting the retired spelling there would
+    // make a malformed current artifact indistinguishable from a migration.
+    if T::ARTIFACT_KIND == ArtifactKind::MechanismAnalysis
+        && schema == T::CURRENT_SCHEMA_VERSION
+        && object.contains_key("hypotheses")
+    {
+        return Err(ArtifactError::Validation {
+            message: "schema-4 mechanism report must use legacy_hypotheses, not hypotheses".into(),
+        });
+    }
     let kind = object.get("artifact_kind").and_then(Value::as_str);
     if schema == T::CURRENT_SCHEMA_VERSION {
         if let Some(actual) = kind {

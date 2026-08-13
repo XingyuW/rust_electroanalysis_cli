@@ -17,8 +17,6 @@ scope_mismatch_behavior = "indeterminate"
 [temporal.mixed_state_policy]
 kind = "require_all_steady"
 allow_quasi_equilibrium = false
-[mixed_state]
-classification_source = "producer_owned_only"
 [identifiability]
 algorithm = "bound_inputs_v1"
 [promotion]

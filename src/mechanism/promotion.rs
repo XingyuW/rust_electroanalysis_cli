@@ -2,11 +2,15 @@ use crate::{
     evidence::EvidenceId,
     mechanism::{
         amplitude::AmplitudeAssessment,
+        amplitude::AmplitudeStatus,
         config::*,
         evaluation::MechanismAssessmentError,
         evidence::{EligibleHypothesisEvidence, RequirementContradictionSummary},
         identifiability::IdentifiabilityAssessment,
+        identifiability::IdentifiabilityAssessmentStatus,
         repeatability::RepeatabilityAssessment,
+        repeatability::RepeatabilityStatus,
+        timescale::TimescaleStatus,
         validation::{ValidationAssessment, ValidationProtocolStatus},
     },
     model::InterpretationStatus,
@@ -71,7 +75,7 @@ pub fn assess_hypothesis(
     c: &MechanismEvidenceConfig,
 ) -> Result<crate::results::PhaseBHypothesisAssessment, MechanismAssessmentError> {
     let mut reasons = vec![];
-    let support = h
+    let support_requirements = h
         .evidence_requirements
         .iter()
         .filter(|binding| {
@@ -86,20 +90,61 @@ pub fn assess_hypothesis(
                 .find(|row| row.requirement_id == binding.requirement_id)
                 .is_some_and(|row| !row.support_evidence_ids.is_empty())
         })
-        .count();
+        .collect::<Vec<_>>();
+    let support = support_requirements.len();
+    let support_satisfied = support_requirements.iter().all(|binding| {
+        e.requirements
+            .iter()
+            .find(|row| row.requirement_id == binding.requirement_id)
+            .is_some_and(|row| !row.support_evidence_ids.is_empty())
+    });
     let contradicted = g
         .contradiction_summaries
         .iter()
         .any(|x| x.strong_critical_count > 0);
+    let timescale_satisfied = h.timescale_gate.as_ref().is_none_or(|gate| {
+        g.timescale_assessments.iter().any(|assessment| {
+            assessment.pair_requirement_id == gate.pair_requirement_id
+                && assessment.status == TimescaleStatus::Satisfied
+        })
+    });
+    let amplitude_satisfied = h.amplitude_gates.iter().all(|gate| {
+        g.amplitude_assessments.iter().any(|assessment| {
+            assessment.predicted_requirement_id == gate.predicted_requirement_id
+                && assessment.observed_requirement_id == gate.observed_requirement_id
+                && assessment.status == AmplitudeStatus::Satisfied
+        })
+    });
+    let repeatability_satisfied = h.repeatability_gates.iter().all(|gate| {
+        g.repeatability_assessments.iter().any(|assessment| {
+            assessment.requirement_ids == gate.requirement_ids
+                && assessment.status == RepeatabilityStatus::Satisfied
+        })
+    });
+    let identifiability_satisfied = h.identifiability_bindings.iter().all(|binding| {
+        binding.gate == RequirementGate::NotApplicable
+            || g.identifiability_assessments.iter().any(|assessment| {
+                assessment.requirement_id == binding.requirement_id
+                    && assessment.status == IdentifiabilityAssessmentStatus::Satisfied
+            })
+    });
     let mut level = if support == 0 {
         HypothesisEvidenceLevel::NotAssessed
-    } else {
+    } else if support_satisfied {
         HypothesisEvidenceLevel::Hypothesized
+    } else {
+        HypothesisEvidenceLevel::NotAssessed
     };
     if contradicted {
         level = HypothesisEvidenceLevel::Contradicted;
         reasons.push(PhaseBHypothesisReasonCode::CriticalContradiction)
-    } else if support >= c.promotion.minimum_independent_support {
+    } else if support >= c.promotion.minimum_independent_support
+        && support_satisfied
+        && timescale_satisfied
+        && amplitude_satisfied
+        && repeatability_satisfied
+        && identifiability_satisfied
+    {
         level = HypothesisEvidenceLevel::ExperimentallySupported
     };
     if matches!(
@@ -110,6 +155,18 @@ pub fn assess_hypothesis(
         level = HypothesisEvidenceLevel::ValidatedForDomain;
         reasons.push(PhaseBHypothesisReasonCode::ValidationSatisfied)
     };
+    if timescale_satisfied && h.timescale_gate.is_some() {
+        reasons.push(PhaseBHypothesisReasonCode::TimescaleSatisfied);
+    }
+    if amplitude_satisfied && !h.amplitude_gates.is_empty() {
+        reasons.push(PhaseBHypothesisReasonCode::AmplitudeSatisfied);
+    }
+    if repeatability_satisfied && !h.repeatability_gates.is_empty() {
+        reasons.push(PhaseBHypothesisReasonCode::RepeatabilitySatisfied);
+    }
+    if identifiability_satisfied && !h.identifiability_bindings.is_empty() {
+        reasons.push(PhaseBHypothesisReasonCode::IdentifiabilitySatisfied);
+    }
     Ok(crate::results::PhaseBHypothesisAssessment {
         hypothesis_id: h.hypothesis_id.clone(),
         evidence_level: level,
@@ -164,9 +221,7 @@ pub fn assess_components(
     Ok(h.target_components
         .iter()
         .map(|id| {
-            let p = *prior
-                .get(id)
-                .unwrap_or(&InterpretationStatus::Phenomenological);
+            let p = *prior.get(id).unwrap_or(&InterpretationStatus::Hypothesized);
             let result = target.filter(|t| rank(*t) > rank(p)).unwrap_or(p);
             ComponentInterpretationAssessment {
                 component_id: id.clone(),

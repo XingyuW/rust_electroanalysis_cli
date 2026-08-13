@@ -57,7 +57,11 @@ pub fn evaluate_amplitude_requirement(
         relative_error: None,
         reasons: vec![],
     };
-    if !g.floor.value.is_finite() || g.floor.value <= 0.0 || !g.maximum_relative_error.is_finite() {
+    if !g.floor.value.is_finite()
+        || g.floor.value <= 0.0
+        || !g.maximum_relative_error.is_finite()
+        || g.maximum_relative_error < 0.0
+    {
         return Err(AmplitudeAssessmentError::InvalidGate);
     };
     let vals = p.zip(o).and_then(|(p, o)| {
@@ -80,18 +84,22 @@ pub fn evaluate_amplitude_requirement(
         out.reasons.push(AmplitudeReasonCode::MissingEvidence);
         return Ok(out);
     };
-    if p.unit != o.unit || p.unit != g.floor.unit {
+    let Some(p) = convert_to_unit(p.value, &p.unit, &g.floor.unit) else {
         out.reasons.push(AmplitudeReasonCode::IncompatibleUnit);
         return Ok(out);
     };
-    let d = o.value - p.value;
-    let denominator = p.value.abs().max(o.value.abs()).max(g.floor.value);
+    let Some(o) = convert_to_unit(o.value, &o.unit, &g.floor.unit) else {
+        out.reasons.push(AmplitudeReasonCode::IncompatibleUnit);
+        return Ok(out);
+    };
+    let d = o - p;
+    let denominator = p.abs().max(o.abs()).max(g.floor.value);
     let r = d / denominator;
     out.relative_error = Some(r.abs());
     let direction = match g.expected_effect {
         ExpectedEffect::Increase => d > 0.,
         ExpectedEffect::Decrease => d < 0.,
-        ExpectedEffect::SameSign => p.value * o.value > 0.,
+        ExpectedEffect::SameSign => p * o > 0.,
     };
     if !direction {
         out.status = AmplitudeStatus::Contradicted;
@@ -103,4 +111,28 @@ pub fn evaluate_amplitude_requirement(
         out.reasons.push(AmplitudeReasonCode::RelativeErrorExceeded)
     };
     Ok(out)
+}
+
+/// Phase B's approved V1 conversion vocabulary.  We intentionally keep this
+/// small rather than treating matching display strings as compatible units.
+fn convert_to_unit(value: f64, from: &str, to: &str) -> Option<f64> {
+    if !value.is_finite()
+        || crate::evidence::validate_ucum_unit(from).is_err()
+        || crate::evidence::validate_ucum_unit(to).is_err()
+    {
+        return None;
+    }
+    let factor = match (from, to) {
+        (a, b) if a == b => 1.0,
+        ("V", "mV") => 1_000.0,
+        ("V", "µV") => 1_000_000.0,
+        ("mV", "V") => 1e-3,
+        ("mV", "µV") => 1_000.0,
+        ("µV", "V") => 1e-6,
+        ("µV", "mV") => 1e-3,
+        // Dimensionless/time values have no prefixed V1 representation.
+        ("1", "dimensionless") | ("dimensionless", "1") => 1.0,
+        _ => return None,
+    };
+    Some(value * factor)
 }

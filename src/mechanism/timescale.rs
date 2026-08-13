@@ -7,7 +7,9 @@ use crate::results::{
     TimescaleSource, TimescaleValidity,
 };
 use crate::{
-    evidence::{EvidenceBundle, EvidenceId},
+    evidence::{
+        EvidenceBundle, EvidenceId, EvidenceIndependence, EvidencePairKey, TimescaleCrossCovariance,
+    },
     mechanism::{
         config::{EvidencePairRequirement, MechanismHypothesisDefinition, TimescaleEvidenceConfig},
         evaluation::MechanismAssessmentError,
@@ -43,8 +45,8 @@ pub fn evaluate_timescale_requirement(
         ));
     }
     let ids = (
-        eligible.0.support_evidence_ids.first(),
-        eligible.1.support_evidence_ids.first(),
+        exactly_one(&eligible.0.support_evidence_ids),
+        exactly_one(&eligible.1.support_evidence_ids),
     );
     let mut out = TimescaleAssessment {
         pair_requirement_id: r.requirement_id.clone(),
@@ -59,22 +61,52 @@ pub fn evaluate_timescale_requirement(
                 .iter()
                 .find(|x| &x.evidence_id == a)?
                 .quantity
-                .as_ref()?
-                .value,
+                .as_ref()?,
             bundle
                 .records
                 .iter()
                 .find(|x| &x.evidence_id == b)?
                 .quantity
-                .as_ref()?
-                .value,
+                .as_ref()?,
         ))
     });
     let Some((a, b)) = values else { return Ok(out) };
-    if a <= 0. || b <= 0. {
+    if a.unit != "s"
+        || b.unit != "s"
+        || !a.value.is_finite()
+        || !b.value.is_finite()
+        || a.value <= 0.
+        || b.value <= 0.
+    {
         return Ok(out);
     };
-    let d = (a.ln() - b.ln()).abs();
+    let pair = EvidencePairKey::canonical(
+        ids.0.expect("checked above").clone(),
+        ids.1.expect("checked above").clone(),
+    )
+    .map_err(|error| MechanismAssessmentError::Invalid(error.to_string()))?;
+    let Some(independence) = bundle.lookup_independence(&pair) else {
+        return Ok(out);
+    };
+    let covariance = match independence.classification {
+        EvidenceIndependence::Independent => Some(0.0),
+        EvidenceIndependence::SameSource | EvidenceIndependence::PartiallyDependent => bundle
+            .lookup_timescale_pair_uncertainty(&pair)
+            .and_then(|entry| covariance_in_log_space(&entry.covariance, a.value, b.value)),
+        EvidenceIndependence::Unknown => None,
+    };
+    // A dependent pair cannot be made independent by omission: a missing or
+    // inapplicable exact covariance leaves this gate unassessed.
+    let Some(covariance) = covariance else {
+        return Ok(out);
+    };
+    let variance = log_variance(a)
+        .zip(log_variance(b))
+        .map(|(left, right)| left + right - 2.0 * covariance);
+    if variance.is_some_and(|value| !value.is_finite() || value < 0.0) {
+        return Ok(out);
+    }
+    let d = (a.value.ln() - b.value.ln()).abs();
     out.log_distance = Some(d);
     let maximum_log_distance = _h
         .timescale_gate
@@ -93,6 +125,48 @@ pub fn evaluate_timescale_requirement(
         TimescaleStatus::Failed
     };
     Ok(out)
+}
+
+fn exactly_one(ids: &[EvidenceId]) -> Option<&EvidenceId> {
+    (ids.len() == 1).then(|| &ids[0])
+}
+
+fn covariance_in_log_space(
+    covariance: &TimescaleCrossCovariance,
+    left: f64,
+    right: f64,
+) -> Option<f64> {
+    match covariance {
+        TimescaleCrossCovariance::LogSpace { covariance_ln_tau } => {
+            covariance_ln_tau.is_finite().then_some(*covariance_ln_tau)
+        }
+        TimescaleCrossCovariance::TauSpace { covariance_tau_s2 } => {
+            (covariance_tau_s2.is_finite() && left > 0.0 && right > 0.0)
+                .then_some(*covariance_tau_s2 / (left * right))
+        }
+    }
+}
+
+fn log_variance(quantity: &crate::evidence::EvidenceQuantity) -> Option<f64> {
+    match quantity.uncertainty.as_ref()? {
+        crate::evidence::EvidenceUncertaintyModel::None => Some(0.0),
+        crate::evidence::EvidenceUncertaintyModel::LogNormal { variance_ln_tau_s } => {
+            (*variance_ln_tau_s >= 0.0 && variance_ln_tau_s.is_finite())
+                .then_some(*variance_ln_tau_s)
+        }
+        crate::evidence::EvidenceUncertaintyModel::DeltaMethodTauVariance { variance_tau_s2 } => {
+            (*variance_tau_s2 >= 0.0 && variance_tau_s2.is_finite() && quantity.value > 0.0)
+                .then_some(*variance_tau_s2 / quantity.value.powi(2))
+        }
+        crate::evidence::EvidenceUncertaintyModel::ExplicitLogInterval {
+            lower_ln_tau_s,
+            upper_ln_tau_s,
+            ..
+        } => (lower_ln_tau_s.is_finite()
+            && upper_ln_tau_s.is_finite()
+            && lower_ln_tau_s <= upper_ln_tau_s)
+            .then_some((upper_ln_tau_s - lower_ln_tau_s).powi(2) / 4.0),
+    }
 }
 
 pub fn extract_eis_timescales(

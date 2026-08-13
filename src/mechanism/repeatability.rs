@@ -1,5 +1,6 @@
 use crate::{
-    evidence::{EvidenceBundle, EvidenceId},
+    domain::ArtifactAcquisitionFamilies,
+    evidence::{EvidenceBundle, EvidenceId, EvidenceIndependence, EvidencePairKey},
     mechanism::{config::*, evidence::EligibleRequirementEvidence},
 };
 use serde::{Deserialize, Serialize};
@@ -33,36 +34,71 @@ pub fn evaluate_repeatability_requirement(
     if !g.maximum_sample_standard_deviation_ln_tau.is_finite() {
         return Err(RepeatabilityAssessmentError::InvalidGate);
     }
-    let mut ids = eligible
+    let mut candidate_ids = eligible
         .iter()
         .flat_map(|r| r.support_evidence_ids.clone())
         .collect::<Vec<_>>();
-    ids.sort();
-    ids.dedup();
-    let values = ids
+    candidate_ids.sort();
+    candidate_ids.dedup();
+    let first_scope = candidate_ids
         .iter()
-        .filter_map(|id| {
+        .find_map(|id| {
             bundle
                 .records
                 .iter()
-                .find(|r| &r.evidence_id == id)?
-                .quantity
-                .as_ref()?
-                .value
-                .is_sign_positive()
-                .then(|| {
-                    bundle
-                        .records
-                        .iter()
-                        .find(|r| &r.evidence_id == id)
-                        .unwrap()
-                        .quantity
-                        .as_ref()
-                        .unwrap()
-                        .value
-                        .ln()
-                })
+                .find(|record| &record.evidence_id == id)
         })
+        .map(|record| record.experiment_scope.clone());
+    let candidates = candidate_ids
+        .iter()
+        .filter_map(|id| {
+            let record = bundle
+                .records
+                .iter()
+                .find(|record| &record.evidence_id == id)?;
+            let quantity = record.quantity.as_ref()?;
+            let families = match &record.source.artifact {
+                crate::evidence::EvidenceArtifactSource::Known { artifact_id, .. } => match &bundle
+                    .lineage_catalog
+                    .artifacts
+                    .get(artifact_id)?
+                    .identity
+                    .acquisition_families
+                {
+                    ArtifactAcquisitionFamilies::Known(families) if !families.is_empty() => {
+                        families
+                            .iter()
+                            .map(|family| family.0.clone())
+                            .collect::<Vec<_>>()
+                    }
+                    _ => return None,
+                },
+                crate::evidence::EvidenceArtifactSource::LegacyUnknown { .. } => return None,
+            };
+            (quantity.unit == "s"
+                && quantity.value.is_finite()
+                && quantity.value > 0.0
+                && first_scope
+                    .as_ref()
+                    .is_some_and(|scope| &record.experiment_scope == scope))
+            .then(|| (id.clone(), quantity.value.ln(), families))
+        })
+        .collect::<Vec<_>>();
+    let mut selected = Vec::new();
+    for size in (2..=candidates.len()).rev() {
+        let mut trial = Vec::new();
+        if choose_independent_subset(&candidates, size, 0, &mut trial, bundle) {
+            selected = trial;
+            break;
+        }
+    }
+    let ids = selected
+        .iter()
+        .map(|(id, _, _)| id.clone())
+        .collect::<Vec<_>>();
+    let values = selected
+        .iter()
+        .map(|(_, value, _)| *value)
         .collect::<Vec<_>>();
     let mut out = RepeatabilityAssessment {
         requirement_ids: g.requirement_ids.clone(),
@@ -83,4 +119,38 @@ pub fn evaluate_repeatability_requirement(
         RepeatabilityStatus::Failed
     };
     Ok(out)
+}
+
+fn choose_independent_subset(
+    candidates: &[(EvidenceId, f64, Vec<String>)],
+    wanted: usize,
+    start: usize,
+    selected: &mut Vec<(EvidenceId, f64, Vec<String>)>,
+    bundle: &EvidenceBundle,
+) -> bool {
+    if selected.len() == wanted {
+        return true;
+    }
+    for index in start..candidates.len() {
+        let candidate = &candidates[index];
+        let family_disjoint = selected
+            .iter()
+            .all(|(_, _, families)| families.iter().all(|family| !candidate.2.contains(family)));
+        let independent = selected.iter().all(|(id, _, _)| {
+            EvidencePairKey::canonical(id.clone(), candidate.0.clone())
+                .ok()
+                .and_then(|pair| bundle.lookup_independence(&pair))
+                .is_some_and(|assessment| {
+                    assessment.classification == EvidenceIndependence::Independent
+                })
+        });
+        if family_disjoint && independent {
+            selected.push(candidate.clone());
+            if choose_independent_subset(candidates, wanted, index + 1, selected, bundle) {
+                return true;
+            }
+            selected.pop();
+        }
+    }
+    false
 }

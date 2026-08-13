@@ -280,6 +280,7 @@ fn run() -> Result<(), ApplicationError> {
             mechanism_evidence_config,
             state_estimation,
             calibration_observations,
+            prior_mechanism_artifact,
         } => {
             workspace_setup.record_last_run(
                 LastRunMode::MechanismCompare,
@@ -296,6 +297,7 @@ fn run() -> Result<(), ApplicationError> {
                     &transient_results,
                     state_estimation.as_deref(),
                     calibration_observations.as_deref(),
+                    prior_mechanism_artifact.as_deref(),
                     output.as_deref(),
                 )?;
             } else {
