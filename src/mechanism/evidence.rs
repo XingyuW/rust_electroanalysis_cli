@@ -14,8 +14,8 @@ use crate::{
         evaluation::MechanismAssessmentError,
         preparation::PhaseBEvidencePreparation,
         temporal::{
-            TemporalJoinAssessment, TemporalJoinOutcome, TemporalJoinRequest,
-            evaluate_temporal_join,
+            evaluate_temporal_join, TemporalJoinAssessment, TemporalJoinOutcome,
+            TemporalJoinRequest,
         },
     },
 };
@@ -217,12 +217,40 @@ pub fn evaluate_hypothesis_evidence_eligibility(
             result.temporal_assessments.push(a.clone())
         };
         for id in &bound.candidate_evidence_ids {
+            let role_authorized = b.role_bindings.iter().any(|binding| {
+                binding.requirement_id == rule.requirement_id
+                    && binding.evidence_id == *id
+                    && matches!(
+                        (rule.stage, binding.role),
+                        (
+                            EvidenceRequirementStage::Support,
+                            MechanismEvidenceRole::Support
+                        ) | (
+                            EvidenceRequirementStage::Validation,
+                            MechanismEvidenceRole::Validation
+                        ) | (
+                            EvidenceRequirementStage::SupportAndValidation,
+                            MechanismEvidenceRole::Support
+                        ) | (
+                            EvidenceRequirementStage::SupportAndValidation,
+                            MechanismEvidenceRole::Validation
+                        )
+                    )
+            });
+            if !role_authorized {
+                continue;
+            }
             let Some(record) = p.bundle.records.iter().find(|x| &x.evidence_id == id) else {
                 continue;
             };
-            if record.availability != EvidenceAvailability::Available
-                || record.validity != EvidenceValidity::Valid
-            {
+            let validity_matches = match rule.validity_requirement {
+                EvidenceValidityRequirement::Valid => record.validity == EvidenceValidity::Valid,
+                EvidenceValidityRequirement::ValidOrNotAssessed => matches!(
+                    record.validity,
+                    EvidenceValidity::Valid | EvidenceValidity::NotAssessed
+                ),
+            };
+            if record.availability != EvidenceAvailability::Available || !validity_matches {
                 continue;
             }
             if let Some(a) = &temporal {

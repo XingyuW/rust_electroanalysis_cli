@@ -71,10 +71,21 @@ pub fn assess_hypothesis(
     c: &MechanismEvidenceConfig,
 ) -> Result<crate::results::PhaseBHypothesisAssessment, MechanismAssessmentError> {
     let mut reasons = vec![];
-    let support = e
-        .requirements
+    let support = h
+        .evidence_requirements
         .iter()
-        .filter(|r| !r.support_evidence_ids.is_empty())
+        .filter(|binding| {
+            matches!(
+                binding.stage,
+                EvidenceRequirementStage::Support | EvidenceRequirementStage::SupportAndValidation
+            )
+        })
+        .filter(|binding| {
+            e.requirements
+                .iter()
+                .find(|row| row.requirement_id == binding.requirement_id)
+                .is_some_and(|row| !row.support_evidence_ids.is_empty())
+        })
         .count();
     let contradicted = g
         .contradiction_summaries

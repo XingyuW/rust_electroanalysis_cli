@@ -8,14 +8,19 @@ use thiserror::Error;
 #[serde(rename_all = "snake_case")]
 pub enum IdentifiabilityAssessmentStatus {
     Satisfied,
-    Failed,
+    NotSatisfied,
     NotAssessed,
+    NotApplicable,
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IdentifiabilityAssessmentReasonCode {
     MissingInput,
-    ThresholdNotMet,
+    ThresholdSatisfied,
+    ThresholdNotSatisfied,
+    UnsupportedMetricInput,
+    NonFiniteInput,
+    NotApplicableByDefinition,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IdentifiabilityAssessment {
@@ -38,8 +43,17 @@ pub fn evaluate_identifiability_binding(
     _ind: &[crate::evidence::EvidenceIndependenceAssessment],
     _c: &IdentifiabilityGateConfig,
 ) -> Result<IdentifiabilityAssessment, IdentifiabilityAssessmentError> {
-    if !b.threshold.is_finite() {
+    if !b.threshold.is_finite() || b.threshold <= 0.0 {
         return Err(IdentifiabilityAssessmentError::InvalidThreshold);
+    }
+    if b.gate == RequirementGate::NotApplicable {
+        return Ok(IdentifiabilityAssessment {
+            requirement_id: b.requirement_id.clone(),
+            status: IdentifiabilityAssessmentStatus::NotApplicable,
+            metric_value: None,
+            evidence_ids: vec![],
+            reasons: vec![IdentifiabilityAssessmentReasonCode::NotApplicableByDefinition],
+        });
     }
     let ids = b
         .input
@@ -67,19 +81,34 @@ pub fn evaluate_identifiability_binding(
         evidence_ids: ids,
         reasons: vec![],
     };
-    if values.len() < 2 {
+    if values.len() != 2
+        || !matches!(
+            b.input.selection,
+            IdentifiabilityInputSelection::ExactPair { .. }
+        )
+    {
         out.reasons
-            .push(IdentifiabilityAssessmentReasonCode::MissingInput);
+            .push(IdentifiabilityAssessmentReasonCode::UnsupportedMetricInput);
         return Ok(out);
     }
-    let metric = (values[0].ln() - values[1].ln()).abs();
+    if values
+        .iter()
+        .any(|value| !value.is_finite() || *value <= 0.0)
+    {
+        out.reasons
+            .push(IdentifiabilityAssessmentReasonCode::NonFiniteInput);
+        return Ok(out);
+    }
+    let metric = values[0].max(values[1]) / values[0].min(values[1]);
     out.metric_value = Some(metric);
     out.status = if metric >= b.threshold {
+        out.reasons
+            .push(IdentifiabilityAssessmentReasonCode::ThresholdSatisfied);
         IdentifiabilityAssessmentStatus::Satisfied
     } else {
         out.reasons
-            .push(IdentifiabilityAssessmentReasonCode::ThresholdNotMet);
-        IdentifiabilityAssessmentStatus::Failed
+            .push(IdentifiabilityAssessmentReasonCode::ThresholdNotSatisfied);
+        IdentifiabilityAssessmentStatus::NotSatisfied
     };
     Ok(out)
 }

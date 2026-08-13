@@ -1,5 +1,6 @@
 use crate::{
-    evidence::{EvidenceBundle, EvidenceId},
+    domain::ArtifactAcquisitionFamilies,
+    evidence::{EvidenceArtifactSource, EvidenceBundle, EvidenceId},
     mechanism::{config::*, evidence::EligibleHypothesisEvidence},
 };
 use serde::{Deserialize, Serialize};
@@ -17,14 +18,16 @@ pub struct ValidationProtocol {
 #[serde(deny_unknown_fields)]
 pub struct ValidationCondition {
     pub condition_id: String,
-    pub requirement_id: EvidenceRequirementId,
+    pub requirement_ids: Vec<EvidenceRequirementId>,
+    pub experiment_scope: String,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ValidationProtocolStatus {
     Satisfied,
-    Failed,
+    NotSatisfied,
     NotAssessed,
+    NotApplicable,
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -59,8 +62,8 @@ pub fn evaluate_validation_protocol(
             Err(ValidationAssessmentError::MissingProtocol)
         } else {
             Ok(ValidationAssessment {
-                protocol_id: String::new(),
-                status: ValidationProtocolStatus::NotAssessed,
+                protocol_id: "not-applicable".into(),
+                status: ValidationProtocolStatus::NotApplicable,
                 evidence_ids: vec![],
                 acquisition_family_ids: vec![],
                 passed_condition_ids: vec![],
@@ -86,8 +89,14 @@ pub fn evaluate_validation_protocol(
     let mut families = vec![];
     for id in &ids {
         if let Some(record) = bundle.records.iter().find(|r| &r.evidence_id == id) {
-            for x in &record.lineage_artifact_ids {
-                families.push(x.0.clone())
+            if let EvidenceArtifactSource::Known { artifact_id, .. } = &record.source.artifact {
+                if let Some(node) = bundle.lineage_catalog.artifacts.get(artifact_id) {
+                    if let ArtifactAcquisitionFamilies::Known(values) =
+                        &node.identity.acquisition_families
+                    {
+                        families.extend(values.iter().map(|family| family.0.clone()));
+                    }
+                }
             }
         }
     }
@@ -97,10 +106,12 @@ pub fn evaluate_validation_protocol(
         .required_conditions
         .iter()
         .filter(|c| {
-            e.requirements
-                .iter()
-                .find(|r| r.requirement_id == c.requirement_id)
-                .is_some_and(|r| !r.support_evidence_ids.is_empty())
+            c.requirement_ids.iter().all(|requirement_id| {
+                e.requirements
+                    .iter()
+                    .find(|r| r.requirement_id == *requirement_id)
+                    .is_some_and(|r| !r.support_evidence_ids.is_empty())
+            })
         })
         .map(|c| c.condition_id.clone())
         .collect::<Vec<_>>();
@@ -112,7 +123,7 @@ pub fn evaluate_validation_protocol(
         status: if good {
             ValidationProtocolStatus::Satisfied
         } else {
-            ValidationProtocolStatus::Failed
+            ValidationProtocolStatus::NotSatisfied
         },
         evidence_ids: ids,
         acquisition_family_ids: families,

@@ -176,20 +176,17 @@ pub fn compare_phase_b(
         let mut assessment =
             crate::mechanism::promotion::assess_hypothesis(hypothesis, &eligible, &gates, &config)
                 .map_err(|e| RunnerError::Message(e.to_string()))?;
-        let components = crate::mechanism::promotion::assess_components(
+        let ids = crate::mechanism::history::consumed_source_evidence_ids(&assessment, &gates);
+        let mut components = crate::mechanism::promotion::assess_components(
             hypothesis,
             &assessment,
             &std::collections::BTreeMap::new(),
         )
         .map_err(|e| RunnerError::Message(e.to_string()))?;
+        for component in &mut components {
+            component.evidence_ids = ids.clone();
+        }
         assessment.component_assessments = components.clone();
-        let mut ids = eligible
-            .requirements
-            .iter()
-            .flat_map(|r| r.support_evidence_ids.clone())
-            .collect::<Vec<_>>();
-        ids.sort();
-        ids.dedup();
         history = crate::mechanism::history::update_hypothesis_history(
             &history,
             &assessment,
@@ -205,7 +202,7 @@ pub fn compare_phase_b(
             .collect();
         phase_assessments.push(crate::results::HypothesisAssessmentRecord {
             definition: hypothesis.clone(),
-            assessment,
+            current: assessment,
         });
     }
     let mut report = MechanismAnalysisReport {
