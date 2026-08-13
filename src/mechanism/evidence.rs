@@ -4,6 +4,292 @@ use crate::results::{
     CharacteristicTimescale, EvidenceLevel, MechanismWarning, ResolvedMechanismConfig,
     TimescaleComparison,
 };
+use crate::{
+    evidence::{
+        EvidenceAvailability, EvidenceBundle, EvidenceDirection, EvidenceId, EvidenceTarget,
+        EvidenceValidity,
+    },
+    mechanism::{
+        config::*,
+        evaluation::MechanismAssessmentError,
+        preparation::PhaseBEvidencePreparation,
+        temporal::{
+            TemporalJoinAssessment, TemporalJoinOutcome, TemporalJoinRequest,
+            evaluate_temporal_join,
+        },
+    },
+};
+use thiserror::Error;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundEvidencePair {
+    pub pair_requirement_id: EvidenceRequirementId,
+    pub left_evidence_id: EvidenceId,
+    pub right_evidence_id: EvidenceId,
+}
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundRequirementEvidence {
+    pub requirement_id: EvidenceRequirementId,
+    pub candidate_evidence_ids: Vec<EvidenceId>,
+}
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundHypothesisEvidence {
+    pub hypothesis_id: MechanismHypothesisId,
+    pub requirements: Vec<BoundRequirementEvidence>,
+    pub pair_bindings: Vec<BoundEvidencePair>,
+    pub role_bindings: Vec<MechanismEvidenceRoleBinding>,
+}
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct EligibleRequirementEvidence {
+    pub requirement_id: EvidenceRequirementId,
+    pub support_evidence_ids: Vec<EvidenceId>,
+    pub contradictory_evidence_ids: Vec<EvidenceId>,
+    pub temporally_ineligible_evidence_ids: Vec<EvidenceId>,
+    pub indeterminate_evidence_ids: Vec<EvidenceId>,
+    pub temporal_assessments: Vec<TemporalJoinAssessment>,
+}
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct EligibleHypothesisEvidence {
+    pub hypothesis_id: MechanismHypothesisId,
+    pub requirements: Vec<EligibleRequirementEvidence>,
+}
+#[derive(Debug, Error)]
+pub enum EvidenceBindingError {
+    #[error("unresolved pair binding {0}")]
+    UnresolvedPairBinding(String),
+    #[error("role/stage mismatch {0}")]
+    RoleStageMismatch(String),
+}
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RequirementContradictionSummary {
+    pub requirement_id: EvidenceRequirementId,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub contradiction_count: usize,
+    pub strong_critical_count: usize,
+}
+
+pub fn bind_hypothesis_evidence(
+    h: &MechanismHypothesisDefinition,
+    p: &PhaseBEvidencePreparation,
+) -> Result<BoundHypothesisEvidence, EvidenceBindingError> {
+    let mut requirements = Vec::new();
+    for r in &h.evidence_requirements {
+        let mut ids=p.bundle.records.iter().filter(|e|matches!((&r.target_selector,&e.target),(EvidenceTargetSelector::ExactComponent{value},EvidenceTarget::ModelComponent(component)) if value==&component.0)).filter(|e|r.source_class_selectors.contains(&e.source_class)&&e.source.field_path==r.source_field_path).map(|e|e.evidence_id.clone()).collect::<Vec<_>>();
+        ids.sort();
+        requirements.push(BoundRequirementEvidence {
+            requirement_id: r.requirement_id.clone(),
+            candidate_evidence_ids: ids,
+        });
+    }
+    for role in &h.role_bindings {
+        let stage = h
+            .evidence_requirements
+            .iter()
+            .find(|r| r.requirement_id == role.requirement_id)
+            .map(|r| r.stage);
+        let valid = matches!(
+            (role.role, stage),
+            (
+                MechanismEvidenceRole::Support,
+                Some(
+                    EvidenceRequirementStage::Support
+                        | EvidenceRequirementStage::SupportAndValidation
+                )
+            ) | (
+                MechanismEvidenceRole::Validation,
+                Some(
+                    EvidenceRequirementStage::Validation
+                        | EvidenceRequirementStage::SupportAndValidation
+                )
+            ) | (
+                MechanismEvidenceRole::Calibration | MechanismEvidenceRole::Training,
+                _
+            )
+        );
+        if !valid {
+            return Err(EvidenceBindingError::RoleStageMismatch(
+                role.requirement_id.clone(),
+            ));
+        }
+    }
+    let mut pairs = Vec::new();
+    for pair in &h.pair_requirements {
+        let left = requirements
+            .iter()
+            .find(|r| r.requirement_id == pair.left_requirement_id)
+            .and_then(|r| r.candidate_evidence_ids.first())
+            .cloned();
+        let right = requirements
+            .iter()
+            .find(|r| r.requirement_id == pair.right_requirement_id)
+            .and_then(|r| r.candidate_evidence_ids.first())
+            .cloned();
+        match (left, right) {
+            (Some(left_evidence_id), Some(right_evidence_id)) => pairs.push(BoundEvidencePair {
+                pair_requirement_id: pair.requirement_id.clone(),
+                left_evidence_id,
+                right_evidence_id,
+            }),
+            _ => {
+                return Err(EvidenceBindingError::UnresolvedPairBinding(
+                    pair.requirement_id.clone(),
+                ));
+            }
+        }
+    }
+    pairs.sort_by(|a, b| a.pair_requirement_id.cmp(&b.pair_requirement_id));
+    Ok(BoundHypothesisEvidence {
+        hypothesis_id: h.hypothesis_id.clone(),
+        requirements,
+        pair_bindings: pairs,
+        role_bindings: h.role_bindings.clone(),
+    })
+}
+fn requirement<'a>(
+    h: &'a MechanismHypothesisDefinition,
+    id: &str,
+) -> Option<&'a EvidenceRequirementBinding> {
+    h.evidence_requirements
+        .iter()
+        .find(|r| r.requirement_id == id)
+}
+pub fn evaluate_hypothesis_evidence_eligibility(
+    h: &MechanismHypothesisDefinition,
+    b: &BoundHypothesisEvidence,
+    p: &PhaseBEvidencePreparation,
+    c: &MechanismEvidenceConfig,
+) -> Result<EligibleHypothesisEvidence, MechanismAssessmentError> {
+    let mut out = Vec::new();
+    for bound in &b.requirements {
+        let Some(rule) = requirement(h, &bound.requirement_id) else {
+            continue;
+        };
+        let mut result = EligibleRequirementEvidence {
+            requirement_id: bound.requirement_id.clone(),
+            support_evidence_ids: vec![],
+            contradictory_evidence_ids: vec![],
+            temporally_ineligible_evidence_ids: vec![],
+            indeterminate_evidence_ids: vec![],
+            temporal_assessments: vec![],
+        };
+        if rule.gate == RequirementGate::NotApplicable {
+            out.push(result);
+            continue;
+        };
+        let temporal_pair = h
+            .pair_requirements
+            .iter()
+            .find(|x| {
+                x.left_requirement_id == rule.requirement_id
+                    || x.right_requirement_id == rule.requirement_id
+            })
+            .filter(|x| matches!(x.temporal, TemporalRequirement::Required { .. }));
+        let temporal = temporal_pair.map(|pair| {
+            let bound_pair = b
+                .pair_bindings
+                .iter()
+                .find(|x| x.pair_requirement_id == pair.requirement_id)
+                .ok_or_else(|| MechanismAssessmentError::TemporalAssessmentMissing {
+                    requirement_id: pair.requirement_id.clone(),
+                })?;
+            let mode = match pair.temporal {
+                TemporalRequirement::Required { join_mode } => join_mode,
+                _ => unreachable!(),
+            };
+            evaluate_temporal_join(
+                &TemporalJoinRequest {
+                    requirement_id: pair.requirement_id.clone(),
+                    left_evidence_id: bound_pair.left_evidence_id.clone(),
+                    right_evidence_id: bound_pair.right_evidence_id.clone(),
+                    mode,
+                },
+                &p.bundle,
+                &p.temporal_metadata,
+                &c.temporal,
+            )
+            .map_err(|e| MechanismAssessmentError::Invalid(e.to_string()))
+        });
+        let temporal = match temporal {
+            Some(x) => Some(x?),
+            None => None,
+        };
+        if let Some(a) = temporal.clone() {
+            result.temporal_assessments.push(a.clone())
+        };
+        for id in &bound.candidate_evidence_ids {
+            let Some(record) = p.bundle.records.iter().find(|x| &x.evidence_id == id) else {
+                continue;
+            };
+            if record.availability != EvidenceAvailability::Available
+                || record.validity != EvidenceValidity::Valid
+            {
+                continue;
+            }
+            if let Some(a) = &temporal {
+                match a.outcome {
+                    TemporalJoinOutcome::Ineligible => {
+                        result.temporally_ineligible_evidence_ids.push(id.clone());
+                        continue;
+                    }
+                    TemporalJoinOutcome::Indeterminate => {
+                        result.indeterminate_evidence_ids.push(id.clone());
+                        continue;
+                    }
+                    TemporalJoinOutcome::Eligible => {}
+                }
+            }
+            match record.direction {
+                EvidenceDirection::Contradicts => {
+                    result.contradictory_evidence_ids.push(id.clone())
+                }
+                _ => result.support_evidence_ids.push(id.clone()),
+            }
+        }
+        result.support_evidence_ids.sort();
+        result.contradictory_evidence_ids.sort();
+        out.push(result)
+    }
+    out.sort_by(|a, b| a.requirement_id.cmp(&b.requirement_id));
+    Ok(EligibleHypothesisEvidence {
+        hypothesis_id: h.hypothesis_id.clone(),
+        requirements: out,
+    })
+}
+pub fn evaluate_direct_contradictions(
+    h: &MechanismHypothesisDefinition,
+    e: &EligibleHypothesisEvidence,
+    bundle: &EvidenceBundle,
+) -> Result<Vec<RequirementContradictionSummary>, MechanismAssessmentError> {
+    let mut out = vec![];
+    for r in &e.requirements {
+        if r.contradictory_evidence_ids.is_empty() {
+            continue;
+        }
+        let mut ids = r.contradictory_evidence_ids.clone();
+        ids.sort();
+        ids.dedup();
+        let strong = ids
+            .iter()
+            .filter(|id| {
+                bundle
+                    .records
+                    .iter()
+                    .find(|x| &x.evidence_id == *id)
+                    .is_some_and(|x| {
+                        h.critical_requirement_ids.contains(&r.requirement_id)
+                            && x.strength == crate::evidence::EvidenceStrength::Strong
+                    })
+            })
+            .count();
+        out.push(RequirementContradictionSummary {
+            requirement_id: r.requirement_id.clone(),
+            contradiction_count: ids.len(),
+            evidence_ids: ids,
+            strong_critical_count: strong,
+        })
+    }
+    Ok(out)
+}
 
 pub fn compare_timescales(
     record_id: &str,

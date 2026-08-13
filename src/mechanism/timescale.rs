@@ -6,7 +6,79 @@ use crate::results::{
     CharacteristicTimescale, EisFitArtifact, MechanismWarning, TimescaleDerivation,
     TimescaleSource, TimescaleValidity,
 };
+use crate::{
+    evidence::{EvidenceBundle, EvidenceId},
+    mechanism::{
+        config::{EvidencePairRequirement, MechanismHypothesisDefinition, TimescaleEvidenceConfig},
+        evaluation::MechanismAssessmentError,
+        evidence::EligibleRequirementEvidence,
+    },
+};
+use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimescaleStatus {
+    Satisfied,
+    Failed,
+    NotAssessed,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TimescaleAssessment {
+    pub pair_requirement_id: String,
+    pub status: TimescaleStatus,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub log_distance: Option<f64>,
+}
+pub fn evaluate_timescale_requirement(
+    _h: &MechanismHypothesisDefinition,
+    r: &EvidencePairRequirement,
+    eligible: (&EligibleRequirementEvidence, &EligibleRequirementEvidence),
+    bundle: &EvidenceBundle,
+    c: &TimescaleEvidenceConfig,
+) -> Result<TimescaleAssessment, MechanismAssessmentError> {
+    if c.algorithm != "log_ratio_v1" {
+        return Err(MechanismAssessmentError::Invalid(
+            "unsupported timescale algorithm".into(),
+        ));
+    }
+    let ids = (
+        eligible.0.support_evidence_ids.first(),
+        eligible.1.support_evidence_ids.first(),
+    );
+    let mut out = TimescaleAssessment {
+        pair_requirement_id: r.requirement_id.clone(),
+        status: TimescaleStatus::NotAssessed,
+        evidence_ids: ids.0.into_iter().chain(ids.1).cloned().collect(),
+        log_distance: None,
+    };
+    let values = ids.0.zip(ids.1).and_then(|(a, b)| {
+        Some((
+            bundle
+                .records
+                .iter()
+                .find(|x| &x.evidence_id == a)?
+                .quantity
+                .as_ref()?
+                .value,
+            bundle
+                .records
+                .iter()
+                .find(|x| &x.evidence_id == b)?
+                .quantity
+                .as_ref()?
+                .value,
+        ))
+    });
+    let Some((a, b)) = values else { return Ok(out) };
+    if a <= 0. || b <= 0. {
+        return Ok(out);
+    };
+    let d = (a.ln() - b.ln()).abs();
+    out.log_distance = Some(d);
+    out.status = TimescaleStatus::Satisfied;
+    Ok(out)
+}
 
 pub fn extract_eis_timescales(
     artifact: &EisFitArtifact,

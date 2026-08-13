@@ -625,6 +625,14 @@ pub struct MechanismCompareCommand {
     pub config: Option<PathBuf>,
     #[arg(long, value_name = "PATH")]
     pub output: Option<PathBuf>,
+    /// Phase-B evidence contract; intentionally separate from the legacy
+    /// general mechanism configuration.
+    #[arg(long = "mechanism-evidence-config", value_name = "PATH")]
+    pub mechanism_evidence_config: Option<PathBuf>,
+    #[arg(long = "state-estimation", value_name = "PATH")]
+    pub state_estimation: Option<PathBuf>,
+    #[arg(long = "calibration-observations", value_name = "PATH")]
+    pub calibration_observations: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -768,6 +776,9 @@ pub enum CommandSpec {
         metadata: Option<PathBuf>,
         config_path: Option<PathBuf>,
         output: Option<PathBuf>,
+        mechanism_evidence_config: Option<PathBuf>,
+        state_estimation: Option<PathBuf>,
+        calibration_observations: Option<PathBuf>,
     },
     MechanismTrend {
         manifest: PathBuf,
@@ -1149,6 +1160,9 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     metadata: command.metadata,
                     config_path: command.config,
                     output: command.output,
+                    mechanism_evidence_config: command.mechanism_evidence_config,
+                    state_estimation: command.state_estimation,
+                    calibration_observations: command.calibration_observations,
                 },
                 MechanismCommand::Trend(command) => CommandSpec::MechanismTrend {
                     manifest: command.manifest,

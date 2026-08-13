@@ -1,0 +1,44 @@
+schema_version = 1
+
+[timescale]
+algorithm = "log_ratio_v1"
+[amplitude]
+algorithm = "signed_relative_error_v1"
+[repeatability]
+algorithm = "independent_ln_tau_sample_sd_v1"
+[temporal]
+point_tolerance_s = 0.0
+window_overlap_rule = "positive_duration"
+event_identity_rule = "exact"
+minimum_classified_fraction = 0.0
+minimum_equilibrium_fraction = 0.0
+clock_mismatch_behavior = "indeterminate"
+scope_mismatch_behavior = "indeterminate"
+[temporal.mixed_state_policy]
+kind = "require_all_steady"
+allow_quasi_equilibrium = false
+[mixed_state]
+classification_source = "producer_owned_only"
+[identifiability]
+algorithm = "bound_inputs_v1"
+[promotion]
+minimum_independent_support = 2
+
+[[hypotheses]]
+hypothesis_id = "b-hypothesis"
+display_name = "B E2E experimentally supported"
+target_components = ["b-eis-tau", "tau_fast_s"]
+critical_requirement_ids = []
+validation_applicability = "not_applicable"
+
+[[hypotheses.evidence_requirements]]
+requirement_id = "b-eis-tau"
+target_selector = { type = "exact_component", value = "b-eis-tau" }
+source_class_selectors = ["model_derived"]
+source_field_path = "$.parameters[0].value"
+quantity_semantic = "time_constant"
+required_unit = "s"
+expected_direction = "candidate_presence"
+validity_requirement = "valid"
+gate = "required"
+stage = "support"

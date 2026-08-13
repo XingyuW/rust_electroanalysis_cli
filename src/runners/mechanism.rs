@@ -13,6 +13,226 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
+/// Executes the approved Phase-B route over the four accepted source-artifact
+/// classes.  A neutral A1 bundle is constructed only inside preparation;
+/// callers cannot supply one directly.
+#[allow(clippy::too_many_arguments)]
+pub fn compare_phase_b(
+    workspace: &Path,
+    config_path: &Path,
+    eis_path: &Path,
+    transient_path: &Path,
+    estimation_path: Option<&Path>,
+    calibration_observations_path: Option<&Path>,
+    output_path: Option<&Path>,
+) -> Result<(), RunnerError> {
+    let config: crate::mechanism::config::MechanismEvidenceConfig =
+        toml::from_str(&fs::read_to_string(config_path)?)?;
+    let eis: EisFitArtifact = crate::domain::read_artifact(eis_path)?;
+    let transient: crate::results::TransientAnalysisReport =
+        crate::domain::read_artifact(transient_path)?;
+    let estimation = estimation_path
+        .map(crate::domain::read_artifact)
+        .transpose()?;
+    let calibration_observations = calibration_observations_path
+        .map(crate::domain::read_artifact)
+        .transpose()?;
+    let preparation = crate::mechanism::preparation::prepare_phase_b_evidence(
+        crate::mechanism::preparation::PhaseBEvidencePreparationInputs {
+            evidence_inputs: crate::runners::evidence::EvidenceBundleInputs {
+                eis_fit: Some(eis.clone()),
+                transient: Some(transient.clone()),
+                estimation,
+                calibration_observations,
+                calibration_model: None,
+            },
+        },
+    )
+    .map_err(|e| RunnerError::Message(e.to_string()))?;
+    let mut phase_assessments = Vec::new();
+    let mut history = Vec::new();
+    for hypothesis in &config.hypotheses {
+        let bound = crate::mechanism::evidence::bind_hypothesis_evidence(hypothesis, &preparation)
+            .map_err(|e| RunnerError::Message(e.to_string()))?;
+        let eligible = crate::mechanism::evidence::evaluate_hypothesis_evidence_eligibility(
+            hypothesis,
+            &bound,
+            &preparation,
+            &config,
+        )
+        .map_err(|e| RunnerError::Message(e.to_string()))?;
+        let contradictions = crate::mechanism::evidence::evaluate_direct_contradictions(
+            hypothesis,
+            &eligible,
+            &preparation.bundle,
+        )
+        .map_err(|e| RunnerError::Message(e.to_string()))?;
+        let mut timescales = Vec::new();
+        for gate in hypothesis.timescale_gate.iter() {
+            if let Some(pair) = hypothesis
+                .pair_requirements
+                .iter()
+                .find(|p| p.requirement_id == gate.pair_requirement_id)
+            {
+                let l = eligible
+                    .requirements
+                    .iter()
+                    .find(|r| r.requirement_id == pair.left_requirement_id);
+                let r = eligible
+                    .requirements
+                    .iter()
+                    .find(|r| r.requirement_id == pair.right_requirement_id);
+                if let (Some(l), Some(r)) = (l, r) {
+                    timescales.push(
+                        crate::mechanism::timescale::evaluate_timescale_requirement(
+                            hypothesis,
+                            pair,
+                            (l, r),
+                            &preparation.bundle,
+                            &config.timescale,
+                        )
+                        .map_err(|e| RunnerError::Message(e.to_string()))?,
+                    )
+                }
+            }
+        }
+        let mut amplitudes = Vec::new();
+        for gate in &hypothesis.amplitude_gates {
+            if let (Some(l), Some(r)) = (
+                eligible
+                    .requirements
+                    .iter()
+                    .find(|r| r.requirement_id == gate.predicted_requirement_id),
+                eligible
+                    .requirements
+                    .iter()
+                    .find(|r| r.requirement_id == gate.observed_requirement_id),
+            ) {
+                amplitudes.push(
+                    crate::mechanism::amplitude::evaluate_amplitude_requirement(
+                        hypothesis,
+                        gate,
+                        (l, r),
+                        &preparation.bundle,
+                        &config.amplitude,
+                    )
+                    .map_err(|e| RunnerError::Message(e.to_string()))?,
+                )
+            }
+        }
+        let mut repeats = Vec::new();
+        for gate in &hypothesis.repeatability_gates {
+            let rows = gate
+                .requirement_ids
+                .iter()
+                .filter_map(|id| {
+                    eligible
+                        .requirements
+                        .iter()
+                        .find(|r| &r.requirement_id == id)
+                })
+                .collect::<Vec<_>>();
+            repeats.push(
+                crate::mechanism::repeatability::evaluate_repeatability_requirement(
+                    hypothesis,
+                    gate,
+                    &rows,
+                    &preparation.bundle,
+                    &config.repeatability,
+                )
+                .map_err(|e| RunnerError::Message(e.to_string()))?,
+            )
+        }
+        let mut identifiability = Vec::new();
+        for binding in &hypothesis.identifiability_bindings {
+            identifiability.push(
+                crate::mechanism::identifiability::evaluate_identifiability_binding(
+                    hypothesis,
+                    binding,
+                    &eligible,
+                    &preparation.bundle,
+                    &preparation.bundle.independence_assessments,
+                    &config.identifiability,
+                )
+                .map_err(|e| RunnerError::Message(e.to_string()))?,
+            )
+        }
+        let validation = crate::mechanism::validation::evaluate_validation_protocol(
+            hypothesis,
+            &eligible,
+            &bound.role_bindings,
+            &preparation.bundle,
+            config.validation.as_ref(),
+        )
+        .map_err(|e| RunnerError::Message(e.to_string()))?;
+        let gates = crate::mechanism::promotion::HypothesisGateAssessments {
+            contradiction_summaries: contradictions,
+            timescale_assessments: timescales,
+            amplitude_assessments: amplitudes,
+            repeatability_assessments: repeats,
+            identifiability_assessments: identifiability,
+            validation_assessment: Some(validation),
+        };
+        let mut assessment =
+            crate::mechanism::promotion::assess_hypothesis(hypothesis, &eligible, &gates, &config)
+                .map_err(|e| RunnerError::Message(e.to_string()))?;
+        let components = crate::mechanism::promotion::assess_components(
+            hypothesis,
+            &assessment,
+            &std::collections::BTreeMap::new(),
+        )
+        .map_err(|e| RunnerError::Message(e.to_string()))?;
+        assessment.component_assessments = components.clone();
+        let mut ids = eligible
+            .requirements
+            .iter()
+            .flat_map(|r| r.support_evidence_ids.clone())
+            .collect::<Vec<_>>();
+        ids.sort();
+        ids.dedup();
+        history = crate::mechanism::history::update_hypothesis_history(
+            &history,
+            &assessment,
+            &gates,
+            &components,
+            &ids,
+        )
+        .map_err(|e| RunnerError::Message(e.to_string()))?;
+        assessment.history = history
+            .iter()
+            .filter(|x| x.hypothesis_id == assessment.hypothesis_id)
+            .cloned()
+            .collect();
+        phase_assessments.push(crate::results::HypothesisAssessmentRecord {
+            definition: hypothesis.clone(),
+            assessment,
+        });
+    }
+    let mut report = MechanismAnalysisReport {
+        schema_version: 4,
+        lineage: crate::domain::current_unknown_lineage(4),
+        analysis_id: format!("mechanism-phase-b:{}", transient.experiment_id),
+        records: Vec::new(),
+        eis_timescales: Vec::new(),
+        transient_timescales: Vec::new(),
+        comparisons: Vec::new(),
+        legacy_hypotheses: Vec::new(),
+        trends: Vec::new(),
+        configuration: crate::results::ResolvedMechanismConfig::default(),
+        provenance: Some(eis.provenance.clone()),
+        warnings: Vec::new(),
+        transient_configuration: Some(transient.configuration.clone()),
+        hypothesis_assessments: phase_assessments,
+        hypothesis_history: history,
+    };
+    report.lineage = mechanism_lineage(
+        &report,
+        "mechanism-analysis-phase-b-v1",
+        [&eis.lineage, &transient.lineage],
+    );
+    export_report(workspace, output_path, &report)
+}
+
 pub fn compare(
     workspace: &Path,
     eis_path: &Path,
@@ -127,12 +347,14 @@ pub fn compare(
         eis_timescales,
         transient_timescales,
         comparisons,
-        hypotheses,
+        legacy_hypotheses: hypotheses,
         trends: Vec::new(),
         configuration: loaded.config,
         provenance: Some(eis.provenance.clone()),
         warnings,
         transient_configuration: Some(transient.configuration.clone()),
+        hypothesis_assessments: Vec::new(),
+        hypothesis_history: Vec::new(),
     };
     report.lineage = mechanism_lineage(
         &report,
@@ -161,7 +383,7 @@ pub fn trend(
         eis_timescales: Vec::new(),
         transient_timescales: Vec::new(),
         comparisons: Vec::new(),
-        hypotheses: manifest
+        legacy_hypotheses: manifest
             .hypotheses
             .clone()
             .into_iter()
@@ -186,6 +408,8 @@ pub fn trend(
         provenance: None,
         warnings: Vec::new(),
         transient_configuration: None,
+        hypothesis_assessments: Vec::new(),
+        hypothesis_history: Vec::new(),
     };
     let mut source_lineages = Vec::new();
     for record in manifest.records {
