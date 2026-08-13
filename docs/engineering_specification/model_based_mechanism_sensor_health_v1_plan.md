@@ -5677,3 +5677,481 @@ reports contain every Phase-B-added field. Only the planning document may be
 changed by this remediation.
 
 READY_FOR_PHASE_B_FINAL_WIRE_REREVIEW = yes
+
+## 28. Phase B Contract Remediation X — canonical production pipeline and eligible gate inputs
+
+### 28.1 Finding reconciliation and authority
+
+The remaining independent-review finding is **CONFIRMED**. The controlling
+production/API contract was inconsistent: the prior exact-order lists omitted
+preparation, the later gates and report stages were only indirectly named,
+the prose required temporally eligible evidence, and retained gate signatures
+still accepted `BoundHypothesisEvidence`.
+
+This section is the sole active normative contract for Phase B evidence state,
+scientific-gate inputs, promotion wiring, and the complete production order.
+It supersedes every earlier Phase-B production-order definition, API
+signature, gate input list, fixture API label, type-inventory status, and
+readiness statement in §§6--10, 14--18, and 20--27 wherever this section
+differs. In particular, the §26.9 table and the §27.8 eight-row table are
+SUPERSEDED; their stages and APIs are not additive. Earlier material is
+historical, descriptive, or migration-only. The frozen A1 interfaces,
+serialized A1 meaning, A1 semantic hashes, legacy mechanism behavior,
+`main`, and `codex/mhi-v1-b-mechanism-evidence-integration` remain unchanged.
+This is a documentation-only amendment and authorizes no production Rust,
+test, fixture, `main`, or A1 change.
+
+### 28.2 One authoritative evidence-state model
+
+Phase B has exactly three evidence states. They are distinct types with a
+one-way dataflow:
+
+```text
+EvidenceBundle
+  → bind_hypothesis_evidence
+  → BoundHypothesisEvidence
+  → evaluate_hypothesis_evidence_eligibility
+  → EligibleHypothesisEvidence
+  → scientific gates and promotion
+```
+
+`EvidenceBundle` is the neutral A1 evidence state. It owns A1
+`EvidenceRecord`s, pairwise independence, pair covariance, scope, lineage,
+and warnings. It does not contain a hypothesis-specific candidate decision.
+
+`BoundHypothesisEvidence` is structural only. Its sole purpose is:
+
+```text
+EvidenceBundle + MechanismHypothesisDefinition
+  → BoundHypothesisEvidence
+```
+
+The active internal shape is:
+
+```rust
+pub struct BoundHypothesisEvidence {
+    pub hypothesis_id: MechanismHypothesisId,
+    pub requirements: Vec<BoundRequirementEvidence>,
+    pub pair_bindings: Vec<BoundEvidencePair>,
+    pub role_bindings: Vec<MechanismEvidenceRoleBinding>,
+}
+
+pub struct BoundRequirementEvidence {
+    pub requirement_id: EvidenceRequirementId,
+    pub candidate_evidence_ids: Vec<EvidenceId>,
+}
+```
+
+Binding selects deterministic per-requirement candidate IDs by exact target,
+source class, quantity semantic/unit, pair selector, and structural
+requirement binding. It validates exact pair orientation and role/stage tuple
+shape. It does **not** imply temporal eligibility, support eligibility,
+contradiction eligibility, final strength eligibility, or validation-role
+eligibility. No scientific evaluator may search the bundle or choose a raw
+candidate after this stage.
+
+`EligibleHypothesisEvidence` is the one canonical aggregate passed to
+scientific gates and promotion. Its exact active shape is:
+
+```rust
+pub struct EligibleHypothesisEvidence {
+    pub hypothesis_id: MechanismHypothesisId,
+    pub requirements: Vec<EligibleRequirementEvidence>,
+}
+
+pub struct EligibleRequirementEvidence {
+    pub requirement_id: EvidenceRequirementId,
+    pub support_evidence_ids: Vec<EvidenceId>,
+    pub contradictory_evidence_ids: Vec<EvidenceId>,
+    pub temporally_ineligible_evidence_ids: Vec<EvidenceId>,
+    pub indeterminate_evidence_ids: Vec<EvidenceId>,
+    pub temporal_assessments: Vec<TemporalJoinAssessment>,
+}
+```
+
+The aggregate is complete and sorted by requirement ID. Eligibility owns
+availability, validity, experiment/sensor/channel scope, quantity
+compatibility, serialized temporal requests, temporal joins, direction
+separation, and the minimum structural strength filtering required before a
+downstream gate. An `Eligible` temporal result is the only route into an
+eligible ID vector. `Ineligible` and `Indeterminate` IDs remain in their
+dedicated vectors and cannot be counted by a gate. Validation-role selection
+uses the exact eligible requirement slice together with the declared role
+bindings; it never resurrects an ID from `BoundHypothesisEvidence`.
+
+The one canonical eligibility API is:
+
+```rust
+pub fn evaluate_hypothesis_evidence_eligibility(
+    hypothesis: &MechanismHypothesisDefinition,
+    bound: &BoundHypothesisEvidence,
+    preparation: &PhaseBEvidencePreparation,
+    config: &MechanismEvidenceConfig,
+) -> Result<EligibleHypothesisEvidence, MechanismAssessmentError>;
+```
+
+This is the only generic validity/scope/temporal/direction filter. It calls
+the §27 `build_temporal_join_request` and `evaluate_temporal_join` helpers
+internally when a pair requirement is temporal, preserving the configured
+`TemporalJoinMode`; those helpers are not additional production-order stages.
+The eligibility result is the only input on which the direct contradiction
+and scientific gate APIs may operate.
+
+### 28.3 Exact post-eligibility gate APIs
+
+All scientific Phase B evaluators consume `EligibleHypothesisEvidence` or an
+exact per-requirement slice derived from it. No post-eligibility scientific
+API accepts `BoundHypothesisEvidence`.
+
+Direct contradictions use exactly:
+
+```rust
+pub fn evaluate_direct_contradictions(
+    hypothesis: &MechanismHypothesisDefinition,
+    eligible: &EligibleHypothesisEvidence,
+    bundle: &EvidenceBundle,
+) -> Result<Vec<RequirementContradictionSummary>, MechanismAssessmentError>;
+```
+
+The evaluator reads only `eligible.requirements[*].contradictory_evidence_ids`,
+resolves those IDs in the supplied neutral bundle, and emits sorted summaries.
+It never reruns temporal matching, reads bound candidate vectors, or searches
+an unfiltered bundle. A critical contradiction remains exactly an eligible
+direct `Contradicts` record for an ID in `critical_requirement_ids` with
+strength at least `Strong`; amplitude contradictions remain outside this
+direct path.
+
+The exact scientific gate signatures are:
+
+```rust
+// src/mechanism/timescale.rs
+pub fn evaluate_timescale_requirement(
+    hypothesis: &MechanismHypothesisDefinition,
+    requirement: &EvidencePairRequirement,
+    eligible_pair: (&EligibleRequirementEvidence, &EligibleRequirementEvidence),
+    bundle: &EvidenceBundle,
+    config: &TimescaleEvidenceConfig,
+) -> Result<TimescaleAssessment, MechanismAssessmentError>;
+
+// src/mechanism/amplitude.rs
+pub fn evaluate_amplitude_requirement(
+    hypothesis: &MechanismHypothesisDefinition,
+    gate: &AmplitudeGate,
+    eligible: &EligibleRequirementEvidence,
+    bundle: &EvidenceBundle,
+    config: &AmplitudeEvidenceConfig,
+) -> Result<AmplitudeAssessment, AmplitudeAssessmentError>;
+
+// src/mechanism/repeatability.rs
+pub fn evaluate_repeatability_requirement(
+    hypothesis: &MechanismHypothesisDefinition,
+    gate: &RepeatabilityGate,
+    eligible: &EligibleRequirementEvidence,
+    bundle: &EvidenceBundle,
+    config: &RepeatabilityEvidenceConfig,
+) -> Result<RepeatabilityAssessment, RepeatabilityAssessmentError>;
+
+// src/mechanism/identifiability.rs
+pub fn evaluate_identifiability_binding(
+    hypothesis: &MechanismHypothesisDefinition,
+    binding: &IdentifiabilityBinding,
+    eligible: &EligibleHypothesisEvidence,
+    bundle: &EvidenceBundle,
+    pairwise_independence: &[EvidenceIndependenceAssessment],
+    config: &IdentifiabilityGateConfig,
+) -> Result<IdentifiabilityAssessment, IdentifiabilityAssessmentError>;
+
+// src/mechanism/validation.rs
+pub fn evaluate_validation_protocol(
+    hypothesis: &MechanismHypothesisDefinition,
+    eligible: &EligibleHypothesisEvidence,
+    role_bindings: &[MechanismEvidenceRoleBinding],
+    bundle: &EvidenceBundle,
+    protocol: Option<&ValidationProtocol>,
+) -> Result<ValidationAssessment, ValidationAssessmentError>;
+```
+
+The timescale evaluator receives the exact two eligible requirement slices
+named by `EvidencePairRequirement`; it may not derive a pair from raw bound
+IDs or record order. Amplitude and repeatability receive the exact eligible
+slice for their named requirement. Identifiability resolves every
+`IdentifiabilityInputBinding.requirement_ids` against the corresponding
+eligible slices in the aggregate and uses the supplied A1 independence
+assessments/bundle covariance only as required by the already-approved
+algorithm. Validation intersects declared `Validation` role bindings only
+with eligible IDs in the aggregate, then applies the existing protocol and
+family rules. A `None` protocol is `NotApplicable` only when the hypothesis
+declares validation not applicable; it cannot turn an absent protocol into a
+pass. No gate performs generic availability, validity, scope, quantity, or
+temporal filtering a second time.
+
+### 28.4 Explicit promotion aggregate and downstream APIs
+
+All gate results and contradiction results pass through one explicit
+aggregate:
+
+```rust
+pub struct HypothesisGateAssessments {
+    pub contradiction_summaries: Vec<RequirementContradictionSummary>,
+    pub timescale_assessments: Vec<TimescaleAssessment>,
+    pub amplitude_assessments: Vec<AmplitudeAssessment>,
+    pub repeatability_assessments: Vec<RepeatabilityAssessment>,
+    pub identifiability_assessments: Vec<IdentifiabilityAssessment>,
+    pub validation_assessment: Option<ValidationAssessment>,
+}
+
+pub fn assess_hypothesis(
+    hypothesis: &MechanismHypothesisDefinition,
+    eligible: &EligibleHypothesisEvidence,
+    gates: &HypothesisGateAssessments,
+    config: &MechanismEvidenceConfig,
+) -> Result<PhaseBHypothesisAssessment, MechanismAssessmentError>;
+```
+
+`assess_hypothesis` consumes the aggregate and the eligible evidence only.
+It does not call a scientific evaluator, recompute a gate, inspect raw bound
+IDs, or read global state. Temporal assessments are already carried by the
+eligible requirement slices and are copied into the Phase B assessment. A
+missing or failed gate result remains a typed assessment outcome and cannot
+be silently replaced by promotion logic.
+
+The complete downstream signatures are:
+
+```rust
+// src/mechanism/promotion.rs
+pub fn assess_components(
+    hypothesis: &MechanismHypothesisDefinition,
+    hypothesis_assessment: &PhaseBHypothesisAssessment,
+    prior_component_statuses: &BTreeMap<ComponentId, InterpretationStatus>,
+) -> Result<Vec<ComponentInterpretationAssessment>, ComponentAssessmentError>;
+
+// src/mechanism/history.rs
+pub fn update_hypothesis_history(
+    previous_history: &[HypothesisHistoryEntry],
+    current_assessment: &PhaseBHypothesisAssessment,
+    component_assessments: &[ComponentInterpretationAssessment],
+) -> Result<Vec<HypothesisHistoryEntry>, MechanismAssessmentError>;
+
+// src/runners/mechanism.rs
+pub fn assemble_phase_b_mechanism_report(
+    legacy_current_mechanism_payload: &MechanismAnalysisReport,
+    hypothesis_assessments: &[PhaseBHypothesisAssessment],
+    component_assessments: &[ComponentInterpretationAssessment],
+    history: &[HypothesisHistoryEntry],
+    lineage: &ArtifactLineageState,
+    direct_dependencies: &[ArtifactDependency],
+) -> Result<MechanismAnalysisReport, PhaseBReportAssemblyError>;
+
+// src/domain/artifact.rs
+pub fn write_artifact<T: VersionedArtifact>(
+    path: &Path,
+    value: &T,
+) -> Result<(), ArtifactError>;
+```
+
+`assess_components` applies the already-approved 4×4 monotonic status matrix
+using the supplied prior status map. `update_hypothesis_history` is the sole
+history transition owner and receives the component rows explicitly.
+`assemble_phase_b_mechanism_report` is the sole schema-4 report assembler;
+its legacy/current payload preserves the existing legacy fields, while the
+explicit hypothesis, component, history, lineage, and dependency arguments
+populate the Phase B fields. `write_artifact::<MechanismAnalysisReport>` is
+the final canonical public writer. No component, history, report, or writer
+stage is hidden behind prose.
+
+### 28.5 Sole authoritative 18-stage production pipeline
+
+The exact semantic production order is:
+
+```text
+1.  parse CLI
+2.  load MechanismEvidenceConfig
+3.  load versioned source artifacts through public readers
+4.  construct PhaseBEvidencePreparationInputs
+5.  prepare_phase_b_evidence → PhaseBEvidencePreparation { bundle, temporal_metadata }
+6.  for each hypothesis: bind_hypothesis_evidence → BoundHypothesisEvidence
+7.  evaluate_hypothesis_evidence_eligibility → EligibleHypothesisEvidence
+8.  evaluate_direct_contradictions
+9.  evaluate timescale requirements from eligible evidence
+10.  evaluate amplitude requirements from eligible evidence
+11. evaluate repeatability requirements from eligible evidence
+12. evaluate identifiability bindings from eligible evidence
+13. evaluate validation protocol from eligible Validation-role evidence
+14. assess_hypothesis using all gate assessments and contradiction summaries
+    → PhaseBHypothesisAssessment
+15. assess_components → Vec<ComponentInterpretationAssessment>
+16. update_hypothesis_history
+17. assemble_phase_b_mechanism_report → MechanismAnalysisReport schema 4
+18. serialize/write through the canonical mechanism artifact writer
+```
+
+Preparation is explicitly before binding. Temporal request construction and
+temporal joins are internal operations owned by stage 7; they are not omitted
+and they are not competing top-level stages. Eligibility is complete before
+contradictions, every scientific gate consumes eligible evidence, and
+validation uses only eligible records bound to the Validation role.
+
+The sole complete production API table is:
+
+| Stage | Function | Owner module | Input types | Output type | Error type | Consumes Bound or Eligible? | Next stage |
+|---:|---|---|---|---|---|---|---|
+| 1 | `parse_cli_args(&[String])` | `src/cli.rs` | process argument vector | `CliArgs` | `CliError` | neither | 2 |
+| 2 | `load_mechanism_evidence_config(&Path)` | `src/mechanism/config.rs` | Phase B config path from `CliArgs` | `MechanismEvidenceConfig` | `MechanismEvidenceConfigError` | neither | 3 |
+| 3 | `load_phase_b_source_artifacts(&PhaseBSourceArtifactRefs)` | `src/runners/mechanism.rs`, using `src/domain/artifact.rs::read_artifact` | versioned source paths/direct-bundle reference | `EvidenceBundleInputs` | `MechanismEvidenceInputError` / public reader `ArtifactError` | neither | 4 |
+| 4 | `construct_phase_b_evidence_preparation_inputs(EvidenceBundleInputs)` | `src/mechanism/preparation.rs` | `EvidenceBundleInputs` | `PhaseBEvidencePreparationInputs` | infallible construction; no error | neither | 5 |
+| 5 | `prepare_phase_b_evidence(PhaseBEvidencePreparationInputs)` | `src/mechanism/preparation.rs` | preparation inputs and public-reader outputs | `PhaseBEvidencePreparation` | `PhaseBEvidencePreparationError` | neither | 6 |
+| 6 | `bind_hypothesis_evidence(&MechanismHypothesisDefinition, &PhaseBEvidencePreparation)` | `src/mechanism/evidence.rs` | one hypothesis and preparation | `BoundHypothesisEvidence` | `EvidenceBindingError` | produces Bound; no Eligible input | 7 |
+| 7 | `evaluate_hypothesis_evidence_eligibility(&MechanismHypothesisDefinition, &BoundHypothesisEvidence, &PhaseBEvidencePreparation, &MechanismEvidenceConfig)` | `src/mechanism/evidence.rs` | hypothesis, structural bound evidence, preparation, config | `EligibleHypothesisEvidence` | `MechanismAssessmentError` | Bound input; produces canonical Eligible | 8 |
+| 8 | `evaluate_direct_contradictions(&MechanismHypothesisDefinition, &EligibleHypothesisEvidence, &EvidenceBundle)` | `src/mechanism/evidence.rs` | hypothesis, eligible aggregate, neutral bundle | `Vec<RequirementContradictionSummary>` | `MechanismAssessmentError` | Eligible | 9 |
+| 9 | `evaluate_timescale_requirement` once per declared pair gate | `src/mechanism/timescale.rs` | hypothesis, `EvidencePairRequirement`, exact eligible pair `(&EligibleRequirementEvidence, &EligibleRequirementEvidence)`, bundle, `TimescaleEvidenceConfig` | `TimescaleAssessment` | `MechanismAssessmentError` | Eligible | 10 |
+| 10 | `evaluate_amplitude_requirement` once per declared amplitude gate | `src/mechanism/amplitude.rs` | hypothesis, `AmplitudeGate`, exact eligible requirement slice, bundle, `AmplitudeEvidenceConfig` | `AmplitudeAssessment` | `AmplitudeAssessmentError` | Eligible | 11 |
+| 11 | `evaluate_repeatability_requirement` once per declared repeatability gate | `src/mechanism/repeatability.rs` | hypothesis, `RepeatabilityGate`, exact eligible requirement slice, bundle, `RepeatabilityEvidenceConfig` | `RepeatabilityAssessment` | `RepeatabilityAssessmentError` | Eligible | 12 |
+| 12 | `evaluate_identifiability_binding` once per declared binding | `src/mechanism/identifiability.rs` | hypothesis, `IdentifiabilityBinding`, eligible aggregate, bundle, A1 independence assessments, `IdentifiabilityGateConfig` | `IdentifiabilityAssessment` | `IdentifiabilityAssessmentError` | Eligible | 13 |
+| 13 | `evaluate_validation_protocol` once per hypothesis | `src/mechanism/validation.rs` | hypothesis, eligible aggregate, role bindings, bundle, optional `ValidationProtocol` | `ValidationAssessment` | `ValidationAssessmentError` | Eligible Validation-role evidence | 14 |
+| 14 | `assess_hypothesis` | `src/mechanism/promotion.rs` | hypothesis, eligible aggregate, `HypothesisGateAssessments`, `MechanismEvidenceConfig` | `PhaseBHypothesisAssessment` | `MechanismAssessmentError` | Eligible-derived results | 15 |
+| 15 | `assess_components` | `src/mechanism/promotion.rs` | hypothesis, current `PhaseBHypothesisAssessment`, prior component status map | `Vec<ComponentInterpretationAssessment>` | `ComponentAssessmentError` | Eligible-derived assessment; no raw Bound | 16 |
+| 16 | `update_hypothesis_history` | `src/mechanism/history.rs` | previous history, current assessment, component assessments | updated `Vec<HypothesisHistoryEntry>` | `MechanismAssessmentError` | Eligible-derived assessment; no raw Bound | 17 |
+| 17 | `assemble_phase_b_mechanism_report` | `src/runners/mechanism.rs` | legacy/current mechanism payload, hypothesis assessments, component assessments, history, lineage, direct dependencies | `MechanismAnalysisReport` schema 4 | `PhaseBReportAssemblyError` | Eligible-derived outputs; no raw Bound | 18 |
+| 18 | `write_artifact::<MechanismAnalysisReport>(&Path, &MechanismAnalysisReport)` | `src/domain/artifact.rs` | schema-4 report and output path | persisted mechanism artifact | `ArtifactError` | neither; report only | done |
+
+The table has exactly 18 stages, all 18 have an exact function or API owner,
+and zero stages are delegated to an indirect “remaining gates” description.
+Stages 9--13 invoke the named function once for each declared gate or
+binding; their exact signatures and all input types are listed in §28.3, so
+no API or stage is omitted.
+
+### 28.6 PB-FX-09/PB-FX-10 final stage mapping
+
+The scientific values, source artifacts, runtime-derived ArtifactIds, wire
+shapes, and expected assessment values in the canonical fixtures remain
+unchanged. The API-stage labels in the earlier fixture blocks are
+SUPERSEDED by this mapping and must not retain the old
+`BoundHypothesisEvidence` gate signatures.
+
+| final pipeline stage | PB-FX-09 mapping | PB-FX-10 mapping |
+|---|---|---|
+| prepare | `prepare_phase_b_evidence` returns the two source-derived records and temporal catalog | same preparation returns all four source-derived records and catalog |
+| bind | `bind_hypothesis_evidence` binds the two support requirements and exact pair | same plus two validation-role requirement bindings |
+| eligibility | `evaluate_hypothesis_evidence_eligibility` returns eligible support slices; no temporal request for the NotApplicable pair | same; validation slices are eligible but do not block support promotion |
+| contradiction | `evaluate_direct_contradictions` consumes the eligible aggregate and returns `[]` | same; critical IDs are empty and returns `[]` |
+| timescale | `evaluate_timescale_requirement` consumes the exact eligible pair and returns the approved satisfied result | same |
+| amplitude | `evaluate_amplitude_requirement` consumes eligible amplitude slices; no gate, `[]` | same |
+| repeatability | `evaluate_repeatability_requirement` consumes eligible repeatability slices; no gate, `[]` | same |
+| identifiability | `evaluate_identifiability_binding` consumes the named eligible pair and returns the approved satisfied result | same |
+| validation | `evaluate_validation_protocol` consumes no protocol/eligible Validation role and returns `NotApplicable` | consumes eligible Validation-role slices and returns the approved satisfied result |
+| hypothesis | `assess_hypothesis` consumes one `HypothesisGateAssessments` aggregate and yields `ExperimentallySupported` | same aggregate path yields `ValidatedForDomain` |
+| components | `assess_components` yields the two approved component rows | yields the four approved component rows |
+| history | `update_hypothesis_history` receives component rows and yields empty history without a prior report | receives component rows and appends the approved single transition |
+| report | `assemble_phase_b_mechanism_report` produces schema 4 with the approved PB-FX-09 fields | same schema-4 assembly with approved validation/component/history fields |
+
+PB-FX-09 and PB-FX-10 therefore both map to
+`prepare → bind → eligibility → contradiction → timescale → amplitude →
+repeatability → identifiability → validation → hypothesis → components →
+history → report`, followed by canonical serialization. Neither fixture
+references a scientific gate taking `BoundHypothesisEvidence`.
+
+### 28.7 Controlling type and error inventory closure
+
+The §26.7 inventory remains exhaustive after removing its superseded rows and
+gains exactly these active Phase B rows:
+
+| type | kind | serialized? | owner module | owning parent | schema | purpose | wire representation | supersedes |
+|---|---|---:|---|---|---|---|---|---|
+| `EligibleHypothesisEvidence` | struct | no | `src/mechanism/evidence.rs` | eligibility output/promotion input | n/a | canonical aggregate of eligible requirement evidence | internal typed aggregate | gates selecting raw bound candidates |
+| `HypothesisGateAssessments` | struct | no | `src/mechanism/promotion.rs` | `assess_hypothesis` input | n/a | explicit contradiction and gate-result aggregate | internal typed aggregate | variadic/hidden promotion wiring |
+| `MechanismEvidenceConfigError` | error enum | no | `src/mechanism/config.rs` | config loading | n/a | typed Phase B config parse/validation failures | internal typed error | implicit/defaulted B config |
+| `MechanismEvidenceInputError` | error enum | no | `src/runners/mechanism.rs` | source loading | n/a | typed source mode/kind/schema/scope failures | internal typed error | untyped source-loading failures |
+
+No new scientific threshold, wire field, A1 type, or error category is
+introduced by this remediation. `CliArgs`, `CliError`, `EvidenceBundleInputs`,
+`ArtifactLineageState`, `ArtifactDependency`, `MechanismAnalysisReport`, and
+`ArtifactError` are existing repository-native boundary types; they are named
+explicitly in the 18-stage table and are not duplicate Phase B definitions.
+Every active type declared by this section has one inventory row or is one of
+those existing/frozen repository-native boundary types.
+
+### 28.8 Full supersession audit
+
+The complete-plan search for the controlling terms has one active normative
+interpretation:
+
+| occurrence/class | classification | controlling rule |
+|---|---|---|
+| `BoundHypothesisEvidence` in `bind_hypothesis_evidence` output | ACTIVE NORMATIVE | structural binding result only |
+| `BoundHypothesisEvidence` in `evaluate_hypothesis_evidence_eligibility` input | ACTIVE NORMATIVE | only allowed post-binding input; generic eligibility produces the canonical eligible state |
+| `BoundHypothesisEvidence` in any timescale, amplitude, repeatability, identifiability, validation, contradiction, promotion, component, history, or report API | SUPERSEDED | no scientific gate or downstream stage may consume raw Bound evidence |
+| `EligibleHypothesisEvidence` definition and eligibility output | ACTIVE NORMATIVE | sole canonical scientific-gate aggregate |
+| `EligibleRequirementEvidence` definition and exact per-requirement gate slices | ACTIVE NORMATIVE | sole eligible slice type for requirement-specific gates |
+| old `evaluate_requirement_eligibility` name/signature | SUPERSEDED | replaced by `evaluate_hypothesis_evidence_eligibility` |
+| old `evaluate_timescale_requirement` signature accepting `BoundHypothesisEvidence` | SUPERSEDED | §28.3 exact eligible-pair signature |
+| old amplitude/repeatability/identifiability/validation signatures accepting Bound evidence | SUPERSEDED | §28.3 exact Eligible signatures |
+| old `evaluate_direct_contradictions(..., &BoundHypothesisEvidence, ...)` | SUPERSEDED | §28.3 exact `EligibleHypothesisEvidence` signature |
+| old `assess_hypothesis` signature with raw Bound evidence or separate hidden gate parameters | SUPERSEDED | §28.4 explicit `HypothesisGateAssessments` signature |
+| every earlier “exact production order” or “production pipeline” list | SUPERSEDED | §28.5 sole 18-stage order and table |
+| “remaining gates,” “later stages,” or indirect component/history/report prose | SUPERSEDED | §28.5 rows 9--18 list each stage and API explicitly |
+| old PB-FX-09/PB-FX-10 API labels | SUPERSEDED | §28.6 final stage mapping; scientific values remain frozen |
+
+The audit counts are: one active normative production order, one active
+normative production API table, zero active scientific gate APIs consuming
+`BoundHypothesisEvidence` after eligibility, and zero omitted stage APIs.
+
+### 28.9 Regression and compatibility audit
+
+The following previously passed contract areas remain **PASS** without
+redesign: `TemporalJoinRequest`/mode; temporal support matrix; temporal
+serde; contradiction eligibility; role/stage/gate semantics;
+validation-only semantics; amplitude equation and boundaries;
+`critical_requirement_ids`; the 4×4 `InterpretationStatus` matrix;
+`ArtifactId` fixture policy; PB-FX-09/10 canonical fixture values and wire
+formats; hypothesis ownership; quantity semantics; direct `EvidenceBundle`
+retirement; EIS temporal `Unknown`; repeatability; identifiability
+applicability; schema 3→4; validation-role ownership; traceability path;
+critical contradiction pipeline; TOML root; CLI; history; legacy
+`EvidenceBundle` compatibility; and frozen A1 compatibility.
+
+Phase B remains implementable without changing the serialized meaning of
+`EvidenceRecord`, `EvidenceQuantity`, `EvidencePairKey`,
+`ArtifactLineageState`, `TimescalePairUncertainty`, or A1 semantic identity:
+**PASS**.
+
+### 28.10 Pipeline completeness and contract self-audit
+
+```text
+Pipeline stages required = 18
+Pipeline stages with exact API/owner = 18
+Pipeline stages missing exact API = 0
+Undefined normative types = 0
+Undefined normative owners = 0
+Unspecified Phase B algorithms = 0
+Unspecified scientific thresholds/units = 0
+Unspecified compatibility decisions = 0
+Normative contradictions = 0
+Fixture-to-real-schema contradictions = 0
+Incomplete normative positive fixtures = 0
+Unmapped active normative types = 0
+Pipeline stages without exact API = 0
+Serialized active types without exact wire shape = 0
+Competing active production-order definitions = 0
+Scientific gate APIs consuming BoundHypothesisEvidence after eligibility = 0
+Implementation invention still required = no
+Production Rust modified = NONE
+Tests modified = NONE
+Fixtures modified = NONE
+```
+
+Could two competent implementation agents differ about whether preparation
+happens before binding? **NO.** Could they differ about whether temporal
+eligibility happens before contradictions? **NO.** Could they differ about
+whether timescale, amplitude, repeatability, identifiability, or validation
+consume Bound or Eligible evidence? **NO.** Could they differ about which
+evidence identifiability sees? **NO.** Could they differ about which evidence
+validation sees? **NO.** Could they differ about what object promotion
+consumes? **NO.** Could they differ about where component assessment occurs?
+**NO.** Could they differ about where history is updated? **NO.** Could they
+differ about where schema-4 report assembly occurs? **NO.**
+
+The implementation agent must not infer an omitted step, invent a competing
+gate input, refilter generic eligibility, or modify any previously passed
+scientific, wire, compatibility, fixture, or A1 contract area.
+
+READY_FOR_PHASE_B_PIPELINE_REREVIEW = yes
