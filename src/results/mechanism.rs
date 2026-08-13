@@ -288,7 +288,7 @@ pub struct MechanismAnalysisReport {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HypothesisAssessmentRecord {
     pub definition: crate::mechanism::config::MechanismHypothesisDefinition,
-    pub assessment: PhaseBHypothesisAssessment,
+    pub current: PhaseBHypothesisAssessment,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PhaseBHypothesisAssessment {

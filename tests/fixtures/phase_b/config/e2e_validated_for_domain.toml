@@ -26,13 +26,12 @@ minimum_independent_support = 2
 
 [[hypotheses]]
 hypothesis_id = "b-hypothesis"
-display_name = "B E2E experimentally supported"
-target_components = ["b-eis-tau", "tau_fast_s"]
+display_name = "B E2E validated for domain"
+target_components = ["b-eis-tau", "b-validation-calibration", "b-validation-estimation", "tau_fast_s"]
 critical_requirement_ids = []
-validation_applicability = "not_applicable"
+validation_applicability = "required"
 amplitude_gates = []
 repeatability_gates = []
-
 [[hypotheses.evidence_requirements]]
 requirement_id = "b-eis-tau"
 target_selector = { type = "exact_component", value = "b-eis-tau" }
@@ -55,7 +54,28 @@ expected_direction = "candidate_presence"
 validity_requirement = "valid"
 gate = "required"
 stage = "support"
-
+[[hypotheses.evidence_requirements]]
+requirement_id = "b-validation-calibration"
+target_selector = { type = "exact_component", value = "b-validation-calibration" }
+source_class_selectors = ["observed"]
+source_field_path = "$.observations[0].potential_v"
+quantity_semantic = "potential"
+required_unit = "V"
+expected_direction = "candidate_presence"
+validity_requirement = "valid"
+gate = "required"
+stage = "validation"
+[[hypotheses.evidence_requirements]]
+requirement_id = "b-validation-estimation"
+target_selector = { type = "exact_component", value = "b-validation-estimation" }
+source_class_selectors = ["model_derived"]
+source_field_path = "$.estimates[0].filtered_state[0].value"
+quantity_semantic = "potential"
+required_unit = "V"
+expected_direction = "candidate_presence"
+validity_requirement = "valid_or_not_assessed"
+gate = "required"
+stage = "validation"
 [[hypotheses.pair_requirements]]
 requirement_id = "b-timescale-pair"
 left_requirement_id = "b-eis-tau"
@@ -81,3 +101,25 @@ hypothesis_id = "b-hypothesis"
 requirement_id = "b-transient-tau"
 evidence_id = "transient.event.0.tau_fast_s"
 role = "support"
+[[hypotheses.role_bindings]]
+hypothesis_id = "b-hypothesis"
+requirement_id = "b-validation-calibration"
+evidence_id = "calibration.observation.0"
+role = "validation"
+[[hypotheses.role_bindings]]
+hypothesis_id = "b-hypothesis"
+requirement_id = "b-validation-estimation"
+evidence_id = "estimation.point.0.state.0"
+role = "validation"
+[validation]
+protocol_id = "b-e2e-validation"
+version = "1"
+minimum_acquisition_families = 2
+[[validation.required_conditions]]
+condition_id = "b-calibration-condition"
+requirement_ids = ["b-validation-calibration"]
+experiment_scope = "b-e2e-1"
+[[validation.required_conditions]]
+condition_id = "b-estimation-condition"
+requirement_ids = ["b-validation-estimation"]
+experiment_scope = "b-e2e-1"

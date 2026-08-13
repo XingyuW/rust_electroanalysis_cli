@@ -76,7 +76,22 @@ pub fn evaluate_timescale_requirement(
     };
     let d = (a.ln() - b.ln()).abs();
     out.log_distance = Some(d);
-    out.status = TimescaleStatus::Satisfied;
+    let maximum_log_distance = _h
+        .timescale_gate
+        .as_ref()
+        .filter(|gate| gate.pair_requirement_id == r.requirement_id)
+        .map(|gate| gate.maximum_log_distance)
+        .ok_or_else(|| MechanismAssessmentError::Invalid("missing timescale gate".into()))?;
+    if !maximum_log_distance.is_finite() || maximum_log_distance < 0.0 {
+        return Err(MechanismAssessmentError::Invalid(
+            "invalid maximum log distance".into(),
+        ));
+    }
+    out.status = if d <= maximum_log_distance {
+        TimescaleStatus::Satisfied
+    } else {
+        TimescaleStatus::Failed
+    };
     Ok(out)
 }
 

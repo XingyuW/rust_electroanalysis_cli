@@ -1,7 +1,6 @@
 //! Phase-B mechanism-evidence configuration.  These types deliberately sit
 //! beside (rather than inside) the frozen A1 evidence contract.
 
-use crate::evidence::EvidenceSourceClass;
 use serde::{Deserialize, Serialize};
 
 pub type MechanismHypothesisId = String;
@@ -30,23 +29,14 @@ pub struct MechanismHypothesisDefinition {
     pub hypothesis_id: MechanismHypothesisId,
     pub display_name: String,
     pub target_components: Vec<String>,
-    #[serde(default)]
     pub evidence_requirements: Vec<EvidenceRequirementBinding>,
-    #[serde(default)]
     pub pair_requirements: Vec<EvidencePairRequirement>,
-    #[serde(default)]
     pub critical_requirement_ids: Vec<EvidenceRequirementId>,
-    #[serde(default)]
     pub timescale_gate: Option<TimescaleGate>,
-    #[serde(default)]
     pub amplitude_gates: Vec<AmplitudeGate>,
-    #[serde(default)]
     pub repeatability_gates: Vec<RepeatabilityGate>,
-    #[serde(default)]
     pub identifiability_bindings: Vec<IdentifiabilityBinding>,
-    #[serde(default)]
     pub validation_applicability: ValidationApplicability,
-    #[serde(default)]
     pub role_bindings: Vec<MechanismEvidenceRoleBinding>,
 }
 
@@ -81,6 +71,26 @@ pub enum PhaseBQuantitySemantic {
     Dimensionless,
     Other,
 }
+/// Phase-B config owns its stable snake-case wire vocabulary without changing
+/// the frozen A1 `EvidenceSourceClass` serialization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PhaseBEvidenceSourceClass {
+    Observed,
+    ModelDerived,
+    ProducerAssessment,
+    ExternalReference,
+}
+impl From<PhaseBEvidenceSourceClass> for crate::evidence::EvidenceSourceClass {
+    fn from(value: PhaseBEvidenceSourceClass) -> Self {
+        match value {
+            PhaseBEvidenceSourceClass::Observed => Self::Observed,
+            PhaseBEvidenceSourceClass::ModelDerived => Self::ModelDerived,
+            PhaseBEvidenceSourceClass::ProducerAssessment => Self::ProducerAssessment,
+            PhaseBEvidenceSourceClass::ExternalReference => Self::ExternalReference,
+        }
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RequiredEvidenceDirection {
@@ -92,7 +102,7 @@ pub enum RequiredEvidenceDirection {
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceValidityRequirement {
     Valid,
-    Assessed,
+    ValidOrNotAssessed,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
@@ -104,7 +114,7 @@ pub enum EvidenceTargetSelector {
 pub struct EvidenceRequirementBinding {
     pub requirement_id: EvidenceRequirementId,
     pub target_selector: EvidenceTargetSelector,
-    pub source_class_selectors: Vec<EvidenceSourceClass>,
+    pub source_class_selectors: Vec<PhaseBEvidenceSourceClass>,
     pub source_field_path: String,
     pub quantity_semantic: PhaseBQuantitySemantic,
     pub required_unit: String,
@@ -203,17 +213,16 @@ pub struct IdentifiabilityGateConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum IdentifiabilityInputSelection {
-    All,
+    ExactPair {
+        pair_requirement_id: EvidenceRequirementId,
+    },
+    AllEligible,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IdentifiabilityInputBinding {
     pub requirement_ids: Vec<EvidenceRequirementId>,
-    #[serde(default = "all_selection")]
     pub selection: IdentifiabilityInputSelection,
-}
-fn all_selection() -> IdentifiabilityInputSelection {
-    IdentifiabilityInputSelection::All
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

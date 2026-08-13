@@ -74,7 +74,7 @@ pub fn bind_hypothesis_evidence(
 ) -> Result<BoundHypothesisEvidence, EvidenceBindingError> {
     let mut requirements = Vec::new();
     for r in &h.evidence_requirements {
-        let mut ids=p.bundle.records.iter().filter(|e|matches!((&r.target_selector,&e.target),(EvidenceTargetSelector::ExactComponent{value},EvidenceTarget::ModelComponent(component)) if value==&component.0)).filter(|e|r.source_class_selectors.contains(&e.source_class)&&e.source.field_path==r.source_field_path).map(|e|e.evidence_id.clone()).collect::<Vec<_>>();
+        let mut ids=p.bundle.records.iter().filter(|e|matches!((&r.target_selector,&e.target),(EvidenceTargetSelector::ExactComponent{value},EvidenceTarget::ModelComponent(component)) if value==&component.0)).filter(|e|r.source_class_selectors.iter().any(|selector| crate::evidence::EvidenceSourceClass::from(*selector) == e.source_class)&&e.source.field_path==r.source_field_path).map(|e|e.evidence_id.clone()).collect::<Vec<_>>();
         ids.sort();
         requirements.push(BoundRequirementEvidence {
             requirement_id: r.requirement_id.clone(),
@@ -217,12 +217,40 @@ pub fn evaluate_hypothesis_evidence_eligibility(
             result.temporal_assessments.push(a.clone())
         };
         for id in &bound.candidate_evidence_ids {
+            let role_authorized = b.role_bindings.iter().any(|binding| {
+                binding.requirement_id == rule.requirement_id
+                    && binding.evidence_id == *id
+                    && matches!(
+                        (rule.stage, binding.role),
+                        (
+                            EvidenceRequirementStage::Support,
+                            MechanismEvidenceRole::Support
+                        ) | (
+                            EvidenceRequirementStage::Validation,
+                            MechanismEvidenceRole::Validation
+                        ) | (
+                            EvidenceRequirementStage::SupportAndValidation,
+                            MechanismEvidenceRole::Support
+                        ) | (
+                            EvidenceRequirementStage::SupportAndValidation,
+                            MechanismEvidenceRole::Validation
+                        )
+                    )
+            });
+            if !role_authorized {
+                continue;
+            }
             let Some(record) = p.bundle.records.iter().find(|x| &x.evidence_id == id) else {
                 continue;
             };
-            if record.availability != EvidenceAvailability::Available
-                || record.validity != EvidenceValidity::Valid
-            {
+            let validity_matches = match rule.validity_requirement {
+                EvidenceValidityRequirement::Valid => record.validity == EvidenceValidity::Valid,
+                EvidenceValidityRequirement::ValidOrNotAssessed => matches!(
+                    record.validity,
+                    EvidenceValidity::Valid | EvidenceValidity::NotAssessed
+                ),
+            };
+            if record.availability != EvidenceAvailability::Available || !validity_matches {
                 continue;
             }
             if let Some(a) = &temporal {

@@ -74,12 +74,18 @@ pub fn prepare_phase_b_evidence(
     }
     if let Some(t) = &refs.transient {
         for (i, event) in t.events.iter().enumerate() {
-            let support = event
-                .segment
-                .fitted_time_local
+            let times = &event.segment.fitted_time_local;
+            let support = times
                 .first()
-                .zip(event.segment.fitted_time_local.last())
-                .filter(|(a, b)| a.is_finite() && b.is_finite() && a < b)
+                .zip(times.last())
+                .filter(|(a, b)| {
+                    a.is_finite()
+                        && b.is_finite()
+                        && a < b
+                        && times.windows(2).all(|pair| {
+                            pair[0].is_finite() && pair[1].is_finite() && pair[0] < pair[1]
+                        })
+                })
                 .map(|(start_s, end_s)| EvidenceTemporalSupport::Window {
                     start_s: *start_s,
                     end_s: *end_s,

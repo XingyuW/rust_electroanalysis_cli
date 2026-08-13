@@ -56,7 +56,10 @@ pub enum HypothesisAssessmentHashError {
     #[error("source evidence ids mismatch")]
     SourceEvidenceIdsMismatch,
     #[error("validation assessment status mismatch")]
-    ValidationAssessmentStatusMismatch,
+    ValidationAssessmentStatusMismatch {
+        summary: ValidationProtocolStatus,
+        full_status: Option<ValidationProtocolStatus>,
+    },
     #[error("JCS serialization: {detail}")]
     JcsSerialization { detail: String },
 }
@@ -65,20 +68,12 @@ fn sorted<T: Ord>(mut x: Vec<T>) -> Vec<T> {
     x.dedup();
     x
 }
-pub fn build_hypothesis_assessment_hash_view(
+/// The exact consumed-evidence union used by the history identity contract.
+/// Candidates which were not selected by an eligible gate never enter here.
+pub fn consumed_source_evidence_ids(
     a: &PhaseBHypothesisAssessment,
     g: &HypothesisGateAssessments,
-    components: &[ComponentInterpretationAssessment],
-    source: &[EvidenceId],
-) -> Result<HypothesisAssessmentHashView, HypothesisAssessmentHashError> {
-    if a.validation_status
-        != g.validation_assessment
-            .as_ref()
-            .map(|x| x.status.clone())
-            .unwrap_or(ValidationProtocolStatus::NotAssessed)
-    {
-        return Err(HypothesisAssessmentHashError::ValidationAssessmentStatusMismatch);
-    };
+) -> Vec<EvidenceId> {
     let mut used = a
         .temporal_join_assessments
         .iter()
@@ -112,10 +107,31 @@ pub fn build_hypothesis_assessment_hash_view(
             .iter()
             .flat_map(|x| x.evidence_ids.clone()),
     );
-    if let Some(v) = &g.validation_assessment {
-        used.extend(v.evidence_ids.clone())
+    if let Some(validation) = &g.validation_assessment {
+        used.extend(validation.evidence_ids.clone());
+    }
+    sorted(used)
+}
+pub fn build_hypothesis_assessment_hash_view(
+    a: &PhaseBHypothesisAssessment,
+    g: &HypothesisGateAssessments,
+    components: &[ComponentInterpretationAssessment],
+    source: &[EvidenceId],
+) -> Result<HypothesisAssessmentHashView, HypothesisAssessmentHashError> {
+    let full_status = g.validation_assessment.as_ref().map(|x| x.status.clone());
+    if a.validation_status
+        != full_status
+            .clone()
+            .unwrap_or(ValidationProtocolStatus::NotAssessed)
+    {
+        return Err(
+            HypothesisAssessmentHashError::ValidationAssessmentStatusMismatch {
+                summary: a.validation_status.clone(),
+                full_status,
+            },
+        );
     };
-    used = sorted(used);
+    let used = consumed_source_evidence_ids(a, g);
     if used != sorted(source.to_vec()) {
         return Err(HypothesisAssessmentHashError::SourceEvidenceIdsMismatch);
     };
@@ -142,6 +158,31 @@ pub fn build_hypothesis_assessment_hash_view(
     });
     view.timescale_assessments
         .sort_by(|x, y| x.pair_requirement_id.cmp(&y.pair_requirement_id));
+    view.amplitude_assessments.sort_by(|left, right| {
+        (
+            &left.predicted_requirement_id,
+            &left.observed_requirement_id,
+        )
+            .cmp(&(
+                &right.predicted_requirement_id,
+                &right.observed_requirement_id,
+            ))
+    });
+    view.repeatability_assessments
+        .iter_mut()
+        .for_each(|row| row.requirement_ids = sorted(row.requirement_ids.clone()));
+    view.repeatability_assessments
+        .sort_by(|left, right| left.requirement_ids.cmp(&right.requirement_ids));
+    view.identifiability_assessments
+        .sort_by(|left, right| left.requirement_id.cmp(&right.requirement_id));
+    view.contradiction_summaries
+        .sort_by(|left, right| left.requirement_id.cmp(&right.requirement_id));
+    if let Some(validation) = &mut view.validation_assessment {
+        validation.evidence_ids = sorted(validation.evidence_ids.clone());
+        validation.acquisition_family_ids = sorted(validation.acquisition_family_ids.clone());
+        validation.passed_condition_ids = sorted(validation.passed_condition_ids.clone());
+        validation.reasons = sorted(validation.reasons.clone());
+    }
     view.component_assessments
         .sort_by(|x, y| x.component_id.cmp(&y.component_id));
     Ok(view)
