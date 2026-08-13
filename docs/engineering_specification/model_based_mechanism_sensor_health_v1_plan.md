@@ -6830,3 +6830,404 @@ temporal config deserializes? **NO.** Could they differ about whether
 transient support is `Event` or `Window`? **NO.**
 
 READY_FOR_PHASE_B_FINAL_WIRE_CONTRACT_REREVIEW = yes
+
+## 31. Phase B Contract Remediation XIII — canonical assessment-hash preimage and history identity
+
+### 31.1 Authority, confirmed finding, and scope
+
+This documentation-only section resolves **PB-HISTORY-HASH-01** and is the
+sole ACTIVE NORMATIVE Phase-B definition of the `assessment_hash` preimage,
+`assessment_hash` algorithm, `history_id` preimage/algorithm, and history
+duplicate rule. The P1 is **CONFIRMED**: §30 correctly makes `history_id`
+depend on `assessment_hash`, but its phrase “deterministic scientific
+assessment view” does not define one canonical payload, ordering, null rule,
+or float rule. No production Rust, test, fixture, frozen A1 API, serialized
+schema-4 report field, pipeline stage count, `main`, or
+`codex/mhi-v1-b-mechanism-evidence-integration` is changed by this amendment.
+
+`src/mechanism/history.rs` owns this Phase-B-only identity contract. It may
+reuse the repository's existing `serde_jcs` plus SHA-256 utility, but it MUST
+NOT repurpose an A1 semantic-hash type or change A1 identity semantics.
+There is exactly one assessment-hash preimage type:
+
+```rust
+// Non-wire helper: not an independently persisted schema-4 object and not a
+// replacement for PhaseBHypothesisAssessment.
+pub struct HypothesisAssessmentHashView {
+    pub hypothesis_id: MechanismHypothesisId,
+    pub evidence_level: HypothesisEvidenceLevel,
+    pub temporal_join_assessments: Vec<TemporalJoinAssessmentHashView>,
+    pub timescale_assessments: Vec<TimescaleAssessmentHashView>,
+    pub amplitude_assessments: Vec<AmplitudeAssessmentHashView>,
+    pub repeatability_assessments: Vec<RepeatabilityAssessmentHashView>,
+    pub identifiability_assessments: Vec<IdentifiabilityAssessmentHashView>,
+    pub contradiction_summaries: Vec<RequirementContradictionSummaryHashView>,
+    pub validation_assessment: Option<ValidationAssessmentHashView>,
+    pub reason_codes: Vec<PhaseBHypothesisReasonCode>,
+    pub component_assessments: Vec<ComponentInterpretationAssessmentHashView>,
+    pub source_evidence_ids: Vec<EvidenceId>,
+}
+
+// Non-wire typed string. Its serde representation, when required by a helper
+// or test, is exactly 64 lowercase hexadecimal digits (no prefix), matching
+// the already-approved internal semantic-hash convention.
+pub struct AssessmentHash(pub String);
+
+// Non-wire canonical preimage for history identity.
+pub struct HypothesisHistoryIdView {
+    pub hypothesis_id: MechanismHypothesisId,
+    pub prior_level: HypothesisEvidenceLevel,
+    pub new_level: HypothesisEvidenceLevel,
+    pub assessment_hash: AssessmentHash,
+}
+```
+
+No `hash_domain` field is added. The approved identity architecture did not
+already use a Phase-B domain-separation wrapper; adding one would be a new
+cryptographic design rather than a remediation of the ambiguous payload.
+
+### 31.2 Exact semantic field set and nested views
+
+The view contains semantic assessment results and their semantic inputs. It
+excludes presentation, runtime, and recursive identity fields. In particular,
+`history_id`, `assessment_hash`, sequence/index, wall-clock time, paths, CLI
+strings, map insertion order, display labels, diagnostic prose, serializer
+formatting, process time, and random values are excluded. `history_id` and
+`assessment_hash` can therefore never recursively participate in their own
+preimages.
+
+The complete nested helper types are exact; a nested persisted object is never
+described merely as “its semantic parts.” All fields below serialize with their
+shown snake-case names and use the existing snake-case serde token of each
+existing enum.
+
+```rust
+pub struct TemporalJoinAssessmentHashView {
+    pub requirement_id: EvidenceRequirementId,
+    pub left_evidence_id: EvidenceId,
+    pub right_evidence_id: EvidenceId,
+    pub mode: TemporalJoinMode,
+    pub outcome: TemporalJoinOutcome,
+    pub classified_fraction: Option<f64>,
+    pub equilibrium_fraction: Option<f64>,
+    pub steady_state_fraction: Option<f64>,
+    pub reasons: Vec<TemporalJoinReasonCode>,
+}
+pub struct TimescaleAssessmentHashView {
+    pub pair_requirement_id: EvidenceRequirementId,
+    pub status: TimescaleStatus,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub log_distance: Option<f64>,
+}
+pub struct AmplitudeThresholdHashView { pub value: f64, pub unit: String }
+pub struct AmplitudeAssessmentHashView {
+    pub predicted_requirement_id: EvidenceRequirementId,
+    pub observed_requirement_id: EvidenceRequirementId,
+    pub status: AmplitudeStatus,
+    pub predicted_evidence_id: Option<EvidenceId>,
+    pub observed_evidence_id: Option<EvidenceId>,
+    pub threshold: AmplitudeThresholdHashView,
+    pub relative_error: Option<f64>,
+    pub reasons: Vec<AmplitudeReasonCode>,
+}
+pub struct RepeatabilityAssessmentHashView {
+    pub requirement_ids: Vec<EvidenceRequirementId>,
+    pub status: RepeatabilityStatus,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub sample_standard_deviation_ln_tau: Option<f64>,
+}
+pub struct IdentifiabilityAssessmentHashView {
+    pub requirement_id: IdentifiabilityRequirementId,
+    pub status: IdentifiabilityAssessmentStatus,
+    pub metric_value: Option<f64>,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub reasons: Vec<IdentifiabilityAssessmentReasonCode>,
+}
+pub struct RequirementContradictionSummaryHashView {
+    pub requirement_id: EvidenceRequirementId,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub contradiction_count: usize,
+    pub strong_critical_count: usize,
+}
+pub struct ValidationAssessmentHashView {
+    pub protocol_id: String,
+    pub status: ValidationProtocolStatus,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub acquisition_family_ids: Vec<AcquisitionFamilyId>,
+    pub passed_condition_ids: Vec<String>,
+    pub reasons: Vec<ValidationReasonCode>,
+}
+pub struct ComponentInterpretationAssessmentHashView {
+    pub component_id: ComponentId,
+    pub prior_status: InterpretationStatus,
+    pub assessment_target: Option<InterpretationStatus>,
+    pub resulting_status: InterpretationStatus,
+    pub supporting_hypothesis_id: MechanismHypothesisId,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub reasons: Vec<ComponentInterpretationReasonCode>,
+}
+```
+
+The source-to-view inclusion decision is exhaustive:
+
+| Source field | Included? | hash-view path / normalization | Reason |
+|---|---:|---|---|
+| `PhaseBHypothesisAssessment.hypothesis_id` | yes | `hypothesis_id`; canonical ID string | identifies the assessed hypothesis |
+| `.evidence_level` | yes | `evidence_level`; existing enum token | resulting semantic level |
+| `.temporal_join_assessments` | yes | `temporal_join_assessments`; nested view | gate outcome is scientific meaning |
+| `.timescale_assessments` | yes | `timescale_assessments`; nested view | gate outcome is scientific meaning |
+| `.amplitude_assessments` | yes | `amplitude_assessments`; nested view | gate outcome is scientific meaning |
+| `.repeatability_assessments` | yes | `repeatability_assessments`; nested view | gate outcome is scientific meaning |
+| `.identifiability_assessments` | yes | `identifiability_assessments`; nested view | gate outcome is scientific meaning |
+| `.contradiction_summaries` | yes | `contradiction_summaries`; nested view | direct contradiction result is scientific meaning |
+| `.reason_codes` | yes | `reason_codes`; enum-token sorted/deduplicated | machine explanation of the result |
+| `.component_assessments` | yes | `component_assessments`; nested view | persisted component result is assessment meaning |
+| `.validation_status` / the active validation result | yes | `validation_assessment`; `Some` exact nested view, `None` is JSON `null` | protocol result, families, conditions, and reasons are semantic |
+| `.history` / report `hypothesis_history` | no | excluded | prior transition log and derived IDs are not the current assessment; including it would make identity history-position dependent |
+| `MechanismEvidenceConfig`, including `display_name`, CLI and source-path metadata | no | excluded | config is report/config identity, not a field of the persisted assessment result; every resulting gate/config consequence is represented by the included assessment rows |
+| consumed transition evidence, derived from the preceding included nested rows | yes | `source_evidence_ids`; sorted/deduplicated union | history provenance is part of transition identity and appears once as the canonical root collection |
+| `HypothesisHistoryEntry.history_id` | no | excluded | recursive derived identity |
+| `HypothesisHistoryEntry.assessment_index` | no | excluded | append position, not assessment meaning |
+| generated timestamp, `assessed_at`, current process time | no | excluded | runtime/presentation metadata |
+| paths, CLI invocation, labels, diagnostic prose, formatting/order | no | excluded | incidental presentation/runtime state |
+
+Every nested field is likewise decided; “same as the persisted type” means the
+corresponding exact helper declaration above, not implicit direct serialization.
+
+| Nested source | Included fields | Excluded fields |
+|---|---|---|
+| `TemporalJoinAssessment` | `requirement_id,left_evidence_id,right_evidence_id,mode,outcome,classified_fraction,equilibrium_fraction,steady_state_fraction,reasons` | none |
+| `TimescaleAssessment` | `pair_requirement_id,status,evidence_ids,log_distance` | none |
+| `AmplitudeAssessment` and `AmplitudeThreshold` | `predicted_requirement_id,observed_requirement_id,status,predicted_evidence_id,observed_evidence_id,threshold.value,threshold.unit,relative_error,reasons` | none |
+| `RepeatabilityAssessment` | `requirement_ids,status,evidence_ids,sample_standard_deviation_ln_tau` | none |
+| `IdentifiabilityAssessment` | `requirement_id,status,metric_value,evidence_ids,reasons` | none |
+| `RequirementContradictionSummary` | `requirement_id,evidence_ids,contradiction_count,strong_critical_count` | none |
+| `ValidationAssessment` | `protocol_id,status,evidence_ids,acquisition_family_ids,passed_condition_ids,reasons` | none |
+| `ComponentInterpretationAssessment` | `component_id,prior_status,assessment_target,resulting_status,supporting_hypothesis_id,evidence_ids,reasons` | none |
+
+### 31.3 Normalization, null, map, and float rules
+
+RFC 8785 canonicalizes object members only. The builder MUST apply these rules
+before JCS serialization; a duplicate row with a semantic key is a typed error
+rather than a traversal-order-dependent choice.
+
+| Collection | Exact canonical order and duplicate rule |
+|---|---|
+| root `source_evidence_ids`; every nested `evidence_ids` | canonical `EvidenceId` ascending; deduplicate |
+| `temporal_join_assessments` | `(requirement_id,left_evidence_id,right_evidence_id,mode-token)` ascending; duplicate tuple rejected |
+| `timescale_assessments` | `pair_requirement_id` ascending; duplicate rejected |
+| `amplitude_assessments` | `(predicted_requirement_id,observed_requirement_id)` ascending; duplicate rejected |
+| `repeatability_assessments` | lexicographic sorted `requirement_ids` tuple ascending; duplicate tuple rejected |
+| `repeatability_assessments[*].requirement_ids` | requirement ID ascending; deduplicate before the row key is formed |
+| `identifiability_assessments` | `requirement_id` ascending; duplicate rejected |
+| `contradiction_summaries` | `requirement_id` ascending; duplicate rejected |
+| `reason_codes` and every nested `reasons` vector | canonical serialized snake-case enum token ascending; deduplicate |
+| `component_assessments` | `component_id` ascending; duplicate rejected |
+| validation `acquisition_family_ids`, `passed_condition_ids`, and `evidence_ids` | canonical ID/string ascending; deduplicate |
+
+`source_evidence_ids` is exactly the sorted, duplicate-free union of every
+`EvidenceId` present in the canonical nested gate, validation, and component
+views (including temporal left/right and populated amplitude options). The
+builder rejects a caller-provided source list that differs from that union.
+Thus source evidence is included exactly once as a root identity collection,
+while each assessment row retains its own source reference as required to
+express that row's meaning.
+
+The hash view contains no map. If a future revision introduces one, it MUST
+use a `BTreeMap<String, _>` in the hash view, convert each typed key to its
+canonical string before insertion, reject duplicate semantic keys, and only
+then rely on RFC-8785 object-member ordering; `HashMap` iteration is forbidden.
+
+Every `Option<T>` in every hash-view declaration serializes with normal serde
+as an explicit JSON `null` for `None`; `skip_serializing_if` is forbidden on a
+hash-view type. Every hashed float, including floats nested in optional fields,
+MUST be finite. `NaN`, `+∞`, and `-∞` are invalid hash input.
+Before constructing the view, `-0.0` is normalized to `0.0`; no approved
+Phase-B semantic distinguishes them. JCS/`serde_jcs` solely owns final JSON
+number rendering after this validation and normalization.
+
+### 31.4 Canonical procedures, errors, and wire form
+
+The only assessment procedure is:
+
+```rust
+pub fn build_hypothesis_assessment_hash_view(
+    assessment: &PhaseBHypothesisAssessment,
+    component_assessments: &[ComponentInterpretationAssessment],
+) -> Result<HypothesisAssessmentHashView, HypothesisAssessmentHashError>;
+
+pub fn compute_assessment_hash(
+    view: &HypothesisAssessmentHashView,
+) -> Result<AssessmentHash, HypothesisAssessmentHashError>;
+
+pub fn compute_history_id(
+    view: &HypothesisHistoryIdView,
+) -> Result<String, HypothesisAssessmentHashError>;
+```
+
+`build_hypothesis_assessment_hash_view` validates all semantic values,
+verifies the separately supplied component slice is equal to the assessment's
+canonical component rows, derives/verifies `source_evidence_ids`, applies every
+rule in §31.3, and returns the one view above. It neither reads a config hash
+or clock nor accepts a history ID/hash from its caller.
+
+`compute_assessment_hash` serializes that view with the repository's existing
+RFC-8785/JCS implementation (`serde_jcs::to_vec`), hashes those exact UTF-8
+bytes with SHA-256, and returns:
+
+```text
+assessment_hash = lowercase_hex(SHA-256(jcs_bytes))
+```
+
+`AssessmentHash` validation rejects a prefix, uppercase, non-hex data, and any
+length other than 64 characters. This preserves the already-approved internal
+semantic-hash representation; it is not the frozen A1 `ArtifactId` wrapper.
+JCS
+serialization is not replaceable with `serde_json` or implementation-specific
+float formatting.
+
+The complete current approved history distinction is hypothesis, prior level,
+new level, and the canonical assessment result. Therefore `compute_history_id`
+JCS-serializes exactly `HypothesisHistoryIdView`, then returns:
+
+```text
+history_id = lowercase_hex(SHA-256(history_id_jcs_bytes))
+```
+
+The typed failures are added to the existing Phase-B history/assessment error
+surface, not to A1: `NonFiniteHashedFloat { path }`,
+`DuplicateSemanticKey { collection, key }`, `InvalidAssessmentHashEncoding`,
+`JcsSerialization { detail }`, and `HistoryHashConstruction { detail }`.
+
+Two history entries are semantically duplicate **iff** their
+`(hypothesis_id, prior_level, new_level, assessment_hash)` tuples are equal.
+`update_hypothesis_history` computes the candidate `HypothesisHistoryIdView`
+and uses its `history_id` to recognize that tuple among persisted history rows;
+this is the required implementation of the canonical tuple test because the
+wire history row intentionally does not persist `assessment_hash` separately.
+It appends no new entry when the candidate ID already exists for the same
+hypothesis. `assessment_index` is assigned only after the no-duplicate decision
+as the prior maximum index for that hypothesis plus one. The serialized history
+remains sorted by `hypothesis_id`, then `assessment_index`.
+
+### 31.5 PB-HASH-01 fixed RFC-8785 vector
+
+PB-HASH-01 is a complete literal normalized view with every root member
+present, every collection empty, and the one optional member explicitly null:
+
+```json
+{"amplitude_assessments":[],"component_assessments":[],"contradiction_summaries":[],"evidence_level":"unassessed","hypothesis_id":"pb-hash-01","identifiability_assessments":[],"reason_codes":[],"repeatability_assessments":[],"source_evidence_ids":[],"temporal_join_assessments":[],"timescale_assessments":[],"validation_assessment":null}
+```
+
+That literal JSON string is the exact UTF-8 JCS byte sequence (no newline).
+It was computed with this repository's locked `serde_jcs = 0.2.0` semantics.
+Its expected SHA-256 is
+`7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290`,
+and its expected `assessment_hash` is
+`7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290`.
+
+The PB-HASH-01 history preimage is exactly:
+
+```json
+{"assessment_hash":"7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290","hypothesis_id":"pb-hash-01","new_level":"unassessed","prior_level":"hypothesized"}
+```
+
+That literal JSON string is likewise the exact UTF-8 JCS byte sequence (no
+newline). Its expected SHA-256 and `history_id` are both
+`7a1d581a1e9bccc4cf21503b4f9f4766a19a11086b8faba8c257edff4ef54d0f`,
+respectively.
+
+### 31.6 Fixture, API, inventory, and test alignment
+
+PB-FX-09 remains an empty-history first run. It nonetheless builds its
+canonical assessment view with source IDs
+`[eis.parameter.0, transient.event.0.tau_fast_s]`, computes
+`assessment_hash` through `compute_assessment_hash`, and asserts the view's
+sorted source union and hash match the production result.
+
+PB-FX-10 remains the one-transition run. It builds its full canonical
+assessment view from the declared current assessment and four component rows,
+asserts source IDs
+`[calibration.observation.0, eis.parameter.0, estimation.point.0.state.0,
+transient.event.0.tau_fast_s]`, computes `assessment_hash`, constructs the
+exact `HypothesisHistoryIdView { hypothesis_id: "b-hypothesis",
+prior_level: ExperimentallySupported, new_level: ValidatedForDomain,
+assessment_hash }`, and asserts the persisted `history_id` equals
+`compute_history_id`. No fixture contains a placeholder digest. Fixture tests
+may derive these two hashes through the canonical production functions because
+PB-HASH-01 is the fixed byte-level cross-implementation vector.
+
+The controlling inventory gains the following non-wire items, all owned by
+`src/mechanism/history.rs`: `HypothesisAssessmentHashView`, every named nested
+`*HashView`, `AssessmentHash`, `HypothesisHistoryIdView`,
+`build_hypothesis_assessment_hash_view`, `compute_assessment_hash`, and
+`compute_history_id`. Each has serialized report field **no**; its purpose,
+input, output, and error are exactly §§31.2–31.4. The stage-16 API row is
+superseded only as follows:
+
+```text
+previous history + current PhaseBHypothesisAssessment + canonical component rows
+→ build_hypothesis_assessment_hash_view → assessment_hash
+→ HypothesisHistoryIdView → history_id → semantic duplicate check
+→ update_hypothesis_history(...) → updated Vec<HypothesisHistoryEntry>
+```
+
+The 18-stage pipeline and all other stage APIs are unchanged. Required exact
+tests are `phase_b_assessment_hash_view_normalizes_order`,
+`phase_b_assessment_hash_rfc8785_vector`,
+`phase_b_assessment_hash_rejects_non_finite_float`,
+`phase_b_history_id_is_deterministic`,
+`phase_b_history_duplicate_suppression_uses_semantic_identity`,
+`phase_b_fx09_history_hash_matches_canonical_view`, and
+`phase_b_fx10_history_hash_matches_canonical_view`.
+
+### 31.7 Supersession and final audit
+
+| occurrence | classification | controlling rule |
+|---|---|---|
+| pre-§31 phrases “deterministic scientific assessment view” / category-only `assessment_hash` descriptions | SUPERSEDED | §31.2–31.5 are the one payload and algorithm |
+| pre-§31 `history_id` concatenated-key construction | SUPERSEDED | §31.4 `HypothesisHistoryIdView` JCS construction |
+| §30 eight-field `HypothesisHistoryEntry` wire shape and source-ID meaning | ACTIVE NORMATIVE | unchanged by this section |
+| PB-FX-09/10 placeholder history digest prose | SUPERSEDED | §31.6 canonical-function assertions |
+| RFC-8785/JCS mentions outside this identity contract | DESCRIPTIVE or their separately owned active contract | no second Phase-B assessment/history preimage |
+
+All previously passed Phase-B areas remain PASS without redesign: temporal
+config/serde, transient Window mapping, schema 3→4 naming, source
+compatibility, `ModelAnalysisReport` exclusion, direct `EvidenceBundle`
+retirement, evidence-state/eligibility/contradiction/role/stage/gate behavior,
+amplitude, repeatability, identifiability, validation, component matrix,
+source-evidence semantics, the 18-stage pipeline, production API table,
+PB-FX-09/10 source routes, traceability, CLI, and frozen A1 compatibility.
+
+```text
+Undefined normative types = 0
+Undefined normative owners = 0
+Unspecified Phase B algorithms = 0
+Unspecified scientific thresholds/units = 0
+Unspecified compatibility decisions = 0
+Normative contradictions = 0
+Fixture-to-real-schema contradictions = 0
+Fixture-to-source-route contradictions = 0
+Fixture-to-wire-contract contradictions = 0
+Incomplete normative positive fixtures = 0
+Unmapped active normative types = 0
+Pipeline stages without exact API = 0
+Serialized active types without exact wire shape = 0
+Competing active production-order definitions = 0
+Unmapped acceptance criteria = 0
+Missing exact test names = 0
+Assessment-hash fields with unspecified inclusion/exclusion = 0
+Assessment-hash vectors with unspecified ordering = 0
+Assessment-hash Option/null semantics unspecified = 0
+Assessment-hash float semantics unspecified = 0
+Canonical fixed hash test vectors = 1
+Frozen A1 semantic/API changes required = no
+Implementation invention still required = no
+```
+
+Could two conforming implementations produce different `assessment_hash`
+values from the same semantic Phase-B assessment? **NO.** Could two conforming
+implementations produce different `history_id` values from the same semantic
+history transition? **NO.**
+
+READY_FOR_PHASE_B_HISTORY_IDENTITY_REREVIEW = yes
