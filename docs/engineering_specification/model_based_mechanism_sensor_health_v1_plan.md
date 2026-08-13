@@ -7231,3 +7231,384 @@ implementations produce different `history_id` values from the same semantic
 history transition? **NO.**
 
 READY_FOR_PHASE_B_HISTORY_IDENTITY_REREVIEW = yes
+
+## 32. Phase B Contract Remediation XIV — wire full validation assessment into history identity
+
+### 32.1 Authority, finding reconciliation, scope, and ownership
+
+This documentation-only section resolves **PB-HISTORY-HASH-02**. The finding is
+**CONFIRMED**. The active §31 builder accepted only
+`PhaseBHypothesisAssessment` plus component rows, while the complete
+`ValidationAssessment` is produced before promotion and is retained by
+`HypothesisGateAssessments`. `validation_status` cannot recreate its protocol,
+consumed EvidenceIds, acquisition families, condition IDs, or reasons. The
+earliest divergence is therefore the old stage-16 call boundary, not JCS,
+SHA-256, the history-ID preimage, duplicate suppression, or a scientific gate.
+
+This section is the sole ACTIVE NORMATIVE amendment for the Phase-B
+validation-to-history data path. It changes no production Rust, tests,
+fixtures, frozen A1 API, A1 semantic identity, serialized Phase-B wire field,
+CLI behavior, pipeline-stage count, `main`, or
+`codex/mhi-v1-b-mechanism-evidence-integration`. It neither redesigns
+validation nor adds a second persisted copy of `ValidationAssessment`.
+
+The following ownership model is literal and exclusive:
+
+```text
+ValidationAssessment
+= complete output of the validation gate.
+
+HypothesisGateAssessments
+= complete transient/deterministic collection of scientific gate outputs,
+  including the complete ValidationAssessment when validation is evaluated.
+
+PhaseBHypothesisAssessment
+= durable hypothesis-level summarized result. It retains validation_status but
+  does NOT duplicate the entire ValidationAssessment payload merely for
+  history hashing.
+
+HypothesisAssessmentHashView
+= canonical semantic history-hash preimage. It is constructed using BOTH the
+  durable PhaseBHypothesisAssessment and the full gate results required for
+  canonical history identity.
+```
+
+Existing serialized assessment rows remain outputs required by their already
+approved schema, but they are projections, not an alternative authoritative
+owner for history construction. For the hash builder, the canonical owner of
+every full gate row is exactly `HypothesisGateAssessments`; the canonical owner
+of the durable summary is exactly `PhaseBHypothesisAssessment`.
+
+The already-active aggregate is sufficient and remains exact:
+
+```rust
+pub struct HypothesisGateAssessments {
+    pub contradiction_summaries: Vec<RequirementContradictionSummary>,
+    pub timescale_assessments: Vec<TimescaleAssessment>,
+    pub amplitude_assessments: Vec<AmplitudeAssessment>,
+    pub repeatability_assessments: Vec<RepeatabilityAssessment>,
+    pub identifiability_assessments: Vec<IdentifiabilityAssessment>,
+    pub validation_assessment: Option<ValidationAssessment>,
+}
+```
+
+It must remain alive after `assess_hypothesis(...)` returns and until history
+identity has been constructed. No new type, module, global lookup, report
+reread, artifact search, or hidden runner state is permitted.
+
+The controlling §28.7 type-inventory row is amended in place as follows:
+
+| type | serialized? | owner module | owning parent | purpose |
+|---|---:|---|---|---|
+| `HypothesisGateAssessments` | no | `src/mechanism/promotion.rs` | promotion and history-identity inputs | authoritative transient/full gate-result owner used by both promotion and history identity construction |
+
+No new type is required for this P1.
+
+### 32.2 Summary/full-result invariant and canonical source mapping
+
+The builder first enforces this invariant using the existing
+`HypothesisAssessmentHashError` surface (the history module's existing
+Phase-B assessment/history error type):
+
+```text
+If gates.validation_assessment = Some(v),
+assessment.validation_status MUST equal v.status.
+
+If gates.validation_assessment = None,
+assessment.validation_status MUST equal ValidationProtocolStatus::NotAssessed.
+```
+
+The exact failure is
+`ValidationAssessmentStatusMismatch { summary, full_status }`; `full_status`
+is `None` for the no-validation case. A required validation result missing from
+the aggregate, or malformed full validation semantic input, remains a typed
+error at the existing validation/history boundary only when illegal under the
+active validation applicability configuration. No new error architecture is
+created.
+
+This is the controlling source map. A hash-view field must never be
+reconstructed from a summary if its full authoritative gate object exists.
+
+| HypothesisAssessmentHashView field | Canonical source object | Canonical source field | Transformation / normalization |
+|---|---|---|---|
+| `hypothesis_id` | `PhaseBHypothesisAssessment` | `hypothesis_id` | canonical ID string |
+| `evidence_level` | `PhaseBHypothesisAssessment` | `evidence_level` | existing snake-case enum token |
+| `reason_codes` | `PhaseBHypothesisAssessment` | `reason_codes` | canonical token ascending; deduplicate |
+| `temporal_join_assessments` | `PhaseBHypothesisAssessment` | existing durable temporal-join rows | §31.3 stable key; duplicate rejected; no separate full temporal aggregate exists in the approved type |
+| `timescale_assessments` | `HypothesisGateAssessments` | `timescale_assessments` | §31.3 stable key; duplicate rejected |
+| `amplitude_assessments` | `HypothesisGateAssessments` | `amplitude_assessments` | §31.3 stable key; duplicate rejected |
+| `repeatability_assessments` | `HypothesisGateAssessments` | `repeatability_assessments` | §31.3 stable key; duplicate rejected |
+| `identifiability_assessments` | `HypothesisGateAssessments` | `identifiability_assessments` | §31.3 stable key; duplicate rejected |
+| `contradiction_summaries` | `HypothesisGateAssessments` | `contradiction_summaries` | §31.3 stable key; duplicate rejected |
+| `validation_assessment` | `HypothesisGateAssessments` | `validation_assessment` | exact nested `ValidationAssessmentHashView`; `None` is explicit JSON `null` |
+| `component_assessments` | stage-15 argument | `component_assessments` | §31.3 `component_id` order; duplicate rejected |
+| `source_evidence_ids` | stage-16 argument | canonical consumed source list | §32.4 sorted/unique exact-union verification |
+
+The temporal rows remain the already-approved durable temporal-join output:
+the approved `HypothesisGateAssessments` type has no separately owned temporal
+field, so no full temporal object is reconstructed or moved by this amendment.
+This is not a new scientific evaluation or a source traversal.
+
+### 32.3 Validation hash view, inclusion, normalization, and absence
+
+`ValidationAssessmentHashView` in §31.2 remains the one canonical nested
+representation, with no field added or removed. Its inclusion decisions are
+exhaustive:
+
+| ValidationAssessment field | Included in hash view? | Hash-view field | Normalization |
+|---|---:|---|---|
+| `protocol_id` | yes | `protocol_id` | exact UTF-8 string; no display transformation |
+| `status` | yes | `status` | existing snake-case enum token |
+| `evidence_ids` | yes | `evidence_ids` | canonical `EvidenceId` ascending; deduplicate |
+| `acquisition_family_ids` | yes | `acquisition_family_ids` | canonical serialized ID ascending; deduplicate because families are a semantic set |
+| `passed_condition_ids` | yes | `passed_condition_ids` | canonical condition-ID ascending; deduplicate because conditions are a semantic set |
+| `reasons` | yes | `reasons` | existing canonical validation-reason token ascending; deduplicate |
+
+Any future validation family/condition assessment vector must declare a stable
+semantic key before it can enter this view; source traversal order is forbidden.
+All §31 finite-float, `-0.0`, map, duplicate-key, Option, and RFC-8785/JCS
+rules remain unchanged. In particular, when
+`gates.validation_assessment == None`,
+`HypothesisAssessmentHashView.validation_assessment == None` and normal serde
+emits the already-approved explicit JSON `null`; it must not synthesize a
+`ValidationAssessment { status: NotAssessed, ... }`.
+
+### 32.4 Canonical consumed source evidence and consistency invariants
+
+The caller supplies `source_evidence_ids` as the already-approved canonical
+consumed-evidence set. The builder independently computes and requires exact
+equality to this algorithm:
+
+```text
+sorted_unique_union(
+  EvidenceIds used by eligible temporal assessments,
+  EvidenceIds used by direct contradiction summaries,
+  EvidenceIds used by timescale assessments,
+  EvidenceIds used by amplitude assessments,
+  EvidenceIds used by repeatability assessments,
+  EvidenceIds used by identifiability assessments,
+  EvidenceIds consumed by ValidationAssessment
+)
+```
+
+Only eligible evidence actually consumed by those assessments enters the
+union. It excludes temporally ineligible candidates, indeterminate candidates
+that did not contribute, loaded training/calibration records that were not
+consumed, and the remainder of `EvidenceBundle`. Component-row EvidenceIds are
+verified to be members of this union when they refer to the same derived gate
+evidence; they do not add a second source or alter the union. The root vector
+is canonical `EvidenceId` ascending and duplicate-free.
+
+Every EvidenceId in `ValidationAssessmentHashView.evidence_ids` representing
+consumed validation evidence MUST occur in canonical `source_evidence_ids`.
+Protocol, family, and condition IDs are not EvidenceIds and never enter that
+root vector. A missing validation EvidenceId is a typed
+`SourceEvidenceIdsMismatch` error, not a silently accepted incomplete
+provenance list.
+
+### 32.5 Superseding history APIs and the unchanged identity algorithms
+
+The only active hash-builder and history-stage APIs are:
+
+```rust
+pub fn build_hypothesis_assessment_hash_view(
+    assessment: &PhaseBHypothesisAssessment,
+    gates: &HypothesisGateAssessments,
+    component_assessments: &[ComponentInterpretationAssessment],
+    source_evidence_ids: &[EvidenceId],
+) -> Result<HypothesisAssessmentHashView, HypothesisAssessmentHashError>;
+
+pub fn compute_assessment_hash(
+    view: &HypothesisAssessmentHashView,
+) -> Result<AssessmentHash, HypothesisAssessmentHashError>;
+
+pub fn compute_history_id(
+    view: &HypothesisHistoryIdView,
+) -> Result<String, HypothesisAssessmentHashError>;
+
+pub fn update_hypothesis_history(
+    previous_history: &[HypothesisHistoryEntry],
+    assessment: &PhaseBHypothesisAssessment,
+    gates: &HypothesisGateAssessments,
+    component_assessments: &[ComponentInterpretationAssessment],
+    source_evidence_ids: &[EvidenceId],
+) -> Result<Vec<HypothesisHistoryEntry>, MechanismAssessmentError>;
+```
+
+`update_hypothesis_history` calls the builder, then the unchanged
+`compute_assessment_hash`, constructs the unchanged `HypothesisHistoryIdView`,
+calls the unchanged `compute_history_id`, and applies the unchanged semantic
+duplicate suppression. `serde_jcs::to_vec`, SHA-256 encoding, the history-ID
+preimage, Option/null wire semantics, map rules, float rules, and the approved
+PB-HASH-01 input all remain frozen.
+
+### 32.6 Stage 13--16 flow and production API table amendment
+
+The pipeline remains exactly 18 stages. Only its stage 13--16 data flow is
+amended:
+
+```text
+Stage 13: evaluate validation -> ValidationAssessment
+gate aggregation: all gate outputs -> HypothesisGateAssessments
+Stage 14: assess_hypothesis(hypothesis, eligible, &gates, config)
+          -> PhaseBHypothesisAssessment; gates remains available
+Stage 15: assess_components(...) -> component assessments
+Stage 16: history identity/update receives assessment + gates + component
+          assessments + canonical source_evidence_ids + prior history
+```
+
+The authoritative stage-16 production API row is:
+
+| Stage | Function | Owner | Inputs | Output | Internal deterministic operations |
+|---:|---|---|---|---|---|
+| 16 | `update_hypothesis_history` | `src/mechanism/history.rs` | prior history; `PhaseBHypothesisAssessment`; `HypothesisGateAssessments`; `Vec<ComponentInterpretationAssessment>`; canonical `source_evidence_ids` | updated history | `build_hypothesis_assessment_hash_view`; `compute_assessment_hash`; `compute_history_id`; duplicate suppression |
+
+No runner may consume or drop the aggregate after stage 14. Thus every one of
+the 18 stages retains an exact API.
+
+### 32.7 Fixed vectors and PB-FX regression paths
+
+PB-HASH-01 is unchanged: its full validation input is absent, its canonical
+JCS bytes remain the literal in §31.5, its assessment hash remains
+`7dc65e83a79a145ef083c78750674eb27927af7757c9a42f504270ecdc544290`, and
+its history ID remains
+`7a1d581a1e9bccc4cf21503b4f9f4766a19a11086b8faba8c257edff4ef54d0f`.
+
+PB-HASH-02 is the second fixed, validated-domain cross-implementation vector.
+Its complete literal durable summary, full gate aggregate, component input,
+and canonical source input are:
+
+```text
+PhaseBHypothesisAssessment {
+  hypothesis_id: "pb-hash-02", evidence_level: ValidatedForDomain,
+  temporal_join_assessments: [], timescale_assessments: [],
+  amplitude_assessments: [], repeatability_assessments: [],
+  identifiability_assessments: [], contradiction_summaries: [],
+  reason_codes: [ValidationSatisfied], component_assessments: [],
+  validation_status: Satisfied, history: []
+}
+HypothesisGateAssessments {
+  contradiction_summaries: [], timescale_assessments: [],
+  amplitude_assessments: [], repeatability_assessments: [],
+  identifiability_assessments: [],
+  validation_assessment: Some(ValidationAssessment {
+    protocol_id: "pb-hash-02-protocol", status: Satisfied,
+    evidence_ids: ["validation.evidence.a", "validation.evidence.b"],
+    acquisition_family_ids: ["family-a", "family-b"],
+    passed_condition_ids: ["condition-a", "condition-b"], reasons: [Passed]
+  })
+}
+component_assessments = []
+source_evidence_ids = ["validation.evidence.a", "validation.evidence.b"]
+```
+
+Its complete normalized `HypothesisAssessmentHashView` is represented by this
+exact RFC-8785/JCS UTF-8 string (no newline):
+
+```json
+{"amplitude_assessments":[],"component_assessments":[],"contradiction_summaries":[],"evidence_level":"validated_for_domain","hypothesis_id":"pb-hash-02","identifiability_assessments":[],"reason_codes":["validation_satisfied"],"repeatability_assessments":[],"source_evidence_ids":["validation.evidence.a","validation.evidence.b"],"temporal_join_assessments":[],"timescale_assessments":[],"validation_assessment":{"acquisition_family_ids":["family-a","family-b"],"evidence_ids":["validation.evidence.a","validation.evidence.b"],"passed_condition_ids":["condition-a","condition-b"],"protocol_id":"pb-hash-02-protocol","reasons":["passed"],"status":"satisfied"}}
+```
+
+The exact SHA-256 and canonical `assessment_hash` are both
+`6a540a332d57d763cefaa05ba46a663ba97e019649df1d531e8c430da047d4ec`.
+Its exact history-ID view/JCS UTF-8 string is:
+
+```json
+{"assessment_hash":"6a540a332d57d763cefaa05ba46a663ba97e019649df1d531e8c430da047d4ec","hypothesis_id":"pb-hash-02","new_level":"validated_for_domain","prior_level":"experimentally_supported"}
+```
+
+Its exact SHA-256 and `history_id` are both
+`0f4f48e1bd076897520a1e6a43a870cf22bec202ac272fc3ab4d3fea707cd70c`.
+These values were computed from the above exact JCS bytes using the locked
+`serde_jcs = 0.2.0` semantic procedure and SHA-256; they are not placeholders.
+
+PB-FX-09 continues to pass: its no-validation path supplies the aggregate and
+uses the already-approved `NotApplicable` full assessment representation when
+the validation evaluator ran, or the `None`/`NotAssessed` invariant only when
+validation was not evaluated. It retains its exact absence/null behavior and
+unrelated fixture content.
+
+PB-FX-10 now traces the executable path:
+
+```text
+accepted source artifacts -> eligible Validation-role evidence
+-> ValidationAssessment -> HypothesisGateAssessments.validation_assessment
+-> build_hypothesis_assessment_hash_view(..., &gates, ...)
+-> ValidationAssessmentHashView -> assessment_hash -> history_id
+-> persisted HypothesisHistoryEntry
+```
+
+Each arrow is owned by stages 3/7/13, gate aggregation, stage 16's explicit
+history API, or the persisted history writer respectively. PB-FX-10 compares
+runtime-derived production hashes with its fully specified semantic view; it
+does not retain a placeholder digest and does not reconstruct validation from
+`validation_status`.
+
+### 32.8 Tests, supersession, and final audit
+
+The exact required implementation tests are:
+
+```text
+phase_b_assessment_hash_includes_full_validation_assessment
+phase_b_validation_summary_must_match_full_assessment
+phase_b_validated_source_evidence_ids_include_consumed_validation_evidence
+phase_b_hash_builder_accepts_gate_assessments
+phase_b_hash_builder_validation_none_matches_not_assessed_summary
+phase_b_assessment_hash_rfc8785_validated_vector
+phase_b_fx10_validation_payload_reaches_history_hash
+phase_b_fx10_history_hash_matches_canonical_validation_view
+```
+
+They supplement, rather than replace, every approved PB-HASH-01, PB-FX-09,
+and history duplicate-suppression test. Requirement-to-test mapping is one to
+one: full payload, summary invariant, source evidence, builder API, absence,
+fixed vector, E2E propagation, and E2E canonical hash respectively.
+
+| occurrence | classification | controlling rule |
+|---|---|---|
+| §31.2 source-map row `.validation_status / the active validation result` | SUPERSEDED | §32.2 separates the durable summary from the full gate-owned result |
+| §31.3 `source_evidence_ids` union that adds component-row IDs as an independent source | SUPERSEDED | §32.4 gate/validation consumed-evidence union and component-subset verification |
+| §31.4 two-argument `build_hypothesis_assessment_hash_view` | SUPERSEDED | §32.5 four-input builder |
+| §31.6 previous-history plus assessment/component-only stage-16 flow | SUPERSEDED | §32.5--32.6 explicit gates and source IDs |
+| §28.4 three-input `update_hypothesis_history` | SUPERSEDED | §32.5 explicit gates and source IDs |
+| §28.5 stage-16 row without gates/source IDs | SUPERSEDED | §32.6 stage-16 row |
+| §28.6 PB-FX history descriptions that pass only component rows | SUPERSEDED | §32.7 explicit aggregate flow |
+| §28.7 inventory description limiting `HypothesisGateAssessments` to promotion input | SUPERSEDED | §32.1 inventory amendment |
+| any active instruction reconstructing validation from `validation_status` | SUPERSEDED | §32.1--32.3 |
+| all other §31 hash schemas, ordering, JCS, float, null, hash, history-ID, and duplicate rules | ACTIVE NORMATIVE | unchanged except for the explicit input path |
+
+```text
+Undefined normative types = 0
+Undefined normative owners = 0
+Unspecified Phase B algorithms = 0
+Unspecified scientific thresholds/units = 0
+Unspecified compatibility decisions = 0
+Normative contradictions = 0
+Fixture-to-real-schema contradictions = 0
+Fixture-to-source-route contradictions = 0
+Fixture-to-wire-contract contradictions = 0
+Incomplete normative positive fixtures = 0
+Unmapped active normative types = 0
+Pipeline stages without exact API = 0
+Serialized active types without exact wire shape = 0
+Competing active production-order definitions = 0
+Unmapped acceptance criteria = 0
+Missing exact test names = 0
+Assessment-hash fields with unspecified inclusion/exclusion = 0
+Assessment-hash vectors with unspecified ordering = 0
+Assessment-hash Option/null semantics unspecified = 0
+Assessment-hash float semantics unspecified = 0
+Hash-view fields with unavailable canonical source = 0
+Validation hash fields without canonical data path = 0
+Active hash-builder APIs lacking full validation input = 0
+Canonical fixed hash test vectors = 2
+Validated fixed hash test vectors = 1
+Frozen A1 semantic/API changes required = no
+Implementation invention still required = no
+```
+
+Can conforming implementations disagree on `assessment_hash`? **NO.** Can
+they disagree on `history_id`? **NO.** Can they disagree on where full
+validation data used by the hash comes from? **NO.**
+
+READY_FOR_PHASE_B_VALIDATION_TO_HISTORY_REREVIEW = yes
