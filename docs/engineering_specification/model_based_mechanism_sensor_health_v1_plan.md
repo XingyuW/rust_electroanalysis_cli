@@ -4760,3 +4760,920 @@ ownership: **NO** for every item.
 Main and `codex/mhi-v1-b-mechanism-evidence-integration` remain unchanged.
 
 READY_FOR_PHASE_B_WIRE_EXECUTION_REREVIEW = yes
+
+## 27. Phase B Contract Remediation IX — final temporal invocation, eligibility, wire, and fixture contract
+
+### 27.1 Authority, scope, and finding reconciliation
+
+This section is the sole active normative Phase-B contract for the four
+remaining P1 findings. It supersedes every earlier Phase-B definition,
+signature, wire example, fixture fragment, API-table row, error list, route,
+self-audit, and readiness statement in §§6--10, 14--18, and 20--26 wherever
+this section differs. Earlier material is historical, descriptive, or
+migration-only. The frozen A1 interfaces, serialized A1 meaning, A1 semantic
+hashes, legacy mechanism path, `main`, and
+`codex/mhi-v1-b-mechanism-evidence-integration` remain unchanged. This is a
+documentation-only amendment and authorizes no production Rust, test, or
+fixture change.
+
+| finding | classification | controlling resolution |
+|---|---|---|
+| PB-WR-01 temporal mode invocation | CONFIRMED | `TemporalJoinRequest` carries the serialized requirement ID, both bound EvidenceIds, and the configured `TemporalJoinMode`; the evaluator accepts only that request. |
+| PB-WR-02 temporally eligible contradiction input | CONFIRMED | `EligibleRequirementEvidence` is produced after temporal resolution and is the sole direct-contradiction input; raw candidate sets and independent temporal matching are forbidden there. |
+| PB-WR-03 `EvidenceTemporalSupport` wire shape | CONFIRMED | The support enum is internally tagged with `kind`, exact payload fields, exact JSON examples, validation, and a top-level map catalog representation. |
+| PB-WR-04 PB-FX-09/PB-FX-10 completeness | CONFIRMED | The complete standalone TOML, source registry, intermediate outputs, and schema-4 output contracts below are the sole active fixture definitions. |
+
+The following supersession sentence is normative:
+
+> The complete PB-FX-09 and PB-FX-10 definitions in §27.7 are the sole ACTIVE
+> NORMATIVE definitions. Every earlier partial PB-FX-09/PB-FX-10 block is
+> SUPERSEDED and MUST NOT be combined with the canonical fixtures.
+
+### 27.2 PB-WR-01 — explicit temporal invocation contract
+
+The serialized temporal declaration remains owned by the exact pair
+requirement. `EvidencePairRequirement` is therefore the exact active
+equivalent of the brief's `EvidenceRequirementBinding` parameter in request
+construction; no second temporal owner is introduced.
+
+```rust
+pub struct TemporalJoinRequest {
+    pub requirement_id: EvidenceRequirementId,
+    pub left_evidence_id: EvidenceId,
+    pub right_evidence_id: EvidenceId,
+    pub mode: TemporalJoinMode,
+}
+
+pub enum TemporalRequirement {
+    NotApplicable,
+    Required { join_mode: TemporalJoinMode },
+}
+
+pub struct EvidencePairRequirement {
+    pub requirement_id: EvidenceRequirementId,
+    pub left_requirement_id: EvidenceRequirementId,
+    pub right_requirement_id: EvidenceRequirementId,
+    pub temporal: TemporalRequirement,
+    pub gate: RequirementGate,
+}
+
+pub fn build_temporal_join_request(
+    requirement: &EvidencePairRequirement,
+    bound: &BoundEvidencePair,
+) -> Result<Option<TemporalJoinRequest>, EvidenceBindingError>;
+
+pub fn evaluate_temporal_join(
+    request: &TemporalJoinRequest,
+    bundle: &EvidenceBundle,
+    temporal_metadata: &EvidenceTemporalMetadataCatalog,
+    config: &TemporalJoinConfig,
+) -> Result<TemporalJoinAssessment, TemporalJoinError>;
+
+pub struct TemporalJoinAssessment {
+    pub requirement_id: EvidenceRequirementId,
+    pub left_evidence_id: EvidenceId,
+    pub right_evidence_id: EvidenceId,
+    pub mode: TemporalJoinMode,
+    pub outcome: TemporalJoinOutcome,
+    pub classified_fraction: Option<f64>,
+    pub equilibrium_fraction: Option<f64>,
+    pub steady_state_fraction: Option<f64>,
+    pub reasons: Vec<TemporalJoinReasonCode>,
+}
+```
+
+`build_temporal_join_request` is the only production construction route.
+`NotApplicable` returns `Ok(None)`. `Required { join_mode }` returns exactly
+one request whose `requirement_id` is the pair requirement ID, whose left and
+right IDs are the oriented IDs in `BoundEvidencePair`, and whose `mode` is the
+serialized `join_mode`. The builder never derives a mode from support
+variants, timestamps, scopes, or record order. An absent or ambiguous bound
+pair is `EvidenceBindingError::UnresolvedPairBinding`.
+
+The evaluator receives the configured mode as data and never changes it. It
+first resolves both IDs in the bundle and the temporal catalog, validates
+scope/clock/classification prerequisites, then applies the exact support
+matrix. The assessment persists the same request mode even when the result is
+indeterminate or ineligible.
+
+| requested mode | left support | right support | allowed | algorithm |
+|---|---|---|---:|---|
+| `PointPoint` | `Point` | `Point` | yes | same clock/scope and `abs(left.timestamp_s-right.timestamp_s) <= point_tolerance_s` |
+| `PointWindow` | `Point` | `Window` | yes | point in inclusive `[start_s,end_s]` |
+| `WindowPoint` | `Window` | `Point` | yes | point in inclusive `[start_s,end_s]` |
+| `WindowWindow` | `Window` | `Window` | yes | positive half-open overlap: `max(start_s) < min(end_s)` |
+| `EventEvent` | `Event` | `Event` | yes | same clock/scope and exact nonempty `event_id` equality |
+| `PointPoint` | `Window` | `Point` | no | `Indeterminate(ModeSupportMismatch)` |
+| `PointWindow` | `Point` | `Point` | no | `Indeterminate(ModeSupportMismatch)` |
+| `EventEvent` | `Point` | `Point` | no | `Indeterminate(ModeSupportMismatch)` |
+| `WindowWindow` | `Event` | `Event` | no | `Indeterminate(ModeSupportMismatch)` |
+| any | `Event` | `Point`/`Window` | no | `Indeterminate(ModeSupportMismatch)` |
+| any | `Point`/`Window` | `Event` | no | `Indeterminate(ModeSupportMismatch)` |
+| any | `Aggregate` or `Unknown` | any | no | `Indeterminate(ModeSupportMismatch)` |
+| any | any | `Aggregate` or `Unknown` | no | `Indeterminate(ModeSupportMismatch)` |
+| any | support variant not matching the requested row | any | no | `Indeterminate(ModeSupportMismatch)` |
+
+The matrix is exact; runtime support may not override the configured mode.
+`ModeSupportMismatch` is the canonical mismatch behavior: the evaluator
+returns `Ok(TemporalJoinAssessment { outcome: Indeterminate, reasons:
+['ModeSupportMismatch'] })`, with no typed error. `UnknownEvidenceId`,
+`MissingTemporalMetadata`, same-ID requests, invalid configuration, and
+invalid catalog data remain typed errors as specified in §27.4. Scope or
+clock mismatch uses the existing `Indeterminate` reason path only after the
+mode/support row is compatible.
+
+### 27.3 PB-WR-02 — temporal eligibility precedes contradiction
+
+Binding is structural only. It selects candidate IDs, validates the declared
+target/source/quantity/availability/validity shape, resolves exact pair
+bindings, and validates role tuples. It does not decide final temporal
+eligibility and it does not classify direct contradictions.
+
+```rust
+pub struct BoundRequirementEvidence {
+    pub requirement_id: EvidenceRequirementId,
+    pub candidate_evidence_ids: Vec<EvidenceId>,
+}
+
+pub struct EligibleRequirementEvidence {
+    pub requirement_id: EvidenceRequirementId,
+    pub support_evidence_ids: Vec<EvidenceId>,
+    pub contradictory_evidence_ids: Vec<EvidenceId>,
+    pub temporally_ineligible_evidence_ids: Vec<EvidenceId>,
+    pub indeterminate_evidence_ids: Vec<EvidenceId>,
+    pub temporal_assessments: Vec<TemporalJoinAssessment>,
+}
+
+pub fn evaluate_requirement_eligibility(
+    hypothesis: &MechanismHypothesisDefinition,
+    bound: &BoundHypothesisEvidence,
+    preparation: &PhaseBEvidencePreparation,
+    config: &MechanismEvidenceConfig,
+) -> Result<Vec<EligibleRequirementEvidence>, MechanismAssessmentError>;
+
+pub fn evaluate_direct_contradictions(
+    hypothesis: &MechanismHypothesisDefinition,
+    eligible: &[EligibleRequirementEvidence],
+    bundle: &EvidenceBundle,
+) -> Result<Vec<RequirementContradictionSummary>, MechanismAssessmentError>;
+```
+
+Eligibility is evaluated in this frozen order for every requirement:
+
+```text
+1. requirement structural candidate selection
+2. availability
+3. validity
+4. experiment/sensor/channel scope
+5. quantity semantic compatibility
+6. required temporal assessment
+7. temporal outcome
+8. support or contradiction direction classification
+9. strength filtering where the requirement requires it
+→ EligibleRequirementEvidence
+```
+
+An `Eligible` temporal outcome permits the record to proceed. `Ineligible`
+places its ID only in `temporally_ineligible_evidence_ids`.
+`Indeterminate` places its ID only in `indeterminate_evidence_ids`.
+`MissingEvidence`/missing structural input is excluded from all eligible ID
+vectors and persists the applicable `MissingRequiredEvidence` or
+`TemporalAssessmentMissing` reason. A required temporal assessment that is
+absent from the preparation results is the typed
+`MechanismAssessmentError::TemporalAssessmentMissing { requirement_id }`;
+an existing `Ineligible` or `Indeterminate` assessment is a normal persisted
+eligibility result, not an exception.
+
+The direct contradiction evaluator consumes only the `eligible` slice. It
+must not rerun temporal matching, infer eligibility from raw support, inspect
+`BoundHypothesisEvidence.candidate_evidence_ids`, or inspect an unfiltered
+bundle candidate set. For each requirement it considers only
+`EligibleRequirementEvidence.contradictory_evidence_ids`, resolves those IDs
+in the supplied bundle, sorts and deduplicates them, and emits a summary only
+when at least one eligible direct contradiction exists. A critical
+contradiction is counted only when the requirement ID is in
+`critical_requirement_ids`, the eligible record direction is
+`Contradicts`, and strength is at least `Strong`. Amplitude contradictions
+never enter this direct path.
+
+### 27.4 PB-WR-03 — exact temporal support and catalog wire contract
+
+The active serialized form is internally tagged JSON/TOML data. Phase-B
+schema types use `deny_unknown_fields`; no externally tagged or untagged
+alternative is accepted. The scalar timestamp type is the already-approved
+`f64`; no new timestamp type is introduced.
+
+```rust
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum EvidenceTemporalSupport {
+    Point { timestamp_s: f64 },
+    Window { start_s: f64, end_s: f64 },
+    Event { event_id: String, start_s: f64, end_s: f64 },
+    Aggregate,
+    Unknown,
+}
+
+#[serde(transparent)]
+pub struct EvidenceTemporalMetadataCatalog {
+    pub entries: BTreeMap<EvidenceId, EvidenceTemporalMetadata>,
+}
+```
+
+The exact JSON representations are:
+
+```json
+{"kind":"point","timestamp_s":120.0}
+{"kind":"window","start_s":100.0,"end_s":150.0}
+{"kind":"event","event_id":"event-01","start_s":100.0,"end_s":150.0}
+{"kind":"aggregate"}
+{"kind":"unknown"}
+```
+
+`EvidenceTemporalMetadataCatalog` serializes as a top-level JSON object whose
+keys are the string form of `EvidenceId`, not as an object with an `entries`
+wrapper and not as an ordered vector. Each value is the complete metadata
+object:
+
+```json
+{
+  "eis.parameter.0": {
+    "evidence_id": "eis.parameter.0",
+    "support": {"kind":"unknown"},
+    "clock_id": null,
+    "classification": {
+      "classified_fraction": null,
+      "equilibrium_fraction": null,
+      "steady_state_fraction": null,
+      "classification_source": "unavailable"
+    },
+    "provenance": {
+      "adapter_id": "adapt_eis_fit",
+      "source_artifact_kind": "eis_fit",
+      "source_field_paths": ["$.parameters[0].value"]
+    }
+  }
+}
+```
+
+The map key and `value.evidence_id` must be bytewise equal. Every consumed
+bundle record has exactly one catalog entry. Duplicate source entries are
+rejected as `PhaseBEvidencePreparationError::DuplicateTemporalMetadata`;
+unknown IDs are rejected as `PhaseBEvidencePreparationError::UnknownTemporalEvidenceId`;
+missing required entries are rejected as
+`TemporalJoinError::MissingTemporalMetadata`; a catalog key that does not
+match its value is `PhaseBEvidencePreparationError::TemporalCatalogKeyValueMismatch`.
+
+Validation is normative: every timestamp is finite; `Window` and `Event`
+require finite `start_s <= end_s`; `Event.event_id` is a nonempty valid
+string ID; `Aggregate` and `Unknown` have no payload fields. Invalid support
+bounds are `PhaseBEvidencePreparationError::InvalidTemporalSupportBounds`;
+invalid event IDs are `PhaseBEvidencePreparationError::InvalidTemporalEventId`.
+Unknown fields, duplicate fields, wrong `kind`, wrong payload, non-finite
+numbers, and map/vector shape changes are serde/configuration failures.
+
+### 27.5 Exact error ownership
+
+The active error architecture remains singular by owner. The required
+temporal/eligibility cases are:
+
+| condition | owner and exact representation |
+|---|---|
+| mode/support mismatch | `TemporalJoinReasonCode::ModeSupportMismatch`; result `Indeterminate`, not an exception |
+| missing temporal metadata | `TemporalJoinError::MissingTemporalMetadata` |
+| unknown temporal EvidenceId | `TemporalJoinError::UnknownEvidenceId` |
+| duplicate temporal metadata | `PhaseBEvidencePreparationError::DuplicateTemporalMetadata` |
+| invalid temporal support bounds | `PhaseBEvidencePreparationError::InvalidTemporalSupportBounds` |
+| catalog key/value mismatch | `PhaseBEvidencePreparationError::TemporalCatalogKeyValueMismatch` |
+| missing required eligibility assessment | `MechanismAssessmentError::TemporalAssessmentMissing` |
+| eligible record excluded by temporal outcome | persisted in `EligibleRequirementEvidence`, no exception |
+
+These variants are added to the exhaustive inventory in §27.8; no parallel
+generic temporal or contradiction error hierarchy is permitted.
+
+### 27.6 Canonical source-fixture rules and runtime identities
+
+The fixture root remains `tests/fixtures/phase_b/`. PB-FX-09 and PB-FX-10 are
+source-artifact scenarios. Their JSON files are created later through the
+public production writers and reread through public readers. No fixture
+serializes an `EvidenceBundle`, `EvidenceId`, direction, strength, role, or
+temporal catalog entry directly. All producer-required fields are present in
+the production-typed source object; fields not consumed by Phase B retain the
+exact valid value emitted by that object's public fixture constructor and are
+not omitted by a hand-written reduced schema.
+
+The following runtime variables are generated by writing and rereading the
+source artifacts and asserting their `Known.identity.artifact_id` values:
+`EIS_ARTIFACT_ID`, `TRANSIENT_ARTIFACT_ID`, `CALIBRATION_ARTIFACT_ID`,
+`ESTIMATION_ARTIFACT_ID`, and, for the output, `MECHANISM_ARTIFACT_ID`.
+Each is exactly `sha256:` followed by 64 lowercase hexadecimal characters.
+The variables are runtime-derived identities, not serialized placeholders.
+
+#### Canonical complete source registry for PB-FX-09 and PB-FX-10
+
+| fixture path | artifact kind/schema | runtime ArtifactId variable | exact source field(s) | adapter | EvidenceId | EvidenceTarget | adapter direction | unit | temporal metadata | role | requirement ID |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `e2e/eis_fit_e2e_1.json` | `eis_fit` / 3 / current | `EIS_ARTIFACT_ID` | `$.parameters[0].element_id="b-eis-tau"`, `$.parameters[0].unit="s"`, `$.parameters[0].value=1.0`; all remaining `EisFitArtifact` fields are valid constructor output | `adapt_eis_fit` | `eis.parameter.0` | `ModelComponent("b-eis-tau")` | `Neutral` | `s` | `Unknown`; `clock_id=null`; all fractions unavailable | `Support` | `b-eis-tau` |
+| `e2e/transient_analysis_e2e_1.json` | `transient_analysis` / 3 / current | `TRANSIENT_ARTIFACT_ID` | selected `events[0]`; `segment.fitted_time_local=[0.0,10.0]`; selected successful fit `derived_features.tau_fast_s=1.0`; all remaining `TransientAnalysisReport` fields are valid constructor output | `adapt_transient_analysis` | `transient.event.0.tau_fast_s` | `ModelComponent("tau_fast_s")` | `Neutral` | `s` | `Event { event_id="0", start_s=0.0, end_s=10.0 }`; `clock_id=null`; fractions unavailable | `Support` | `b-transient-tau` |
+| `e2e/calibration_observations_e2e_2.json` | `calibration_observations` / 3 / current | `CALIBRATION_ARTIFACT_ID` | `$.observations[0].experiment_id="b-e2e-1"`, `analyte="b-validation-calibration"`, `potential_v=0.25`; all remaining `CalibrationObservationSet` fields are valid constructor output | `try_adapt_calibration_observations` | `calibration.observation.0` | `ModelComponent("b-validation-calibration")` | `Neutral` | `V` | `Unknown`; `clock_id=null`; all fractions unavailable | `Validation` | `b-validation-calibration` |
+| `e2e/state_estimation_e2e_2.json` | `state_estimation` / 4 / current | `ESTIMATION_ARTIFACT_ID` | `$.estimates[0].timestamp_s=5.0`, `filtered_state[0].name="b-validation-estimation"`, `.value=0.25`, `.unit="V"`; all remaining `StateEstimationReport` fields are valid constructor output | `adapt_state_estimation` | `estimation.point.0.state.0` | `ModelComponent("b-validation-estimation")` | `Neutral` | `V` | `Point { timestamp_s=5.0 }`; `clock_id=null`; no producer classification means all fractions unavailable | `Validation` | `b-validation-estimation` |
+
+PB-FX-09 consumes exactly the first two rows. PB-FX-10 consumes all four.
+The source family IDs are `b-family-eis`, `b-family-transient`,
+`b-family-calibration`, and `b-family-estimation`; every source has Known
+lineage, scope `b-e2e-1`, no shared ancestor, and pairwise A1 independence
+where a pair is evaluated. The A1 adapter direction is `Neutral`; the
+serialized requirement's `expected_direction="candidate_presence"` means
+availability/candidate acceptance, not a fabricated A1 `Supports` direction.
+
+### 27.7 Canonical PB-FX-09 and PB-FX-10 contracts
+
+#### PB-FX-09 — COMPLETE CANONICAL CONTRACT
+
+Path: `config/e2e_experimentally_supported.toml`. This is a complete,
+standalone TOML document; it does not inherit fields from another fixture.
+
+```toml
+schema_version = 1
+
+[timescale]
+algorithm = "log_ratio_v1"
+
+[amplitude]
+algorithm = "signed_relative_error_v1"
+
+[repeatability]
+algorithm = "independent_ln_tau_sample_sd_v1"
+
+[temporal]
+point_tolerance_s = 0.0
+window_overlap_rule = "positive_duration"
+event_identity_rule = "exact"
+minimum_classified_fraction = 0.0
+minimum_equilibrium_fraction = 0.0
+clock_mismatch_behavior = "indeterminate"
+scope_mismatch_behavior = "indeterminate"
+
+[temporal.mixed_state_policy]
+kind = "require_all_steady"
+allow_quasi_equilibrium = false
+
+[mixed_state]
+classification_source = "producer_owned_only"
+
+[identifiability]
+algorithm = "bound_inputs_v1"
+
+[promotion]
+minimum_independent_support = 2
+
+[[hypotheses]]
+hypothesis_id = "b-hypothesis"
+display_name = "B E2E experimentally supported"
+target_components = ["b-eis-tau", "tau_fast_s"]
+critical_requirement_ids = []
+validation_applicability = "not_applicable"
+amplitude_gates = []
+repeatability_gates = []
+
+[[hypotheses.evidence_requirements]]
+requirement_id = "b-eis-tau"
+target_selector = { type = "exact_component", value = "b-eis-tau" }
+source_class_selectors = ["model_derived"]
+source_field_path = "$.parameters[0].value"
+quantity_semantic = "time_constant"
+required_unit = "s"
+expected_direction = "candidate_presence"
+validity_requirement = "valid"
+gate = "required"
+stage = "support"
+
+[[hypotheses.evidence_requirements]]
+requirement_id = "b-transient-tau"
+target_selector = { type = "exact_component", value = "tau_fast_s" }
+source_class_selectors = ["model_derived"]
+source_field_path = "$.events[0].candidate_fits[].derived_features.tau_fast_s"
+quantity_semantic = "time_constant"
+required_unit = "s"
+expected_direction = "candidate_presence"
+validity_requirement = "valid"
+gate = "required"
+stage = "support"
+
+[[hypotheses.pair_requirements]]
+requirement_id = "b-timescale-pair"
+left_requirement_id = "b-eis-tau"
+right_requirement_id = "b-transient-tau"
+temporal = { type = "not_applicable" }
+gate = "required"
+
+[hypotheses.timescale_gate]
+pair_requirement_id = "b-timescale-pair"
+maximum_log_distance = 0.0
+
+[[hypotheses.identifiability_bindings]]
+requirement_id = "b-mode-separation"
+gate = "required"
+kind = "mode_separation"
+threshold = 1.0
+input = { requirement_ids = ["b-eis-tau", "b-transient-tau"], selection = { type = "exact_pair", pair_requirement_id = "b-timescale-pair" } }
+
+[[hypotheses.role_bindings]]
+hypothesis_id = "b-hypothesis"
+requirement_id = "b-eis-tau"
+evidence_id = "eis.parameter.0"
+role = "support"
+
+[[hypotheses.role_bindings]]
+hypothesis_id = "b-hypothesis"
+requirement_id = "b-transient-tau"
+evidence_id = "transient.event.0.tau_fast_s"
+role = "support"
+```
+
+PB-FX-09 intermediate outputs are complete and deterministic:
+
+| API | exact expected output |
+|---|---|
+| `prepare_phase_b_evidence` | `bundle.records=[eis.parameter.0,transient.event.0.tau_fast_s]` in bytewise ID order; `temporal_metadata` has exactly those two map keys with the registry rows above; no errors. |
+| `bind_hypothesis_evidence` | `candidate_evidence_ids={b-eis-tau:[eis.parameter.0], b-transient-tau:[transient.event.0.tau_fast_s]}`; one pair binding `{pair_requirement_id:b-timescale-pair,left:eis.parameter.0,right:transient.event.0.tau_fast_s}`; the two Support role rows exactly match TOML. |
+| `build_temporal_join_request` | `None` for `b-timescale-pair`, because its serialized `TemporalRequirement` is `NotApplicable`; no temporal evaluator call is made. |
+| `evaluate_temporal_join` | empty assessment list; there is no implicit join and no inferred mode. |
+| `evaluate_requirement_eligibility` | two rows; support IDs are respectively `[eis.parameter.0]` and `[transient.event.0.tau_fast_s]`; contradictory, temporally-ineligible, and indeterminate ID vectors are empty; `temporal_assessments=[]`. |
+| `evaluate_direct_contradictions` | `[]`; no raw candidate or non-eligible record is inspected. |
+| `evaluate_timescale_requirement` | `{pair_requirement_id:b-timescale-pair,status:satisfied,evidence_ids:[eis.parameter.0,transient.event.0.tau_fast_s],log_distance:0.0}`. |
+| `evaluate_amplitude_requirement` | `[]`; no amplitude gate is configured. |
+| `evaluate_repeatability_requirement` | `[]`; no repeatability gate is configured. |
+| `evaluate_identifiability_binding` | `{requirement_id:b-mode-separation,status:satisfied,metric_value:1.0,evidence_ids:[eis.parameter.0,transient.event.0.tau_fast_s],reasons:[threshold_satisfied]}`. |
+| `evaluate_validation_protocol` | `{protocol_id:"not-applicable",status:not_applicable,evidence_ids:[],acquisition_family_ids:[],passed_condition_ids:[],reasons:[]}`. |
+| `assess_hypothesis` | `hypothesis_id=b-hypothesis`, `evidence_level=ExperimentallySupported`, timescale list as above, amplitude/repeatability/temporal/contradiction lists empty, identifiability list as above, `validation_status=NotApplicable`, `reason_codes=[]`. |
+| `assess_components` | exactly two rows sorted by component ID; both prior `Hypothesized`, target/result `ExperimentallySupported`, supporting hypothesis `b-hypothesis`, evidence IDs `[eis.parameter.0,transient.event.0.tau_fast_s]`, reasons `[HypothesisSupported,ExperimentallySupported]`. |
+| `update_hypothesis_history` | `[]` when no prior schema-4 report is supplied. |
+| `assemble_phase_b_mechanism_report` | schema 4, one hypothesis assessment, `hypothesis_history=[]`, exact B fields below, runtime-derived Known output lineage, and no serialization error. |
+
+The complete Phase-B portion of the expected schema-4 report is:
+
+```json
+{
+  "schema_version": 4,
+  "lineage": {"Known":{"identity":{"artifact_id":"MECHANISM_ARTIFACT_ID","artifact_kind":"mechanism_analysis","schema_version":4,"producer_version":"RUNTIME_PACKAGE_VERSION","experiment_scope":{"Single":{"experiment_id":"b-e2e-1"}},"sensor_scope":"Unspecified","channel_scope":"Unspecified","acquisition_families":{"Known":["b-family-eis","b-family-transient"]},"semantic_sha256":"MECHANISM_SEMANTIC_SHA256"},"direct_dependencies":[{"artifact_id":"EIS_ARTIFACT_ID","artifact_kind":"eis_fit","role":"TransformationInput"},{"artifact_id":"TRANSIENT_ARTIFACT_ID","artifact_kind":"transient_analysis","role":"TransformationInput"}]}},
+  "analysis_id": "mechanism:b-hypothesis",
+  "records": [],
+  "eis_timescales": [],
+  "transient_timescales": [],
+  "comparisons": [],
+  "hypotheses": [],
+  "trends": [],
+  "configuration": {
+    "schema_version": 1,
+    "confidence_level": 0.95,
+    "allow_warning_fits": true,
+    "ratio_weak": 10.0,
+    "ratio_moderate": 3.0,
+    "ratio_strong": 1.5,
+    "log_distance_weak": 1.0,
+    "log_distance_moderate": 0.5,
+    "log_distance_strong": 0.1761,
+    "minimum_fit_quality": 0.0,
+    "compatibility_ratio_lower": 0.5,
+    "compatibility_ratio_upper": 2.0,
+    "require_experiment_id": true,
+    "require_sensor_id": false,
+    "minimum_replicates_for_strong": 3,
+    "trend_minimum_records": 3,
+    "trend_independent_variable": "sensor_age_days",
+    "frequency_boundary_margin": 0.1,
+    "monte_carlo_samples": 10000,
+    "seed": 42,
+    "selected_model_only": true,
+    "hypotheses": []
+  },
+  "provenance": null,
+  "warnings": [],
+  "transient_configuration": null,
+  "hypothesis_assessments": [{
+    "definition": {
+      "hypothesis_id": "b-hypothesis",
+      "display_name": "B E2E experimentally supported",
+      "target_components": ["b-eis-tau", "tau_fast_s"],
+      "evidence_requirements": [
+        {"requirement_id":"b-eis-tau","target_selector":{"type":"exact_component","value":"b-eis-tau"},"source_class_selectors":["model_derived"],"source_field_path":"$.parameters[0].value","quantity_semantic":"time_constant","required_unit":"s","expected_direction":"candidate_presence","validity_requirement":"valid","gate":"required","stage":"support"},
+        {"requirement_id":"b-transient-tau","target_selector":{"type":"exact_component","value":"tau_fast_s"},"source_class_selectors":["model_derived"],"source_field_path":"$.events[0].candidate_fits[].derived_features.tau_fast_s","quantity_semantic":"time_constant","required_unit":"s","expected_direction":"candidate_presence","validity_requirement":"valid","gate":"required","stage":"support"}
+      ],
+      "pair_requirements": [{"requirement_id":"b-timescale-pair","left_requirement_id":"b-eis-tau","right_requirement_id":"b-transient-tau","temporal":{"type":"not_applicable"},"gate":"required"}],
+      "critical_requirement_ids": [],
+      "timescale_gate": {"pair_requirement_id":"b-timescale-pair","maximum_log_distance":0.0},
+      "amplitude_gates": [],
+      "repeatability_gates": [],
+      "identifiability_bindings": [{"requirement_id":"b-mode-separation","gate":"required","kind":"mode_separation","threshold":1.0,"input":{"requirement_ids":["b-eis-tau","b-transient-tau"],"selection":{"type":"exact_pair","pair_requirement_id":"b-timescale-pair"}}}],
+      "validation_applicability": "not_applicable",
+      "role_bindings": [
+        {"hypothesis_id":"b-hypothesis","requirement_id":"b-eis-tau","evidence_id":"eis.parameter.0","role":"support"},
+        {"hypothesis_id":"b-hypothesis","requirement_id":"b-transient-tau","evidence_id":"transient.event.0.tau_fast_s","role":"support"}
+      ]
+    },
+    "current": {
+      "hypothesis_id": "b-hypothesis",
+      "evidence_level": "experimentally_supported",
+      "temporal_join_assessments": [],
+      "timescale_assessments": [{"pair_requirement_id":"b-timescale-pair","status":"satisfied","evidence_ids":["eis.parameter.0","transient.event.0.tau_fast_s"],"log_distance":0.0}],
+      "amplitude_assessments": [],
+      "repeatability_assessments": [],
+      "identifiability_assessments": [{"requirement_id":"b-mode-separation","status":"satisfied","metric_value":1.0,"evidence_ids":["eis.parameter.0","transient.event.0.tau_fast_s"],"reasons":["threshold_satisfied"]}],
+      "contradiction_summaries": [],
+      "reason_codes": [],
+      "component_assessments": [
+        {"component_id":"b-eis-tau","prior_status":"hypothesized","assessment_target":"experimentally_supported","resulting_status":"experimentally_supported","supporting_hypothesis_id":"b-hypothesis","evidence_ids":["eis.parameter.0","transient.event.0.tau_fast_s"],"reasons":["hypothesis_supported","experimentally_supported"]},
+        {"component_id":"tau_fast_s","prior_status":"hypothesized","assessment_target":"experimentally_supported","resulting_status":"experimentally_supported","supporting_hypothesis_id":"b-hypothesis","evidence_ids":["eis.parameter.0","transient.event.0.tau_fast_s"],"reasons":["hypothesis_supported","experimentally_supported"]}
+      ],
+      "validation_status":"not_applicable",
+      "history":[]
+    }
+  }],
+  "hypothesis_history": []
+}
+```
+
+The uppercase values in the `lineage` object are runtime-derived variables,
+not serialized placeholders: `MECHANISM_ARTIFACT_ID` and
+`MECHANISM_SEMANTIC_SHA256` are the same valid `sha256:` identity and
+64-hex semantic digest, and `RUNTIME_PACKAGE_VERSION` is the exact package
+producer version. The schema-3 legacy fields retained by
+`MechanismAnalysisReport` are fully literal above: empty `records`,
+`eis_timescales`, `transient_timescales`, `comparisons`, legacy `hypotheses`,
+`trends`, `provenance=null`, `warnings=[]`, and `transient_configuration=null`,
+plus the complete `ResolvedMechanismConfig` default object. No ellipsis or
+unresolved reference is permitted in the serialized report.
+
+The immutable `PB-LEGACY-EMPTY-MECHANISM-REPORT-01` object referenced by the
+PB-FX-10 prior input is fully defined as the schema-3 object with
+`analysis_id="mechanism:b-hypothesis"`, empty `records`,
+`eis_timescales`, `transient_timescales`, `comparisons`, legacy `hypotheses`,
+and `trends`, `provenance=null`, `warnings=[]`,
+`transient_configuration=null`, and the complete `ResolvedMechanismConfig`
+object shown above; its `schema_version=3` and its public-writer-generated
+legacy lineage are the only differences from the listed schema-4 envelope.
+
+#### PB-FX-10 — COMPLETE CANONICAL CONTRACT
+
+Path: `config/e2e_validated_for_domain.toml`. This is a complete standalone
+TOML document and repeats every root, section, hypothesis, gate, selector,
+stage, direction, threshold, critical-ID, identifiability, validation, and
+role field; it does not use “same as PB-FX-09”.
+
+```toml
+schema_version = 1
+
+[timescale]
+algorithm = "log_ratio_v1"
+
+[amplitude]
+algorithm = "signed_relative_error_v1"
+
+[repeatability]
+algorithm = "independent_ln_tau_sample_sd_v1"
+
+[temporal]
+point_tolerance_s = 0.0
+window_overlap_rule = "positive_duration"
+event_identity_rule = "exact"
+minimum_classified_fraction = 0.0
+minimum_equilibrium_fraction = 0.0
+clock_mismatch_behavior = "indeterminate"
+scope_mismatch_behavior = "indeterminate"
+
+[temporal.mixed_state_policy]
+kind = "require_all_steady"
+allow_quasi_equilibrium = false
+
+[mixed_state]
+classification_source = "producer_owned_only"
+
+[identifiability]
+algorithm = "bound_inputs_v1"
+
+[promotion]
+minimum_independent_support = 2
+
+[[hypotheses]]
+hypothesis_id = "b-hypothesis"
+display_name = "B E2E validated for domain"
+target_components = ["b-eis-tau", "b-validation-calibration", "b-validation-estimation", "tau_fast_s"]
+critical_requirement_ids = []
+validation_applicability = "required"
+amplitude_gates = []
+repeatability_gates = []
+
+[[hypotheses.evidence_requirements]]
+requirement_id = "b-eis-tau"
+target_selector = { type = "exact_component", value = "b-eis-tau" }
+source_class_selectors = ["model_derived"]
+source_field_path = "$.parameters[0].value"
+quantity_semantic = "time_constant"
+required_unit = "s"
+expected_direction = "candidate_presence"
+validity_requirement = "valid"
+gate = "required"
+stage = "support"
+
+[[hypotheses.evidence_requirements]]
+requirement_id = "b-transient-tau"
+target_selector = { type = "exact_component", value = "tau_fast_s" }
+source_class_selectors = ["model_derived"]
+source_field_path = "$.events[0].candidate_fits[].derived_features.tau_fast_s"
+quantity_semantic = "time_constant"
+required_unit = "s"
+expected_direction = "candidate_presence"
+validity_requirement = "valid"
+gate = "required"
+stage = "support"
+
+[[hypotheses.evidence_requirements]]
+requirement_id = "b-validation-calibration"
+target_selector = { type = "exact_component", value = "b-validation-calibration" }
+source_class_selectors = ["observed"]
+source_field_path = "$.observations[0].potential_v"
+quantity_semantic = "calibration_potential"
+required_unit = "V"
+expected_direction = "candidate_presence"
+validity_requirement = "valid"
+gate = "required"
+stage = "validation"
+
+[[hypotheses.evidence_requirements]]
+requirement_id = "b-validation-estimation"
+target_selector = { type = "exact_component", value = "b-validation-estimation" }
+source_class_selectors = ["model_derived"]
+source_field_path = "$.estimates[0].filtered_state[0].value"
+quantity_semantic = "electrical_potential"
+required_unit = "V"
+expected_direction = "candidate_presence"
+validity_requirement = "valid_or_not_assessed"
+gate = "required"
+stage = "validation"
+
+[[hypotheses.pair_requirements]]
+requirement_id = "b-timescale-pair"
+left_requirement_id = "b-eis-tau"
+right_requirement_id = "b-transient-tau"
+temporal = { type = "not_applicable" }
+gate = "required"
+
+[hypotheses.timescale_gate]
+pair_requirement_id = "b-timescale-pair"
+maximum_log_distance = 0.0
+
+[[hypotheses.identifiability_bindings]]
+requirement_id = "b-mode-separation"
+gate = "required"
+kind = "mode_separation"
+threshold = 1.0
+input = { requirement_ids = ["b-eis-tau", "b-transient-tau"], selection = { type = "exact_pair", pair_requirement_id = "b-timescale-pair" } }
+
+[[hypotheses.role_bindings]]
+hypothesis_id = "b-hypothesis"
+requirement_id = "b-eis-tau"
+evidence_id = "eis.parameter.0"
+role = "support"
+
+[[hypotheses.role_bindings]]
+hypothesis_id = "b-hypothesis"
+requirement_id = "b-transient-tau"
+evidence_id = "transient.event.0.tau_fast_s"
+role = "support"
+
+[[hypotheses.role_bindings]]
+hypothesis_id = "b-hypothesis"
+requirement_id = "b-validation-calibration"
+evidence_id = "calibration.observation.0"
+role = "validation"
+
+[[hypotheses.role_bindings]]
+hypothesis_id = "b-hypothesis"
+requirement_id = "b-validation-estimation"
+evidence_id = "estimation.point.0.state.0"
+role = "validation"
+
+[validation]
+protocol_id = "b-e2e-validation"
+version = "1"
+minimum_acquisition_families = 2
+
+[[validation.required_conditions]]
+condition_id = "b-calibration-condition"
+requirement_ids = ["b-validation-calibration"]
+experiment_scope = "b-e2e-1"
+
+[[validation.required_conditions]]
+condition_id = "b-estimation-condition"
+requirement_ids = ["b-validation-estimation"]
+experiment_scope = "b-e2e-1"
+```
+
+PB-FX-10 intermediate outputs are complete and deterministic:
+
+| API | exact expected output |
+|---|---|
+| `prepare_phase_b_evidence` | four records exactly `[calibration.observation.0,eis.parameter.0,estimation.point.0.state.0,transient.event.0.tau_fast_s]` in bytewise ID order; four matching catalog map entries; the registry temporal values above; no errors. |
+| `bind_hypothesis_evidence` | one candidate ID for every requirement; one exact timescale pair; four role tuples exactly as TOML; validation rows are stage `Validation` and role `Validation`. |
+| `build_temporal_join_request` | `None` for `b-timescale-pair` because the serialized pair temporal requirement is `NotApplicable`; no inferred temporal request. |
+| `evaluate_temporal_join` | empty assessment list; no temporal stage is silently inserted for a NotApplicable pair. |
+| `evaluate_requirement_eligibility` | four rows; the two support IDs appear only in support vectors; the two validation IDs appear only in validation requirement support vectors; all contradictory, temporally-ineligible, and indeterminate vectors are empty. |
+| `evaluate_direct_contradictions` | `[]`; critical requirement IDs are empty and no non-eligible record is considered. |
+| `evaluate_timescale_requirement` | `{pair_requirement_id:b-timescale-pair,status:satisfied,evidence_ids:[eis.parameter.0,transient.event.0.tau_fast_s],log_distance:0.0}`. |
+| `evaluate_amplitude_requirement` | `[]`. |
+| `evaluate_repeatability_requirement` | `[]`. |
+| `evaluate_identifiability_binding` | `{requirement_id:b-mode-separation,status:satisfied,metric_value:1.0,evidence_ids:[eis.parameter.0,transient.event.0.tau_fast_s],reasons:[threshold_satisfied]}`. |
+| `evaluate_validation_protocol` | `{protocol_id:b-e2e-validation,status:satisfied,evidence_ids:[calibration.observation.0,estimation.point.0.state.0],acquisition_family_ids:[b-family-calibration,b-family-estimation],passed_condition_ids:[b-calibration-condition,b-estimation-condition],reasons:[passed]}`; exact distinct Known family count `2 >= 2`; the two validation families are pairwise A1 `Independent`. |
+| `assess_hypothesis` | `hypothesis_id=b-hypothesis`, `evidence_level=ValidatedForDomain`, validation `Satisfied`, no temporal/amplitude/repeatability/contradiction reasons, and the timescale/identifiability results above. |
+| `assess_components` | four rows sorted by component ID; each prior status is `ExperimentallySupported` from the supplied canonical prior schema-4 report, each assessment target and resulting status is `ValidatedForDomain`, supporting hypothesis is `b-hypothesis`, evidence IDs are `[calibration.observation.0,eis.parameter.0,estimation.point.0.state.0,transient.event.0.tau_fast_s]`, and reasons are `[HypothesisSupported,ExperimentallySupported,ValidationSatisfied]`. |
+| `update_hypothesis_history` | exactly one entry for the supplied prior report: prior level `ExperimentallySupported`, new level `ValidatedForDomain`, target `ValidatedForDomain`, sequence `1`, sorted source IDs equal the four eligible IDs, sorted reasons equal `[ValidationSatisfied]`, and `history_id` is the exact SHA-256 of the declared history-key bytes. |
+| `assemble_phase_b_mechanism_report` | schema 4, one current assessment, exactly one history entry, four ValidatedForDomain component rows, runtime-derived Known output lineage, and no serialization error. |
+
+The PB-FX-10 prior report is the immutable canonical input
+`PB-FX-10-PRIOR-EXPERIMENTALLY-SUPPORTED-01`: it contains the same complete
+hypothesis definition and source IDs, current level
+`ExperimentallySupported`, four component statuses
+`ExperimentallySupported`, empty prior history, and the exact schema-4 legacy
+fields from `PB-LEGACY-EMPTY-MECHANISM-REPORT-01`. It is a complete canonical
+prior object, not “PB-FX-09 plus changes”. The history key bytes are exactly
+`hypothesis_id || NUL || prior_level || NUL || new_level || NUL || assessment_hash`;
+`assessment_hash` is the RFC-8785 SHA-256 of the complete deterministic
+PB-FX-10 assessment view, with no timestamps or human text. The serialized
+history entry contains every field:
+
+```json
+{
+  "history_id": "SHA256(exact declared history-key bytes)",
+  "hypothesis_id": "b-hypothesis",
+  "prior_level": "experimentally_supported",
+  "new_level": "validated_for_domain",
+  "assessment_target": "validated_for_domain",
+  "assessment_index": 1,
+  "reason_codes": ["validation_satisfied"],
+  "source_evidence_ids": ["calibration.observation.0","eis.parameter.0","estimation.point.0.state.0","transient.event.0.tau_fast_s"]
+}
+```
+
+`history_id` above is a deterministic derived value, like the runtime
+ArtifactId variables; it is not a free-form placeholder. The implementation
+must calculate it from the exact bytes specified and the fixture assertion
+compares the resulting 64-hex digest. The complete PB-FX-10 B report has the
+following complete schema-4 envelope. Its embedded `definition` is the
+complete PB-FX-10 hypothesis object formed from every field in the standalone
+TOML immediately above; that canonical TOML is immutable and is the only
+permitted cross-reference.
+
+```json
+{
+  "schema_version": 4,
+  "lineage": {"Known":{"identity":{"artifact_id":"MECHANISM_ARTIFACT_ID","artifact_kind":"mechanism_analysis","schema_version":4,"producer_version":"RUNTIME_PACKAGE_VERSION","experiment_scope":{"Single":{"experiment_id":"b-e2e-1"}},"sensor_scope":"Unspecified","channel_scope":"Unspecified","acquisition_families":{"Known":["b-family-calibration","b-family-eis","b-family-estimation","b-family-transient"]},"semantic_sha256":"MECHANISM_SEMANTIC_SHA256"},"direct_dependencies":[{"artifact_id":"CALIBRATION_ARTIFACT_ID","artifact_kind":"calibration_observations","role":"TransformationInput"},{"artifact_id":"EIS_ARTIFACT_ID","artifact_kind":"eis_fit","role":"TransformationInput"},{"artifact_id":"ESTIMATION_ARTIFACT_ID","artifact_kind":"state_estimation","role":"TransformationInput"},{"artifact_id":"TRANSIENT_ARTIFACT_ID","artifact_kind":"transient_analysis","role":"TransformationInput"}]}},
+  "analysis_id": "mechanism:b-hypothesis",
+  "records": [],
+  "eis_timescales": [],
+  "transient_timescales": [],
+  "comparisons": [],
+  "hypotheses": [],
+  "trends": [],
+  "configuration": {"schema_version":1,"confidence_level":0.95,"allow_warning_fits":true,"ratio_weak":10.0,"ratio_moderate":3.0,"ratio_strong":1.5,"log_distance_weak":1.0,"log_distance_moderate":0.5,"log_distance_strong":0.1761,"minimum_fit_quality":0.0,"compatibility_ratio_lower":0.5,"compatibility_ratio_upper":2.0,"require_experiment_id":true,"require_sensor_id":false,"minimum_replicates_for_strong":3,"trend_minimum_records":3,"trend_independent_variable":"sensor_age_days","frequency_boundary_margin":0.1,"monte_carlo_samples":10000,"seed":42,"selected_model_only":true,"hypotheses":[]},
+  "provenance": null,
+  "warnings": [],
+  "transient_configuration": null,
+  "hypothesis_assessments": [{"definition":{"hypothesis_id":"b-hypothesis","display_name":"B E2E validated for domain","target_components":["b-eis-tau","b-validation-calibration","b-validation-estimation","tau_fast_s"],"evidence_requirements":[{"requirement_id":"b-eis-tau","target_selector":{"type":"exact_component","value":"b-eis-tau"},"source_class_selectors":["model_derived"],"source_field_path":"$.parameters[0].value","quantity_semantic":"time_constant","required_unit":"s","expected_direction":"candidate_presence","validity_requirement":"valid","gate":"required","stage":"support"},{"requirement_id":"b-transient-tau","target_selector":{"type":"exact_component","value":"tau_fast_s"},"source_class_selectors":["model_derived"],"source_field_path":"$.events[0].candidate_fits[].derived_features.tau_fast_s","quantity_semantic":"time_constant","required_unit":"s","expected_direction":"candidate_presence","validity_requirement":"valid","gate":"required","stage":"support"},{"requirement_id":"b-validation-calibration","target_selector":{"type":"exact_component","value":"b-validation-calibration"},"source_class_selectors":["observed"],"source_field_path":"$.observations[0].potential_v","quantity_semantic":"calibration_potential","required_unit":"V","expected_direction":"candidate_presence","validity_requirement":"valid","gate":"required","stage":"validation"},{"requirement_id":"b-validation-estimation","target_selector":{"type":"exact_component","value":"b-validation-estimation"},"source_class_selectors":["model_derived"],"source_field_path":"$.estimates[0].filtered_state[0].value","quantity_semantic":"electrical_potential","required_unit":"V","expected_direction":"candidate_presence","validity_requirement":"valid_or_not_assessed","gate":"required","stage":"validation"}],"pair_requirements":[{"requirement_id":"b-timescale-pair","left_requirement_id":"b-eis-tau","right_requirement_id":"b-transient-tau","temporal":{"type":"not_applicable"},"gate":"required"}],"critical_requirement_ids":[],"timescale_gate":{"pair_requirement_id":"b-timescale-pair","maximum_log_distance":0.0},"amplitude_gates":[],"repeatability_gates":[],"identifiability_bindings":[{"requirement_id":"b-mode-separation","gate":"required","kind":"mode_separation","threshold":1.0,"input":{"requirement_ids":["b-eis-tau","b-transient-tau"],"selection":{"type":"exact_pair","pair_requirement_id":"b-timescale-pair"}}}],"validation_applicability":"required","role_bindings":[{"hypothesis_id":"b-hypothesis","requirement_id":"b-eis-tau","evidence_id":"eis.parameter.0","role":"support"},{"hypothesis_id":"b-hypothesis","requirement_id":"b-transient-tau","evidence_id":"transient.event.0.tau_fast_s","role":"support"},{"hypothesis_id":"b-hypothesis","requirement_id":"b-validation-calibration","evidence_id":"calibration.observation.0","role":"validation"},{"hypothesis_id":"b-hypothesis","requirement_id":"b-validation-estimation","evidence_id":"estimation.point.0.state.0","role":"validation"}]},"current":{"hypothesis_id":"b-hypothesis","evidence_level":"validated_for_domain","temporal_join_assessments":[],"timescale_assessments":[{"pair_requirement_id":"b-timescale-pair","status":"satisfied","evidence_ids":["eis.parameter.0","transient.event.0.tau_fast_s"],"log_distance":0.0}],"amplitude_assessments":[],"repeatability_assessments":[],"identifiability_assessments":[{"requirement_id":"b-mode-separation","status":"satisfied","metric_value":1.0,"evidence_ids":["eis.parameter.0","transient.event.0.tau_fast_s"],"reasons":["threshold_satisfied"]}],"contradiction_summaries":[],"reason_codes":[],"component_assessments":[{"component_id":"b-eis-tau","prior_status":"experimentally_supported","assessment_target":"validated_for_domain","resulting_status":"validated_for_domain","supporting_hypothesis_id":"b-hypothesis","evidence_ids":["calibration.observation.0","eis.parameter.0","estimation.point.0.state.0","transient.event.0.tau_fast_s"],"reasons":["hypothesis_supported","experimentally_supported","validation_satisfied"]},{"component_id":"b-validation-calibration","prior_status":"experimentally_supported","assessment_target":"validated_for_domain","resulting_status":"validated_for_domain","supporting_hypothesis_id":"b-hypothesis","evidence_ids":["calibration.observation.0","eis.parameter.0","estimation.point.0.state.0","transient.event.0.tau_fast_s"],"reasons":["hypothesis_supported","experimentally_supported","validation_satisfied"]},{"component_id":"b-validation-estimation","prior_status":"experimentally_supported","assessment_target":"validated_for_domain","resulting_status":"validated_for_domain","supporting_hypothesis_id":"b-hypothesis","evidence_ids":["calibration.observation.0","eis.parameter.0","estimation.point.0.state.0","transient.event.0.tau_fast_s"],"reasons":["hypothesis_supported","experimentally_supported","validation_satisfied"]},{"component_id":"tau_fast_s","prior_status":"experimentally_supported","assessment_target":"validated_for_domain","resulting_status":"validated_for_domain","supporting_hypothesis_id":"b-hypothesis","evidence_ids":["calibration.observation.0","eis.parameter.0","estimation.point.0.state.0","transient.event.0.tau_fast_s"],"reasons":["hypothesis_supported","experimentally_supported","validation_satisfied"]}],"validation_status":"satisfied","history":[{"history_id":"SHA256(exact declared history-key bytes)","hypothesis_id":"b-hypothesis","prior_level":"experimentally_supported","new_level":"validated_for_domain","assessment_target":"validated_for_domain","assessment_index":1,"reason_codes":["validation_satisfied"],"source_evidence_ids":["calibration.observation.0","eis.parameter.0","estimation.point.0.state.0","transient.event.0.tau_fast_s"]}]}}],
+  "hypothesis_history": [{"history_id":"SHA256(exact declared history-key bytes)","hypothesis_id":"b-hypothesis","prior_level":"experimentally_supported","new_level":"validated_for_domain","assessment_target":"validated_for_domain","assessment_index":1,"reason_codes":["validation_satisfied"],"source_evidence_ids":["calibration.observation.0","eis.parameter.0","estimation.point.0.state.0","transient.event.0.tau_fast_s"]}]
+}
+```
+
+The uppercase lineage values and the `SHA256(...)` history value in this
+wire listing are deterministic generated identities whose exact derivation is
+specified above; they are not arbitrary fixture text. The complete embedded
+PB-FX-10 definition, all four component rows, all validation fields, and the
+history entry are required in the actual serialized object.
+
+### 27.8 Active type inventory additions and exact API table
+
+The exhaustive active inventory in §26.7 is retained and gains these rows;
+the old rows that name superseded temporal/eligibility forms are no longer
+active:
+
+| type | kind | serialized? | owner module | owning parent | schema | purpose | wire representation | supersedes |
+|---|---|---:|---|---|---:|---|---|---|
+| `TemporalJoinRequest` | struct | no | `src/mechanism/temporal.rs` | temporal evaluator input | n/a | explicit requirement/mode invocation | internal typed request | two-ID implicit invocation |
+| `BoundRequirementEvidence` | struct | no | `src/mechanism/evidence.rs` | bound hypothesis evidence | n/a | structural candidates before eligibility | internal typed result | raw candidate ambiguity |
+| `EligibleRequirementEvidence` | struct | no | `src/mechanism/evidence.rs` | eligibility output | n/a | temporally resolved direction buckets | internal typed result | contradiction over bound candidates |
+| `TemporalJoinReasonCode::ModeSupportMismatch` | reason enum member | yes, B output only | `src/mechanism/temporal.rs` | temporal assessment | B4 | configured mode/support mismatch | `"mode_support_mismatch"` | implicit mode switching |
+| `EvidenceBindingError::UnresolvedPairBinding` | error member | no | `src/mechanism/evidence.rs` | request builder | n/a | absent/ambiguous oriented pair | typed error | inferred pair order |
+| `PhaseBEvidencePreparationError::DuplicateTemporalMetadata` | error member | no | `src/mechanism/preparation.rs` | preparation | n/a | duplicate catalog input | typed error | duplicate overwrite |
+| `PhaseBEvidencePreparationError::InvalidTemporalSupportBounds` | error member | no | `src/mechanism/preparation.rs` | preparation | n/a | invalid point/window/event bounds | typed error | unchecked support |
+| `PhaseBEvidencePreparationError::InvalidTemporalEventId` | error member | no | `src/mechanism/preparation.rs` | preparation | n/a | empty/invalid event identity | typed error | unchecked event ID |
+| `PhaseBEvidencePreparationError::UnknownTemporalEvidenceId` | error member | no | `src/mechanism/preparation.rs` | preparation | n/a | catalog ID absent from bundle | typed error | implicit catalog membership |
+| `PhaseBEvidencePreparationError::TemporalCatalogKeyValueMismatch` | error member | no | `src/mechanism/preparation.rs` | preparation | n/a | map key differs from metadata ID | typed error | unchecked duplicate map key |
+| `TemporalJoinError::MissingTemporalMetadata` | error member | no | `src/mechanism/temporal.rs` | temporal evaluator | n/a | absent required catalog row | typed error | silent Unknown |
+| `TemporalJoinError::UnknownEvidenceId` | error member | no | `src/mechanism/temporal.rs` | temporal evaluator | n/a | request ID absent from bundle | typed error | unchecked request ID |
+| `MechanismAssessmentError::TemporalAssessmentMissing` | error member | no | `src/mechanism/evidence.rs` | eligibility | n/a | required temporal result absent | typed error | contradiction fallback |
+
+The exact production order and API ownership is:
+
+| order | stage | exact function | owner | inputs | output | errors | next |
+|---:|---|---|---|---|---|---|---|
+| 1 | binding | `bind_hypothesis_evidence` | `src/mechanism/evidence.rs` | hypothesis, preparation | `BoundHypothesisEvidence` | `EvidenceBindingError` | temporal request |
+| 2 | temporal request | `build_temporal_join_request` | `src/mechanism/evidence.rs` | pair requirement, bound pair | `Option<TemporalJoinRequest>` | `EvidenceBindingError` | temporal assessment or eligibility |
+| 3 | temporal assessment | `evaluate_temporal_join` | `src/mechanism/temporal.rs` | request, bundle, catalog, config | `TemporalJoinAssessment` | `TemporalJoinError` | eligibility |
+| 4 | eligibility | `evaluate_requirement_eligibility` | `src/mechanism/evidence.rs` | hypothesis, bound, preparation, config | `Vec<EligibleRequirementEvidence>` | `MechanismAssessmentError` | direct contradiction |
+| 5 | direct contradiction | `evaluate_direct_contradictions` | `src/mechanism/evidence.rs` | hypothesis, eligible, bundle | summaries | `MechanismAssessmentError` | timescale/gates |
+| 6 | gates | existing exact evaluator APIs | their controlling modules | eligible evidence and temporal results | gate assessments | their typed errors | promotion |
+| 7 | promotion | `assess_hypothesis` | `src/mechanism/promotion.rs` | all resolved assessments | hypothesis assessment | `MechanismAssessmentError` | components |
+| 8 | components/history/assembly | existing exact APIs in §26.8 | controlling modules | resolved assessment and prior report | schema-4 report | inventoried typed errors | serialization |
+
+There is no pipeline stage without an exact API, and no direct contradiction
+stage before temporal eligibility.
+
+### 27.9 Supersession audit and regression preservation
+
+The complete-plan search audit classifies every conflicting occurrence as
+follows. Only the definitions in §27 are active for the four findings:
+
+| searched term or old definition | classification |
+|---|---|
+| `evaluate_temporal_join(left, right, bundle, metadata, config)` | SUPERSEDED; the sole active signature takes `&TemporalJoinRequest` |
+| `TemporalJoinAssessment` without `requirement_id` or persisted `mode` | SUPERSEDED |
+| `TemporalJoinAssessment.join_mode` | SUPERSEDED by `mode` |
+| implicit support-variant mode inference | SUPERSEDED and forbidden |
+| `EvidenceTemporalSupport` without an internally tagged wire shape | SUPERSEDED |
+| vector temporal catalog | SUPERSEDED; the sole active catalog is the top-level EvidenceId-keyed map |
+| `evaluate_direct_contradictions(..., &BoundHypothesisEvidence, ...)` | SUPERSEDED |
+| direct contradiction over raw/unfiltered bundle candidates | SUPERSEDED and forbidden |
+| `PB-FX-09`/`PB-FX-10` in §§21--26 | SUPERSEDED fixture fragments; §27.7 is sole active definition |
+| `b-artifact-*` serialized fixture IDs | SUPERSEDED; runtime-derived ArtifactId variables are required |
+| `TemporalAssessmentPolicy`, `TemporalClockBasis`, `PhaseBHypothesisHistory`, `CriticalEvidence`, old role-bearing bindings, and old generic status types | SUPERSEDED or migration-only exactly as §26.10 states |
+
+The following previously passed areas remain PASS without redesign: role/gate/
+stage matrix; validation-only requirement semantics; signed-relative-error
+amplitude mathematics and inclusive boundaries; `critical_requirement_ids`;
+the 4×4 `InterpretationStatus` matrix; ArtifactId fixture-generation policy;
+wire field names; controlling type inventory; error ownership; frozen A1
+compatibility; hypothesis ownership; quantity semantics; direct
+`EvidenceBundle` retirement; EIS temporal `Unknown`; repeatability;
+identifiability applicability; schema 3→4; validation role ownership;
+traceability; critical contradiction pipeline; TOML root; CLI; history.
+
+The following questions have one required answer: **NO**. Could two competent
+implementers differ about where `TemporalJoinMode` comes from; whether runtime
+support overrides configured mode; mode/support mismatch behavior; whether
+eligibility precedes contradiction; which contradictory records are eligible;
+the support enum serde representation; catalog representation; PB-FX-09
+TOML/intermediate/final report; PB-FX-10 TOML/validation/intermediate/final
+report; or any field-to-type mapping? No.
+
+### 27.10 Final contract self-audit
+
+```text
+Undefined normative types = 0
+Undefined normative owners = 0
+Unspecified Phase B algorithms = 0
+Unspecified scientific thresholds/units = 0
+Unspecified compatibility decisions = 0
+Normative contradictions = 0
+Fixture-to-real-schema contradictions = 0
+Incomplete normative positive fixtures = 0
+Unmapped active normative types = 0
+Pipeline stages without exact API = 0
+Serialized active types without exact wire shape = 0
+Implementation invention still required = no
+Production Rust modified = NONE
+Tests modified = NONE
+Fixtures modified = NONE
+Frozen A1 compatibility = YES
+Main unchanged = YES
+Phase B implementation branch unchanged = YES
+```
+
+### 27.11 Acceptance and round-trip contract
+
+The canonical acceptance contract is:
+
+```text
+canonical TOML
+→ deserialize MechanismEvidenceConfig
+→ serialize through the supported production config path
+→ reload
+→ semantically identical configuration
+
+source artifacts
+→ public production reader
+→ expected A1 records and runtime-derived ArtifactIds
+
+schema-4 expected report
+→ public writer
+→ public reader
+→ identical Phase-B assessment, history, validation, component, and lineage fields
+```
+
+The field-by-field serde audit is closed: every field in both standalone
+TOML documents maps to the Rust field/type named in §26.6/§27.7; every active
+enum uses its declared scalar or `type`/`kind` representation; no unknown or
+missing required field is accepted; all ArtifactIds are runtime-derived and
+validated; the temporal catalog has one exact map shape; and both fixture
+reports contain every Phase-B-added field. Only the planning document may be
+changed by this remediation.
+
+READY_FOR_PHASE_B_FINAL_WIRE_REREVIEW = yes
