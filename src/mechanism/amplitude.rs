@@ -130,6 +130,12 @@ fn convert_to_unit(value: f64, from: &str, to: &str) -> Option<f64> {
         ("mV", "µV") => 1_000.0,
         ("µV", "V") => 1e-6,
         ("µV", "mV") => 1e-3,
+        ("s", "ms") => 1_000.0,
+        ("ms", "s") => 1e-3,
+        ("s", "min") => 1.0 / 60.0,
+        ("min", "s") => 60.0,
+        ("ms", "min") => 1.0 / 60_000.0,
+        ("min", "ms") => 60_000.0,
         // Dimensionless/time values have no prefixed V1 representation.
         ("1", "dimensionless") | ("dimensionless", "1") => 1.0,
         _ => return None,

@@ -613,9 +613,9 @@ pub struct EisExportFitCommand {
 
 #[derive(Debug, Args)]
 pub struct MechanismCompareCommand {
-    #[arg(long = "eis-fit-artifact", value_name = "PATH")]
+    #[arg(long = "eis-artifact", value_name = "PATH")]
     pub eis_fit_artifact: PathBuf,
-    #[arg(long = "transient-results-artifact", value_name = "PATH")]
+    #[arg(long = "transient-artifact", value_name = "PATH")]
     pub transient_results_artifact: PathBuf,
     #[arg(long, value_name = "PATH")]
     pub calibration_results: Option<PathBuf>,

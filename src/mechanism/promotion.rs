@@ -82,16 +82,18 @@ pub fn assess_hypothesis(
             matches!(
                 binding.stage,
                 EvidenceRequirementStage::Support | EvidenceRequirementStage::SupportAndValidation
-            )
+            ) && binding.gate == RequirementGate::Required
         })
+        .collect::<Vec<_>>();
+    let support = support_requirements
+        .iter()
         .filter(|binding| {
             e.requirements
                 .iter()
                 .find(|row| row.requirement_id == binding.requirement_id)
                 .is_some_and(|row| !row.support_evidence_ids.is_empty())
         })
-        .collect::<Vec<_>>();
-    let support = support_requirements.len();
+        .count();
     let support_satisfied = support_requirements.iter().all(|binding| {
         e.requirements
             .iter()

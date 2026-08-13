@@ -293,7 +293,10 @@ pub fn validate_ucum_unit(unit: &str) -> Result<EvidenceUnitDimension, EvidenceB
     let exact = match unit {
         "1" | "dimensionless" | "dimensionless^2" | "activity" | "log10(activity)"
         | "log10(activity)^2" => Some(EvidenceUnitDimension::Dimensionless),
-        "s" => Some(EvidenceUnitDimension::Time),
+        // UCUM time units accepted by the Phase-B quantity contract.  The
+        // semantic dimension remains Time; evaluators are responsible for
+        // converting compatible values before applying their equations.
+        "s" | "ms" | "min" => Some(EvidenceUnitDimension::Time),
         "s^2" => Some(EvidenceUnitDimension::TimeSquared),
         "V" | "mV" | "µV" => Some(EvidenceUnitDimension::Potential),
         "V^2" => Some(EvidenceUnitDimension::PotentialSquared),

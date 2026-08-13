@@ -200,8 +200,9 @@ pub fn compare_phase_b(
             // fabricate a transition from an invented prior level.
             Vec::new()
         } else {
-            crate::mechanism::history::update_hypothesis_history(
+            crate::mechanism::history::update_hypothesis_history_from_prior(
                 previous_history,
+                prior_component_level(prior_report.as_ref(), &assessment.hypothesis_id),
                 &assessment,
                 &gates,
                 &components,
@@ -224,20 +225,50 @@ pub fn compare_phase_b(
         &transient,
         estimation.as_ref(),
         calibration_observations.as_ref(),
+        prior_report.as_ref(),
+        &preparation.bundle,
+        &phase_assessments
+            .iter()
+            .flat_map(|row| row.current.component_assessments.iter())
+            .flat_map(|component| component.evidence_ids.iter().cloned())
+            .collect::<std::collections::BTreeSet<_>>(),
         phase_assessments,
         history,
     );
     export_report(workspace, output_path, &report)
 }
 
+fn prior_component_level(
+    prior: Option<&MechanismAnalysisReport>,
+    hypothesis_id: &str,
+) -> Option<crate::mechanism::promotion::HypothesisEvidenceLevel> {
+    use crate::mechanism::promotion::HypothesisEvidenceLevel;
+    prior
+        .and_then(|report| {
+            report
+                .hypothesis_assessments
+                .iter()
+                .find(|row| row.current.hypothesis_id == hypothesis_id)
+        })
+        .map(|row| row.current.evidence_level.clone())
+        .and_then(|level| match level {
+            HypothesisEvidenceLevel::Contradicted | HypothesisEvidenceLevel::NotAssessed => None,
+            level => Some(level),
+        })
+}
+
 /// Stage 17: the sole Phase-B report assembler.  Keeping assembly here makes
 /// lineage, schema-4 fields, and retained source dependencies deterministic
 /// rather than an ad-hoc runner literal.
+#[allow(clippy::too_many_arguments)]
 pub fn assemble_phase_b_mechanism_report(
     eis: &EisFitArtifact,
     transient: &crate::results::TransientAnalysisReport,
     estimation: Option<&crate::results::StateEstimationReport>,
     calibration_observations: Option<&crate::results::CalibrationObservationSet>,
+    prior_report: Option<&MechanismAnalysisReport>,
+    bundle: &crate::evidence::EvidenceBundle,
+    consumed_evidence_ids: &std::collections::BTreeSet<crate::evidence::EvidenceId>,
     hypothesis_assessments: Vec<crate::results::HypothesisAssessmentRecord>,
     hypothesis_history: Vec<crate::mechanism::history::HypothesisHistoryEntry>,
 ) -> MechanismAnalysisReport {
@@ -258,15 +289,49 @@ pub fn assemble_phase_b_mechanism_report(
         hypothesis_assessments,
         hypothesis_history,
     };
-    let mut sources = vec![&eis.lineage, &transient.lineage];
-    if let Some(estimation) = estimation {
+    // Stage 17 records only artifacts that actually supplied persisted Phase-B
+    // evidence. Optional accepted inputs are not dependencies merely because
+    // a caller provided their paths.
+    let mut sources = Vec::new();
+    if evidence_from_artifact_is_consumed(bundle, consumed_evidence_ids, &eis.lineage) {
+        sources.push(&eis.lineage);
+    }
+    if evidence_from_artifact_is_consumed(bundle, consumed_evidence_ids, &transient.lineage) {
+        sources.push(&transient.lineage);
+    }
+    if let Some(estimation) = estimation.filter(|artifact| {
+        evidence_from_artifact_is_consumed(bundle, consumed_evidence_ids, &artifact.lineage)
+    }) {
         sources.push(&estimation.lineage);
     }
-    if let Some(calibration_observations) = calibration_observations {
+    if let Some(calibration_observations) = calibration_observations.filter(|artifact| {
+        evidence_from_artifact_is_consumed(bundle, consumed_evidence_ids, &artifact.lineage)
+    }) {
         sources.push(&calibration_observations.lineage);
+    }
+    if let Some(prior_report) = prior_report {
+        sources.push(&prior_report.lineage);
     }
     report.lineage = mechanism_lineage(&report, "mechanism-analysis-phase-b-v1", sources);
     report
+}
+
+fn evidence_from_artifact_is_consumed(
+    bundle: &crate::evidence::EvidenceBundle,
+    consumed: &std::collections::BTreeSet<crate::evidence::EvidenceId>,
+    lineage: &crate::domain::ArtifactLineageState,
+) -> bool {
+    let crate::domain::ArtifactLineageState::Known { identity, .. } = lineage else {
+        return false;
+    };
+    bundle.records.iter().any(|record| {
+        consumed.contains(&record.evidence_id)
+            && matches!(
+                &record.source.artifact,
+                crate::evidence::EvidenceArtifactSource::Known { artifact_id, .. }
+                    if artifact_id == &identity.artifact_id
+            )
+    })
 }
 
 fn prior_component_statuses(

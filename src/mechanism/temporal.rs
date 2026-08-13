@@ -251,7 +251,9 @@ pub fn evaluate_temporal_join(
     };
     if left.experiment_scope != right.experiment_scope {
         a.reasons.push(TemporalJoinReasonCode::ScopeMismatch);
-        return Ok(a);
+        return Ok(match config.scope_mismatch_behavior {
+            ScopeMismatchBehavior::Indeterminate => a,
+        });
     };
     if l.clock_id != r.clock_id {
         a.reasons
@@ -260,7 +262,9 @@ pub fn evaluate_temporal_join(
             } else {
                 TemporalJoinReasonCode::ClockUnknown
             });
-        return Ok(a);
+        return Ok(match config.clock_mismatch_behavior {
+            ClockMismatchBehavior::Indeterminate => a,
+        });
     }
     let ok = match (&l.support, &r.support) {
         (
@@ -336,7 +340,48 @@ pub fn evaluate_temporal_join(
         a.reasons
             .push(TemporalJoinReasonCode::EquilibriumFractionBelowMinimum);
     }
+    apply_mixed_state_policy(&mut a, config);
     Ok(a)
+}
+
+fn apply_mixed_state_policy(a: &mut TemporalJoinAssessment, config: &TemporalJoinConfig) {
+    if a.outcome != TemporalJoinOutcome::Eligible {
+        return;
+    }
+    let quasi_equilibrium = a.equilibrium_fraction;
+    let steady = a.steady_state_fraction;
+    let observed = steady.or(quasi_equilibrium);
+    let allowed = match &config.mixed_state_policy {
+        MixedStatePolicy::RequireAllSteady {
+            allow_quasi_equilibrium,
+        } => match steady {
+            Some(value) => value >= 1.0,
+            None if *allow_quasi_equilibrium => quasi_equilibrium == Some(1.0),
+            None => false,
+        },
+        MixedStatePolicy::MinimumSteadyFraction {
+            minimum_fraction,
+            allow_quasi_equilibrium,
+            reject_if_disturbed,
+        } => match steady.or(if *allow_quasi_equilibrium {
+            quasi_equilibrium
+        } else {
+            None
+        }) {
+            Some(value) => value >= *minimum_fraction && (!*reject_if_disturbed || value >= 1.0),
+            None => false,
+        },
+        MixedStatePolicy::WorstCase => observed.is_some_and(|value| value >= 1.0),
+    };
+    if !allowed {
+        a.outcome = if observed.is_some() {
+            TemporalJoinOutcome::Ineligible
+        } else {
+            TemporalJoinOutcome::Indeterminate
+        };
+        a.reasons
+            .push(TemporalJoinReasonCode::ClassificationUnavailable);
+    }
 }
 
 fn combine_fraction(left: Option<f64>, right: Option<f64>) -> Option<f64> {

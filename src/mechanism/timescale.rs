@@ -44,69 +44,73 @@ pub fn evaluate_timescale_requirement(
             "unsupported timescale algorithm".into(),
         ));
     }
-    let ids = (
-        exactly_one(&eligible.0.support_evidence_ids),
-        exactly_one(&eligible.1.support_evidence_ids),
-    );
     let mut out = TimescaleAssessment {
         pair_requirement_id: r.requirement_id.clone(),
         status: TimescaleStatus::NotAssessed,
-        evidence_ids: ids.0.into_iter().chain(ids.1).cloned().collect(),
+        evidence_ids: vec![],
         log_distance: None,
     };
-    let values = ids.0.zip(ids.1).and_then(|(a, b)| {
-        Some((
-            bundle
-                .records
+    // Candidate order is structural only.  Select the first deterministic
+    // *eligible* pair after unit, positivity, independence and covariance
+    // checks; never use the first structural candidate as a scientific pair.
+    let selected = eligible
+        .0
+        .support_evidence_ids
+        .iter()
+        .flat_map(|left_id| {
+            eligible
+                .1
+                .support_evidence_ids
                 .iter()
-                .find(|x| &x.evidence_id == a)?
-                .quantity
-                .as_ref()?,
-            bundle
-                .records
-                .iter()
-                .find(|x| &x.evidence_id == b)?
-                .quantity
-                .as_ref()?,
-        ))
-    });
-    let Some((a, b)) = values else { return Ok(out) };
-    if a.unit != "s"
-        || b.unit != "s"
-        || !a.value.is_finite()
-        || !b.value.is_finite()
-        || a.value <= 0.
-        || b.value <= 0.
-    {
+                .filter_map(move |right_id| {
+                    let left = bundle
+                        .records
+                        .iter()
+                        .find(|record| &record.evidence_id == left_id)?
+                        .quantity
+                        .as_ref()?;
+                    let right = bundle
+                        .records
+                        .iter()
+                        .find(|record| &record.evidence_id == right_id)?
+                        .quantity
+                        .as_ref()?;
+                    let left_value = time_to_seconds(left.value, &left.unit)?;
+                    let right_value = time_to_seconds(right.value, &right.unit)?;
+                    if left_value <= 0.0 || right_value <= 0.0 {
+                        return None;
+                    }
+                    let pair =
+                        EvidencePairKey::canonical(left_id.clone(), right_id.clone()).ok()?;
+                    let independence = bundle.lookup_independence(&pair)?;
+                    let covariance = match independence.classification {
+                        EvidenceIndependence::Independent => Some(0.0),
+                        EvidenceIndependence::SameSource
+                        | EvidenceIndependence::PartiallyDependent => bundle
+                            .lookup_timescale_pair_uncertainty(&pair)
+                            .and_then(|entry| {
+                                covariance_in_log_space(&entry.covariance, left_value, right_value)
+                            }),
+                        EvidenceIndependence::Unknown => None,
+                    }?;
+                    let variance = log_variance(left)
+                        .zip(log_variance(right))
+                        .map(|a| a.0 + a.1 - 2.0 * covariance)?;
+                    (variance.is_finite() && variance >= 0.0).then_some((
+                        left_id.clone(),
+                        right_id.clone(),
+                        left_value,
+                        right_value,
+                        variance,
+                    ))
+                })
+        })
+        .next();
+    let Some((left_id, right_id, a_value, b_value, variance)) = selected else {
         return Ok(out);
     };
-    let pair = EvidencePairKey::canonical(
-        ids.0.expect("checked above").clone(),
-        ids.1.expect("checked above").clone(),
-    )
-    .map_err(|error| MechanismAssessmentError::Invalid(error.to_string()))?;
-    let Some(independence) = bundle.lookup_independence(&pair) else {
-        return Ok(out);
-    };
-    let covariance = match independence.classification {
-        EvidenceIndependence::Independent => Some(0.0),
-        EvidenceIndependence::SameSource | EvidenceIndependence::PartiallyDependent => bundle
-            .lookup_timescale_pair_uncertainty(&pair)
-            .and_then(|entry| covariance_in_log_space(&entry.covariance, a.value, b.value)),
-        EvidenceIndependence::Unknown => None,
-    };
-    // A dependent pair cannot be made independent by omission: a missing or
-    // inapplicable exact covariance leaves this gate unassessed.
-    let Some(covariance) = covariance else {
-        return Ok(out);
-    };
-    let variance = log_variance(a)
-        .zip(log_variance(b))
-        .map(|(left, right)| left + right - 2.0 * covariance);
-    if variance.is_some_and(|value| !value.is_finite() || value < 0.0) {
-        return Ok(out);
-    }
-    let d = (a.value.ln() - b.value.ln()).abs();
+    out.evidence_ids = vec![left_id, right_id];
+    let d = (a_value.ln() - b_value.ln()).abs();
     out.log_distance = Some(d);
     let maximum_log_distance = _h
         .timescale_gate
@@ -119,7 +123,11 @@ pub fn evaluate_timescale_requirement(
             "invalid maximum log distance".into(),
         ));
     }
-    out.status = if d <= maximum_log_distance {
+    // The log-distance is only strong when its uncertainty-supported
+    // separation is within the configured boundary.  Variance is therefore
+    // a decision input, not just a report-only calculation.
+    let uncertainty_adjusted_distance = d + variance.sqrt();
+    out.status = if uncertainty_adjusted_distance <= maximum_log_distance {
         TimescaleStatus::Satisfied
     } else {
         TimescaleStatus::Failed
@@ -127,8 +135,20 @@ pub fn evaluate_timescale_requirement(
     Ok(out)
 }
 
-fn exactly_one(ids: &[EvidenceId]) -> Option<&EvidenceId> {
-    (ids.len() == 1).then(|| &ids[0])
+fn time_to_seconds(value: f64, unit: &str) -> Option<f64> {
+    if !value.is_finite()
+        || crate::evidence::validate_ucum_unit(unit).ok()
+            != Some(crate::evidence::EvidenceUnitDimension::Time)
+    {
+        return None;
+    }
+    let factor = match unit {
+        "s" => 1.0,
+        "ms" => 1e-3,
+        "min" => 60.0,
+        _ => return None,
+    };
+    Some(value * factor)
 }
 
 fn covariance_in_log_space(
@@ -148,15 +168,23 @@ fn covariance_in_log_space(
 }
 
 fn log_variance(quantity: &crate::evidence::EvidenceQuantity) -> Option<f64> {
-    match quantity.uncertainty.as_ref()? {
+    match quantity
+        .uncertainty
+        .as_ref()
+        .unwrap_or(&crate::evidence::EvidenceUncertaintyModel::None)
+    {
         crate::evidence::EvidenceUncertaintyModel::None => Some(0.0),
         crate::evidence::EvidenceUncertaintyModel::LogNormal { variance_ln_tau_s } => {
             (*variance_ln_tau_s >= 0.0 && variance_ln_tau_s.is_finite())
                 .then_some(*variance_ln_tau_s)
         }
         crate::evidence::EvidenceUncertaintyModel::DeltaMethodTauVariance { variance_tau_s2 } => {
-            (*variance_tau_s2 >= 0.0 && variance_tau_s2.is_finite() && quantity.value > 0.0)
-                .then_some(*variance_tau_s2 / quantity.value.powi(2))
+            if *variance_tau_s2 < 0.0 || !variance_tau_s2.is_finite() {
+                return None;
+            }
+            let value_s = time_to_seconds(quantity.value, &quantity.unit)?;
+            let standard_error_s = time_to_seconds(variance_tau_s2.sqrt(), &quantity.unit)?;
+            (value_s > 0.0).then_some(standard_error_s.powi(2) / value_s.powi(2))
         }
         crate::evidence::EvidenceUncertaintyModel::ExplicitLogInterval {
             lower_ln_tau_s,

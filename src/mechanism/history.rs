@@ -197,7 +197,67 @@ fn hash<T: Serialize>(v: &T) -> Result<String, HypothesisAssessmentHashError> {
 pub fn compute_assessment_hash(
     v: &HypothesisAssessmentHashView,
 ) -> Result<AssessmentHash, HypothesisAssessmentHashError> {
+    reject_non_finite_hash_floats(v)?;
     Ok(AssessmentHash(hash(v)?))
+}
+
+fn reject_non_finite_hash_floats(
+    view: &HypothesisAssessmentHashView,
+) -> Result<(), HypothesisAssessmentHashError> {
+    let finite = |value: f64, path: String| {
+        value
+            .is_finite()
+            .then_some(())
+            .ok_or(HypothesisAssessmentHashError::NonFiniteHashedFloat { path })
+    };
+    for (index, row) in view.timescale_assessments.iter().enumerate() {
+        if let Some(value) = row.log_distance {
+            finite(
+                value,
+                format!("timescale_assessments[{index}].log_distance"),
+            )?;
+        }
+    }
+    for (index, row) in view.temporal_join_assessments.iter().enumerate() {
+        for (field, value) in [
+            ("classified_fraction", row.classified_fraction),
+            ("equilibrium_fraction", row.equilibrium_fraction),
+            ("steady_state_fraction", row.steady_state_fraction),
+        ] {
+            if let Some(value) = value {
+                finite(value, format!("temporal_join_assessments[{index}].{field}"))?;
+            }
+        }
+    }
+    for (index, row) in view.amplitude_assessments.iter().enumerate() {
+        finite(
+            row.threshold.value,
+            format!("amplitude_assessments[{index}].threshold.value"),
+        )?;
+        if let Some(value) = row.relative_error {
+            finite(
+                value,
+                format!("amplitude_assessments[{index}].relative_error"),
+            )?;
+        }
+    }
+    for (index, row) in view.repeatability_assessments.iter().enumerate() {
+        if let Some(value) = row.sample_standard_deviation_ln_tau {
+            finite(
+                value,
+                format!("repeatability_assessments[{index}].sample_standard_deviation_ln_tau"),
+            )?;
+        }
+    }
+    for (index, row) in view.identifiability_assessments.iter().enumerate() {
+        if let Some(value) = row.metric_value {
+            finite(
+                value,
+                format!("identifiability_assessments[{index}].metric_value"),
+            )?;
+        }
+    }
+    Ok(())
 }
 pub fn compute_history_id(
     v: &HypothesisHistoryIdView,
@@ -206,6 +266,17 @@ pub fn compute_history_id(
 }
 pub fn update_hypothesis_history(
     previous: &[HypothesisHistoryEntry],
+    a: &PhaseBHypothesisAssessment,
+    g: &HypothesisGateAssessments,
+    components: &[ComponentInterpretationAssessment],
+    source: &[EvidenceId],
+) -> Result<Vec<HypothesisHistoryEntry>, MechanismAssessmentError> {
+    update_hypothesis_history_from_prior(previous, None, a, g, components, source)
+}
+
+pub fn update_hypothesis_history_from_prior(
+    previous: &[HypothesisHistoryEntry],
+    prior_level_override: Option<HypothesisEvidenceLevel>,
     a: &PhaseBHypothesisAssessment,
     g: &HypothesisGateAssessments,
     components: &[ComponentInterpretationAssessment],
@@ -220,6 +291,7 @@ pub fn update_hypothesis_history(
         .filter(|x| x.hypothesis_id == a.hypothesis_id)
         .max_by_key(|x| x.assessment_index)
         .map(|x| x.new_level.clone())
+        .or(prior_level_override)
         .unwrap_or(HypothesisEvidenceLevel::NotAssessed);
     let id = compute_history_id(&HypothesisHistoryIdView {
         hypothesis_id: a.hypothesis_id.clone(),
@@ -228,7 +300,18 @@ pub fn update_hypothesis_history(
         assessment_hash: ah.0,
     })
     .map_err(|e| MechanismAssessmentError::Invalid(e.to_string()))?;
-    if previous.iter().any(|x| x.history_id == id) {
+    if previous.iter().any(|x| x.history_id == id)
+        || previous.iter().any(|x| {
+            x.hypothesis_id == a.hypothesis_id
+                && x.new_level == a.evidence_level
+                && x.assessment_target
+                    == components
+                        .first()
+                        .and_then(|component| component.assessment_target)
+                && x.reason_codes == sorted(a.reason_codes.clone())
+                && x.source_evidence_ids == sorted(source.to_vec())
+        })
+    {
         return Ok(previous.to_vec());
     }
     let mut out = previous.to_vec();

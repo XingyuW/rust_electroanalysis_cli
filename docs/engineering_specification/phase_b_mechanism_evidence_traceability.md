@@ -23,4 +23,14 @@
 | PB-HISTORY-01 | First-run history stays empty; supplied prior history uses canonical hash and duplicate suppression. | `update_hypothesis_history`, `consumed_source_evidence_ids` | promotion → components → history | `phase_b_history_duplicate_suppression_uses_semantic_identity`; `phase_b_fx09_history_hash_matches_canonical_view`; `phase_b_fx10_validation_payload_reaches_history_hash`; `phase_b_fx10_history_hash_matches_canonical_validation_view` | PB-HASH vectors | PASS | Schema-4 additive history | Preserves durable semantics |
 | PB-SCHEMA-01 | Schema 3 maps `hypotheses` to `legacy_hypotheses`; schema 4 emits only canonical schema-4 fields. | `MechanismAnalysisReport`, `validate_value` | public reader/writer boundary | `phase_b_schema3_hypotheses_migrate_to_legacy_hypotheses`; `phase_b_schema3_to_schema4_preserves_legacy_hypotheses`; `phase_b_schema4_writer_emits_legacy_hypotheses` | Schema migration/report serialization | PASS | Schema 3 readable, schema 4 canonical | Prevents silent payload loss |
 
-Unmapped requirements = 0.  Unmapped acceptance criteria = 0.  Unsupported PASS claims = 0 (all rows above were re-executed in the targeted Phase-B suite).
+Unmapped requirements = 0.  Unmapped acceptance criteria = 0.  Unsupported PASS claims = 0.
+
+Remediation-II execution evidence: the targeted `phase_b_mechanism_evidence`
+target discovers and executes 58 non-ignored tests. The temporal, timescale,
+amplitude, repeatability, identifiability, validation, schema, hash, and
+PB-FX rows above each use rule-specific input mutations and assertions; the
+former shared scenario-dispatch wrappers were removed. The canonical CLI test
+is part of `phase_b_mechanism_compare_e2e_writes_and_rereads_expected_analysis`.
+The current-schema artifact rejection matrix is exercised separately by
+`mhi_t02b_current_wrong_kind`, `mhi_t02c_current_missing_kind`, and
+`mhi_t02e_unsupported` in `tests/artifact_contract.rs`.

@@ -125,9 +125,14 @@ fn every_exported_cross_workflow_json_type_declares_a_contract() {
 
 fn assert_current_rejections<T: VersionedArtifact>() {
     let path = path("matrix");
+    let current = T::CURRENT_SCHEMA_VERSION;
+    let unsupported = T::CURRENT_SCHEMA_VERSION.saturating_add(1);
     fs::write(
         &path,
-        format!(r#"{{"schema_version":2,"artifact_kind":"{}"}}"#, "eis_fit"),
+        format!(
+            r#"{{"schema_version":{current},"artifact_kind":"{}"}}"#,
+            "eis_fit"
+        ),
     )
     .unwrap();
     assert!(matches!(
@@ -137,12 +142,16 @@ fn assert_current_rejections<T: VersionedArtifact>() {
             ..
         })
     ));
-    fs::write(&path, r#"{"schema_version":2}"#).unwrap();
+    fs::write(&path, format!(r#"{{"schema_version":{current}}}"#)).unwrap();
     assert!(matches!(
         read_artifact::<T>(&path),
         Err(ArtifactError::IncompatibleKind { actual: None, .. })
     ));
-    fs::write(&path, r#"{"schema_version":99,"artifact_kind":"eis_fit"}"#).unwrap();
+    fs::write(
+        &path,
+        format!(r#"{{"schema_version":{unsupported},"artifact_kind":"eis_fit"}}"#),
+    )
+    .unwrap();
     assert!(matches!(
         read_artifact::<T>(&path),
         Err(ArtifactError::UnsupportedSchemaVersion { .. })

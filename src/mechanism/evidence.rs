@@ -24,8 +24,10 @@ use thiserror::Error;
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundEvidencePair {
     pub pair_requirement_id: EvidenceRequirementId,
-    pub left_evidence_id: EvidenceId,
-    pub right_evidence_id: EvidenceId,
+    /// Structural candidates only.  Scientific selection happens after the
+    /// generic eligibility stage has evaluated the candidates.
+    pub left_candidate_evidence_ids: Vec<EvidenceId>,
+    pub right_candidate_evidence_ids: Vec<EvidenceId>,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundRequirementEvidence {
@@ -117,25 +119,18 @@ pub fn bind_hypothesis_evidence(
         let left = requirements
             .iter()
             .find(|r| r.requirement_id == pair.left_requirement_id)
-            .and_then(|r| r.candidate_evidence_ids.first())
-            .cloned();
+            .map(|r| r.candidate_evidence_ids.clone())
+            .unwrap_or_default();
         let right = requirements
             .iter()
             .find(|r| r.requirement_id == pair.right_requirement_id)
-            .and_then(|r| r.candidate_evidence_ids.first())
-            .cloned();
-        match (left, right) {
-            (Some(left_evidence_id), Some(right_evidence_id)) => pairs.push(BoundEvidencePair {
-                pair_requirement_id: pair.requirement_id.clone(),
-                left_evidence_id,
-                right_evidence_id,
-            }),
-            _ => {
-                return Err(EvidenceBindingError::UnresolvedPairBinding(
-                    pair.requirement_id.clone(),
-                ));
-            }
-        }
+            .map(|r| r.candidate_evidence_ids.clone())
+            .unwrap_or_default();
+        pairs.push(BoundEvidencePair {
+            pair_requirement_id: pair.requirement_id.clone(),
+            left_candidate_evidence_ids: left,
+            right_candidate_evidence_ids: right,
+        });
     }
     pairs.sort_by(|a, b| a.pair_requirement_id.cmp(&b.pair_requirement_id));
     Ok(BoundHypothesisEvidence {
@@ -184,7 +179,7 @@ pub fn evaluate_hypothesis_evidence_eligibility(
                     || x.right_requirement_id == rule.requirement_id
             })
             .filter(|x| matches!(x.temporal, TemporalRequirement::Required { .. }));
-        let temporal = temporal_pair.map(|pair| {
+        let temporal_assessments = temporal_pair.map(|pair| {
             let bound_pair = b
                 .pair_bindings
                 .iter()
@@ -196,26 +191,33 @@ pub fn evaluate_hypothesis_evidence_eligibility(
                 TemporalRequirement::Required { join_mode } => join_mode,
                 _ => unreachable!(),
             };
-            evaluate_temporal_join(
-                &TemporalJoinRequest {
-                    requirement_id: pair.requirement_id.clone(),
-                    left_evidence_id: bound_pair.left_evidence_id.clone(),
-                    right_evidence_id: bound_pair.right_evidence_id.clone(),
-                    mode,
-                },
-                &p.bundle,
-                &p.temporal_metadata,
-                &c.temporal,
-            )
-            .map_err(|e| MechanismAssessmentError::Invalid(e.to_string()))
+            bound_pair
+                .left_candidate_evidence_ids
+                .iter()
+                .flat_map(|left| {
+                    bound_pair
+                        .right_candidate_evidence_ids
+                        .iter()
+                        .map(move |right| (left, right))
+                })
+                .map(|(left, right)| {
+                    evaluate_temporal_join(
+                        &TemporalJoinRequest {
+                            requirement_id: pair.requirement_id.clone(),
+                            left_evidence_id: left.clone(),
+                            right_evidence_id: right.clone(),
+                            mode,
+                        },
+                        &p.bundle,
+                        &p.temporal_metadata,
+                        &c.temporal,
+                    )
+                    .map_err(|e| MechanismAssessmentError::Invalid(e.to_string()))
+                })
+                .collect::<Result<Vec<_>, _>>()
         });
-        let temporal = match temporal {
-            Some(x) => Some(x?),
-            None => None,
-        };
-        if let Some(a) = temporal.clone() {
-            result.temporal_assessments.push(a.clone())
-        };
+        let temporal_assessments = temporal_assessments.transpose()?.unwrap_or_default();
+        result.temporal_assessments = temporal_assessments.clone();
         for id in &bound.candidate_evidence_ids {
             let role_authorized = b.role_bindings.iter().any(|binding| {
                 binding.requirement_id == rule.requirement_id
@@ -256,18 +258,26 @@ pub fn evaluate_hypothesis_evidence_eligibility(
             if !quantity_matches_requirement(record, rule) {
                 continue;
             }
-            if let Some(a) = &temporal {
-                match a.outcome {
-                    TemporalJoinOutcome::Ineligible => {
-                        result.temporally_ineligible_evidence_ids.push(id.clone());
-                        continue;
-                    }
-                    TemporalJoinOutcome::Indeterminate => {
-                        result.indeterminate_evidence_ids.push(id.clone());
-                        continue;
-                    }
-                    TemporalJoinOutcome::Eligible => {}
+            let temporal_for_candidate = temporal_assessments
+                .iter()
+                .filter(|assessment| {
+                    assessment.left_evidence_id == *id || assessment.right_evidence_id == *id
+                })
+                .collect::<Vec<_>>();
+            if !temporal_for_candidate.is_empty()
+                && !temporal_for_candidate
+                    .iter()
+                    .any(|assessment| assessment.outcome == TemporalJoinOutcome::Eligible)
+            {
+                if temporal_for_candidate
+                    .iter()
+                    .any(|assessment| assessment.outcome == TemporalJoinOutcome::Indeterminate)
+                {
+                    result.indeterminate_evidence_ids.push(id.clone());
+                } else {
+                    result.temporally_ineligible_evidence_ids.push(id.clone());
                 }
+                continue;
             }
             match (rule.expected_direction, record.direction) {
                 (_, EvidenceDirection::Contradicts) => {
