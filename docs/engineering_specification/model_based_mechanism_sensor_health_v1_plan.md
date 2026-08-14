@@ -6575,6 +6575,65 @@ PB-FX-09 and PB-FX-10 must each deserialize this table into
 the round-trip does not add, drop, or rename a field. The temporal config /
 fixture contradiction count is zero.
 
+#### 30.2.1 PB-TEMP-02 — one-variant temporal-policy testability
+
+`WindowOverlapRule` and `EventIdentityRule` are versioned semantic policy
+tokens, not multi-choice runtime knobs, in Phase B V1. Each enum intentionally
+has exactly one legal V1 variant: `WindowOverlapRule::PositiveDuration` with
+wire value `positive_duration`, and `EventIdentityRule::Exact` with wire value
+`exact`. Their fields remain required members of the strict V1
+`TemporalJoinConfig`; they are neither descriptive annotations nor
+fixture-only fields.
+
+The exact sole-variant semantics remain those of the active §27.2 temporal
+matrix:
+
+| policy token | exact V1 predicate | boundary result |
+|---|---|---|
+| `WindowOverlapRule::PositiveDuration` | For two `Window` supports interpreted as `[start_s,end_s)`, `max(left.start_s, right.start_s) < min(left.end_s, right.end_s)` | zero-duration contact (`max(start) == min(end)`) and negative overlap are `Ineligible(WindowNoPositiveOverlap)` |
+| `EventIdentityRule::Exact` | For two `Event` supports after the matrix's same-scope/same-clock prerequisites, both `event_id` values are nonempty and bytewise equal | unequal or empty IDs are `Ineligible(EventIdentityMismatch)` |
+
+The evaluator MUST explicitly dispatch on each policy enum and implement the
+corresponding predicate. It MUST NOT ignore either field. A wildcard,
+default, fallback, or catch-all evaluator branch that maps an unknown or
+future policy value to a V1 rule is forbidden. Strict configuration
+deserialization MUST reject unknown or future wire values; it may not map them
+to the sole V1 variant.
+
+Because each legal V1 domain has cardinality one, no conforming V1 test can
+change either policy value to a different legal V1 value. A differential test
+which requires such a change is logically impossible and is not a mandatory
+V1 acceptance criterion. Any prior acceptance wording interpreted to require
+different runtime behavior from two legal `WindowOverlapRule` or
+`EventIdentityRule` values is superseded by this subsection. This does not
+weaken semantic implementation: the sole policy predicates remain
+substantively testable, and explicit dispatch remains independently
+reviewable.
+
+PB-TEMP-02 is satisfied only when all of the following are true:
+
+1. Exact sole-variant wire deserialization succeeds for `positive_duration`
+   and `exact`.
+2. Unsupported policy wire values are rejected by the strict V1 config
+   parser. The required regression test names are
+   `phase_b_temporal_window_overlap_rule_rejects_unknown_variant` and
+   `phase_b_temporal_event_identity_rule_rejects_unknown_variant`.
+3. `phase_b_temporal_window_join_requires_overlap` substantively covers a
+   valid positive overlap, a non-overlap, and zero-duration boundary contact
+   under `WindowOverlapRule::PositiveDuration`.
+4. `phase_b_temporal_event_join_requires_exact_event` substantively covers
+   matching and nonmatching event identities under
+   `EventIdentityRule::Exact`.
+5. Independent implementation review confirms explicit enum dispatch, no
+   ignored policy field, no wildcard/default evaluator behavior, and strict
+   rejection of unknown policy wires.
+
+This static-review acceptance is named **PB-TEMP-POLICY-DISPATCH**. It is
+verified by the substantive semantic tests, the two strict-wire regressions,
+and independent implementation review; differential runtime testing across
+legal variants is not required when the V1 legal domain contains exactly one
+variant.
+
 ### 30.3 PB-FINAL-WIRE-02 — one authoritative `HypothesisHistoryEntry`
 
 `src/mechanism/history.rs::HypothesisHistoryEntry` is the sole active
@@ -6802,6 +6861,9 @@ Unspecified Phase B algorithms = 0
 Unspecified scientific thresholds/units = 0
 Unspecified compatibility decisions = 0
 Normative contradictions = 0
+Normative temporal-policy testability contradictions = 0
+Unsatisfiable temporal-policy acceptance criteria = 0
+PB-TEMP-02 satisfiable acceptance standard = YES
 Fixture-to-real-schema contradictions = 0
 Fixture-to-source-route contradictions = 0
 Fixture-to-wire-contract contradictions = 0
