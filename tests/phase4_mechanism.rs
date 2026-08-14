@@ -253,12 +253,14 @@ fn mechanism_human_report_contains_non_causality_statement() {
         eis_timescales: Vec::new(),
         transient_timescales: Vec::new(),
         comparisons: Vec::new(),
-        hypotheses: Vec::new(),
+        legacy_hypotheses: Vec::new(),
         trends: Vec::new(),
         configuration: ResolvedMechanismConfig::default(),
         provenance: None,
         warnings: Vec::new(),
         transient_configuration: None,
+        hypothesis_assessments: Vec::new(),
+        hypothesis_history: Vec::new(),
     };
     fs::write(&input, serde_json::to_string_pretty(&report).unwrap()).expect("write report");
     rust_electroanalysis_cli::runners::mechanism::report(&root, &input, Some(&output))

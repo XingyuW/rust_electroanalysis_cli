@@ -271,11 +271,38 @@ pub struct MechanismAnalysisReport {
     pub eis_timescales: Vec<CharacteristicTimescale>,
     pub transient_timescales: Vec<CharacteristicTimescale>,
     pub comparisons: Vec<TimescaleComparison>,
-    pub hypotheses: Vec<HypothesisAssessment>,
+    #[serde(default, alias = "hypotheses")]
+    pub legacy_hypotheses: Vec<HypothesisAssessment>,
     pub trends: Vec<MechanismTrendResult>,
     pub configuration: ResolvedMechanismConfig,
     pub provenance: Option<AnalysisProvenance>,
     pub warnings: Vec<MechanismWarning>,
     #[serde(default)]
     pub transient_configuration: Option<ResolvedTransientConfig>,
+    #[serde(default)]
+    pub hypothesis_assessments: Vec<HypothesisAssessmentRecord>,
+    #[serde(default)]
+    pub hypothesis_history: Vec<crate::mechanism::history::HypothesisHistoryEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HypothesisAssessmentRecord {
+    pub definition: crate::mechanism::config::MechanismHypothesisDefinition,
+    pub current: PhaseBHypothesisAssessment,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PhaseBHypothesisAssessment {
+    pub hypothesis_id: String,
+    pub evidence_level: crate::mechanism::promotion::HypothesisEvidenceLevel,
+    pub temporal_join_assessments: Vec<crate::mechanism::temporal::TemporalJoinAssessment>,
+    pub timescale_assessments: Vec<crate::mechanism::timescale::TimescaleAssessment>,
+    pub amplitude_assessments: Vec<crate::mechanism::amplitude::AmplitudeAssessment>,
+    pub repeatability_assessments: Vec<crate::mechanism::repeatability::RepeatabilityAssessment>,
+    pub identifiability_assessments:
+        Vec<crate::mechanism::identifiability::IdentifiabilityAssessment>,
+    pub contradiction_summaries: Vec<crate::mechanism::evidence::RequirementContradictionSummary>,
+    pub reason_codes: Vec<crate::mechanism::promotion::PhaseBHypothesisReasonCode>,
+    pub component_assessments: Vec<crate::mechanism::promotion::ComponentInterpretationAssessment>,
+    pub validation_status: crate::mechanism::validation::ValidationProtocolStatus,
+    pub history: Vec<crate::mechanism::history::HypothesisHistoryEntry>,
 }

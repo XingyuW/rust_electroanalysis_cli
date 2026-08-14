@@ -1,0 +1,407 @@
+{
+  "analysis_id": "b-e2e-estimation",
+  "artifact_kind": "state_estimation",
+  "channel": "E1",
+  "compiled_model_summary": null,
+  "configuration": {
+    "auxiliary": {
+      "allow_known_standard_events": true,
+      "allow_reference_activity": true,
+      "condition_requires_auxiliary": true,
+      "known_log10_activity_variance": 1e-8,
+      "standard_variance_v2": null
+    },
+    "ekf": {
+      "numerical_jacobian_relative_step": 1e-6,
+      "use_joseph_update": true
+    },
+    "environment": {
+      "alignment": "linear_interpolation",
+      "allow_configured_fallback": true,
+      "conductivity_series": "conductivity",
+      "fallback_conductivity_s_per_m": null,
+      "fallback_ionic_strength_mol_l": null,
+      "fallback_temperature_celsius": 25.0,
+      "flow_series": "flow",
+      "interferent_series": {},
+      "ionic_strength_series": "ionic_strength",
+      "maximum_gap_s": 60.0,
+      "temperature_series": "temperature",
+      "window_half_width_s": 5.0
+    },
+    "equilibrium_recognition": {
+      "enabled": true,
+      "maximum_absolute_residual_autocorrelation": 0.2,
+      "maximum_absolute_standardized_innovation": 2.0,
+      "maximum_dynamic_potential_v": 0.0001,
+      "maximum_environment_change_fraction": 0.01,
+      "maximum_equilibrium_gap_v": 0.0001,
+      "maximum_normalized_state_rate_per_s": 0.0001,
+      "maximum_state_uncertainty_fraction": 0.05,
+      "minimum_elapsed_time_constants": 5.0,
+      "minimum_history_points": 5,
+      "require_observable": true
+    },
+    "export": {
+      "diagnostics_filename": "state_diagnostics.json",
+      "innovations_filename": "state_innovations.csv",
+      "report_filename": "state_estimation_report.txt",
+      "results_filename": "state_estimation.json",
+      "states_filename": "state_estimates.csv",
+      "validation_filename": "state_validation.json"
+    },
+    "extrapolation": {
+      "inflate_measurement_variance": false,
+      "near_boundary_fraction": 0.05,
+      "near_boundary_variance_inflation_factor": 1.25,
+      "variance_inflation_factor": 4.0,
+      "warn_outside_domain": true
+    },
+    "filter": {
+      "confidence_level": 0.95,
+      "innovation_gate_probability": 0.997,
+      "kind": "ukf",
+      "reject_outliers": true
+    },
+    "ingestion": {
+      "max_missing_measurement_fraction": 0.2,
+      "max_skipped_timestamp_rows": 0,
+      "reject_missing_required_channel": true
+    },
+    "initial_covariance": {
+      "baseline_variance_v2": 0.0001,
+      "condition_variance": 0.01,
+      "log10_activity_variance": 0.25,
+      "polarization_variance_v2": 0.0001
+    },
+    "initialization": {
+      "activity_source": "calibration_inversion",
+      "baseline_v": 0.0,
+      "condition_value": 1.0,
+      "initial_activity": 0.001,
+      "initial_activity_unit": "mol/L",
+      "polarization_v": 0.0,
+      "previous_artifact": null,
+      "steady_window_s": 30.0
+    },
+    "measurement_noise": {
+      "configured_variance_v2": 1e-6,
+      "inflate_outside_domain": false,
+      "maximum_variance_v2": 1.0,
+      "minimum_variance_v2": 1e-12,
+      "per_observation_variance": null,
+      "source": "signal_robust_variance"
+    },
+    "model": {
+      "backend": "legacy",
+      "definition": null,
+      "input_bindings": {
+        "conductivity": "environment:conductivity",
+        "custom": {},
+        "delta_log10_activity": "experiment_activity_step",
+        "target_activity": "estimated_activity",
+        "temperature": "environment:temperature"
+      },
+      "observation_variance": {
+        "combination": "estimation_only"
+      },
+      "profile": "legacy_equivalent_v1",
+      "transduction_drive": {
+        "source": "none"
+      }
+    },
+    "observability": {
+      "empirical_perturbation": 0.001,
+      "empirical_sensitivity_tolerance": 1e-8,
+      "enabled": true,
+      "horizon_steps": 20,
+      "maximum_condition_number": 10000000000.0,
+      "rank_tolerance": 1e-8,
+      "reject_unobservable_model": true
+    },
+    "plotting": {
+      "enabled": true,
+      "include_covariance": true,
+      "include_environment": true,
+      "include_innovations": true,
+      "include_nis": true,
+      "include_state_uncertainty": true
+    },
+    "polarization": {
+      "aggregation": "median",
+      "configured_tau_s": 30.0,
+      "gain": 1.0,
+      "gain_v_per_log10_activity": 0.0,
+      "input_event_kind": "concentration_step",
+      "input_model": "none",
+      "tau_source": "transient",
+      "tau_uncertainty_s": null,
+      "transient_parameter": "tau_slow"
+    },
+    "process_noise": {
+      "activity_variance_per_s": 0.00001,
+      "baseline_variance_v2_per_s": 1e-10,
+      "condition_variance_per_s": 1e-9,
+      "polarization_variance_v2_per_s": 1e-8,
+      "source": "configured"
+    },
+    "schema_version": 3,
+    "state_model": {
+      "activity_transform": "identity_log10",
+      "condition_initial": 1.0,
+      "condition_lower": 0.5,
+      "condition_upper": 1.5,
+      "include_condition_state": false,
+      "kind": "activity_baseline_polarization"
+    },
+    "timestamp_handling": {
+      "duplicate_policy": "deduplicate_identical",
+      "minimum_segment_points": 2,
+      "minor_reversal_threshold_s": 1.0,
+      "non_finite_policy": "reject",
+      "non_monotonic_policy": "segment_on_reset",
+      "reset_threshold_fraction": 0.5,
+      "reset_threshold_s": 10.0
+    },
+    "ukf": {
+      "alpha": 0.001,
+      "beta": 2.0,
+      "initial_jitter": 1e-12,
+      "jitter_multiplier": 10.0,
+      "kappa": 0.0,
+      "maximum_jitter_attempts": 5
+    },
+    "validation": {
+      "alignment_policy": "nearest_within_tolerance",
+      "allow_truth_reuse": false,
+      "maximum_alignment_gap_s": 0.5,
+      "states": {
+        "baseline_offset": {
+          "absolute_convergence_tolerance": 0.001,
+          "minimum_consecutive_converged_points": 1,
+          "step_detection_threshold": 1e-6,
+          "step_response_fraction": 0.9
+        },
+        "log10_activity": {
+          "absolute_convergence_tolerance": 0.05,
+          "minimum_consecutive_converged_points": 1,
+          "step_detection_threshold": 1e-6,
+          "step_response_fraction": 0.9
+        },
+        "polarization": {
+          "absolute_convergence_tolerance": 0.001,
+          "minimum_consecutive_converged_points": 1,
+          "step_detection_threshold": 1e-6,
+          "step_response_fraction": 0.9
+        },
+        "sensitivity_scale": {
+          "absolute_convergence_tolerance": 0.02,
+          "minimum_consecutive_converged_points": 1,
+          "step_detection_threshold": 1e-6,
+          "step_response_fraction": 0.9
+        }
+      }
+    }
+  },
+  "diagnostics": {
+    "accepted_update_count": 0,
+    "covariance_collapse_count": 0,
+    "covariance_inflation_warning_count": 0,
+    "covariance_jitter_count": 0,
+    "domain_excursion_count": 0,
+    "filter_diverged": false,
+    "innovation_autocorrelation_confidence_bounds": null,
+    "innovation_mean": null,
+    "innovation_standard_deviation": null,
+    "innovations": [],
+    "log_likelihood": null,
+    "nees_consistency_interval": null,
+    "nees_mean": null,
+    "nis_consistency_interval": null,
+    "nis_exceedance_rate": null,
+    "nis_mean": null,
+    "numerical_failures": 0,
+    "predict_only_count": 0,
+    "rejected_update_count": 0,
+    "residual_autocorrelation": null
+  },
+  "estimates": [
+    {
+      "activity": null,
+      "activity_standard_error": null,
+      "applied_measurement_variance_v2": null,
+      "auxiliary_observations": [],
+      "calibration_domain_status": "inside",
+      "component_contributions": [],
+      "concentration_assumptions": null,
+      "concentration_unit": null,
+      "domain_distance": null,
+      "environmental_context": {
+        "activity_step_event_timestamps_s": [],
+        "conductivity_s_per_m": null,
+        "delta_log10_activity": null,
+        "flow": null,
+        "interferent_activities": {},
+        "ionic_strength_mol_l": null,
+        "known_activity_log10": null,
+        "known_standard": false,
+        "known_standard_assumption": null,
+        "known_standard_provenance": null,
+        "known_standard_unit": null,
+        "known_standard_value_kind": null,
+        "polarization_event_timestamp_s": null,
+        "polarization_input_source": null,
+        "source_records": [],
+        "temperature_k": null,
+        "transduction_drive": null,
+        "transduction_drive_source": null
+      },
+      "equilibrium_assessment": null,
+      "equilibrium_potential_v": null,
+      "external_disturbance_potential_v": null,
+      "filtered_covariance": [],
+      "filtered_state": [
+        {
+          "latent": false,
+          "latent_value": null,
+          "lower": null,
+          "name": "b-validation-estimation",
+          "standard_error": null,
+          "unit": "V",
+          "upper": null,
+          "value": 0.25
+        }
+      ],
+      "innovation_v": null,
+      "innovation_variance_v2": null,
+      "measurement_v": null,
+      "measurement_variance_source": null,
+      "molar_concentration_mol_l": null,
+      "normalized_innovation_squared": null,
+      "original_row_index": null,
+      "posterior_constrained": false,
+      "predicted_covariance": [],
+      "predicted_measurement_v": null,
+      "predicted_state": [],
+      "reference_potential_v": null,
+      "segment_id": 0,
+      "standardized_innovation": null,
+      "timestamp_s": 5.0,
+      "transduction_potential_v": null,
+      "transport_potential_v": null,
+      "unexplained_residual_v": null,
+      "uninflated_measurement_variance_v2": null,
+      "update_status": "updated",
+      "variance_inflation_factor": null,
+      "variance_inflation_reason": null,
+      "warnings": []
+    }
+  ],
+  "experiment_id": "b-e2e-1",
+  "filter": "ekf",
+  "ingestion_diagnostics": {
+    "duplicate_timestamps": 0,
+    "ingestion_diagnostics": [],
+    "irregular_sampling": false,
+    "malformed_rows": 0,
+    "messages": [],
+    "missing_values": 0,
+    "non_monotonic_timestamps": 0,
+    "skipped_rows": 0,
+    "successfully_parsed_rows": 0,
+    "total_rows": 0
+  },
+  "initialization": {
+    "assumptions": [],
+    "sources": [],
+    "state_covariance": [],
+    "state_mean": [],
+    "warnings": []
+  },
+  "labeled_covariance": null,
+  "lineage": {
+    "Known": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "b-family-estimation"
+          ]
+        },
+        "artifact_id": "sha256:12b73e011b71dfe35bf5e6d88ba15ecf4767a7fc1e2c95820602e6c120dc5ddf",
+        "artifact_kind": "state_estimation",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "b-e2e-1"
+          }
+        },
+        "producer_version": "phase-b-fixture-generator",
+        "schema_version": 4,
+        "semantic_sha256": "12b73e011b71dfe35bf5e6d88ba15ecf4767a7fc1e2c95820602e6c120dc5ddf",
+        "sensor_scope": "Unspecified"
+      }
+    }
+  },
+  "measurement_conversion": "",
+  "measurement_covariance": {
+    "candidates": [],
+    "combination_assumptions": [],
+    "final_variance": 1e-6,
+    "rejected_sources": [],
+    "selected_source": "configured",
+    "unit": "V^2"
+  },
+  "measurement_source_unit": "",
+  "model": "activity",
+  "model_backend": null,
+  "model_definition": null,
+  "model_id": null,
+  "model_profile": null,
+  "model_schema_version": null,
+  "observability": {
+    "condition_number": null,
+    "empirical_horizon_steps": 0,
+    "empirical_identifiability_passed": false,
+    "empirical_output_sensitivity": {},
+    "measurement_count": 0,
+    "numerical_rank": 0,
+    "observability_matrix": [],
+    "observation_jacobian": [],
+    "state_count": 0,
+    "state_pair_confounding": [],
+    "unobservable_states": [],
+    "warnings": [],
+    "weakly_observable_states": []
+  },
+  "process_covariance": {
+    "candidates": [],
+    "combination_assumptions": [],
+    "final_variance": 1e-6,
+    "rejected_sources": [],
+    "selected_source": "configured",
+    "unit": "V^2"
+  },
+  "provenance": {
+    "configuration_path": null,
+    "configuration_sha256": null,
+    "generation_timestamp": 1,
+    "git_commit": null,
+    "input_path": "historical.csv",
+    "input_sha256": "historical",
+    "software_version": "historical"
+  },
+  "resolved_input_bindings": null,
+  "resolved_model_definition_source": null,
+  "schema_version": 4,
+  "sensor_id": null,
+  "skipped_timestamp_segments": [],
+  "state_bindings": [],
+  "state_definitions": [],
+  "timestamp_diagnostics": null,
+  "timestamp_policy": null,
+  "timestamp_segments": [],
+  "validation": null,
+  "warnings": [],
+  "was_preprocessed": false
+}

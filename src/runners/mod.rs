@@ -85,6 +85,8 @@ pub enum RunnerError {
     Estimation(#[from] crate::estimation::error::EstimationError),
     #[error(transparent)]
     Artifact(#[from] crate::domain::ArtifactError),
+    #[error(transparent)]
+    PhaseBSourceScope(#[from] mechanism::PhaseBSourceScopeError),
     #[error("workflow JSON error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("workflow TOML error: {0}")]

@@ -12,6 +12,474 @@ use crate::runners::RunnerError;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use thiserror::Error;
+
+/// Stage-3 source scope validation.  Phase B accepts a single scientific
+/// scope; artifacts from a different experiment, sensor, or channel cannot
+/// be pooled before A1 preparation.
+#[derive(Debug, Error)]
+pub enum PhaseBSourceScopeError {
+    #[error("Phase B source {artifact_source} has incompatible {dimension} scope")]
+    Incompatible {
+        artifact_source: &'static str,
+        dimension: &'static str,
+    },
+    #[error("Phase B source {artifact_source} has unresolved {dimension} scope")]
+    Unresolved {
+        artifact_source: &'static str,
+        dimension: &'static str,
+    },
+}
+
+/// Executes the approved Phase-B route over the four accepted source-artifact
+/// classes.  A neutral A1 bundle is constructed only inside preparation;
+/// callers cannot supply one directly.
+#[allow(clippy::too_many_arguments)]
+pub fn compare_phase_b(
+    workspace: &Path,
+    config_path: &Path,
+    eis_path: &Path,
+    transient_path: &Path,
+    estimation_path: Option<&Path>,
+    calibration_observations_path: Option<&Path>,
+    prior_mechanism_path: Option<&Path>,
+    output_path: Option<&Path>,
+) -> Result<(), RunnerError> {
+    let config = crate::mechanism::config::load_mechanism_evidence_config(config_path)
+        .map_err(|error| RunnerError::Message(error.to_string()))?;
+    let eis: EisFitArtifact = crate::domain::read_artifact(eis_path)?;
+    let transient: crate::results::TransientAnalysisReport =
+        crate::domain::read_artifact(transient_path)?;
+    let estimation: Option<crate::results::StateEstimationReport> = estimation_path
+        .map(crate::domain::read_artifact)
+        .transpose()?;
+    let calibration_observations: Option<crate::results::CalibrationObservationSet> =
+        calibration_observations_path
+            .map(crate::domain::read_artifact)
+            .transpose()?;
+    let prior_report: Option<MechanismAnalysisReport> = prior_mechanism_path
+        .map(crate::domain::read_artifact)
+        .transpose()?;
+    validate_phase_b_source_scopes(
+        &eis.lineage,
+        &transient.lineage,
+        estimation.as_ref().map(|artifact| &artifact.lineage),
+        calibration_observations
+            .as_ref()
+            .map(|artifact| &artifact.lineage),
+        prior_report.as_ref().map(|artifact| &artifact.lineage),
+    )?;
+    let preparation = crate::mechanism::preparation::prepare_phase_b_evidence(
+        crate::mechanism::preparation::PhaseBEvidencePreparationInputs {
+            evidence_inputs: crate::runners::evidence::EvidenceBundleInputs {
+                eis_fit: Some(eis.clone()),
+                transient: Some(transient.clone()),
+                estimation: estimation.clone(),
+                calibration_observations: calibration_observations.clone(),
+                calibration_model: None,
+            },
+        },
+    )
+    .map_err(|e| RunnerError::Message(e.to_string()))?;
+    let mut phase_assessments = Vec::new();
+    let mut history = Vec::new();
+    for hypothesis in &config.hypotheses {
+        let bound = crate::mechanism::evidence::bind_hypothesis_evidence(hypothesis, &preparation)
+            .map_err(|e| RunnerError::Message(e.to_string()))?;
+        let eligible = crate::mechanism::evidence::evaluate_hypothesis_evidence_eligibility(
+            hypothesis,
+            &bound,
+            &preparation,
+            &config,
+        )
+        .map_err(|e| RunnerError::Message(e.to_string()))?;
+        let contradictions = crate::mechanism::evidence::evaluate_direct_contradictions(
+            hypothesis,
+            &eligible,
+            &preparation.bundle,
+        )
+        .map_err(|e| RunnerError::Message(e.to_string()))?;
+        let mut timescales = Vec::new();
+        for gate in hypothesis.timescale_gate.iter() {
+            if let Some(pair) = hypothesis
+                .pair_requirements
+                .iter()
+                .find(|p| p.requirement_id == gate.pair_requirement_id)
+            {
+                let l = eligible
+                    .requirements
+                    .iter()
+                    .find(|r| r.requirement_id == pair.left_requirement_id);
+                let r = eligible
+                    .requirements
+                    .iter()
+                    .find(|r| r.requirement_id == pair.right_requirement_id);
+                if let (Some(l), Some(r)) = (l, r) {
+                    timescales.push(
+                        crate::mechanism::timescale::evaluate_timescale_requirement(
+                            hypothesis,
+                            pair,
+                            (l, r),
+                            &preparation.bundle,
+                            &config.timescale,
+                        )
+                        .map_err(|e| RunnerError::Message(e.to_string()))?,
+                    )
+                }
+            }
+        }
+        let mut amplitudes = Vec::new();
+        for gate in &hypothesis.amplitude_gates {
+            if let (Some(l), Some(r)) = (
+                eligible
+                    .requirements
+                    .iter()
+                    .find(|r| r.requirement_id == gate.predicted_requirement_id),
+                eligible
+                    .requirements
+                    .iter()
+                    .find(|r| r.requirement_id == gate.observed_requirement_id),
+            ) {
+                amplitudes.push(
+                    crate::mechanism::amplitude::evaluate_amplitude_requirement(
+                        hypothesis,
+                        gate,
+                        (l, r),
+                        &preparation.bundle,
+                        &config.amplitude,
+                    )
+                    .map_err(|e| RunnerError::Message(e.to_string()))?,
+                )
+            }
+        }
+        let mut repeats = Vec::new();
+        for gate in &hypothesis.repeatability_gates {
+            let rows = gate
+                .requirement_ids
+                .iter()
+                .filter_map(|id| {
+                    eligible
+                        .requirements
+                        .iter()
+                        .find(|r| &r.requirement_id == id)
+                })
+                .collect::<Vec<_>>();
+            repeats.push(
+                crate::mechanism::repeatability::evaluate_repeatability_requirement(
+                    hypothesis,
+                    gate,
+                    &rows,
+                    &preparation.bundle,
+                    &config.repeatability,
+                )
+                .map_err(|e| RunnerError::Message(e.to_string()))?,
+            )
+        }
+        let mut identifiability = Vec::new();
+        for binding in &hypothesis.identifiability_bindings {
+            identifiability.push(
+                crate::mechanism::identifiability::evaluate_identifiability_binding(
+                    hypothesis,
+                    binding,
+                    &eligible,
+                    &preparation.bundle,
+                    &preparation.bundle.independence_assessments,
+                    &config.identifiability,
+                )
+                .map_err(|e| RunnerError::Message(e.to_string()))?,
+            )
+        }
+        let validation = crate::mechanism::validation::evaluate_validation_protocol(
+            hypothesis,
+            &eligible,
+            &bound.role_bindings,
+            &preparation.bundle,
+            config.validation.as_ref(),
+        )
+        .map_err(|e| RunnerError::Message(e.to_string()))?;
+        let gates = crate::mechanism::promotion::HypothesisGateAssessments {
+            contradiction_summaries: contradictions,
+            timescale_assessments: timescales,
+            amplitude_assessments: amplitudes,
+            repeatability_assessments: repeats,
+            identifiability_assessments: identifiability,
+            validation_assessment: Some(validation),
+        };
+        let mut assessment =
+            crate::mechanism::promotion::assess_hypothesis(hypothesis, &eligible, &gates, &config)
+                .map_err(|e| RunnerError::Message(e.to_string()))?;
+        let ids = crate::mechanism::history::consumed_source_evidence_ids(&assessment, &gates);
+        let mut components = crate::mechanism::promotion::assess_components(
+            hypothesis,
+            &assessment,
+            &prior_component_statuses(prior_report.as_ref(), &assessment.hypothesis_id),
+        )
+        .map_err(|e| RunnerError::Message(e.to_string()))?;
+        for component in &mut components {
+            component.evidence_ids = ids.clone();
+        }
+        assessment.component_assessments = components.clone();
+        let previous_history = prior_report
+            .as_ref()
+            .map(|report| report.hypothesis_history.as_slice())
+            .unwrap_or(&history);
+        history = if prior_report.is_none() {
+            // A first-run report records the current assessment but does not
+            // fabricate a transition from an invented prior level.
+            Vec::new()
+        } else {
+            crate::mechanism::history::update_hypothesis_history_from_prior(
+                previous_history,
+                prior_component_level(prior_report.as_ref(), &assessment.hypothesis_id),
+                &assessment,
+                &gates,
+                &components,
+                &ids,
+            )
+            .map_err(|e| RunnerError::Message(e.to_string()))?
+        };
+        assessment.history = history
+            .iter()
+            .filter(|x| x.hypothesis_id == assessment.hypothesis_id)
+            .cloned()
+            .collect();
+        phase_assessments.push(crate::results::HypothesisAssessmentRecord {
+            definition: hypothesis.clone(),
+            current: assessment,
+        });
+    }
+    let report = assemble_phase_b_mechanism_report(
+        &eis,
+        &transient,
+        estimation.as_ref(),
+        calibration_observations.as_ref(),
+        prior_report.as_ref(),
+        &preparation.bundle,
+        &phase_assessments
+            .iter()
+            .flat_map(|row| row.current.component_assessments.iter())
+            .flat_map(|component| component.evidence_ids.iter().cloned())
+            .collect::<std::collections::BTreeSet<_>>(),
+        phase_assessments,
+        history,
+    );
+    export_report(workspace, output_path, &report)
+}
+
+/// Validate source and optional prior-report scope before Phase-B preparation
+/// or state/history reuse.  This deliberately sits in the production runner;
+/// record-level eligibility remains a separate defense-in-depth layer.
+fn validate_phase_b_source_scopes(
+    eis: &crate::domain::ArtifactLineageState,
+    transient: &crate::domain::ArtifactLineageState,
+    estimation: Option<&crate::domain::ArtifactLineageState>,
+    calibration_observations: Option<&crate::domain::ArtifactLineageState>,
+    prior: Option<&crate::domain::ArtifactLineageState>,
+) -> Result<(), RunnerError> {
+    let baseline = known_phase_b_scope(eis, "EIS")?;
+    for (source, lineage) in [
+        ("transient", Some(transient)),
+        ("state-estimation", estimation),
+        ("calibration-observation", calibration_observations),
+        ("prior mechanism artifact", prior),
+    ] {
+        let Some(lineage) = lineage else {
+            continue;
+        };
+        let scope = known_phase_b_scope(lineage, source)?;
+        if baseline.experiment_scope != scope.experiment_scope {
+            return Err(PhaseBSourceScopeError::Incompatible {
+                artifact_source: source,
+                dimension: "experiment",
+            }
+            .into());
+        }
+        if !phase_b_scope_key_compatible(baseline.sensor_scope, scope.sensor_scope) {
+            return Err(PhaseBSourceScopeError::Incompatible {
+                artifact_source: source,
+                dimension: "sensor",
+            }
+            .into());
+        }
+        if !phase_b_scope_key_compatible(baseline.channel_scope, scope.channel_scope) {
+            return Err(PhaseBSourceScopeError::Incompatible {
+                artifact_source: source,
+                dimension: "channel",
+            }
+            .into());
+        }
+    }
+    Ok(())
+}
+
+struct PhaseBArtifactScope<'a> {
+    experiment_scope: &'a crate::domain::ArtifactExperimentScope,
+    sensor_scope: &'a crate::domain::ScopeKey,
+    channel_scope: &'a crate::domain::ScopeKey,
+}
+
+fn known_phase_b_scope<'a>(
+    lineage: &'a crate::domain::ArtifactLineageState,
+    source: &'static str,
+) -> Result<PhaseBArtifactScope<'a>, RunnerError> {
+    let crate::domain::ArtifactLineageState::Known { identity, .. } = lineage else {
+        return Err(PhaseBSourceScopeError::Unresolved {
+            artifact_source: source,
+            dimension: "artifact",
+        }
+        .into());
+    };
+    // Source artifact pooling is only valid for one exact experiment.  An
+    // aggregate/unknown artifact cannot be narrowed by membership here.
+    if !matches!(
+        identity.experiment_scope,
+        crate::domain::ArtifactExperimentScope::Single { .. }
+    ) {
+        return Err(PhaseBSourceScopeError::Unresolved {
+            artifact_source: source,
+            dimension: "experiment",
+        }
+        .into());
+    }
+    Ok(PhaseBArtifactScope {
+        experiment_scope: &identity.experiment_scope,
+        sensor_scope: &identity.sensor_scope,
+        channel_scope: &identity.channel_scope,
+    })
+}
+
+fn phase_b_scope_key_compatible(
+    left: &crate::domain::ScopeKey,
+    right: &crate::domain::ScopeKey,
+) -> bool {
+    match (left, right) {
+        (crate::domain::ScopeKey::Specific(left), crate::domain::ScopeKey::Specific(right)) => {
+            left == right
+        }
+        (crate::domain::ScopeKey::Specific(_), crate::domain::ScopeKey::All)
+        | (crate::domain::ScopeKey::All, crate::domain::ScopeKey::Specific(_))
+        | (crate::domain::ScopeKey::All, crate::domain::ScopeKey::All)
+        | (crate::domain::ScopeKey::Unspecified, crate::domain::ScopeKey::Unspecified) => true,
+        _ => false,
+    }
+}
+
+fn prior_component_level(
+    prior: Option<&MechanismAnalysisReport>,
+    hypothesis_id: &str,
+) -> Option<crate::mechanism::promotion::HypothesisEvidenceLevel> {
+    use crate::mechanism::promotion::HypothesisEvidenceLevel;
+    prior
+        .and_then(|report| {
+            report
+                .hypothesis_assessments
+                .iter()
+                .find(|row| row.current.hypothesis_id == hypothesis_id)
+        })
+        .map(|row| row.current.evidence_level.clone())
+        .and_then(|level| match level {
+            HypothesisEvidenceLevel::Contradicted | HypothesisEvidenceLevel::NotAssessed => None,
+            level => Some(level),
+        })
+}
+
+/// Stage 17: the sole Phase-B report assembler.  Keeping assembly here makes
+/// lineage, schema-4 fields, and retained source dependencies deterministic
+/// rather than an ad-hoc runner literal.
+#[allow(clippy::too_many_arguments)]
+pub fn assemble_phase_b_mechanism_report(
+    eis: &EisFitArtifact,
+    transient: &crate::results::TransientAnalysisReport,
+    estimation: Option<&crate::results::StateEstimationReport>,
+    calibration_observations: Option<&crate::results::CalibrationObservationSet>,
+    prior_report: Option<&MechanismAnalysisReport>,
+    bundle: &crate::evidence::EvidenceBundle,
+    consumed_evidence_ids: &std::collections::BTreeSet<crate::evidence::EvidenceId>,
+    hypothesis_assessments: Vec<crate::results::HypothesisAssessmentRecord>,
+    hypothesis_history: Vec<crate::mechanism::history::HypothesisHistoryEntry>,
+) -> MechanismAnalysisReport {
+    let mut report = MechanismAnalysisReport {
+        schema_version: 4,
+        lineage: crate::domain::current_unknown_lineage(4),
+        analysis_id: format!("mechanism-phase-b:{}", transient.experiment_id),
+        records: Vec::new(),
+        eis_timescales: Vec::new(),
+        transient_timescales: Vec::new(),
+        comparisons: Vec::new(),
+        legacy_hypotheses: Vec::new(),
+        trends: Vec::new(),
+        configuration: crate::results::ResolvedMechanismConfig::default(),
+        provenance: Some(eis.provenance.clone()),
+        warnings: Vec::new(),
+        transient_configuration: Some(transient.configuration.clone()),
+        hypothesis_assessments,
+        hypothesis_history,
+    };
+    // Stage 17 records only artifacts that actually supplied persisted Phase-B
+    // evidence. Optional accepted inputs are not dependencies merely because
+    // a caller provided their paths.
+    let mut sources = Vec::new();
+    if evidence_from_artifact_is_consumed(bundle, consumed_evidence_ids, &eis.lineage) {
+        sources.push(&eis.lineage);
+    }
+    if evidence_from_artifact_is_consumed(bundle, consumed_evidence_ids, &transient.lineage) {
+        sources.push(&transient.lineage);
+    }
+    if let Some(estimation) = estimation.filter(|artifact| {
+        evidence_from_artifact_is_consumed(bundle, consumed_evidence_ids, &artifact.lineage)
+    }) {
+        sources.push(&estimation.lineage);
+    }
+    if let Some(calibration_observations) = calibration_observations.filter(|artifact| {
+        evidence_from_artifact_is_consumed(bundle, consumed_evidence_ids, &artifact.lineage)
+    }) {
+        sources.push(&calibration_observations.lineage);
+    }
+    if let Some(prior_report) = prior_report {
+        sources.push(&prior_report.lineage);
+    }
+    report.lineage = mechanism_lineage(&report, "mechanism-analysis-phase-b-v1", sources);
+    report
+}
+
+fn evidence_from_artifact_is_consumed(
+    bundle: &crate::evidence::EvidenceBundle,
+    consumed: &std::collections::BTreeSet<crate::evidence::EvidenceId>,
+    lineage: &crate::domain::ArtifactLineageState,
+) -> bool {
+    let crate::domain::ArtifactLineageState::Known { identity, .. } = lineage else {
+        return false;
+    };
+    bundle.records.iter().any(|record| {
+        consumed.contains(&record.evidence_id)
+            && matches!(
+                &record.source.artifact,
+                crate::evidence::EvidenceArtifactSource::Known { artifact_id, .. }
+                    if artifact_id == &identity.artifact_id
+            )
+    })
+}
+
+fn prior_component_statuses(
+    prior: Option<&MechanismAnalysisReport>,
+    hypothesis_id: &str,
+) -> BTreeMap<String, crate::model::InterpretationStatus> {
+    prior
+        .and_then(|report| {
+            report
+                .hypothesis_assessments
+                .iter()
+                .find(|row| row.current.hypothesis_id == hypothesis_id)
+        })
+        .map(|row| {
+            row.current
+                .component_assessments
+                .iter()
+                .map(|component| (component.component_id.clone(), component.resulting_status))
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
 pub fn compare(
     workspace: &Path,
@@ -127,12 +595,14 @@ pub fn compare(
         eis_timescales,
         transient_timescales,
         comparisons,
-        hypotheses,
+        legacy_hypotheses: hypotheses,
         trends: Vec::new(),
         configuration: loaded.config,
         provenance: Some(eis.provenance.clone()),
         warnings,
         transient_configuration: Some(transient.configuration.clone()),
+        hypothesis_assessments: Vec::new(),
+        hypothesis_history: Vec::new(),
     };
     report.lineage = mechanism_lineage(
         &report,
@@ -161,7 +631,7 @@ pub fn trend(
         eis_timescales: Vec::new(),
         transient_timescales: Vec::new(),
         comparisons: Vec::new(),
-        hypotheses: manifest
+        legacy_hypotheses: manifest
             .hypotheses
             .clone()
             .into_iter()
@@ -186,6 +656,8 @@ pub fn trend(
         provenance: None,
         warnings: Vec::new(),
         transient_configuration: None,
+        hypothesis_assessments: Vec::new(),
+        hypothesis_history: Vec::new(),
     };
     let mut source_lineages = Vec::new();
     for record in manifest.records {

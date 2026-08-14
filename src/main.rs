@@ -277,6 +277,10 @@ fn run() -> Result<(), ApplicationError> {
             metadata,
             config_path,
             output,
+            mechanism_evidence_config,
+            state_estimation,
+            calibration_observations,
+            prior_mechanism_artifact,
         } => {
             workspace_setup.record_last_run(
                 LastRunMode::MechanismCompare,
@@ -285,15 +289,28 @@ fn run() -> Result<(), ApplicationError> {
                 output.as_deref(),
                 None,
             )?;
-            mechanism::compare(
-                &workspace_dir,
-                &eis_fit,
-                &transient_results,
-                calibration_results.as_deref(),
-                metadata.as_deref(),
-                config_path.as_deref(),
-                output.as_deref(),
-            )?;
+            if let Some(phase_b_config) = mechanism_evidence_config.as_deref() {
+                mechanism::compare_phase_b(
+                    &workspace_dir,
+                    phase_b_config,
+                    &eis_fit,
+                    &transient_results,
+                    state_estimation.as_deref(),
+                    calibration_observations.as_deref(),
+                    prior_mechanism_artifact.as_deref(),
+                    output.as_deref(),
+                )?;
+            } else {
+                mechanism::compare(
+                    &workspace_dir,
+                    &eis_fit,
+                    &transient_results,
+                    calibration_results.as_deref(),
+                    metadata.as_deref(),
+                    config_path.as_deref(),
+                    output.as_deref(),
+                )?;
+            }
         }
         CommandSpec::MechanismTrend {
             manifest,

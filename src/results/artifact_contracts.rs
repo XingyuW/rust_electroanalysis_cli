@@ -90,8 +90,8 @@ contract!(
 contract!(
     MechanismAnalysisReport,
     ArtifactKind::MechanismAnalysis,
-    3,
-    &[1, 2],
+    4,
+    &[1, 2, 3],
     CurrentArtifactKindPolicy::Required
 );
 contract!(
