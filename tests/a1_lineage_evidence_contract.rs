@@ -176,6 +176,8 @@ fn a1_rv002_producer_scopes_are_specific_and_deterministic() {
 fn a1_rv004_ucum_units_reject_arbitrary_and_check_timescale_dimension() {
     assert!(validate_ucum_unit("V").is_ok());
     assert!(validate_ucum_unit("s").is_ok());
+    assert!(validate_ucum_unit("ms").is_err());
+    assert!(validate_ucum_unit("min").is_err());
     assert!(validate_ucum_unit("not-a-unit").is_err());
     let invalid_tau = record(
         "bad-tau",
