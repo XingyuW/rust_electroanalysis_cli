@@ -1181,6 +1181,59 @@ fn phase_b_temporal_window_join_requires_overlap() {
     );
 }
 #[test]
+fn phase_b_temporal_window_touch_only_is_not_positive_duration() {
+    let mut preparation = prepared_sources(true);
+    let left = EvidenceId("transient.event.0.tau_fast_s".into());
+    let right = EvidenceId("estimation.point.0.state.0".into());
+    for (id, support) in [
+        (
+            &left,
+            rust_electroanalysis_cli::mechanism::temporal::EvidenceTemporalSupport::Window {
+                start_s: 0.0,
+                end_s: 1.0,
+            },
+        ),
+        (
+            &right,
+            rust_electroanalysis_cli::mechanism::temporal::EvidenceTemporalSupport::Window {
+                start_s: 1.0,
+                end_s: 2.0,
+            },
+        ),
+    ] {
+        let metadata = preparation.temporal_metadata.entries.get_mut(id).unwrap();
+        metadata.support = support;
+        metadata.clock_id = Some(rust_electroanalysis_cli::mechanism::temporal::ClockId(
+            "clock".into(),
+        ));
+        metadata.classification.classified_fraction = Some(1.0);
+        metadata.classification.equilibrium_fraction = Some(1.0);
+        metadata.classification.steady_state_fraction = Some(1.0);
+    }
+    let assessment = rust_electroanalysis_cli::mechanism::temporal::evaluate_temporal_join(
+        &rust_electroanalysis_cli::mechanism::temporal::TemporalJoinRequest {
+            requirement_id: "window-touch-only".into(),
+            left_evidence_id: left,
+            right_evidence_id: right,
+            mode: rust_electroanalysis_cli::mechanism::config::TemporalJoinMode::WindowWindow,
+        },
+        &preparation.bundle,
+        &preparation.temporal_metadata,
+        &phase_b_context().config.temporal,
+    )
+    .unwrap();
+    assert_eq!(
+        assessment.outcome,
+        rust_electroanalysis_cli::mechanism::temporal::TemporalJoinOutcome::Ineligible
+    );
+    assert_eq!(
+        assessment.reasons,
+        vec![
+            rust_electroanalysis_cli::mechanism::temporal::TemporalJoinReasonCode::WindowNoPositiveOverlap
+        ]
+    );
+}
+#[test]
 fn phase_b_temporal_event_join_requires_exact_event() {
     let mut preparation = prepared_sources(true);
     let left = EvidenceId("transient.event.0.tau_fast_s".into());
@@ -1893,8 +1946,8 @@ fn phase_b_amplitude_unit_threshold_and_direction() {
         expected_effect: rust_electroanalysis_cli::mechanism::config::ExpectedEffect::SameSign,
         maximum_relative_error: 0.0,
         floor: rust_electroanalysis_cli::mechanism::config::AmplitudeThreshold {
-            value: 1000.0,
-            unit: "ms".into(),
+            value: 1.0,
+            unit: "s".into(),
         },
     };
     let p = ctx
