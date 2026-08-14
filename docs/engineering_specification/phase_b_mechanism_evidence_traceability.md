@@ -33,7 +33,8 @@
 Unmapped requirements = 0.  Unmapped acceptance criteria = 0.  Unsupported PASS claims = 0.
 
 Final-scope-remediation execution evidence: the targeted `phase_b_mechanism_evidence`
-target discovers and executes 71 non-ignored tests. The temporal, timescale,
+target discovers 72 tests and executes all 72: 72 passed, 0 failed, and 0
+ignored. The temporal, timescale,
 amplitude, repeatability, identifiability, validation, schema, hash, and
 PB-FX rows above each use rule-specific input mutations and assertions; the
 former shared scenario-dispatch wrappers were removed. The canonical CLI test
