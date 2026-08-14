@@ -6,8 +6,9 @@ use crate::results::{
 };
 use crate::{
     evidence::{
-        EvidenceAvailability, EvidenceBundle, EvidenceDirection, EvidenceId, EvidenceTarget,
-        EvidenceUnitDimension, EvidenceValidity, validate_ucum_unit,
+        EvidenceArtifactSource, EvidenceAvailability, EvidenceBundle, EvidenceDirection,
+        EvidenceExperimentScope, EvidenceId, EvidenceRecord, EvidenceTarget, EvidenceUnitDimension,
+        EvidenceValidity, validate_ucum_unit,
     },
     mechanism::{
         config::*,
@@ -255,6 +256,9 @@ pub fn evaluate_hypothesis_evidence_eligibility(
             if record.availability != EvidenceAvailability::Available || !validity_matches {
                 continue;
             }
+            if !scope_matches_analysis(record, p) {
+                continue;
+            }
             if !quantity_matches_requirement(record, rule) {
                 continue;
             }
@@ -303,6 +307,82 @@ pub fn evaluate_hypothesis_evidence_eligibility(
         hypothesis_id: h.hypothesis_id.clone(),
         requirements: out,
     })
+}
+
+/// Stage 7 record-level scope defense.  The EIS artifact establishes the
+/// current Phase-B analysis scope after runner-level source validation.  A
+/// candidate must independently prove compatibility: experiment scope lives
+/// on the record, while sensor/channel scope is resolved from its typed A1
+/// source artifact.  Unknown or legacy provenance never becomes a compatible
+/// substitute for a known analysis scope.
+fn scope_matches_analysis(
+    record: &EvidenceRecord,
+    preparation: &PhaseBEvidencePreparation,
+) -> bool {
+    experiment_scope_matches(
+        &preparation.analysis_scope.experiment_scope,
+        &record.experiment_scope,
+    ) && source_scope_matches_analysis(record, preparation)
+}
+
+fn experiment_scope_matches(
+    expected: &EvidenceExperimentScope,
+    actual: &EvidenceExperimentScope,
+) -> bool {
+    matches!(
+        (expected, actual),
+        (
+            EvidenceExperimentScope::Single {
+                experiment_id: expected,
+                ..
+            },
+            EvidenceExperimentScope::Single {
+                experiment_id: actual,
+                ..
+            }
+        ) if expected == actual
+    )
+}
+
+fn source_scope_matches_analysis(
+    record: &EvidenceRecord,
+    preparation: &PhaseBEvidencePreparation,
+) -> bool {
+    let EvidenceArtifactSource::Known { artifact_id, .. } = &record.source.artifact else {
+        return false;
+    };
+    let Some(source) = preparation
+        .bundle
+        .lineage_catalog
+        .artifacts
+        .get(artifact_id)
+    else {
+        return false;
+    };
+    scope_key_compatible(
+        &preparation.analysis_scope.sensor_scope,
+        &source.identity.sensor_scope,
+    ) && scope_key_compatible(
+        &preparation.analysis_scope.channel_scope,
+        &source.identity.channel_scope,
+    )
+}
+
+fn scope_key_compatible(
+    expected: &crate::domain::ScopeKey,
+    actual: &crate::domain::ScopeKey,
+) -> bool {
+    match (expected, actual) {
+        (
+            crate::domain::ScopeKey::Specific(expected),
+            crate::domain::ScopeKey::Specific(actual),
+        ) => expected == actual,
+        (crate::domain::ScopeKey::Specific(_), crate::domain::ScopeKey::All)
+        | (crate::domain::ScopeKey::All, crate::domain::ScopeKey::Specific(_))
+        | (crate::domain::ScopeKey::All, crate::domain::ScopeKey::All)
+        | (crate::domain::ScopeKey::Unspecified, crate::domain::ScopeKey::Unspecified) => true,
+        _ => false,
+    }
 }
 
 fn quantity_matches_requirement(

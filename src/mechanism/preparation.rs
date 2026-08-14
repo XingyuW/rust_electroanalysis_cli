@@ -1,5 +1,6 @@
 use crate::{
-    evidence::EvidenceId,
+    domain::{ArtifactExperimentScope, ArtifactLineageState, ScopeKey},
+    evidence::{EvidenceExperimentScope, EvidenceId},
     mechanism::temporal::*,
     runners::evidence::{EvidenceBundleInputs, assemble_evidence_bundle},
 };
@@ -11,6 +12,16 @@ pub struct PhaseBEvidencePreparationInputs {
 pub struct PhaseBEvidencePreparation {
     pub bundle: crate::evidence::EvidenceBundle,
     pub temporal_metadata: EvidenceTemporalMetadataCatalog,
+    /// The Phase-B analysis scope is established by the required EIS input.
+    /// Record-level eligibility compares every candidate against this scope;
+    /// the A1 bundle remains a neutral aggregation boundary.
+    pub analysis_scope: PhaseBAnalysisScope,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhaseBAnalysisScope {
+    pub experiment_scope: EvidenceExperimentScope,
+    pub sensor_scope: ScopeKey,
+    pub channel_scope: ScopeKey,
 }
 #[derive(Debug, Error)]
 pub enum PhaseBEvidencePreparationError {
@@ -24,6 +35,33 @@ pub enum PhaseBEvidencePreparationError {
     InvalidTemporalEventId(String),
     #[error("catalog key/value mismatch {0}")]
     TemporalCatalogKeyValueMismatch(String),
+    #[error("Phase B requires an EIS analysis scope")]
+    MissingAnalysisScope,
+    #[error("Phase B EIS analysis scope is unresolved")]
+    UnresolvedAnalysisScope,
+}
+
+fn analysis_scope(
+    inputs: &EvidenceBundleInputs,
+) -> Result<PhaseBAnalysisScope, PhaseBEvidencePreparationError> {
+    let eis = inputs
+        .eis_fit
+        .as_ref()
+        .ok_or(PhaseBEvidencePreparationError::MissingAnalysisScope)?;
+    let ArtifactLineageState::Known { identity, .. } = &eis.lineage else {
+        return Err(PhaseBEvidencePreparationError::UnresolvedAnalysisScope);
+    };
+    if !matches!(
+        identity.experiment_scope,
+        ArtifactExperimentScope::Single { .. }
+    ) {
+        return Err(PhaseBEvidencePreparationError::UnresolvedAnalysisScope);
+    }
+    Ok(PhaseBAnalysisScope {
+        experiment_scope: EvidenceExperimentScope::from_artifact_scope(&identity.experiment_scope),
+        sensor_scope: identity.sensor_scope.clone(),
+        channel_scope: identity.channel_scope.clone(),
+    })
 }
 fn unavailable(
     kind: crate::domain::ArtifactKind,
@@ -52,6 +90,7 @@ pub fn prepare_phase_b_evidence(
     inputs: PhaseBEvidencePreparationInputs,
 ) -> Result<PhaseBEvidencePreparation, PhaseBEvidencePreparationError> {
     let refs = &inputs.evidence_inputs;
+    let analysis_scope = analysis_scope(refs)?;
     let mut entries = BTreeMap::new();
     let mut add = |m: EvidenceTemporalMetadata| -> Result<(), PhaseBEvidencePreparationError> {
         if entries.insert(m.evidence_id.clone(), m).is_some() {
@@ -156,5 +195,6 @@ pub fn prepare_phase_b_evidence(
     Ok(PhaseBEvidencePreparation {
         bundle,
         temporal_metadata: EvidenceTemporalMetadataCatalog { entries },
+        analysis_scope,
     })
 }

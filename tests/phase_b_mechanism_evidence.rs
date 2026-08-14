@@ -814,6 +814,182 @@ fn phase_b_context() -> PhaseBContext {
     }
 }
 
+fn evaluate_eligibility(
+    config: &rust_electroanalysis_cli::mechanism::config::MechanismEvidenceConfig,
+    preparation: &rust_electroanalysis_cli::mechanism::preparation::PhaseBEvidencePreparation,
+) -> rust_electroanalysis_cli::mechanism::evidence::EligibleHypothesisEvidence {
+    let hypothesis = &config.hypotheses[0];
+    let bound = rust_electroanalysis_cli::mechanism::evidence::bind_hypothesis_evidence(
+        hypothesis,
+        preparation,
+    )
+    .unwrap();
+    rust_electroanalysis_cli::mechanism::evidence::evaluate_hypothesis_evidence_eligibility(
+        hypothesis,
+        &bound,
+        preparation,
+        config,
+    )
+    .unwrap()
+}
+
+fn requirement_evidence_ids<'a>(
+    eligible: &'a rust_electroanalysis_cli::mechanism::evidence::EligibleHypothesisEvidence,
+    requirement_id: &str,
+) -> &'a Vec<EvidenceId> {
+    &eligible
+        .requirements
+        .iter()
+        .find(|requirement| requirement.requirement_id == requirement_id)
+        .unwrap()
+        .support_evidence_ids
+}
+
+fn mutate_record_source_scope(
+    preparation: &mut rust_electroanalysis_cli::mechanism::preparation::PhaseBEvidencePreparation,
+    evidence_id: &str,
+    dimension: &str,
+) {
+    let record = preparation
+        .bundle
+        .records
+        .iter()
+        .find(|record| record.evidence_id.0 == evidence_id)
+        .unwrap();
+    let rust_electroanalysis_cli::evidence::EvidenceArtifactSource::Known { artifact_id, .. } =
+        &record.source.artifact
+    else {
+        panic!("canonical Phase-B evidence must retain Known source lineage");
+    };
+    let identity = &mut preparation
+        .bundle
+        .lineage_catalog
+        .artifacts
+        .get_mut(artifact_id)
+        .unwrap()
+        .identity;
+    let changed =
+        rust_electroanalysis_cli::domain::ScopeKey::Specific(format!("cross-scope-{dimension}"));
+    match dimension {
+        "sensor" => identity.sensor_scope = changed,
+        "channel" => identity.channel_scope = changed,
+        _ => panic!("unsupported source scope dimension"),
+    }
+}
+
+#[test]
+fn phase_b_scope_matching_record_remains_eligible_without_temporal_join() {
+    let context = phase_b_context();
+    assert_eq!(
+        requirement_evidence_ids(&context.eligible, "b-eis-tau"),
+        &vec![EvidenceId("eis.parameter.0".into())]
+    );
+}
+
+#[test]
+fn phase_b_scope_filters_cross_experiment_non_temporal_support() {
+    let context = phase_b_context();
+    let mut preparation = context.preparation;
+    preparation
+        .bundle
+        .records
+        .iter_mut()
+        .find(|record| record.evidence_id.0 == "eis.parameter.0")
+        .unwrap()
+        .experiment_scope = rust_electroanalysis_cli::evidence::EvidenceExperimentScope::Single {
+        experiment_id: rust_electroanalysis_cli::domain::ExperimentId::new("other-experiment")
+            .unwrap(),
+        derivation: rust_electroanalysis_cli::evidence::EvidenceScopeDerivation::ArtifactScope,
+    };
+
+    let eligible = evaluate_eligibility(&context.config, &preparation);
+    assert!(requirement_evidence_ids(&eligible, "b-eis-tau").is_empty());
+}
+
+#[test]
+fn phase_b_scope_filters_cross_sensor_validation_before_condition_satisfaction() {
+    let context = phase_b_context();
+    let mut preparation = context.preparation;
+    mutate_record_source_scope(&mut preparation, "calibration.observation.0", "sensor");
+
+    let eligible = evaluate_eligibility(&context.config, &preparation);
+    assert!(requirement_evidence_ids(&eligible, "b-validation-calibration").is_empty());
+    let validation = rust_electroanalysis_cli::mechanism::validation::evaluate_validation_protocol(
+        &context.config.hypotheses[0],
+        &eligible,
+        &context.config.hypotheses[0].role_bindings,
+        &preparation.bundle,
+        context.config.validation.as_ref(),
+    )
+    .unwrap();
+    assert_eq!(
+        validation.status,
+        rust_electroanalysis_cli::mechanism::validation::ValidationProtocolStatus::NotSatisfied
+    );
+    assert!(
+        !validation
+            .passed_condition_ids
+            .contains(&"b-calibration-condition".into())
+    );
+}
+
+#[test]
+fn phase_b_scope_filters_cross_channel_contradiction_before_direct_evaluation() {
+    let context = phase_b_context();
+    let mut config = context.config;
+    config.hypotheses[0]
+        .critical_requirement_ids
+        .push("b-eis-tau".into());
+    let mut preparation = context.preparation;
+    preparation
+        .bundle
+        .records
+        .iter_mut()
+        .find(|record| record.evidence_id.0 == "eis.parameter.0")
+        .unwrap()
+        .direction = rust_electroanalysis_cli::evidence::EvidenceDirection::Contradicts;
+    mutate_record_source_scope(&mut preparation, "eis.parameter.0", "channel");
+
+    let eligible = evaluate_eligibility(&config, &preparation);
+    assert!(requirement_evidence_ids(&eligible, "b-eis-tau").is_empty());
+    let contradictions =
+        rust_electroanalysis_cli::mechanism::evidence::evaluate_direct_contradictions(
+            &config.hypotheses[0],
+            &eligible,
+            &preparation.bundle,
+        )
+        .unwrap();
+    assert!(contradictions.is_empty());
+}
+
+#[test]
+fn phase_b_temporal_window_overlap_rule_rejects_unknown_variant() {
+    let invalid = include_str!("fixtures/phase_b/config/e2e_validated_for_domain.toml").replace(
+        "window_overlap_rule = \"positive_duration\"",
+        "window_overlap_rule = \"not_a_v1_rule\"",
+    );
+    assert!(
+        toml::from_str::<rust_electroanalysis_cli::mechanism::config::MechanismEvidenceConfig>(
+            &invalid
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn phase_b_temporal_event_identity_rule_rejects_unknown_variant() {
+    let invalid = include_str!("fixtures/phase_b/config/e2e_validated_for_domain.toml").replace(
+        "event_identity_rule = \"exact\"",
+        "event_identity_rule = \"not_a_v1_rule\"",
+    );
+    assert!(
+        toml::from_str::<rust_electroanalysis_cli::mechanism::config::MechanismEvidenceConfig>(
+            &invalid
+        )
+        .is_err()
+    );
+}
+
 #[test]
 fn phase_b_temporal_point_join_accepts_boundary() {
     let mut preparation = prepared_sources(true);
