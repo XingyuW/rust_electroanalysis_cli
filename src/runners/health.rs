@@ -577,14 +577,8 @@ fn load_context(p: &Path) -> Result<Context, RunnerError> {
         metadata_source: Some(p.display().to_string()),
     })
 }
-fn read_json<T: crate::domain::VersionedArtifact>(p: &Path) -> Result<T, RunnerError> {
-    Ok(crate::domain::read_artifact(p)?)
-}
 fn read_toml<T: DeserializeOwned>(p: &Path) -> Result<T, RunnerError> {
     Ok(toml::from_str(&fs::read_to_string(p)?)?)
-}
-fn write_json<T: crate::domain::VersionedArtifact>(p: &Path, v: &T) -> Result<(), RunnerError> {
-    Ok(crate::domain::write_artifact(p, v)?)
 }
 fn resolve(w: &Path, p: &Path) -> PathBuf {
     if p.is_absolute() {

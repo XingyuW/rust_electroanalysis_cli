@@ -855,9 +855,6 @@ fn export_report(
     println!("Mechanism outputs written to {}", dir.display());
     Ok(())
 }
-fn read_json<T: crate::domain::VersionedArtifact>(path: &Path) -> Result<T, RunnerError> {
-    Ok(crate::domain::read_artifact(path)?)
-}
 fn load_context(path: &Path) -> Option<BTreeMap<String, String>> {
     let text = fs::read_to_string(path).ok()?;
     let value: textual_toml::Value = toml::from_str(&text).ok()?;
