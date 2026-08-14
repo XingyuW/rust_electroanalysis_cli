@@ -294,14 +294,14 @@ fn validate_phase_b_source_scopes(
             }
             .into());
         }
-        if !phase_b_scope_key_compatible(&baseline.sensor_scope, &scope.sensor_scope) {
+        if !phase_b_scope_key_compatible(baseline.sensor_scope, scope.sensor_scope) {
             return Err(PhaseBSourceScopeError::Incompatible {
                 artifact_source: source,
                 dimension: "sensor",
             }
             .into());
         }
-        if !phase_b_scope_key_compatible(&baseline.channel_scope, &scope.channel_scope) {
+        if !phase_b_scope_key_compatible(baseline.channel_scope, scope.channel_scope) {
             return Err(PhaseBSourceScopeError::Incompatible {
                 artifact_source: source,
                 dimension: "channel",

@@ -559,6 +559,15 @@ fn write_fixture_with_experiment_scope(source: &Path, destination: &Path, experi
         .expect("write scope-mutated fixture");
 }
 
+fn write_fixture_with_scope_key(source: &Path, destination: &Path, dimension: &str, value: &str) {
+    let mut fixture: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(source).expect("read source fixture"))
+            .expect("parse source fixture");
+    fixture["lineage"]["Known"]["identity"][dimension] = serde_json::json!({ "Specific": value });
+    std::fs::write(destination, serde_json::to_vec_pretty(&fixture).unwrap())
+        .expect("write scope-mutated fixture");
+}
+
 #[test]
 fn phase_b_production_rejects_cross_scope_source_artifacts() {
     let temp = std::env::temp_dir().join(format!("phase-b-cross-scope-{}", std::process::id()));
@@ -633,6 +642,66 @@ fn phase_b_production_rejects_cross_scope_prior_artifact() {
             rust_electroanalysis_cli::runners::mechanism::PhaseBSourceScopeError::Incompatible {
                 artifact_source: "prior mechanism artifact",
                 dimension: "experiment"
+            }
+        ))
+    ));
+}
+
+#[test]
+fn phase_b_production_rejects_cross_scope_optional_sources() {
+    let temp = std::env::temp_dir().join(format!("phase-b-optional-scope-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&temp);
+    std::fs::create_dir_all(&temp).unwrap();
+    let estimation = temp.join("estimation-other-sensor.json");
+    write_fixture_with_scope_key(
+        &fixture("e2e/state_estimation_e2e_2.json"),
+        &estimation,
+        "sensor_scope",
+        "another-sensor",
+    );
+    let calibration = temp.join("calibration-other-channel.json");
+    write_fixture_with_scope_key(
+        &fixture("e2e/calibration_observations_e2e_2.json"),
+        &calibration,
+        "channel_scope",
+        "another-channel",
+    );
+    let estimation_result = rust_electroanalysis_cli::runners::mechanism::compare_phase_b(
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        &fixture("config/e2e_validated_for_domain.toml"),
+        &fixture("e2e/eis_fit_e2e_1.json"),
+        &fixture("e2e/transient_analysis_e2e_1.json"),
+        Some(&estimation),
+        Some(&fixture("e2e/calibration_observations_e2e_2.json")),
+        None,
+        Some(&temp.join("estimation-output")),
+    );
+    assert!(matches!(
+        estimation_result,
+        Err(rust_electroanalysis_cli::runners::RunnerError::PhaseBSourceScope(
+            rust_electroanalysis_cli::runners::mechanism::PhaseBSourceScopeError::Incompatible {
+                artifact_source: "state-estimation",
+                dimension: "sensor"
+            }
+        ))
+    ));
+    let calibration_result = rust_electroanalysis_cli::runners::mechanism::compare_phase_b(
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        &fixture("config/e2e_validated_for_domain.toml"),
+        &fixture("e2e/eis_fit_e2e_1.json"),
+        &fixture("e2e/transient_analysis_e2e_1.json"),
+        Some(&fixture("e2e/state_estimation_e2e_2.json")),
+        Some(&calibration),
+        None,
+        Some(&temp.join("calibration-output")),
+    );
+    std::fs::remove_dir_all(temp).unwrap();
+    assert!(matches!(
+        calibration_result,
+        Err(rust_electroanalysis_cli::runners::RunnerError::PhaseBSourceScope(
+            rust_electroanalysis_cli::runners::mechanism::PhaseBSourceScopeError::Incompatible {
+                artifact_source: "calibration-observation",
+                dimension: "channel"
             }
         ))
     ));
@@ -802,6 +871,74 @@ fn phase_b_temporal_point_join_accepts_boundary() {
     assert_eq!(
         assessment.outcome,
         rust_electroanalysis_cli::mechanism::temporal::TemporalJoinOutcome::Eligible
+    );
+}
+
+#[test]
+fn phase_b_temporal_thresholds_and_mixed_state_policy_change_eligibility() {
+    let mut preparation = prepared_sources(true);
+    let left = EvidenceId("estimation.point.0.state.0".into());
+    let right = EvidenceId("transient.event.0.tau_fast_s".into());
+    preparation
+        .temporal_metadata
+        .entries
+        .get_mut(&right)
+        .unwrap()
+        .support = rust_electroanalysis_cli::mechanism::temporal::EvidenceTemporalSupport::Point {
+        timestamp_s: 5.0,
+    };
+    for id in [&left, &right] {
+        let metadata = preparation.temporal_metadata.entries.get_mut(id).unwrap();
+        metadata.clock_id = Some(rust_electroanalysis_cli::mechanism::temporal::ClockId(
+            "clock".into(),
+        ));
+        metadata.classification.classified_fraction = Some(0.5);
+        metadata.classification.equilibrium_fraction = Some(0.5);
+        metadata.classification.steady_state_fraction = Some(0.5);
+    }
+    let request = rust_electroanalysis_cli::mechanism::temporal::TemporalJoinRequest {
+        requirement_id: "temporal-policy".into(),
+        left_evidence_id: left,
+        right_evidence_id: right,
+        mode: rust_electroanalysis_cli::mechanism::config::TemporalJoinMode::PointPoint,
+    };
+    let assess = |config: &rust_electroanalysis_cli::mechanism::temporal::TemporalJoinConfig| {
+        rust_electroanalysis_cli::mechanism::temporal::evaluate_temporal_join(
+            &request,
+            &preparation.bundle,
+            &preparation.temporal_metadata,
+            config,
+        )
+        .unwrap()
+    };
+    let mut config = phase_b_context().config.temporal;
+    config.mixed_state_policy =
+        rust_electroanalysis_cli::mechanism::temporal::MixedStatePolicy::MinimumSteadyFraction {
+            minimum_fraction: 0.5,
+            allow_quasi_equilibrium: false,
+            reject_if_disturbed: false,
+        };
+    assert_eq!(
+        assess(&config).outcome,
+        rust_electroanalysis_cli::mechanism::temporal::TemporalJoinOutcome::Eligible
+    );
+    config.minimum_classified_fraction = 0.6;
+    assert!(assess(&config).reasons.contains(
+        &rust_electroanalysis_cli::mechanism::temporal::TemporalJoinReasonCode::ClassifiedFractionBelowMinimum
+    ));
+    config.minimum_classified_fraction = 0.0;
+    config.minimum_equilibrium_fraction = 0.6;
+    assert!(assess(&config).reasons.contains(
+        &rust_electroanalysis_cli::mechanism::temporal::TemporalJoinReasonCode::EquilibriumFractionBelowMinimum
+    ));
+    config.minimum_equilibrium_fraction = 0.0;
+    config.mixed_state_policy =
+        rust_electroanalysis_cli::mechanism::temporal::MixedStatePolicy::RequireAllSteady {
+            allow_quasi_equilibrium: false,
+        };
+    assert_eq!(
+        assess(&config).outcome,
+        rust_electroanalysis_cli::mechanism::temporal::TemporalJoinOutcome::Ineligible
     );
 }
 #[test]
@@ -2125,6 +2262,75 @@ fn phase_b_fx10_validation_payload_reaches_history_hash() {
             .source_evidence_ids
             .iter()
             .any(|id| id.0 == "calibration.observation.0")
+    );
+    let ctx = phase_b_context();
+    let hypothesis = &ctx.config.hypotheses[0];
+    let validation = rust_electroanalysis_cli::mechanism::validation::evaluate_validation_protocol(
+        hypothesis,
+        &ctx.eligible,
+        &ctx.bound.role_bindings,
+        &ctx.preparation.bundle,
+        ctx.config.validation.as_ref(),
+    )
+    .unwrap();
+    assert_eq!(validation.status, ValidationProtocolStatus::Satisfied);
+    assert_eq!(
+        validation.evidence_ids,
+        vec![
+            EvidenceId("calibration.observation.0".into()),
+            EvidenceId("estimation.point.0.state.0".into()),
+        ]
+    );
+    assert_eq!(
+        validation.acquisition_family_ids,
+        vec![
+            "b-family-calibration".to_string(),
+            "b-family-estimation".to_string()
+        ]
+    );
+    assert_eq!(
+        validation.passed_condition_ids,
+        vec![
+            "b-calibration-condition".to_string(),
+            "b-estimation-condition".to_string(),
+        ]
+    );
+    let gates = HypothesisGateAssessments {
+        contradiction_summaries: current.contradiction_summaries.clone(),
+        timescale_assessments: current.timescale_assessments.clone(),
+        amplitude_assessments: current.amplitude_assessments.clone(),
+        repeatability_assessments: current.repeatability_assessments.clone(),
+        identifiability_assessments: current.identifiability_assessments.clone(),
+        validation_assessment: Some(validation),
+    };
+    let history = &report.hypothesis_history[0];
+    let assessment_hash = compute_assessment_hash(
+        &build_hypothesis_assessment_hash_view(
+            current,
+            &gates,
+            &current.component_assessments,
+            &history.source_evidence_ids,
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        assessment_hash.0,
+        "2154fefe19c32448b9a5be8fa66575203000715f811a6ce62334423ac20d1f7d"
+    );
+    assert_eq!(
+        history.history_id,
+        compute_history_id(&HypothesisHistoryIdView {
+            hypothesis_id: current.hypothesis_id.clone(),
+            prior_level: history.prior_level.clone(),
+            new_level: history.new_level.clone(),
+            assessment_hash: assessment_hash.0,
+        })
+        .unwrap()
+    );
+    assert_eq!(
+        history.history_id,
+        "a0fd3024c20d08606ab1fd415a3b5ff650f705c71ecff167c020c4692f86662f"
     );
 }
 #[test]
