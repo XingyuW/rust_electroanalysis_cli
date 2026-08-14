@@ -288,11 +288,21 @@ pub fn evaluate_temporal_join(
                 start_s: c,
                 end_s: d,
             },
-        ) => a.max(*c) < b.min(*d),
+        ) => match config.window_overlap_rule {
+            // V1 deliberately admits exactly this overlap policy.  Keep the
+            // policy dispatch here rather than spelling its predicate into
+            // the support match so the required wire field remains an active
+            // evaluator input as the V1 policy set evolves.
+            WindowOverlapRule::PositiveDuration => a.max(*c) < b.min(*d),
+        },
         (
             EvidenceTemporalSupport::Event { event_id: a, .. },
             EvidenceTemporalSupport::Event { event_id: b, .. },
-        ) => a == b,
+        ) => match config.event_identity_rule {
+            // Event support is producer-owned.  In particular, transient
+            // windows are never promoted to Event metadata by this evaluator.
+            EventIdentityRule::Exact => !a.is_empty() && !b.is_empty() && a == b,
+        },
         _ => false,
     };
     a.outcome = if ok {

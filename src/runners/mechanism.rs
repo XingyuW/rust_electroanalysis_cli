@@ -12,6 +12,24 @@ use crate::runners::RunnerError;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use thiserror::Error;
+
+/// Stage-3 source scope validation.  Phase B accepts a single scientific
+/// scope; artifacts from a different experiment, sensor, or channel cannot
+/// be pooled before A1 preparation.
+#[derive(Debug, Error)]
+pub enum PhaseBSourceScopeError {
+    #[error("Phase B source {artifact_source} has incompatible {dimension} scope")]
+    Incompatible {
+        artifact_source: &'static str,
+        dimension: &'static str,
+    },
+    #[error("Phase B source {artifact_source} has unresolved {dimension} scope")]
+    Unresolved {
+        artifact_source: &'static str,
+        dimension: &'static str,
+    },
+}
 
 /// Executes the approved Phase-B route over the four accepted source-artifact
 /// classes.  A neutral A1 bundle is constructed only inside preparation;
@@ -32,15 +50,25 @@ pub fn compare_phase_b(
     let eis: EisFitArtifact = crate::domain::read_artifact(eis_path)?;
     let transient: crate::results::TransientAnalysisReport =
         crate::domain::read_artifact(transient_path)?;
-    let estimation = estimation_path
+    let estimation: Option<crate::results::StateEstimationReport> = estimation_path
         .map(crate::domain::read_artifact)
         .transpose()?;
-    let calibration_observations = calibration_observations_path
-        .map(crate::domain::read_artifact)
-        .transpose()?;
+    let calibration_observations: Option<crate::results::CalibrationObservationSet> =
+        calibration_observations_path
+            .map(crate::domain::read_artifact)
+            .transpose()?;
     let prior_report: Option<MechanismAnalysisReport> = prior_mechanism_path
         .map(crate::domain::read_artifact)
         .transpose()?;
+    validate_phase_b_source_scopes(
+        &eis.lineage,
+        &transient.lineage,
+        estimation.as_ref().map(|artifact| &artifact.lineage),
+        calibration_observations
+            .as_ref()
+            .map(|artifact| &artifact.lineage),
+        prior_report.as_ref().map(|artifact| &artifact.lineage),
+    )?;
     let preparation = crate::mechanism::preparation::prepare_phase_b_evidence(
         crate::mechanism::preparation::PhaseBEvidencePreparationInputs {
             evidence_inputs: crate::runners::evidence::EvidenceBundleInputs {
@@ -236,6 +264,104 @@ pub fn compare_phase_b(
         history,
     );
     export_report(workspace, output_path, &report)
+}
+
+/// Validate source and optional prior-report scope before Phase-B preparation
+/// or state/history reuse.  This deliberately sits in the production runner;
+/// record-level eligibility remains a separate defense-in-depth layer.
+fn validate_phase_b_source_scopes(
+    eis: &crate::domain::ArtifactLineageState,
+    transient: &crate::domain::ArtifactLineageState,
+    estimation: Option<&crate::domain::ArtifactLineageState>,
+    calibration_observations: Option<&crate::domain::ArtifactLineageState>,
+    prior: Option<&crate::domain::ArtifactLineageState>,
+) -> Result<(), RunnerError> {
+    let baseline = known_phase_b_scope(eis, "EIS")?;
+    for (source, lineage) in [
+        ("transient", Some(transient)),
+        ("state-estimation", estimation),
+        ("calibration-observation", calibration_observations),
+        ("prior mechanism artifact", prior),
+    ] {
+        let Some(lineage) = lineage else {
+            continue;
+        };
+        let scope = known_phase_b_scope(lineage, source)?;
+        if baseline.experiment_scope != scope.experiment_scope {
+            return Err(PhaseBSourceScopeError::Incompatible {
+                artifact_source: source,
+                dimension: "experiment",
+            }
+            .into());
+        }
+        if !phase_b_scope_key_compatible(&baseline.sensor_scope, &scope.sensor_scope) {
+            return Err(PhaseBSourceScopeError::Incompatible {
+                artifact_source: source,
+                dimension: "sensor",
+            }
+            .into());
+        }
+        if !phase_b_scope_key_compatible(&baseline.channel_scope, &scope.channel_scope) {
+            return Err(PhaseBSourceScopeError::Incompatible {
+                artifact_source: source,
+                dimension: "channel",
+            }
+            .into());
+        }
+    }
+    Ok(())
+}
+
+struct PhaseBArtifactScope<'a> {
+    experiment_scope: &'a crate::domain::ArtifactExperimentScope,
+    sensor_scope: &'a crate::domain::ScopeKey,
+    channel_scope: &'a crate::domain::ScopeKey,
+}
+
+fn known_phase_b_scope<'a>(
+    lineage: &'a crate::domain::ArtifactLineageState,
+    source: &'static str,
+) -> Result<PhaseBArtifactScope<'a>, RunnerError> {
+    let crate::domain::ArtifactLineageState::Known { identity, .. } = lineage else {
+        return Err(PhaseBSourceScopeError::Unresolved {
+            artifact_source: source,
+            dimension: "artifact",
+        }
+        .into());
+    };
+    // Source artifact pooling is only valid for one exact experiment.  An
+    // aggregate/unknown artifact cannot be narrowed by membership here.
+    if !matches!(
+        identity.experiment_scope,
+        crate::domain::ArtifactExperimentScope::Single { .. }
+    ) {
+        return Err(PhaseBSourceScopeError::Unresolved {
+            artifact_source: source,
+            dimension: "experiment",
+        }
+        .into());
+    }
+    Ok(PhaseBArtifactScope {
+        experiment_scope: &identity.experiment_scope,
+        sensor_scope: &identity.sensor_scope,
+        channel_scope: &identity.channel_scope,
+    })
+}
+
+fn phase_b_scope_key_compatible(
+    left: &crate::domain::ScopeKey,
+    right: &crate::domain::ScopeKey,
+) -> bool {
+    match (left, right) {
+        (crate::domain::ScopeKey::Specific(left), crate::domain::ScopeKey::Specific(right)) => {
+            left == right
+        }
+        (crate::domain::ScopeKey::Specific(_), crate::domain::ScopeKey::All)
+        | (crate::domain::ScopeKey::All, crate::domain::ScopeKey::Specific(_))
+        | (crate::domain::ScopeKey::All, crate::domain::ScopeKey::All)
+        | (crate::domain::ScopeKey::Unspecified, crate::domain::ScopeKey::Unspecified) => true,
+        _ => false,
+    }
 }
 
 fn prior_component_level(

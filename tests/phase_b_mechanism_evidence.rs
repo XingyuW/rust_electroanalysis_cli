@@ -549,6 +549,95 @@ fn run_phase_b_cli(
     report
 }
 
+fn write_fixture_with_experiment_scope(source: &Path, destination: &Path, experiment_id: &str) {
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(source).expect("read source fixture"))
+            .expect("parse source fixture");
+    value["lineage"]["Known"]["identity"]["experiment_scope"]["Single"]["experiment_id"] =
+        serde_json::Value::String(experiment_id.into());
+    std::fs::write(destination, serde_json::to_vec_pretty(&value).unwrap())
+        .expect("write scope-mutated fixture");
+}
+
+#[test]
+fn phase_b_production_rejects_cross_scope_source_artifacts() {
+    let temp = std::env::temp_dir().join(format!("phase-b-cross-scope-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&temp);
+    std::fs::create_dir_all(&temp).unwrap();
+    let transient = temp.join("transient-other-experiment.json");
+    write_fixture_with_experiment_scope(
+        &fixture("e2e/transient_analysis_e2e_1.json"),
+        &transient,
+        "another-experiment",
+    );
+    let result = rust_electroanalysis_cli::runners::mechanism::compare_phase_b(
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        &fixture("config/e2e_experimentally_supported.toml"),
+        &fixture("e2e/eis_fit_e2e_1.json"),
+        &transient,
+        None,
+        None,
+        None,
+        Some(&temp.join("output")),
+    );
+    std::fs::remove_dir_all(temp).unwrap();
+    assert!(matches!(
+        result,
+        Err(rust_electroanalysis_cli::runners::RunnerError::PhaseBSourceScope(
+            rust_electroanalysis_cli::runners::mechanism::PhaseBSourceScopeError::Incompatible {
+                artifact_source: "transient",
+                dimension: "experiment"
+            }
+        ))
+    ));
+}
+
+#[test]
+fn phase_b_production_rejects_cross_scope_prior_artifact() {
+    let temp = std::env::temp_dir().join(format!("phase-b-prior-scope-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&temp);
+    std::fs::create_dir_all(&temp).unwrap();
+    let prior = run_phase_b_cli("config/e2e_experimentally_supported.toml", false, None);
+    let matching = temp.join("prior-matching.json");
+    rust_electroanalysis_cli::domain::write_artifact(&matching, &prior).unwrap();
+    // Matching prior scope continues through the real production runner.
+    assert!(
+        rust_electroanalysis_cli::runners::mechanism::compare_phase_b(
+            Path::new(env!("CARGO_MANIFEST_DIR")),
+            &fixture("config/e2e_validated_for_domain.toml"),
+            &fixture("e2e/eis_fit_e2e_1.json"),
+            &fixture("e2e/transient_analysis_e2e_1.json"),
+            Some(&fixture("e2e/state_estimation_e2e_2.json")),
+            Some(&fixture("e2e/calibration_observations_e2e_2.json")),
+            Some(&matching),
+            Some(&temp.join("matching-output")),
+        )
+        .is_ok()
+    );
+    let mismatched = temp.join("prior-other-experiment.json");
+    write_fixture_with_experiment_scope(&matching, &mismatched, "another-experiment");
+    let result = rust_electroanalysis_cli::runners::mechanism::compare_phase_b(
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        &fixture("config/e2e_validated_for_domain.toml"),
+        &fixture("e2e/eis_fit_e2e_1.json"),
+        &fixture("e2e/transient_analysis_e2e_1.json"),
+        Some(&fixture("e2e/state_estimation_e2e_2.json")),
+        Some(&fixture("e2e/calibration_observations_e2e_2.json")),
+        Some(&mismatched),
+        Some(&temp.join("mismatched-output")),
+    );
+    std::fs::remove_dir_all(temp).unwrap();
+    assert!(matches!(
+        result,
+        Err(rust_electroanalysis_cli::runners::RunnerError::PhaseBSourceScope(
+            rust_electroanalysis_cli::runners::mechanism::PhaseBSourceScopeError::Incompatible {
+                artifact_source: "prior mechanism artifact",
+                dimension: "experiment"
+            }
+        ))
+    ));
+}
+
 #[test]
 fn phase_b_e2e_experimentally_supported_from_sources() {
     let report = run_phase_b_cli("config/e2e_experimentally_supported.toml", false, None);
@@ -842,6 +931,29 @@ fn phase_b_temporal_event_join_requires_exact_event() {
         .outcome,
         rust_electroanalysis_cli::mechanism::temporal::TemporalJoinOutcome::Ineligible
     );
+    // `event_identity_rule = exact` rejects an absent producer-owned
+    // identity; no event ID is manufactured from a transient window.
+    preparation
+        .temporal_metadata
+        .entries
+        .get_mut(&right)
+        .unwrap()
+        .support = rust_electroanalysis_cli::mechanism::temporal::EvidenceTemporalSupport::Event {
+        event_id: String::new(),
+        start_s: 0.0,
+        end_s: 1.0,
+    };
+    assert_eq!(
+        rust_electroanalysis_cli::mechanism::temporal::evaluate_temporal_join(
+            &request,
+            &preparation.bundle,
+            &preparation.temporal_metadata,
+            &config.temporal
+        )
+        .unwrap()
+        .outcome,
+        rust_electroanalysis_cli::mechanism::temporal::TemporalJoinOutcome::Ineligible
+    );
 }
 #[test]
 fn phase_b_temporal_clock_conflict_is_typed() {
@@ -1020,6 +1132,25 @@ fn phase_b_timescale_dependent_pair_with_covariance_is_strong() {
         .unwrap()
         .classification =
         rust_electroanalysis_cli::evidence::EvidenceIndependence::PartiallyDependent;
+    for evidence_id in [
+        &left.support_evidence_ids[0],
+        &right.support_evidence_ids[0],
+    ] {
+        ctx.preparation
+            .bundle
+            .records
+            .iter_mut()
+            .find(|record| &record.evidence_id == evidence_id)
+            .unwrap()
+            .quantity
+            .as_mut()
+            .unwrap()
+            .uncertainty = Some(
+            rust_electroanalysis_cli::evidence::EvidenceUncertaintyModel::LogNormal {
+                variance_ln_tau_s: 0.25,
+            },
+        );
+    }
     let source = ctx
         .preparation
         .bundle
@@ -1029,10 +1160,22 @@ fn phase_b_timescale_dependent_pair_with_covariance_is_strong() {
         .unwrap()
         .source
         .clone();
-    ctx.preparation.bundle.timescale_pair_uncertainties.push(rust_electroanalysis_cli::evidence::TimescalePairUncertainty { pair: key, covariance: rust_electroanalysis_cli::evidence::TimescaleCrossCovariance::LogSpace { covariance_ln_tau: 0.0 }, source: rust_electroanalysis_cli::evidence::TimescalePairUncertaintySource { source_artifact: source.artifact, left_source_field_path: source.field_path.clone(), right_source_field_path: source.field_path.clone(), covariance_source_field_path: source.field_path, derivation: rust_electroanalysis_cli::evidence::PairCovarianceDerivation::PreservedProducerCovariance } });
+    let covariance = 0.2;
+    // Var[ln(tau_1/tau_2)] = 0.25 + 0.25 - 2 * 0.2 = 0.1.
+    // This literal expected value detects an omitted covariance term, the
+    // wrong sign, and the wrong coefficient independently of the evaluator.
+    let expected_variance = 0.25 + 0.25 - 2.0 * covariance;
+    assert!((expected_variance - 0.1_f64).abs() < 1e-12);
+    ctx.preparation.bundle.timescale_pair_uncertainties.push(rust_electroanalysis_cli::evidence::TimescalePairUncertainty { pair: key, covariance: rust_electroanalysis_cli::evidence::TimescaleCrossCovariance::LogSpace { covariance_ln_tau: covariance }, source: rust_electroanalysis_cli::evidence::TimescalePairUncertaintySource { source_artifact: source.artifact, left_source_field_path: source.field_path.clone(), right_source_field_path: source.field_path.clone(), covariance_source_field_path: source.field_path, derivation: rust_electroanalysis_cli::evidence::PairCovarianceDerivation::PreservedProducerCovariance } });
+    let mut hypothesis = h.clone();
+    hypothesis
+        .timescale_gate
+        .as_mut()
+        .unwrap()
+        .maximum_log_distance = 0.5;
     assert_eq!(
         rust_electroanalysis_cli::mechanism::timescale::evaluate_timescale_requirement(
-            h,
+            &hypothesis,
             pair,
             (left, right),
             &ctx.preparation.bundle,
@@ -1041,6 +1184,95 @@ fn phase_b_timescale_dependent_pair_with_covariance_is_strong() {
         .unwrap()
         .status,
         rust_electroanalysis_cli::mechanism::timescale::TimescaleStatus::Satisfied
+    );
+}
+
+#[test]
+fn phase_b_timescale_uncertainty_only_changes_gate_result() {
+    let evaluate = |variance_ln_tau_s| {
+        let mut ctx = phase_b_context();
+        let mut hypothesis = ctx.config.hypotheses[0].clone();
+        hypothesis
+            .timescale_gate
+            .as_mut()
+            .unwrap()
+            .maximum_log_distance = 0.5;
+        let pair = &hypothesis.pair_requirements[0];
+        let left = ctx
+            .eligible
+            .requirements
+            .iter()
+            .find(|row| row.requirement_id == pair.left_requirement_id)
+            .unwrap();
+        let right = ctx
+            .eligible
+            .requirements
+            .iter()
+            .find(|row| row.requirement_id == pair.right_requirement_id)
+            .unwrap();
+        let point_estimates = [
+            ctx.preparation
+                .bundle
+                .records
+                .iter()
+                .find(|record| record.evidence_id == left.support_evidence_ids[0])
+                .unwrap()
+                .quantity
+                .as_ref()
+                .unwrap()
+                .value,
+            ctx.preparation
+                .bundle
+                .records
+                .iter()
+                .find(|record| record.evidence_id == right.support_evidence_ids[0])
+                .unwrap()
+                .quantity
+                .as_ref()
+                .unwrap()
+                .value,
+        ];
+        for evidence_id in [
+            &left.support_evidence_ids[0],
+            &right.support_evidence_ids[0],
+        ] {
+            ctx.preparation
+                .bundle
+                .records
+                .iter_mut()
+                .find(|record| &record.evidence_id == evidence_id)
+                .unwrap()
+                .quantity
+                .as_mut()
+                .unwrap()
+                .uncertainty = Some(
+                rust_electroanalysis_cli::evidence::EvidenceUncertaintyModel::LogNormal {
+                    variance_ln_tau_s,
+                },
+            );
+        }
+        let status =
+            rust_electroanalysis_cli::mechanism::timescale::evaluate_timescale_requirement(
+                &hypothesis,
+                pair,
+                (left, right),
+                &ctx.preparation.bundle,
+                &ctx.config.timescale,
+            )
+            .unwrap()
+            .status;
+        (point_estimates, status)
+    };
+    let (small_points, small) = evaluate(0.01);
+    let (large_points, large) = evaluate(0.25);
+    assert_eq!(small_points, large_points);
+    assert_eq!(
+        small,
+        rust_electroanalysis_cli::mechanism::timescale::TimescaleStatus::Satisfied
+    );
+    assert_eq!(
+        large,
+        rust_electroanalysis_cli::mechanism::timescale::TimescaleStatus::Failed
     );
 }
 #[test]
@@ -1546,6 +1778,89 @@ fn phase_b_identifiability_covariate_below_range_fails() {
     let mut b = h.identifiability_bindings[0].clone();
     b.threshold = 2.0;
     assert_eq!(rust_electroanalysis_cli::mechanism::identifiability::evaluate_identifiability_binding(h,&b,&ctx.eligible,&ctx.preparation.bundle,&ctx.preparation.bundle.independence_assessments,&ctx.config.identifiability).unwrap().status,rust_electroanalysis_cli::mechanism::identifiability::IdentifiabilityAssessmentStatus::NotSatisfied);
+}
+
+#[test]
+fn phase_b_identifiability_rejects_undeclared_favorable_pair() {
+    let mut ctx = phase_b_context();
+    let hypothesis = &ctx.config.hypotheses[0];
+    let mut binding = hypothesis.identifiability_bindings[0].clone();
+    // The declared pair remains the two equal-valued canonical inputs, so it
+    // fails this threshold.  A separate eligible row has a much more
+    // favorable ratio but is not the configured exact pair.
+    binding.threshold = 2.0;
+    let declared = ctx
+        .eligible
+        .requirements
+        .iter()
+        .find(|row| row.requirement_id == "b-eis-tau")
+        .unwrap()
+        .clone();
+    let mut favorable_record = ctx
+        .preparation
+        .bundle
+        .records
+        .iter()
+        .find(|record| record.evidence_id == declared.support_evidence_ids[0])
+        .unwrap()
+        .clone();
+    favorable_record.evidence_id = EvidenceId("undeclared.favorable".into());
+    favorable_record.quantity.as_mut().unwrap().value = 100.0;
+    ctx.preparation.bundle.records.push(favorable_record);
+    let mut favorable = declared;
+    favorable.requirement_id = "undeclared-favorable".into();
+    favorable.support_evidence_ids = vec![EvidenceId("undeclared.favorable".into())];
+    ctx.eligible.requirements.push(favorable);
+    let assessment =
+        rust_electroanalysis_cli::mechanism::identifiability::evaluate_identifiability_binding(
+            hypothesis,
+            &binding,
+            &ctx.eligible,
+            &ctx.preparation.bundle,
+            &ctx.preparation.bundle.independence_assessments,
+            &ctx.config.identifiability,
+        )
+        .unwrap();
+    assert_eq!(assessment.status, rust_electroanalysis_cli::mechanism::identifiability::IdentifiabilityAssessmentStatus::NotSatisfied);
+    assert_eq!(
+        assessment.evidence_ids,
+        vec![
+            EvidenceId("eis.parameter.0".into()),
+            EvidenceId("transient.event.0.tau_fast_s".into())
+        ]
+    );
+}
+
+#[test]
+fn phase_b_identifiability_declared_pair_requires_independence() {
+    let mut ctx = phase_b_context();
+    let hypothesis = &ctx.config.hypotheses[0];
+    let binding = &hypothesis.identifiability_bindings[0];
+    let key = rust_electroanalysis_cli::evidence::EvidencePairKey::canonical(
+        EvidenceId("eis.parameter.0".into()),
+        EvidenceId("transient.event.0.tau_fast_s".into()),
+    )
+    .unwrap();
+    ctx.preparation
+        .bundle
+        .independence_assessments
+        .iter_mut()
+        .find(|assessment| assessment.pair == key)
+        .unwrap()
+        .classification =
+        rust_electroanalysis_cli::evidence::EvidenceIndependence::PartiallyDependent;
+    let assessment =
+        rust_electroanalysis_cli::mechanism::identifiability::evaluate_identifiability_binding(
+            hypothesis,
+            binding,
+            &ctx.eligible,
+            &ctx.preparation.bundle,
+            &ctx.preparation.bundle.independence_assessments,
+            &ctx.config.identifiability,
+        )
+        .unwrap();
+    assert_eq!(assessment.status, rust_electroanalysis_cli::mechanism::identifiability::IdentifiabilityAssessmentStatus::NotAssessed);
+    assert_eq!(assessment.reasons, vec![rust_electroanalysis_cli::mechanism::identifiability::IdentifiabilityAssessmentReasonCode::MissingInput]);
 }
 #[test]
 fn phase_b_identifiability_missing_source_is_not_assessed() {
