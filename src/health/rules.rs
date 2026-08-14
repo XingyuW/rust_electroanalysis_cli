@@ -54,9 +54,10 @@ pub fn evaluate_with_baseline_records(
             .iter()
             .all(|c| condition(c, features, comparisons) == Some(true));
         let any_ok = rule.any_of.is_empty()
-            || rule.any_of.iter().any(|c| {
-                condition(c, features, comparisons) == Some(true)
-            });
+            || rule
+                .any_of
+                .iter()
+                .any(|c| condition(c, features, comparisons) == Some(true));
         let required = rule.minimum_evidence_domains.max(
             if matches!(
                 rule.finding,
@@ -161,7 +162,13 @@ pub fn evaluate_with_trends(
         let mut unavailable = Vec::new();
         let mut domains = BTreeSet::new();
         for condition in rule.all_of.iter().chain(rule.any_of.iter()) {
-            match trend_condition(condition, features, comparisons, trends, rule.minimum_baseline_records) {
+            match trend_condition(
+                condition,
+                features,
+                comparisons,
+                trends,
+                rule.minimum_baseline_records,
+            ) {
                 Some(true) => {
                     ok.push(condition.feature.clone());
                     domains.insert(domain_for(condition.feature.as_str(), features));
@@ -171,13 +178,23 @@ pub fn evaluate_with_trends(
             }
         }
         let all_ok = rule.all_of.iter().all(|condition| {
-            trend_condition(condition, features, comparisons, trends, rule.minimum_baseline_records)
-                == Some(true)
+            trend_condition(
+                condition,
+                features,
+                comparisons,
+                trends,
+                rule.minimum_baseline_records,
+            ) == Some(true)
         });
         let any_ok = rule.any_of.is_empty()
             || rule.any_of.iter().any(|condition| {
-                trend_condition(condition, features, comparisons, trends, rule.minimum_baseline_records)
-                    == Some(true)
+                trend_condition(
+                    condition,
+                    features,
+                    comparisons,
+                    trends,
+                    rule.minimum_baseline_records,
+                ) == Some(true)
             });
         let required = rule.minimum_evidence_domains.max(
             if matches!(
@@ -248,7 +265,9 @@ fn trend_condition(
     trends: &[HealthTrend],
     minimum_baseline_records: usize,
 ) -> Option<bool> {
-    let feature = features.iter().find(|feature| feature.name == condition.feature);
+    let feature = features
+        .iter()
+        .find(|feature| feature.name == condition.feature);
     let baseline = comparisons
         .iter()
         .find(|comparison| comparison.feature == condition.feature);
@@ -308,7 +327,12 @@ fn trend_evidence(
         .iter()
         .find(|feature| feature.name == name)
         .map(|feature| feature.source.clone())
-        .or_else(|| trends.iter().find(|trend| trend.feature == name).map(|_| "health_trend".into()))
+        .or_else(|| {
+            trends
+                .iter()
+                .find(|trend| trend.feature == name)
+                .map(|_| "health_trend".into())
+        })
         .unwrap_or_else(|| "health_rule".into());
     HealthEvidence {
         domain: domain_for(name, features),

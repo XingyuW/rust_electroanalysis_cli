@@ -212,31 +212,33 @@ fn write_metadata(root: &Path) -> PathBuf {
     path
 }
 
-fn run_estimate(
-    label: &str,
-    tau_source: &str,
-    transient_parameter: &str,
-    noise_source: &str,
-    transient: Option<&Path>,
+struct EstimateInputs<'a> {
+    label: &'a str,
+    tau_source: &'a str,
+    transient_parameter: &'a str,
+    noise_source: &'a str,
+    transient: Option<&'a Path>,
     model_known: bool,
-    calibration_results: Option<&Path>,
-    mechanism: Option<&Path>,
-    health_baseline: Option<&Path>,
-    health_assessment: Option<&Path>,
-) -> (PathBuf, StateEstimationReport) {
+    calibration_results: Option<&'a Path>,
+    mechanism: Option<&'a Path>,
+    health_baseline: Option<&'a Path>,
+    health_assessment: Option<&'a Path>,
+}
+
+fn run_estimate(input: EstimateInputs<'_>) -> (PathBuf, StateEstimationReport) {
     run_estimate_with_polarization(
-        label,
-        tau_source,
-        transient_parameter,
-        noise_source,
+        input.label,
+        input.tau_source,
+        input.transient_parameter,
+        input.noise_source,
         30.0,
         0.0,
-        transient,
-        model_known,
-        calibration_results,
-        mechanism,
-        health_baseline,
-        health_assessment,
+        input.transient,
+        input.model_known,
+        input.calibration_results,
+        input.mechanism,
+        input.health_baseline,
+        input.health_assessment,
     )
 }
 
@@ -317,7 +319,7 @@ fn dependency_entries(
 }
 
 fn produced_eis_artifact() -> EisFitArtifact {
-    let input = EISData::parse_file(&fixture_path(
+    let input = EISData::parse_file(fixture_path(
         "tests/fixtures/eis/randles_cpe_weighted_fit.csv",
     ))
     .unwrap();
@@ -365,18 +367,18 @@ fn a1_fr001_t01_transient_used_by_estimation_is_persisted_as_dependency() {
     let root = temp_workspace("t01-input");
     let transient_path = root.join("transient.json");
     let transient = tracked_transient(&transient_path);
-    let (workspace, report) = run_estimate(
-        "t01",
-        "transient",
-        "tau",
-        "configured",
-        Some(&transient_path),
-        false,
-        None,
-        None,
-        None,
-        None,
-    );
+    let (workspace, report) = run_estimate(EstimateInputs {
+        label: "t01",
+        tau_source: "transient",
+        transient_parameter: "tau",
+        noise_source: "configured",
+        transient: Some(&transient_path),
+        model_known: false,
+        calibration_results: None,
+        mechanism: None,
+        health_baseline: None,
+        health_assessment: None,
+    });
     let dependencies = dependency_entries(&report);
     assert_eq!(dependencies.len(), 1);
     assert_eq!(
@@ -455,18 +457,18 @@ fn a1_fr001_t03_transient_excluded_by_configured_tau_source_is_not_persisted() {
     let root = temp_workspace("t03-input");
     let transient_path = root.join("transient.json");
     tracked_transient(&transient_path);
-    let (workspace, report) = run_estimate(
-        "t03",
-        "configured",
-        "tau",
-        "configured",
-        Some(&transient_path),
-        false,
-        None,
-        None,
-        None,
-        None,
-    );
+    let (workspace, report) = run_estimate(EstimateInputs {
+        label: "t03",
+        tau_source: "configured",
+        transient_parameter: "tau",
+        noise_source: "configured",
+        transient: Some(&transient_path),
+        model_known: false,
+        calibration_results: None,
+        mechanism: None,
+        health_baseline: None,
+        health_assessment: None,
+    });
     assert!(
         dependency_entries(&report)
             .iter()
@@ -481,18 +483,18 @@ fn a1_fr001_t04_supplied_mechanism_is_not_an_estimator_dependency() {
     let mechanism = fixture_path(
         "tests/fixtures/a0_artifact_contracts/schema1/mechanism_analysis.schema1.json",
     );
-    let (workspace, report) = run_estimate(
-        "t04",
-        "configured",
-        "tau",
-        "configured",
-        None,
-        false,
-        None,
-        Some(&mechanism),
-        None,
-        None,
-    );
+    let (workspace, report) = run_estimate(EstimateInputs {
+        label: "t04",
+        tau_source: "configured",
+        transient_parameter: "tau",
+        noise_source: "configured",
+        transient: None,
+        model_known: false,
+        calibration_results: None,
+        mechanism: Some(&mechanism),
+        health_baseline: None,
+        health_assessment: None,
+    });
     assert!(
         dependency_entries(&report)
             .iter()
@@ -506,18 +508,18 @@ fn a1_fr001_t05_supplied_health_baseline_is_not_an_estimator_dependency() {
     let baseline = fixture_path(
         "tests/fixtures/a0_artifact_contracts/health_baseline_schema2_correct_kind.json",
     );
-    let (workspace, report) = run_estimate(
-        "t05",
-        "configured",
-        "tau",
-        "configured",
-        None,
-        false,
-        None,
-        None,
-        Some(&baseline),
-        None,
-    );
+    let (workspace, report) = run_estimate(EstimateInputs {
+        label: "t05",
+        tau_source: "configured",
+        transient_parameter: "tau",
+        noise_source: "configured",
+        transient: None,
+        model_known: false,
+        calibration_results: None,
+        mechanism: None,
+        health_baseline: Some(&baseline),
+        health_assessment: None,
+    });
     assert!(
         dependency_entries(&report)
             .iter()
@@ -530,18 +532,18 @@ fn a1_fr001_t05_supplied_health_baseline_is_not_an_estimator_dependency() {
 fn a1_fr001_t06_supplied_health_assessment_is_not_an_estimator_dependency() {
     let assessment =
         fixture_path("tests/fixtures/a0_artifact_contracts/schema1/health_assessment.schema1.json");
-    let (workspace, report) = run_estimate(
-        "t06",
-        "configured",
-        "tau",
-        "configured",
-        None,
-        false,
-        None,
-        None,
-        None,
-        Some(&assessment),
-    );
+    let (workspace, report) = run_estimate(EstimateInputs {
+        label: "t06",
+        tau_source: "configured",
+        transient_parameter: "tau",
+        noise_source: "configured",
+        transient: None,
+        model_known: false,
+        calibration_results: None,
+        mechanism: None,
+        health_baseline: None,
+        health_assessment: Some(&assessment),
+    });
     assert!(
         dependency_entries(&report)
             .iter()
@@ -561,18 +563,18 @@ fn a1_fr001_t07_calibration_variance_used_by_estimation_is_persisted() {
         }
         _ => panic!("current calibration producer must create Known lineage"),
     };
-    let (workspace, report) = run_estimate(
-        "t07",
-        "configured",
-        "tau",
-        "calibration_residual_variance",
-        None,
-        false,
-        Some(&path),
-        None,
-        None,
-        None,
-    );
+    let (workspace, report) = run_estimate(EstimateInputs {
+        label: "t07",
+        tau_source: "configured",
+        transient_parameter: "tau",
+        noise_source: "calibration_residual_variance",
+        transient: None,
+        model_known: false,
+        calibration_results: Some(&path),
+        mechanism: None,
+        health_baseline: None,
+        health_assessment: None,
+    });
     let dependencies = dependency_entries(&report);
     assert_eq!(
         dependencies
@@ -601,18 +603,18 @@ fn a1_fr001_t08_optional_artifacts_present_but_not_selected_are_not_dependencies
         }
         _ => panic!("current calibration producer must create Known lineage"),
     };
-    let (workspace, report) = run_estimate(
-        "t08",
-        "configured",
-        "tau",
-        "configured",
-        Some(&transient_path),
-        false,
-        Some(&calibration_path),
-        None,
-        None,
-        None,
-    );
+    let (workspace, report) = run_estimate(EstimateInputs {
+        label: "t08",
+        tau_source: "configured",
+        transient_parameter: "tau",
+        noise_source: "configured",
+        transient: Some(&transient_path),
+        model_known: false,
+        calibration_results: Some(&calibration_path),
+        mechanism: None,
+        health_baseline: None,
+        health_assessment: None,
+    });
     assert!(
         dependency_entries(&report)
             .iter()
@@ -634,18 +636,18 @@ fn transient_used_by_estimation_produces_dependent_evidence_in_bundle() {
     let transient_written = tracked_transient(&transient_path);
     let model_path = root.join("calibration_model.json");
     tracked_model(&model_path);
-    let (workspace, estimation) = run_estimate(
-        "e2e-used",
-        "transient",
-        "tau",
-        "configured",
-        Some(&transient_path),
-        true,
-        None,
-        None,
-        None,
-        None,
-    );
+    let (workspace, estimation) = run_estimate(EstimateInputs {
+        label: "e2e-used",
+        tau_source: "transient",
+        transient_parameter: "tau",
+        noise_source: "configured",
+        transient: Some(&transient_path),
+        model_known: true,
+        calibration_results: None,
+        mechanism: None,
+        health_baseline: None,
+        health_assessment: None,
+    });
     let transient: TransientAnalysisReport = read_artifact(&transient_path).unwrap();
     let calibration_model: StoredCalibrationModel =
         read_artifact(&workspace.join("calibration_model.json")).unwrap();
@@ -715,18 +717,18 @@ fn transient_not_used_by_estimation_does_not_create_false_lineage_dependency() {
     let root = temp_workspace("e2e-unused-input");
     let transient_path = root.join("transient.json");
     tracked_transient(&transient_path);
-    let (workspace, estimation) = run_estimate(
-        "e2e-unused",
-        "configured",
-        "tau",
-        "configured",
-        Some(&transient_path),
-        true,
-        None,
-        None,
-        None,
-        None,
-    );
+    let (workspace, estimation) = run_estimate(EstimateInputs {
+        label: "e2e-unused",
+        tau_source: "configured",
+        transient_parameter: "tau",
+        noise_source: "configured",
+        transient: Some(&transient_path),
+        model_known: true,
+        calibration_results: None,
+        mechanism: None,
+        health_baseline: None,
+        health_assessment: None,
+    });
     assert!(
         dependency_entries(&estimation)
             .iter()

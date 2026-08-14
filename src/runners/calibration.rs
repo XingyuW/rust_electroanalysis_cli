@@ -481,10 +481,6 @@ fn validation_report(validation: &CalibrationValidationResult) -> String {
     )
 }
 
-fn read_json<T: crate::domain::VersionedArtifact>(path: &Path) -> Result<T, RunnerError> {
-    Ok(crate::domain::read_artifact(path)?)
-}
-
 fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), RunnerError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
