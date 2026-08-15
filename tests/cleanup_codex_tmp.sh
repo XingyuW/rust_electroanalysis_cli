@@ -83,12 +83,17 @@ git -C "$REMOTE" symbolic-ref HEAD refs/heads/main
 CLEAN="$SCAN/clean clone with spaces"
 REGISTERED="$SCAN/registered worktree"
 TARGET="$SCAN/large target"
+SCAFFOLD_TARGET="$SCAN/empty source scaffold"
+SNAPSHOT="$SCAN/github identical snapshot.toml"
 DELETED_REMOTE="$SCAN/deleted remote branch"
 TAG_ONLY="$SCAN/tag only"
 MULTI_REMOTE="$SCAN/multiple remote branches"
 make_clean_clone "$CLEAN"
 git -C "$AUTH" worktree add --detach -q "$REGISTERED" main
 make_target "$TARGET"
+mkdir -p "$SCAFFOLD_TARGET/src" "$SCAFFOLD_TARGET/docs"
+make_target "$SCAFFOLD_TARGET/target"
+cp "$AUTH/Cargo.toml" "$SNAPSHOT"
 
 git -C "$AUTH" branch deleted-remote main
 git -C "$AUTH" push -q origin deleted-remote
@@ -165,7 +170,7 @@ rm -rf -- "$STALE"
 DRY_OUTPUT="$FIXTURE_ROOT/dry-run.txt"
 run_tool "$DRY_OUTPUT"
 
-for path in "$CLEAN" "$REGISTERED" "$TARGET" "$DELETED_REMOTE" "$TAG_ONLY" "$MULTI_REMOTE"; do
+for path in "$CLEAN" "$REGISTERED" "$TARGET" "$SCAFFOLD_TARGET" "$SNAPSHOT" "$DELETED_REMOTE" "$TAG_ONLY" "$MULTI_REMOTE"; do
     assert_reported_as "$DRY_OUTPUT" "$path" SAFE
 done
 for path in "$UNSTAGED" "$STAGED" "$UNTRACKED" "$LOCAL_ONLY" "$DETACHED" "$UNIQUE_BRANCH" "$STASHED"; do
@@ -184,7 +189,7 @@ assert_exists "$EMPTY"
 DELETE_OUTPUT="$FIXTURE_ROOT/delete-safe.txt"
 run_tool "$DELETE_OUTPUT" --delete-safe
 
-for path in "$CLEAN" "$REGISTERED" "$TARGET" "$DELETED_REMOTE" "$TAG_ONLY" "$MULTI_REMOTE"; do
+for path in "$CLEAN" "$REGISTERED" "$TARGET" "$SCAFFOLD_TARGET" "$SNAPSHOT" "$DELETED_REMOTE" "$TAG_ONLY" "$MULTI_REMOTE"; do
     assert_absent "$path"
 done
 for path in "$UNSTAGED" "$STAGED" "$UNTRACKED" "$LOCAL_ONLY" "$DETACHED" "$UNIQUE_BRANCH" "$STASHED" "$DIFFERENT_ORIGIN" "$AMBIGUOUS" "$UNRELATED" "$EMPTY" "$REVIEW_OUTPUT"; do

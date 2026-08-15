@@ -426,6 +426,31 @@ standalone_target_is_safe() {
     return 0
 }
 
+# Some review tooling creates a source-shaped directory but leaves only empty
+# scaffolding around a normal target/ directory.  Empty directories cannot
+# contain unique work, so this has the same safety properties as a standalone
+# target once files and links outside target/ are ruled out.
+scaffolded_target_is_safe() {
+    local scaffold=$1 extra
+    [ ! -L "$scaffold" ] || return 1
+    [ -d "$scaffold/target" ] || return 1
+    standalone_target_is_safe "$scaffold/target" || return 1
+    extra=$(find "$scaffold" -path "$scaffold/target" -prune -o \( -type f -o -type l \) -print -quit 2>/dev/null)
+    [ -z "$extra" ]
+}
+
+github_preserved_snapshot_file() {
+    local snapshot=$1 blob
+    [ -f "$snapshot" ] || return 1
+    [ ! -L "$snapshot" ] || return 1
+    blob=$(git hash-object "$snapshot") || return 1
+    # REMOTE_REFS was populated from refs/remotes/origin after the fetch gate.
+    # Intentional word splitting turns its newline-separated ref list into
+    # revision arguments for git rev-list.
+    # shellcheck disable=SC2086
+    git rev-list --objects $REMOTE_REFS | awk -v expected="$blob" '$1 == expected { found=1 } END { exit(found ? 0 : 1) }'
+}
+
 inspect_standalone_targets() {
     local candidate
     while IFS= read -r -d '' candidate; do
@@ -444,8 +469,41 @@ inspect_standalone_targets() {
                     UNSAFE_COUNT=$((UNSAFE_COUNT + 1))
                 fi
             fi
+        elif scaffolded_target_is_safe "$candidate"; then
+            printf 'WORKSPACE|SAFE|path=%s|type=temporary non-Git build scaffold|size_kib=%s|origin=NONE|branch=NONE|head=NONE|state=empty scaffold plus standard Cargo target|stashes=0|artifact_kib=%s|action=safe: no source files or links exist outside package-identifying generated target\n' \
+                "$candidate" "$(size_kib "$candidate")" "$(size_kib "$candidate/target")"
+            SAFE_COUNT=$((SAFE_COUNT + 1))
+            if [ "$MODE" = delete-safe ]; then
+                if is_below_tmp_root "$candidate" && [ "$candidate" != "$TMP_ROOT" ] && [ ! -L "$candidate" ] && rm -rf -- "$candidate"; then
+                    say "DELETED|$candidate|method=verified-empty-scaffold-cargo-target-removal"
+                    DELETED_COUNT=$((DELETED_COUNT + 1))
+                else
+                    say "RETAINED|$candidate|reason=empty scaffold deletion safety guard failed"
+                    UNSAFE_COUNT=$((UNSAFE_COUNT + 1))
+                fi
+            fi
         fi
     done < <(find "$TMP_ROOT" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
+}
+
+inspect_github_preserved_snapshot_files() {
+    local candidate
+    while IFS= read -r -d '' candidate; do
+        if github_preserved_snapshot_file "$candidate"; then
+            printf 'WORKSPACE|SAFE|path=%s|type=temporary GitHub-identical file|size_kib=%s|origin=NONE|branch=NONE|head=NONE|state=content hash is reachable from an origin commit|stashes=0|artifact_kib=0|action=safe: exact durable GitHub content match\n' \
+                "$candidate" "$(size_kib "$candidate")"
+            SAFE_COUNT=$((SAFE_COUNT + 1))
+            if [ "$MODE" = delete-safe ]; then
+                if is_below_tmp_root "$candidate" && [ ! -L "$candidate" ] && rm -f -- "$candidate"; then
+                    say "DELETED|$candidate|method=verified-github-identical-file-removal"
+                    DELETED_COUNT=$((DELETED_COUNT + 1))
+                else
+                    say "RETAINED|$candidate|reason=GitHub-identical file deletion safety guard failed"
+                    UNSAFE_COUNT=$((UNSAFE_COUNT + 1))
+                fi
+            fi
+        fi
+    done < <(find "$TMP_ROOT" -mindepth 1 -maxdepth 1 -type f -print0 2>/dev/null)
 }
 
 # Review reports, patches, result JSON, and ad-hoc analysis files can be just
@@ -473,6 +531,8 @@ inspect_non_git_project_artifacts() {
     while IFS= read -r -d '' candidate; do
         [ -e "$candidate/.git" ] && continue
         standalone_target_is_safe "$candidate" && continue
+        scaffolded_target_is_safe "$candidate" && continue
+        github_preserved_snapshot_file "$candidate" && continue
         if temporary_entry_mentions_project "$candidate"; then
             printf 'WORKSPACE|UNKNOWN|path=%s|type=temporary non-Git artifact|size_kib=%s|origin=NONE|branch=NONE|head=NONE|state=content references authoritative project|stashes=NONE|artifact_kib=0|action=retain: review/output artifact has no durable-history proof\n' \
                 "$candidate" "$(size_kib "$candidate")"
@@ -490,6 +550,7 @@ while IFS= read -r -d '' dot_git; do
 done < <(find "$TMP_ROOT" \( -type d -name .git -prune -print0 -o -type f -name .git -print0 \) 2>/dev/null)
 
 inspect_standalone_targets
+inspect_github_preserved_snapshot_files
 inspect_non_git_project_artifacts
 
 if [ "$MODE" = delete-safe ]; then

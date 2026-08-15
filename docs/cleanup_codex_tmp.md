@@ -24,9 +24,12 @@ but retained in the authoritative Git directory; removing such a worktree does
 not alter `refs/stash`.
 
 It only deletes a standalone non-Git directory when its Cargo fingerprint
-identifies this package and its top-level layout is a standard `target/` root.
-All other non-Git project artifacts, including plans, review reports, patches,
-and result outputs, remain `UNKNOWN` until separately reconciled.
+identifies this package and its top-level layout is a standard `target/` root;
+an otherwise empty source-shaped scaffold containing such a `target/` is also
+safe. A standalone file is removable only when its exact content hash is
+reachable from a fetched `origin` commit. All other non-Git project artifacts,
+including plans, review reports, patches, and result outputs, remain `UNKNOWN`
+until separately reconciled.
 
 The fixture suite can be run with:
 
