@@ -16,16 +16,21 @@ pub use plottings::plotting;
 #[path = "impedance/lib.rs"]
 pub mod impedance;
 pub mod mechanism;
+pub mod model;
+pub mod model_config;
 
 pub mod calibration_config;
 pub mod cli;
 pub mod domain;
 pub mod estimation;
 pub mod estimation_config;
+pub mod evidence;
+pub mod evidence_adapters;
 pub mod fitting;
 pub mod health;
 pub mod health_config;
 pub mod mechanism_config;
+pub mod model_validation;
 pub mod plot_config;
 pub mod plot_runner;
 pub mod potentiometry;
@@ -39,12 +44,33 @@ pub mod signal_config;
 pub mod transient_config;
 pub mod workspace;
 
+pub use domain::VersionedArtifact;
 pub use domain::{
-    AnalysisProvenance, ChannelMetadata, ConfigurationError, DataParsingError,
-    ElectrochemicalExperiment, EnvironmentalSeries, ExperimentEvent, ExperimentEventKind,
-    ExperimentMetadataDocument, FittingError, MeasurementChannel, MeasurementParseResult,
-    MultiChannelMeasurement, ParseDiagnostics, PlottingError, ProvenanceError, ReferenceMetadata,
-    ReportingError, SensorMetadata, WorkspaceError, load_experiment_metadata,
+    AnalysisProvenance, ArtifactError, ArtifactKind, ChannelMetadata, ConfigurationError,
+    CurrentArtifactKindPolicy, DataParsingError, ElectrochemicalExperiment, EnvironmentalSeries,
+    ExperimentEvent, ExperimentEventKind, ExperimentMetadataDocument, FittingError,
+    IngestionDiagnostic, MeasurementChannel, MeasurementParseResult, MultiChannelMeasurement,
+    ParseDiagnostics, PlottingError, ProvenanceError, ReferenceMetadata, ReportingError,
+    SensorMetadata, WorkspaceError, load_experiment_metadata,
+};
+pub use evidence::{
+    EvidenceArtifactSource, EvidenceBundle, EvidenceBundleBuilder, EvidenceBundleError,
+    EvidenceExperimentScope, EvidenceIndependenceAssessment, EvidenceIndependenceReason,
+    EvidencePairKey, EvidenceRecord, EvidenceSourceRef, EvidenceTarget, LabeledCovarianceMatrix,
+    TimescalePairUncertainty,
+};
+pub use evidence_adapters::{
+    AdapterContext, adapt_calibration_observations, adapt_eis_fit, adapt_model_analysis,
+    adapt_signal_scalar, adapt_state_estimation, adapt_transient_analysis, legacy_context,
+    try_adapt_calibration_observations,
+};
+pub use model::{
+    CompiledIsmModel, ComponentContribution, ComponentDescriptor, ComponentId, ComponentRole,
+    EquilibriumAssessment, EquilibriumEvidenceRequirements, EquilibriumStatus, EvidenceAssessment,
+    EvidenceAssessmentStatus, EvidenceRequirement, IdentifiabilityReport, InterpretationStatus,
+    IsmComponent, IsmModel, ModelDefinition, ModelInput, ModelPrediction, ModelState, ModelWarning,
+    ParameterSpec, ParameterValueSource, StateInitializationSource, StateSpec, StateTransformation,
+    UncertaintySpec, ValidityReport,
 };
 pub use potentiometry::units::{Quantity, QuantityUnit};
 pub use results::CircuitFitResult;
@@ -59,6 +85,7 @@ pub use results::signal::SignalAnalysisReport;
 pub use results::transient::{
     TransientAnalysisReport, TransientEventResult, TransientFeatures, TransientFitResult,
 };
+pub use runners::evidence::{EvidenceBundleInputs, assemble_evidence_bundle};
 
 /// Default logarithm base used whenever a log axis or log transform is enabled
 /// without an explicit base override.

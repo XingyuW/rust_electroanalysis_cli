@@ -245,6 +245,8 @@ impl TransientEventResult {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransientAnalysisReport {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub experiment_id: String,
     pub channel: String,
     pub channel_unit: String,

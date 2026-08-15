@@ -1,6 +1,5 @@
 //! Orchestration for `electroanalysis transient fit`.
 
-use crate::data_file::load_experiment;
 use crate::domain::ExperimentEventKind;
 use crate::plottings::plot_transient_event;
 use crate::potentiometry::{TransientAnalysisOptions, analyze_experiment};
@@ -18,6 +17,7 @@ pub fn run(
     input_path: &Path,
     metadata_path: &Path,
     channel: &str,
+    sheet: Option<&str>,
     config_path: Option<&Path>,
     output_path: Option<&Path>,
     event_kind_name: &str,
@@ -42,7 +42,8 @@ pub fn run(
         )
         .into());
     }
-    let (experiment, parse_diagnostics) = load_experiment(&input, &metadata)?;
+    let (experiment, parse_diagnostics) =
+        crate::data_file::measurement_parser::load_experiment_with_sheet(&input, &metadata, sheet)?;
     if parse_diagnostics.has_issues() {
         eprintln!(
             "Warning: input diagnostics report {} malformed rows, {} missing values, and irregular_sampling={}",
@@ -119,14 +120,7 @@ fn export_report(
     fs::create_dir_all(output_dir)
         .map_err(|error| crate::potentiometry::PotentiometryError::export(output_dir, error))?;
     let json_path = output_dir.join(&config.export.json_filename);
-    let json_file = File::create(&json_path)
-        .map_err(|error| crate::potentiometry::PotentiometryError::export(&json_path, error))?;
-    serde_json::to_writer_pretty(json_file, report).map_err(|source| {
-        crate::potentiometry::PotentiometryError::Serialization {
-            path: json_path.clone(),
-            source,
-        }
-    })?;
+    crate::domain::write_artifact(&json_path, report)?;
 
     write_features_csv(report, &output_dir.join(&config.export.features_filename))?;
     write_model_comparison_csv(

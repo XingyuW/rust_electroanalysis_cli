@@ -90,6 +90,22 @@ pub fn evaluate_nernst(
     })
 }
 
+/// Stable adapter for model-core use with the established automatic response-sign policy.
+pub fn evaluate_nernst_auto(
+    standard_potential_v: f64,
+    activity: f64,
+    temperature_k: f64,
+    charge: i32,
+) -> Result<f64, CalibrationError> {
+    evaluate_nernst(
+        standard_potential_v,
+        activity,
+        temperature_k,
+        charge,
+        ResponseSign::Auto,
+    )
+}
+
 pub fn activity_from_potential(
     potential_v: f64,
     standard_potential_v: f64,

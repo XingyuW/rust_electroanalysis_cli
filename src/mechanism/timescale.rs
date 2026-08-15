@@ -6,7 +6,196 @@ use crate::results::{
     CharacteristicTimescale, EisFitArtifact, MechanismWarning, TimescaleDerivation,
     TimescaleSource, TimescaleValidity,
 };
+use crate::{
+    evidence::{
+        EvidenceBundle, EvidenceId, EvidenceIndependence, EvidencePairKey, TimescaleCrossCovariance,
+    },
+    mechanism::{
+        config::{EvidencePairRequirement, MechanismHypothesisDefinition, TimescaleEvidenceConfig},
+        evaluation::MechanismAssessmentError,
+        evidence::EligibleRequirementEvidence,
+    },
+};
+use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimescaleStatus {
+    Satisfied,
+    Failed,
+    NotAssessed,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TimescaleAssessment {
+    pub pair_requirement_id: String,
+    pub status: TimescaleStatus,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub log_distance: Option<f64>,
+}
+pub fn evaluate_timescale_requirement(
+    _h: &MechanismHypothesisDefinition,
+    r: &EvidencePairRequirement,
+    eligible: (&EligibleRequirementEvidence, &EligibleRequirementEvidence),
+    bundle: &EvidenceBundle,
+    c: &TimescaleEvidenceConfig,
+) -> Result<TimescaleAssessment, MechanismAssessmentError> {
+    if c.algorithm != "log_ratio_v1" {
+        return Err(MechanismAssessmentError::Invalid(
+            "unsupported timescale algorithm".into(),
+        ));
+    }
+    let mut out = TimescaleAssessment {
+        pair_requirement_id: r.requirement_id.clone(),
+        status: TimescaleStatus::NotAssessed,
+        evidence_ids: vec![],
+        log_distance: None,
+    };
+    // Candidate order is structural only.  Select the first deterministic
+    // *eligible* pair after unit, positivity, independence and covariance
+    // checks; never use the first structural candidate as a scientific pair.
+    let selected = eligible
+        .0
+        .support_evidence_ids
+        .iter()
+        .flat_map(|left_id| {
+            eligible
+                .1
+                .support_evidence_ids
+                .iter()
+                .filter_map(move |right_id| {
+                    let left = bundle
+                        .records
+                        .iter()
+                        .find(|record| &record.evidence_id == left_id)?
+                        .quantity
+                        .as_ref()?;
+                    let right = bundle
+                        .records
+                        .iter()
+                        .find(|record| &record.evidence_id == right_id)?
+                        .quantity
+                        .as_ref()?;
+                    let left_value = time_to_seconds(left.value, &left.unit)?;
+                    let right_value = time_to_seconds(right.value, &right.unit)?;
+                    if left_value <= 0.0 || right_value <= 0.0 {
+                        return None;
+                    }
+                    let pair =
+                        EvidencePairKey::canonical(left_id.clone(), right_id.clone()).ok()?;
+                    let independence = bundle.lookup_independence(&pair)?;
+                    let covariance = match independence.classification {
+                        EvidenceIndependence::Independent => Some(0.0),
+                        EvidenceIndependence::SameSource
+                        | EvidenceIndependence::PartiallyDependent => bundle
+                            .lookup_timescale_pair_uncertainty(&pair)
+                            .and_then(|entry| {
+                                covariance_in_log_space(&entry.covariance, left_value, right_value)
+                            }),
+                        EvidenceIndependence::Unknown => None,
+                    }?;
+                    let variance = log_variance(left)
+                        .zip(log_variance(right))
+                        .map(|a| a.0 + a.1 - 2.0 * covariance)?;
+                    (variance.is_finite() && variance >= 0.0).then_some((
+                        left_id.clone(),
+                        right_id.clone(),
+                        left_value,
+                        right_value,
+                        variance,
+                    ))
+                })
+        })
+        .next();
+    let Some((left_id, right_id, a_value, b_value, variance)) = selected else {
+        return Ok(out);
+    };
+    out.evidence_ids = vec![left_id, right_id];
+    let d = (a_value.ln() - b_value.ln()).abs();
+    out.log_distance = Some(d);
+    let maximum_log_distance = _h
+        .timescale_gate
+        .as_ref()
+        .filter(|gate| gate.pair_requirement_id == r.requirement_id)
+        .map(|gate| gate.maximum_log_distance)
+        .ok_or_else(|| MechanismAssessmentError::Invalid("missing timescale gate".into()))?;
+    if !maximum_log_distance.is_finite() || maximum_log_distance < 0.0 {
+        return Err(MechanismAssessmentError::Invalid(
+            "invalid maximum log distance".into(),
+        ));
+    }
+    // The log-distance is only strong when its uncertainty-supported
+    // separation is within the configured boundary.  Variance is therefore
+    // a decision input, not just a report-only calculation.
+    let uncertainty_adjusted_distance = d + variance.sqrt();
+    out.status = if uncertainty_adjusted_distance <= maximum_log_distance {
+        TimescaleStatus::Satisfied
+    } else {
+        TimescaleStatus::Failed
+    };
+    Ok(out)
+}
+
+fn time_to_seconds(value: f64, unit: &str) -> Option<f64> {
+    if !value.is_finite()
+        || crate::evidence::validate_ucum_unit(unit).ok()
+            != Some(crate::evidence::EvidenceUnitDimension::Time)
+    {
+        return None;
+    }
+    let factor = match unit {
+        "s" => 1.0,
+        "ms" => 1e-3,
+        "min" => 60.0,
+        _ => return None,
+    };
+    Some(value * factor)
+}
+
+fn covariance_in_log_space(
+    covariance: &TimescaleCrossCovariance,
+    left: f64,
+    right: f64,
+) -> Option<f64> {
+    match covariance {
+        TimescaleCrossCovariance::LogSpace { covariance_ln_tau } => {
+            covariance_ln_tau.is_finite().then_some(*covariance_ln_tau)
+        }
+        TimescaleCrossCovariance::TauSpace { covariance_tau_s2 } => {
+            (covariance_tau_s2.is_finite() && left > 0.0 && right > 0.0)
+                .then_some(*covariance_tau_s2 / (left * right))
+        }
+    }
+}
+
+fn log_variance(quantity: &crate::evidence::EvidenceQuantity) -> Option<f64> {
+    match quantity
+        .uncertainty
+        .as_ref()
+        .unwrap_or(&crate::evidence::EvidenceUncertaintyModel::None)
+    {
+        crate::evidence::EvidenceUncertaintyModel::None => Some(0.0),
+        crate::evidence::EvidenceUncertaintyModel::LogNormal { variance_ln_tau_s } => {
+            (*variance_ln_tau_s >= 0.0 && variance_ln_tau_s.is_finite())
+                .then_some(*variance_ln_tau_s)
+        }
+        crate::evidence::EvidenceUncertaintyModel::DeltaMethodTauVariance { variance_tau_s2 } => {
+            if *variance_tau_s2 < 0.0 || !variance_tau_s2.is_finite() {
+                return None;
+            }
+            let value_s = time_to_seconds(quantity.value, &quantity.unit)?;
+            let standard_error_s = time_to_seconds(variance_tau_s2.sqrt(), &quantity.unit)?;
+            (value_s > 0.0).then_some(standard_error_s.powi(2) / value_s.powi(2))
+        }
+        crate::evidence::EvidenceUncertaintyModel::ExplicitLogInterval {
+            lower_ln_tau_s,
+            upper_ln_tau_s,
+            ..
+        } => (lower_ln_tau_s.is_finite()
+            && upper_ln_tau_s.is_finite()
+            && lower_ln_tau_s <= upper_ln_tau_s)
+            .then_some((upper_ln_tau_s - lower_ln_tau_s).powi(2) / 4.0),
+    }
+}
 
 pub fn extract_eis_timescales(
     artifact: &EisFitArtifact,

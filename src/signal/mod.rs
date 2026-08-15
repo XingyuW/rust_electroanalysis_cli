@@ -171,8 +171,9 @@ pub fn analyze_measurement(
     }
     let provenance =
         provenance.ok_or_else(|| SignalError::invalid("signal provenance is required"))?;
-    Ok(SignalAnalysisReport {
-        schema_version: 1,
+    let mut report = SignalAnalysisReport {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         analysis_id: format!("signal:{}:{}", provenance.input_sha256, channel.name),
         experiment_id: None,
         sensor_id: channel.sensor_id.clone(),
@@ -192,7 +193,30 @@ pub fn analyze_measurement(
         configuration: config.clone(),
         provenance,
         warnings,
-    })
+    };
+    report.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::SignalAnalysis,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        report
+            .experiment_id
+            .clone()
+            .and_then(|id| crate::domain::ExperimentId::new(id).ok())
+            .and_then(|id| crate::domain::ArtifactExperimentScope::single(id).ok())
+            .unwrap_or(crate::domain::ArtifactExperimentScope::Unknown),
+        report
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ScopeKey::specific(report.channel.clone())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &report,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3));
+    Ok(report)
 }
 
 pub fn event_is_exclusion_kind(kind: ExperimentEventKind) -> bool {

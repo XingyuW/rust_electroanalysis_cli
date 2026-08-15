@@ -1,5 +1,13 @@
 schema_version = 3
 
+[ingestion]
+# Canonical compatibility recovery is retained in every estimate artifact.
+# Reject skipped coordinate rows by default; allow at most 20% missing values
+# in the selected measurement channel, and reject a wholly missing channel.
+max_skipped_timestamp_rows = 0
+max_missing_measurement_fraction = 0.20
+reject_missing_required_channel = true
+
 [filter]
 kind = "ukf"
 confidence_level = 0.95
@@ -64,6 +72,19 @@ reject_unobservable_model = true
 empirical_perturbation = 1.0e-3
 empirical_sensitivity_tolerance = 1.0e-8
 
+[equilibrium_recognition]
+enabled = true
+minimum_history_points = 5
+minimum_elapsed_time_constants = 5.0
+maximum_normalized_state_rate_per_s = 1.0e-4
+maximum_dynamic_potential_v = 1.0e-4
+maximum_equilibrium_gap_v = 1.0e-4
+maximum_absolute_standardized_innovation = 2.0
+maximum_absolute_residual_autocorrelation = 0.2
+maximum_environment_change_fraction = 0.01
+maximum_state_uncertainty_fraction = 0.05
+require_observable = true
+
 [ekf]
 numerical_jacobian_relative_step = 1.0e-6
 use_joseph_update = true
@@ -124,3 +145,30 @@ innovations_filename = "state_innovations.csv"
 diagnostics_filename = "state_diagnostics.json"
 validation_filename = "state_validation.json"
 report_filename = "state_estimation_report.txt"
+
+[timestamp_handling]
+duplicate_policy = "deduplicate_identical"
+non_monotonic_policy = "segment_on_reset"
+non_finite_policy = "reject"
+minor_reversal_threshold_s = 1.0
+reset_threshold_s = 10.0
+reset_threshold_fraction = 0.5
+minimum_segment_points = 10
+
+# Existing workflows intentionally remain on the direct legacy backend.
+# Set backend = "compiled" to opt in to either compiled profile.
+[model]
+backend = "legacy"
+profile = "legacy_equivalent_v1"
+
+[model.input_bindings]
+target_activity = "estimated_activity"
+delta_log10_activity = "experiment_activity_step"
+temperature = "environment:temperature"
+conductivity = "environment:conductivity"
+
+[model.transduction_drive]
+source = "none"
+
+[model.observation_variance]
+combination = "estimation_only"

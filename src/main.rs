@@ -7,7 +7,8 @@ use rust_electroanalysis_cli::cli::{CliError, CommandSpec, parse_cli_args, print
 use rust_electroanalysis_cli::domain::{ConfigurationError, WorkspaceError};
 use rust_electroanalysis_cli::plot_config::PlotConfig;
 use rust_electroanalysis_cli::runners::{
-    RunnerError, calibration, estimation, fit, health, mechanism, plot, search, signal, transient,
+    RunnerError, calibration, estimation, fit, health, mechanism, model, model_validation, plot,
+    search, signal, transient,
 };
 use rust_electroanalysis_cli::workspace::{self, LastRunMode};
 use thiserror::Error as ThisError;
@@ -87,6 +88,7 @@ fn run() -> Result<(), ApplicationError> {
         }
         CommandSpec::EisSearch {
             input,
+            sheet,
             search_config_path,
             search_output,
             search_top,
@@ -101,6 +103,7 @@ fn run() -> Result<(), ApplicationError> {
             search::run(
                 &workspace_dir,
                 &input,
+                sheet.as_deref(),
                 search_config_path.as_deref(),
                 search_output.as_deref(),
                 search_top,
@@ -108,6 +111,7 @@ fn run() -> Result<(), ApplicationError> {
         }
         CommandSpec::EisFit {
             input,
+            sheet,
             circuit_model,
             output,
             artifact,
@@ -118,6 +122,7 @@ fn run() -> Result<(), ApplicationError> {
                 &workspace_dir,
                 &input,
                 circuit_model.as_deref(),
+                sheet.as_deref(),
                 output.as_deref(),
                 artifact.as_deref(),
                 report.as_deref(),
@@ -125,6 +130,7 @@ fn run() -> Result<(), ApplicationError> {
         }
         CommandSpec::EisExportFit {
             input,
+            sheet,
             circuit_model,
             artifact,
             report,
@@ -134,6 +140,7 @@ fn run() -> Result<(), ApplicationError> {
                 &workspace_dir,
                 &input,
                 circuit_model.as_deref(),
+                sheet.as_deref(),
                 &artifact,
                 report.as_deref(),
             )?;
@@ -142,6 +149,7 @@ fn run() -> Result<(), ApplicationError> {
             input,
             metadata,
             channel,
+            sheet,
             config_path,
             output,
             event_kind,
@@ -164,6 +172,7 @@ fn run() -> Result<(), ApplicationError> {
                 &input,
                 &metadata,
                 &channel,
+                sheet.as_deref(),
                 config_path.as_deref(),
                 output.as_deref(),
                 &event_kind,
@@ -178,6 +187,7 @@ fn run() -> Result<(), ApplicationError> {
             input,
             metadata,
             channel,
+            sheet,
             transient_results,
             config_path,
             output,
@@ -189,12 +199,15 @@ fn run() -> Result<(), ApplicationError> {
             )?;
             calibration::extract(
                 &workspace_dir,
-                &input,
-                &metadata,
-                &channel,
-                transient_results.as_deref(),
-                config_path.as_deref(),
-                output.as_deref(),
+                calibration::ExtractOptions {
+                    input_path: &input,
+                    metadata_path: &metadata,
+                    channel: &channel,
+                    sheet: sheet.as_deref(),
+                    transient_results_path: transient_results.as_deref(),
+                    config_path: config_path.as_deref(),
+                    output_path: output.as_deref(),
+                },
             )?;
         }
         CommandSpec::CalibrationFit {
@@ -264,6 +277,10 @@ fn run() -> Result<(), ApplicationError> {
             metadata,
             config_path,
             output,
+            mechanism_evidence_config,
+            state_estimation,
+            calibration_observations,
+            prior_mechanism_artifact,
         } => {
             workspace_setup.record_last_run(
                 LastRunMode::MechanismCompare,
@@ -272,15 +289,28 @@ fn run() -> Result<(), ApplicationError> {
                 output.as_deref(),
                 None,
             )?;
-            mechanism::compare(
-                &workspace_dir,
-                &eis_fit,
-                &transient_results,
-                calibration_results.as_deref(),
-                metadata.as_deref(),
-                config_path.as_deref(),
-                output.as_deref(),
-            )?;
+            if let Some(phase_b_config) = mechanism_evidence_config.as_deref() {
+                mechanism::compare_phase_b(
+                    &workspace_dir,
+                    phase_b_config,
+                    &eis_fit,
+                    &transient_results,
+                    state_estimation.as_deref(),
+                    calibration_observations.as_deref(),
+                    prior_mechanism_artifact.as_deref(),
+                    output.as_deref(),
+                )?;
+            } else {
+                mechanism::compare(
+                    &workspace_dir,
+                    &eis_fit,
+                    &transient_results,
+                    calibration_results.as_deref(),
+                    metadata.as_deref(),
+                    config_path.as_deref(),
+                    output.as_deref(),
+                )?;
+            }
         }
         CommandSpec::MechanismTrend {
             manifest,
@@ -315,6 +345,7 @@ fn run() -> Result<(), ApplicationError> {
             input,
             metadata,
             channel,
+            sheet,
             config_path,
             output,
         } => {
@@ -323,6 +354,7 @@ fn run() -> Result<(), ApplicationError> {
                 &input,
                 metadata.as_deref(),
                 &channel,
+                sheet.as_deref(),
                 config_path.as_deref(),
                 output.as_deref(),
             )?;
@@ -412,6 +444,7 @@ fn run() -> Result<(), ApplicationError> {
             input,
             metadata,
             channel,
+            sheet,
             calibration_model,
             signal_results,
             transient_results,
@@ -439,6 +472,7 @@ fn run() -> Result<(), ApplicationError> {
                     input,
                     metadata,
                     channel,
+                    sheet,
                     calibration_model,
                     signal_results,
                     transient_results,
@@ -487,6 +521,7 @@ fn run() -> Result<(), ApplicationError> {
             input,
             metadata,
             channel,
+            sheet,
             calibration_model,
             filters,
             config_path,
@@ -505,6 +540,7 @@ fn run() -> Result<(), ApplicationError> {
                     input,
                     metadata,
                     channel,
+                    sheet,
                     calibration_model,
                     signal_results: None,
                     transient_results: None,
@@ -531,6 +567,62 @@ fn run() -> Result<(), ApplicationError> {
                 None,
             )?;
             estimation::report(&workspace_dir, &results, output.as_deref())?;
+        }
+        CommandSpec::ModelValidate {
+            model: model_path,
+            manifest,
+            output,
+        } => {
+            if let Some(manifest) = manifest {
+                model_validation::run(&workspace_dir, &manifest, output.as_deref())?;
+            } else {
+                model::validate(&workspace_dir, model_path.as_deref(), output.as_deref())?;
+            }
+        }
+        CommandSpec::ModelSimulate {
+            model: model_path,
+            output,
+            steps,
+            dt_s,
+        } => {
+            model::simulate(
+                &workspace_dir,
+                model_path.as_deref(),
+                output.as_deref(),
+                steps,
+                dt_s,
+            )?;
+        }
+        CommandSpec::ModelDecompose {
+            model: model_path,
+            input,
+            measurement,
+            metadata,
+            calibration_model,
+            transient_results,
+            eis_fit,
+            signal_results,
+            mechanism_results,
+            health_assessment,
+            output,
+        } => {
+            model::decompose(
+                &workspace_dir,
+                model_path.as_deref(),
+                input.as_deref(),
+                measurement.as_deref(),
+                metadata.as_deref(),
+                calibration_model.as_deref(),
+                transient_results.as_deref(),
+                eis_fit.as_deref(),
+                signal_results.as_deref(),
+                mechanism_results.as_deref(),
+                health_assessment.as_deref(),
+                output.as_deref(),
+            )?;
+        }
+        CommandSpec::ModelReport { results, output } => {
+            model::report(&workspace_dir, &results, output.as_deref())?;
         }
     }
 

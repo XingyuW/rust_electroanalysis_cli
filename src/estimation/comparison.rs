@@ -2,6 +2,7 @@
 
 use crate::{
     estimation::error::EstimationError,
+    estimation::state::{EstimationWarning, EstimationWarningKind},
     estimation_config::FilterKind,
     results::{FilterComparisonRecord, StateEstimationReport, StateFilterComparison},
 };
@@ -43,6 +44,8 @@ pub fn compare_reports(
             .collect::<Vec<_>>();
         records.push(FilterComparisonRecord {
             filter: *filter,
+            model_backend: report.model_backend,
+            model_profile: report.model_profile,
             runtime_ms: 0.0,
             activity_rmse: rmse,
             innovation_mean: report.diagnostics.innovation_mean,
@@ -88,10 +91,26 @@ pub fn compare_reports(
             },
         });
     }
+    let mut warnings = Vec::new();
+    if reports.len() > 1 {
+        let first = &reports[0].1;
+        for (_, report) in reports.iter().skip(1) {
+            if report.timestamp_segments != first.timestamp_segments
+                || report.timestamp_policy != first.timestamp_policy
+            {
+                warnings.push(EstimationWarning::new(
+                    EstimationWarningKind::ModelDiscrepancy,
+                    "reports were generated with incompatible timestamp preprocessing metadata",
+                ));
+                break;
+            }
+        }
+    }
     StateFilterComparison {
-        schema_version: 2,
+        schema_version: 3,
         records,
-        warnings: Vec::new(),
+        warnings,
+        ingestion_diagnostics: Default::default(),
     }
 }
 

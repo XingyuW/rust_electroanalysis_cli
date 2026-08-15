@@ -1,17 +1,22 @@
 # data_file subsystem
 
-`data_file` converts raw instrument exports into backend plotting/search data structures.
+`electrodata-io` owns physical/raw input detection, parsing, worksheet
+selection, scientific roles, recovery diagnostics, and raw input errors.
+`data_file` owns only conversion of its typed datasets into this project's
+domain, plotting, and analysis structures.
 
 ## Files
 
 - `chi_file.rs`
-  - Parses CHI-like text/CSV sources.
+  - Converts canonical CHI-like time-series/EIS datasets.
   - Produces `ElectrochemData` for regular plots and `EISData` for EIS/search workflows.
   - Extracts metadata used in labels and report outputs.
 - `measurement_parser.rs`
-  - Parses CHI-style or generic time-series text into
+  - Converts canonical time-series datasets into
     `MultiChannelMeasurement`.
   - Returns `MeasurementParseResult` with explicit `ParseDiagnostics`.
+  - Its file API is a domain adapter; `parse_measurement_text` is deprecated
+    compatibility/testing surface, not a second raw-input reader.
 - `measurement_adapter.rs`
   - Projects scientific measurements into the existing `PlotData` type.
   - Keeps missing scientific values out of rendered point pairs without
@@ -22,6 +27,9 @@
 - `value_transform.rs`
   - Resolves axis transforms (none, log, linear, legacy negative-log).
   - Builds transform terms used in regression annotation equations.
+- `excel_file.rs` and `InputKind`
+  - Compatibility/reference helpers; neither owns production XLSX reading nor
+    local physical-format detection.
 
 ## Integration points
 

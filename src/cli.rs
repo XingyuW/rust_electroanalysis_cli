@@ -80,6 +80,73 @@ pub enum Command {
         #[command(subcommand)]
         command: EstimateCommand,
     },
+    /// Validate, simulate, decompose, and report unified ISM models.
+    Model {
+        #[command(subcommand)]
+        command: ModelCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ModelCommand {
+    Validate(ModelValidateCommand),
+    Simulate(ModelSimulateCommand),
+    Decompose(ModelDecomposeCommand),
+    Report(ModelReportCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct ModelValidateCommand {
+    #[arg(long)]
+    pub model: Option<PathBuf>,
+    #[arg(long)]
+    pub manifest: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+#[derive(Debug, Args)]
+pub struct ModelSimulateCommand {
+    #[arg(long)]
+    pub model: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+    #[arg(long, default_value_t = 10)]
+    pub steps: usize,
+    #[arg(long, default_value_t = 1.0)]
+    pub dt_s: f64,
+}
+#[derive(Debug, Args)]
+pub struct ModelDecomposeCommand {
+    #[arg(long)]
+    pub model: Option<PathBuf>,
+    /// JSON `ModelInput` records; this is the deterministic measurement adapter.
+    #[arg(long)]
+    pub input: Option<PathBuf>,
+    #[arg(long)]
+    pub measurement: Option<PathBuf>,
+    #[arg(long)]
+    pub metadata: Option<PathBuf>,
+    #[arg(long = "calibration-model")]
+    pub calibration_model: Option<PathBuf>,
+    #[arg(long = "transient-results")]
+    pub transient_results: Option<PathBuf>,
+    #[arg(long = "eis-fit")]
+    pub eis_fit: Option<PathBuf>,
+    #[arg(long = "signal-results")]
+    pub signal_results: Option<PathBuf>,
+    #[arg(long = "mechanism-results")]
+    pub mechanism_results: Option<PathBuf>,
+    #[arg(long = "health-assessment")]
+    pub health_assessment: Option<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+#[derive(Debug, Args)]
+pub struct ModelReportCommand {
+    #[arg(long)]
+    pub results: PathBuf,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -100,6 +167,8 @@ pub struct EstimateRunCommand {
     pub metadata: PathBuf,
     #[arg(long)]
     pub channel: String,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     #[arg(long = "calibration-model")]
     pub calibration_model: PathBuf,
     #[arg(long = "signal-results")]
@@ -153,6 +222,8 @@ pub struct EstimateCompareCommand {
     pub metadata: PathBuf,
     #[arg(long)]
     pub channel: String,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     #[arg(long = "calibration-model")]
     pub calibration_model: PathBuf,
     #[arg(long)]
@@ -212,6 +283,8 @@ pub struct SignalCharacterizeCommand {
     pub metadata: Option<PathBuf>,
     #[arg(long)]
     pub channel: String,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     #[arg(long)]
     pub config: Option<PathBuf>,
     #[arg(long)]
@@ -322,6 +395,8 @@ pub struct CalibrationExtractCommand {
     pub metadata: PathBuf,
     #[arg(long, value_name = "NAME")]
     pub channel: String,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     #[arg(long, value_name = "PATH")]
     pub transient_results: Option<PathBuf>,
     #[arg(long, value_name = "PATH")]
@@ -461,6 +536,8 @@ pub struct TransientFitCommand {
     /// Measurement channel name, for example `E1/V` or `potential`.
     #[arg(long, value_name = "NAME")]
     pub channel: String,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     /// Transient configuration override.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
@@ -492,6 +569,10 @@ pub struct EisFitCommand {
     /// Input CHI EIS file.
     #[arg(value_name = "INPUT")]
     pub input: PathBuf,
+    /// Canonical XLSX worksheet name. Without it, electrodata-io selects one
+    /// compatible EIS worksheet or returns structured ambiguity.
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     /// Circuit expression override, for example `R0-p(CPE1,R1)`.
     #[arg(
         short = 'c',
@@ -515,6 +596,8 @@ pub struct EisFitCommand {
 pub struct EisExportFitCommand {
     #[arg(value_name = "INPUT")]
     pub input: PathBuf,
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     #[arg(
         short = 'c',
         long = "circuit",
@@ -530,10 +613,10 @@ pub struct EisExportFitCommand {
 
 #[derive(Debug, Args)]
 pub struct MechanismCompareCommand {
-    #[arg(long, value_name = "PATH")]
-    pub eis_fit: PathBuf,
-    #[arg(long, value_name = "PATH")]
-    pub transient_results: PathBuf,
+    #[arg(long = "eis-artifact", value_name = "PATH")]
+    pub eis_fit_artifact: PathBuf,
+    #[arg(long = "transient-artifact", value_name = "PATH")]
+    pub transient_results_artifact: PathBuf,
     #[arg(long, value_name = "PATH")]
     pub calibration_results: Option<PathBuf>,
     #[arg(long, value_name = "PATH")]
@@ -542,6 +625,16 @@ pub struct MechanismCompareCommand {
     pub config: Option<PathBuf>,
     #[arg(long, value_name = "PATH")]
     pub output: Option<PathBuf>,
+    /// Phase-B evidence contract; intentionally separate from the legacy
+    /// general mechanism configuration.
+    #[arg(long = "mechanism-evidence-config", value_name = "PATH")]
+    pub mechanism_evidence_config: Option<PathBuf>,
+    #[arg(long = "state-estimation-artifact", value_name = "PATH")]
+    pub state_estimation_artifact: Option<PathBuf>,
+    #[arg(long = "calibration-observations-artifact", value_name = "PATH")]
+    pub calibration_observations_artifact: Option<PathBuf>,
+    #[arg(long = "prior-mechanism-artifact", value_name = "PATH")]
+    pub prior_mechanism_artifact: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -567,6 +660,9 @@ pub struct EisSearchCommand {
     /// EIS file or directory to search.
     #[arg(value_name = "INPUT")]
     pub input: PathBuf,
+    /// Apply this canonical XLSX worksheet selector to every input file.
+    #[arg(long, value_name = "NAME")]
+    pub sheet: Option<String>,
     /// Override the analysis TOML file.
     #[arg(long = "search-config", alias = "config", value_name = "PATH")]
     pub search_config: Option<PathBuf>,
@@ -610,6 +706,7 @@ pub enum CommandSpec {
     },
     EisFit {
         input: PathBuf,
+        sheet: Option<String>,
         circuit_model: Option<String>,
         output: Option<PathBuf>,
         artifact: Option<PathBuf>,
@@ -617,12 +714,14 @@ pub enum CommandSpec {
     },
     EisExportFit {
         input: PathBuf,
+        sheet: Option<String>,
         circuit_model: Option<String>,
         artifact: PathBuf,
         report: Option<PathBuf>,
     },
     EisSearch {
         input: PathBuf,
+        sheet: Option<String>,
         search_config_path: Option<PathBuf>,
         search_output: Option<PathBuf>,
         search_top: Option<usize>,
@@ -631,6 +730,7 @@ pub enum CommandSpec {
         input: PathBuf,
         metadata: PathBuf,
         channel: String,
+        sheet: Option<String>,
         config_path: Option<PathBuf>,
         output: Option<PathBuf>,
         event_kind: String,
@@ -644,6 +744,7 @@ pub enum CommandSpec {
         input: PathBuf,
         metadata: PathBuf,
         channel: String,
+        sheet: Option<String>,
         transient_results: Option<PathBuf>,
         config_path: Option<PathBuf>,
         output: Option<PathBuf>,
@@ -677,6 +778,10 @@ pub enum CommandSpec {
         metadata: Option<PathBuf>,
         config_path: Option<PathBuf>,
         output: Option<PathBuf>,
+        mechanism_evidence_config: Option<PathBuf>,
+        state_estimation: Option<PathBuf>,
+        calibration_observations: Option<PathBuf>,
+        prior_mechanism_artifact: Option<PathBuf>,
     },
     MechanismTrend {
         manifest: PathBuf,
@@ -691,6 +796,7 @@ pub enum CommandSpec {
         input: PathBuf,
         metadata: Option<PathBuf>,
         channel: String,
+        sheet: Option<String>,
         config_path: Option<PathBuf>,
         output: Option<PathBuf>,
     },
@@ -736,6 +842,7 @@ pub enum CommandSpec {
         input: PathBuf,
         metadata: PathBuf,
         channel: String,
+        sheet: Option<String>,
         calibration_model: PathBuf,
         signal_results: Option<PathBuf>,
         transient_results: Option<PathBuf>,
@@ -764,12 +871,41 @@ pub enum CommandSpec {
         input: PathBuf,
         metadata: PathBuf,
         channel: String,
+        sheet: Option<String>,
         calibration_model: PathBuf,
         filters: Option<String>,
         config_path: Option<PathBuf>,
         output: Option<PathBuf>,
     },
     EstimateReport {
+        results: PathBuf,
+        output: Option<PathBuf>,
+    },
+    ModelValidate {
+        model: Option<PathBuf>,
+        manifest: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    ModelSimulate {
+        model: Option<PathBuf>,
+        output: Option<PathBuf>,
+        steps: usize,
+        dt_s: f64,
+    },
+    ModelDecompose {
+        model: Option<PathBuf>,
+        input: Option<PathBuf>,
+        measurement: Option<PathBuf>,
+        metadata: Option<PathBuf>,
+        calibration_model: Option<PathBuf>,
+        transient_results: Option<PathBuf>,
+        eis_fit: Option<PathBuf>,
+        signal_results: Option<PathBuf>,
+        mechanism_results: Option<PathBuf>,
+        health_assessment: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+    ModelReport {
         results: PathBuf,
         output: Option<PathBuf>,
     },
@@ -829,8 +965,7 @@ impl CliArgs {
                 input,
                 circuit_model,
                 output,
-                artifact: _,
-                report: _,
+                ..
             }) => {
                 result.fit_target = Some(input);
                 result.fit_circuit_model = circuit_model;
@@ -844,6 +979,7 @@ impl CliArgs {
                 search_config_path,
                 search_output,
                 search_top,
+                ..
             }) => {
                 result.search_target = Some(input);
                 result.search_config_path = search_config_path;
@@ -870,6 +1006,10 @@ impl CliArgs {
             | Some(CommandSpec::EstimateSimulate { .. })
             | Some(CommandSpec::EstimateCompare { .. })
             | Some(CommandSpec::EstimateReport { .. }) => {}
+            Some(CommandSpec::ModelValidate { .. })
+            | Some(CommandSpec::ModelSimulate { .. })
+            | Some(CommandSpec::ModelDecompose { .. })
+            | Some(CommandSpec::ModelReport { .. }) => {}
             None => {}
         }
 
@@ -922,6 +1062,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
             Command::Eis { command } => match command {
                 EisCommand::Fit(command) => CommandSpec::EisFit {
                     input: command.input,
+                    sheet: command.sheet,
                     circuit_model: command.circuit_model,
                     output: command.output,
                     artifact: command.artifact,
@@ -929,6 +1070,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                 },
                 EisCommand::ExportFit(command) => CommandSpec::EisExportFit {
                     input: command.input,
+                    sheet: command.sheet,
                     circuit_model: command.circuit_model,
                     artifact: command.artifact,
                     report: command.report,
@@ -937,6 +1079,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     validate_search_top(command.search_top)?;
                     CommandSpec::EisSearch {
                         input: command.input,
+                        sheet: command.sheet,
                         search_config_path: command.search_config,
                         search_output: command.search_output,
                         search_top: command.search_top,
@@ -948,6 +1091,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     input: command.input,
                     metadata: command.metadata,
                     channel: command.channel,
+                    sheet: command.sheet,
                     config_path: command.config,
                     output: command.output,
                     event_kind: command.event_kind.as_str().to_string(),
@@ -965,6 +1109,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     input: command.input,
                     metadata: command.metadata,
                     channel: command.channel,
+                    sheet: command.sheet,
                     transient_results: command.transient_results,
                     config_path: command.config,
                     output: command.output,
@@ -1012,12 +1157,16 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
             },
             Command::Mechanism { command } => match command {
                 MechanismCommand::Compare(command) => CommandSpec::MechanismCompare {
-                    eis_fit: command.eis_fit,
-                    transient_results: command.transient_results,
+                    eis_fit: command.eis_fit_artifact,
+                    transient_results: command.transient_results_artifact,
                     calibration_results: command.calibration_results,
                     metadata: command.metadata,
                     config_path: command.config,
                     output: command.output,
+                    mechanism_evidence_config: command.mechanism_evidence_config,
+                    state_estimation: command.state_estimation_artifact,
+                    calibration_observations: command.calibration_observations_artifact,
+                    prior_mechanism_artifact: command.prior_mechanism_artifact,
                 },
                 MechanismCommand::Trend(command) => CommandSpec::MechanismTrend {
                     manifest: command.manifest,
@@ -1034,6 +1183,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     input: c.input,
                     metadata: c.metadata,
                     channel: c.channel,
+                    sheet: c.sheet,
                     config_path: c.config,
                     output: c.output,
                 },
@@ -1083,6 +1233,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     input: c.input,
                     metadata: c.metadata,
                     channel: c.channel,
+                    sheet: c.sheet,
                     calibration_model: c.calibration_model,
                     signal_results: c.signal_results,
                     transient_results: c.transient_results,
@@ -1111,12 +1262,43 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     input: c.input,
                     metadata: c.metadata,
                     channel: c.channel,
+                    sheet: c.sheet,
                     calibration_model: c.calibration_model,
                     filters: c.filters,
                     config_path: c.config,
                     output: c.output,
                 },
                 EstimateCommand::Report(c) => CommandSpec::EstimateReport {
+                    results: c.results,
+                    output: c.output,
+                },
+            },
+            Command::Model { command } => match command {
+                ModelCommand::Validate(c) => CommandSpec::ModelValidate {
+                    model: c.model,
+                    manifest: c.manifest,
+                    output: c.output,
+                },
+                ModelCommand::Simulate(c) => CommandSpec::ModelSimulate {
+                    model: c.model,
+                    output: c.output,
+                    steps: c.steps,
+                    dt_s: c.dt_s,
+                },
+                ModelCommand::Decompose(c) => CommandSpec::ModelDecompose {
+                    model: c.model,
+                    input: c.input,
+                    measurement: c.measurement,
+                    metadata: c.metadata,
+                    calibration_model: c.calibration_model,
+                    transient_results: c.transient_results,
+                    eis_fit: c.eis_fit,
+                    signal_results: c.signal_results,
+                    mechanism_results: c.mechanism_results,
+                    health_assessment: c.health_assessment,
+                    output: c.output,
+                },
+                ModelCommand::Report(c) => CommandSpec::ModelReport {
                     results: c.results,
                     output: c.output,
                 },
@@ -1131,6 +1313,7 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
         validate_search_top(legacy.search_top)?;
         CommandSpec::EisSearch {
             input: search_target,
+            sheet: None,
             search_config_path: legacy.search_config,
             search_output: legacy.search_output,
             search_top: legacy.search_top,
@@ -1227,6 +1410,7 @@ mod tests {
             parsed.command,
             Some(CommandSpec::EisSearch {
                 input: "data/sample.csv".into(),
+                sheet: None,
                 search_config_path: Some("analysis.toml".into()),
                 search_output: Some("reports".into()),
                 search_top: Some(7),

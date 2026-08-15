@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use rust_electroanalysis_cli::data_file::{
     ElectrochemData, measurement_to_plot_data, parse_measurement_text,
 };

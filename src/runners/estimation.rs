@@ -1,6 +1,5 @@
 use super::RunnerError;
 use crate::{
-    data_file::measurement_parser::load_experiment,
     estimation::{
         self,
         calibration_adapter::StoredCalibrationObservationModel,
@@ -12,10 +11,9 @@ use crate::{
     results::{
         CalibrationAnalysisReport, EisFitArtifact, MechanismAnalysisReport, SensorHealthAssessment,
         SensorHealthBaseline, SignalAnalysisReport, StateEstimationReport, StateFilterComparison,
-        StateValidationResult, TransientAnalysisReport,
+        StateValidationResult, StoredCalibrationModel, TransientAnalysisReport,
     },
 };
-use serde::de::DeserializeOwned;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -27,6 +25,7 @@ pub struct RunOptions {
     pub input: PathBuf,
     pub metadata: PathBuf,
     pub channel: String,
+    pub sheet: Option<String>,
     pub calibration_model: PathBuf,
     pub signal_results: Option<PathBuf>,
     pub transient_results: Option<PathBuf>,
@@ -42,6 +41,16 @@ pub struct RunOptions {
     pub seed: Option<u64>,
 }
 
+/// Canonically read estimation input after applying the configured acceptance
+/// policy.  Both `estimate run` and `estimate compare` use this boundary so a
+/// recovered physical input cannot be accepted by one workflow and rejected
+/// by the other.
+struct ValidatedEstimationInput {
+    experiment: crate::domain::ElectrochemicalExperiment,
+    ingestion: crate::domain::ParseDiagnostics,
+    warnings: Vec<crate::estimation::state::EstimationWarning>,
+}
+
 pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
     let input = resolve(workspace, &options.input);
     let metadata = resolve(workspace, &options.metadata);
@@ -53,11 +62,16 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         options.model.as_deref(),
         options.seed,
     )?;
-    let (experiment, _) = load_experiment(&input, &metadata)?;
-    let calibration = StoredCalibrationObservationModel::new(read_json(&resolve(
-        workspace,
-        &options.calibration_model,
-    ))?)?;
+    let validated = load_validated_input(
+        &input,
+        &metadata,
+        options.sheet.as_deref(),
+        &options.channel,
+        &config,
+    )?;
+    let calibration_artifact: StoredCalibrationModel =
+        read_versioned(&resolve(workspace, &options.calibration_model))?;
+    let calibration = StoredCalibrationObservationModel::new(calibration_artifact.clone())?;
     let signal = read_optional::<SignalAnalysisReport>(workspace, options.signal_results.as_ref())?;
     let transient =
         read_optional::<TransientAnalysisReport>(workspace, options.transient_results.as_ref())?;
@@ -72,8 +86,8 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         read_optional::<SensorHealthBaseline>(workspace, options.health_baseline.as_ref())?;
     let assessment =
         read_optional::<SensorHealthAssessment>(workspace, options.health_assessment.as_ref())?;
-    let report = estimation::estimate_experiment(
-        &experiment,
+    let execution = estimation::estimate_experiment_with_usage(
+        &validated.experiment,
         &options.channel,
         calibration,
         &config,
@@ -88,7 +102,165 @@ pub fn run(workspace: &Path, options: RunOptions) -> Result<(), RunnerError> {
         },
         config.filter.kind,
     )?;
+    let estimation::EstimationExecution {
+        mut report,
+        input_usage,
+    } = execution;
+    report.warnings.extend(validated.warnings);
+    report.ingestion_diagnostics = validated.ingestion;
+    // Persist only artifacts that this execution can use in estimator science.
+    // Supplied mechanism and health reports are not estimator inputs. EIS is
+    // read by the observability/identifiability gate, so retain it as a
+    // validation dependency whenever supplied even though it is not a state
+    // update measurement.
+    let mut source_lineages = vec![(
+        &calibration_artifact.lineage,
+        crate::domain::ArtifactDependencyRole::Calibration,
+    )];
+    for (lineage, role) in [
+        input_usage
+            .signal_measurement_variance
+            .then(|| signal.as_ref().map(|artifact| &artifact.lineage))
+            .flatten()
+            .map(|x| (x, crate::domain::ArtifactDependencyRole::AuxiliaryInput)),
+        input_usage
+            .transient_tau
+            .then(|| transient.as_ref().map(|artifact| &artifact.lineage))
+            .flatten()
+            .map(|x| (x, crate::domain::ArtifactDependencyRole::Initialization)),
+        input_usage
+            .calibration_measurement_variance
+            .then(|| {
+                calibration_results
+                    .as_ref()
+                    .map(|artifact| &artifact.lineage)
+            })
+            .flatten()
+            .map(|x| (x, crate::domain::ArtifactDependencyRole::Calibration)),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        source_lineages.push((lineage, role));
+    }
+    if let Some(eis) = eis.as_ref() {
+        source_lineages.push((
+            &eis.lineage,
+            crate::domain::ArtifactDependencyRole::ValidationInput,
+        ));
+    }
+    let (dependency_scope, acquisition_families) = crate::domain::lineage_scope_and_families(
+        "state-estimation-v1",
+        source_lineages.iter().map(|(lineage, _)| *lineage),
+    );
+    let experiment_scope = match dependency_scope {
+        crate::domain::ArtifactExperimentScope::Unknown => {
+            crate::domain::ExperimentId::new(report.experiment_id.clone())
+                .and_then(crate::domain::ArtifactExperimentScope::single)
+                .unwrap_or(crate::domain::ArtifactExperimentScope::Unknown)
+        }
+        scope => scope,
+    };
+    let dependencies = source_lineages
+        .iter()
+        .filter_map(|(lineage, role)| crate::domain::dependency_from_lineage(lineage, role.clone()))
+        .collect::<Vec<_>>();
+    report.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::StateEstimation,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        experiment_scope,
+        report
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ScopeKey::specific(report.channel.clone())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        acquisition_families,
+        dependencies,
+        &report,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(report.schema_version));
+    // A1's neutral evidence infrastructure is part of the production
+    // transient → estimation integrity route.  It validates loaded source
+    // artifacts and the finished estimation lineage without producing a
+    // mechanism or health conclusion.
+    crate::runners::evidence::assemble_evidence_bundle(
+        crate::runners::evidence::EvidenceBundleInputs {
+            calibration_model: Some(calibration_artifact),
+            transient,
+            estimation: Some(report.clone()),
+            eis_fit: eis,
+            calibration_observations: None,
+        },
+    )
+    .map_err(|error| {
+        RunnerError::Message(format!("A1 evidence bundle validation failed: {error}"))
+    })?;
     export_report(workspace, options.output.as_deref(), &report)
+}
+
+fn load_validated_input(
+    input: &Path,
+    metadata: &Path,
+    sheet: Option<&str>,
+    channel: &str,
+    config: &ResolvedEstimationConfig,
+) -> Result<ValidatedEstimationInput, RunnerError> {
+    let (experiment, ingestion) =
+        crate::data_file::measurement_parser::load_experiment_with_sheet(input, metadata, sheet)?;
+    validate_ingestion(&experiment, channel, &ingestion, config)?;
+    let warnings = ingestion.has_issues().then(|| {
+        crate::estimation::state::EstimationWarning::new(
+            crate::estimation::state::EstimationWarningKind::IngestionRecovery,
+            format!(
+                "canonical ingestion recovery retained: {} skipped row(s), {} missing measurement cell(s), {} provider diagnostic(s)",
+                ingestion.skipped_rows,
+                ingestion.missing_values,
+                ingestion.ingestion_diagnostics.len()
+            ),
+        )
+    }).into_iter().collect();
+    Ok(ValidatedEstimationInput {
+        experiment,
+        ingestion,
+        warnings,
+    })
+}
+
+fn validate_ingestion(
+    experiment: &crate::domain::ElectrochemicalExperiment,
+    channel: &str,
+    diagnostics: &crate::domain::ParseDiagnostics,
+    config: &ResolvedEstimationConfig,
+) -> Result<(), RunnerError> {
+    let policy = &config.ingestion;
+    if diagnostics.skipped_rows > policy.max_skipped_timestamp_rows {
+        return Err(RunnerError::Message(format!(
+            "estimation rejected: {} timestamp row(s) were skipped during canonical ingestion (limit {})",
+            diagnostics.skipped_rows, policy.max_skipped_timestamp_rows
+        )));
+    }
+    let selected = experiment
+        .measurement_data
+        .channel(channel)
+        .ok_or_else(|| RunnerError::Message(format!("estimation channel '{channel}' is absent")))?;
+    let missing = selected.missing_value_count();
+    let fraction = missing as f64 / selected.values.len().max(1) as f64;
+    if policy.reject_missing_required_channel && missing == selected.values.len() {
+        return Err(RunnerError::Message(format!(
+            "estimation rejected: required channel '{channel}' has no usable measurements after canonical ingestion"
+        )));
+    }
+    if fraction > policy.max_missing_measurement_fraction {
+        return Err(RunnerError::Message(format!(
+            "estimation rejected: channel '{channel}' has {:.1}% missing measurements after canonical ingestion (limit {:.1}%)",
+            fraction * 100.0,
+            policy.max_missing_measurement_fraction * 100.0
+        )));
+    }
+    Ok(())
 }
 
 pub fn validate(
@@ -97,7 +269,7 @@ pub fn validate(
     truth_path: &Path,
     output: Option<&Path>,
 ) -> Result<(), RunnerError> {
-    let report: StateEstimationReport = read_json(&resolve(workspace, results))?;
+    let report: StateEstimationReport = read_versioned(&resolve(workspace, results))?;
     let truth = validation::read_truth_csv(&resolve(workspace, truth_path))?;
     let result = validation::validate_report(
         &report,
@@ -133,7 +305,7 @@ pub fn simulate(
     let dir = output_dir(workspace, output, "estimation_simulation");
     fs::create_dir_all(&dir)?;
     write_json(&dir.join("simulation.json"), &result)?;
-    write_json(
+    crate::domain::write_artifact(
         &dir.join("simulation_calibration_model.json"),
         &simulation::simulation_model(),
     )?;
@@ -185,9 +357,15 @@ pub fn compare(
     let metadata = resolve(workspace, &options.metadata);
     let loaded = load_config(workspace, options.config.as_deref())?;
     let config = loaded.config;
-    let (experiment, _) = load_experiment(&input, &metadata)?;
+    let validated = load_validated_input(
+        &input,
+        &metadata,
+        options.sheet.as_deref(),
+        &options.channel,
+        &config,
+    )?;
     let calibration_model: crate::results::StoredCalibrationModel =
-        read_json(&resolve(workspace, &options.calibration_model))?;
+        read_versioned(&resolve(workspace, &options.calibration_model))?;
     let signal = read_optional::<SignalAnalysisReport>(workspace, options.signal_results.as_ref())?;
     let transient =
         read_optional::<TransientAnalysisReport>(workspace, options.transient_results.as_ref())?;
@@ -210,7 +388,7 @@ pub fn compare(
     for filter in selected {
         let start = Instant::now();
         let report = estimation::estimate_experiment(
-            &experiment,
+            &validated.experiment,
             &options.channel,
             StoredCalibrationObservationModel::new(calibration_model.clone())?,
             &config,
@@ -222,6 +400,9 @@ pub fn compare(
             },
             filter,
         )?;
+        let mut report = report;
+        report.warnings.extend(validated.warnings.clone());
+        report.ingestion_diagnostics = validated.ingestion.clone();
         reports.push((filter, report));
         runtimes_ms.push(start.elapsed().as_secs_f64() * 1000.0);
     }
@@ -229,6 +410,8 @@ pub fn compare(
     for (record, runtime_ms) in comparison.records.iter_mut().zip(runtimes_ms) {
         record.runtime_ms = runtime_ms;
     }
+    comparison.warnings.extend(validated.warnings);
+    comparison.ingestion_diagnostics = validated.ingestion;
     let dir = output_dir(
         workspace,
         options.output.as_deref(),
@@ -245,7 +428,7 @@ pub fn compare(
 }
 
 pub fn report(workspace: &Path, results: &Path, output: Option<&Path>) -> Result<(), RunnerError> {
-    let report: StateEstimationReport = read_json(&resolve(workspace, results))?;
+    let report: StateEstimationReport = read_versioned(&resolve(workspace, results))?;
     let dest = output_file(workspace, output, "state_estimation_report.txt");
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
@@ -263,10 +446,8 @@ fn export_report(
     let dir = output_dir(workspace, output, "estimation");
     fs::create_dir_all(&dir)?;
     let c = &report.configuration.export;
-    fs::write(
-        dir.join(&c.results_filename),
-        crate::results::estimation::finite_json(report).map_err(RunnerError::Json)?,
-    )?;
+    crate::results::estimation::finite_json(report).map_err(RunnerError::Json)?;
+    crate::domain::write_artifact(&dir.join(&c.results_filename), report)?;
     write_json(&dir.join(&c.diagnostics_filename), &report.diagnostics)?;
     write_json(
         &dir.join(&c.validation_filename),
@@ -274,7 +455,9 @@ fn export_report(
     )?;
     let mut states = csv::Writer::from_path(dir.join(&c.states_filename))?;
     states.write_record([
+        "segment_id",
         "timestamp_s",
+        "original_row_index",
         "state",
         "value",
         "standard_error",
@@ -287,7 +470,12 @@ fn export_report(
     for point in &report.estimates {
         for value in &point.filtered_state {
             states.write_record([
+                point.segment_id.to_string(),
                 point.timestamp_s.to_string(),
+                point
+                    .original_row_index
+                    .map(|index| index.to_string())
+                    .unwrap_or_default(),
                 value.name.clone(),
                 fmt(value.value),
                 fmt(value.standard_error),
@@ -329,7 +517,25 @@ fn export_report(
     Ok(())
 }
 
-fn human_report(r: &StateEstimationReport) -> String {
+pub fn human_report(r: &StateEstimationReport) -> String {
+    let model_narrative = match (r.model_backend, r.model_profile) {
+        (Some(crate::estimation_config::EstimationModelBackend::Legacy), _) | (None, _) => {
+            "measurement model: stored calibration adapter + baseline offset + dynamic polarization; optional sensitivity scale\n- process model: actual timestamp intervals; random walks plus first-order polarization decay".into()
+        }
+        (
+            Some(crate::estimation_config::EstimationModelBackend::Compiled),
+            Some(crate::estimation_config::CompiledEstimationProfile::LegacyEquivalentV1),
+        ) => "compiled legacy-equivalent profile: mapped equilibrium, baseline/reference, polarization, and optional sensitivity components\n- process model: compiled legacy-parity transition equations".into(),
+        (
+            Some(crate::estimation_config::EstimationModelBackend::Compiled),
+            Some(crate::estimation_config::CompiledEstimationProfile::ReducedIsmV1),
+        ) => "compiled reduced ISM V1: calibrated equilibrium, phenomenological fast and slow dynamic modes, reference offset, optional candidate transduction, declared external covariates, and unexplained residual\n- process model: component-specific compiled transitions and equilibrium assessment; component labels are not asserted mechanisms".into(),
+        (Some(crate::estimation_config::EstimationModelBackend::Compiled), _) => format!(
+            "custom compiled definition: model {:?}; components {:?}\n- process model: declared compiled component equations and input bindings",
+            r.model_id,
+            r.model_definition.as_ref().map(|definition| definition.components.iter().map(|component| format!("{} ({}, {:?})", component.id, component.kind, component.role)).collect::<Vec<_>>())
+        ),
+    };
     let mut s = format!(
         "State estimation report\n========================\n\nDirect measurements\n- channel: {} [V]\n- observations: {}\n- filter: {:?}\n- state model: {:?}\n- accepted updates: {}\n- rejected updates: {}\n- predict-only steps: {}\n\n",
         r.channel,
@@ -348,7 +554,16 @@ fn human_report(r: &StateEstimationReport) -> String {
         ));
     }
     s.push_str(&format!(
-        "\nModels\n- measurement model: stored calibration adapter + baseline offset + dynamic polarization; optional sensitivity scale\n- process model: actual timestamp intervals; random walks plus first-order polarization decay\n- initialization sources: {:?}\n- initialization assumptions: {:?}\n\nCovariance sources\n- process: {:?}, resolved variance {} {}\n- measurement: {:?}, resolved variance {} {}\n- measurement assumptions: {:?}\n\nInnovation diagnostics\n- mean: {:?}\n- standard deviation: {:?}\n- mean NIS: {:?}\n- NIS exceedance rate: {:?}\n- residual autocorrelation: {:?}\n- log likelihood: {:?}\n\nObservability and identifiability\n- rank: {}/{}\n- condition number: {:?}\n- weak states: {:?}\n- unobservable states: {:?}\n- empirical identifiability passed: {}\n\nCalibration domain and uncertainty\n- domain excursions: {}\n- state uncertainty is reported per point as standard error and covariance\n- molar concentration is emitted only for the ideal activity model\n\nValidation\n- {:?}\n\nWarnings\n{:?}\n",
+        "\nTimestamp preprocessing\n- was preprocessed: {}\n- segments: {}\n- skipped segments: {}\n- diagnostics: {:?}\n\nModels\n- backend: {:?}\n- profile: {:?}\n- {}\n- resolved source: {:?}\n- resolved input bindings: {:?}\n- initialization sources: {:?}\n- initialization assumptions: {:?}\n\nCovariance sources\n- process: {:?}, resolved variance {} {}\n- measurement: {:?}, resolved variance {} {}\n- measurement assumptions: {:?}\n\nInnovation diagnostics\n- mean: {:?}\n- standard deviation: {:?}\n- mean NIS: {:?}\n- NIS exceedance rate: {:?}\n- residual autocorrelation: {:?}\n- log likelihood: {:?}\n\nObservability and identifiability\n- rank: {}/{}\n- condition number: {:?}\n- weak states: {:?}\n- unobservable states: {:?}\n- empirical identifiability passed: {}\n\nCalibration domain and uncertainty\n- domain excursions: {}\n- state uncertainty is reported per point as standard error and covariance\n- molar concentration is emitted only for the ideal activity model\n\nValidation\n- {:?}\n\nWarnings\n{:?}\n",
+        r.was_preprocessed,
+        r.timestamp_segments.len(),
+        r.skipped_timestamp_segments.len(),
+        r.timestamp_diagnostics,
+        r.model_backend,
+        r.model_profile,
+        model_narrative,
+        r.resolved_model_definition_source,
+        r.resolved_input_bindings,
         r.initialization.sources,
         r.initialization.assumptions,
         r.process_covariance.selected_source,
@@ -386,8 +601,8 @@ fn validation_text(v: &StateValidationResult) -> String {
 }
 fn comparison_text(c: &StateFilterComparison) -> String {
     format!(
-        "State-estimation filter comparison\n==================================\nRecords: {:?}\nWarnings: {:?}\n",
-        c.records, c.warnings
+        "State-estimation filter comparison\n==================================\nRecords: {:?}\nWarnings: {:?}\nCanonical ingestion diagnostics: {:?}\n",
+        c.records, c.warnings, c.ingestion_diagnostics
     )
 }
 fn load_config(
@@ -420,14 +635,15 @@ fn apply_overrides(
         .map_err(|x| RunnerError::Message(x.to_string()))?;
     Ok(())
 }
-fn read_optional<T: DeserializeOwned>(
+fn read_optional<T: crate::domain::VersionedArtifact>(
     workspace: &Path,
     path: Option<&PathBuf>,
 ) -> Result<Option<T>, RunnerError> {
-    path.map(|p| read_json(&resolve(workspace, p))).transpose()
+    path.map(|p| read_versioned(&resolve(workspace, p)))
+        .transpose()
 }
-fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, RunnerError> {
-    Ok(serde_json::from_str(&fs::read_to_string(path)?)?)
+fn read_versioned<T: crate::domain::VersionedArtifact>(path: &Path) -> Result<T, RunnerError> {
+    Ok(crate::domain::read_artifact(path)?)
 }
 fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), RunnerError> {
     fs::write(path, serde_json::to_string_pretty(value)?)?;

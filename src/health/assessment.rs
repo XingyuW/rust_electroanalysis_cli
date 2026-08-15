@@ -29,6 +29,13 @@ pub fn assemble(
         HealthDomain::Impedance,
         HealthDomain::MechanismEvidence,
     ];
+    if rules
+        .iter()
+        .any(|rule| !rule.contradictory_evidence.is_empty())
+        && !warnings.contains(&HealthWarning::ContradictoryEvidence)
+    {
+        warnings.push(HealthWarning::ContradictoryEvidence);
+    }
     let assessments = domains
         .iter()
         .filter_map(|d| {
@@ -41,7 +48,31 @@ pub fn assemble(
             } else {
                 Some(HealthDomainAssessment {
                     domain: *d,
-                    status: if fs.iter().any(|f| f.warning.is_some()) {
+                    status: if findings.iter().any(|finding| {
+                        finding
+                            .supporting_evidence
+                            .iter()
+                            .any(|evidence| evidence.domain == *d)
+                    }) {
+                        finding_status(
+                            findings
+                                .iter()
+                                .filter(|finding| {
+                                    finding
+                                        .supporting_evidence
+                                        .iter()
+                                        .any(|evidence| evidence.domain == *d)
+                                })
+                                .map(|finding| &finding.severity),
+                        )
+                    } else if comparisons.iter().any(|comparison| {
+                        fs.iter().any(|feature| feature.name == comparison.feature)
+                            && (comparison.robust_z_score.is_some_and(|z| z.abs() >= 3.0)
+                                || comparison
+                                    .relative_difference
+                                    .is_some_and(|x| x.abs() >= 0.5))
+                    }) || fs.iter().any(|feature| feature.warning.is_some())
+                    {
                         OverallHealthStatus::Watch
                     } else {
                         OverallHealthStatus::WithinBaseline
@@ -85,8 +116,9 @@ pub fn assemble(
     } else {
         OverallHealthStatus::WithinBaseline
     };
-    SensorHealthAssessment {
-        schema_version: 1,
+    let mut assessment = SensorHealthAssessment {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         assessment_id: id.into(),
         sensor_id: sensor,
         experiment_id: experiment,
@@ -100,5 +132,46 @@ pub fn assemble(
         configuration: config,
         provenance,
         warnings,
+    };
+    assessment.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::HealthAssessment,
+        assessment.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        assessment
+            .experiment_id
+            .clone()
+            .and_then(|id| crate::domain::ExperimentId::new(id).ok())
+            .and_then(|id| crate::domain::ArtifactExperimentScope::single(id).ok())
+            .unwrap_or(crate::domain::ArtifactExperimentScope::Unknown),
+        assessment
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &assessment,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3));
+    assessment
+}
+
+fn finding_status<'a>(
+    severities: impl Iterator<Item = &'a crate::health_config::HealthSeverity>,
+) -> OverallHealthStatus {
+    let severities = severities.collect::<Vec<_>>();
+    if severities
+        .iter()
+        .any(|severity| matches!(severity, crate::health_config::HealthSeverity::Critical))
+    {
+        OverallHealthStatus::Critical
+    } else if severities
+        .iter()
+        .any(|severity| matches!(severity, crate::health_config::HealthSeverity::Major))
+    {
+        OverallHealthStatus::Degraded
+    } else {
+        OverallHealthStatus::Watch
     }
 }

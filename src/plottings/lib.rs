@@ -10,6 +10,7 @@ pub mod estimation_plot;
 pub mod generic_plot;
 pub mod health_plot;
 pub mod mechanism_plot;
+pub mod model_plot;
 pub mod plotting;
 pub mod signal_plot;
 pub mod transient_plot;
@@ -22,9 +23,10 @@ pub use chi_plot::{
     plot_chi_file_with_transform,
 };
 pub use eis_plot::{
-    EISDirectoryPlotOutcome, EISPlotOutcome, RankedSearchPlotOutcome, best_ranked_search_fit,
-    eis_combined_publication_config, eis_individual_publication_config, eis_publication_config,
-    plot_eis_directory, plot_eis_directory_with_configs, plot_eis_file, plot_ranked_search_report,
+    EISDirectoryPlotOutcome, EISPlotFailure, EISPlotOutcome, RankedSearchPlotOutcome,
+    best_ranked_search_fit, eis_combined_publication_config, eis_individual_publication_config,
+    eis_publication_config, plot_eis_directory, plot_eis_directory_with_configs, plot_eis_file,
+    plot_ranked_search_report,
 };
 pub use generic_plot::{
     GenericDirectoryPlotOutcome, GenericPlotOutcome, GenericPlotSkip, LoadedGenericDataset,

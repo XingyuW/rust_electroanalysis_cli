@@ -27,20 +27,20 @@
 //!
 //! # Extensibility
 //!
-//! The directory-scanning functions currently load files through
-//! [`ElectrochemData::parse_file`] then convert via [`IntoPlotData`].  To
-//! support a different file format:
-//!
-//! 1. Write a parser that produces some `T: IntoPlotData`.
-//! 2. Add a branch or sister function that loads files through that parser.
-//! 3. Convert with `your_data.into_plot_data()` and feed the resulting
-//!    `Vec<PlotData>` into [`plot_generic_datasets`].
+//! Physical input formats are recognized and read by `electrodata-io`; the
+//! directory-scanning functions only convert provider-backed project domains
+//! through [`ElectrochemData::parse_file`] and [`IntoPlotData`]. To support a
+//! new physical format, extend `electrodata-io` and its typed domain adapter,
+//! then feed the resulting `Vec<PlotData>` into [`plot_generic_datasets`].
 //!
 //! No changes to `plotting.rs`, `plot_hq`, or anything else are needed.
 
-use crate::data_file::{PlotData, load_data, measurement_to_plot_data};
 use crate::plottings::plotting::{
     PlotColor, PlotLegendPosition, PublicationConfig, ResolvedPlotConfig, plot_hq,
+};
+use crate::{
+    data_file::{PlotData, load_data, measurement_to_plot_data},
+    domain::BatchFileFailure,
 };
 
 use std::error::Error;
@@ -64,19 +64,19 @@ pub struct GenericPlotOutcome {
 }
 
 /// A file that was skipped during a directory scan.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct GenericPlotSkip {
     /// The file that was skipped.
     pub input_file: PathBuf,
-    /// Human-readable reason (unsupported extension, parse error, …).
-    pub reason: String,
+    /// Typed canonical reader or post-ingestion workflow failure.
+    pub failure: BatchFileFailure,
 }
 
 /// Aggregate outcome from a directory-level generic plot job.
 ///
 /// Mirrors [`crate::plottings::ChiDirectoryPlotOutcome`] to keep the caller
 /// interface uniform across plot types.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct GenericDirectoryPlotOutcome {
     /// One entry for every file that was successfully plotted.
     pub plotted: Vec<GenericPlotOutcome>,
@@ -212,13 +212,6 @@ pub fn load_generic_datasets_from_dir<P: AsRef<Path>>(
         if !path.is_file() {
             continue;
         }
-        if !is_supported_path(&path) {
-            skipped.push(GenericPlotSkip {
-                input_file: path,
-                reason: "Unsupported file type".to_string(),
-            });
-            continue;
-        }
         match load_data(&path) {
             Ok(parsed) => {
                 for data in measurement_to_plot_data(parsed.experiment.measurement()) {
@@ -229,8 +222,8 @@ pub fn load_generic_datasets_from_dir<P: AsRef<Path>>(
                 }
             }
             Err(err) => skipped.push(GenericPlotSkip {
-                input_file: path,
-                reason: err.to_string(),
+                input_file: path.clone(),
+                failure: BatchFileFailure::canonical(path, err),
             }),
         }
     }
@@ -346,10 +339,11 @@ pub fn plot_generic_directory<P: AsRef<Path>>(
 ///    `From<ElectrochemData>` impl).
 /// 4. Write individual plots (one file per dataset) and one combined overlay.
 ///
-/// ## Extending to new file formats
+/// ## Extending physical inputs
 ///
-/// Replace step 2–3 with your own parser + `IntoPlotData` implementation.
-/// Steps 1, 4, and the outcome types are format-agnostic.
+/// Extend `electrodata-io` and the canonical Dataset-to-domain adapter; do
+/// not add local physical parsing branches here. Rendering remains
+/// format-agnostic once a project domain can produce `PlotData`.
 ///
 /// # Config pipeline contract
 ///
@@ -392,14 +386,6 @@ pub fn plot_generic_directory_with_configs<P: AsRef<Path>>(
             continue;
         }
 
-        if !is_supported_path(&path) {
-            skipped.push(GenericPlotSkip {
-                input_file: path,
-                reason: "Unsupported file type".to_string(),
-            });
-            continue;
-        }
-
         match load_data(&path) {
             Ok(parsed) => {
                 for plot_data in measurement_to_plot_data(parsed.experiment.measurement()) {
@@ -416,14 +402,21 @@ pub fn plot_generic_directory_with_configs<P: AsRef<Path>>(
                 }
             }
             Err(err) => skipped.push(GenericPlotSkip {
-                input_file: path,
-                reason: err.to_string(),
+                input_file: path.clone(),
+                failure: BatchFileFailure::canonical(path, err),
             }),
         }
     }
 
+    // Retain typed skips for the runner boundary. The empty case is a
+    // structured outcome, not a generic error that loses canonical evidence.
     if datasets.is_empty() {
-        return Err(format!("No valid datasets found in {}", input_dir.display()).into());
+        return Ok(GenericDirectoryPlotOutcome {
+            plotted,
+            skipped,
+            combined_output_base,
+            individual_output_base,
+        });
     }
 
     // Create subdirectories only after we know there is something to write.
@@ -450,15 +443,6 @@ pub fn plot_generic_directory_with_configs<P: AsRef<Path>>(
 // ─────────────────────────────────────────────────────────────────────────────
 // Private helpers (mirror chi_plot.rs naming)
 // ─────────────────────────────────────────────────────────────────────────────
-
-fn is_supported_path(path: &Path) -> bool {
-    matches!(
-        path.extension()
-            .and_then(|value| value.to_str())
-            .map(|value| value.to_ascii_lowercase()),
-        Some(ext) if matches!(ext.as_str(), "csv" | "txt" | "dat")
-    )
-}
 
 fn sanitize_output_component(value: &str) -> String {
     let mut out = String::with_capacity(value.len());

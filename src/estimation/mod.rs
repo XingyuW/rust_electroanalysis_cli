@@ -19,13 +19,17 @@ pub mod environment;
 pub mod error;
 pub mod initialization;
 pub mod innovation;
+pub mod ism_adapter;
 pub mod measurement;
 pub mod model;
+pub mod model_adapter;
+pub mod model_output;
 pub mod observability;
 pub mod process;
 pub mod simulation;
 pub mod smoothing;
 pub mod state;
+pub mod timestamp;
 pub mod ukf;
 pub mod validation;
 
@@ -42,7 +46,8 @@ use crate::{
 use calibration_adapter::StoredCalibrationObservationModel;
 use covariance::{resolve_measurement_covariance, resolve_process_covariance};
 use environment::{
-    AlignedEnvironment, align_experiment_with_polarization, resolve_standard_activity,
+    AlignedEnvironment, align_experiment_with_polarization, bind_compiled_transition_inputs,
+    resolve_standard_activity,
 };
 use error::EstimationError;
 use initialization::initialize_state;
@@ -50,7 +55,24 @@ use measurement::observations;
 use model::StateModel;
 use observability::diagnose;
 
-#[derive(Default)]
+/// Records which optional artifacts supplied values to one completed
+/// estimation execution.  These flags are produced by the same resolution
+/// paths that selected the scientific inputs; callers must not infer them
+/// from whether an artifact was loaded.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct EstimationInputUsage {
+    pub transient_tau: bool,
+    pub signal_measurement_variance: bool,
+    pub calibration_measurement_variance: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct EstimationExecution {
+    pub report: StateEstimationReport,
+    pub input_usage: EstimationInputUsage,
+}
+
+#[derive(Default, Clone, Copy)]
 pub struct EstimationContext<'a> {
     pub signal: Option<&'a SignalAnalysisReport>,
     pub transient: Option<&'a TransientAnalysisReport>,
@@ -69,13 +91,107 @@ pub fn estimate_experiment(
     context: EstimationContext<'_>,
     filter: FilterKind,
 ) -> Result<StateEstimationReport, EstimationError> {
+    Ok(
+        estimate_experiment_with_usage(experiment, channel, calibration, config, context, filter)?
+            .report,
+    )
+}
+
+pub fn estimate_experiment_with_usage(
+    experiment: &ElectrochemicalExperiment,
+    channel: &str,
+    calibration: StoredCalibrationObservationModel,
+    config: &ResolvedEstimationConfig,
+    context: EstimationContext<'_>,
+    filter: FilterKind,
+) -> Result<EstimationExecution, EstimationError> {
     config
         .validate()
         .map_err(|x| EstimationError::config(x.to_string()))?;
-    let calibration = Box::new(calibration);
+    let preprocessed =
+        timestamp::preprocess_measurement(experiment.measurement(), &config.timestamp_handling)
+            .map_err(EstimationError::invalid)?;
+    let mut segment_reports = Vec::with_capacity(preprocessed.segments.len());
+    let mut input_usage = EstimationInputUsage::default();
+    for segment in &preprocessed.segments {
+        let segment_measurement = slice_measurement(
+            &preprocessed.measurement,
+            segment.start_index,
+            segment.end_index,
+        )?;
+        let mut segment_experiment = experiment.clone();
+        segment_experiment.measurement_data = segment_measurement;
+        let (mut report, segment_usage) = estimate_single_segment(
+            &segment_experiment,
+            channel,
+            &calibration,
+            config,
+            context,
+            filter,
+        )?;
+        input_usage.transient_tau |= segment_usage.transient_tau;
+        input_usage.signal_measurement_variance |= segment_usage.signal_measurement_variance;
+        input_usage.calibration_measurement_variance |=
+            segment_usage.calibration_measurement_variance;
+        for (index, point) in report.estimates.iter_mut().enumerate() {
+            point.segment_id = segment.segment_index;
+            point.original_row_index = preprocessed
+                .original_indices
+                .get(segment.start_index + index)
+                .copied();
+        }
+        segment_reports.push(report);
+    }
+
+    let mut reports_iter = segment_reports.into_iter();
+    let mut final_report = reports_iter.next().ok_or_else(|| {
+        EstimationError::invalid("no valid timestamp segments remain for estimation")
+    })?;
+    for report in reports_iter {
+        final_report.estimates.extend(report.estimates);
+        final_report
+            .diagnostics
+            .innovations
+            .extend(report.diagnostics.innovations);
+        final_report.diagnostics.accepted_update_count += report.diagnostics.accepted_update_count;
+        final_report.diagnostics.rejected_update_count += report.diagnostics.rejected_update_count;
+        final_report.diagnostics.predict_only_count += report.diagnostics.predict_only_count;
+        final_report.diagnostics.numerical_failures += report.diagnostics.numerical_failures;
+        final_report.diagnostics.domain_excursion_count +=
+            report.diagnostics.domain_excursion_count;
+        final_report.warnings.extend(report.warnings);
+    }
+    final_report.timestamp_diagnostics = Some(preprocessed.diagnostics.clone());
+    final_report.timestamp_policy = Some(preprocessed.applied_policy.clone());
+    final_report.timestamp_segments = preprocessed.segments;
+    final_report.skipped_timestamp_segments = preprocessed.skipped_segments;
+    final_report.was_preprocessed = preprocessed.was_transformed;
+    Ok(EstimationExecution {
+        report: final_report,
+        input_usage,
+    })
+}
+
+fn estimate_single_segment(
+    experiment: &ElectrochemicalExperiment,
+    channel: &str,
+    calibration: &StoredCalibrationObservationModel,
+    config: &ResolvedEstimationConfig,
+    context: EstimationContext<'_>,
+    filter: FilterKind,
+) -> Result<(StateEstimationReport, EstimationInputUsage), EstimationError> {
+    let calibration = Box::new(calibration.clone());
     let tau = resolve_tau(config, context.transient)?;
-    let model = StateModel::new(config, tau.0, tau.1)?;
-    let obs = observations(experiment.measurement(), channel)?;
+    let model = StateModel::new_compiled(config, tau.value, tau.uncertainty, &calibration.model)?;
+    let logical_channel_name = experiment
+        .measurement()
+        .channel(channel)
+        .ok_or_else(|| {
+            EstimationError::invalid(format!("selected channel '{channel}' does not exist"))
+        })?
+        .name
+        .clone();
+    let (obs, timestamp_diagnostics) = observations(experiment.measurement(), channel)?;
     let measurement_source_unit = experiment
         .measurement()
         .channel(channel)
@@ -99,6 +215,19 @@ pub fn estimate_experiment(
         )?;
         previous = Some(e.clone());
         environments.push(e);
+    }
+    if matches!(
+        config.model.backend,
+        crate::estimation_config::EstimationModelBackend::Compiled
+    ) {
+        bind_compiled_transition_inputs(
+            experiment,
+            &mut environments,
+            &calibration.model.configuration.activity,
+            calibration.model.configuration.analyte.molar_mass_g_per_mol,
+            calibration.model.ion_charge,
+            &config.model.transduction_drive,
+        );
     }
     let measurement_covariance = resolve_measurement_covariance(
         config,
@@ -168,16 +297,16 @@ pub fn estimate_experiment(
         measurement_covariance: &measurement_covariance,
         signal: context.signal,
         calibration_results: context.calibration_results,
+        observability: &observability,
     };
     let run = match filter {
         FilterKind::Ekf => ekf::run(input)?,
         FilterKind::Ukf => ukf::run(input)?,
     };
-    let process = run.process_covariance.unwrap_or_else(|| {
-        resolve_process_covariance(config, &model, 1.0)
-            .expect("validated default process covariance")
-            .1
-    });
+    let process = match run.process_covariance {
+        Some(process) => process,
+        None => resolve_process_covariance(config, &model, 1.0)?.1,
+    };
     let mut warnings = initialization.warnings.clone();
     warnings.extend(observability.warnings.clone());
     if matches!(config.state_model.kind, StateModelKind::Activity) {
@@ -189,49 +318,219 @@ pub fn estimate_experiment(
     for e in &environments {
         warnings.extend(e.warnings.clone());
     }
-    if tau.2 {
+    if tau.fallback {
         warnings.push(crate::estimation::state::EstimationWarning::new(
             crate::estimation::state::EstimationWarningKind::TransientPriorUnavailable,
             "configured transient prior was unavailable; configured tau was used",
         ));
     }
-    Ok(StateEstimationReport {
-        schema_version: 2,
+    let mut report = StateEstimationReport {
+        schema_version: 4,
+        lineage: crate::domain::current_unknown_lineage(4),
         analysis_id: format!(
             "estimate:{}:{}",
-            experiment.provenance.input_sha256, channel
+            experiment.provenance.input_sha256, logical_channel_name
         ),
         experiment_id: experiment.experiment_id.clone(),
         sensor_id: experiment.sensor_metadata.sensor_id.clone(),
-        channel: channel.into(),
+        channel: logical_channel_name,
         measurement_source_unit,
         measurement_conversion:
             "potential converted to V; per-observation variance converted to V²".into(),
         filter,
         model: config.state_model.kind,
+        model_backend: Some(config.model.backend),
+        model_profile: matches!(
+            config.model.backend,
+            crate::estimation_config::EstimationModelBackend::Compiled
+        )
+        .then_some(config.model.profile),
+        model_id: model
+            .compiled_model()
+            .map(|compiled| compiled.definition().model_id.clone()),
+        model_schema_version: model
+            .compiled_model()
+            .map(|compiled| compiled.definition().schema_version),
+        compiled_model_summary: model
+            .compiled_model()
+            .map(|compiled| compiled.compiled_summary()),
+        state_bindings: model
+            .compiled_model()
+            .map(|compiled| {
+                compiled
+                    .state_definitions()
+                    .iter()
+                    .enumerate()
+                    .map(|(estimator_index, state)| {
+                        crate::estimation::model_adapter::StateBinding {
+                            state_id: state.spec.id.clone(),
+                            estimator_index,
+                            ownership: if state.spec.id == "log10_activity" {
+                                "estimator_owned_latent".into()
+                            } else {
+                                "compiled_component_state".into()
+                            },
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+        model_definition: model
+            .compiled_model()
+            .map(|compiled| compiled.definition().clone()),
+        resolved_model_definition_source: model.definition_source().cloned(),
+        resolved_input_bindings: model.resolved_input_bindings().cloned(),
         state_definitions: model.definitions,
         initialization,
         process_covariance: process,
         measurement_covariance,
+        labeled_covariance: None,
         observability,
         estimates: run.estimates,
         diagnostics: run.diagnostics,
         validation: None,
         configuration: config.clone(),
         provenance: experiment.provenance.clone(),
+        timestamp_diagnostics: Some(timestamp_diagnostics),
+        timestamp_policy: None,
+        timestamp_segments: Vec::new(),
+        skipped_timestamp_segments: Vec::new(),
+        was_preprocessed: false,
+        ingestion_diagnostics: crate::domain::ParseDiagnostics::default(),
         warnings,
-    })
+    };
+    report.labeled_covariance = labeled_state_covariance(&report);
+    report.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::StateEstimation,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        crate::domain::ExperimentId::new(report.experiment_id.clone())
+            .and_then(crate::domain::ArtifactExperimentScope::single)
+            .unwrap_or(crate::domain::ArtifactExperimentScope::Unknown),
+        report
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ScopeKey::specific(report.channel.clone())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &report,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(4));
+    let input_usage = EstimationInputUsage {
+        transient_tau: matches!(tau.source, ResolvedTauSource::Transient),
+        signal_measurement_variance: matches!(
+            config.measurement_noise.source,
+            crate::estimation_config::MeasurementNoiseSourceKind::SignalRobustVariance
+                | crate::estimation_config::MeasurementNoiseSourceKind::StableWindowVariance
+        ) && context.signal.is_some()
+            && matches!(
+                report.measurement_covariance.selected_source,
+                crate::estimation::covariance::CovarianceSource::SignalArtifact
+            ),
+        calibration_measurement_variance: matches!(
+            config.measurement_noise.source,
+            crate::estimation_config::MeasurementNoiseSourceKind::CalibrationResidualVariance
+        ) && context.calibration_results.is_some()
+            && matches!(
+                report.measurement_covariance.selected_source,
+                crate::estimation::covariance::CovarianceSource::CalibrationArtifact
+            ),
+    };
+    Ok((report, input_usage))
+}
+
+fn labeled_state_covariance(
+    report: &StateEstimationReport,
+) -> Option<crate::evidence::LabeledCovarianceMatrix> {
+    let point = report.estimates.last()?;
+    if report.state_bindings.len() != point.filtered_covariance.len()
+        || point
+            .filtered_covariance
+            .iter()
+            .any(|row| row.len() != report.state_bindings.len())
+    {
+        return None;
+    }
+    let axes = report
+        .state_bindings
+        .iter()
+        .enumerate()
+        .map(|(row_index, binding)| {
+            let state = point.filtered_state.get(binding.estimator_index)?;
+            (binding.estimator_index == row_index).then_some(crate::evidence::CovarianceAxis {
+                axis_id: crate::evidence::CovarianceAxisId(format!(
+                    "estimation.state:{}",
+                    binding.state_id
+                )),
+                source_field_path: format!(
+                    "$.estimates[{}].filtered_covariance[{row_index}]",
+                    report.estimates.len() - 1
+                ),
+                quantity_kind: crate::evidence::CovarianceQuantityKind::State,
+                unit: state.unit.clone(),
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    crate::evidence::LabeledCovarianceMatrix::new(axes, point.filtered_covariance.clone()).ok()
+}
+
+fn slice_measurement(
+    measurement: &crate::domain::MultiChannelMeasurement,
+    start: usize,
+    end: usize,
+) -> Result<crate::domain::MultiChannelMeasurement, EstimationError> {
+    let time = measurement.time[start..end].to_vec();
+    let channels = measurement
+        .channels
+        .iter()
+        .map(|channel| crate::domain::MeasurementChannel {
+            name: channel.name.clone(),
+            unit: channel.unit.clone(),
+            values: channel.values[start..end].to_vec(),
+            variance: channel
+                .variance
+                .as_ref()
+                .map(|variance| variance[start..end].to_vec()),
+            sensor_id: channel.sensor_id.clone(),
+            analyte_id: channel.analyte_id.clone(),
+            metadata: channel.metadata.clone(),
+        })
+        .collect::<Vec<_>>();
+    crate::domain::MultiChannelMeasurement::new(time, channels)
+        .map_err(|error| EstimationError::invalid(error.to_string()))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ResolvedTauSource {
+    Configured,
+    Transient,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ResolvedTau {
+    value: f64,
+    uncertainty: Option<f64>,
+    fallback: bool,
+    source: ResolvedTauSource,
 }
 
 fn resolve_tau(
     config: &ResolvedEstimationConfig,
     transient: Option<&TransientAnalysisReport>,
-) -> Result<(f64, Option<f64>, bool), EstimationError> {
+) -> Result<ResolvedTau, EstimationError> {
     if !matches!(
         config.state_model.kind,
         StateModelKind::ActivityBaselinePolarization | StateModelKind::Custom
     ) {
-        return Ok((config.polarization.configured_tau_s, None, false));
+        return Ok(ResolvedTau {
+            value: config.polarization.configured_tau_s,
+            uncertainty: None,
+            fallback: false,
+            source: ResolvedTauSource::Configured,
+        });
     }
     let mut values = Vec::new();
     if matches!(
@@ -280,21 +579,31 @@ fn resolve_tau(
         }
     };
     if let Some(t) = tau {
-        return Ok((t, None, false));
+        return Ok(ResolvedTau {
+            value: t,
+            uncertainty: None,
+            fallback: false,
+            source: ResolvedTauSource::Transient,
+        });
     }
     if matches!(
         config.polarization.tau_source,
         crate::estimation_config::TauSourceKind::Configured
     ) {
-        return Ok((
-            config.polarization.configured_tau_s,
-            config.polarization.tau_uncertainty_s,
-            false,
-        ));
+        return Ok(ResolvedTau {
+            value: config.polarization.configured_tau_s,
+            uncertainty: config.polarization.tau_uncertainty_s,
+            fallback: false,
+            source: ResolvedTauSource::Configured,
+        });
     }
-    Ok((
-        config.polarization.configured_tau_s,
-        config.polarization.tau_uncertainty_s,
-        true,
-    ))
+    Ok(ResolvedTau {
+        value: config.polarization.configured_tau_s,
+        uncertainty: config.polarization.tau_uncertainty_s,
+        fallback: matches!(
+            config.polarization.tau_source,
+            crate::estimation_config::TauSourceKind::Transient
+        ),
+        source: ResolvedTauSource::Configured,
+    })
 }

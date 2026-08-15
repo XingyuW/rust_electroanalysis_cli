@@ -1,8 +1,10 @@
+use rust_electroanalysis_cli::calibration_config::ResolvedCalibrationConfig;
 use rust_electroanalysis_cli::data_file::load_experiment;
 use rust_electroanalysis_cli::domain::{
     AnalysisProvenance, ElectrochemicalExperiment, ExperimentEvent, ExperimentEventKind,
-    MeasurementChannel, MultiChannelMeasurement, SensorMetadata,
+    MeasurementChannel, MultiChannelMeasurement, SensorMetadata, write_artifact,
 };
+use rust_electroanalysis_cli::potentiometry::calibration::extract_observations;
 use rust_electroanalysis_cli::potentiometry::calibration::nernst::theoretical_slope_v_per_decade;
 use rust_electroanalysis_cli::potentiometry::transient::models::TransientModelKind;
 use rust_electroanalysis_cli::potentiometry::{TransientAnalysisOptions, analyze_experiment};
@@ -11,6 +13,7 @@ use rust_electroanalysis_cli::results::calibration::{
     CalibrationPotentialSource,
 };
 use rust_electroanalysis_cli::transient_config::ResolvedTransientConfig;
+use rust_electroanalysis_cli::{signal::analyze_measurement, signal_config::ResolvedSignalConfig};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -51,9 +54,11 @@ fn experiment(path: &Path) -> ElectrochemicalExperiment {
             }
         })
         .collect::<Vec<_>>();
-    let measurement =
-        MultiChannelMeasurement::new(time, vec![MeasurementChannel::new("E1", "V", values)])
-            .unwrap();
+    let measurement = MultiChannelMeasurement::new(
+        time,
+        vec![MeasurementChannel::new("E1", "V", values).with_source_header("E1/V")],
+    )
+    .unwrap();
     ElectrochemicalExperiment::new(
         "phase3-experiment",
         SensorMetadata {
@@ -121,6 +126,7 @@ fn calibration_observations() -> CalibrationObservationSet {
         .collect();
     CalibrationObservationSet {
         schema_version: 1,
+        lineage: rust_electroanalysis_cli::domain::legacy_unknown_lineage(),
         observations,
         provenance: AnalysisProvenance {
             software_version: "test".to_string(),
@@ -145,6 +151,78 @@ fn run_cli(cwd: &Path, args: &[&str]) -> std::process::Output {
         .args(args)
         .output()
         .unwrap()
+}
+
+#[test]
+fn logical_and_source_header_selectors_produce_identical_workflow_results() {
+    let input = Path::new("selector-compatibility.csv");
+    let experiment = experiment(input);
+    let measurement = experiment.measurement();
+
+    let mut signal_config = ResolvedSignalConfig::default();
+    signal_config.sampling.policy =
+        rust_electroanalysis_cli::signal_config::SamplingPolicy::AllowIrregularTimeDomainOnly;
+    let signal_by_logical = analyze_measurement(
+        measurement,
+        "E1",
+        Some(&experiment.events),
+        &signal_config,
+        Some(experiment.provenance.clone()),
+    )
+    .expect("signal characterize with logical selector");
+    let signal_by_source_header = analyze_measurement(
+        measurement,
+        "E1/V",
+        Some(&experiment.events),
+        &signal_config,
+        Some(experiment.provenance.clone()),
+    )
+    .expect("signal characterize with source-header selector");
+    assert_eq!(signal_by_logical, signal_by_source_header);
+
+    let mut transient_config = ResolvedTransientConfig::default();
+    transient_config.models.enabled = vec![TransientModelKind::Single];
+    transient_config.segmentation.post_event_s = 300.0;
+    transient_config.segmentation.pre_event_s = 30.0;
+    transient_config.segmentation.minimum_points = 20;
+    transient_config.uncertainty.bootstrap_iterations = 0;
+    transient_config.plotting.enabled = false;
+    transient_config.validation.maximum_tau_to_window_ratio = 100.0;
+    let options = |config| TransientAnalysisOptions {
+        event_kind: ExperimentEventKind::ConcentrationStep,
+        event_index: None,
+        config,
+    };
+    let transient_by_logical =
+        analyze_experiment(&experiment, "E1", &options(transient_config.clone()))
+            .expect("transient fit with logical selector");
+    let transient_by_source_header =
+        analyze_experiment(&experiment, "E1/V", &options(transient_config))
+            .expect("transient fit with source-header selector");
+    assert_eq!(transient_by_logical, transient_by_source_header);
+
+    let mut calibration_config = ResolvedCalibrationConfig::default();
+    calibration_config.observation_extraction.fallback_source =
+        Some(CalibrationPotentialSource::SteadyStateWindowMedian);
+    calibration_config
+        .observation_extraction
+        .steady_state_start_s = 1.0;
+    calibration_config.observation_extraction.steady_state_end_s = 120.0;
+    let calibration_by_logical = extract_observations(
+        &experiment,
+        "E1",
+        Some(&transient_by_logical),
+        &calibration_config,
+    )
+    .expect("calibration extraction with logical selector");
+    let calibration_by_source_header = extract_observations(
+        &experiment,
+        "E1/V",
+        Some(&transient_by_source_header),
+        &calibration_config,
+    )
+    .expect("calibration extraction with source-header selector");
+    assert_eq!(calibration_by_logical, calibration_by_source_header);
 }
 
 #[test]
@@ -189,7 +267,7 @@ analyte = "Na+"
     )
     .unwrap();
     let transient_path = root.join("transient_results.json");
-    write(&transient_path, &serde_json::to_string(&transient).unwrap());
+    write_artifact(&transient_path, &transient).unwrap();
     let calibration_config = root.join("calibration.toml");
     write(
         &calibration_config,

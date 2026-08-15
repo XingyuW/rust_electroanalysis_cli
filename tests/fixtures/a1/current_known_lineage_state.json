@@ -1,0 +1,18 @@
+{
+  "Known": {
+    "identity": {
+      "artifact_id": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "artifact_kind": "signal_analysis",
+      "schema_version": 3,
+      "producer_version": "fixture",
+      "experiment_scope": {
+        "Single": { "experiment_id": "fixture-experiment" }
+      },
+      "sensor_scope": { "Specific": "fixture-sensor" },
+      "channel_scope": { "Specific": "fixture-channel" },
+      "acquisition_families": { "Known": ["fixture-family"] },
+      "semantic_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
+    "direct_dependencies": []
+  }
+}

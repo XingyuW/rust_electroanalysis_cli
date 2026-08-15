@@ -1,0 +1,229 @@
+# Versioned activity-first reduced-order ISM example. Optional candidate
+# transduction and external covariates are intentionally not active here.
+schema_version = 1
+
+[model]
+schema_version = 3
+model_id = "reduced_ism_v1"
+description = "Activity-first reduced-order ISM model with neutral dynamic modes."
+validity_domain = "Declared calibration, activity, and temperature domain."
+
+[[model.states]]
+id = "dynamic_fast_potential_v"
+unit = "V"
+lower_bound = -10.0
+upper_bound = 10.0
+initial_value = 0.0
+source = "reduced_ism_v1"
+validity_domain = "phenomenological dynamic potential"
+initial_uncertainty = { kind = "deterministic" }
+
+[[model.states]]
+id = "dynamic_slow_potential_v"
+unit = "V"
+lower_bound = -10.0
+upper_bound = 10.0
+initial_value = 0.0
+source = "reduced_ism_v1"
+validity_domain = "phenomenological dynamic potential"
+initial_uncertainty = { kind = "deterministic" }
+
+[[model.states]]
+id = "reference_offset_v"
+unit = "V"
+lower_bound = -10.0
+upper_bound = 10.0
+initial_value = 0.0
+source = "reduced_ism_v1"
+validity_domain = "reference or unresolved baseline offset"
+initial_uncertainty = { kind = "deterministic" }
+
+[[model.parameters]]
+id = "standard_potential_v"
+unit = "V"
+lower_bound = -2.0
+upper_bound = 2.0
+default_value = 0.0
+source = "calibration"
+validity_domain = "validated calibration domain"
+
+[[model.parameters]]
+id = "ion_charge"
+unit = "dimensionless"
+lower_bound = -4.0
+upper_bound = 4.0
+default_value = 1.0
+uncertainty = { kind = "deterministic" }
+source = "analyte declaration"
+value_source = "fixed"
+characteristic = "discrete_integer"
+validity_domain = "nonzero signed ion charge"
+
+[[model.parameters]]
+id = "dynamic_fast_tau_s"
+unit = "s"
+lower_bound = 0.000001
+upper_bound = 1000000.0
+default_value = 2.0
+source = "transient fit"
+validity_domain = "controlled step response"
+
+[[model.parameters]]
+id = "dynamic_fast_gain_v_per_decade"
+unit = "V"
+lower_bound = -10.0
+upper_bound = 10.0
+default_value = 0.02
+source = "transient fit"
+validity_domain = "controlled step response"
+
+[[model.parameters]]
+id = "dynamic_slow_tau_s"
+unit = "s"
+lower_bound = 0.000001
+upper_bound = 10000000.0
+default_value = 35.0
+source = "transient fit"
+validity_domain = "controlled step response"
+
+[[model.parameters]]
+id = "dynamic_slow_gain_v_per_decade"
+unit = "V"
+lower_bound = -10.0
+upper_bound = 10.0
+default_value = 0.01
+source = "transient fit"
+validity_domain = "controlled step response"
+
+[[model.parameters]]
+id = "observation_variance_v2"
+unit = "V^2"
+lower_bound = 0.000000000000000001
+upper_bound = 1.0
+default_value = 0.000001
+uncertainty = { kind = "deterministic" }
+source = "measurement characterization"
+value_source = "externally_supplied_fixed"
+validity_domain = "positive configured variance"
+
+[[model.inputs]]
+id = "target_activity"
+unit = "activity"
+required = true
+source = "canonical IO"
+validity_domain = "positive finite activity"
+
+[[model.inputs]]
+id = "temperature"
+unit = "K"
+required = true
+source = "canonical IO"
+validity_domain = "positive temperature"
+
+[[model.inputs]]
+id = "delta_log10_activity"
+unit = "activity"
+required = false
+source = "explicit event"
+validity_domain = "finite event magnitude"
+
+[[model.components]]
+id = "activity_input"
+kind = "activity.input"
+role = "auxiliary"
+contribution_semantics = "auxiliary"
+required_inputs = [{ id = "target_activity", unit = "activity" }]
+source = "Reduced-order ISM components V1"
+validity_domain = "positive activity"
+equation = "canonical activity input adapter"
+equation_version = 1
+assumptions = ["Activity has crossed the canonical IO boundary."]
+evidence_requirements = [{ hypothesis_id = "activity-input", proposed_mechanism_label = "unassigned", independent_evidence_types = ["input provenance"], minimum_independent_observations = 2, validity_domain = "declared domain", alternatives_to_consider = ["activity-model uncertainty"], required_uncertainty_statement = "runtime covariance remains external" }]
+
+[[model.components]]
+id = "equilibrium_nernst"
+kind = "equilibrium.nernst"
+role = "equilibrium"
+depends_on = ["activity_input"]
+required_inputs = [{ id = "target_activity", unit = "activity" }, { id = "temperature", unit = "K" }]
+parameter_ids = ["standard_potential_v", "ion_charge"]
+observation_parameter_ids = ["standard_potential_v"]
+output_unit = "V"
+voltage_contribution_owner = "equilibrium"
+source = "Reduced-order ISM components V1"
+validity_domain = "declared calibration domain"
+equation = "adapter to established Nernst equation"
+equation_version = 1
+assumptions = ["No physical mechanism beyond equilibrium response is assigned."]
+evidence_requirements = [{ hypothesis_id = "nernst-equilibrium", proposed_mechanism_label = "unassigned", independent_evidence_types = ["calibration validation", "activity-domain coverage", "temperature-domain coverage"], minimum_independent_observations = 2, validity_domain = "declared domain", alternatives_to_consider = ["calibration mismatch"], required_uncertainty_statement = "runtime covariance remains external" }]
+metadata = { activity_input_id = "target_activity" }
+
+[[model.components]]
+id = "dynamic_fast"
+kind = "dynamics.first_order"
+role = "transport"
+interpretation_status = "phenomenological"
+required_inputs = [{ id = "delta_log10_activity", unit = "activity" }]
+state_ids = ["dynamic_fast_potential_v"]
+parameter_ids = ["dynamic_fast_tau_s", "dynamic_fast_gain_v_per_decade"]
+observation_state_ids = ["dynamic_fast_potential_v"]
+output_unit = "V"
+voltage_contribution_owner = "dynamic_fast"
+source = "Reduced-order ISM components V1"
+validity_domain = "controlled transient excitation"
+equation = "dx/dt=-x/tau; x+=gain*delta_log10_activity"
+equation_version = 1
+assumptions = ["Fast is relative; it is not a mechanism label."]
+evidence_requirements = [{ hypothesis_id = "dynamic-fast", proposed_mechanism_label = "unassigned", independent_evidence_types = ["controlled concentration-step response", "repeatability", "identifiability"], minimum_independent_observations = 2, validity_domain = "declared domain", alternatives_to_consider = ["other reduced-order modes"], required_uncertainty_statement = "runtime covariance remains external" }]
+metadata = { peer_tau_s = "35", separation_threshold = "2" }
+
+[[model.components]]
+id = "dynamic_slow"
+kind = "dynamics.first_order"
+role = "transport"
+interpretation_status = "phenomenological"
+required_inputs = [{ id = "delta_log10_activity", unit = "activity" }]
+state_ids = ["dynamic_slow_potential_v"]
+parameter_ids = ["dynamic_slow_tau_s", "dynamic_slow_gain_v_per_decade"]
+observation_state_ids = ["dynamic_slow_potential_v"]
+output_unit = "V"
+voltage_contribution_owner = "dynamic_slow"
+source = "Reduced-order ISM components V1"
+validity_domain = "controlled transient excitation"
+equation = "dx/dt=-x/tau; x+=gain*delta_log10_activity"
+equation_version = 1
+assumptions = ["Slow is relative; it is not a mechanism label."]
+evidence_requirements = [{ hypothesis_id = "dynamic-slow", proposed_mechanism_label = "unassigned", independent_evidence_types = ["controlled concentration-step response", "repeatability", "identifiability"], minimum_independent_observations = 2, validity_domain = "declared domain", alternatives_to_consider = ["other reduced-order modes"], required_uncertainty_statement = "runtime covariance remains external" }]
+
+[[model.components]]
+id = "reference_offset"
+kind = "reference.offset"
+role = "reference"
+state_ids = ["reference_offset_v"]
+observation_state_ids = ["reference_offset_v"]
+output_unit = "V"
+voltage_contribution_owner = "reference"
+source = "Reduced-order ISM components V1"
+validity_domain = "reference or unresolved baseline offset"
+equation = "db_ref/dt=0; E_reference=b_ref"
+equation_version = 1
+assumptions = ["An offset does not diagnose reference-electrode failure."]
+evidence_requirements = [{ hypothesis_id = "reference-offset", proposed_mechanism_label = "unassigned", independent_evidence_types = ["reference-control measurement"], minimum_independent_observations = 2, validity_domain = "declared domain", alternatives_to_consider = ["junction offset"], required_uncertainty_statement = "runtime covariance remains external" }]
+
+[[model.components]]
+id = "observation_noise"
+kind = "disturbance.observation_variance"
+role = "observation_noise"
+parameter_ids = ["observation_variance_v2"]
+output_unit = "V^2"
+contribution_semantics = "observation_variance"
+source = "Reduced-order ISM components V1"
+validity_domain = "positive configured variance"
+equation = "configured observation variance"
+equation_version = 1
+assumptions = ["Variance never enters deterministic potential."]
+evidence_requirements = [{ hypothesis_id = "observation-noise", proposed_mechanism_label = "unassigned", independent_evidence_types = ["repeat measurement noise characterization"], minimum_independent_observations = 2, validity_domain = "declared domain", alternatives_to_consider = ["unmodeled noise"], required_uncertainty_statement = "runtime covariance remains external" }]
+
+# Disabled-by-default templates: transduction.first_order_candidate and
+# disturbance.linear_covariate (temperature, conductivity, or flow) are added
+# only when an experiment explicitly supplies their drive/covariate and units.

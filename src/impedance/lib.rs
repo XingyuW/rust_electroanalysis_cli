@@ -498,6 +498,7 @@ mod tests {
     };
     use num_complex::Complex64;
     use std::f64::consts::PI;
+    use std::path::Path;
 
     fn weighted_rmse(z_real: &[f64], z_imag: &[f64], fit_real: &[f64], fit_imag: &[f64]) -> f64 {
         let weights = build_modulus_weights(z_real, z_imag);
@@ -557,45 +558,21 @@ mod tests {
     }
 
     #[test]
-    fn fits_real_eis_dataset_with_bounded_weighted_error() {
-        let csv = std::fs::read_to_string(
-            "/Users/xingyuwang/ProjectOngoing/rust_plots/data/EIS/20260312/20260312_QD_EIS (0.1M).csv",
+    fn fits_canonical_eis_fixture_with_bounded_weighted_error() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/eis/randles_cpe_weighted_fit.csv");
+        let dataset = crate::data_file::read_dataset(&path).expect("canonical fixture read");
+        let data = crate::data_file::EISData::try_from(&dataset).expect("domain conversion");
+        let fit = fit_circuit(
+            "R0-p(CPE1,R1)",
+            &data.freq,
+            &data.z_re,
+            &data.z_im,
+            &data.phase,
         )
-        .expect("read dataset");
+        .expect("fit canonical fixture");
 
-        let mut freq = Vec::new();
-        let mut z_real = Vec::new();
-        let mut z_imag = Vec::new();
-        let mut phase = Vec::new();
-
-        let mut header_seen = false;
-        for line in csv.lines() {
-            if !header_seen {
-                if line.starts_with("Freq/Hz") {
-                    header_seen = true;
-                }
-                continue;
-            }
-
-            if line.trim().is_empty() {
-                continue;
-            }
-
-            let parts: Vec<_> = line.split(',').map(|field| field.trim()).collect();
-            if parts.len() < 5 {
-                continue;
-            }
-
-            freq.push(parts[0].parse::<f64>().expect("freq"));
-            z_real.push(parts[1].parse::<f64>().expect("z real"));
-            z_imag.push(parts[2].parse::<f64>().expect("z imag"));
-            phase.push(parts[4].parse::<f64>().expect("phase"));
-        }
-
-        let fit =
-            fit_circuit("R0-p(CPE1,R1)", &freq, &z_real, &z_imag, &phase).expect("fit dataset");
-
-        let error = weighted_rmse(&z_real, &z_imag, &fit.fitted_z_re, &fit.fitted_z_im);
+        let error = weighted_rmse(&data.z_re, &data.z_im, &fit.fitted_z_re, &fit.fitted_z_im);
         assert!(error < 0.35, "weighted RMSE too high: {error}");
     }
 
@@ -623,57 +600,5 @@ mod tests {
 
         assert!((z.re - (rs + 0.5 * rct)).abs() < 1e-6);
         assert!((z.im + 0.5 * rct).abs() < 1e-6);
-    }
-
-    #[test]
-    fn generalized_warburg_outperforms_fixed_warburg_for_ism_dataset() {
-        let fixture = std::path::Path::new(
-            "/Users/xingyuwang/ProjectOngoing/rust_plots/data/EIS/20260312/20260312_QD-Li-ISM-2_EIS (0.1M).csv",
-        );
-        if !fixture.exists() {
-            eprintln!(
-                "skipping external ISM comparison fixture: {}",
-                fixture.display()
-            );
-            return;
-        }
-        let data =
-            crate::data_file::chi_file::EISData::parse_file(fixture).expect("parse li dataset");
-
-        let baseline_fit = data
-            .fit_circuit_for_model("R0-p(CPE1,R1)")
-            .expect("fit baseline model");
-        let warburg_fit = data
-            .fit_circuit_for_model("R0-p(CPE1,R1)-W2")
-            .expect("fit fixed warburg model");
-        let generalized_fit = data
-            .fit_circuit_for_model("R0-p(CPE1,R1)-Gw2")
-            .expect("fit generalized warburg model");
-
-        let baseline_metrics = data.fit_metrics(&baseline_fit);
-        let warburg_metrics = data.fit_metrics(&warburg_fit);
-        let generalized_metrics = data.fit_metrics(&generalized_fit);
-
-        assert!(
-            generalized_metrics.weighted_rmse < warburg_metrics.weighted_rmse,
-            "expected generalized Warburg to beat fixed Warburg: {:?} vs {:?}",
-            generalized_metrics,
-            warburg_metrics,
-        );
-        assert!(
-            generalized_metrics.weighted_rmse < baseline_metrics.weighted_rmse,
-            "expected generalized Warburg to beat baseline: {:?} vs {:?}",
-            generalized_metrics,
-            baseline_metrics,
-        );
-        assert!(
-            generalized_metrics.weighted_rmse < 0.08,
-            "expected Li tail fit weighted RMSE below 0.08, got {}",
-            generalized_metrics.weighted_rmse,
-        );
-        assert!(
-            generalized_metrics.aic < warburg_metrics.aic,
-            "expected generalized Warburg to have lower AIC than fixed Warburg",
-        );
     }
 }

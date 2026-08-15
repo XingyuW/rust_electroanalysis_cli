@@ -7,6 +7,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// A1 keeps acquisition-family and semantic-hash authority at the domain
+// provenance boundary while the lineage resolver remains in its own module.
+pub use super::lineage::{
+    AcquisitionFamilyId, ArtifactAcquisitionFamilies, ResolvedAcquisitionFamilies, semantic_sha256,
+};
+
 /// Input/configuration identity recorded alongside a scientific experiment.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnalysisProvenance {

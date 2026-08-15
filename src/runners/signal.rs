@@ -1,12 +1,10 @@
 use crate::runners::RunnerError;
 use crate::{
-    data_file::parse_measurement_file,
     domain::{AnalysisProvenance, ExperimentEvent},
     results::{EisFitArtifact, ResidualAnalysisResult},
     signal::{self},
     signal_config::LoadedSignalConfig,
 };
-use serde::de::DeserializeOwned;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -17,6 +15,7 @@ pub fn characterize(
     input: &Path,
     metadata: Option<&Path>,
     channel: &str,
+    sheet: Option<&str>,
     config_path: Option<&Path>,
     output: Option<&Path>,
 ) -> Result<(), RunnerError> {
@@ -25,7 +24,9 @@ pub fn characterize(
     for w in &loaded.warnings {
         eprintln!("Warning: {w}");
     }
-    let parsed = parse_measurement_file(&input)?;
+    let mut parsed =
+        crate::data_file::measurement_parser::parse_measurement_file_with_sheet(&input, sheet)?;
+    parsed.measurement = parsed.measurement.normalized_to_seconds()?;
     let provenance = AnalysisProvenance::from_paths(&input, loaded.source_path.as_deref())
         .map_err(crate::domain::DataParsingError::from)?;
     let (events, experiment_id, sensor_id) = if let Some(m) = metadata {
@@ -44,6 +45,28 @@ pub fn characterize(
     )?;
     report.experiment_id = experiment_id;
     report.sensor_id = report.sensor_id.or(sensor_id);
+    report.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::SignalAnalysis,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        report
+            .experiment_id
+            .clone()
+            .and_then(|id| crate::domain::ExperimentId::new(id).ok())
+            .and_then(|id| crate::domain::ArtifactExperimentScope::single(id).ok())
+            .unwrap_or(crate::domain::ArtifactExperimentScope::Unknown),
+        report
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ScopeKey::specific(report.channel.clone())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &report,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(report.schema_version));
     export_signal(workspace, output, &report)
 }
 pub fn compare(
@@ -54,7 +77,8 @@ pub fn compare(
 ) -> Result<(), RunnerError> {
     let loaded = LoadedSignalConfig::load(workspace, config_path)?;
     let path = resolve(workspace, manifest);
-    let man = crate::signal::comparison::load_manifest(&path).map_err(RunnerError::Message)?;
+    let man = crate::signal::comparison::load_manifest(&path)
+        .map_err(|error| RunnerError::SignalComparison(Box::new(error)))?;
     if man.schema_version != 1 {
         return Err(RunnerError::Message(
             "unsupported signal comparison schema".into(),
@@ -62,7 +86,7 @@ pub fn compare(
     }
     let base = path.parent().unwrap_or(workspace);
     let (records, provenance) = crate::signal::comparison::compare(base, &man, &loaded.config)
-        .map_err(RunnerError::Message)?;
+        .map_err(|error| RunnerError::SignalComparison(Box::new(error)))?;
     let dir = output_dir(workspace, output, "signal_comparison");
     fs::create_dir_all(&dir)?;
     write_json(&dir.join("signal_comparison_results.json"), &records)?;
@@ -107,7 +131,7 @@ pub fn residuals(
     let mut results = Vec::new();
     if let Some(path) = transient {
         let p = resolve(workspace, path);
-        let r: crate::results::TransientAnalysisReport = read_json(&p)?;
+        let r: crate::results::TransientAnalysisReport = crate::domain::read_artifact(&p)?;
         for e in &r.events {
             if let Some(model) = e.selected_model
                 && let Some(fit) = e
@@ -131,7 +155,7 @@ pub fn residuals(
     }
     if let Some(path) = calibration {
         let p = resolve(workspace, path);
-        let r: crate::results::CalibrationAnalysisReport = read_json(&p)?;
+        let r: crate::results::CalibrationAnalysisReport = crate::domain::read_artifact(&p)?;
         if let Some(model) = r
             .selected_model
             .and_then(|k| r.candidate_models.iter().find(|m| m.model_kind == k))
@@ -153,7 +177,7 @@ pub fn residuals(
     }
     if let Some(path) = eis {
         let p = resolve(workspace, path);
-        let r: EisFitArtifact = read_json(&p)?;
+        let r: EisFitArtifact = crate::domain::read_artifact(&p)?;
         results.push(ResidualAnalysisResult::Eis {
             source: "eis".into(),
             summary: crate::signal::residuals::eis_summary(&r),
@@ -180,7 +204,7 @@ fn export_signal(
     let dir = output_dir(workspace, output, "signal");
     fs::create_dir_all(&dir)?;
     let c = &report.configuration.export;
-    write_json(&dir.join(&c.results_filename), report)?;
+    crate::domain::write_artifact(&dir.join(&c.results_filename), report)?;
     let mut w = csv::Writer::from_path(dir.join(&c.summary_filename))?;
     w.write_record(["feature", "value", "unit"])?;
     for (name, value, unit) in [
@@ -307,9 +331,6 @@ fn human_report(r: &crate::results::SignalAnalysisReport) -> String {
         fmt(r.spikes.flagged_fraction),
         r.warnings
     )
-}
-fn read_json<T: DeserializeOwned>(p: &Path) -> Result<T, RunnerError> {
-    Ok(serde_json::from_str(&fs::read_to_string(p)?)?)
 }
 fn write_json<T: serde::Serialize>(p: &Path, v: &T) -> Result<(), RunnerError> {
     fs::write(p, serde_json::to_string_pretty(v)?)?;

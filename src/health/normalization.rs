@@ -110,6 +110,7 @@ pub fn compare_with_config(
         empirical_percentile,
         range_position_percent,
         override_reason: documented_override_reason.map(str::to_string),
+        baseline_sample_count: sample_count,
     }
 }
 

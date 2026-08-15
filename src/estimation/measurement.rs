@@ -38,7 +38,13 @@ pub struct MeasurementObservation {
 pub fn observations(
     measurement: &MultiChannelMeasurement,
     channel: &str,
-) -> Result<Vec<MeasurementObservation>, EstimationError> {
+) -> Result<
+    (
+        Vec<MeasurementObservation>,
+        crate::estimation::timestamp::TimestampDiagnostics,
+    ),
+    EstimationError,
+> {
     let c = measurement.channel(channel).ok_or_else(|| {
         EstimationError::invalid(format!("selected channel '{channel}' does not exist"))
     })?;
@@ -56,19 +62,21 @@ pub fn observations(
                 c.name
             ))
         })?;
+
+    // Run timestamp diagnostics but do NOT reject non-increasing timestamps.
+    let values_for_diag = vec![c.values.clone()];
+    let diagnostics =
+        crate::estimation::timestamp::diagnose_timestamps(&measurement.time, &values_for_diag);
+
     if measurement.time.iter().any(|t| !t.is_finite()) {
         return Err(EstimationError::invalid(
-            "measurement contains a nonfinite timestamp",
+            "measurement contains a nonfinite timestamp; filter non-finite rows before estimation",
         ));
     }
-    for pair in measurement.time.windows(2) {
-        if pair[1].partial_cmp(&pair[0]) != Some(std::cmp::Ordering::Greater) {
-            return Err(EstimationError::invalid(
-                "timestamps must be strictly increasing; duplicate or non-monotonic timestamps were not resolved",
-            ));
-        }
-    }
-    Ok(measurement
+
+    // Warn about but do not reject non-monotonic timestamps — preprocessing
+    // is handled before this function is called.
+    let obs: Vec<MeasurementObservation> = measurement
         .time
         .iter()
         .copied()
@@ -88,5 +96,7 @@ pub fn observations(
                 observation_variance_v2: variance.map(|value| value * scale * scale),
             },
         )
-        .collect())
+        .collect();
+
+    Ok((obs, diagnostics))
 }

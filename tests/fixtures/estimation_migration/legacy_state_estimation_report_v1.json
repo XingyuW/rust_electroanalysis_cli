@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "analysis_id": "historical-estimation-v1",
+  "experiment_id": "historical-experiment",
+  "sensor_id": null,
+  "channel": "E1",
+  "filter": "ekf",
+  "model": "activity",
+  "state_definitions": [],
+  "initialization": {
+    "state_mean": [],
+    "state_covariance": [],
+    "sources": [],
+    "assumptions": [],
+    "warnings": []
+  },
+  "process_covariance": {
+    "candidates": [],
+    "selected_source": "configured",
+    "rejected_sources": [],
+    "combination_assumptions": [],
+    "final_variance": 0.000001,
+    "unit": "V^2"
+  },
+  "measurement_covariance": {
+    "candidates": [],
+    "selected_source": "configured",
+    "rejected_sources": [],
+    "combination_assumptions": [],
+    "final_variance": 0.000001,
+    "unit": "V^2"
+  },
+  "observability": {
+    "state_count": 0,
+    "measurement_count": 0,
+    "observation_jacobian": [],
+    "observability_matrix": [],
+    "numerical_rank": 0,
+    "condition_number": null,
+    "weakly_observable_states": [],
+    "unobservable_states": [],
+    "empirical_identifiability_passed": false,
+    "warnings": []
+  },
+  "estimates": [],
+  "diagnostics": {
+    "innovation_mean": null,
+    "innovation_standard_deviation": null,
+    "nis_mean": null,
+    "nis_exceedance_rate": null,
+    "accepted_update_count": 0,
+    "rejected_update_count": 0,
+    "predict_only_count": 0,
+    "log_likelihood": null,
+    "residual_autocorrelation": null,
+    "numerical_failures": 0,
+    "covariance_jitter_count": 0,
+    "domain_excursion_count": 0,
+    "innovations": []
+  },
+  "validation": null,
+  "configuration": {},
+  "provenance": {
+    "software_version": "historical",
+    "input_path": "historical.csv",
+    "input_sha256": "historical",
+    "generation_timestamp": 1
+  },
+  "warnings": []
+}

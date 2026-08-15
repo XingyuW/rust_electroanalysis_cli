@@ -12,7 +12,10 @@ use crate::{
         initialization::InitializationReport, innovation::InnovationRecord,
         observability::ObservabilityReport,
     },
-    estimation_config::{FilterKind, ResolvedEstimationConfig, StateModelKind},
+    estimation_config::{
+        CompiledEstimationProfile, EstimationModelBackend, FilterKind, ResolvedEstimationConfig,
+        StateModelKind,
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -31,9 +34,29 @@ pub struct StateValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateEstimatePoint {
+    #[serde(default)]
+    pub segment_id: usize,
     pub timestamp_s: f64,
+    #[serde(default)]
+    pub original_row_index: Option<usize>,
     pub measurement_v: Option<f64>,
     pub predicted_measurement_v: Option<f64>,
+    #[serde(default)]
+    pub component_contributions: Vec<crate::model::ComponentContribution>,
+    #[serde(default)]
+    pub equilibrium_potential_v: Option<f64>,
+    #[serde(default)]
+    pub transport_potential_v: Option<f64>,
+    #[serde(default)]
+    pub transduction_potential_v: Option<f64>,
+    #[serde(default)]
+    pub reference_potential_v: Option<f64>,
+    #[serde(default)]
+    pub external_disturbance_potential_v: Option<f64>,
+    #[serde(default)]
+    pub unexplained_residual_v: Option<f64>,
+    #[serde(default)]
+    pub equilibrium_assessment: Option<crate::model::EquilibriumAssessment>,
     pub innovation_v: Option<f64>,
     pub innovation_variance_v2: Option<f64>,
     pub standardized_innovation: Option<f64>,
@@ -120,6 +143,8 @@ pub struct StateMetric {
 pub struct StateValidationResult {
     pub truth_source: Option<String>,
     pub metrics: Vec<StateMetric>,
+    #[serde(default)]
+    pub contribution_metrics: Vec<StateMetric>,
     pub vector_nees_mean: Option<f64>,
     pub vector_nees_count: usize,
     #[serde(default)]
@@ -142,6 +167,10 @@ pub struct StateValidationResult {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FilterComparisonRecord {
     pub filter: FilterKind,
+    #[serde(default)]
+    pub model_backend: Option<EstimationModelBackend>,
+    #[serde(default)]
+    pub model_profile: Option<CompiledEstimationProfile>,
     pub runtime_ms: f64,
     pub activity_rmse: Option<f64>,
     pub innovation_mean: Option<f64>,
@@ -169,11 +198,17 @@ pub struct StateFilterComparison {
     pub schema_version: u32,
     pub records: Vec<FilterComparisonRecord>,
     pub warnings: Vec<EstimationWarning>,
+    /// Canonical physical-input recovery evidence shared by every compared
+    /// filter run. Kept separate from each filter's downstream diagnostics.
+    #[serde(default)]
+    pub ingestion_diagnostics: crate::domain::ParseDiagnostics,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateEstimationReport {
     pub schema_version: u32,
+    #[serde(default = "crate::domain::legacy_unknown_lineage")]
+    pub lineage: crate::domain::ArtifactLineageState,
     pub analysis_id: String,
     pub experiment_id: String,
     pub sensor_id: Option<String>,
@@ -184,10 +219,35 @@ pub struct StateEstimationReport {
     pub measurement_conversion: String,
     pub filter: FilterKind,
     pub model: StateModelKind,
+    /// Absent in pre-integration artifacts; absence must never be interpreted
+    /// as a compiled model.
+    #[serde(default)]
+    pub model_backend: Option<EstimationModelBackend>,
+    #[serde(default)]
+    pub model_profile: Option<CompiledEstimationProfile>,
+    #[serde(default)]
+    pub model_id: Option<String>,
+    #[serde(default)]
+    pub model_schema_version: Option<u32>,
+    #[serde(default)]
+    pub compiled_model_summary: Option<crate::model::CompiledModelSummary>,
+    #[serde(default)]
+    pub state_bindings: Vec<crate::estimation::model_adapter::StateBinding>,
+    #[serde(default)]
+    pub model_definition: Option<crate::model::ModelDefinition>,
+    #[serde(default)]
+    pub resolved_model_definition_source:
+        Option<crate::estimation::ism_adapter::ResolvedModelDefinitionSource>,
+    #[serde(default)]
+    pub resolved_input_bindings: Option<crate::estimation::ism_adapter::ResolvedModelInputBindings>,
     pub state_definitions: Vec<StateDefinition>,
     pub initialization: InitializationReport,
     pub process_covariance: CovarianceResolution,
     pub measurement_covariance: CovarianceResolution,
+    /// Producer-owned labels are additive.  Positional legacy covariance is
+    /// still readable but is not consumed by A1 pair-covariance adapters.
+    #[serde(default)]
+    pub labeled_covariance: Option<crate::evidence::LabeledCovarianceMatrix>,
     pub observability: ObservabilityReport,
     pub estimates: Vec<StateEstimatePoint>,
     pub diagnostics: FilterDiagnostics,
@@ -195,6 +255,20 @@ pub struct StateEstimationReport {
     pub configuration: ResolvedEstimationConfig,
     pub provenance: AnalysisProvenance,
     pub warnings: Vec<EstimationWarning>,
+    #[serde(default)]
+    pub timestamp_diagnostics: Option<crate::estimation::timestamp::TimestampDiagnostics>,
+    #[serde(default)]
+    pub timestamp_policy: Option<crate::estimation::timestamp::TimestampHandlingConfig>,
+    #[serde(default)]
+    pub timestamp_segments: Vec<crate::estimation::timestamp::TimestampSegment>,
+    #[serde(default)]
+    pub skipped_timestamp_segments: Vec<crate::estimation::timestamp::SkippedTimestampSegment>,
+    #[serde(default)]
+    pub was_preprocessed: bool,
+    /// Canonical physical-input recovery evidence used by this estimate.
+    /// Kept separately from downstream timestamp preprocessing diagnostics.
+    #[serde(default)]
+    pub ingestion_diagnostics: crate::domain::ParseDiagnostics,
 }
 
 pub fn finite_json<T: Serialize>(value: &T) -> Result<String, serde_json::Error> {

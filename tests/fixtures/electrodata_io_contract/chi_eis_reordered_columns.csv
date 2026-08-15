@@ -1,0 +1,11 @@
+Mar. 12, 2026   15:48:13
+A.C. Impedance
+File: chi_eis_reordered_columns.csv
+Data Source: Experiment
+Instrument Model: CHI760F
+
+Phase/deg,Z"/ohm,Freq/Hz,Z/ohm,Z'/ohm
+
+-5.710593,-1,1000,10.049876,10
+-18.434949,-5,100,15.811388,15
+-26.565051,-10,10,22.360680,20

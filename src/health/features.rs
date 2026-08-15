@@ -5,26 +5,46 @@ use crate::{
     },
     signal::statistics,
 };
+use std::collections::BTreeMap;
+
+/// Workflow-neutral model outputs used for longitudinal health comparison.
+/// Component IDs are durable identifiers from `ModelDefinition`, never a
+/// position in a fitted parameter vector.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ModelHealthSnapshot {
+    pub component_parameter_values: BTreeMap<(String, String), f64>,
+    pub component_state_values: BTreeMap<(String, String), f64>,
+    pub equilibrium_recognition_fraction: Option<f64>,
+    pub unexplained_residual_rms_v: Option<f64>,
+    pub component_validity_failures: BTreeMap<String, usize>,
+    pub component_identifiability_scores: BTreeMap<String, f64>,
+    pub calibration_domain_excursions: usize,
+}
 
 pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
     let mut f = Vec::new();
-    let add =
-        |v: &mut Vec<HealthFeature>, name: &str, value: Option<f64>, unit: &str, source: &str| {
-            v.push(HealthFeature {
-                name: name.into(),
-                value,
-                unit: unit.into(),
-                domain: HealthDomain::SignalNoise,
-                source: source.into(),
-                warning: None,
-            })
-        };
+    let add = |v: &mut Vec<HealthFeature>,
+               name: &str,
+               value: Option<f64>,
+               unit: &str,
+               source: &str,
+               domain: HealthDomain| {
+        v.push(HealthFeature {
+            name: name.into(),
+            value,
+            unit: unit.into(),
+            domain,
+            source: source.into(),
+            warning: None,
+        })
+    };
     add(
         &mut f,
         "signal.rms_noise",
         r.descriptive.rms,
         &r.unit,
         "signal",
+        HealthDomain::SignalNoise,
     );
     add(
         &mut f,
@@ -32,6 +52,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.descriptive.robust_standard_deviation,
         &r.unit,
         "signal",
+        HealthDomain::SignalNoise,
     );
     add(
         &mut f,
@@ -39,6 +60,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.descriptive.peak_to_peak,
         &r.unit,
         "signal",
+        HealthDomain::SignalNoise,
     );
     add(
         &mut f,
@@ -46,6 +68,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.allan.as_ref().and_then(|a| a.minimum_deviation),
         &r.unit,
         "signal",
+        HealthDomain::SignalNoise,
     );
     add(
         &mut f,
@@ -53,23 +76,27 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.allan.as_ref().and_then(|a| a.minimum_averaging_time_s),
         "s",
         "signal",
+        HealthDomain::SignalNoise,
     );
-    add(
-        &mut f,
-        "signal.robust_drift_rate",
-        r.drift
+    f.push(HealthFeature {
+        name: "signal.robust_drift_rate".into(),
+        value: r
+            .drift
             .iter()
             .find(|d| matches!(d.model, crate::results::DriftModelKind::TheilSen))
             .and_then(|d| d.slope_v_per_s),
-        format!("{}/s", r.unit).as_str(),
-        "signal",
-    );
+        unit: format!("{}/s", r.unit),
+        domain: HealthDomain::Drift,
+        source: "signal".into(),
+        warning: None,
+    });
     add(
         &mut f,
         "signal.spike_fraction",
         r.spikes.flagged_fraction,
         "fraction",
         "signal",
+        HealthDomain::SignalNoise,
     );
     add(
         &mut f,
@@ -77,6 +104,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.sampling.missing_fraction,
         "fraction",
         "signal",
+        HealthDomain::DataQuality,
     );
     add(
         &mut f,
@@ -84,6 +112,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.sampling.interval_cv,
         "fraction",
         "signal",
+        HealthDomain::DataQuality,
     );
     add(
         &mut f,
@@ -91,6 +120,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
         r.correlations.first().and_then(|c| c.common_mode_fraction),
         "fraction",
         "signal",
+        HealthDomain::SignalNoise,
     );
     if let Some(psd) = &r.psd {
         for b in &psd.band_powers {
@@ -100,6 +130,7 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
                 b.integrated_power,
                 &psd.psd_unit,
                 "signal",
+                HealthDomain::SignalNoise,
             );
         }
         add(
@@ -108,100 +139,298 @@ pub fn from_signal(r: &SignalAnalysisReport) -> Vec<HealthFeature> {
             psd.dominant_peaks.first().map(|p| p.frequency_hz),
             "Hz",
             "signal",
+            HealthDomain::SignalNoise,
         );
     }
     f
 }
 pub fn from_transient(r: &TransientAnalysisReport) -> Vec<HealthFeature> {
     let mut f = Vec::new();
-    let selected = r
-        .events
-        .iter()
-        .filter_map(|e| {
-            e.selected_model.and_then(|m| {
-                e.candidate_fits
-                    .iter()
-                    .find(|x| x.model == m && x.is_successful())
-            })
-        })
-        .collect::<Vec<_>>();
-    let avg = |name: fn(&crate::results::TransientFeatures) -> Option<f64>| {
-        let v = selected
-            .iter()
-            .filter_map(|x| name(&x.derived_features))
-            .collect::<Vec<_>>();
-        statistics::mean(&v)
-    };
-    let add = |v: &mut Vec<HealthFeature>, n: &str, x: Option<f64>, u: &str| {
+    let mut groups = BTreeMap::<String, Vec<&crate::results::TransientFitResult>>::new();
+    for event in &r.events {
+        let Some(fit) = event.selected_model.and_then(|model| {
+            event
+                .candidate_fits
+                .iter()
+                .find(|fit| fit.model == model && fit.is_successful())
+        }) else {
+            continue;
+        };
+        groups
+            .entry(transient_context_key(event))
+            .or_default()
+            .push(fit);
+    }
+    let single_context = groups.len() == 1;
+    let add = |v: &mut Vec<HealthFeature>, n: String, x: Option<f64>, u: &str| {
+        let domain = if n.ends_with("drift_rate") {
+            HealthDomain::Drift
+        } else {
+            HealthDomain::DynamicResponse
+        };
         v.push(HealthFeature {
-            name: n.into(),
+            name: n,
             value: x,
             unit: u.into(),
-            domain: HealthDomain::DynamicResponse,
+            domain,
             source: "transient".into(),
             warning: None,
         })
     };
-    add(&mut f, "transient.tau_fast", avg(|x| x.tau_fast_s), "s");
-    add(&mut f, "transient.tau_slow", avg(|x| x.tau_slow_s), "s");
-    add(
-        &mut f,
-        "transient.response_amplitude",
-        avg(|x| x.total_response_amplitude_v),
-        "V",
-    );
-    add(
-        &mut f,
-        "transient.fast_amplitude",
-        avg(|x| x.fast_amplitude_v),
-        "V",
-    );
-    add(
-        &mut f,
-        "transient.slow_amplitude",
-        avg(|x| x.slow_amplitude_v),
-        "V",
-    );
-    add(
-        &mut f,
-        "transient.initial_response_rate",
-        avg(|x| x.initial_response_rate_v_per_s),
-        "V/s",
-    );
-    add(
-        &mut f,
-        "transient.time_to_90_percent",
-        avg(|x| x.time_to_90_percent_s),
-        "s",
-    );
-    add(
-        &mut f,
-        "transient.time_to_95_percent",
-        avg(|x| x.time_to_95_percent_s),
-        "s",
-    );
-    add(
-        &mut f,
-        "transient.drift_rate",
-        avg(|x| x.drift_rate_v_per_s),
-        "V/s",
-    );
-    let rmse = selected
-        .iter()
-        .filter_map(|x| x.statistics.rmse_v)
-        .collect::<Vec<_>>();
-    add(&mut f, "transient.fit_rmse", statistics::mean(&rmse), "V");
-    let ac = selected
-        .iter()
-        .filter_map(|x| x.statistics.lag1_residual_autocorrelation)
-        .collect::<Vec<_>>();
-    add(
-        &mut f,
-        "transient.residual_autocorrelation",
-        statistics::mean(&ac),
-        "fraction",
-    );
+    for (context, selected) in groups {
+        let average = |field: fn(&crate::results::TransientFeatures) -> Option<f64>| {
+            statistics::mean(
+                &selected
+                    .iter()
+                    .filter_map(|fit| field(&fit.derived_features))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        let name = |field: &str| format!("transient.{context}.{field}");
+        add(&mut f, name("tau_fast"), average(|x| x.tau_fast_s), "s");
+        add(&mut f, name("tau_slow"), average(|x| x.tau_slow_s), "s");
+        add(
+            &mut f,
+            name("response_amplitude"),
+            average(|x| x.total_response_amplitude_v),
+            "V",
+        );
+        add(
+            &mut f,
+            name("fast_amplitude"),
+            average(|x| x.fast_amplitude_v),
+            "V",
+        );
+        add(
+            &mut f,
+            name("slow_amplitude"),
+            average(|x| x.slow_amplitude_v),
+            "V",
+        );
+        add(
+            &mut f,
+            name("initial_response_rate"),
+            average(|x| x.initial_response_rate_v_per_s),
+            "V/s",
+        );
+        add(
+            &mut f,
+            name("time_to_90_percent"),
+            average(|x| x.time_to_90_percent_s),
+            "s",
+        );
+        add(
+            &mut f,
+            name("time_to_95_percent"),
+            average(|x| x.time_to_95_percent_s),
+            "s",
+        );
+        add(
+            &mut f,
+            name("drift_rate"),
+            average(|x| x.drift_rate_v_per_s),
+            "V/s",
+        );
+        add(
+            &mut f,
+            name("fit_rmse"),
+            statistics::mean(
+                &selected
+                    .iter()
+                    .filter_map(|fit| fit.statistics.rmse_v)
+                    .collect::<Vec<_>>(),
+            ),
+            "V",
+        );
+        add(
+            &mut f,
+            name("residual_autocorrelation"),
+            statistics::mean(
+                &selected
+                    .iter()
+                    .filter_map(|fit| fit.statistics.lag1_residual_autocorrelation)
+                    .collect::<Vec<_>>(),
+            ),
+            "fraction",
+        );
+    }
+    // Preserve legacy feature names only when every event belongs to exactly
+    // one scientifically comparable context. With multiple contexts there is
+    // deliberately no aggregate alias to prevent cross-context averaging.
+    if single_context {
+        let aliases = f
+            .iter()
+            .filter_map(|feature| {
+                feature
+                    .name
+                    .rsplit_once('.')
+                    .map(|(_, field)| HealthFeature {
+                        name: format!("transient.{field}"),
+                        value: feature.value,
+                        unit: feature.unit.clone(),
+                        domain: feature.domain,
+                        source: feature.source.clone(),
+                        warning: feature.warning.clone(),
+                    })
+            })
+            .collect::<Vec<_>>();
+        f.extend(aliases);
+    }
     f
+}
+
+fn transient_context_key(event: &crate::results::TransientEventResult) -> String {
+    let metadata = event.event.metadata.as_ref();
+    let get = |key: &str| {
+        metadata
+            .and_then(|values| values.get(key))
+            .cloned()
+            .unwrap_or_else(|| "unknown".to_string())
+    };
+    let before = event
+        .concentration_before
+        .as_ref()
+        .map(|value| {
+            format!(
+                "{} {}",
+                value.value,
+                value.unit.as_deref().unwrap_or("unknown_unit")
+            )
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+    let after = event
+        .concentration_after
+        .as_ref()
+        .map(|value| {
+            format!(
+                "{} {}",
+                value.value,
+                value.unit.as_deref().unwrap_or("unknown_unit")
+            )
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+    let direction = match (
+        event.concentration_before.as_ref().map(|x| x.value),
+        event.concentration_after.as_ref().map(|x| x.value),
+    ) {
+        (Some(before), Some(after)) if after > before => "increasing",
+        (Some(before), Some(after)) if after < before => "decreasing",
+        _ => "unknown",
+    };
+    let analyte = event
+        .event
+        .analyte
+        .clone()
+        .or_else(|| {
+            event
+                .concentration_after
+                .as_ref()
+                .and_then(|value| value.analyte.clone())
+        })
+        .or_else(|| {
+            event
+                .concentration_before
+                .as_ref()
+                .and_then(|value| value.analyte.clone())
+        });
+    let matrix = get("sample_matrix");
+    let temperature = get("temperature_k");
+    let incomplete = analyte.is_none()
+        || before.contains("unknown")
+        || after.contains("unknown")
+        || direction == "unknown"
+        || matrix == "unknown"
+        || temperature == "unknown";
+    format!(
+        "analyte={};step={before}->{after};direction={direction};matrix={matrix};temperature_k={temperature}{}",
+        analyte.unwrap_or_else(|| "unknown".to_string()),
+        if incomplete {
+            format!(";unresolved_event={}", event.event_index)
+        } else {
+            String::new()
+        }
+    )
+}
+
+pub fn from_model(snapshot: &ModelHealthSnapshot) -> Vec<HealthFeature> {
+    let mut features = Vec::new();
+    let mut add = |name: String,
+                   value: Option<f64>,
+                   unit: &str,
+                   domain: HealthDomain,
+                   warning: Option<String>| {
+        features.push(HealthFeature {
+            name,
+            value,
+            unit: unit.to_string(),
+            domain,
+            source: "model".to_string(),
+            warning,
+        });
+    };
+    for ((component_id, parameter_id), value) in &snapshot.component_parameter_values {
+        add(
+            format!("model.component.{component_id}.parameter.{parameter_id}.drift_value"),
+            value.is_finite().then_some(*value),
+            "model parameter",
+            HealthDomain::Drift,
+            (!value.is_finite()).then_some("non-finite component parameter".to_string()),
+        );
+    }
+    for ((component_id, state_id), value) in &snapshot.component_state_values {
+        add(
+            format!("model.component.{component_id}.state.{state_id}.drift_value"),
+            value.is_finite().then_some(*value),
+            "model state",
+            HealthDomain::Drift,
+            (!value.is_finite()).then_some("non-finite component state".to_string()),
+        );
+    }
+    add(
+        "model.equilibrium_recognition_fraction".to_string(),
+        snapshot
+            .equilibrium_recognition_fraction
+            .filter(|x| x.is_finite()),
+        "fraction",
+        HealthDomain::DynamicResponse,
+        None,
+    );
+    add(
+        "model.unexplained_residual_rms".to_string(),
+        snapshot
+            .unexplained_residual_rms_v
+            .filter(|x| x.is_finite()),
+        "V",
+        HealthDomain::SignalNoise,
+        None,
+    );
+    for (component_id, failures) in &snapshot.component_validity_failures {
+        add(
+            format!("model.component.{component_id}.validity_failures"),
+            Some(*failures as f64),
+            "count",
+            HealthDomain::DataQuality,
+            (*failures > 0).then_some("component validity failures present".to_string()),
+        );
+    }
+    for (component_id, score) in &snapshot.component_identifiability_scores {
+        add(
+            format!("model.component.{component_id}.identifiability"),
+            score.is_finite().then_some(*score),
+            "score",
+            HealthDomain::MechanismEvidence,
+            (!score.is_finite()).then_some("identifiability unavailable".to_string()),
+        );
+    }
+    add(
+        "model.calibration_domain_excursions".to_string(),
+        Some(snapshot.calibration_domain_excursions as f64),
+        "count",
+        HealthDomain::Calibration,
+        (snapshot.calibration_domain_excursions > 0)
+            .then_some("calibration-domain excursions present".to_string()),
+    );
+    features
 }
 pub fn from_calibration(r: &CalibrationAnalysisReport) -> Vec<HealthFeature> {
     let mut f = Vec::new();
@@ -287,6 +516,7 @@ pub fn from_calibration(r: &CalibrationAnalysisReport) -> Vec<HealthFeature> {
     );
     f
 }
+
 pub fn from_eis(r: &EisFitArtifact) -> Vec<HealthFeature> {
     let mut f = Vec::new();
     let add = |v: &mut Vec<HealthFeature>, n: &str, x: Option<f64>, u: &str| {
@@ -384,4 +614,64 @@ pub fn from_mechanism(r: &MechanismAnalysisReport) -> Vec<HealthFeature> {
         ),
     );
     f
+}
+
+#[cfg(test)]
+mod context_tests {
+    use super::transient_context_key;
+    use crate::{
+        domain::{ExperimentEvent, ExperimentEventKind},
+        results::{BaselineResult, ConcentrationContext, SegmentSummary, TransientEventResult},
+    };
+
+    fn event(index: usize, unit: &str) -> TransientEventResult {
+        TransientEventResult {
+            event_index: index,
+            event: ExperimentEvent {
+                timestamp: index as f64,
+                kind: ExperimentEventKind::ConcentrationStep,
+                value: Some(2.0),
+                unit: Some(unit.into()),
+                analyte: Some("K+".into()),
+                annotation: None,
+                metadata: None,
+            },
+            concentration_before: Some(ConcentrationContext {
+                value: 1.0,
+                unit: Some(unit.into()),
+                analyte: Some("K+".into()),
+            }),
+            concentration_after: Some(ConcentrationContext {
+                value: 2.0,
+                unit: Some(unit.into()),
+                analyte: Some("K+".into()),
+            }),
+            segment: SegmentSummary::default(),
+            baseline: BaselineResult::default(),
+            candidate_fits: Vec::new(),
+            selected_model: None,
+            warnings: Vec::new(),
+            failure: None,
+        }
+    }
+
+    #[test]
+    fn incomplete_or_unit_incompatible_transient_contexts_do_not_share_a_key() {
+        assert_ne!(
+            transient_context_key(&event(1, "mol/L")),
+            transient_context_key(&event(2, "mol/L"))
+        );
+        let mut complete_a = event(1, "mol/L");
+        complete_a.event.metadata = Some(std::collections::BTreeMap::from([
+            ("sample_matrix".into(), "water".into()),
+            ("temperature_k".into(), "298.15".into()),
+        ]));
+        let mut complete_b = complete_a.clone();
+        complete_b.event_index = 2;
+        complete_b.concentration_before.as_mut().unwrap().unit = Some("mmol/L".into());
+        assert_ne!(
+            transient_context_key(&complete_a),
+            transient_context_key(&complete_b)
+        );
+    }
 }

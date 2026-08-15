@@ -1,0 +1,296 @@
+schema_version = 1
+
+[model]
+schema_version = 3
+model_id = "ism-reduced-order-v1"
+description = "Reduced-order ISM baseline with explicit phenomenological modes."
+validity_domain = "Aqueous potentiometric steps within declared calibration/activity domains."
+uncertainty_incomplete = false
+
+[[model.states]]
+id = "fast_mode_v"
+name = "fast mode voltage"
+description = "Phenomenological reduced-order voltage state; no physical mechanism is implied."
+unit = "V"
+transformation = "identity"
+initialization_source = "declared_default"
+lower_bound = -10.0
+upper_bound = 10.0
+initial_value = 0.0
+source = "default reduced-order model"
+process_equation_version = 1
+observability_requirements = ["State observability must be assessed before interpretation."]
+validity_domain = "reduced-order voltage mode"
+initial_uncertainty = { kind = "deterministic" }
+
+[[model.states]]
+id = "slow_mode_v"
+name = "slow mode voltage"
+description = "Phenomenological reduced-order voltage state; no physical mechanism is implied."
+unit = "V"
+transformation = "identity"
+initialization_source = "declared_default"
+lower_bound = -10.0
+upper_bound = 10.0
+initial_value = 0.0
+source = "default reduced-order model"
+process_equation_version = 1
+observability_requirements = ["State observability must be assessed before interpretation."]
+validity_domain = "reduced-order voltage mode"
+initial_uncertainty = { kind = "deterministic" }
+
+[[model.parameters]]
+id = "standard_potential_v"
+name = "standard potential"
+description = "Reduced-order model parameter; domain-specific calibration is required."
+unit = "V"
+lower_bound = -2.0
+upper_bound = 2.0
+default_value = 0.0
+uncertainty = { kind = "unknown", reason = "standard potential requires calibration covariance or an explicit prior" }
+source = "default reduced-order model"
+equation_version = 1
+identifiability_requirements = ["Structural and practical identifiability must be assessed before interpretation."]
+value_source = "externally_supplied"
+validity_domain = "must be calibrated for the experimental domain"
+
+[[model.parameters]]
+id = "ion_charge"
+name = "ion charge"
+description = "Reduced-order model parameter; domain-specific calibration is required."
+unit = "dimensionless"
+lower_bound = -4.0
+upper_bound = 4.0
+default_value = 1.0
+uncertainty = { kind = "deterministic" }
+source = "default reduced-order model"
+equation_version = 1
+identifiability_requirements = ["Structural and practical identifiability must be assessed before interpretation."]
+value_source = "fixed"
+characteristic = "discrete_integer"
+validity_domain = "must be declared for the analyte"
+
+[[model.parameters]]
+id = "fast_tau_s"
+name = "fast mode time constant"
+description = "Reduced-order model parameter; domain-specific calibration is required."
+unit = "s"
+lower_bound = 0.0001
+upper_bound = 100000.0
+default_value = 1.0
+uncertainty = { kind = "unknown", reason = "fast time constant has no calibration covariance or explicit prior" }
+source = "default reduced-order model"
+equation_version = 1
+identifiability_requirements = ["Structural and practical identifiability must be assessed before interpretation."]
+value_source = "externally_supplied"
+validity_domain = "must be calibrated for the experimental domain"
+
+[[model.parameters]]
+id = "fast_gain"
+name = "fast mode gain"
+description = "Reduced-order model parameter; domain-specific calibration is required."
+unit = "dimensionless"
+lower_bound = -10.0
+upper_bound = 10.0
+default_value = 1.0
+uncertainty = { kind = "unknown", reason = "fast gain has no calibration covariance or explicit prior" }
+source = "default reduced-order model"
+equation_version = 1
+identifiability_requirements = ["Structural and practical identifiability must be assessed before interpretation."]
+value_source = "externally_supplied"
+validity_domain = "must be calibrated for the experimental domain"
+
+[[model.parameters]]
+id = "slow_tau_s"
+name = "slow mode time constant"
+description = "Reduced-order model parameter; domain-specific calibration is required."
+unit = "s"
+lower_bound = 0.0001
+upper_bound = 1000000.0
+default_value = 30.0
+uncertainty = { kind = "unknown", reason = "slow time constant has no calibration covariance or explicit prior" }
+source = "default reduced-order model"
+equation_version = 1
+identifiability_requirements = ["Structural and practical identifiability must be assessed before interpretation."]
+value_source = "externally_supplied"
+validity_domain = "must be calibrated for the experimental domain"
+
+[[model.parameters]]
+id = "slow_gain"
+name = "slow mode gain"
+description = "Reduced-order model parameter; domain-specific calibration is required."
+unit = "dimensionless"
+lower_bound = -10.0
+upper_bound = 10.0
+default_value = 0.2
+uncertainty = { kind = "unknown", reason = "slow gain has no calibration covariance or explicit prior" }
+source = "default reduced-order model"
+equation_version = 1
+identifiability_requirements = ["Structural and practical identifiability must be assessed before interpretation."]
+value_source = "externally_supplied"
+validity_domain = "must be calibrated for the experimental domain"
+
+[[model.parameters]]
+id = "baseline_drift_v_per_s"
+name = "baseline drift"
+description = "Reduced-order model parameter; domain-specific calibration is required."
+unit = "V/s"
+lower_bound = -1.0
+upper_bound = 1.0
+default_value = 0.0
+uncertainty = { kind = "unknown", reason = "drift rate has no calibration covariance or explicit prior" }
+source = "default reduced-order model"
+equation_version = 1
+identifiability_requirements = ["Structural and practical identifiability must be assessed before interpretation."]
+value_source = "externally_supplied"
+validity_domain = "must be calibrated for the experimental domain"
+
+[[model.parameters]]
+id = "observation_noise_std_v"
+name = "observation noise standard deviation"
+description = "Reduced-order model parameter; domain-specific calibration is required."
+unit = "V"
+lower_bound = 0.0
+upper_bound = 1.0
+default_value = 0.001
+uncertainty = { kind = "deterministic" }
+source = "default reduced-order model"
+equation_version = 1
+identifiability_requirements = ["Structural and practical identifiability must be assessed before interpretation."]
+value_source = "externally_supplied_fixed"
+validity_domain = "must be estimated for the measurement system"
+
+[[model.inputs]]
+id = "primary_concentration"
+unit = "mol/L"
+required = true
+source = "experiment input"
+validity_domain = "positive finite concentration within calibration domain"
+
+[[model.inputs]]
+id = "temperature"
+unit = "K"
+required = true
+source = "experiment input"
+validity_domain = "positive absolute temperature within calibration domain"
+
+[[model.inputs]]
+id = "driving_step_v"
+unit = "V"
+required = true
+source = "experiment input"
+validity_domain = "finite declared step drive"
+
+[[model.components]]
+id = "equilibrium"
+kind = "equilibrium.nernst"
+role = "equilibrium"
+interpretation_status = "phenomenological"
+depends_on = []
+required_inputs = [{ id = "primary_concentration", unit = "mol/L" }, { id = "temperature", unit = "K" }]
+state_ids = []
+parameter_ids = ["standard_potential_v", "ion_charge"]
+observation_state_ids = []
+observation_parameter_ids = ["standard_potential_v", "ion_charge"]
+numerical_jacobian_supported = false
+output_unit = "V"
+voltage_contribution_owner = "equilibrium"
+contribution_semantics = "additive_potential"
+source = "Phase 03 built-in component"
+validity_domain = "reduced-order component; no mechanism confirmation implied"
+equation = "EQ-CAL-001 adapter"
+equation_version = 1
+assumptions = ["Phenomenological component terms are not mechanism labels."]
+evidence_requirements = [{ hypothesis_id = "equilibrium-mechanism", proposed_mechanism_label = "unassigned", independent_evidence_types = ["independent experiment"], minimum_independent_observations = 2, validity_domain = "declared model domain", alternatives_to_consider = ["other reduced-order explanations"], required_uncertainty_statement = "parameter uncertainty is required before interpretation" }]
+metadata = { activity_model = "ideal" }
+
+[[model.components]]
+id = "fast_mode"
+kind = "transport.first_order_relaxation"
+role = "transport"
+interpretation_status = "phenomenological"
+depends_on = []
+required_inputs = [{ id = "driving_step_v", unit = "V" }]
+state_ids = ["fast_mode_v"]
+parameter_ids = ["fast_tau_s", "fast_gain"]
+observation_state_ids = ["fast_mode_v"]
+observation_parameter_ids = []
+numerical_jacobian_supported = false
+output_unit = "V"
+voltage_contribution_owner = "fast_mode"
+contribution_semantics = "additive_potential"
+source = "Phase 03 built-in component"
+validity_domain = "reduced-order component; no mechanism confirmation implied"
+equation = "EQ-TR-001 adapter"
+equation_version = 1
+assumptions = ["Fast is a relative phenomenological label, not a physical identity."]
+evidence_requirements = [{ hypothesis_id = "fast-mode-mechanism", proposed_mechanism_label = "unassigned", independent_evidence_types = ["independent experiment"], minimum_independent_observations = 2, validity_domain = "declared model domain", alternatives_to_consider = ["other reduced-order explanations"], required_uncertainty_statement = "parameter uncertainty is required before interpretation" }]
+metadata = {}
+
+[[model.components]]
+id = "slow_mode"
+kind = "transport.first_order_relaxation"
+role = "transport"
+interpretation_status = "phenomenological"
+depends_on = []
+required_inputs = [{ id = "driving_step_v", unit = "V" }]
+state_ids = ["slow_mode_v"]
+parameter_ids = ["slow_tau_s", "slow_gain"]
+observation_state_ids = ["slow_mode_v"]
+observation_parameter_ids = []
+numerical_jacobian_supported = false
+output_unit = "V"
+voltage_contribution_owner = "slow_mode"
+contribution_semantics = "additive_potential"
+source = "Phase 03 built-in component"
+validity_domain = "reduced-order component; no mechanism confirmation implied"
+equation = "EQ-TR-001 adapter"
+equation_version = 1
+assumptions = ["Slow is a relative phenomenological label, not a physical identity."]
+evidence_requirements = [{ hypothesis_id = "slow-mode-mechanism", proposed_mechanism_label = "unassigned", independent_evidence_types = ["independent experiment"], minimum_independent_observations = 2, validity_domain = "declared model domain", alternatives_to_consider = ["other reduced-order explanations"], required_uncertainty_statement = "parameter uncertainty is required before interpretation" }]
+metadata = {}
+
+[[model.components]]
+id = "baseline_drift"
+kind = "disturbance.linear_drift"
+role = "external_disturbance"
+interpretation_status = "phenomenological"
+depends_on = []
+required_inputs = []
+state_ids = []
+parameter_ids = ["baseline_drift_v_per_s"]
+observation_state_ids = []
+observation_parameter_ids = ["baseline_drift_v_per_s"]
+numerical_jacobian_supported = false
+output_unit = "V"
+voltage_contribution_owner = "baseline_drift"
+contribution_semantics = "additive_potential"
+source = "Phase 03 built-in component"
+validity_domain = "reduced-order component; no mechanism confirmation implied"
+equation = "linear covariate offset"
+equation_version = 1
+assumptions = ["Drift is not assigned to a physical failure mechanism."]
+evidence_requirements = [{ hypothesis_id = "baseline-drift-mechanism", proposed_mechanism_label = "unassigned", independent_evidence_types = ["independent experiment"], minimum_independent_observations = 2, validity_domain = "declared model domain", alternatives_to_consider = ["other reduced-order explanations"], required_uncertainty_statement = "parameter uncertainty is required before interpretation" }]
+metadata = {}
+
+[[model.components]]
+id = "observation_noise"
+kind = "disturbance.stochastic_observation_noise"
+role = "observation_noise"
+interpretation_status = "phenomenological"
+depends_on = []
+required_inputs = []
+state_ids = []
+parameter_ids = ["observation_noise_std_v"]
+observation_state_ids = []
+observation_parameter_ids = []
+numerical_jacobian_supported = false
+output_unit = "V^2"
+contribution_semantics = "observation_variance"
+source = "Phase 03 built-in component"
+validity_domain = "reduced-order component; no mechanism confirmation implied"
+equation = "zero-mean observation-noise declaration"
+equation_version = 1
+assumptions = ["Zero-mean noise is uncertainty, not a deterministic voltage contribution."]
+evidence_requirements = [{ hypothesis_id = "observation-noise-mechanism", proposed_mechanism_label = "unassigned", independent_evidence_types = ["independent experiment"], minimum_independent_observations = 2, validity_domain = "declared model domain", alternatives_to_consider = ["other reduced-order explanations"], required_uncertainty_statement = "parameter uncertainty is required before interpretation" }]
+metadata = {}

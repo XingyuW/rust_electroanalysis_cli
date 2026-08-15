@@ -2,6 +2,12 @@
 
 `rust_electroanalysis_cli` is a command-line tool for electrochemical data workflows, including EIS fitting/search and OCPT/sensor time-series analysis pipelines (`transient`, `calibration`, `mechanism`, `signal`, `health`, `estimate`).
 
+Mechanism and health integrations use explicit stable ISM component IDs. A fitted
+timescale, circuit parameter, or health feature is evidence only: it never
+automatically diagnoses fouling, reference failure, contact failure, or a
+physical mechanism. Transient health features retain analyte, step, direction,
+matrix, and temperature context and are not averaged across incompatible events.
+
 ---
 
 ## Table of Contents
@@ -87,10 +93,11 @@
 - [17. Reproducibility and Limitations](#17-reproducibility-and-limitations)
 - [18. Current Documented Limitations](#18-current-documented-limitations)
 - [19. Developer Documentation](#19-developer-documentation)
+  - [Documentation Authority and Conflict Resolution](#documentation-authority-and-conflict-resolution)
   - [Adding a New Circuit Element](#adding-a-new-circuit-element)
   - [Adding a New Plot Type](#adding-a-new-plot-type)
   - [Adding a New Regression Model](#adding-a-new-regression-model)
-  - [Adding a New File Format Parser](#adding-a-new-file-format-parser)
+  - [Adding a New Consumer Domain Projection](#adding-a-new-consumer-domain-projection)
   - [Coding Conventions](#coding-conventions)
 - [20. Scientific Correctness and Artifact Migration](#20-scientific-correctness-and-artifact-migration)
 - [21. Troubleshooting](#21-troubleshooting)
@@ -115,12 +122,19 @@ It is designed for electrochemical researchers and analysts who need to:
 
 1. CHI EIS CSV (`Freq/Hz`, `Z'/ohm`, `Z"/ohm`)
 2. CHI OCPT/time-series CSV (`Time/sec`, `Potential/V`)
-3. General time-series sensor CSV (`time`/`timestamp` + numeric channels)
+3. General time-series sensor CSV or Excel (`.xlsx`) with `time`/`timestamp` + numeric channels
+4. Excel workbooks containing compatible time-series or EIS worksheets selected by `electrodata-io`
 
 ### Supported Input Formats
 
-1. `.csv`, `.txt`, `.dat` (text)
-2. `.bin` and Excel files are currently unsupported by the parser
+1. `.csv`, `.txt`, `.dat` (text-based, UTF-8 encoded)
+2. `.xlsx` (Excel workbook; parsed through the unified data pipeline for time-series tables)
+3. `.xls` is explicitly rejected
+
+**Not supported:**
+- Binary files such as `.bin`, `.raw` are intentionally unsupported and are
+  reported as structured canonical input failures in both single-file and
+  directory workflows.
 
 ### Runtime Requirements
 
@@ -133,10 +147,11 @@ The application is organized into four major subsystems:
 
 | Subsystem | Purpose |
 |-----------|---------|
-| **Data file parser** (`data_file/`) | Reads CHI-format electrochemical files, extracts metadata and measurement columns |
+| **Input-domain adapter** (`data_file/`) | Converts canonically parsed physical data into project domain and plotting types |
 | **Scientific domain** (`domain/`) | Owns aligned multi-channel measurements, experiment metadata, diagnostics, and provenance |
 | **Impedance engine** (`impedance/`) | Circuit model AST, element equations, fitting, evolutionary search, scoring, and reporting |
 | **Plotting backend** (`plottings/`) | High-quality figure rendering in SVG + supersampled PNG, supporting 9 plot geometries |
+| **ISM model core** (`model/`) | Versioned reduced-order built-ins and graph compilation; no CLI workflow or high-fidelity transport solver |
 
 These are connected by typed workflow façades (`fitting/` and `runners/`) plus the existing orchestration layer (`plot_runner.rs`, `search_runner.rs`). TOML configuration and scientific algorithms remain in their existing modules.
 
@@ -306,13 +321,46 @@ The release binary is self-contained and requires only the TOML configuration fi
 
 ## 4. Input File Formats and Automatic Detection
 
-The unified loader (`load_data`) uses content detection:
+Physical/raw electrochemical input is interpreted only by `electrodata-io`.
+It owns canonical physical-format detection, including content-aware detection
+for unusual-extension physical input and binary content; physical
+CSV/TXT/DAT/XLSX ingestion; XLSX worksheet recognition and selection; CHI/EIS
+physical-input recognition; canonical `DatasetKind` and `ColumnRole`
+assignment; source units; malformed-input recovery; diagnostics; structured
+errors; and provenance. This project enumerates filesystem candidates, may
+exclude known application-generated artifacts, converts typed `Dataset` values
+into scientific domains, and owns workflow suitability checks, analysis, and
+artifacts. The completed independent legacy-parity evidence is archived in
+`docs/io_migration_validation_archive.md`; no local production physical parser
+remains.
 
-1. **CHI EIS**: detects `Freq/Hz` + impedance headers, parser `EISData::parse_file`, internal type `chi_eis`.
-2. **CHI OCPT**: detects time header + CHI preamble markers (instrument/data-source), parser `parse_measurement_file`, internal type `chi_export`.
-3. **General sensor CSV**: detects time header without CHI preamble, parser `parse_measurement_file`, internal type `sensor_csv`.
+1. **Binary handling**: `electrodata-io` detects unsupported binary content and returns its structured error; the CLI does not pre-classify physical formats.
+2. **Excel (`.xlsx`)**: Read and worksheet-selected by `electrodata-io`.
+3. **CHI EIS**: Recognized by `electrodata-io` and converted through `EISData::parse_file`.
+4. **CHI OCPT**: `electrodata-io` recognizes the physical time-series roles; `parse_measurement_file` is the project domain-adapter entry point, not a raw parser.
+5. **General sensor CSV/Excel**: `electrodata-io` owns detection, worksheet choice, recovery, and diagnostics; this project converts its typed view into `MeasurementParseResult`.
 
-Unsupported/ambiguous files return explicit errors (missing time/frequency header, missing EIS header, decode/IO errors).
+Unsupported/ambiguous files return explicit errors (missing time/frequency header, unsupported binary, missing EIS header, decode/IO errors).
+
+### Worksheet Selection (Excel)
+
+When loading an Excel workbook:
+
+1. If `--sheet` is specified, that worksheet is used.
+2. If exactly one compatible time-series or EIS worksheet exists, it is selected automatically.
+3. If multiple compatible worksheets exist, an explicit `--sheet` selection is required (the provider returns structured ambiguity).
+4. EIS commands use the same provider selection policy; a time-series-only workflow still rejects an EIS dataset as a domain mismatch.
+
+### Binary File Behaviour
+
+- **Batch/directory input**: Binary files are offered to canonical ingestion and retained as typed per-file failures.
+- **Explicit single-file input**: Supplying a binary file directly returns a structured error:
+  ```
+  Unsupported input file 'data/example.bin': binary input is not supported.
+  Export the dataset as CSV, XLSX, or another documented text-based format.
+  ```
+- Canonical binary failures remain visible in the batch summary and never produce partial artifacts for that input.
+- No output directories or partial artefacts are created for binary files.
 
 ### Minimal Examples
 
@@ -1116,6 +1164,24 @@ EIS input is rejected (`missing time-series header`).
 
 Purpose: extract observations and fit/validate/predict calibration models.
 
+**Concentration metadata requirement**: Calibration extraction depends on explicit concentration-step metadata or events. Concentrations are never guessed from filenames. When no compatible concentration-step events are found, a corrective error is returned:
+
+```
+calibration extraction requires explicit concentration information.
+No compatible concentration-step events or concentration column were found for the input data.
+Provide one of:
+(1) experiment metadata containing concentration-step events,
+(2) a concentration column in the input data,
+(3) a validated calibration manifest.
+```
+
+**Metadata sources**:
+1. Explicit `concentration_step` events in the experiment metadata TOML.
+
+**Intentionally unsupported for extraction**:
+1. Filename-based concentration inference.
+2. Implicit concentration inference without explicit concentration-step metadata.
+
 ```bash
 cargo run -- calibration extract \
   --input "data/Shan/20260417/cn0326_log_20260413T202806Z_ch.csv" \
@@ -1226,7 +1292,18 @@ The default output directory contains: `calibration_observations.json`, `calibra
 
 ### 9.5 `mechanism`
 
-Purpose: compare EIS and transient timescale evidence.
+Purpose: compare EIS and transient timescale evidence under explicitly stated model assumptions.
+
+**Interpretation disclaimer**: Mechanism analysis outputs are dependent on selected models and assumptions and must not be presented as causal proof. Every report includes a statement equivalent to:
+
+> "These interpretations are conditional on the selected models, preprocessing choices, parameter identifiability, and data quality. They do not establish a unique physical or chemical mechanism and should not be treated as causal proof."
+
+Mechanism output distinguishes three layers:
+1. **Observed quantities**: measured potential, current, impedance, frequency, drift, noise, response slope, empirical time constants.
+2. **Model-derived quantities**: equivalent-circuit parameters, double-exponential fit parameters, estimated kinetic/transport indicators, derived activation or relaxation metrics.
+3. **Interpretive hypotheses**: behaviour consistent with interfacial charging, adsorption/relaxation, transport limitations, reference instability, or alternative explanations.
+
+Hypothesis assessments (`supported`, `weakly_supported`, `indeterminate`, `not_evaluable`) are assigned from reported evidence strength and identifiability context, not from causal inference. Failed fits, pinned parameters, and high-uncertainty parameters do not generate confident interpretations.
 
 The JSON report carries software version, input path and SHA-256, metadata/config path and SHA-256 where available, generation timestamp, and optional Git commit. Experimental metadata (sensor, sample matrix, environmental series, and events) remains separate from plotting configuration.
 
@@ -1309,7 +1386,7 @@ cargo run -- health trend \
 
 Purpose: state estimation (EKF/UKF), simulation, validation, filter comparison.
 
-Real OCPT files with unresolved duplicate timestamps are currently rejected in `estimate run`.
+**Timestamp handling**: `estimate run`/`estimate compare` apply configurable timestamp preprocessing before filtering. This includes duplicate handling, reset-based segmentation, minor-reversal handling, non-finite timestamp policy, and minimum segment length checks. Estimation runs independently per valid segment, and outputs include `timestamp_diagnostics`, `timestamp_policy`, `timestamp_segments`, `skipped_timestamp_segments`, `was_preprocessed`, and per-point `segment_id`/`original_row_index`.
 
 Verified run path (simulation):
 ```bash
@@ -1347,7 +1424,8 @@ cargo run -- estimate validate \
 
 ```mermaid
 flowchart TD
-    Input["EIS data file"] --> Parse["EISData::parse_file()"]
+    Input["EIS data file"] --> Provider["electrodata-io read / typed view"]
+    Provider --> Parse["EISData::parse_file() domain adapter"]
     Parse --> Search["discover_equivalent_circuits_with_config()"]
     Search --> Evolve["Genetic Algorithm\n(ecm_evolution.rs)"]
     Evolve --> Score["Score candidates\n(ecm_scoring.rs)"]
@@ -1490,7 +1568,8 @@ Default axis labels are `"Time (s)"` and `"Potential (V)"`, configurable via TOM
 
 ### Generic Plots
 
-A domain-agnostic plotting pipeline that accepts any x/y dataset through CHI-format parsing:
+A domain-agnostic plotting pipeline that accepts provider-recognized physical
+input after canonical Dataset-to-domain conversion:
 
 - Supports 9 plot geometries: line, scatter, vertical/horizontal/grouped/stacked bar, fill-between, stack plot, pie
 - No hardcoded axis labels — fully configured through TOML
@@ -1676,8 +1755,8 @@ rust_electroanalysis_cli/
     │
     ├── data_file/                      # Data ingestion and normalization layer
     │   ├── lib.rs                      # Module facade — re-exports parsers and types
-    │   ├── chi_file.rs                 # CHI-format file parser (ElectrochemData, EISData)
-    │   ├── measurement_parser.rs       # Generic/CHI parser into domain measurements
+    │   ├── chi_file.rs                 # Canonical-domain adapters (ElectrochemData, EISData)
+    │   ├── measurement_parser.rs       # Canonical file-to-domain adapter; text API is deprecated compatibility only
     │   ├── measurement_adapter.rs      # Domain measurement → PlotData adapters
     │   ├── data_op.rs                  # Generic PlotData container, PointSelection, IntoPlotData
     │   └── value_transform.rs          # Axis transform resolution (log, neg-log, linear)
@@ -1960,12 +2039,13 @@ Defines the ECM search TOML schema with validation.
 
 ### Data Layer (`data_file/`)
 
-#### `chi_file.rs` — CHI Format Parser
+#### `chi_file.rs` — Canonical EIS and time-series domain adapter
 
-Parses CHI Instruments electrochemical data files. The binary format is a text/CSV hybrid with:
-- Optional metadata header lines (key: value pairs)
-- Column header row with hyphen separator
-- Numeric data rows
+Converts `electrodata-io` typed physical input into the legacy-consumer
+`ElectrochemData` and `EISData` domains. Physical CHI/CSV/TXT/DAT/XLSX
+detection, reading, worksheet handling, recovery, and source diagnostics are
+owned by `electrodata-io`; this module does not implement a production raw
+format parser.
 
 **Key types:**
 - `ElectrochemData` — General electrochemical dataset with date, test_type, instrument_model, x_values, multiple y_values series
@@ -1975,7 +2055,7 @@ Parses CHI Instruments electrochemical data files. The binary format is a text/C
 - `RankedEISFit` — Fit result + metrics pair
 
 **Key functions:**
-- `ElectrochemData::parse_file(path)` — Parse any CHI file
+- `ElectrochemData::parse_file(path)` — Canonically read then project to the plotting domain
 - `ElectrochemData::parse_file_series(path)` — Parse multi-column files into separate series
 - `EISData::parse_file(path)` — Parse EIS-specific files
 - `EISData::fit_circuit(circuit_str)` — Fit a circuit to this data
@@ -2317,10 +2397,10 @@ Each function:
 
 Drives the ECM search workflow:
 
-1. Discovers EIS files from target path (file or directory)
-2. Validates file headers (CHI EIS format)
-3. Loads and resolves search configuration
-4. For each file: parses EIS data, runs GA search, writes reports, optionally renders plots
+1. Enumerates candidate paths from a target file or directory
+2. Excludes known application-generated artifacts without interpreting physical input
+3. Delegates physical-format, container, worksheet, CHI/EIS header, and role recognition to `electrodata-io`
+4. Checks whether the canonical EIS dataset is scientifically suitable, then runs GA search, writes reports, and optionally renders plots
 5. Supports pluggable logging callbacks for CLI output
 
 **Key functions:**
@@ -2478,13 +2558,23 @@ cargo run -- eis search data/
 
 ## 18. Current Documented Limitations
 
-1. `estimate run` and `estimate compare` reject duplicate/non-monotonic timestamps (no duplicate-resolution policy yet in estimation input path).
-2. Binary CHI exports (`.bin`) and Excel sheets are not directly supported.
+1. Binary CHI exports (`.bin`, `.raw`) are intentionally unsupported.
+2. The legacy `parse_measurement_text` compatibility entry point cannot use an in-memory provider API because the pinned provider exposes file-based canonical ingestion only.
 3. Calibration quality depends on metadata event definitions; no automatic concentration-step inference from filenames.
 
 ---
 
 ## 19. Developer Documentation
+
+### Documentation Authority and Conflict Resolution
+
+Use this precedence order whenever documentation conflicts:
+
+1. **Implementation (`src/`) is authoritative for current runtime behavior.**
+2. **Engineering specification (`docs/engineering_specification/*.md`) is authoritative for curated requirements/process and must be kept aligned with implementation.**
+3. **README is user-facing guidance and must be reconciled to the specification + implementation when drift is found.**
+
+Required action on conflict: **treat it as documentation drift, not a silent behavior change**. Update docs (and traceability) to match implementation, or explicitly approve and implement a behavior change with corresponding tests and spec updates.
 
 ### Adding a New Circuit Element
 
@@ -2511,10 +2601,10 @@ cargo run -- eis search data/
 4. Add the dispatch branch in `compute_regression()` and `compute_regression_with_fit()`
 5. Update the documentation table in the module-level doc comment
 
-### Adding a New File Format Parser
+### Adding a New Consumer Domain Projection
 
-1. Create a new module in `data_file/`
-2. Implement a struct representing the parsed data
+1. Extend or configure `electrodata-io` for physical input detection and reading.
+2. Create a project-domain conversion for the provider's typed dataset.
 3. Implement `IntoPlotData` for your new type to integrate with the generic plotting pipeline
 4. If EIS-specific, implement the `PlotDataSeries` trait for integration with EIS plotting
 5. Add a public re-export in `data_file/lib.rs`
@@ -2561,16 +2651,47 @@ The estimation configuration schema is version 3. The auxiliary field `known_log
 
 New artifact fields use serde defaults where safe. The health schema version is incremented because the old minimum-domain field had incorrect semantics; legacy values are preserved under an explicit legacy name. Signal sampling fields are additive, and ECM CSV columns use explicit RSS/BIC/legacy-score names so old columns are not silently reinterpreted.
 
+Cross-workflow JSON now uses a common typed artifact contract. Readers reject
+the wrong artifact kind or unsupported future schema before scientific use;
+explicitly listed kind-less legacy schemas are migrated in memory. The Rust
+toolchain is pinned and CI uses `Cargo.lock` for lint, test, and release jobs.
+
+The legacy estimator is retained as a compatibility facade but is compiled into
+the unified ISM graph. EKF and UKF therefore share process, Jacobian,
+observation, and contribution equations. Estimation reports add stable named
+component contributions, the five voltage categories, conservative equilibrium
+evidence, the resolved model definition, and a visible optional unexplained
+residual; old reports remain readable through additive defaults.
+
+Experimental-validation output does not substitute sensor counts, group
+labels, defaults, or residual presence for recovery, transfer, generalization,
+or coverage metrics. Those values remain unavailable until a manifest supplies
+the corresponding reference data and uncertainty evidence. Synthetic studies
+are never described as physical validation.
+
+Timestamp-level equilibrium recognition is evidence-gated rather than
+permanently indeterminate. It requires stable normalized state rates, small
+dynamic and total nonequilibrium voltage, sufficient elapsed time constants,
+acceptable innovation/autocorrelation, stable environment, in-domain
+calibration, bounded state uncertainty, observability, empirical
+identifiability, and adequate history. Missing evidence remains explicit, and
+the classification never assigns a physical mechanism.
+
+The release intentionally provides reduced-order transport components, not a
+high-fidelity Nernst–Planck solver. Such a solver is a separately reviewed
+scientific extension with boundary-condition and real-experiment validation;
+its absence does not change the reduced-order model's claims.
+
 ---
 
 ## 21. Troubleshooting
 
-1. **Unsupported file format**: `.bin`/Excel are not parsed by the current loader.
-2. **Missing EIS headers**: `eis fit` requires `Freq/Hz` + impedance columns.
+1. **Unsupported file format**: unsupported containers are returned as structured `electrodata-io` errors; XLSX EIS is supported when the provider recognizes a compatible worksheet.
+2. **Missing EIS roles**: `eis fit` returns the provider's structured schema error.
 3. **Missing time header**: time-series workflows require `time`/`timestamp` columns.
 4. **Duplicate timestamps**:
    - `signal` default strict config can reject duplicates; use suitable sampling policy config.
-   - `estimate run` currently requires strictly increasing timestamps.
+   - `estimate run` preprocesses timestamps according to `config/estimation.toml` `[timestamp_handling]`.
 5. **Calibration extraction empty**: ensure concentration-step metadata events with concentration units are provided.
 6. **Output permission failure**: export commands return explicit IO path errors.
 7. **Mixed directory inputs**: plotting/search behavior differs by mode; use command-appropriate directories or filtering.
@@ -2584,3 +2705,13 @@ This project is distributed as open source under the terms of the [MIT License](
 ---
 
 *Generated from codebase analysis. For questions, refer to the source code or open an issue.*
+
+## Canonical physical input boundary
+
+`electrodata-io` is the canonical physical/scientific input boundary. It owns
+file and container detection, parsing, worksheet selection, raw schema/units,
+recovery policies, provenance, diagnostics, and structured input errors. This
+project owns scientific domain conversion and enrichment, analysis, state
+estimation, modeling, health, mechanism interpretation, reporting, and plots.
+The completed parity evidence is archived; retained compatibility APIs are not
+the production raw-data path.

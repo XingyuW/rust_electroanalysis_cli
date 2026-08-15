@@ -1,6 +1,7 @@
 //! Configuration for offline, physics-informed state estimation.
 
 use crate::domain::ConfigurationError;
+use crate::estimation::timestamp::TimestampHandlingConfig;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -34,6 +35,81 @@ pub enum StateModelKind {
     #[default]
     ActivityBaselinePolarization,
     Custom,
+}
+
+/// Selects the scientific-model implementation used by the estimators.
+///
+/// `Legacy` is deliberately the default: an existing estimation TOML must
+/// retain its direct, historically validated state/observation equations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EstimationModelBackend {
+    #[default]
+    Legacy,
+    Compiled,
+}
+
+/// Explicit compiled-model profiles.  The compatibility profile preserves
+/// the legacy state vector; the reduced profile is an opt-in V1 capability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CompiledEstimationProfile {
+    #[default]
+    LegacyEquivalentV1,
+    ReducedIsmV1,
+    /// A definition supplied by `model.definition`; built-in profile defaults
+    /// must not be silently mixed with a user model.
+    Custom,
+}
+
+/// Explicit source for the optional candidate-transduction event input.
+/// It is deliberately separate from the legacy polarization input policy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case", tag = "source")]
+pub enum TransductionDriveSource {
+    #[default]
+    None,
+    ActivityStep,
+    ExplicitEventField {
+        field: String,
+        unit: String,
+    },
+}
+
+/// Names at the estimation boundary that populate ordinary compiled inputs.
+/// Event sources are resolved once per transition, not by individual filters.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ModelInputBindingsConfig {
+    pub target_activity: String,
+    pub delta_log10_activity: String,
+    pub temperature: String,
+    pub conductivity: String,
+    /// Explicit sources for required custom model input IDs. The current
+    /// estimation boundary rejects unbound required IDs rather than silently
+    /// evaluating a partially populated custom definition.
+    pub custom: BTreeMap<String, String>,
+}
+
+impl Default for ModelInputBindingsConfig {
+    fn default() -> Self {
+        Self {
+            target_activity: "estimated_activity".into(),
+            delta_log10_activity: "experiment_activity_step".into(),
+            temperature: "environment:temperature".into(),
+            conductivity: "environment:conductivity".into(),
+            custom: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ObservationVarianceCombination {
+    #[default]
+    EstimationOnly,
+    ModelOnly,
+    AddIndependent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -127,6 +203,7 @@ pub struct ResolvedEstimationConfig {
     pub schema_version: u32,
     pub filter: FilterConfig,
     pub state_model: StateModelConfig,
+    pub model: EstimationModelConfig,
     pub initialization: InitializationConfig,
     pub initial_covariance: InitialCovarianceConfig,
     pub process_noise: ProcessNoiseConfig,
@@ -134,6 +211,7 @@ pub struct ResolvedEstimationConfig {
     pub polarization: PolarizationConfig,
     pub environment: EnvironmentConfig,
     pub observability: ObservabilityConfig,
+    pub equilibrium_recognition: EquilibriumRecognitionConfig,
     pub ekf: EkfConfig,
     pub ukf: UkfConfig,
     pub extrapolation: ExtrapolationConfig,
@@ -141,6 +219,8 @@ pub struct ResolvedEstimationConfig {
     pub auxiliary: AuxiliaryConfig,
     pub plotting: EstimationPlottingConfig,
     pub export: EstimationExportConfig,
+    pub timestamp_handling: TimestampHandlingConfig,
+    pub ingestion: IngestionValidationConfig,
     #[serde(skip)]
     pub source_path: Option<PathBuf>,
 }
@@ -151,6 +231,7 @@ impl Default for ResolvedEstimationConfig {
             schema_version: ESTIMATION_CONFIG_SCHEMA_VERSION,
             filter: FilterConfig::default(),
             state_model: StateModelConfig::default(),
+            model: EstimationModelConfig::default(),
             initialization: InitializationConfig::default(),
             initial_covariance: InitialCovarianceConfig::default(),
             process_noise: ProcessNoiseConfig::default(),
@@ -158,6 +239,7 @@ impl Default for ResolvedEstimationConfig {
             polarization: PolarizationConfig::default(),
             environment: EnvironmentConfig::default(),
             observability: ObservabilityConfig::default(),
+            equilibrium_recognition: EquilibriumRecognitionConfig::default(),
             ekf: EkfConfig::default(),
             ukf: UkfConfig::default(),
             extrapolation: ExtrapolationConfig::default(),
@@ -165,7 +247,68 @@ impl Default for ResolvedEstimationConfig {
             auxiliary: AuxiliaryConfig::default(),
             plotting: EstimationPlottingConfig::default(),
             export: EstimationExportConfig::default(),
+            timestamp_handling: TimestampHandlingConfig::default(),
+            ingestion: IngestionValidationConfig::default(),
             source_path: None,
+        }
+    }
+}
+
+/// Compiled-model settings live at the estimation boundary.  They must never
+/// be imported by the model core.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EstimationModelConfig {
+    pub backend: EstimationModelBackend,
+    pub profile: CompiledEstimationProfile,
+    pub definition: Option<PathBuf>,
+    pub input_bindings: ModelInputBindingsConfig,
+    pub transduction_drive: TransductionDriveSource,
+    pub observation_variance: ObservationVarianceConfig,
+}
+
+impl Default for EstimationModelConfig {
+    fn default() -> Self {
+        Self {
+            backend: EstimationModelBackend::Legacy,
+            profile: CompiledEstimationProfile::LegacyEquivalentV1,
+            definition: None,
+            input_bindings: ModelInputBindingsConfig::default(),
+            transduction_drive: TransductionDriveSource::None,
+            observation_variance: ObservationVarianceConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ObservationVarianceConfig {
+    pub combination: ObservationVarianceCombination,
+}
+
+impl Default for ObservationVarianceConfig {
+    fn default() -> Self {
+        Self {
+            combination: ObservationVarianceCombination::EstimationOnly,
+        }
+    }
+}
+
+/// Explicit acceptance limits for compatibility recovery before estimation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct IngestionValidationConfig {
+    pub max_skipped_timestamp_rows: usize,
+    pub max_missing_measurement_fraction: f64,
+    pub reject_missing_required_channel: bool,
+}
+
+impl Default for IngestionValidationConfig {
+    fn default() -> Self {
+        Self {
+            max_skipped_timestamp_rows: 0,
+            max_missing_measurement_fraction: 0.20,
+            reject_missing_required_channel: true,
         }
     }
 }
@@ -391,6 +534,43 @@ impl Default for ObservabilityConfig {
     }
 }
 
+/// Conservative evidence thresholds for timestamp-level equilibrium
+/// recognition. Rates are normalized by each state's declared finite span so
+/// states with different units are never compared directly.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EquilibriumRecognitionConfig {
+    pub enabled: bool,
+    pub minimum_history_points: usize,
+    pub minimum_elapsed_time_constants: f64,
+    pub maximum_normalized_state_rate_per_s: f64,
+    pub maximum_dynamic_potential_v: f64,
+    pub maximum_equilibrium_gap_v: f64,
+    pub maximum_absolute_standardized_innovation: f64,
+    pub maximum_absolute_residual_autocorrelation: f64,
+    pub maximum_environment_change_fraction: f64,
+    pub maximum_state_uncertainty_fraction: f64,
+    pub require_observable: bool,
+}
+
+impl Default for EquilibriumRecognitionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            minimum_history_points: 5,
+            minimum_elapsed_time_constants: 5.0,
+            maximum_normalized_state_rate_per_s: 1.0e-4,
+            maximum_dynamic_potential_v: 1.0e-4,
+            maximum_equilibrium_gap_v: 1.0e-4,
+            maximum_absolute_standardized_innovation: 2.0,
+            maximum_absolute_residual_autocorrelation: 0.2,
+            maximum_environment_change_fraction: 0.01,
+            maximum_state_uncertainty_fraction: 0.05,
+            require_observable: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct EkfConfig {
@@ -593,6 +773,37 @@ impl ResolvedEstimationConfig {
                 self.schema_version
             )));
         }
+        if matches!(self.model.backend, EstimationModelBackend::Legacy)
+            && !matches!(
+                self.model.profile,
+                CompiledEstimationProfile::LegacyEquivalentV1
+            )
+        {
+            return Err(ConfigurationError::invalid(
+                "model.profile is only meaningful for backend = compiled",
+            ));
+        }
+        if self.model.definition.is_some()
+            && !matches!(self.model.backend, EstimationModelBackend::Compiled)
+        {
+            return Err(ConfigurationError::invalid(
+                "model.definition requires backend = compiled",
+            ));
+        }
+        if self.model.definition.is_some()
+            && !matches!(self.model.profile, CompiledEstimationProfile::Custom)
+        {
+            return Err(ConfigurationError::invalid(
+                "model.definition requires model.profile = custom; built-in profiles and definitions are not combined",
+            ));
+        }
+        if self.model.definition.is_none()
+            && matches!(self.model.profile, CompiledEstimationProfile::Custom)
+        {
+            return Err(ConfigurationError::invalid(
+                "model.profile = custom requires model.definition",
+            ));
+        }
         for (name, value) in [
             ("confidence_level", self.filter.confidence_level),
             (
@@ -605,6 +816,13 @@ impl ResolvedEstimationConfig {
                     "{name} must be between 0 and 1"
                 )));
             }
+        }
+        if !self.ingestion.max_missing_measurement_fraction.is_finite()
+            || !(0.0..=1.0).contains(&self.ingestion.max_missing_measurement_fraction)
+        {
+            return Err(ConfigurationError::invalid(
+                "ingestion.max_missing_measurement_fraction must be between 0 and 1",
+            ));
         }
         for (name, value) in [
             (
@@ -662,6 +880,21 @@ impl ResolvedEstimationConfig {
                 )));
             }
         }
+        if !self
+            .timestamp_handling
+            .minor_reversal_threshold_s
+            .is_finite()
+            || self.timestamp_handling.minor_reversal_threshold_s < 0.0
+            || !self.timestamp_handling.reset_threshold_s.is_finite()
+            || self.timestamp_handling.reset_threshold_s < 0.0
+            || !self.timestamp_handling.reset_threshold_fraction.is_finite()
+            || !(0.0..=1.0).contains(&self.timestamp_handling.reset_threshold_fraction)
+            || self.timestamp_handling.minimum_segment_points == 0
+        {
+            return Err(ConfigurationError::invalid(
+                "timestamp handling configuration is invalid",
+            ));
+        }
         if self.measurement_noise.maximum_variance_v2 < self.measurement_noise.minimum_variance_v2 {
             return Err(ConfigurationError::invalid(
                 "measurement variance bounds are inverted",
@@ -698,6 +931,33 @@ impl ResolvedEstimationConfig {
         {
             return Err(ConfigurationError::invalid(
                 "observability empirical perturbation settings are invalid",
+            ));
+        }
+        let equilibrium = &self.equilibrium_recognition;
+        if equilibrium.minimum_history_points < 2
+            || !equilibrium.minimum_elapsed_time_constants.is_finite()
+            || equilibrium.minimum_elapsed_time_constants < 0.0
+            || !equilibrium.maximum_normalized_state_rate_per_s.is_finite()
+            || equilibrium.maximum_normalized_state_rate_per_s < 0.0
+            || !equilibrium.maximum_dynamic_potential_v.is_finite()
+            || equilibrium.maximum_dynamic_potential_v < 0.0
+            || !equilibrium.maximum_equilibrium_gap_v.is_finite()
+            || equilibrium.maximum_equilibrium_gap_v < 0.0
+            || !equilibrium
+                .maximum_absolute_standardized_innovation
+                .is_finite()
+            || equilibrium.maximum_absolute_standardized_innovation < 0.0
+            || !equilibrium
+                .maximum_absolute_residual_autocorrelation
+                .is_finite()
+            || equilibrium.maximum_absolute_residual_autocorrelation < 0.0
+            || !equilibrium.maximum_environment_change_fraction.is_finite()
+            || equilibrium.maximum_environment_change_fraction < 0.0
+            || !equilibrium.maximum_state_uncertainty_fraction.is_finite()
+            || equilibrium.maximum_state_uncertainty_fraction < 0.0
+        {
+            return Err(ConfigurationError::invalid(
+                "equilibrium-recognition thresholds are invalid",
             ));
         }
         if !self.extrapolation.near_boundary_fraction.is_finite()
@@ -865,6 +1125,16 @@ mod tests {
     #[test]
     fn defaults_validate() {
         ResolvedEstimationConfig::default().validate().unwrap();
+    }
+
+    #[test]
+    fn absent_model_section_keeps_the_legacy_backend() {
+        let config: ResolvedEstimationConfig = toml::from_str("schema_version = 3").unwrap();
+        assert_eq!(config.model.backend, EstimationModelBackend::Legacy);
+        assert_eq!(
+            config.model.profile,
+            CompiledEstimationProfile::LegacyEquivalentV1
+        );
     }
 
     #[test]

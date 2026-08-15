@@ -1,0 +1,6 @@
+schema_version = 1
+
+[model]
+backend = "compiled"
+profile = "legacy_equivalent_v1"
+

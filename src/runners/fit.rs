@@ -14,12 +14,13 @@ pub fn run(
     workspace_dir: &Path,
     input: &Path,
     circuit_model: Option<&str>,
+    sheet: Option<&str>,
     output: Option<&Path>,
     artifact: Option<&Path>,
     report: Option<&Path>,
 ) -> Result<(), RunnerError> {
     let input = resolve_path(workspace_dir, input);
-    let data = EISData::parse_file(&input)?;
+    let data = EISData::parse_file_with_sheet(&input, sheet)?;
     let model = circuit_model.unwrap_or(&data.circuit_model);
     let detailed = fit_circuit_detailed(model, &data.freq, &data.z_re, &data.z_im, &data.phase)?;
     let result = detailed.legacy_result.clone();
@@ -48,12 +49,8 @@ pub fn run(
         }
         let artifact_value = artifact_value
             .as_ref()
-            .expect("artifact constructed when requested");
-        fs::write(
-            &path,
-            serde_json::to_string_pretty(artifact_value)
-                .map_err(|e| RunnerError::Message(e.to_string()))?,
-        )?;
+            .ok_or_else(|| RunnerError::Message("EIS artifact was not constructed".into()))?;
+        crate::domain::write_artifact(&path, artifact_value)?;
         println!("EIS fit artifact written to: {}", path.display());
     }
     if let Some(path) = report {
@@ -63,7 +60,7 @@ pub fn run(
         }
         let artifact_value = artifact_value
             .as_ref()
-            .expect("artifact constructed when requested");
+            .ok_or_else(|| RunnerError::Message("EIS artifact was not constructed".into()))?;
         fs::write(&path, human_artifact_report(artifact_value))?;
         println!("EIS artifact report written to: {}", path.display());
     }
@@ -86,6 +83,7 @@ pub fn export(
     workspace_dir: &Path,
     input: &Path,
     circuit_model: Option<&str>,
+    sheet: Option<&str>,
     artifact: &Path,
     report: Option<&Path>,
 ) -> Result<(), RunnerError> {
@@ -93,6 +91,7 @@ pub fn export(
         workspace_dir,
         input,
         circuit_model,
+        sheet,
         None,
         Some(artifact),
         report,
@@ -117,6 +116,17 @@ fn human_artifact_report(artifact: &EisFitArtifact) -> String {
             parameter.name, parameter.value, parameter.unit
         ));
     }
+    text.push_str("\nInput Bode semantics:\n");
+    text.push_str(if artifact.source.source_measured_magnitude_ohm.is_some() {
+        "  Source-measured magnitude: preserved exactly\n"
+    } else {
+        "  Source-measured magnitude: absent; derived from Z' and Z\"\n"
+    });
+    text.push_str(if artifact.source.source_measured_phase_deg.is_some() {
+        "  Source-measured phase: preserved exactly\n"
+    } else {
+        "  Source-measured phase: absent; derived from Z' and Z\"\n"
+    });
     text.push_str("\nDerived quantities require topology-aware mechanism analysis. Numerical agreement is temporal compatibility, not proof of a mechanism.\n");
     if !artifact.warnings.is_empty() {
         text.push_str("\nWarnings:\n");

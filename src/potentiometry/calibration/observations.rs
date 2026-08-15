@@ -267,12 +267,59 @@ pub fn extract_observations(
     if observations.is_empty() {
         return Err(CalibrationError::NoObservations);
     }
-    Ok(CalibrationObservationSet {
-        schema_version: 1,
+    let mut result = CalibrationObservationSet {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         observations,
         provenance: experiment.provenance.clone(),
         warnings,
-    })
+    };
+    let experiment_scope = crate::domain::artifact_scope_from_experiment_ids(
+        "calibration-observation-set-v1",
+        result.observations.iter().filter_map(|observation| {
+            crate::domain::ExperimentId::new(observation.experiment_id.clone()).ok()
+        }),
+    );
+    let transient_used = result.observations.iter().any(|observation| {
+        matches!(
+            observation.source,
+            CalibrationPotentialSource::TransientEquilibrium
+        )
+    });
+    let direct_dependencies = transient_used
+        .then_some(transient_results)
+        .flatten()
+        .and_then(|report| match &report.lineage {
+            crate::domain::ArtifactLineageState::Known { identity, .. } => {
+                Some(crate::domain::ArtifactDependency {
+                    artifact_id: identity.artifact_id.clone(),
+                    artifact_kind: crate::domain::ArtifactKind::TransientAnalysis,
+                    role: crate::domain::ArtifactDependencyRole::TransformationInput,
+                })
+            }
+            crate::domain::ArtifactLineageState::LegacyUnknown { .. } => None,
+        })
+        .into_iter()
+        .collect::<Vec<_>>();
+    result.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::CalibrationObservations,
+        result.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        experiment_scope,
+        experiment
+            .sensor_metadata
+            .sensor_id
+            .clone()
+            .and_then(|id| crate::domain::ScopeKey::specific(id).ok())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ScopeKey::specific(channel.name.clone())
+            .unwrap_or(crate::domain::ScopeKey::Unspecified),
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        direct_dependencies,
+        &result,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3));
+    Ok(result)
 }
 
 fn event_concentration(
@@ -412,9 +459,10 @@ fn steady_state_potential(
         .measurement_data
         .time
         .iter()
-        .copied()
+        .enumerate()
+        .map(|(index, time)| (index, *time))
         .zip(channel.values.iter().copied())
-        .filter(|(time, _)| *time >= start && *time <= end)
+        .filter(|((_, time), _)| *time >= start && *time <= end)
         .collect::<Vec<_>>();
     if points.is_empty()
         || start < *experiment.measurement_data.time.first().unwrap_or(&start)
@@ -422,6 +470,11 @@ fn steady_state_potential(
     {
         return Err(CalibrationError::InvalidSteadyStateWindow(
             "steady-state window lies outside the measurement range".to_string(),
+        ));
+    }
+    if window_crosses_timestamp_reset(&points, &experiment.measurement_data.time) {
+        return Err(CalibrationError::InvalidSteadyStateWindow(
+            "steady-state window crosses a timestamp reset segment boundary".to_string(),
         ));
     }
     let raw_count = points.len();
@@ -442,14 +495,14 @@ fn steady_state_potential(
             "missing fraction {missing_fraction:.3} exceeds configured maximum"
         )));
     }
-    points.sort_by(|left, right| left.0.total_cmp(&right.0));
+    points.sort_by(|left, right| left.0.1.total_cmp(&right.0.1));
     // Average duplicate timestamps instead of rejecting the full steady-state window.
     // Real CHI exports can contain repeated timestamps; collapsing duplicates keeps
     // extraction deterministic while preserving one paired value per time point.
     let mut grouped_points = Vec::<(f64, f64, usize)>::new();
     for (time, value) in points
         .iter()
-        .filter_map(|(time, value)| value.map(|value| (*time, value)))
+        .filter_map(|((_, time), value)| value.map(|value| (*time, value)))
     {
         if let Some((last_time, sum, count)) = grouped_points.last_mut()
             && *last_time == time
@@ -520,6 +573,23 @@ fn steady_state_potential(
         }),
         source_warnings,
     ))
+}
+
+fn window_crosses_timestamp_reset(points: &[((usize, f64), Option<f64>)], time: &[f64]) -> bool {
+    let (Some(first), Some(last)) = (points.first(), points.last()) else {
+        return false;
+    };
+    let start = first.0.0;
+    let end = last.0.0;
+    if end <= start {
+        return false;
+    }
+    for pair in time[start..=end].windows(2) {
+        if pair[1] < pair[0] {
+            return true;
+        }
+    }
+    false
 }
 
 fn branch_for_event(
@@ -817,5 +887,20 @@ fn median(values: &[f64]) -> f64 {
         (values[values.len() / 2 - 1] + values[values.len() / 2]) / 2.0
     } else {
         values[values.len() / 2]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::window_crosses_timestamp_reset;
+
+    #[test]
+    fn detects_reset_boundary_inside_window() {
+        let time = vec![0.0, 1.0, 2.0, 0.1, 1.1, 2.1];
+        let crossing = vec![((1, 1.0), Some(0.0)), ((4, 1.1), Some(0.0))];
+        assert!(window_crosses_timestamp_reset(&crossing, &time));
+
+        let non_crossing = vec![((0, 0.0), Some(0.0)), ((2, 2.0), Some(0.0))];
+        assert!(!window_crosses_timestamp_reset(&non_crossing, &time));
     }
 }

@@ -112,8 +112,9 @@ pub fn fit_calibration(
     if let Some(validation) = &validation {
         warnings.extend(validation.warnings.clone());
     }
-    Ok(CalibrationAnalysisReport {
-        schema_version: 1,
+    let mut report = CalibrationAnalysisReport {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         calibration_id: format!("{analyte}-calibration"),
         analyte,
         ion_charge: config.analyte.charge,
@@ -131,7 +132,36 @@ pub fn fit_calibration(
         validation,
         provenance: observation_set.provenance.clone(),
         warnings,
-    })
+    };
+    let direct_dependencies = match &observation_set.lineage {
+        crate::domain::ArtifactLineageState::Known { identity, .. } => {
+            vec![crate::domain::ArtifactDependency {
+                artifact_id: identity.artifact_id.clone(),
+                artifact_kind: crate::domain::ArtifactKind::CalibrationObservations,
+                role: crate::domain::ArtifactDependencyRole::DerivedFrom,
+            }]
+        }
+        crate::domain::ArtifactLineageState::LegacyUnknown { .. } => Vec::new(),
+    };
+    report.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::CalibrationAnalysis,
+        report.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        crate::domain::artifact_scope_from_experiment_ids(
+            "calibration-analysis-v1",
+            report
+                .source_experiments
+                .iter()
+                .filter_map(|id| crate::domain::ExperimentId::new(id.clone()).ok()),
+        ),
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        direct_dependencies,
+        &report,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3));
+    Ok(report)
 }
 
 pub fn stored_model_from_report(
@@ -148,8 +178,9 @@ pub fn stored_model_from_report(
                 && candidate.status == CalibrationFitStatus::Converged
         })
         .ok_or(CalibrationError::AllModelsFailed)?;
-    Ok(StoredCalibrationModel {
-        schema_version: 1,
+    let mut model = StoredCalibrationModel {
+        schema_version: 3,
+        lineage: crate::domain::current_unknown_lineage(3),
         analyte: report.analyte.clone(),
         ion_charge: report.ion_charge,
         model_kind,
@@ -163,7 +194,39 @@ pub fn stored_model_from_report(
         training_statistics: result.statistics.clone(),
         configuration: report.configuration.clone(),
         provenance: report.provenance.clone(),
-    })
+    };
+    let (experiment_scope, acquisition_families, direct_dependencies) = match &report.lineage {
+        crate::domain::ArtifactLineageState::Known {
+            identity,
+            direct_dependencies: _,
+        } => (
+            identity.experiment_scope.clone(),
+            identity.acquisition_families.clone(),
+            vec![crate::domain::ArtifactDependency {
+                artifact_id: identity.artifact_id.clone(),
+                artifact_kind: crate::domain::ArtifactKind::CalibrationAnalysis,
+                role: crate::domain::ArtifactDependencyRole::DerivedFrom,
+            }],
+        ),
+        crate::domain::ArtifactLineageState::LegacyUnknown { .. } => (
+            crate::domain::ArtifactExperimentScope::Unknown,
+            crate::domain::ArtifactAcquisitionFamilies::Unknown,
+            Vec::new(),
+        ),
+    };
+    model.lineage = crate::domain::known_lineage_from_artifact(
+        crate::domain::ArtifactKind::CalibrationModel,
+        model.schema_version,
+        format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
+        experiment_scope,
+        crate::domain::ScopeKey::Unspecified,
+        crate::domain::ScopeKey::Unspecified,
+        acquisition_families,
+        direct_dependencies,
+        &model,
+    )
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3));
+    Ok(model)
 }
 
 pub fn validate_stored_model(

@@ -1,0 +1,147 @@
+# 14 — Risk & Technical Debt Register
+
+## Reduced-order ISM components V1
+
+Unresolved mechanism identity, similarly timed modes, and absent runtime
+covariance remain explicit V1 risks; they are not auto-resolved by a fit.
+
+## Model-core residual risks
+
+The core intentionally does not provide a universal numerical integrator,
+full empirical identifiability solver, Nernst--Planck transport solver, or
+workflow integration. Continuous derivatives and discrete transitions are
+kept separate so later integrator selection remains explicit.
+
+**Identifier:** `DOC-14`  
+**Status:** Verified from repository inspection  
+**Last Updated:** 2026-07-19
+
+---
+
+## Classification Key
+
+| Code | Category |
+|------|----------|
+| SCI | Scientific correctness |
+| NUM | Numerical stability |
+| UNIT | Unit consistency |
+| DATA | Data integrity |
+| ERR | Error handling |
+| ARCH | Architecture |
+| MAINT | Maintainability |
+| PERF | Performance |
+| PORT | Portability |
+| REPRO | Reproducibility |
+| TEST | Testing |
+| DOC | Documentation |
+| SEC | Security |
+
+---
+
+## Risk Register
+
+| ID | Category | Description | Evidence | Files | Impact | Likelihood | Severity | Priority |
+|----|----------|-------------|----------|-------|--------|-----------|----------|----------|
+| RISK-001 | NUM | DC limit fallback (1e12 Ω) may mask physically meaningful low-frequency behaviour | Hardcoded in `elements.rs` for 7+ elements | `impedance/elements.rs` | Medium | Low | Low | P4 |
+| RISK-002 | NUM | Division-by-zero guard in parallel admittance (1e12 Ω fallback) may produce misleading Nyquist plots at extreme parameters | `circuits.rs` L138-150 | `impedance/circuits.rs` | Low | Low | Low | P4 |
+| RISK-003 | UNIT | CPE, La, Gw parameter units depend on the fitted α value, making units dimensionally dependent on the parameter | `elements.rs` param_units strings contain α | `impedance/elements.rs` | Low | — | Low | P4 |
+| RISK-004 | ERR | User-data-adjacent panic paths remain under audit; Phase 00 replaced reachable parser, selection, plotting-empty-data, unit-conversion, and transient-model panic guards with typed failures | Phase-00 targeted inventory and regression tests | `data_file/`, `plottings/`, `potentiometry/` | Medium | Low | Low | P3 |
+| RISK-005 | ARCH | `rust_plots` crate alias (`extern crate self as rust_plots`) is a historical artifact; internal naming differs from crate name | `lib.rs` L6 | `src/lib.rs` | Low | — | Low | P4 |
+| RISK-006 | REPRO | Toolchain and locked dependency resolution are now pinned in CI; platform matrix remains Linux/macOS only | `rust-toolchain.toml`, `ci.yml` | `.github/`, `rust-toolchain.toml`, `Cargo.lock` | Low | Low | Low | P4 |
+| RISK-007 | TEST | Several estimate subcommands and mechanism subcommands have inferred test coverage but no explicit integration tests | Coverage gaps noted in traceability | `tests/` | Medium | Medium | Medium | P2 |
+| RISK-008 | TEST | No visual-correctness tests for plot output | Plots only tested for file existence | `tests/phase0` | Low | — | Low | P4 |
+| RISK-009 | TEST | Common artifact-contract migration coverage exists; model-specific historical fixture coverage should grow with future breaking schemas | `tests/artifact_contract.rs` | result artifacts | Low | Low | Low | P4 |
+| RISK-010 | PORT | No Windows CI testing | `ci.yml` matrix: ubuntu + macos only | `.github/` | Medium | Low | Medium | P3 |
+| RISK-011 | DOC | Embedded default config strings in `workspace.rs` may drift from actual config file defaults | Duplicated defaults | `workspace.rs`, `config/*.toml` | Low | Medium | Low | P4 |
+| RISK-012 | ARCH | `plot_runner.rs` and `search_runner.rs` exist alongside newer `runners/plot.rs` and `runners/search.rs` — potential duplication | Two files for same responsibility | `src/plot_runner.rs`, `src/search_runner.rs` | Low | — | Low | P4 |
+| RISK-013 | NUM | Genetic algorithm for ECM search uses fixed seed circuits; no option for exhaustive enumeration of simple circuits | `ecm_evolution.rs` seeding | `impedance/ecm_evolution.rs` | Low | — | Low | P4 |
+| RISK-014 | NUM | Transient fit uses a custom optimizer rather than the Levenberg-Marquardt crate used for EIS — different convergence characteristics | `potentiometry/transient/fitting.rs` | `potentiometry/transient/fitting.rs` | Medium | Low | Low | P4 |
+| RISK-015 | DATA | Resolved: cross-workflow artifacts validate schema and kind before use, with typed legacy migration | `domain/artifact.rs`, workflow runners | All cross-workflow inputs | Low | Low | Low | P4 |
+| RISK-016 | UNIT | Some config fields have implicit units (e.g., temperature "default_celsius" vs internal kelvin) | Config uses Celsius, internal uses Kelvin | `calibration_config.rs`, `units.rs` | Low | — | Low | P4 |
+| RISK-017 | SCI | Inverse Nernst slope check (|slope| ≥ 1e-15) may be too permissive for near-zero slopes in pathological cases | `nernst.rs` L101 | `potentiometry/calibration/nernst.rs` | Low | Low | Low | P4 |
+| RISK-018 | NUM | Initial guess for Warburg α defaults to 0.5 when phase angle is non-finite; this may bias fits toward diffusion-like behaviour | `fitting.rs` L125-127 | `impedance/fitting.rs` | Low | Low | Low | P4 |
+| RISK-019 | ERR | Invariant-guarded `unreachable!()` branches remain in transient model destructuring and dimensional unit conversions | `transient/models.rs` (4 sites), `potentiometry/units.rs` (4 sites) rely on prior validation guards | `potentiometry/transient/models.rs`, `potentiometry/units.rs` | Low | Very Low | Low | P4 |
+| RISK-020 | MAINT | `plot_config.rs` has ~200 fields in `RawPlotStyle` — very large configuration surface | File size, field count | `plot_config.rs` | Medium | — | Low | P4 |
+| RISK-021 | SCI | Fitted modes could be over-interpreted as physical mechanisms when concrete ISM components arrive | A core evidence contract exists, but no independent-evidence evaluator exists yet | `model/evidence.rs`, `model/equilibrium_recognition.rs` | High | Medium | High | P1 |
+| RISK-022 | SCI | A future component could obscure unexplained voltage error | Core prevents residual ownership, but workflow-level reporting is deferred | `model/output.rs` | High | Low | Medium | P2 |
+| RISK-023 | ARCH | Future built-in component additions could introduce forbidden workflow dependencies | Phase 02 core is clean; dependency enforcement is currently source/test reviewed | `src/model/` | Medium | Low | Low | P3 |
+| RISK-024 | DATA | Model schema v1 has no historical artifact migration because it is newly introduced | `model_schema_migration.md` defines reject-and-migrate policy for future versions | `model_config.rs`, `results/model.rs` | Low | Low | Low | P4 |
+| RISK-025 | SCI | Reduced-order modes may be mistaken for specific physical mechanisms | Built-ins use neutral/candidate names and evidence requirements, but no independent confirmation workflow exists | `model/builtins.rs` | High | Medium | High | P1 |
+| RISK-026 | SCI | Explicit mapping prevents name/order inference, but mapping applicability and independent replication remain user-supplied scientific evidence | Phase 05 mappings preserve missing/contradictory evidence and cap unreplicated matches at weak | `mechanism/model_mapping.rs` | Medium | Medium | Medium | P2 |
+| RISK-027 | DATA | Legacy transient events can omit matrix or temperature metadata; such events remain partitioned as `unknown` rather than being treated as comparable | Context-preserving feature keys | `health/features.rs` | Medium | Medium | Medium | P2 |
+| RISK-028 | SCI | Deterministic model workflow outputs can be mistaken for fitted validation | Reports label synthetic outputs and preserve indeterminate equilibrium/identifiability evidence | `runners/model.rs` | Medium | Medium | Medium | P2 |
+| RISK-029 | SCI | A validation manifest can reference synthetic or incomplete reference data | Results label non-real experiments and preserve unavailable profile-likelihood/state-recovery evidence | `model_validation.rs` | High | Medium | High | P1 |
+
+### 2026-08-05 Adversarial Review Disposition
+
+Operational equilibrium recognition now consumes every Phase 04 evidence
+category and can return supported, contradicted, or indeterminate. Its
+thresholds are configuration-defined and do not establish a physical mechanism.
+High-fidelity Nernst–Planck transport is an explicitly unsupported future
+scientific extension, not hidden debt in the reduced-order release.
+
+- RISK-006 is mitigated: the Rust toolchain is pinned and CI uses the lockfile
+  for lint, tests, and release builds.
+- RISK-009 and RISK-015 are mitigated by the common typed artifact contract and
+  explicit legacy migration tests.
+- RISK-019 is mitigated for user-data-adjacent transient, unit, spreadsheet,
+  fit, and estimation paths; malformed data now returns typed errors.
+- RISK-022 is mitigated in model and estimation results: contribution sums are
+  checked and unexplained residual remains separate and optional.
+- RISK-027 is reduced: incomplete transient context receives an event-specific
+  unresolved key and cannot be averaged with another incomplete event.
+- RISK-029 remains scientifically important. Coverage, transfer,
+  cross-sensor, parameter-recovery, and profile-likelihood metrics are now
+  explicitly unavailable unless their required evidence is present; this does
+  not itself provide physical validation.
+
+---
+
+## Priority Summary
+
+| Priority | Count | Action |
+|----------|-------|--------|
+| P1 (Critical) | 0 | None |
+| P2 (Medium) | 5 | Consider addressing in next release cycle |
+| P3 (Low-Medium) | 1 | Address when touching related code |
+| P4 (Low) | 14 | Documented; no immediate action required |
+
+Production ownership remains explicit: `electrodata-io` owns physical/raw data
+detection, parsing, worksheet handling, scientific input roles, recovery
+diagnostics, and raw input errors. This project owns domain conversion,
+scientific calculations, modeling, estimation, mechanism, health, plotting,
+reporting, and analysis artifacts.
+
+## Prompt 3B migration debt
+
+The independently approved legacy `ProjectTabularHandler`, local raw adapter,
+snapshot parity test, and test-only Calamine dependency were removed after
+their evidence was archived. Excel wrappers and `InputKind` remain public
+compatibility/reference surfaces and must not be treated as production raw-
+input dispatch.
+
+`chi_file.rs` and file-based `measurement_parser.rs` are canonical Dataset-to-domain adapters; only `parse_measurement_text` is deprecated compatibility code. Excel wrappers and `InputKind` are legacy/reference helpers, while `electrodata-io` remains the sole owner of physical workbook and format detection.
+
+The pinned provider does not currently expose a public canonical in-memory
+text/buffer read API. `parse_measurement_text` is therefore deprecated and
+restricted to compatibility/tests; file-based `electrodata-io` ingestion is the
+supported production path. This is non-blocking provider follow-up debt.
+
+## ADR-0002 follow-up risks
+
+| ID | Category | Description | Impact | Priority |
+|----|----------|-------------|--------|----------|
+| RISK-030 | SCI | Interpretation metadata and evidence contracts prevent automatic claims but cannot establish physical identity without independent experiments. | High | P1 |
+| RISK-031 | SCI | Equilibrium categories are an interface until thresholds and validation data support a complete recognition algorithm. | High | P1 |
+| RISK-032 | ARCH | The current `ComponentId` string representation is compatibility-preserving; a future extracted crate may need stronger namespaced-ID validation. | Medium | P2 |
+| RISK-033 | SCI | First-order covariance propagation excludes unmodeled structural and model-form uncertainty. | High | P1 |
+| RISK-034 | SCI | Rounded/discrete structural parameters such as ion charge do not have a continuous analytical uncertainty derivative; they must remain deterministic or prediction uncertainty is partial. | Medium | P2 |
+| RISK-035 | SCI | Complete propagation requires caller-supplied joint runtime covariance; absent covariance intentionally leaves stochastic prediction uncertainty Partial or Unavailable. An explicit independent-prior approximation remains a future, separately-provenanced feature. | Medium | P2 |
+| RISK-036 | SCI | First-order propagation cannot quantify a stochastic discrete valence without an explicitly supported non-differential method; the built-in charge remains fixed/deterministic. | Medium | P2 |
+| RISK-037 | SCI | Applicability-domain limits remain calibration- or experiment-specific; absent limits are reported unavailable rather than inferred. | Medium | P1 |
+| RISK-038 | SCI | Candidate transduction and covariate terms can be confounded without independent excitation and auxiliary evidence. | Medium | P1 |
+
+The V1 final remediation closes the previously observed P1 loss-of-legacy-domain
+and mixed-policy escalation defects, and the P2 mismatch between model `to_json`
+and artifact writing. Remaining applicability risk is RISK-037: intervals remain
+calibration- or experiment-specific and are not universal scientific limits.

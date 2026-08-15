@@ -6,11 +6,13 @@ use rust_electroanalysis_cli::mechanism::{
 };
 use rust_electroanalysis_cli::results::{
     CharacteristicTimescale, CircuitFitResult, EisFitArtifact, EvidenceLevel,
-    MechanismRecordSummary, MechanismWarning, ResolvedMechanismConfig, TimescaleDerivation,
-    TimescaleSource, TimescaleValidity,
+    MechanismAnalysisReport, MechanismRecordSummary, MechanismWarning, ResolvedMechanismConfig,
+    TimescaleDerivation, TimescaleSource, TimescaleValidity,
 };
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn provenance() -> AnalysisProvenance {
     AnalysisProvenance {
@@ -36,6 +38,10 @@ fn artifact(circuit: &str, params: Vec<f64>) -> EisFitArtifact {
         phase: vec![-1.0; 4],
         z_re: vec![1.0; 4],
         z_im: vec![-1.0; 4],
+        measured_magnitude: None,
+        measured_phase: None,
+        derived_magnitude: vec![2_f64.sqrt(); 4],
+        derived_phase: vec![-45.0; 4],
         label: "synthetic".to_string(),
         metadata: BTreeMap::new(),
         circuit_model: circuit.to_string(),
@@ -223,4 +229,44 @@ fn trend_requires_multiple_records_and_remains_descriptive() {
     assert_eq!(trend.records, 3);
     assert!(trend.slope.unwrap() > 0.0);
     assert!(trend.warnings.is_empty());
+}
+
+#[test]
+fn mechanism_human_report_contains_non_causality_statement() {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!(
+        "mechanism_report_noncausal_{}_{}",
+        std::process::id(),
+        nonce
+    ));
+    fs::create_dir_all(&root).expect("workspace");
+    let input = root.join("mechanism.json");
+    let output = root.join("mechanism_report.txt");
+    let report = MechanismAnalysisReport {
+        schema_version: 1,
+        lineage: rust_electroanalysis_cli::domain::legacy_unknown_lineage(),
+        analysis_id: "m1".to_string(),
+        records: Vec::new(),
+        eis_timescales: Vec::new(),
+        transient_timescales: Vec::new(),
+        comparisons: Vec::new(),
+        legacy_hypotheses: Vec::new(),
+        trends: Vec::new(),
+        configuration: ResolvedMechanismConfig::default(),
+        provenance: None,
+        warnings: Vec::new(),
+        transient_configuration: None,
+        hypothesis_assessments: Vec::new(),
+        hypothesis_history: Vec::new(),
+    };
+    fs::write(&input, serde_json::to_string_pretty(&report).unwrap()).expect("write report");
+    rust_electroanalysis_cli::runners::mechanism::report(&root, &input, Some(&output))
+        .expect("render text report");
+    let text = fs::read_to_string(&output).expect("read text report");
+    assert!(text.contains("These interpretations are conditional on the selected models, preprocessing choices, parameter identifiability, and data quality."));
+    assert!(text.contains("should not be treated as causal proof."));
+    fs::remove_dir_all(root).ok();
 }

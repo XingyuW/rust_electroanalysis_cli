@@ -7,6 +7,23 @@ use std::collections::BTreeMap;
 
 pub type ChannelMetadata = BTreeMap<String, String>;
 
+/// Metadata key used to retain the exact column header supplied by the input
+/// provider.  The channel's `name` is its logical, analysis-facing identity;
+/// the source header remains available for provenance and selector aliases.
+pub const SOURCE_HEADER_METADATA_KEY: &str = "source_header";
+/// Stable JSON array of exact selectors generated at canonical ingestion.
+pub const CHANNEL_ALIASES_METADATA_KEY: &str = "channel_aliases";
+
+/// Provenance for an explicit coordinate normalization performed after input
+/// ingestion. The raw coordinate values and source unit remain available on
+/// the unconverted measurement at the domain boundary.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CoordinateConversion {
+    pub source_unit: String,
+    pub target_unit: String,
+    pub scale: f64,
+}
+
 /// One named signal sharing a measurement time axis.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeasurementChannel {
@@ -54,6 +71,49 @@ impl MeasurementChannel {
     pub fn with_analyte_id(mut self, analyte_id: impl Into<String>) -> Self {
         self.analyte_id = Some(analyte_id.into());
         self
+    }
+
+    /// Retains the exact source column header independently of the logical
+    /// channel name.  Canonical ingestion uses this after removing a verified
+    /// unit suffix from the logical identity.
+    pub fn with_source_header(mut self, source_header: impl Into<String>) -> Self {
+        self.metadata
+            .get_or_insert_default()
+            .insert(SOURCE_HEADER_METADATA_KEY.to_string(), source_header.into());
+        self
+    }
+
+    pub fn source_header(&self) -> Option<&str> {
+        self.metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get(SOURCE_HEADER_METADATA_KEY))
+            .map(String::as_str)
+    }
+
+    /// Records stable compatibility selectors without changing the primary
+    /// logical name or exact source-header provenance.
+    pub fn with_aliases<I, S>(mut self, aliases: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let mut aliases = aliases.into_iter().map(Into::into).collect::<Vec<String>>();
+        aliases.sort();
+        aliases.dedup();
+        if let Ok(serialized) = serde_json::to_string(&aliases) {
+            self.metadata
+                .get_or_insert_default()
+                .insert(CHANNEL_ALIASES_METADATA_KEY.to_string(), serialized);
+        }
+        self
+    }
+
+    pub fn aliases(&self) -> Vec<String> {
+        self.metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get(CHANNEL_ALIASES_METADATA_KEY))
+            .and_then(|serialized| serde_json::from_str(serialized).ok())
+            .unwrap_or_default()
     }
 
     pub fn missing_value_count(&self) -> usize {
@@ -109,7 +169,19 @@ impl MeasurementChannel {
 /// Multiple named channels measured against one shared time axis.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MultiChannelMeasurement {
+    /// Source coordinate values as decoded by canonical ingestion.
     pub time: Vec<f64>,
+    /// Source coordinate unit. Empty means the provider reported an unknown
+    /// or headerless unit; it is never silently assumed to be seconds.
+    #[serde(default)]
+    pub time_unit: String,
+    /// Original source header/name for the coordinate, when available.
+    #[serde(default)]
+    pub time_coordinate_name: Option<String>,
+    /// Set only by an explicit downstream conversion for an algorithm that
+    /// requires seconds.
+    #[serde(default)]
+    pub time_conversion: Option<CoordinateConversion>,
     pub channels: Vec<MeasurementChannel>,
 }
 
@@ -118,9 +190,59 @@ impl MultiChannelMeasurement {
         time: Vec<f64>,
         channels: Vec<MeasurementChannel>,
     ) -> Result<Self, DataParsingError> {
-        let measurement = Self { time, channels };
+        let measurement = Self {
+            time,
+            time_unit: String::new(),
+            time_coordinate_name: None,
+            time_conversion: None,
+            channels,
+        };
         measurement.validate()?;
         Ok(measurement)
+    }
+
+    pub fn new_with_coordinate(
+        time: Vec<f64>,
+        time_unit: impl Into<String>,
+        time_coordinate_name: Option<String>,
+        channels: Vec<MeasurementChannel>,
+    ) -> Result<Self, DataParsingError> {
+        let measurement = Self {
+            time,
+            time_unit: time_unit.into(),
+            time_coordinate_name,
+            time_conversion: None,
+            channels,
+        };
+        measurement.validate()?;
+        Ok(measurement)
+    }
+
+    /// Returns a copy explicitly normalized to seconds for downstream
+    /// scientific algorithms that require SI time. Unknown units are rejected
+    /// rather than guessed.
+    pub fn normalized_to_seconds(&self) -> Result<Self, DataParsingError> {
+        let scale = match self.time_unit.as_str() {
+            "s" | "sec" | "second" | "seconds" => 1.0,
+            "h" | "hr" | "hour" | "hours" => 3_600.0,
+            "d" | "day" | "days" => 86_400.0,
+            _ => {
+                return Err(DataParsingError::invalid(format!(
+                    "cannot normalize source coordinate '{}' with unknown or unsupported unit '{}' to seconds",
+                    self.time_coordinate_name.as_deref().unwrap_or("time"),
+                    self.time_unit
+                )));
+            }
+        };
+        let mut normalized = self.clone();
+        normalized.time = self.time.iter().map(|value| value * scale).collect();
+        normalized.time_conversion = Some(CoordinateConversion {
+            source_unit: self.time_unit.clone(),
+            target_unit: "s".to_string(),
+            scale,
+        });
+        normalized.time_unit = "s".to_string();
+        Ok(normalized)
     }
 
     pub fn validate(&self) -> Result<(), DataParsingError> {
@@ -145,14 +267,62 @@ impl MultiChannelMeasurement {
         &self.time
     }
 
+    /// Resolves logical names, exact source headers, then verified aliases.
+    /// Ambiguous selectors are rejected instead of selecting the first
+    /// channel, which keeps historical bare aliases safe for new datasets.
+    pub fn resolve_channel(
+        &self,
+        name: &str,
+    ) -> Result<Option<&MeasurementChannel>, DataParsingError> {
+        for matches in [
+            self.channels
+                .iter()
+                .filter(|channel| channel.name == name)
+                .collect::<Vec<_>>(),
+            self.channels
+                .iter()
+                .filter(|channel| channel.source_header() == Some(name))
+                .collect::<Vec<_>>(),
+            self.channels
+                .iter()
+                .filter(|channel| channel.aliases().iter().any(|alias| alias == name))
+                .collect::<Vec<_>>(),
+        ] {
+            match matches.as_slice() {
+                [] => continue,
+                [channel] => return Ok(Some(*channel)),
+                _ => {
+                    return Err(DataParsingError::invalid(format!(
+                        "channel selector '{name}' is ambiguous"
+                    )));
+                }
+            }
+        }
+
+        // Compatibility for programmatically constructed legacy channels.
+        let matches = self
+            .channels
+            .iter()
+            .filter(|channel| {
+                channel.source_header().is_none()
+                    && !channel.unit.is_empty()
+                    && (format!("{}/{}", channel.name, channel.unit) == name
+                        || format!("{} [{}]", channel.name, channel.unit) == name)
+            })
+            .collect::<Vec<_>>();
+        match matches.as_slice() {
+            [] => Ok(None),
+            [channel] => Ok(Some(*channel)),
+            _ => Err(DataParsingError::invalid(format!(
+                "channel selector '{name}' is ambiguous"
+            ))),
+        }
+    }
+
+    /// Compatibility convenience API. Use [`Self::resolve_channel`] when the
+    /// caller must distinguish an absent selector from an ambiguous alias.
     pub fn channel(&self, name: &str) -> Option<&MeasurementChannel> {
-        self.channels.iter().find(|channel| {
-            channel.name == name
-                || (!channel.unit.is_empty()
-                    && format!("{}/{}", channel.name, channel.unit) == name)
-                || (!channel.unit.is_empty()
-                    && format!("{} [{}]", channel.name, channel.unit) == name)
-        })
+        self.resolve_channel(name).ok().flatten()
     }
 
     pub fn missing_value_count(&self) -> usize {
@@ -176,7 +346,10 @@ impl MultiChannelMeasurement {
 
 #[cfg(test)]
 mod tests {
-    use super::{MeasurementChannel, MultiChannelMeasurement};
+    use super::{
+        CHANNEL_ALIASES_METADATA_KEY, MeasurementChannel, MultiChannelMeasurement,
+        SOURCE_HEADER_METADATA_KEY,
+    };
 
     #[test]
     fn validates_shared_axis_alignment_and_reports_missing_values() {
@@ -221,5 +394,74 @@ mod tests {
         assert!(diagnostics.irregular_sampling);
         assert_eq!(diagnostics.duplicate_timestamps, 1);
         assert_eq!(diagnostics.non_monotonic_timestamps, 1);
+    }
+
+    #[test]
+    fn resolves_logical_name_and_source_header_alias_to_the_same_channel() {
+        let measurement = MultiChannelMeasurement::new(
+            vec![0.0, 1.0],
+            vec![
+                MeasurementChannel::from_values("E1", "V", vec![0.1, 0.2])
+                    .with_source_header("E1/V"),
+            ],
+        )
+        .expect("valid measurement");
+
+        assert!(std::ptr::eq(
+            measurement.channel("E1").expect("logical selector"),
+            measurement.channel("E1/V").expect("source header selector")
+        ));
+    }
+
+    #[test]
+    fn serializes_logical_name_unit_and_source_header_separately() {
+        let channel =
+            MeasurementChannel::from_values("E1", "V", vec![0.1]).with_source_header("E1/V");
+        let serialized = serde_json::to_value(&channel).expect("serialize channel");
+
+        assert_eq!(serialized["name"], "E1");
+        assert_eq!(serialized["unit"], "V");
+        assert_eq!(serialized["metadata"][SOURCE_HEADER_METADATA_KEY], "E1/V");
+    }
+
+    #[test]
+    fn resolves_verified_aliases_and_rejects_ambiguous_bare_aliases() {
+        let measurement = MultiChannelMeasurement::new(
+            vec![0.0],
+            vec![
+                MeasurementChannel::from_values("Signal", "ppm", vec![1.0])
+                    .with_source_header("Signal/ppm")
+                    .with_aliases(["Signal", "Signal/ppm"]),
+            ],
+        )
+        .expect("valid measurement");
+        assert!(std::ptr::eq(
+            measurement.channel("Signal").expect("bare alias"),
+            measurement.channel("Signal/ppm").expect("source header")
+        ));
+        let serialized = serde_json::to_value(&measurement.channels[0]).expect("serialize");
+        assert_eq!(
+            serialized["metadata"][CHANNEL_ALIASES_METADATA_KEY],
+            serde_json::json!("[\"Signal\",\"Signal/ppm\"]")
+        );
+
+        let ambiguous = MultiChannelMeasurement::new(
+            vec![0.0],
+            vec![
+                MeasurementChannel::from_values("A", "ppm", vec![1.0])
+                    .with_aliases(["Signal", "A/ppm"]),
+                MeasurementChannel::from_values("B", "ppb", vec![2.0])
+                    .with_aliases(["Signal", "B/ppb"]),
+            ],
+        )
+        .expect("valid measurement");
+        assert!(ambiguous.channel("Signal").is_none());
+        assert!(
+            ambiguous
+                .resolve_channel("Signal")
+                .expect_err("ambiguous alias must be reported")
+                .to_string()
+                .contains("ambiguous")
+        );
     }
 }

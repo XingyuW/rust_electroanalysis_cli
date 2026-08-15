@@ -60,8 +60,11 @@ pub fn plot_health_trend(
     let path = output.join("health_trend.png");
     let root = BitMapBackend::new(&path, (1000, 600)).into_drawing_area();
     root.fill(&WHITE)?;
-    let xmin = points.first().unwrap().0;
-    let xmax = points.last().unwrap().0;
+    let (Some(first), Some(last)) = (points.first(), points.last()) else {
+        return Ok(());
+    };
+    let xmin = first.0;
+    let xmax = last.0;
     let ymin = points.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
     let ymax = points.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
     let pad = (ymax - ymin).abs().max(1e-12) * 0.1;

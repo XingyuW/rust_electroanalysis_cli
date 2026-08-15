@@ -1,0 +1,81 @@
+schema_version = 1
+
+[timescale]
+algorithm = "log_ratio_v1"
+[amplitude]
+algorithm = "signed_relative_error_v1"
+[repeatability]
+algorithm = "independent_ln_tau_sample_sd_v1"
+[temporal]
+point_tolerance_s = 0.0
+window_overlap_rule = "positive_duration"
+event_identity_rule = "exact"
+minimum_classified_fraction = 0.0
+minimum_equilibrium_fraction = 0.0
+clock_mismatch_behavior = "indeterminate"
+scope_mismatch_behavior = "indeterminate"
+[temporal.mixed_state_policy]
+kind = "require_all_steady"
+allow_quasi_equilibrium = false
+[identifiability]
+algorithm = "bound_inputs_v1"
+[promotion]
+minimum_independent_support = 2
+
+[[hypotheses]]
+hypothesis_id = "b-hypothesis"
+display_name = "B E2E experimentally supported"
+target_components = ["b-eis-tau", "tau_fast_s"]
+critical_requirement_ids = []
+validation_applicability = "not_applicable"
+amplitude_gates = []
+repeatability_gates = []
+
+[[hypotheses.evidence_requirements]]
+requirement_id = "b-eis-tau"
+target_selector = { type = "exact_component", value = "b-eis-tau" }
+source_class_selectors = ["model_derived"]
+source_field_path = "$.parameters[0].value"
+quantity_semantic = "time_constant"
+required_unit = "s"
+expected_direction = "candidate_presence"
+validity_requirement = "valid"
+gate = "required"
+stage = "support"
+[[hypotheses.evidence_requirements]]
+requirement_id = "b-transient-tau"
+target_selector = { type = "exact_component", value = "tau_fast_s" }
+source_class_selectors = ["model_derived"]
+source_field_path = "$.events[0].candidate_fits[].derived_features.tau_fast_s"
+quantity_semantic = "time_constant"
+required_unit = "s"
+expected_direction = "candidate_presence"
+validity_requirement = "valid"
+gate = "required"
+stage = "support"
+
+[[hypotheses.pair_requirements]]
+requirement_id = "b-timescale-pair"
+left_requirement_id = "b-eis-tau"
+right_requirement_id = "b-transient-tau"
+temporal = { type = "not_applicable" }
+gate = "required"
+[hypotheses.timescale_gate]
+pair_requirement_id = "b-timescale-pair"
+maximum_log_distance = 0.0
+[[hypotheses.identifiability_bindings]]
+requirement_id = "b-mode-separation"
+gate = "required"
+kind = "mode_separation"
+threshold = 1.0
+input = { requirement_ids = ["b-eis-tau", "b-transient-tau"], selection = { type = "exact_pair", pair_requirement_id = "b-timescale-pair" } }
+[[hypotheses.role_bindings]]
+hypothesis_id = "b-hypothesis"
+requirement_id = "b-eis-tau"
+evidence_id = "eis.parameter.0"
+role = "support"
+[[hypotheses.role_bindings]]
+hypothesis_id = "b-hypothesis"
+requirement_id = "b-transient-tau"
+evidence_id = "transient.event.0.tau_fast_s"
+role = "support"

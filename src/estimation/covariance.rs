@@ -4,8 +4,8 @@ use crate::{
         measurement::MeasurementObservation, model::StateModel, state::CalibrationDomainStatus,
     },
     estimation_config::{
-        CovarianceSourceKind, MeasurementNoiseSourceKind, ProcessNoiseConfig,
-        ResolvedEstimationConfig,
+        CovarianceSourceKind, MeasurementNoiseSourceKind, ObservationVarianceCombination,
+        ProcessNoiseConfig, ResolvedEstimationConfig,
     },
     results::{CalibrationAnalysisReport, SignalAnalysisReport},
 };
@@ -20,6 +20,49 @@ pub enum CovarianceSource {
     CalibrationArtifact,
     TransientArtifact,
     EstimatedFromTrainingData,
+}
+
+/// Resolves the explicitly declared relationship between estimator and model
+/// voltage variance.  A model variance is never silently added to R.
+pub fn combine_model_observation_variance(
+    mut estimation: MeasurementVarianceResolution,
+    model_variance_v2: Option<f64>,
+    policy: ObservationVarianceCombination,
+) -> Result<MeasurementVarianceResolution, EstimationError> {
+    let model = model_variance_v2.filter(|value| value.is_finite() && *value >= 0.0);
+    match policy {
+        ObservationVarianceCombination::EstimationOnly => Ok(estimation),
+        ObservationVarianceCombination::ModelOnly => {
+            let value = model.ok_or_else(|| {
+                EstimationError::Covariance(
+                    "compiled model has no usable observation variance for model_only policy"
+                        .into(),
+                )
+            })?;
+            if value <= 0.0 {
+                return Err(EstimationError::Covariance(
+                    "model observation variance must be positive".into(),
+                ));
+            }
+            estimation.uninflated_variance_v2 = value;
+            estimation.effective_variance_v2 = value;
+            estimation.source = "compiled_model_observation_variance".into();
+            estimation.inflation_factor = 1.0;
+            estimation.inflation_reason = Some("model_only policy".into());
+            Ok(estimation)
+        }
+        ObservationVarianceCombination::AddIndependent => {
+            let value = model.ok_or_else(|| EstimationError::Covariance(
+                "add_independent requires an explicitly declared compiled-model observation variance".into(),
+            ))?;
+            estimation.uninflated_variance_v2 += value;
+            estimation.effective_variance_v2 += value;
+            estimation.source.push_str(" + compiled_model_independent");
+            estimation.inflation_reason =
+                Some("estimation and model variances explicitly declared independent".into());
+            Ok(estimation)
+        }
+    }
 }
 impl From<CovarianceSourceKind> for CovarianceSource {
     fn from(v: CovarianceSourceKind) -> Self {

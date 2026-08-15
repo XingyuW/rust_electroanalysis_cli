@@ -60,8 +60,8 @@ pub fn diagnose(
         if step + 1 < horizon {
             let next = environments.get(step + 1).unwrap_or(env);
             let dt = (next.timestamp_s - previous_time).max(f64::EPSILON);
-            let f = model.transition_matrix(dt);
-            nominal = model.process_state(&nominal, dt, next);
+            let f = model.transition_matrix_for(&nominal, dt, next)?;
+            nominal = model.try_process_state(&nominal, dt, next)?;
             phi = f * phi;
             previous_time = next.timestamp_s;
         }
@@ -212,7 +212,7 @@ fn simulate_outputs(
         if step + 1 < horizon {
             let next = environments.get(step + 1).unwrap_or(env);
             let dt = (next.timestamp_s - previous_time).max(f64::EPSILON);
-            state = model.process_state(&state, dt, next);
+            state = model.try_process_state(&state, dt, next)?;
             previous_time = next.timestamp_s;
         }
     }

@@ -1,0 +1,282 @@
+schema_version = 1
+
+# This manifest is a cross-crate contract, not a snapshot of the current
+# electrodata-io implementation. `row_count` is the compatibility-mode output
+# row count when strict mode rejects the source. Units use stable semantic
+# spellings: s, V, A, Hz, ohm, deg, and Unknown.
+
+[[fixture]]
+file = "regular_two_column.csv"
+dataset_kind = "TimeSeries"
+row_count = 3
+column_count = 2
+missing_value_count = 0
+expected_diagnostics = []
+strict_mode_result = "accept"
+compatibility_mode_result = "accept"
+columns = [
+  { name = "Time/sec", role = "Time", unit = "s" },
+  { name = "Potential/V", role = "Potential", unit = "V" },
+]
+
+[[fixture]]
+file = "regular_multichannel.csv"
+dataset_kind = "TimeSeries"
+row_count = 3
+column_count = 5
+missing_value_count = 0
+expected_diagnostics = []
+strict_mode_result = "accept"
+compatibility_mode_result = "accept"
+columns = [
+  { name = "Time/s", role = "Time", unit = "s" },
+  { name = "E1/V", role = "MeasurementChannel(1)", unit = "V" },
+  { name = "E5/V", role = "MeasurementChannel(5)", unit = "V" },
+  { name = "Current/A", role = "Current", unit = "A" },
+  { name = "Temperature/C", role = "Unknown", unit = "C" },
+]
+
+[[fixture]]
+file = "regular_headerless.csv"
+dataset_kind = "TimeSeries"
+row_count = 3
+column_count = 2
+missing_value_count = 0
+expected_diagnostics = [
+  { code = "HeaderlessRoleInference", severity = "warning", row = 1, column = "*" },
+  { code = "UnknownUnit", severity = "warning", row = 1, column = "*" },
+]
+strict_mode_result = "reject: AmbiguousHeaderlessSchema"
+compatibility_mode_result = "accept: infer first column as Time and retain second as Unknown"
+columns = [
+  { name = "column_1", role = "Time", unit = "Unknown" },
+  { name = "column_2", role = "Unknown", unit = "Unknown" },
+]
+
+[[fixture]]
+file = "regular_missing_cells.csv"
+dataset_kind = "TimeSeries"
+row_count = 4
+column_count = 3
+missing_value_count = 2
+expected_diagnostics = [
+  { code = "MissingValue", severity = "warning", row = 3, column = "Potential/V" },
+  { code = "MissingValue", severity = "warning", row = 4, column = "Current/A" },
+]
+strict_mode_result = "accept: preserve null cells"
+compatibility_mode_result = "accept: preserve null cells"
+columns = [
+  { name = "Time/sec", role = "Time", unit = "s" },
+  { name = "Potential/V", role = "Potential", unit = "V" },
+  { name = "Current/A", role = "Current", unit = "A" },
+]
+
+[[fixture]]
+file = "regular_malformed_timestamp.csv"
+dataset_kind = "TimeSeries"
+row_count = 2
+column_count = 2
+missing_value_count = 0
+expected_diagnostics = [
+  { code = "MalformedTimestamp", severity = "warning", row = 3, column = "Time/sec" },
+  { code = "RowSkipped", severity = "warning", row = 3, column = "Time/sec" },
+]
+strict_mode_result = "reject: MalformedNumeric at row 3 column Time/sec"
+compatibility_mode_result = "accept: skip source row 3 and preserve source row numbers"
+columns = [
+  { name = "Time/sec", role = "Time", unit = "s" },
+  { name = "Potential/V", role = "Potential", unit = "V" },
+]
+
+[[fixture]]
+file = "regular_ragged_rows.csv"
+dataset_kind = "TimeSeries"
+row_count = 3
+column_count = 3
+missing_value_count = 1
+expected_diagnostics = [
+  { code = "RaggedRow", severity = "warning", row = 3, column = "*" },
+  { code = "RowPadded", severity = "warning", row = 3, column = "Temperature/C" },
+  { code = "RaggedRow", severity = "warning", row = 4, column = "*" },
+  { code = "ExtraCellsIgnored", severity = "warning", row = 4, column = "column_4" },
+]
+strict_mode_result = "reject: RaggedRow at source row 3"
+compatibility_mode_result = "accept: pad short rows with null and ignore trailing extra cells"
+columns = [
+  { name = "Time/sec", role = "Time", unit = "s" },
+  { name = "Potential/V", role = "Potential", unit = "V" },
+  { name = "Temperature/C", role = "Unknown", unit = "C" },
+]
+
+[[fixture]]
+file = "regular_invalid_numeric.csv"
+dataset_kind = "TimeSeries"
+row_count = 3
+column_count = 2
+missing_value_count = 1
+expected_diagnostics = [
+  { code = "MalformedNumeric", severity = "warning", row = 3, column = "Potential/V" },
+  { code = "ValueReplacedWithMissing", severity = "warning", row = 3, column = "Potential/V" },
+]
+strict_mode_result = "reject: MalformedNumeric at source row 3 column Potential/V"
+compatibility_mode_result = "accept: retain row and replace invalid channel cell with null"
+columns = [
+  { name = "Time/sec", role = "Time", unit = "s" },
+  { name = "Potential/V", role = "Potential", unit = "V" },
+]
+
+[[fixture]]
+file = "regular_duplicate_timestamps.csv"
+dataset_kind = "TimeSeries"
+row_count = 4
+column_count = 2
+missing_value_count = 0
+expected_diagnostics = [
+  { code = "DuplicateTimestamp", severity = "warning", row = 4, column = "Time/sec" },
+]
+strict_mode_result = "reject: DuplicateTimestamp at source row 4"
+compatibility_mode_result = "accept: preserve both rows and source order"
+columns = [
+  { name = "Time/sec", role = "Time", unit = "s" },
+  { name = "Potential/V", role = "Potential", unit = "V" },
+]
+
+[[fixture]]
+file = "regular_nonmonotonic_timestamps.csv"
+dataset_kind = "TimeSeries"
+row_count = 4
+column_count = 2
+missing_value_count = 0
+expected_diagnostics = [
+  { code = "NonMonotonicTimestamp", severity = "warning", row = 4, column = "Time/sec" },
+]
+strict_mode_result = "reject: NonMonotonicTimestamp at source row 4"
+compatibility_mode_result = "accept: preserve source order without sorting"
+columns = [
+  { name = "Time/sec", role = "Time", unit = "s" },
+  { name = "Potential/V", role = "Potential", unit = "V" },
+]
+
+[[fixture]]
+file = "generic_text.dat"
+dataset_kind = "TimeSeries"
+row_count = 3
+column_count = 3
+missing_value_count = 0
+expected_diagnostics = []
+strict_mode_result = "accept"
+compatibility_mode_result = "accept"
+columns = [
+  { name = "Time/sec", role = "Time", unit = "s" },
+  { name = "Potential/V", role = "Potential", unit = "V" },
+  { name = "Current/A", role = "Current", unit = "A" },
+]
+
+[[fixture]]
+file = "chi_ocpt.csv"
+dataset_kind = "TimeSeries"
+row_count = 3
+column_count = 2
+missing_value_count = 0
+expected_diagnostics = []
+strict_mode_result = "accept"
+compatibility_mode_result = "accept"
+columns = [
+  { name = "Time/sec", role = "Time", unit = "s" },
+  { name = "Potential/V", role = "Potential", unit = "V" },
+]
+
+[[fixture]]
+file = "chi_multichannel_ocpt.csv"
+dataset_kind = "TimeSeries"
+row_count = 3
+column_count = 3
+missing_value_count = 0
+expected_diagnostics = []
+strict_mode_result = "accept"
+compatibility_mode_result = "accept"
+columns = [
+  { name = "Time/sec", role = "Time", unit = "s" },
+  { name = "E1/V", role = "MeasurementChannel(1)", unit = "V" },
+  { name = "E5/V", role = "MeasurementChannel(5)", unit = "V" },
+]
+
+[[fixture]]
+file = "chi_eis_three_column.csv"
+dataset_kind = "ImpedanceSpectrum"
+row_count = 3
+column_count = 3
+missing_value_count = 0
+expected_diagnostics = []
+strict_mode_result = "accept: derive magnitude and phase through typed accessors"
+compatibility_mode_result = "accept: derive magnitude and phase through typed accessors"
+columns = [
+  { name = "Freq/Hz", role = "Frequency", unit = "Hz" },
+  { name = "Z'/ohm", role = "ImpedanceReal", unit = "ohm" },
+  { name = "Z\"/ohm", role = "ImpedanceImaginary", unit = "ohm" },
+]
+
+[[fixture]]
+file = "chi_eis_four_column.csv"
+dataset_kind = "ImpedanceSpectrum"
+row_count = 3
+column_count = 4
+missing_value_count = 0
+expected_diagnostics = []
+strict_mode_result = "accept: derive magnitude through typed accessor"
+compatibility_mode_result = "accept: derive magnitude through typed accessor"
+columns = [
+  { name = "Freq/Hz", role = "Frequency", unit = "Hz" },
+  { name = "Z'/ohm", role = "ImpedanceReal", unit = "ohm" },
+  { name = "Z\"/ohm", role = "ImpedanceImaginary", unit = "ohm" },
+  { name = "Phase/deg", role = "ImpedancePhase", unit = "deg" },
+]
+
+[[fixture]]
+file = "chi_eis_five_column.csv"
+dataset_kind = "ImpedanceSpectrum"
+row_count = 3
+column_count = 5
+missing_value_count = 0
+expected_diagnostics = []
+strict_mode_result = "accept"
+compatibility_mode_result = "accept"
+columns = [
+  { name = "Freq/Hz", role = "Frequency", unit = "Hz" },
+  { name = "Z'/ohm", role = "ImpedanceReal", unit = "ohm" },
+  { name = "Z\"/ohm", role = "ImpedanceImaginary", unit = "ohm" },
+  { name = "Z/ohm", role = "ImpedanceMagnitude", unit = "ohm" },
+  { name = "Phase/deg", role = "ImpedancePhase", unit = "deg" },
+]
+
+[[fixture]]
+file = "chi_eis_reordered_columns.csv"
+dataset_kind = "ImpedanceSpectrum"
+row_count = 3
+column_count = 5
+missing_value_count = 0
+expected_diagnostics = []
+strict_mode_result = "accept: resolve columns by semantic header, not position"
+compatibility_mode_result = "accept: resolve columns by semantic header, not position"
+columns = [
+  { name = "Phase/deg", role = "ImpedancePhase", unit = "deg" },
+  { name = "Z\"/ohm", role = "ImpedanceImaginary", unit = "ohm" },
+  { name = "Freq/Hz", role = "Frequency", unit = "Hz" },
+  { name = "Z/ohm", role = "ImpedanceMagnitude", unit = "ohm" },
+  { name = "Z'/ohm", role = "ImpedanceReal", unit = "ohm" },
+]
+
+[[fixture]]
+file = "timeseries.xlsx"
+dataset_kind = "TimeSeries"
+row_count = 3
+column_count = 3
+missing_value_count = 0
+expected_diagnostics = []
+strict_mode_result = "accept: auto-select the sole compatible worksheet named measurement"
+compatibility_mode_result = "accept: auto-select the sole compatible worksheet named measurement"
+columns = [
+  { name = "Time/sec", role = "Time", unit = "s" },
+  { name = "E1/V", role = "MeasurementChannel(1)", unit = "V" },
+  { name = "Current/A", role = "Current", unit = "A" },
+]

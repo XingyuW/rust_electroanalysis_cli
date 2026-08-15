@@ -118,6 +118,54 @@ pub enum QuantityDimension {
     Conductivity,
 }
 
+/// Typed flow units used by environmental covariates.  Flow is not a
+/// potentiometric quantity, but it shares the same validated unit boundary
+/// rather than being converted by ad-hoc string arithmetic in estimation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlowUnit {
+    MetersPerSecond,
+    CentimetersPerSecond,
+    MillimetersPerSecond,
+}
+
+impl FromStr for FlowUnit {
+    type Err = UnitError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "m/s" | "meter/s" | "metre/s" => Ok(Self::MetersPerSecond),
+            "cm/s" | "centimeter/s" | "centimetre/s" => Ok(Self::CentimetersPerSecond),
+            "mm/s" | "millimeter/s" | "millimetre/s" => Ok(Self::MillimetersPerSecond),
+            _ => Err(UnitError::Unknown(value.trim().to_string())),
+        }
+    }
+}
+
+impl FlowUnit {
+    pub fn to_meters_per_second(self, value: f64) -> Result<f64, UnitError> {
+        if !value.is_finite() {
+            return Err(UnitError::NonFinite {
+                value,
+                unit: self.to_string().into(),
+            });
+        }
+        Ok(value
+            * match self {
+                Self::MetersPerSecond => 1.0,
+                Self::CentimetersPerSecond => 1e-2,
+                Self::MillimetersPerSecond => 1e-3,
+            })
+    }
+
+    fn to_string(self) -> &'static str {
+        match self {
+            Self::MetersPerSecond => "m/s",
+            Self::CentimetersPerSecond => "cm/s",
+            Self::MillimetersPerSecond => "mm/s",
+        }
+    }
+}
+
 impl QuantityDimension {
     fn name(self) -> &'static str {
         match self {
@@ -182,7 +230,10 @@ impl Quantity {
                 expected: "molar concentration (mol/L); solvent density is required for mol/kg"
                     .to_string(),
             }),
-            _ => unreachable!("dimension was checked above"),
+            _ => Err(UnitError::Incompatible {
+                unit: self.unit.canonical_name().to_string(),
+                expected: "molar concentration".into(),
+            }),
         }
     }
 
@@ -204,7 +255,12 @@ impl Quantity {
             QuantityUnit::Volt => self.value,
             QuantityUnit::Millivolt => self.value * 1e-3,
             QuantityUnit::Microvolt => self.value * 1e-6,
-            _ => unreachable!(),
+            _ => {
+                return Err(UnitError::Incompatible {
+                    unit: self.unit.canonical_name().to_string(),
+                    expected: "potential".into(),
+                });
+            }
         })
     }
 
@@ -213,7 +269,12 @@ impl Quantity {
         let kelvin = match self.unit {
             QuantityUnit::Kelvin => self.value,
             QuantityUnit::Celsius => self.value + 273.15,
-            _ => unreachable!(),
+            _ => {
+                return Err(UnitError::Incompatible {
+                    unit: self.unit.canonical_name().to_string(),
+                    expected: "temperature".into(),
+                });
+            }
         };
         if !kelvin.is_finite() || kelvin <= 0.0 {
             return Err(UnitError::NonPhysicalTemperature {
@@ -231,7 +292,12 @@ impl Quantity {
             QuantityUnit::SiemensPerCm => self.value * 100.0,
             QuantityUnit::MillisiemensPerCm => self.value * 0.1,
             QuantityUnit::MicrosiemensPerCm => self.value * 1e-4,
-            _ => unreachable!(),
+            _ => {
+                return Err(UnitError::Incompatible {
+                    unit: self.unit.canonical_name().to_string(),
+                    expected: "conductivity".into(),
+                });
+            }
         })
     }
 }

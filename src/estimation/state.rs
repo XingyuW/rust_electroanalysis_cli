@@ -138,6 +138,7 @@ pub enum EstimationWarningKind {
     TauOutsideObservationWindow,
     ModelDiscrepancy,
     MissingRequiredEnvironment,
+    IngestionRecovery,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

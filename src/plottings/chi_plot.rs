@@ -3,9 +3,9 @@
 //! This module wraps `ElectrochemData` parsing and delegates figure generation
 //! to the shared high-quality plotting engine with CHI-specific defaults.
 
-use crate::data_file::ElectrochemData;
 use crate::data_file::value_transform::AxisTransforms;
 use crate::plottings::plotting::{PlotColor, PlotLegendPosition, PublicationConfig, plot_hq};
+use crate::{data_file::ElectrochemData, domain::BatchFileFailure};
 
 use std::error::Error;
 use std::fs::read_dir;
@@ -20,14 +20,14 @@ pub struct ChiPlotOutcome {
 }
 
 /// One skipped input encountered during directory-mode plotting.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ChiPlotSkip {
     pub input_file: PathBuf,
-    pub reason: String,
+    pub failure: BatchFileFailure,
 }
 
 /// Aggregated summary for a directory regular-plot run.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ChiDirectoryPlotOutcome {
     pub plotted: Vec<ChiPlotOutcome>,
     pub skipped: Vec<ChiPlotSkip>,
@@ -44,7 +44,7 @@ pub fn pb_sensor_individual_publication_config() -> PublicationConfig {
         plot_ratio_x: 10.6,
         plot_ratio_y: 6.2,
         legend_font_ratio: 0.62,
-        x_label: "Time (s)".to_string(),
+        x_label: "X Values".to_string(),
         y_label: "Potential (V)".to_string(),
         png_font: "Arial Bold".to_string(),
         svg_font: "Arial".to_string(),
@@ -65,7 +65,7 @@ pub fn pb_sensor_combined_publication_config() -> PublicationConfig {
         plot_ratio_x: 11.0,
         plot_ratio_y: 6.2,
         legend_font_ratio: 0.56,
-        x_label: "Time (s)".to_string(),
+        x_label: "X Values".to_string(),
         y_label: "Potential (V)".to_string(),
         png_font: "Arial Bold".to_string(),
         svg_font: "Arial".to_string(),
@@ -110,9 +110,7 @@ pub fn plot_chi_file_with_transform<P: AsRef<Path>>(
     let mut transformed = vec![data.clone()];
     apply_axis_transforms_to_electrochem(&mut transformed, transform);
 
-    let plot_config = config
-        .clone()
-        .with_default_axis_labels("Time (s)", "Potential (V)");
+    let plot_config = coordinate_plot_config(config, std::slice::from_ref(&data));
     plot_hq(
         output_base.to_string_lossy().as_ref(),
         &transformed,
@@ -189,14 +187,6 @@ pub fn plot_chi_directory_with_configs_and_transforms<P: AsRef<Path>>(
             continue;
         }
 
-        if !is_supported_chi_path(&path) {
-            skipped.push(ChiPlotSkip {
-                input_file: path,
-                reason: "Unsupported file type".to_string(),
-            });
-            continue;
-        }
-
         match ElectrochemData::parse_file_series(&path) {
             Ok(parsed_series) => {
                 for data in parsed_series {
@@ -213,14 +203,22 @@ pub fn plot_chi_directory_with_configs_and_transforms<P: AsRef<Path>>(
                 }
             }
             Err(err) => skipped.push(ChiPlotSkip {
-                input_file: path,
-                reason: err.to_string(),
+                input_file: path.clone(),
+                failure: BatchFileFailure::canonical(path, err),
             }),
         }
     }
 
+    // Preserve typed canonical failures for the runner's batch policy. An
+    // empty directory is represented by an empty outcome, never by a
+    // fabricated physical-input parsing failure.
     if datasets.is_empty() {
-        return Err(format!("No valid CHI datasets found in {}", input_dir.display()).into());
+        return Ok(ChiDirectoryPlotOutcome {
+            plotted,
+            skipped,
+            combined_output_base,
+            individual_output_base,
+        });
     }
 
     let mut individual_datasets = datasets.clone();
@@ -228,12 +226,8 @@ pub fn plot_chi_directory_with_configs_and_transforms<P: AsRef<Path>>(
     apply_axis_transforms_to_electrochem(&mut individual_datasets, individual_transform);
     apply_axis_transforms_to_electrochem(&mut combined_datasets, combined_transform);
 
-    let individual_plot_config = individual_config
-        .clone()
-        .with_default_axis_labels("Time (s)", "Potential (V)");
-    let combined_plot_config = combined_config
-        .clone()
-        .with_default_axis_labels("Time (s)", "Potential (V)");
+    let individual_plot_config = coordinate_plot_config(individual_config, &individual_datasets);
+    let combined_plot_config = coordinate_plot_config(combined_config, &combined_datasets);
 
     plot_hq(
         individual_output_base.to_string_lossy().as_ref(),
@@ -273,13 +267,22 @@ fn apply_axis_transforms_to_electrochem(
     }
 }
 
-fn is_supported_chi_path(path: &Path) -> bool {
-    matches!(
-        path.extension()
-            .and_then(|value| value.to_str())
-            .map(|value| value.to_ascii_lowercase()),
-        Some(extension) if matches!(extension.as_str(), "csv" | "txt" | "dat")
-    )
+pub(crate) fn coordinate_plot_config(
+    config: &PublicationConfig,
+    datasets: &[ElectrochemData],
+) -> PublicationConfig {
+    let x_label = datasets
+        .first()
+        .map(|dataset| dataset.coordinate.source_axis_label())
+        .filter(|label| {
+            datasets
+                .iter()
+                .all(|dataset| dataset.coordinate.source_axis_label() == *label)
+        })
+        .unwrap_or_else(|| "Coordinate".to_string());
+    config
+        .clone()
+        .with_default_axis_labels(x_label.as_str(), "Potential (V)")
 }
 
 fn sanitize_output_component(value: &str) -> String {

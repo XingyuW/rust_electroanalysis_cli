@@ -3,7 +3,8 @@
 use crate::{
     estimation::{
         covariance::{
-            is_psd, resolve_observation_variance, resolve_process_covariance, symmetrize,
+            combine_model_observation_variance, is_psd, resolve_observation_variance,
+            resolve_process_covariance, symmetrize,
         },
         ekf::{FilterInput, FilterRun},
         environment::{AlignedEnvironment, AlignedEnvironmentSummary},
@@ -103,20 +104,42 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
     let mut domain_excursions = 0;
     let mut covariance_collapse_count = 0;
     let mut covariance_inflation_warning_count = 0;
-    let mut previous = None;
+    let mut previous: Option<f64> = None;
+    let start_time = input.observations[0].timestamp_s;
+    let mut previous_equilibrium_state: Option<DVector<f64>> = None;
+    let mut previous_equilibrium_environment: Option<AlignedEnvironment> = None;
+    let mut last_dynamic_event_time: Option<f64> = None;
     for (index, obs) in input.observations.iter().enumerate() {
         let env = input.environments.get(index).cloned().unwrap_or_default();
+        let evidence_dt = previous.map(|previous_time| obs.timestamp_s - previous_time);
+        let latest_compiled_event = env
+            .activity_step_event_timestamps_s
+            .iter()
+            .chain(env.transduction_event_timestamps_s.iter())
+            .copied()
+            .max_by(f64::total_cmp);
+        if let Some(event_time) = latest_compiled_event.or(env.polarization_event_timestamp_s) {
+            last_dynamic_event_time = Some(event_time);
+        }
         let mut warnings = input.calibration.warnings(&env);
         let (pred_state, pred_cov) = if index == 0 {
             (state.clone(), cov.clone())
         } else {
-            let dt = obs.timestamp_s - previous.unwrap();
+            let previous_time = previous
+                .ok_or_else(|| EstimationError::invalid("previous UKF timestamp is unavailable"))?;
+            let dt = obs.timestamp_s - previous_time;
+            if !dt.is_finite() || dt <= 0.0 {
+                return Err(EstimationError::invalid(format!(
+                    "non-positive or non-finite Δt encountered at timestamp {} (Δt={})",
+                    obs.timestamp_s, dt
+                )));
+            }
             let (pts, wm, wc, j) = sigma_points(&state, &cov, input.config)?;
             jitter_count += j;
             let transformed = pts
                 .iter()
-                .map(|p| input.model.process_state(p, dt, &env))
-                .collect::<Vec<_>>();
+                .map(|p| input.model.try_process_state(p, dt, &env))
+                .collect::<Result<Vec<_>, _>>()?;
             let mut mean = DVector::zeros(input.model.dimension());
             for (w, p) in wm.iter().zip(&transformed) {
                 mean += p * *w;
@@ -169,6 +192,13 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
                 predicted_log10,
                 &env,
                 domain,
+            )?;
+            let variance = combine_model_observation_variance(
+                variance,
+                input
+                    .model
+                    .model_observation_variance_v2(&pred_state, &env)?,
+                input.config.model.observation_variance.combination,
             )?;
             if variance.inflation_factor > 1.0 {
                 covariance_inflation_warning_count += 1;
@@ -301,10 +331,65 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
             .activity_model_is_ideal()
             .then_some(activity)
             .flatten();
+        let (decomposition_states, decomposition_weights, _, _) =
+            sigma_points(&pred_state, &pred_cov, input.config)?;
+        let innovation_history = records
+            .iter()
+            .map(|record| record.innovation_v)
+            .collect::<Vec<_>>();
+        let equilibrium_evidence = crate::estimation::model_output::equilibrium_evidence(
+            &input.config.equilibrium_recognition,
+            &filtered_state,
+            previous_equilibrium_state.as_ref(),
+            &filtered_cov,
+            &env,
+            previous_equilibrium_environment.as_ref(),
+            evidence_dt,
+            if input.model.compiled_model().is_some() {
+                last_dynamic_event_time.map(|event_time| obs.timestamp_s - event_time)
+            } else {
+                Some(obs.timestamp_s - last_dynamic_event_time.unwrap_or(start_time))
+            },
+            residual_autocorrelation(&innovation_history),
+            index + 1,
+            input.model,
+            input.observability,
+        );
+        let decomposition = crate::estimation::model_output::decompose_weighted_observation(
+            crate::estimation::model_output::WeightedObservation {
+                states: &decomposition_states,
+                weights: &decomposition_weights,
+                reference_state: &pred_state,
+                environment: &env,
+                model: input.model,
+                calibration: input.calibration,
+                observed_voltage_v: obs.potential_v,
+                standardized_innovation: standardized,
+                equilibrium_evidence: Some(&equilibrium_evidence),
+            },
+        )?;
+        if predicted_measurement
+            .is_some_and(|value| (value - decomposition.predicted_voltage_v).abs() > 1e-9)
+        {
+            return Err(EstimationError::Numerical(
+                "UKF component contributions do not reconstruct the observation prediction".into(),
+            ));
+        }
+        predicted_measurement = Some(decomposition.predicted_voltage_v);
         estimates.push(StateEstimatePoint {
+            segment_id: 0,
             timestamp_s: obs.timestamp_s,
+            original_row_index: None,
             measurement_v: obs.potential_v,
             predicted_measurement_v: predicted_measurement,
+            component_contributions: decomposition.contributions,
+            equilibrium_potential_v: Some(decomposition.equilibrium_potential_v),
+            transport_potential_v: Some(decomposition.transport_potential_v),
+            transduction_potential_v: Some(decomposition.transduction_potential_v),
+            reference_potential_v: Some(decomposition.reference_potential_v),
+            external_disturbance_potential_v: Some(decomposition.external_disturbance_potential_v),
+            unexplained_residual_v: decomposition.unexplained_residual_v,
+            equilibrium_assessment: Some(decomposition.equilibrium),
             innovation_v: innovation,
             innovation_variance_v2: innovation_variance,
             standardized_innovation: standardized,
@@ -348,6 +433,8 @@ pub fn run(input: FilterInput<'_>) -> Result<FilterRun, EstimationError> {
                 .filter(|r| r.timestamp_s == obs.timestamp_s)
                 .and_then(|r| r.variance_inflation_reason.clone()),
         });
+        previous_equilibrium_state = Some(filtered_state.clone());
+        previous_equilibrium_environment = Some(env);
         state = filtered_state;
         cov = filtered_cov;
     }
