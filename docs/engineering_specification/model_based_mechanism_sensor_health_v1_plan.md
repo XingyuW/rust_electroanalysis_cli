@@ -8742,25 +8742,32 @@ upstream `EventId` because that would redesign the frozen transient artifact
 contract.
 
 The real producer assigns the ordinal before it applies the optional CLI
-selection. In `potentiometry::transient::analyze_experiment`, it retains
-`experiment.events` in their serialized source-vector order, filters that
-vector to entries whose `event.kind == TransientAnalysisOptions.event_kind`,
-then calls `enumerate()` on that eligible sequence. The resulting
-`eligible_index` is stored as `TransientEventResult.event_index`. With no
-optional transient `event_index`, the report writer receives every eligible
-result in ascending ordinal order `0..eligible.len()`. With an optional
-transient `event_index=j`, it receives the sole selected result with stored
-ordinal `j`; therefore a one-element report can legitimately have
-`events[0].event_index != 0`.
+selection. `potentiometry::transient::analyze_experiment` does not sort its
+`experiment.events` input: it filters that received vector to entries whose
+`event.kind == TransientAnalysisOptions.event_kind`, then calls `enumerate()`
+on that eligible sequence. The normal metadata/parser construction path calls
+`ElectrochemicalExperiment::new`, which validates finite event fields and
+uses the standard-library stable `sort_by` timestamp ordering: events are in
+ascending `timestamp`, and equal-timestamp events retain their supplied
+relative order. Direct construction/deserialization can supply an already
+ordered vector, but the producer still uses that vector as received; it adds
+no second sort or semantic tie-break. The resulting `eligible_index` is stored
+as `TransientEventResult.event_index`. With no optional transient
+`event_index`, the report writer receives every eligible result in ascending
+ordinal order `0..eligible.len()`. With an optional transient `event_index=j`,
+it receives the sole selected result with stored ordinal `j`; therefore a
+one-element report can legitimately have `events[0].event_index != 0`.
 
 This producer sequence is the only canonical order relevant to Phase C:
-**serialized source-event vector order, filtered by the requested event kind,
-then enumerated from zero.** It is deterministic for one exact serialized
-experiment and options tuple, but it is not a source-order-independent
-scientific identity. `TransientAnalysisReport.events` preserves the producer
-insertion order because neither the producer nor `write_artifact` sorts it.
-The Phase-C loader must preserve that serialized vector order; it must not
-sort by timestamp, event kind, concentration, metadata, or `event_index`.
+**the `experiment.events` vector as received by `analyze_experiment` (the
+standard construction path's stable ascending-timestamp order, with supplied
+order retained for equal timestamps), filtered by the requested event kind,
+then enumerated from zero.** It is deterministic for one exact experiment
+object and options tuple, but it is not a source-order-independent scientific
+identity. `TransientAnalysisReport.events` preserves the producer insertion
+order because neither the producer nor `write_artifact` sorts it. The Phase-C
+loader must preserve that serialized report-vector order; it must not sort by
+timestamp, event kind, concentration, metadata, or `event_index`.
 
 First, the supplied transient artifact must be C-compatible with the signal
 assessment scope: known single experiment scope, sensor scope, and channel
@@ -8786,17 +8793,22 @@ candidates are exactly events whose stored `event_index == selected_event_index`
 | selected event has no model, no matching candidate fit, non-converged fit, failed event, missing required metric, invalid Window, invalid unit, or nonfinite value | `data_quality_insufficient` | `selected_transient_event_invalid`, `required_quantity_absent`, `unit_mismatch`, or `invalid_quantity` as applicable |
 | nonselected event with a valid globally increasing ordinal sequence, even when its fit is invalid | not read | no source ID, reason, dependency, or result effect; a duplicate or descending nonselected ordinal instead fails the preceding structural-order validation and yields `selected_transient_event_ambiguous` |
 
-The source-event vector order is normative for this positional selector. A
-permutation of source events before transient production can assign a different
-ordinal to an otherwise identical semantic event, and Phase C is intentionally
-allowed to select that different artifact-local position. A permutation of a
-serialized report without preserving strictly increasing ordinal order is an
-invalid artifact. No Phase-C claim of source-order invariance is permitted.
-Timestamp, event kind, concentration, analyte, metadata, and event order are
-not Phase-C selection keys; timestamp is retained only as source provenance.
-There is no timestamp sort, nearest-event rule, aggregation, weighting, or
-tie-break. Thus exactly one selected event is required and multi-event
-aggregation is explicitly forbidden in V1.
+The producer-input vector order is normative for this positional selector.
+For normal construction, permuting only distinct-timestamp source events does
+not change the producer order because `ElectrochemicalExperiment::new` sorts
+them; changing the relative supplied order of two equal-timestamp events does
+change their stable-sort tie order and can assign a different ordinal to each
+otherwise valid event. A direct producer input can likewise provide a distinct
+received vector. Phase C is intentionally allowed to select that different
+artifact-local position. A permutation of a serialized report without
+preserving strictly increasing ordinal order is an invalid artifact. No
+general Phase-C claim of source-order invariance is permitted. Timestamp,
+event kind, concentration, analyte, metadata, and event order are not Phase-C
+selection keys; timestamp determines only the normal upstream vector ordering
+and is retained as source provenance. There is no Phase-C timestamp sort,
+nearest-event rule, aggregation, weighting, or semantic tie-break. Thus
+exactly one selected event is required and multi-event aggregation is
+explicitly forbidden in V1.
 
 A missing matching baseline distribution or absent `mean` is `indeterminate`
 with `baseline_feature_absent` or `baseline_statistic_absent`; it is a valid
@@ -9028,15 +9040,23 @@ Shared valid source values, used unless a fixture row overrides them, are:
   `phase_c_dynamic_response_event_index_uses_producer_eligible_event_order`
   separately calls the real `analyze_experiment` producer with the exact
   phase-2 synthetic measurement (`time=-20..=120 s`, pre-event `0.30 V`,
-  post-event `0.20 + 0.10*exp(-t/12) V`), source events in this order:
-  `reading_start@-1 s`, `concentration_step@0 s`, `flow_change@10 s`,
-  `concentration_step@20 s`, `concentration_step@120 s`; every concentration
-  step has `value=0.01`, `unit=mol/L`, `analyte=K+`, no annotation or
-  metadata. With `event_kind=concentration_step` and no optional selection,
-  it asserts serialized ordinal/vector pairs `[(0,0.0),(1,20.0),(2,120.0)]`.
-  Reordering the source events to make the `20.0 s` concentration step first
-  must change its producer ordinal to 0; the test fails if Phase C treats the
-  old ordinal as a source-order-invariant semantic identifier;
+  post-event `0.20 + 0.10*exp(-t/12) V`). It creates each experiment through
+  `ElectrochemicalExperiment::new`, first with source events
+  `reading_start@-1 s`, `concentration_step@0 s(value=0.01)`,
+  `flow_change@10 s`, `concentration_step@20 s(value=0.02)`,
+  `concentration_step@20 s(value=0.03)`, and
+  `concentration_step@120 s(value=0.04)`, then with only the two `20.0 s`
+  concentration-step inputs reversed. Every concentration step uses
+  `unit=mol/L`, `analyte=K+`, and no annotation or metadata. With
+  `event_kind=concentration_step` and no optional selection, the first source
+  sequence must serialize `(ordinal,timestamp,value)` as
+  `[(0,0.0,0.01),(1,20.0,0.02),(2,20.0,0.03),(3,120.0,0.04)]`; the second
+  must serialize
+  `[(0,0.0,0.01),(1,20.0,0.03),(2,20.0,0.02),(3,120.0,0.04)]`. This proves
+  the constructor's ascending-timestamp order and its preserved equal-time
+  tie order. The test fails if Phase C re-sorts the report, selects by a
+  timestamp/value tuple, or treats an ordinal as a source-order-invariant
+  semantic identifier;
 * baseline distributions: exact keys in §34.3, units `(s,s,s,V)`, sample
   count 3, means `(0.10,1.00,2.00,0.100)`, and all other statistics `None`;
 * Phase-B row: schema 4 known matching scope, definition/current ID
@@ -9303,10 +9323,10 @@ is the row above, not “exact status/IDs” placeholder language.
 
 ### 34.10 Complete mandatory test inventory
 
-The mandatory inventory is 99 exact test functions. The 57 names already
+The mandatory inventory is 100 exact test functions. The 57 names already
 listed in §33.11 remain mandatory except that this section supplies their
-superseding expected results. The following 42 rows are the complete added
-set; together they are the rebuilt 99-test inventory, not a target count.
+superseding expected results. The following 43 rows are the complete added
+set; together they are the rebuilt 100-test inventory, not a target count.
 Each test is in `tests/phase_c_sensor_health_evidence.rs`, exercises the named
 production path, names a fixture or literal builder input, asserts every
 listed result/reason, and fails under the listed scientifically relevant
@@ -9322,10 +9342,10 @@ mutation.
 | `phase_c_mapped_mechanism_never_establishes_causality` | PC-BIND-06 | stage 11; FX-05 | causal exactly observed | promote from Phase-B level |
 | `phase_c_dependent_lineage_cannot_promote_mapped_mechanism` | PC-BIND-07 | stage 11; FX-07 | causal observed / no association | count same source family |
 | `phase_c_duplicate_mechanism_hypothesis_id_rejects_input` | PC-BIND-08 | stage 5 builder | `InvalidEvidence` | select first duplicate |
-| `phase_c_dynamic_response_zero_selected_events_is_indeterminate` | PC-DYN-01 | stage 8; selected index 7 absent | I / selected_transient_event_absent | choose first event |
+| `phase_c_dynamic_response_zero_selected_events_is_indeterminate` | PC-DYN-01 | stage 8; `selected_event_index=7` and an otherwise valid C-compatible all-event report whose strictly increasing stored ordinals are exactly `[0,1,2]` | I / selected_transient_event_absent | choose the first event or treat the configuration as a vector index |
 | `phase_c_dynamic_response_one_selected_event_is_evaluated` | PC-DYN-02 | stage 8; FX-03 | degraded / threshold_degraded | ignore selected index |
 | `phase_c_dynamic_response_duplicate_selected_event_is_dqi` | PC-DYN-03 | stage 8 builder duplicates index 7 | DQI / selected_transient_event_ambiguous | select one duplicate |
-| `phase_c_dynamic_response_event_index_uses_producer_eligible_event_order` | PC-DYN-04 | transient producer → writer → Phase-C stages 6--12; the exact source sequence in §34.8 | ordinal/vector pairs `[(0,0.0),(1,20.0),(2,120.0)]`, then the ordinal-7 FX-03 selection; no source-order-invariance claim | select by timestamp, sort the report, or preserve a semantic event across source permutation |
+| `phase_c_dynamic_response_event_index_uses_producer_eligible_event_order` | PC-DYN-04 | transient producer → writer → Phase-C stages 6--12; the two exact equal-timestamp source sequences in §34.8 | the two ordinal/timestamp/value sequences fixed in §34.8, then the ordinal-7 FX-03 selection; no general source-order-invariance claim | select by timestamp/value, sort the report, or preserve a semantic event across the equal-time source-order mutation |
 | `phase_c_dynamic_response_invalid_nonselected_event_is_ignored` | PC-DYN-05 | stage 8; FX-03 event 8 | unchanged FX-03 report | scan every event |
 | `phase_c_dynamic_response_invalid_selected_event_is_dqi` | PC-DYN-06 | stage 8 failed selected fit | DQI / selected_transient_event_invalid | downgrade to I |
 | `phase_c_dynamic_response_scope_mismatch_is_indeterminate` | PC-SCOPE-01 | stage 5--8; FX-03 transient lineage sensor scope changed to `sensor-c-02` | I / scope_incompatible; no transient source ID or dependency | treat a cross-scope transient as selected evidence |
@@ -9334,6 +9354,7 @@ mutation.
 | `phase_c_dynamic_response_missing_baseline_mean_is_indeterminate` | PC-DYN-09 | stage 8 mean None | I / baseline_statistic_absent | substitute median |
 | `phase_c_dynamic_response_zero_baseline_denominator_is_dqi` | PC-DYN-10 | stage 8; selected tau-fast distribution `mean=0.0 s` | DQI / baseline_denominator_zero | divide or treat as I |
 | `phase_c_dynamic_response_near_zero_baseline_denominator_is_dqi` | PC-DYN-10 | stage 8; selected amplitude distribution `mean=5e-13 V` | DQI / baseline_denominator_near_zero | divide or treat as I |
+| `phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi` | PC-DYN-10 | stage 6 direct typed baseline-adapter input before writer validation; selected tau-fast distribution `mean=NaN s`, with all other PC-FX-03 values valid | DQI / invalid_quantity | coerce the nonfinite denominator to zero or treat it as a missing baseline |
 | `phase_c_optional_source_absent_is_indeterminate` | PC-DQ-04 | stage 8; FX-01 | CH I / optional_source_absent | mark healthy |
 | `phase_c_supplied_required_metric_absent_is_dqi` | PC-DQ-05 | stage 8; FX-08 missing RMS | SI DQI / required_quantity_absent | return I |
 | `phase_c_nonfinite_signal_metric_is_dqi` | PC-DQ-06 | stage 6 direct typed adapter input with `signal.descriptive.rms=NaN` before the writer boundary | DQI / invalid_quantity | omit the metric |
@@ -9384,6 +9405,7 @@ alternative trigger or alternative reason.
 | `phase_c_dynamic_response_invalid_selected_event_is_dqi` | selected ordinal 7 has no converged selected fit | `selected_transient_event_invalid` |
 | `phase_c_dynamic_response_zero_baseline_denominator_is_dqi` | selected tau-fast mean `0.0 s` | `baseline_denominator_zero` |
 | `phase_c_dynamic_response_near_zero_baseline_denominator_is_dqi` | selected amplitude mean `5e-13 V` | `baseline_denominator_near_zero` |
+| `phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi` | direct typed selected tau-fast mean `NaN s` before writer validation | `invalid_quantity` |
 | `phase_c_calibration_health_quality_insufficient` | selected calibration `statistics.rmse_v=None` | `required_quantity_absent` |
 | `phase_c_environmental_robustness_quality_insufficient` | `estimates[0..2].environmental_context.source_records[0].source_unit=[mL/min,L/min,mL/min]` | `unit_mismatch` |
 | `phase_c_environmental_robustness_nonincreasing_timestamp_is_dqi` | `estimates[0..2].timestamp_s=[0.0,0.0,2.0] s` | `invalid_quantity` |
@@ -9426,7 +9448,7 @@ mandatory Indeterminate tests with ambiguous causes = 0
 | requirement group | production owner/path | mandatory acceptance tests |
 |---|---|---|
 | PC-BIND-01..08 | `health_config::PhaseCHealthEvidenceConfig`, `health::phase_c::{validate_source_compatibility,prepare_phase_c_evidence,derive_interpretation_category,derive_causal_status}` | eight `phase_c_*hypothesis*` / mapped-mechanism tests in §34.10 |
-| PC-DYN-01..10 / PC-SCOPE-01 | `health::phase_c::evaluate_dimension(DynamicResponseHealth)` | twelve `phase_c_dynamic_response_*` tests in §34.10 plus FX-03 |
+| PC-DYN-01..10 / PC-SCOPE-01 | `health::phase_c::evaluate_dimension(DynamicResponseHealth)` | thirteen `phase_c_dynamic_response_*` tests in §34.10 plus FX-03 |
 | PC-DQ-04..12 | `prepare_phase_c_evidence`, `evaluate_data_quality`, `evaluate_dimension` | `phase_c_optional_source_absent_is_indeterminate`, `phase_c_supplied_required_metric_absent_is_dqi`, `phase_c_nonfinite_signal_metric_is_dqi`, `phase_c_invalid_unit_is_dqi`, `phase_c_scope_mismatch_is_indeterminate_not_dqi`, `phase_c_legacy_lineage_blocks_promotion_not_direct_finding`, `phase_c_mixed_valid_invalid_model_sources_preserves_valid_result`, `phase_c_no_sufficient_valid_model_source_uses_precedence`, and `phase_c_contradictory_valid_sources_are_visible` |
 | PC-FIX-09 | canonical FX-01 builder/writer/reader | `phase_c_base_fixture_exact_nine_findings` |
 | PC-FIX-10 | canonical FX-02 builder/writer/reader | `phase_c_signal_integrity_positive_finding` |
@@ -9537,7 +9559,7 @@ future documentation-only edit; a nonzero cell reopens the relevant P1.
 | unspecified aggregate composition, positive classification, or causal order | 0 | §34.6 |
 | unspecified fixture paths, component values, expected semantics, ID rules, or generation method | 0 | §§34.8--34.9 |
 | unmapped requirements or acceptance criteria | 0 | §§33.11, 34.11; 98/98 mapped |
-| missing exact mandatory test names or tests without falsification meaning | 0 | §34.10; 99 unique named tests |
+| missing exact mandatory test names or tests without falsification meaning | 0 | §34.10; 100 unique named tests |
 | implementation inventions required | 0 | §§33--34 |
 
 The Phase-C readiness condition for independent planning rereview is therefore
