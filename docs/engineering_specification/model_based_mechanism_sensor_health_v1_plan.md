@@ -7698,3 +7698,1872 @@ they disagree on `history_id`? **NO.** Can they disagree on where full
 validation data used by the hash comes from? **NO.**
 
 READY_FOR_PHASE_B_VALIDATION_TO_HISTORY_REREVIEW = yes
+
+## 33. Phase C — Sensor-health evidence integration executable contract
+
+### 33.1 Authority, phase boundary, and source classification
+
+This section is the **sole ACTIVE NORMATIVE executable contract** for Phase C.
+It supplements the umbrella requirements in §§2, 3--5, 7, 10, 12--15 and
+supersedes any earlier Phase-C wording in this document where the wording is
+less specific or conflicts with this section.  It does not supersede an A0,
+A1, or Phase-B contract.  In particular, it reuses A0 artifact validation, A1
+lineage/evidence/scope/independence semantics, and the final Phase-B
+mechanism-evidence semantics without redesigning any of them.
+
+The relevant text audit is deliberately narrow.  The classification below is
+the required interpretation of every Phase-C-relevant part of the pre-existing
+umbrella plan; text not listed does not define a Phase-C implementation choice.
+
+| Source clause | Classification | Phase-C consequence |
+|---|---|---|
+| title and frozen SAR-009/SAR-010/SAR-011 statement | ACTIVE NORMATIVE | preserve phase split, typed interpretation/causality separation, and `measured_potential_v - predicted_potential_v` residual sign |
+| §2 C row | ACTIVE NORMATIVE | C owns sensor-health evidence integration and health production-path tests, not rendering or scientific producer changes |
+| §§3--5 | ACTIVE NORMATIVE | use existing `ArtifactLineageState`, `ArtifactLineageCatalog`, `EvidenceBundle`, `EvidenceId`, scope, and independence rules exactly |
+| §6 and final Phase-B remediation §§28--32 | ACTIVE NORMATIVE only for Phase-B artifact meaning | a hypothesis or component interpretation remains evidence, never automatic health causality |
+| §7 | ACTIVE NORMATIVE | temporal support is used only where this section requires it; no generic Phase-B temporal join is imported |
+| §10 | ACTIVE NORMATIVE as amended by §33.10 | add the four named optional health artifact inputs without removing current flags |
+| §12 | ACTIVE NORMATIVE | exact nine dimensions, statuses, interpretation categories, causal-status vocabulary, and missing-input floor |
+| §13 | ACTIVE NORMATIVE | potentiometric residual sign is frozen; EIS residual conventions remain untouched |
+| §14 | ACTIVE NORMATIVE | every new numerical threshold is finite, unit-bearing, serialized, and provenance-recorded; no Phase-C scientific default exists |
+| §15 rows MHI-R12 and MHI-R14--MHI-R23 | ACTIVE NORMATIVE | requirements and production-path/compatibility obligations retained and refined below |
+| §16--§19 and Phase-B implementation prompts | SUPERSEDED / HISTORICAL for C implementation | audits and prompts record earlier work; they do not define a second C route |
+| Phase-B source maps that exclude `ModelAnalysisReport` from B | ACTIVE for B; FUTURE / OUT OF SCOPE for C | they do not prohibit the explicitly authorized C model-analysis route |
+| §21--§32 Phase-B wire/history/temporal details not cited above | BACKGROUND / RATIONALE for C | they explain mechanism input interpretation but do not create health fields, flags, thresholds, or migration rules |
+
+Active Phase-C umbrella requirements extracted: **19**.  Superseded or
+historical Phase-C clauses excluded: **6**.  The Phase-C implementation may
+not revive an excluded clause as an alternative contract.
+
+Phase C solves one bounded problem: convert compatible, auditable scientific
+observations into nine dimension-level sensor-health findings.  A *health
+observation* is a finite, typed source field.  *Evidence* is an A1
+`EvidenceRecord` made from such an observation with availability, validity,
+scope, source, and lineage retained.  A *finding* is the deterministic
+dimension result obtained by applying this section's typed rule to eligible
+evidence.  An *interpretation* describes the kind of observed pattern.  A
+*causal status* describes the strongest permitted relationship between that
+pattern and a proposed cause.  A degradation pattern, a mechanistic
+interpretation, and a causal attribution are three distinct outputs.
+
+Phase C does not alter a scientific producer, modify Phase-B assessment,
+invent an artifact identity, infer a cause from a residual/timescale/offset,
+or treat an unavailable source as a healthy result.  There is no Phase-C
+prior-health-state route in V1: `--prior-health-artifact` is unsupported.
+`SensorHealthBaseline` remains a comparison input, not prior assessment state.
+
+### 33.2 Current implementation inventory and compatibility disposition
+
+The implementation agent must re-inspect these symbols before editing.  This
+is the current-base inventory, not a permission to duplicate them.
+
+| Existing type / symbol | File | Current semantics, producer, and consumer | Current wire role | Phase-C disposition |
+|---|---|---|---|---|
+| `HealthDomain` (7 variants) | `src/results/health.rs` | legacy grouping produced by `health::features`, consumed by legacy rules/assessment | `snake_case` legacy input/projection | REUSE AS-IS as legacy view; NOT the nine dimensions |
+| `OverallHealthStatus` | `src/results/health.rs` | six statuses produced by `health::assessment::assemble` and displayed by health report | `snake_case` | REUSE AS-IS for each C dimension and aggregate |
+| `HealthFeature`, `HealthEvidence`, `HealthFinding`, `HealthDomainAssessment` | `src/results/health.rs` | legacy feature/rule data made by `features` and `rules` | schema-3 assessment payload | REUSE AS-IS only for legacy projection; EXTEND ADDITIVELY with typed C records |
+| `SensorHealthAssessment` | `src/results/health.rs` | schema 3 health artifact, written by `runners::health::assess` | `health_assessment`, current 3, legacy 1--2 | EXTEND ADDITIVELY to current schema 4 |
+| `health::features::{from_signal,from_transient,from_calibration,from_eis,from_mechanism}` | `src/health/features.rs` | feature adapters used by legacy assess path | internal feature names/units | REUSE only as legacy projection; C adapters read the authoritative artifact fields named in §§33.6--33.7 |
+| `health::rules` / `health::assessment::assemble` | `src/health/rules.rs`, `src/health/assessment.rs` | arbitrary configured rule engine and seven-domain aggregate | schema-3 finding/domain results | UNCHANGED AND REUSED by legacy path; Phase C gets a separate deterministic evaluator |
+| `HealthError` | `src/health/error.rs` | input/I/O/serialization errors | internal typed error | EXTEND ADDITIVELY with §33.10 variants |
+| `LoadedHealthConfig` / `ResolvedHealthConfig` | `src/health_config.rs` | permissive schema-1 legacy config and defaults | `config/health.toml` | UNCHANGED for legacy path; do not fold Phase-C policy into it |
+| `health::assess` | `src/runners/health.rs` | loads signal + optional transient/calibration/EIS/mechanism/baseline/metadata and writes schema-3 report | production runner | EXTEND: dispatch only when `phase_c_config` is supplied |
+| `HealthAssessCommand` / `CommandSpec::HealthAssess` | `src/cli.rs` | current flags omit C optional artifacts | public CLI | EXTEND ADDITIVELY per §33.10 |
+| dispatch to `health::assess` | `src/main.rs` | actual CLI production path | runtime integration | EXTEND ADDITIVELY; no helper-only route |
+| `EvidenceBundle`, `EvidenceRecord`, `EvidenceId`, `HealthDimension` alias | `src/evidence.rs` | A1 typed evidence, scope, source, validity, and pairwise independence | schema-1 bundle owned by A1 | REUSE the contracts; correct the presently unused `HealthDimension` alias to the new result enum, with no alternate identifier or independence type |
+| `ArtifactLineageCatalog`, `resolve_lineage`, `classify_independence` | `src/domain/lineage.rs`, `src/evidence.rs` | A1 durable provenance and pairwise independent/not-independent classification | A1 wire contract | REUSE AS-IS; no new ontology |
+| `StateEstimationReport` | `src/results/estimation.rs` | schema 4 filter results, estimates, diagnostics, observability, covariance | `state_estimation` | optional C source; EXTEND adapters only |
+| `ModelAnalysisReport` | `src/results/model.rs` | schema 5 evaluated model points, validity, uncertainty, identifiability | `ism_model_analysis` | optional C source; EXTEND adapters only |
+| `MechanismAnalysisReport` / `PhaseBHypothesisAssessment` | `src/results/mechanism.rs` | schema 4 Phase-B evidence/hypothesis results | `mechanism_analysis` | optional C interpretation support only |
+| artifact contracts / reader | `src/results/artifact_contracts.rs`, `src/domain/artifact.rs` | public kind/schema validation | A0 contract | EXTEND only the health-assessment schema transition |
+
+`Cargo.toml` and `Cargo.lock` provide all required capabilities (`serde`,
+`thiserror`, collections, and the existing A1 contracts).  **New dependency
+required = no.**
+
+The inventory exposes one intentional incompatibility: current code has seven
+`HealthDomain` values while MHI-R14 requires nine `HealthDimension` values.
+`HealthDomain` must remain readable as a legacy feature grouping and cannot be
+silently renamed or treated as the new enum.
+
+### 33.3 Frozen Phase-C types, wire tokens, and status model
+
+The following declarations belong in `src/results/health.rs`; all use
+`#[serde(rename_all = "snake_case")]`, have no unknown/fallback variant, and
+serialize in declaration order when contained in an ordered vector.
+
+```rust
+pub enum HealthDimension {
+    SignalIntegrity, CalibrationHealth, DynamicResponseHealth,
+    ReferenceStability, EnvironmentalRobustness, ModelConsistency,
+    Observability, UncertaintyHealth, DataQuality,
+}
+// signal_integrity, calibration_health, dynamic_response_health,
+// reference_stability, environmental_robustness, model_consistency,
+// observability, uncertainty_health, data_quality
+
+pub enum HealthInterpretationCategory {
+    ObservedBehavior, ModelInconsistency, EnvironmentalEffect,
+    CalibrationIssue, PossiblePhysicalDegradation,
+}
+// observed_behavior, model_inconsistency, environmental_effect,
+// calibration_issue, possible_physical_degradation
+
+pub enum CausalStatus {
+    Observed, Associated, Hypothesized, ExperimentallySupported,
+    ValidatedForDomain, Indeterminate,
+}
+// observed, associated, hypothesized, experimentally_supported,
+// validated_for_domain, indeterminate
+
+pub enum HealthEvidenceState {
+    AdequateEvidence, NoEvidence, InsufficientEvidence,
+    PoorDataQuality, ContradictoryEvidence,
+}
+// adequate_evidence, no_evidence, insufficient_evidence,
+// poor_data_quality, contradictory_evidence
+```
+
+`HealthDimension` is exactly these nine values, sorted in persisted
+`dimension_assessments` by the declaration order above; a duplicate, omitted,
+or unknown value is a schema-4 validation error.  `OverallHealthStatus`
+retains its existing wire tokens (`within_baseline`, `watch`, `degraded`,
+`critical`, `data_quality_insufficient`, `indeterminate`).  It has the
+following C meaning:
+
+| Status | Exact C meaning | Prohibited inference | State transition |
+|---|---|---|---|
+| `within_baseline` | adequate, compatible, valid negative evidence satisfies every required metric's `watch` limit | absence, an unchecked source, or a model prediction alone is healthy | terminal for this one assessment |
+| `watch` | adequate evidence has a warning-level excursion or retained contradiction but no degraded/critical excursion | a physical failure or causal proof | terminal |
+| `degraded` | adequate evidence meets a dimension's degraded predicate | a named physical cause | terminal |
+| `critical` | adequate evidence meets a dimension's critical predicate | cause, permanence, or cross-dimension failure | terminal |
+| `data_quality_insufficient` | an attempted required source/quantity is invalid, non-finite, unit-invalid, quality-invalid, or fails a stated quality prerequisite | healthy, no finding, or hard runtime failure | terminal |
+| `indeterminate` | no valid compatible evidence is available to decide the dimension, including absent optional source or required negative baseline | within baseline or no degradation | terminal |
+
+`HealthEvidenceState` selects status before severity: `PoorDataQuality` maps
+only to `data_quality_insufficient`; `NoEvidence` and `InsufficientEvidence`
+map only to `indeterminate`; `ContradictoryEvidence` maps to `watch` unless a
+single valid metric independently reaches `degraded`/`critical`, in which case
+that severity remains and the contradiction is persisted.  `AdequateEvidence`
+uses the metric thresholds.  Thus the complete absence decision table is:
+
+| Source condition | Evidence state | Output status | Required reason code |
+|---|---|---|---|
+| optional source not supplied | `no_evidence` | `indeterminate` | `optional_source_absent` |
+| supplied compatible source has no required quantity | `insufficient_evidence` | `indeterminate` | `required_quantity_absent` |
+| supplied source quantity is non-finite, unit-invalid, validity-invalid, or its stated quality gate fails | `poor_data_quality` | `data_quality_insufficient` | matching quality code |
+| valid source is scope/temporal incompatible | `insufficient_evidence` | `indeterminate` | `source_incompatible` |
+| valid evidence supports and contradicts the same dimension | `contradictory_evidence` | `watch` unless a higher valid metric severity applies | `contradictory_evidence` |
+| all required valid metrics are present | `adequate_evidence` | threshold result | threshold code |
+
+`HealthInterpretationCategory` is selected independently: SignalIntegrity and
+DynamicResponse default to `observed_behavior`; CalibrationHealth defaults to
+`calibration_issue`; EnvironmentalRobustness defaults to
+`environmental_effect`; ModelConsistency, Observability, and UncertaintyHealth
+default to `model_inconsistency`; ReferenceStability may use
+`observed_behavior`; `possible_physical_degradation` is permitted only when
+the §33.7 physical-promotion predicate is met.  A dimension with
+`indeterminate` or `data_quality_insufficient` uses its listed default but
+must retain the non-decision reason; interpretation is never a positive
+finding by itself.
+
+`CausalStatus` has no `confirmed` or `proven` variant.  It is a bounded
+evidence relation, not a proof of physical causation:
+
+| Causal status | Exact predicate | Not permitted |
+|---|---|---|
+| `indeterminate` | evidence state is not adequate, or no explicit proposed relationship exists | promotion from a field name, model component, residual, offset, or timescale |
+| `observed` | a direct observed source establishes the reported measurement pattern | a cause or mechanism |
+| `associated` | an observed pattern and a second eligible, A1-`Independent` compatible source support the same named pattern | causal direction or physical degradation |
+| `hypothesized` | `associated` plus a same-scope Phase-B hypothesis at `hypothesized` or higher that names a relevant component/relationship | experimental support or validation |
+| `experimentally_supported` | `hypothesized` plus the same-scope Phase-B hypothesis is exactly `experimentally_supported` and the Phase-C direct observed evidence contains at least the configured number of A1-independent families | general causal proof |
+| `validated_for_domain` | preceding predicate plus the same hypothesis is exactly `validated_for_domain`, its validation status is `satisfied`, and the health evidence lies in its declared applicable scope | a result outside the stated domain or an unconditional cause claim |
+
+Phase C V1 permits these bounded promotions only for the *relationship named
+by the Phase-B hypothesis*.  It never writes the phrase “cause proven.”  A
+mechanism artifact by itself cannot satisfy `associated` because its records
+are `ProducerAssessment` rather than independent observed health evidence.
+No C evaluator may promote past the Phase-B level; a contradictory Phase-B
+hypothesis forces `indeterminate` for causal status and emits
+`mechanism_contradicted`.
+
+The new persisted records are exact:
+
+```rust
+pub struct PhaseCHealthDimensionAssessment {
+    pub dimension: HealthDimension,
+    pub status: OverallHealthStatus,
+    pub evidence_state: HealthEvidenceState,
+    pub interpretation_category: HealthInterpretationCategory,
+    pub causal_status: CausalStatus,
+    pub reason_codes: Vec<PhaseCHealthReasonCode>,
+    pub source_evidence_ids: Vec<EvidenceId>,
+    pub source_artifact_ids: Vec<ArtifactId>,
+}
+pub struct PhaseCSensorHealthEvidenceReport {
+    pub config_schema_version: u32,
+    pub config_sha256: String,
+    pub dimension_assessments: Vec<PhaseCHealthDimensionAssessment>,
+    pub overall_status: OverallHealthStatus,
+    pub overall_interpretation_categories: Vec<HealthInterpretationCategory>,
+    pub overall_causal_status: CausalStatus,
+    pub evidence_bundle: EvidenceBundle,
+}
+// SensorHealthAssessment adds exactly:
+// #[serde(default)] pub phase_c: Option<PhaseCSensorHealthEvidenceReport>,
+```
+
+`reason_codes`, `source_evidence_ids`, and `source_artifact_ids` are bytewise
+sorted and duplicate-free.  Source artifacts are included only when at least
+one listed EvidenceId was consumed by a dimension, data-quality decision, or
+aggregate.  `PhaseCHealthReasonCode` is a closed snake-case enum with exactly:
+`optional_source_absent`, `required_quantity_absent`, `invalid_quantity`,
+`unit_mismatch`, `source_incompatible`, `scope_incompatible`,
+`temporal_incompatible`, `incomplete_lineage`, `independence_unknown`,
+`insufficient_independent_families`, `baseline_absent`,
+`baseline_insufficient`, `baseline_incomparable`, `quality_gate_failed`,
+`threshold_within_limit`, `threshold_watch`, `threshold_degraded`,
+`threshold_critical`, `contradictory_evidence`, `model_outside_domain`,
+`model_validity_unavailable`, `observability_failed`,
+`uncertainty_incomplete`, `mechanism_noncausal`, `mechanism_contradicted`,
+and `reference_anchor_unavailable`.
+
+The C adapter owns exactly these deterministic EvidenceId families; `{i}` is
+the zero-based serialized array index and `{hypothesis_id}` is the exact
+nonempty Phase-B ID, neither normalized nor inferred:
+
+```text
+signal.descriptive.rms
+signal.descriptive.robust_standard_deviation
+signal.spikes.flagged_fraction
+signal.drift.theil_sen.slope_v_per_s
+signal.sampling.{finite_sample_count,missing_fraction,interval_cv,
+                 duplicate_timestamps,non_monotonic_timestamps,
+                 interpolation_gap_exceeded}
+calibration.selected.{slope_efficiency,rmse_v}
+calibration.{validation.prediction_bias_v,hysteresis.mean_hysteresis_v}
+transient.event.{i}.{tau_fast_s,tau_slow_s,time_to_90_percent_s,
+                     response_amplitude_v,fit_rmse_v}
+estimation.point.{i}.{unexplained_residual_v,environment.temperature_k,
+                       environment.conductivity_s_per_m,
+                       environment.ionic_strength_mol_l,environment.flow}
+estimation.observability.{numerical_rank,state_count,condition_number,
+                           unobservable_states,weakly_observable_states,
+                           empirical_identifiability_passed}
+model.point.{i}.{unexplained_residual_v,uncertainty.status,
+                 uncertainty.standard_error_v,uncertainty.total_variance_v2,
+                 validity.is_valid}
+mechanism.hypothesis.{hypothesis_id}.assessment
+```
+
+The adapter emits an ID only for a field it actually read.  A missing field is
+represented by no EvidenceRecord plus the dimension reason code; it is never
+assigned a synthetic “missing” EvidenceId.  The C bundle always uses schema 1;
+without a catalog, its `lineage_catalog` is the existing schema-1 empty
+catalog, not a fabricated lineage node.
+
+### 33.4 Source compatibility, scope, lineage, independence, and time
+
+The following is the complete C source matrix.  “Unsupported” means a supplied
+path is a typed runtime error; “optional” means its absence is represented by
+the decision table, never silently replaced.
+
+| Input | C support / schema | Public reader and C adapter | Dimensions it may inform | Interpretation / causal effect | time, scope, lineage, absence |
+|---|---|---|---|---|---|
+| `SignalAnalysisReport` | REQUIRED, `signal_analysis` current 3; readable 1--3 | `read_artifact` → `health::phase_c::prepare_signal_evidence` | SignalIntegrity, DataQuality | observed behavior only; `observed` maximum | signal scope is assessment scope; point/window timing not used; consumed dependency required; absent is CLI parse error |
+| `SensorHealthBaseline` | OPTIONAL, `health_baseline` current 3; readable 1--3 | existing reader → `prepare_baseline_context` | DynamicResponseHealth | supplies comparison, never causal status | compatible only when current metadata and baseline context pass existing comparability rules; no temporal join; if unused, no dependency; absent creates `indeterminate` where the relative dynamic rule needs it |
+| `TransientAnalysisReport` | OPTIONAL, `transient_analysis` current 3; readable 1--3 | reader → `prepare_transient_evidence` | DynamicResponseHealth | observed behavior only | each source fit is a Window only when the A1 transient source map validates it; aggregate sources cannot be narrowed; absent → indeterminate |
+| `CalibrationAnalysisReport` | OPTIONAL, `calibration_analysis` current 3; readable 1--3 | reader → `prepare_calibration_evidence` | CalibrationHealth | calibration issue / observed only | same experiment/sensor/channel compatibility; no Phase-B temporal join; absent → indeterminate |
+| `EisFitArtifact` | OPTIONAL, `eis_fit` current 3; readable 1--3 | reader → `prepare_eis_legacy_projection` | no direct C dimension in V1 | none | retains legacy projection only; never enters Phase-C evidence bundle or dependencies unless legacy output is requested |
+| `StateEstimationReport` | OPTIONAL, `state_estimation` current 4; readable 1--4 | reader → `prepare_estimation_evidence` | EnvironmentalRobustness, ModelConsistency, Observability, UncertaintyHealth; reference only as insufficient anchor evidence | observed/model/environment only; cannot alone promote causal status | points use finite `timestamp_s`; all multi-point rules require one compatible Single scope; lineage catalog resolves when supplied; absent → indeterminate |
+| `ModelAnalysisReport` | OPTIONAL, `ism_model_analysis` current 5; readable 1--5 | reader → `prepare_model_evidence` | ModelConsistency, UncertaintyHealth | model inconsistency only; prediction cannot establish observed degradation | finite `points[*].time_s` are Point supports; same scope required; absent → indeterminate |
+| `MechanismAnalysisReport` | OPTIONAL, `mechanism_analysis` current 4; readable 1--4 | reader → `prepare_mechanism_interpretation_evidence` | may support possible physical degradation interpretation for SignalIntegrity, DynamicResponseHealth, and CalibrationHealth | only the explicit bounded causal promotion table in §33.3 | no automatic temporal join; report scope must exactly match the candidate health scope; absent → no causal promotion |
+| `ArtifactLineageCatalog` | OPTIONAL, schema 1 only | strict JSON reader → existing `resolve_lineage`/`classify_independence` | evidence eligibility and causal promotion only | may enable `associated` or above; never makes a finding healthy | omitted catalog makes every cross-artifact independence result `unknown`; direct single-source findings remain usable; catalog is dependency only when queried |
+
+The model-analysis route is expressly authorized for C by §12's
+ModelConsistency dimension.  Phase-B's source prohibition is not inherited.
+Conversely, C never accepts a raw `EvidenceBundle`, arbitrary JSON evidence,
+raw filter state, unversioned model values, a Phase-B config as C config, or a
+model compilation/validation artifact in place of `ModelAnalysisReport`.
+
+Scope compatibility is exact.  The required signal artifact defines the
+candidate `EvidenceExperimentScope`, `sensor_scope`, and `channel_scope` from
+its known lineage.  An optional source is compatible only when each known
+scope key is equal; `All` matches only `All`; `Unspecified` and `Unknown` are
+not wildcards.  `Aggregate` may contribute only to an aggregate assessment
+with the identical aggregate ID, or when its selected public record is
+narrowed by the existing A1 `SelectedExperimentRecord` API.  C V1 supplies no
+new narrowing route.  Any mismatch produces `source_incompatible` and leaves
+that dimension indeterminate; it is not a runtime error.  A wrong supplied
+artifact kind/schema remains a runtime error.
+
+For a direct single-source metric, unknown/legacy lineage is retained in the
+evidence and does not erase the observed result.  For a comparison, family
+count, or causal promotion, incomplete/legacy lineage yields
+`independence_unknown`; it cannot count as independent.  A required count of
+independent sources uses the A1 exhaustive maximal-clique algorithm in §5.2;
+only `EvidenceIndependence::Independent` edges count.  More rows, repeated
+values from one artifact, `SameSource`, `PartiallyDependent`, and `Unknown`
+never increase the independent-support count.
+
+Phase C applies no generic temporal join.  SignalIntegrity, CalibrationHealth,
+Observability, UncertaintyHealth, and DataQuality are artifact-level.  A
+DynamicResponse metric uses one transient Window and its own baseline context;
+it is never compared to EIS by time.  EnvironmentalRobustness and
+ModelConsistency use points from exactly one supplied estimation or model
+artifact; their timestamps must be finite and strictly increasing.  A
+ReferenceStability candidate would require an exact same-scope reference
+control point within `maximum_reference_alignment_difference_s` of an
+estimation point, but no current public artifact preserves an independently
+lineaged reference-control artifact.  Therefore V1 always returns
+`indeterminate` with `reference_anchor_unavailable` for that dimension; it
+does not manufacture a reference anchor from `reference_potential_v`.
+
+### 33.5 Phase-C configuration contract
+
+Phase C requires a dedicated strict TOML file, supplied by
+`--phase-c-config <PATH>`; it is not `config/health.toml` and has no implicit
+workspace default.  Its owner is new `src/health_config.rs::PhaseCHealthEvidenceConfig`.
+The top-level and every nested table use `#[serde(deny_unknown_fields)]`.
+Unknown, duplicate, missing required, non-finite, invalid enum, and
+out-of-range values are `HealthError::InvalidPhaseCConfig`, not health
+findings.  The exact top-level shape is:
+
+```toml
+schema_version = 1
+maximum_reference_alignment_difference_s = 1.0 # s, finite >= 0
+
+[data_quality]
+minimum_finite_samples = 2                    # integer >= 2
+maximum_missing_fraction = 0.0                 # fraction, 0..=1
+maximum_interval_cv = 0.0                      # fraction, >= 0
+maximum_duplicate_timestamps = 0               # integer >= 0
+maximum_non_monotonic_timestamps = 0           # integer >= 0
+allow_interpolation_gap_exceeded = false
+
+[signal_integrity]
+maximum_rms_noise_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+maximum_robust_noise_standard_deviation_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+maximum_spike_fraction = { watch = 0.01, degraded = 0.05, critical = 0.10 }
+maximum_absolute_drift_v_per_s = { watch = 0.0001, degraded = 0.001, critical = 0.01 }
+
+[calibration_health]
+maximum_absolute_slope_efficiency_error = { watch = 0.05, degraded = 0.10, critical = 0.20 }
+maximum_rmse_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+maximum_absolute_prediction_bias_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+maximum_hysteresis_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+
+[dynamic_response_health]
+maximum_tau_fast_ratio = { watch = 1.10, degraded = 1.50, critical = 2.00 }
+maximum_tau_slow_ratio = { watch = 1.10, degraded = 1.50, critical = 2.00 }
+maximum_time_to_90_percent_ratio = { watch = 1.10, degraded = 1.50, critical = 2.00 }
+maximum_response_amplitude_relative_loss = { watch = 0.10, degraded = 0.25, critical = 0.50 }
+maximum_fit_rmse_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+
+[environmental_robustness]
+covariate = "temperature_k"                    # temperature_k|conductivity_s_per_m|ionic_strength_mol_l|flow
+minimum_points = 3                              # integer >= 3
+minimum_covariate_range = 0.0                   # K, S/m, mol/L, or source flow unit; > 0
+minimum_absolute_spearman_correlation = { watch = 0.30, degraded = 0.60, critical = 0.85 }
+minimum_residual_rms_v = 0.0                    # V, finite >= 0
+
+[model_consistency]
+maximum_residual_rms_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+maximum_residual_bias_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+
+[observability]
+maximum_condition_number = { watch = 100.0, degraded = 1000.0, critical = 10000.0 }
+require_empirical_identifiability = true
+
+[uncertainty_health]
+maximum_partial_uncertainty_fraction = { watch = 0.10, degraded = 0.25, critical = 0.50 }
+maximum_standard_error_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+
+[causal_promotion]
+minimum_independent_supporting_evidence = 2     # integer >= 2
+```
+
+The values shown are valid **illustrative fixture values**, not defaults or
+recommended universal limits.  Every threshold must be supplied in the actual
+file.  `LevelThreshold` is the exact table
+`{ watch: f64, degraded: f64, critical: f64 }`; all values are finite and
+`0 <= watch < degraded < critical`, except ratios, condition number, and
+positive standard errors where `0 < watch < degraded < critical`.  The
+dimensions are as labelled by their field names.  Values exactly equal to a
+threshold take that threshold's status (`watch`, `degraded`, or `critical`).
+For `minimum_residual_rms_v`, an environmental correlation is actionable only
+when RMS is **greater than or equal to** this scalar.  All `maximum_*` rules
+compare abnormal magnitude using `>=`; all fixed counts compare `>` where the
+field says maximum and `>=` where the field says minimum.  No configuration
+field changes an artifact's units.
+
+`config_sha256` is lowercase SHA-256 over the UTF-8 TOML bytes exactly as
+loaded.  Each evidence record derived using a numerical threshold includes a
+sorted `ThresholdProvenance` with `threshold_id`, `UserConfiguration`, exact
+value, unit, and this hash.  All model, state, and source validity conditions
+are input facts, not configurable thresholds.
+
+### 33.6 Per-dimension evidence-to-finding rules
+
+Each row is normative.  “Max severity” means the greatest threshold outcome
+over the listed metrics, ordered `within_baseline < watch < degraded <
+critical`.  A metric is available only when its source field is finite and has
+the exact unit shown.  A dimension with more than one required metric requires
+all listed metrics; a missing metric follows §33.3 rather than being omitted.
+Signal quantities use SI potential before thresholding: `V` has scale 1,
+`mV` has scale `1e-3`, and `µV` has scale `1e-6`; the corresponding drift
+scale is applied per second.  Any other signal unit, a missing unit, or a
+failed conversion is `data_quality_insufficient` with `unit_mismatch`.  No
+other unit conversion is implied by Phase C.
+
+| Dimension | Required source fields / units and computation | Positive, negative, contradiction, insufficient, and DQ rule | interpretation / causal ceiling | evidence IDs and limitation |
+|---|---|---|---|---|
+| SignalIntegrity | `SignalAnalysisReport.descriptive.rms` V, `robust_standard_deviation` V, `spikes.flagged_fraction` fraction, and Theil-Sen `drift.slope_v_per_s` V/s; use absolute drift | max severity using four `signal_integrity` thresholds; all < watch is within baseline; a supplied nonfinite/missing metric is DQI; no competing polarity exists | observed behavior / observed, unless §33.3 promotion predicate is met | `signal.descriptive.rms`, `.robust_standard_deviation`, `signal.spikes.flagged_fraction`, `signal.drift.theil_sen.slope_v_per_s`; noise/drift does not prove degradation |
+| CalibrationHealth | selected converged calibration model: `slope_efficiency` fraction (metric `abs(1-x)`), `statistics.rmse_v` V, report `validation.prediction_bias_v` V (absolute), and `hysteresis.mean_hysteresis_v` V (absolute) | max severity; selected model absent or any listed quantity absent is indeterminate; invalid/nonfinite supplied value is DQI; a valid low error is within baseline | calibration issue / observed | `calibration.selected.slope_efficiency`, `.rmse_v`, `calibration.validation.prediction_bias_v`, `calibration.hysteresis.mean_hysteresis_v`; does not identify physical cause |
+| DynamicResponseHealth | exactly one compatible transient context; baseline comparisons for `tau_fast` s, `tau_slow` s, `time_to_90_percent` s, `response_amplitude` V, plus current `fit_rmse` V. Ratios are `current/baseline`; amplitude loss is `max(0,(baseline-current)/abs(baseline))`; reject zero baseline amplitude | max severity; missing transient or comparable baseline is indeterminate; nonpositive baseline time/amplitude, failed selected fit, nonfinite value, or invalid Window is DQI; opposite signed amplitude change is retained as contradictory | observed behavior / observed; possible physical degradation only through §33.3 | `transient.event.{i}.tau_fast_s`, `.tau_slow_s`, `.time_to_90_percent_s`, `.response_amplitude_v`, `.fit_rmse_v`; slow response is not fouling proof |
+| ReferenceStability | no V1 qualifying source field exists | always no-evidence → indeterminate / `reference_anchor_unavailable`; any supplied candidate lacking independently lineaged external control remains insufficient, not DQI | observed behavior / indeterminate | no consumed ID; `reference_potential_v` alone is explicitly excluded |
+| EnvironmentalRobustness | selected estimation points: finite `unexplained_residual_v` V and selected `environmental_context` covariate in its declared unit. Compute RMS residual and Spearman rho over paired points | adequate only with strictly increasing timestamps, `n >= minimum_points`, range >= minimum, and RMS >= minimum residual. `abs(rho)` levels choose severity; lower RMS yields within baseline. absent estimation → indeterminate; missing paired field → indeterminate; invalid timestamps/values → DQI | environmental effect / observed; associated only if §33.3 independent corroboration exists | `estimation.point.{i}.unexplained_residual_v` and selected environmental field; correlation is not cause |
+| ModelConsistency | either supplied estimation points (`unexplained_residual_v`) or model points with both `observed_voltage_v` and `predicted_voltage_v`; never mix artifacts. For every selected model point, compute `r=observed_voltage_v-predicted_voltage_v`; if its stored `unexplained_residual_v` is present, it must be finite and exactly equal to that computed IEEE-754 value, otherwise that model candidate is DQI / `invalid_quantity`. RMS=`sqrt(mean(r^2))`; bias=`mean(r)`. | each present source separately yields max severity. both adequate sources disagree in threshold class → contradiction. neither source → indeterminate; one invalid selected source → DQI only for that source, otherwise result from the other source with its DQ EvidenceId retained | model inconsistency / observed; never possible physical degradation from model-only evidence | `estimation.point.{i}.unexplained_residual_v` or `model.point.{i}.unexplained_residual_v`; residual is not sensor failure |
+| Observability | `StateEstimationReport.observability`: `numerical_rank`, `state_count`, `condition_number`, `unobservable_states`, `weakly_observable_states`, `empirical_identifiability_passed` | critical if rank < count or nonempty unobservable states; otherwise max condition severity, with nonempty weak states at least watch; required empirical false at least degraded; all clear and condition < watch is within baseline. estimation absent → indeterminate; nonfinite condition when present → DQI | model inconsistency / observed | `estimation.observability.*`; filter observability is not physical degradation |
+| UncertaintyHealth | model points `uncertainty.status`, `standard_error_v`, `total_variance_v2`; use one model artifact only. partial fraction = points `partial` / all points; complete points must have finite nonnegative variance and standard error | unavailable/not-requested or absent model → indeterminate; any nonfinite/negative declared uncertainty → DQI; max partial fraction/standard error threshold gives severity; all `complete` and errors < watch is within baseline | model inconsistency / observed | `model.point.{i}.uncertainty.*`; incomplete uncertainty is not a defect diagnosis |
+| DataQuality | required signal `sampling.finite_sample_count`, `missing_fraction`, `interval_cv`, `duplicate_timestamps`, `non_monotonic_timestamps`, `interpolation_gap_exceeded`; all are signal's declared analysis window | each gate must pass. failure yields `data_quality_insufficient`, not degraded; all pass yields within baseline. a missing/nonfinite required quality field is DQI | observed behavior / observed | `signal.sampling.*`; it says nothing about physical condition |
+
+The only permitted physical-promotion predicate is: a SignalIntegrity,
+CalibrationHealth, or DynamicResponseHealth result is at least `degraded`, its
+direct observed evidence is adequate, the relevant same-scope Phase-B
+assessment supplies a non-contradicted hypothesis that explicitly names the
+dimension's source relationship, and §33.3's causal-status prerequisites are
+satisfied.  It may then use `possible_physical_degradation`; otherwise it
+uses the table default.  Reference, model, estimator, and environmental
+evidence never satisfy that predicate.  The aggregate rule is not a tenth
+finding: output `overall_status` is, in order, `critical` if any dimension is
+critical, `degraded` if any is degraded, `watch` if any is watch, otherwise
+`data_quality_insufficient` if any is data-quality-insufficient, otherwise
+`indeterminate` if any is indeterminate, otherwise `within_baseline`.
+Consequently poor quality can never be hidden behind a normal aggregate
+status.  The aggregate causal status is the minimum strength among positive dimensions, or
+`indeterminate` when no dimension has a positive relationship.  Aggregate
+interpretations are the declaration-order sorted, duplicate-free categories
+of dimensions at watch or worse.  No scalar numeric health score is produced.
+
+### 33.7 Phase-B, estimation, model, and catalog adapter boundaries
+
+The exact accepted Phase-B input is `ArtifactKind::MechanismAnalysis` at
+schema 4 (schema 1--3 are readable only for legacy projection and are not C
+causal-promotion eligible).  C consumes only
+`hypothesis_assessments[*].{definition,current.hypothesis_id,
+current.evidence_level,current.reason_codes,current.validation_status,
+current.component_assessments,current.contradiction_summaries,current.history}`
+and the report lineage/scope.  The history entries supply audit-only
+`source_evidence_ids`; they are never inserted into the C bundle unless the
+Phase-C adapter independently produces the same source EvidenceId.  C ignores
+`legacy_hypotheses`, free-text description,
+`comparisons`, `trends`, timescale numeric values, configuration defaults,
+and report prose for promotion.  The artifact must have known matching scope,
+schema-4 current kind, a nonempty matching hypothesis ID, and no critical
+contradiction.  It may supply a `ProducerAssessment` EvidenceRecord targeted
+to the relevant `HealthDimension`; it never supplies direct observed evidence
+or an independent family.  It may change interpretation and bounded causal
+status only, never a dimension's raw threshold status.
+
+The estimation adapter consumes only the exact fields named in §33.6 plus
+`estimates[*].timestamp_s`, `update_status`, `environmental_context`, and
+`lineage`.  All voltages are V, variances V², times s, temperature K,
+conductivity S/m, and ionic strength mol/L; `flow` is permitted only when all
+selected points share the same nonempty source unit recorded in
+`environmental_context.source_records[*].source_unit`.  It rejects a
+mixed/missing flow unit as `unit_mismatch`.  `RejectedByGate`, `PredictOnly`,
+`MissingEnvironment`, and `NumericalFailure` points are not residual evidence
+and create the corresponding missing/quality result.  Estimator output is not
+independent confirmation of the signal artifact from which it derives.
+
+The model adapter consumes only `points[*].{time_s,observed_voltage_v,
+predicted_voltage_v,unexplained_residual_v,uncertainty.{status,standard_error_v,
+total_variance_v2},validity.is_valid}` and
+the report `identifiability`, `lineage`, and `artifact_kind`.  A point with
+`validity.is_valid=false` is outside-domain evidence; a point with missing
+observed voltage cannot be used to observe a residual.  Model prediction is
+not an observed fault and cannot promote causal status.  `ModelAnalysisReport`
+may nevertheless establish model consistency/uncertainty findings exactly as
+§33.6 permits.
+
+The catalog is read as `ArtifactLineageCatalog { schema_version: 1, artifacts
+}`.  Schema other than 1, malformed identity, root inconsistency, or duplicate
+node is a typed `LineageCatalogInvalid` runtime error.  A missing catalog is
+not an error.  `LegacyUnknown` resolution remains incomplete; it does not
+become `Known`, and its deficiency may prevent causal corroboration but does
+not by itself turn a direct health observation into `data_quality_insufficient`.
+
+### 33.8 Schema-4 migration and actual-consumption lineage
+
+`SensorHealthAssessment` advances from current schema **3 to 4** and remains
+`ArtifactKind::HealthAssessment` / `health_assessment`.  The artifact contract
+becomes `CURRENT_SCHEMA_VERSION = 4` and `LEGACY_SCHEMA_VERSIONS = &[1,2,3]`,
+with `CurrentArtifactKindPolicy::Required`.  No A0 artifact policy is changed.
+
+Schema 1--3 readers retain every pre-existing payload field and deserialize
+`phase_c` as `None`; their legacy domain/rule result has no implied C result.
+Schema-4 readers require a non-null `phase_c` field and reject a missing,
+unknown, duplicate, or malformed C dimension record.  There are no renamed
+Phase-C aliases.  The legacy `domain_assessments`, `features`, `findings`,
+`rule_evaluations`, `baseline_comparison`, `missing_domains`,
+`configuration`, and `warnings` fields retain their schema-3 names and types
+for consumers.  A schema-4 C writer generates that legacy projection by the
+unchanged existing legacy feature/rule code; it does not use that projection to
+change the C result.  `overall_status` is exactly duplicated from
+`phase_c.overall_status` in a schema-4 writer.  Mismatch on read is a
+`SchemaInvariant` error.  The canonical writer emits schema 4, kind
+`health_assessment`, an explicit A1 lineage state, every legacy field, and all
+Phase-C fields; it never writes schema 3, a default C report, or an old alias.
+
+`evidence_bundle` is persisted inside `phase_c`; it remains the existing A1
+schema and is validated by its existing validator.  Its source records sort by
+the existing A1 order.  The report's artifact lineage uses only actual
+consumption: required signal always has `DerivedFrom`; consumed baseline has
+`Prior`; transient/calibration/estimation/model/mechanism each use
+`TransformationInput` only if at least one C EvidenceId from it was used;
+catalog has no artifact identity and is never a dependency; unused supplied
+artifacts are absent.  Evidence IDs are A1 IDs, bytewise sorted/deduplicated;
+supporting, contradictory, interpretation-only, and DQ evidence are retained
+when consumed.  Ineligible evidence has no source EvidenceId in a dimension
+unless it is the direct reason for `data_quality_insufficient`.
+
+### 33.9 One canonical production pipeline and exact APIs
+
+The Phase-C production path has exactly 15 stages.  No later implementation
+may reorder an assessment before compatibility/quality evaluation.
+
+| # | Owner / API | Inputs → output | errors / test owner |
+|---:|---|---|---|
+| 1 | `cli::parse_cli_args` | health assess flags → `CommandSpec::HealthAssess` | clap combination error / CLI tests |
+| 2 | `main::run` | command → extended runner call | `RunnerError` / E2E |
+| 3 | `runners::health::load_phase_c_inputs` | paths → typed source artifact set | artifact kind/schema/I/O / source tests |
+| 4 | `health_config::PhaseCHealthEvidenceConfig::load` | config path → validated config + SHA | invalid config / config tests |
+| 5 | `health::phase_c::validate_source_compatibility` | source set + catalog → eligible/ineligible source set | wrong artifact/schema hard error; semantic incompatibility output / scope tests |
+| 6 | `health::phase_c::prepare_phase_c_evidence` | eligible sources + config → validated `EvidenceBundle` | unit/finite/catalog errors / adapter tests |
+| 7 | `health::phase_c::evaluate_data_quality` | signal evidence + config → DataQuality assessment | never a hard error for scientific insufficiency / DQ tests |
+| 8 | `health::phase_c::evaluate_dimension` | one enum + bundle + context → one assessment | typed invalid rule data / per-dimension tests |
+| 9 | `health::phase_c::evaluate_all_dimensions` | fixed nine enum order → nine assessments | duplicate/missing invariant / completeness test |
+| 10 | `health::phase_c::derive_interpretation_category` | assessment + eligible mechanism records → category | noncausal boundary tests |
+| 11 | `health::phase_c::derive_causal_status` | assessment + bundle + mechanism → status | independence/promotion tests |
+| 12 | `health::phase_c::compose_phase_c_report` | nine final assessments + bundle + config → C report | aggregate invariant / aggregate tests |
+| 13 | `health::assessment::assemble` (unchanged) | legacy features/rules → legacy projection | legacy regression tests |
+| 14 | `runners::health::assemble_phase_c_assessment` | projection + C report + consumed sources → schema-4 assessment/lineage | schema/lineage tests |
+| 15 | `domain::write_artifact` then public `read_artifact` | assessment → JSON → reread | writer/reader E2E tests |
+
+The exact new/changed API signatures are:
+
+```rust
+pub fn load(path: &Path) -> Result<LoadedPhaseCHealthEvidenceConfig, HealthError>;
+pub fn load_lineage_catalog(path: &Path) -> Result<ArtifactLineageCatalog, HealthError>;
+pub fn load_phase_c_inputs(workspace: &Path, inputs: PhaseCHealthInputPaths)
+    -> Result<PhaseCHealthInputs, RunnerError>;
+pub fn validate_source_compatibility(inputs: &PhaseCHealthInputs,
+    catalog: Option<&ArtifactLineageCatalog>) -> Result<PhaseCEligibleInputs, HealthError>;
+pub fn prepare_phase_c_evidence(inputs: &PhaseCEligibleInputs,
+    config: &PhaseCHealthEvidenceConfig) -> Result<EvidenceBundle, HealthError>;
+pub fn evaluate_data_quality(bundle: &EvidenceBundle,
+    inputs: &PhaseCEligibleInputs, config: &PhaseCHealthEvidenceConfig)
+    -> PhaseCHealthDimensionAssessment;
+pub fn evaluate_dimension(dimension: HealthDimension, bundle: &EvidenceBundle,
+    inputs: &PhaseCEligibleInputs, config: &PhaseCHealthEvidenceConfig)
+    -> Result<PhaseCHealthDimensionAssessment, HealthError>;
+pub fn evaluate_all_dimensions(bundle: &EvidenceBundle, inputs: &PhaseCEligibleInputs,
+    config: &PhaseCHealthEvidenceConfig) -> Result<Vec<PhaseCHealthDimensionAssessment>, HealthError>;
+pub fn derive_interpretation_category(assessment: &mut PhaseCHealthDimensionAssessment,
+    mechanism: Option<&MechanismAnalysisReport>) -> Result<(), HealthError>;
+pub fn derive_causal_status(assessment: &mut PhaseCHealthDimensionAssessment,
+    bundle: &EvidenceBundle, mechanism: Option<&MechanismAnalysisReport>,
+    config: &PhaseCHealthEvidenceConfig) -> Result<(), HealthError>;
+pub fn compose_phase_c_report(config: &LoadedPhaseCHealthEvidenceConfig,
+    dimensions: Vec<PhaseCHealthDimensionAssessment>, bundle: EvidenceBundle)
+    -> Result<PhaseCSensorHealthEvidenceReport, HealthError>;
+pub fn assemble_phase_c_assessment(/* current legacy arguments */, phase_c: PhaseCSensorHealthEvidenceReport,
+    consumed_sources: &[(&ArtifactLineageState, ArtifactDependencyRole)])
+    -> Result<SensorHealthAssessment, RunnerError>;
+```
+
+`PhaseCHealthInputPaths`, `PhaseCHealthInputs`, and `PhaseCEligibleInputs` are
+new private `src/runners/health.rs` structs, each with exactly one field for
+the listed source artifact and no generic path map.  The three evaluator
+functions are `pub(crate)` in `src/health/phase_c.rs`; config loading is public
+only to the runner.  No function accepts an arbitrary JSON value, raw evidence
+bundle, or untyped source.
+
+### 33.10 CLI and error contract
+
+The canonical Phase-C invocation is:
+
+```text
+electroanalysis health assess \
+  --signal-results <PATH> --phase-c-config <PATH> \
+  [--transient-results <PATH>] [--calibration-results <PATH>]
+  [--baseline <PATH>] [--estimation-artifact <PATH>]
+  [--model-artifact <PATH>] [--mechanism-artifact <PATH>]
+  [--lineage-catalog <PATH>] [--output <PATH>]
+```
+
+`--signal-results` and `--phase-c-config` are required for Phase C.  Existing
+`--transient-results`, `--calibration-results`, `--baseline`, `--metadata`,
+`--config`, and `--output` remain accepted.  `--config` continues to mean only
+the legacy health config used for projection.  `--eis-fit` remains accepted
+only for that legacy projection.  New `--estimation-artifact`,
+`--model-artifact`, `--mechanism-artifact`, and `--lineage-catalog` are
+optional.  Existing `--mechanism-results` and new `--mechanism-artifact` are
+aliases only when public readers resolve the same known ArtifactId; different
+IDs cause `ConflictingEvidenceInput`; neither path may silently win.  Duplicate
+optional paths likewise deduplicate only equal known ArtifactIds.  There is no
+Phase-C flag for direct EvidenceBundle, raw model state, prior health,
+reference anchor, arbitrary JSON evidence, or Phase-B configuration.
+
+When `--phase-c-config` is absent the legacy schema-3 `health assess` behavior
+is used unchanged.  When it is present, Phase C owns the result and writes
+schema 4.  `--phase-c-config` may be combined with `--config`; the two paths
+are independent.  A wrong artifact kind/version, unreadable file, invalid
+config, duplicate unequal source, malformed catalog, or impossible required
+schema invariant is a runtime error.  Insufficient/no/contradictory scientific
+evidence is a successful artifact result as §33.3 defines.
+
+`HealthError` gains closed variants: `InvalidPhaseCConfig { message }`,
+`UnsupportedPhaseCArtifactSchema { expected, actual }`, `WrongPhaseCArtifactKind
+{ expected, actual }`, `SourceScopeMismatch { source }`, `SourceUnitMismatch
+{ source, expected, actual }`, `InvalidEvidence { source, field }`,
+`LineageCatalogInvalid { message }`, `ConflictingEvidenceInput { left, right }`,
+`SchemaInvariant { message }`, and `ReportAssembly { message }`.  The runner
+maps public artifact read failures without erasing their `ArtifactError`.
+`DataQualityInsufficient` and `Indeterminate` never use these error variants.
+
+### 33.11 Fixtures, test contract, and traceability
+
+The canonical fixture root is `tests/fixtures/phase_c/`.  No fixture hand
+authors a derived ArtifactId, semantic hash, or evidence ID.  A test-only
+fixture writer calls production `write_artifact`, rereads it with public
+`read_artifact`, and records the resulting identities in
+`tests/fixtures/phase_c/README.md`.  The fixture generator lives in the test
+module, never production code.  Required fixture directories and purposes are:
+
+| Fixture ID / path | Purpose and required sources | expected C semantics |
+|---|---|---|
+| `PC-FX-01/base` | valid signal plus C config | SignalIntegrity and DataQuality within baseline; unsupported dimensions indeterminate; no claim that all nine are healthy |
+| `PC-FX-02/signal-degraded` | signal with one threshold at degraded boundary | SignalIntegrity degraded / observed behavior / observed |
+| `PC-FX-03/dynamic-multi` | signal, compatible baseline, transient with dynamic degraded metrics | DynamicResponseHealth degraded; all source EvidenceIds/lineage consumed |
+| `PC-FX-04/quality-insufficient` | signal fails one explicit data-quality gate | DataQuality data_quality_insufficient, never healthy |
+| `PC-FX-05/mechanism-noncausal` | PC-FX-02 plus schema-4 Phase-B mechanism artifact | interpretation may become possible_physical_degradation; causal status remains below experimentally_supported without independent direct evidence |
+| `PC-FX-06/estimation-model` | signal, estimation, model, catalog with complete known lineage | optional estimation/model consumed; model and environmental findings assert exact status/IDs |
+| `PC-FX-07/lineage-dependent` | two apparently corroborating sources with shared family | no independent count/promotion |
+| `PC-FX-08/negative` | wrong kind, unsupported schema, scope mismatch, invalid unit, missing quantity, and contradictory variants | typed errors or exact indeterminate/DQI/contradiction outcomes |
+
+Mandatory tests are in new `tests/phase_c_sensor_health_evidence.rs` unless
+the named schema test belongs in existing `tests/artifact_contract.rs`.  Every
+test must assert the named semantic status/category/causal status/reason and
+the listed mutation must fail it; `Ok`, record count, and fixture-load-only
+assertions are forbidden.
+
+| Exact test | Scenario / production path | Required assertion and failing mutation |
+|---|---|---|
+| `phase_c_schema3_health_assessment_remains_readable` | public reader | schema-3 gives `phase_c=None`; mutation treats it as C within-baseline |
+| `phase_c_schema4_requires_complete_nine_dimension_report` | reader/schema validator | missing/duplicate dimension rejects; mutation drops a dimension |
+| `phase_c_schema4_roundtrip_preserves_wire_contract` | writer → reader | canonical fields/tokens and semantic equality; mutation writes an alias/default |
+| `phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version` | public reader | typed A0-compatible errors; mutation relaxes kind/version |
+| `phase_c_schema4_rejects_retired_phase_c_aliases` | schema-4 reader | no legacy/new dual field or C alias is accepted; mutation silently maps a retired field |
+| `phase_c_config_requires_every_threshold_and_rejects_unknown_field` | strict config loader | missing/range-invalid/unknown field fails typed config error; mutation supplies a default |
+| `phase_c_config_roundtrip_preserves_threshold_units_and_tokens` | config load → serialize → load | exact semantic equality and unit-bearing threshold provenance; mutation drops/renames a field |
+| `phase_c_absent_evidence_is_indeterminate_not_healthy` | all-dimension evaluator | PC-FX-01 asserts six fixed optional-source rows (CalibrationHealth, DynamicResponseHealth, EnvironmentalRobustness, ModelConsistency, Observability, and UncertaintyHealth), each exactly `indeterminate/no_evidence/optional_source_absent`; ReferenceStability is separately exactly `indeterminate/no_evidence/reference_anchor_unavailable`; mutation substitutes within-baseline |
+| `phase_c_bad_signal_quality_is_data_quality_insufficient` | data-quality evaluator | PC-FX-04 `sampling.missing_fraction=0.20` gives exactly `data_quality_insufficient/quality_gate_failed`; mutation maps that result to indeterminate |
+| `phase_c_contradictory_evidence_remains_visible` | model-consistency evaluator | contradiction code and watch-or-higher result; mutation discards opposing source |
+| `phase_c_signal_integrity_positive_finding` | PC-FX-02 evaluator | degraded threshold, category, status; mutation changes `>=` boundary |
+| `phase_c_signal_integrity_negative_finding` | PC-FX-01 evaluator | all metrics below watch → within-baseline; mutation uses absence |
+| `phase_c_signal_integrity_quality_insufficient` | evaluator | supplied `signal.descriptive.rms=None` gives exactly `data_quality_insufficient/required_quantity_absent`; mutation skips that required metric |
+| `phase_c_signal_integrity_threshold_boundaries` | evaluator | watch/degraded/critical equality; mutation uses `>` |
+| `phase_c_calibration_health_positive_finding` | calibration adapter/evaluator | configured degraded metric; mutation ignores absolute bias |
+| `phase_c_calibration_health_negative_finding` | evaluator | valid all-clear result; mutation substitutes default source |
+| `phase_c_calibration_health_indeterminate_without_artifact` | evaluator | absent optional calibration → indeterminate; mutation treats absent as pass |
+| `phase_c_calibration_health_threshold_boundaries` | evaluator | all level boundaries; mutation reverses slope error |
+| `phase_c_dynamic_response_positive_finding` | PC-FX-03 evaluator | degraded ratio/loss; mutation loses baseline denominator |
+| `phase_c_dynamic_response_negative_finding` | evaluator | compatible ratios below watch; mutation accepts cross-context average |
+| `phase_c_dynamic_response_quality_insufficient` | evaluator | the selected ordinal-7 event has `failure=Some("fixture failure")` and no selected model, giving exactly `data_quality_insufficient/selected_transient_event_invalid`; mutation evaluates a failed selected event |
+| `phase_c_dynamic_response_threshold_boundaries` | evaluator | exact threshold equality; mutation uses wrong sign for amplitude loss |
+| `phase_c_reference_stability_is_indeterminate_without_independent_anchor` | evaluator | exact reason/status; mutation treats reference offset as anchor |
+| `phase_c_reference_stability_rejects_same_source_anchor_as_independent` | independence evaluator | no promotion; mutation counts same artifact twice |
+| `phase_c_environmental_robustness_positive_finding` | estimation adapter/evaluator | correlation/range/n thresholds; mutation uses Pearson or ignores residual RMS |
+| `phase_c_environmental_robustness_negative_finding` | evaluator | adequate low correlation/within baseline; mutation ignores range |
+| `phase_c_environmental_robustness_indeterminate_without_estimation` | evaluator | missing optional source; mutation marks healthy |
+| `phase_c_environmental_robustness_threshold_boundaries` | evaluator | rho boundary and point count; mutation makes count exclusive |
+| `phase_c_model_consistency_positive_finding` | PC-FX-06 evaluator | the literal three-point residual RMS and bias are both `0.002 V`, giving degraded; mutation reverses residual sign |
+| `phase_c_residual_sign_is_measured_minus_predicted` | estimation/model evidence adapter | stored signed residual equals `measured - predicted` before absolute metrics; mutation reverses SAR-011 |
+| `phase_c_model_consistency_negative_finding` | evaluator | valid low residual; mutation treats model prediction as observation |
+| `phase_c_model_consistency_quality_insufficient` | PC-FX-06 model-only builder | point 1 `observed_voltage_v=None` gives exactly `data_quality_insufficient/required_quantity_absent`; mutation treats it as an absent optional model artifact |
+| `phase_c_model_consistency_threshold_boundaries` | evaluator | RMS/bias equality; mutation changes absolute bias |
+| `phase_c_observability_positive_finding` | estimation evaluator | rank/condition/empirical failure; mutation ignores rank |
+| `phase_c_observability_negative_finding` | evaluator | all clear → within-baseline; mutation treats weak state as clear |
+| `phase_c_observability_indeterminate_without_estimation` | evaluator | absent source; mutation defaults valid |
+| `phase_c_observability_threshold_boundaries` | evaluator | condition equality; mutation uses wrong comparison |
+| `phase_c_uncertainty_health_positive_finding` | model evaluator | exactly one of four points has `uncertainty.status=partial`, giving partial fraction `0.25` and degraded by the configured equality threshold; mutation treats partial as complete |
+| `phase_c_uncertainty_health_negative_finding` | evaluator | complete finite uncertainty below watch; mutation ignores variance |
+| `phase_c_uncertainty_health_quality_insufficient` | model evaluator | a `complete` point with `total_variance_v2=-0.00000025` gives exactly `data_quality_insufficient/invalid_quantity`; mutation accepts a negative variance |
+| `phase_c_uncertainty_health_threshold_boundaries` | evaluator | fraction/SE equality; mutation uses strict `>` |
+| `phase_c_data_quality_positive_finding` | PC-FX-04 evaluator | `sampling.missing_fraction=0.20` gives exactly `data_quality_insufficient/quality_gate_failed`; mutation maps it to degraded |
+| `phase_c_data_quality_negative_finding` | PC-FX-01 evaluator | every gate passes; mutation ignores duplicate count |
+| `phase_c_data_quality_quality_insufficient` | evaluator | `sampling.interval_cv=None` gives exactly `data_quality_insufficient/required_quantity_absent`; mutation uses zero |
+| `phase_c_data_quality_threshold_boundaries` | evaluator | fraction/count equality; mutation reverses max rule |
+| `phase_c_interpretation_and_causal_status_are_separate` | category/status derivation | mechanism-supported interpretation below causal promotion; mutation maps category to cause |
+| `phase_c_phase_b_mechanism_is_not_causal_proof` | PC-FX-05 | mechanism alone cannot exceed observed/indeterminate as applicable; mutation promotes automatically |
+| `phase_c_independent_evidence_required_for_associated_status` | PC-FX-07 | shared family/legacy lineage fails association; mutation counts dependent evidence |
+| `phase_c_optional_estimation_absent_present_unconsumed_and_incompatible` | input loader → lineage | all four cases and actual consumption; mutation always adds dependency |
+| `phase_c_optional_model_absent_present_unconsumed_and_incompatible` | input loader → lineage | all four cases and actual consumption; mutation always adds dependency |
+| `phase_c_optional_mechanism_absent_present_unconsumed_and_incompatible` | input loader → lineage | all four cases and actual consumption; mutation makes it causal |
+| `phase_c_optional_lineage_catalog_absent_present_unconsumed_and_invalid` | loader/independence | absent unknown, queried consumed, unqueried absent, invalid errors; mutation fabricates lineage |
+| `phase_c_scope_mismatch_cannot_support_finding` | compatibility → evaluator | indeterminate/reason and no ID; mutation pools scope |
+| `phase_c_actual_consumption_lineage_excludes_unused_inputs` | assembly/writer | dependencies exactly match consumed IDs; mutation includes supplied path |
+| `phase_c_aggregate_status_and_causal_status_follow_fixed_rule` | report composition | ordering/category union/min causal result; mutation uses best status |
+| `phase_c_health_cli_parses_exact_optional_artifact_flags` | `parse_cli_args` | exact required/optional/alias/forbidden combination handling; mutation ignores a flag |
+| `phase_c_health_cli_e2e_writes_and_rereads_schema4_artifact` | real CLI parse → stages 1--15 | PC-FX-06 exact fields, report, lineage, reread; mutation bypasses runner |
+
+ReferenceStability has no positive, negative, data-quality, or numerical
+boundary test beyond its two named tests because the ACTIVE V1 source inventory
+contains no independently lineaged reference-anchor artifact.  Those two
+tests are its complete mandated contract: the dimension exists exactly once,
+is indeterminate, and cannot be falsely made independent.  Every other
+dimension has the positive, negative, insufficient/DQ, and threshold-boundary
+coverage listed above.
+
+The implementation creates `docs/engineering_specification/phase_c_sensor_health_evidence_traceability.md`
+with exactly: `Requirement ID`, `Acceptance Criterion`, `Implementation
+Symbol`, `Production Execution Path`, `Exact Test Function`, `Fixture/Data
+Source`, `Result`, `Compatibility Impact`, and `Scientific Risk`.  Planning
+must not mark a row PASS.  Stable requirement IDs are PC-SCHEMA-01..04,
+PC-SOURCE-01..08, PC-SCOPE-01..03, PC-LINEAGE-01..04, PC-DQ-01..03,
+PC-HEALTH-01..09, PC-INTERP-01..03, PC-CAUSE-01..05, PC-CLI-01..03, and
+PC-FX-01..08.  Every test above maps to one or more of these IDs; no test
+name is merely a placeholder.
+
+The planned traceability matrix has exactly **50 requirements and 50
+acceptance criteria**, with the following non-optional bindings:
+
+| Requirement / acceptance-criterion group | Production symbol/path | Exact validating tests / fixture |
+|---|---|---|
+| PC-SCHEMA-01..04 | `SensorHealthAssessment`, artifact contract, public reader/writer | `phase_c_schema3_health_assessment_remains_readable`, `phase_c_schema4_requires_complete_nine_dimension_report`, `phase_c_schema4_roundtrip_preserves_wire_contract`, `phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version`, `phase_c_schema4_rejects_retired_phase_c_aliases` |
+| PC-SOURCE-01..08 | source loader and C adapters | four `phase_c_optional_*_absent_present_unconsumed_and_*` tests, `phase_c_scope_mismatch_cannot_support_finding`, `phase_c_actual_consumption_lineage_excludes_unused_inputs`, PC-FX-06--08 |
+| PC-SCOPE-01..03 / PC-LINEAGE-01..04 | compatibility validator and A1 bundle | `phase_c_scope_mismatch_cannot_support_finding`, `phase_c_independent_evidence_required_for_associated_status`, `phase_c_optional_lineage_catalog_absent_present_unconsumed_and_invalid`, `phase_c_actual_consumption_lineage_excludes_unused_inputs`, PC-FX-07 |
+| PC-DQ-01..03 | `evaluate_data_quality` | `phase_c_bad_signal_quality_is_data_quality_insufficient`, four DataQuality tests, `phase_c_absent_evidence_is_indeterminate_not_healthy`, PC-FX-04/08 |
+| PC-HEALTH-01..09 | `evaluate_dimension` | all named per-dimension tests in the preceding table, including both ReferenceStability tests; PC-FX-01--06 |
+| PC-INTERP-01..03 / PC-CAUSE-01..05 | category/causal evaluators | `phase_c_interpretation_and_causal_status_are_separate`, `phase_c_phase_b_mechanism_is_not_causal_proof`, `phase_c_independent_evidence_required_for_associated_status`, PC-FX-05/07 |
+| PC-CLI-01..03 | parser, main dispatch, health runner | `phase_c_health_cli_parses_exact_optional_artifact_flags`, `phase_c_health_cli_e2e_writes_and_rereads_schema4_artifact`, PC-FX-06 |
+| PC-FX-01..08 | production fixture writer and public reader | fixture identities/semantics in the fixture table and every test naming its fixture |
+
+The range notation above is expanded here so each requirement and its
+acceptance criterion is independently addressable; a test column contains the
+exact test that must be entered in the implementation traceability matrix.
+
+| Requirement | Acceptance criterion | Exact test |
+|---|---|---|
+| PC-SCHEMA-01 | schema-3 health reports read as legacy only | `phase_c_schema3_health_assessment_remains_readable` |
+| PC-SCHEMA-02 | schema-4 has one record for each of nine dimensions | `phase_c_schema4_requires_complete_nine_dimension_report` |
+| PC-SCHEMA-03 | schema-4 writer/rereader preserves canonical C wire | `phase_c_schema4_roundtrip_preserves_wire_contract` |
+| PC-SCHEMA-04 | wrong/missing kind, future version, and retired alias reject | `phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version`; `phase_c_schema4_rejects_retired_phase_c_aliases` |
+| PC-SOURCE-01 | required signal source is read and adapted exactly | `phase_c_signal_integrity_positive_finding` |
+| PC-SOURCE-02 | baseline/transient/calibration route has no implicit replacement | `phase_c_dynamic_response_positive_finding`; `phase_c_calibration_health_indeterminate_without_artifact` |
+| PC-SOURCE-03 | estimation absent/present/unconsumed/incompatible behavior is exact | `phase_c_optional_estimation_absent_present_unconsumed_and_incompatible` |
+| PC-SOURCE-04 | model absent/present/unconsumed/incompatible behavior is exact | `phase_c_optional_model_absent_present_unconsumed_and_incompatible` |
+| PC-SOURCE-05 | mechanism absent/present/unconsumed/incompatible behavior is exact | `phase_c_optional_mechanism_absent_present_unconsumed_and_incompatible` |
+| PC-SOURCE-06 | catalog absent/present/unconsumed/invalid behavior is exact | `phase_c_optional_lineage_catalog_absent_present_unconsumed_and_invalid` |
+| PC-SOURCE-07 | wrong kind/schema is a typed runtime error | `phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version` |
+| PC-SOURCE-08 | source artifacts are persisted only on actual consumption | `phase_c_actual_consumption_lineage_excludes_unused_inputs` |
+| PC-SCOPE-01 | experiment scopes never cross-support a finding | `phase_c_scope_mismatch_cannot_support_finding` |
+| PC-SCOPE-02 | sensor/channel/aggregate compatibility never uses a wildcard | `phase_c_scope_mismatch_cannot_support_finding` |
+| PC-SCOPE-03 | only named temporal rules are applied | `phase_c_dynamic_response_scope_mismatch_is_indeterminate`; `phase_c_environmental_robustness_positive_finding` |
+| PC-LINEAGE-01 | LegacyUnknown remains unknown and direct evidence is retained conservatively | `phase_c_optional_lineage_catalog_absent_present_unconsumed_and_invalid` |
+| PC-LINEAGE-02 | only A1 Independent evidence corroborates | `phase_c_independent_evidence_required_for_associated_status` |
+| PC-LINEAGE-03 | unused input has neither dependency nor source ID | `phase_c_actual_consumption_lineage_excludes_unused_inputs` |
+| PC-LINEAGE-04 | evidence/reason/artifact ID ordering is canonical | `phase_c_schema4_roundtrip_preserves_wire_contract` |
+| PC-DQ-01 | absence is never healthy | `phase_c_absent_evidence_is_indeterminate_not_healthy` |
+| PC-DQ-02 | bad quality is DataQualityInsufficient rather than a runtime finding | `phase_c_bad_signal_quality_is_data_quality_insufficient` |
+| PC-DQ-03 | contradiction is visible and cannot be discarded | `phase_c_contradictory_evidence_remains_visible` |
+| PC-HEALTH-01 | SignalIntegrity exact rule/threshold/DQ behavior | `phase_c_signal_integrity_positive_finding`; `phase_c_signal_integrity_negative_finding`; `phase_c_signal_integrity_quality_insufficient`; `phase_c_signal_integrity_threshold_boundaries` |
+| PC-HEALTH-02 | CalibrationHealth exact rule/threshold/absence behavior | `phase_c_calibration_health_positive_finding`; `phase_c_calibration_health_negative_finding`; `phase_c_calibration_health_indeterminate_without_artifact`; `phase_c_calibration_health_threshold_boundaries` |
+| PC-HEALTH-03 | DynamicResponseHealth exact positional-selection, ratio/loss, quality, and scope behavior | `phase_c_dynamic_response_event_index_uses_producer_eligible_event_order`; `phase_c_dynamic_response_positive_finding`; `phase_c_dynamic_response_negative_finding`; `phase_c_dynamic_response_quality_insufficient`; `phase_c_dynamic_response_scope_mismatch_is_indeterminate`; `phase_c_dynamic_response_threshold_boundaries` |
+| PC-HEALTH-04 | ReferenceStability remains indeterminate without an independent anchor | `phase_c_reference_stability_is_indeterminate_without_independent_anchor`; `phase_c_reference_stability_rejects_same_source_anchor_as_independent` |
+| PC-HEALTH-05 | EnvironmentalRobustness exact correlation/range and quality rule | `phase_c_environmental_robustness_positive_finding`; `phase_c_environmental_robustness_negative_finding`; `phase_c_environmental_robustness_indeterminate_without_estimation`; `phase_c_environmental_robustness_threshold_boundaries`; `phase_c_environmental_robustness_minimum_point_count_is_indeterminate`; `phase_c_environmental_robustness_quality_insufficient`; `phase_c_environmental_robustness_nonincreasing_timestamp_is_dqi` |
+| PC-HEALTH-06 | ModelConsistency exact residual/validity rule and residual sign | `phase_c_model_consistency_positive_finding`; `phase_c_residual_sign_is_measured_minus_predicted`; `phase_c_model_consistency_negative_finding`; `phase_c_model_consistency_quality_insufficient`; `phase_c_model_consistency_threshold_boundaries` |
+| PC-HEALTH-07 | Observability exact rank/condition/empirical and quality rule | `phase_c_observability_positive_finding`; `phase_c_observability_negative_finding`; `phase_c_observability_indeterminate_without_estimation`; `phase_c_observability_threshold_boundaries`; `phase_c_observability_quality_insufficient`; `phase_c_observability_nonfinite_condition_number_is_dqi` |
+| PC-HEALTH-08 | UncertaintyHealth exact completeness/variance rule | `phase_c_uncertainty_health_positive_finding`; `phase_c_uncertainty_health_negative_finding`; `phase_c_uncertainty_health_quality_insufficient`; `phase_c_uncertainty_health_threshold_boundaries` |
+| PC-HEALTH-09 | DataQuality exact quality-gate rule | `phase_c_data_quality_positive_finding`; `phase_c_data_quality_negative_finding`; `phase_c_data_quality_quality_insufficient`; `phase_c_data_quality_threshold_boundaries` |
+| PC-INTERP-01 | every interpretation wire token has the frozen meaning | `phase_c_schema4_roundtrip_preserves_wire_contract` |
+| PC-INTERP-02 | interpretation remains distinct from causal status | `phase_c_interpretation_and_causal_status_are_separate` |
+| PC-INTERP-03 | aggregate category order/deduplication is fixed | `phase_c_aggregate_status_and_causal_status_follow_fixed_rule` |
+| PC-CAUSE-01 | Phase-B mechanism alone is non-causal | `phase_c_phase_b_mechanism_is_not_causal_proof` |
+| PC-CAUSE-02 | association requires independent direct corroboration | `phase_c_independent_evidence_required_for_associated_status` |
+| PC-CAUSE-03 | hypothesis promotion requires the exact same-scope Phase-B level | `phase_c_interpretation_and_causal_status_are_separate` |
+| PC-CAUSE-04 | experimental promotion has configured independent-family support | `phase_c_independent_evidence_required_for_associated_status` |
+| PC-CAUSE-05 | validated-for-domain requires Phase-B validation and compatible scope | `phase_c_phase_b_mechanism_is_not_causal_proof` |
+| PC-CLI-01 | flags/requiredness/forbidden routes parse exactly | `phase_c_health_cli_parses_exact_optional_artifact_flags` |
+| PC-CLI-02 | alias conflicts and legacy mode remain deterministic | `phase_c_health_cli_parses_exact_optional_artifact_flags` |
+| PC-CLI-03 | actual CLI follows all 15 stages and public reread | `phase_c_health_cli_e2e_writes_and_rereads_schema4_artifact` |
+| PC-FX-01 | base fixture writer and expected indeterminacy | `phase_c_absent_evidence_is_indeterminate_not_healthy` |
+| PC-FX-02 | signal-degraded fixture threshold identity | `phase_c_signal_integrity_positive_finding` |
+| PC-FX-03 | dynamic fixture uses baseline/transient and lineage | `phase_c_dynamic_response_positive_finding` |
+| PC-FX-04 | quality fixture cannot appear healthy | `phase_c_bad_signal_quality_is_data_quality_insufficient` |
+| PC-FX-05 | mechanism fixture preserves non-causal boundary | `phase_c_phase_b_mechanism_is_not_causal_proof` |
+| PC-FX-06 | estimation/model/catalog fixture executes production path | `phase_c_health_cli_e2e_writes_and_rereads_schema4_artifact` |
+| PC-FX-07 | dependent-lineage fixture cannot corroborate | `phase_c_independent_evidence_required_for_associated_status` |
+| PC-FX-08 | negative fixture classifies errors versus scientific states | `phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version`; `phase_c_contradictory_evidence_remains_visible` |
+
+### 33.12 File ownership, compatibility, and implementation acceptance
+
+| Path | action / owner | callers / consumers | risk |
+|---|---|---|---|
+| `src/results/health.rs` | MODIFY: types in §§33.3 and 33.8 | runner, artifact reader, reports | schema/scientific |
+| `src/results/artifact_contracts.rs` | MODIFY: health current 4 / legacy 1--3 | public reader/writer | compatibility |
+| `src/domain/artifact.rs` | MODIFY only for schema-4 health invariant | reader/writer | compatibility |
+| `src/health/phase_c.rs` | CREATE: APIs in §33.9 | health runner | scientific |
+| `src/health/mod.rs`, `src/health/error.rs`, `src/health_config.rs` | MODIFY: module/export/errors/strict config | runner | scientific |
+| `src/evidence.rs`, `src/evidence_adapters.rs` | MODIFY: bind the already-declared C `EvidenceTarget::HealthDimension` to the new result enum; add typed C adapters only | phase-C evidence preparation | A1 compatibility |
+| `src/runners/health.rs`, `src/cli.rs`, `src/main.rs` | MODIFY: flags and canonical pipeline | public CLI | runtime |
+| `tests/phase_c_sensor_health_evidence.rs`, `tests/artifact_contract.rs` | MODIFY/CREATE in implementation only | validation | coverage |
+| `tests/fixtures/phase_c/**` | CREATE in implementation only via production writer | tests | fixture identity |
+| `docs/engineering_specification/phase_c_sensor_health_evidence_traceability.md` | CREATE in implementation | audit | traceability |
+| `src/domain/lineage.rs`, Phase-B modules, signal/calibration/transient/model/estimation scientific producers, Cargo files | LEAVE FROZEN | all | A0/A1/B stability |
+
+Compatibility matrix: A0 **FORBIDDEN CHANGE** (no redesign); A1 **UNCHANGED**
+(reuse); Phase B **UNCHANGED** (consume only); existing health **ADDITIVE**
+(legacy route/schema 3 preserved); estimation/model/signal **ADDITIVE
+consumer-only**; artifact contracts **MIGRATION REQUIRED** only for health
+3→4; CLI **ADDITIVE**; rendering **FORBIDDEN CHANGE**.  Frozen A0 semantic/API
+redesign required = no.  Frozen A1 semantic/API redesign required = no.
+Phase-B semantic redesign required = no.
+
+The implementation acceptance audit is complete only when every §33 type,
+wire token, threshold unit/range, source route, decision state, API, stage,
+fixture path/generation method, and exact test above exists; the stated
+completeness counts are all zero: undefined normative types, owners, wire
+tokens, schema/migration decisions, evidence-to-finding rules, thresholds,
+thresholds without units, data-quality rules, interpretation/causal rules,
+source/scope/lineage/independence decisions, APIs, ownerless stages,
+fixture paths/generators, unmapped acceptance criteria, and missing exact test
+names.  Implementation invention required = no.
+
+Scientific guardrails are absolute: no evidence is not healthy; a correlation,
+model prediction, mechanism hypothesis, residual, or reference offset is not
+causation; dependent evidence is not independent corroboration; cross-scope
+evidence is not pooled; `LegacyUnknown` is not known; poor quality is visible;
+and a finding in one dimension is not proof in another.  These are P1
+acceptance gates, as are the absence-of-evidence, mechanism-noncausality, and
+real CLI E2E tests.
+
+## 34. Phase C planning remediation — controlling P1 closure contract
+
+### 34.1 Authority, finding reconciliation, and scope
+
+This section is the sole active Phase-C contract for every topic it names.  It
+supersedes the corresponding less-specific text in §§33.3--33.11, including
+the former Phase-B “names a relationship” wording, DynamicResponse selection,
+the common data-quality table, fixture descriptions, the mandatory-test
+inventory, and causal aggregation.  All unaffected §33 requirements remain
+active.  This is a forward planning correction only: it changes no frozen A0,
+A1, or Phase-B type or behavior.
+
+| Finding | Classification | Confirmed repository evidence | Controlling correction |
+|---|---|---|---|
+| PC-P1-01 | CONFIRMED | `MechanismHypothesisDefinition` has `hypothesis_id`, `display_name`, `target_components`, and gates, but no health dimension or relationship; `PhaseBHypothesisAssessment` repeats `hypothesis_id`. | A Phase-C-owned, exact-ID configuration binding is the only C relationship declaration. |
+| PC-P1-02 | CONFIRMED | `TransientAnalysisReport.events: Vec<TransientEventResult>` can contain many rows; `TransientEventResult.event_index` is the producer's eligible-event ordinal, not event identity; a baseline distribution has `mean`, `median`, quantiles, and other summaries. | Configuration selects one artifact-local positional `event_index` under §34.3's producer-order contract; each denominator is an explicitly named baseline feature's `mean`. |
+| PC-P1-03 | CONFIRMED | §33 simultaneously classified supplied missing quantities differently by dimension. | One ordered availability/quality decision table applies to every dimension. |
+| PC-P1-04 | CONFIRMED | The former PC-FX table named purposes but not literal files, values, or complete outputs. | §§34.8--34.10 define eight generated fixture sets, their values, outputs, identities, and test cross-map. |
+| PC-P1-05 | CONFIRMED | The former inventory omitted DQI tests for calibration, environmental robustness, and observability, and left aggregate “positive”/ordering implicit. | §§34.6--34.7 and §34.11 define those exact rules and tests. |
+
+The controlling source facts are deliberately narrow.  A Phase-B stable key is
+the nonempty `String` alias `MechanismHypothesisId` at
+`src/mechanism/config.rs`; the same wire value is in
+`HypothesisAssessmentRecord.current.hypothesis_id` at
+`src/results/mechanism.rs`.  `display_name`, `target_components`, component
+assessment IDs, description, vector position, and free text are not C
+semantic identity. The Phase-C event selector key is the stored `usize
+event_index` positional ordinal, not its position in `events` and not an event
+identity; `ExperimentEvent` has a timestamp and kind but no event ID. The
+relevant current transient fields are
+`candidate_fits[*].derived_features.{tau_fast_s,tau_slow_s,
+time_to_90_percent_s,total_response_amplitude_v}` and
+`candidate_fits[*].statistics.rmse_v`.  No plan clause may refer to a
+nonexistent `events[*].id`, health-dimension field on a hypothesis, sensor ID
+on a transient event, or baseline statistic that is not named below.
+
+New stable requirements and acceptance criteria are PC-BIND-01..08,
+PC-DYN-01..10, PC-DQ-04..12, PC-FIX-09..16, PC-AGG-01..07, and
+PC-TEST-01..06.  They extend (rather than renumber) the 50 §33 requirements.
+The final implementation traceability document must contain 98 requirements
+and 98 acceptance criteria: the prior 50 plus these 48.  Each new requirement
+is mapped in §34.11; unmapped requirement and acceptance-criterion counts are
+zero.
+
+### 34.2 PC-BIND-01..08 — exact Phase-B hypothesis binding
+
+Phase C owns the relationship declaration because Phase B intentionally does
+not.  `PhaseCHealthEvidenceConfig` gains this exact serialized field; it is
+not a Phase-B config extension:
+
+```toml
+[[phase_b_hypothesis_bindings]]
+hypothesis_id = "mechanism-fouling-v1"
+health_dimension = "signal_integrity"
+relationship = "possible_physical_degradation"
+```
+
+The Rust value and normative wire form are:
+
+```rust
+#[serde(rename_all = "snake_case")]
+pub enum PhaseCHypothesisRelationship { PossiblePhysicalDegradation }
+#[serde(deny_unknown_fields)]
+pub struct PhaseCHypothesisBinding {
+    pub hypothesis_id: crate::mechanism::config::MechanismHypothesisId,
+    pub health_dimension: HealthDimension,
+    pub relationship: PhaseCHypothesisRelationship,
+}
+// `phase_b_hypothesis_bindings: Vec<PhaseCHypothesisBinding>`
+// TOML: [[phase_b_hypothesis_bindings]], in lexical hypothesis_id order.
+```
+
+The mapping owner is `PhaseCHealthEvidenceConfig` in `src/health_config.rs`.
+It is schema-version 1 C configuration, is serialized only in the strict
+Phase-C TOML, and is copied into no Phase-B artifact.  Its key is the exact
+case-sensitive, nonempty UTF-8 `MechanismHypothesisId` string.  Its value is
+one `PhaseCHypothesisBinding`.  Cardinality is exactly zero or one binding per
+`hypothesis_id`; a bound hypothesis informs exactly one dimension.  The sole
+V1 relationship token is `possible_physical_degradation`, and it is legal
+only for `signal_integrity`, `calibration_health`, or
+`dynamic_response_health`.  A binding to any other dimension, an empty ID,
+an unknown relationship token, a duplicate ID, an unsorted list, or a schema
+version other than 1 is `HealthError::InvalidPhaseCConfig`.  There is no
+fallback binding, alias, migration, component convention, or display-name
+matching.  A future relationship or one-to-many cardinality requires Phase-C
+config schema 2 and an explicit migration; V1 readers reject it.
+
+At pipeline stage 5, `validate_source_compatibility` checks every loaded
+schema-4 mechanism row.  `row.definition.hypothesis_id` and
+`row.current.hypothesis_id` must be equal and nonempty; duplicate report IDs
+are `HealthError::InvalidEvidence { source: "mechanism_analysis",
+field: "hypothesis_assessments" }`.  Stage 6 then performs this single
+lookup: `binding.hypothesis_id == row.current.hypothesis_id`.  It is exact
+byte equality.  It does not inspect `display_name`, `target_components`, a
+component assessment, description, a history entry, evidence field path, or
+array index.
+
+| Report/config situation | Stage-6 outcome | Finding / lineage outcome |
+|---|---|---|
+| one exact row and one exact binding | one `ProducerAssessment` mechanism record targeted to the bound dimension | eligible for the limited interpretation predicate below; consumed only if that predicate reads it |
+| valid report row with no binding | no C mechanism record | not eligible for any C dimension, causal status, category, source ID, or dependency; direct finding remains unchanged |
+| configured ID absent from this report | no C mechanism record | accepted config with no effect; no error, no dependency, and no inferred alternative |
+| report ID not configured | same as an unbound row | deterministic no-effect behavior |
+| duplicate config/report identity or mismatched definition/current IDs | typed config/input error as stated above | no health artifact is written |
+
+The one normative relationship table is consequently configuration-owned and
+open only through the literal V1 TOML entries.  No closed built-in hypothesis
+list exists in Phase B, so the following table defines every C-consumable
+hypothesis class without pretending that user-defined Phase-B IDs are known in
+advance.
+
+| Phase-B hypothesis ID | Phase-C dimension | relationship | allowed interpretation effect | allowed causal effect | required scope and support state | unsupported/promotion behavior |
+|---|---|---|---|---|---|---|
+| every literal unique `phase_b_hypothesis_bindings[*].hypothesis_id` | literal bound `health_dimension` | `possible_physical_degradation` | only the bound dimension may change from its default category to `possible_physical_degradation` | never alone raises causal status; V1's public source matrix cannot satisfy the second independent direct-observation predicate, so V1 output remains `observed` when direct adequate evidence exists, otherwise `indeterminate` | mechanism report schema 4, exact known matching scope, direct dimension status `degraded` or `critical`, direct evidence state `adequate_evidence`, Phase-B level `hypothesized`, `experimentally_supported`, or `validated_for_domain`, no `CriticalContradiction` | `not_assessed`, `contradicted`, invalid scope, no mapping, or a status below degraded leaves default category and causal result unchanged; no Phase-B extension is permitted |
+
+For avoidance of doubt, a mapping declares that a configured hypothesis is
+relevant to a C health pattern.  It is neither evidence that the pattern is
+present nor evidence of causal direction.  A mapped `hypothesized` row may
+change the permitted interpretation only after the listed direct C finding is
+already produced.  It cannot establish `associated`, `hypothesized`,
+`experimentally_supported`, or `validated_for_domain` causal status.  Those
+variants remain wire-compatible future states whose predicates are fixed:
+they require, in order, an adequate direct finding plus a second compatible
+direct observed source with A1 `Independent` lineage, then the exact mapping
+and Phase-B level, then the configured independent-family count, then a
+satisfied Phase-B validation protocol and applicable scope.  No V1 accepted
+input route supplies that second direct source for the three binding-capable
+dimensions, so all four are unreachable in V1 rather than guessed into
+existence.  The Phase-B mechanism record is `ProducerAssessment`, never the
+missing second direct observation.
+
+### 34.3 PC-DYN-01..10 — DynamicResponse event and denominator contract
+
+`dynamic_response_health` gains the following required configuration fields.
+The four baseline strings are opaque exact `BaselineFeatureDistribution.feature`
+keys.  They are not generated from display strings, event metadata, or a
+health feature at runtime.
+
+```toml
+[dynamic_response_health]
+selected_event_index = 7                         # usize, >= 0
+baseline_tau_fast_feature = "transient.analyte=Na+;step=1 mol/L->2 mol/L;direction=increasing;matrix=water;temperature_k=298.15.tau_fast"
+baseline_tau_slow_feature = "transient.analyte=Na+;step=1 mol/L->2 mol/L;direction=increasing;matrix=water;temperature_k=298.15.tau_slow"
+baseline_time_to_90_percent_feature = "transient.analyte=Na+;step=1 mol/L->2 mol/L;direction=increasing;matrix=water;temperature_k=298.15.time_to_90_percent"
+baseline_response_amplitude_feature = "transient.analyte=Na+;step=1 mol/L->2 mol/L;direction=increasing;matrix=water;temperature_k=298.15.response_amplitude"
+```
+
+`fit_rmse_v` has no baseline denominator: its numerator is the selected fit's
+`statistics.rmse_v` in `V` and it is compared directly to
+`maximum_fit_rmse_v`.  Every ratio denominator is the `mean` field of exactly
+one matching `BaselineFeatureDistribution`; median, MAD, quantiles, minimum,
+maximum, empirical values, and legacy `BaselineComparison` are never read by
+the C evaluator.  All selected distributions must have `sample_count >= 1`,
+the exact listed feature key, and the listed unit.
+
+| current numerator field | exact baseline feature configuration field | required distribution unit | statistic | transformation | denominator rule |
+|---|---|---|---|---|---|
+| selected fit `derived_features.tau_fast_s` | `baseline_tau_fast_feature` | `s` | `mean` | `current / mean` | finite and strictly `> 0` |
+| selected fit `derived_features.tau_slow_s` | `baseline_tau_slow_feature` | `s` | `mean` | `current / mean` | finite and strictly `> 0` |
+| selected fit `derived_features.time_to_90_percent_s` | `baseline_time_to_90_percent_feature` | `s` | `mean` | `current / mean` | finite and strictly `> 0` |
+| selected fit `derived_features.total_response_amplitude_v` | `baseline_response_amplitude_feature` | `V` | `mean` | `max(0, (mean - current) / abs(mean))` | finite and `abs(mean) >= 1e-12 V` |
+| selected fit `statistics.rmse_v` | none | `V` | none | direct maximum comparison | no denominator |
+
+The source audit for this selector is complete. Each serialized
+`TransientEventResult` contains exactly the following fields.
+
+| stored field family | exact stored fields | classification and uniqueness |
+|---|---|---|
+| positional producer output | `event_index: usize` | derived ordinal. It is unique in a producer-created report because it is the `enumerate()` result described below; it is neither an event identity nor a vector index, and a hand-authored duplicate is invalid input. |
+| source-event context | `event.{timestamp,kind,value,unit,analyte,annotation,metadata}` | intrinsic experiment measurement context. `timestamp` is finite at source validation and `value`, when present, is finite. No one field, nor this tuple, is guaranteed unique by `ExperimentEvent`; duplicate timestamps and duplicate complete event records are permitted. |
+| concentration context | `concentration_before.{value,unit,analyte}` and `concentration_after.{value,unit,analyte}` | derived from neighboring/source event context. Either side can be absent and neither is guaranteed unique. |
+| prepared segment | `segment.{segment_start,segment_end,local_start,local_end,finite_duration_s,raw_observations,finite_fitted_observations,missing_observations,missing_fraction,irregular_sampling,duplicate_timestamps,non_monotonic_timestamps,raw_time_local,raw_potential_v,fitted_time_local}` | derived analysis measurements and diagnostics; no identity or uniqueness guarantee. |
+| fitted baseline | `baseline.{method,response_mode,estimate_v,slope_v_per_s,finite_points,time_local,potential_v,warning}` | derived fit context; no identity or uniqueness guarantee. |
+| candidate fits | for each `candidate_fits[*]`: `model`, `status`, `parameters[*].{name,unit,value}`, `derived_features.{event_timestamp,segment_start,segment_end,raw_observations,finite_fitted_observations,missing_fraction,baseline_estimate_v,initial_measured_potential_v,fitted_equilibrium_potential_v,total_response_amplitude_v,fast_amplitude_v,slow_amplitude_v,tau_fast_s,tau_slow_s,stretched_beta,drift_rate_v_per_s,initial_response_rate_v_per_s,time_to_63_2_percent_s,time_to_90_percent_s,time_to_95_percent_s}`, `statistics.{rmse_v,mae_v,r_squared,adjusted_r_squared,rss,aic,aicc,bic,durbin_watson,lag1_residual_autocorrelation,maximum_absolute_residual_v,criterion_delta,model_weight,convergence_status,optimizer_termination_reason,covariance_condition_number}`, `confidence_intervals[*].{name,unit,lower,upper,confidence_level,successful_iterations,failed_iterations}`, `predicted_v`, `residuals_v`, and `warnings` | derived candidate-analysis output. Names and numerical values are not an event identity; fit arrays and candidate models can repeat. |
+| fit selection and diagnostics | `selected_model`, `warnings[*].{kind,message}`, and optional `failure.message` | derived evaluation state. These fields decide whether the selected ordinal is usable; they do not identify it. |
+
+The enclosing report additionally stores `schema_version`, `lineage`,
+`experiment_id`, `channel`, `channel_unit`, `parse_diagnostics`,
+`configuration`, `provenance`, and `events`. `experiment_id`/`channel` are
+artifact-level scope checks, not per-event selectors. No serialized field is a
+stable `EventId`, and no existing source rule promises uniqueness of a semantic
+event tuple. The ordinal contract below is therefore the only compatible
+single-event selector.
+
+The final selector is **class B: canonicalized artifact-local positional
+selection**. `selected_event_index` is a zero-based artifact-local ordinal;
+it is **not** an `EventId`, a semantic identity, a timestamp, or the current
+`TransientAnalysisReport.events` vector index. Phase C does not add an
+upstream `EventId` because that would redesign the frozen transient artifact
+contract.
+
+The real producer assigns the ordinal before it applies the optional CLI
+selection. `potentiometry::transient::analyze_experiment` does not sort its
+`experiment.events` input: it filters that received vector to entries whose
+`event.kind == TransientAnalysisOptions.event_kind`, then calls `enumerate()`
+on that eligible sequence. The normal metadata/parser construction path calls
+`ElectrochemicalExperiment::new`, which validates finite event fields and
+uses the standard-library stable `sort_by` timestamp ordering: events are in
+ascending `timestamp`, and equal-timestamp events retain their supplied
+relative order. Direct construction/deserialization can supply an already
+ordered vector, but the producer still uses that vector as received; it adds
+no second sort or semantic tie-break. The resulting `eligible_index` is stored
+as `TransientEventResult.event_index`. With no optional transient
+`event_index`, the report writer receives every eligible result in ascending
+ordinal order `0..eligible.len()`. With an optional transient `event_index=j`,
+it receives the sole selected result with stored ordinal `j`; therefore a
+one-element report can legitimately have `events[0].event_index != 0`.
+
+This producer sequence is the only canonical order relevant to Phase C:
+**the `experiment.events` vector as received by `analyze_experiment` (the
+standard construction path's stable ascending-timestamp order, with supplied
+order retained for equal timestamps), filtered by the requested event kind,
+then enumerated from zero.** It is deterministic for one exact experiment
+object and options tuple, but it is not a source-order-independent scientific
+identity. `TransientAnalysisReport.events` preserves the producer insertion
+order because neither the producer nor `write_artifact` sorts it. The Phase-C
+loader must preserve that serialized report-vector order; it must not sort by
+timestamp, event kind, concentration, metadata, or `event_index`.
+
+First, the supplied transient artifact must be C-compatible with the signal
+assessment scope: known single experiment scope, sensor scope, and channel
+scope must equal the signal's; additionally `TransientAnalysisReport.experiment_id`
+must equal the candidate single experiment ID and
+`TransientAnalysisReport.channel` must equal the candidate channel string. A
+transient report has no event sensor field; its known lineage sensor scope is
+the authoritative sensor comparison. The loader next validates that stored
+ordinals are strictly increasing in serialized `events` order. Thus a
+producer-created all-event report has unique contiguous ordinals, while a
+producer-created optional-selection report has exactly one unique ordinal.
+Any duplicate or descending ordinal makes the selected transient candidate
+`data_quality_insufficient / selected_transient_event_ambiguous`; it is not
+resolved by selecting the first duplicate. Gaps are permitted because an
+optional-selection report may contain only ordinal `j`. After validation,
+candidates are exactly events whose stored `event_index == selected_event_index`.
+
+| candidate count / condition | result | exact reason |
+|---|---|---|
+| no compatible transient artifact or no event with the selected index | `indeterminate` | `optional_source_absent` or `selected_transient_event_absent` respectively |
+| exactly one event and its `selected_model` resolves to exactly one converged candidate fit of that model | evaluate the five metrics above | threshold reason(s) |
+| two or more stored events with the selected index | `data_quality_insufficient` | `selected_transient_event_ambiguous` |
+| selected event has no model, no matching candidate fit, non-converged fit, failed event, missing required metric, invalid Window, invalid unit, or nonfinite value | `data_quality_insufficient` | `selected_transient_event_invalid`, `required_quantity_absent`, `unit_mismatch`, or `invalid_quantity` as applicable |
+| nonselected event with a valid globally increasing ordinal sequence, even when its fit is invalid | not read | no source ID, reason, dependency, or result effect; a duplicate or descending nonselected ordinal instead fails the preceding structural-order validation and yields `selected_transient_event_ambiguous` |
+
+The producer-input vector order is normative for this positional selector.
+For normal construction, permuting only distinct-timestamp source events does
+not change the producer order because `ElectrochemicalExperiment::new` sorts
+them; changing the relative supplied order of two equal-timestamp events does
+change their stable-sort tie order and can assign a different ordinal to each
+otherwise valid event. A direct producer input can likewise provide a distinct
+received vector. Phase C is intentionally allowed to select that different
+artifact-local position. A permutation of a serialized report without
+preserving strictly increasing ordinal order is an invalid artifact. No
+general Phase-C claim of source-order invariance is permitted. Timestamp,
+event kind, concentration, analyte, metadata, and event order are not Phase-C
+selection keys; timestamp determines only the normal upstream vector ordering
+and is retained as source provenance. There is no Phase-C timestamp sort,
+nearest-event rule, aggregation, weighting, or semantic tie-break. Thus
+exactly one selected event is required and multi-event aggregation is
+explicitly forbidden in V1.
+
+A missing matching baseline distribution or absent `mean` is `indeterminate`
+with `baseline_feature_absent` or `baseline_statistic_absent`; it is a valid
+baseline that cannot answer this comparison.  Zero time/amplitude denominator
+is `data_quality_insufficient` / `baseline_denominator_zero`; a finite
+amplitude denominator with `0 < abs(mean) < 1e-12 V` is
+`data_quality_insufficient` / `baseline_denominator_near_zero`; nonfinite
+denominators, numerators, or sample count 0 are
+`data_quality_insufficient` / `invalid_quantity`.  A reversed-sign amplitude
+is not discarded: its loss is zero and it adds `contradictory_evidence`; its
+status is `watch` unless another valid dynamic metric is degraded or critical,
+in which case the higher severity remains.  All dynamic thresholds use `>=`,
+including equality at watch/degraded/critical.
+
+### 34.4 PC-DQ-04..12 — one availability, quality, and precedence system
+
+`Indeterminate` means that Phase C has no sufficient valid, compatible,
+in-scope evidence to decide a dimension, without an attempted required
+quantity being defective.  It communicates epistemic absence or ineligibility,
+not bad data.  `DataQualityInsufficient` means a source or quantity selected
+to satisfy a required metric was supplied and is defective: absent from that
+source, malformed/nonfinite, unit-invalid, or quality-invalid.  It
+communicates that an attempted measurement/analysis cannot support the stated
+decision.  These meanings apply to all nine dimensions.
+
+The following table is evaluated top to bottom for each candidate source and
+then the final sufficiency rows.  It replaces every former common or
+dimension-local DQ decision sentence.
+
+| precedence | condition | outcome | reason / retained evidence |
+|---:|---|---|---|
+| 1 | required `SignalAnalysisReport` path absent, unreadable, wrong kind, or unsupported schema | runtime error | CLI/artifact error; no report |
+| 2 | optional source path not supplied | `indeterminate` only for a dimension that requires that source; otherwise no effect | `optional_source_absent` |
+| 3 | supplied source is valid but does not inform this dimension at all | no effect | no evidence record or dependency |
+| 4 | supplied, selected source lacks a required quantity or selected fit/model | `data_quality_insufficient` | `required_quantity_absent` |
+| 5 | selected quantity is malformed, nonfinite, failed/invalid, or selected quality gate fails | `data_quality_insufficient` | `invalid_quantity`, `selected_transient_event_invalid`, or `quality_gate_failed` |
+| 6 | selected quantity has wrong, missing, mixed, or unconvertible unit | `data_quality_insufficient` | `unit_mismatch` |
+| 7 | otherwise valid source has incompatible experiment, sensor, channel, aggregate, or explicitly required temporal scope | exclude source; `indeterminate` only if no sufficient candidate remains | `scope_incompatible` or `temporal_incompatible` |
+| 8 | direct source has incomplete/legacy lineage | retain direct observed finding | no DQ result; add `incomplete_lineage` only when lineage is queried for promotion |
+| 9 | required independent corroboration/family count fails | preserve direct dimension status; causal status `indeterminate` | `independence_unknown` or `insufficient_independent_families` |
+| 10 | valid evidence is mutually contradictory | retain all valid evidence | `watch`, unless an independently valid metric is degraded/critical; `contradictory_evidence` |
+| 11 | alternative optional sources include invalid one(s) and at least one other source completely evaluates the dimension | exclude invalid optional source(s) and evaluate from sufficient valid source(s) | normal dimension status; `optional_invalid_source_excluded`; excluded available IDs retained, missing/nonfinite fields have no synthetic ID |
+| 12 | no sufficient valid evidence remains after rows 4--11 | `data_quality_insufficient` if any selected required source failed rows 4--6; otherwise `indeterminate` | highest-precedence applicable reason, then bytewise sorted remainder |
+| 13 | sufficient valid noncontradictory evidence remains | normal dimension evaluation | exact threshold reason |
+
+Only the required signal path is a runtime requirement.  “Required source” in
+rows 4--6 means a source/metric selected by a particular dimension evaluation,
+not every optional CLI flag.  This resolves ModelConsistency exactly: form two
+candidate evaluations independently, one from `StateEstimationReport` and one
+from `ModelAnalysisReport`; never combine their point arrays.  If both are
+adequate and have different threshold classes, row 10 applies.  If one is
+adequate and the other fails rows 4--6, row 11 returns the adequate source's
+status with `optional_invalid_source_excluded`.  If neither is adequate,
+row 12 applies; invalid beats absent, and two absent candidates produce
+`indeterminate` / `optional_source_absent`.
+
+For the precise C/D distinction in the review finding, a supplied baseline
+that has no distribution with the explicit configured feature key, or whose
+matching distribution has `mean=None`, is row 3 (valid source with no usable
+dimension quantity) and is therefore `indeterminate`.  A matching selected
+distribution with `sample_count=0`, a nonfinite mean, a wrong unit, or an
+invalid denominator is rows 4--6 and is therefore DQI.  A supplied calibration,
+transient, estimation, model, or signal source that does contain the selected
+record but omits a metric that its dimension requires is likewise rows 4--6
+and DQI.  These are exhaustive; no dimension may reinterpret this boundary.
+
+The nine dimension rules are reconciled as follows.  SignalIntegrity and
+DataQuality never have an ordinary absent-source result because signal is
+required; a missing required signal metric is DQI.  CalibrationHealth,
+DynamicResponseHealth, EnvironmentalRobustness, ModelConsistency,
+Observability, and UncertaintyHealth use row 2 when their optional artifact is
+not supplied and rows 4--6 once it is supplied/selected.  ReferenceStability
+always uses row 2/7/9 semantics and returns `indeterminate` /
+`reference_anchor_unavailable`; no V1 public source can be a qualifying
+anchor.  No dimension has an exception to this table.
+
+`PhaseCHealthReasonCode` extends the §33.3 closed list with exactly these
+snake-case variants: `phase_b_hypothesis_unmapped`,
+`selected_transient_event_absent`, `selected_transient_event_ambiguous`,
+`selected_transient_event_invalid`, `baseline_feature_absent`,
+`baseline_statistic_absent`, `baseline_denominator_zero`,
+`baseline_denominator_near_zero`, and `optional_invalid_source_excluded`.
+Reasons in each finding are declaration-order deduplicated; the primary reason
+is the first applicable row in the table and all simultaneously applicable
+secondary reasons follow in bytewise order.  `source_evidence_ids` contains
+only consumed available evidence.  The following additive persisted field is
+required so an excluded available source remains auditable:
+
+```rust
+pub excluded_evidence_ids: Vec<EvidenceId>,
+```
+
+It is bytewise sorted, duplicate-free, and contains only EvidenceIds that were
+constructed for finite available evidence and then excluded by scope,
+independence, contradiction, or row 11.  A missing/nonfinite source field has
+no fabricated EvidenceId and therefore cannot appear in either ID vector.
+
+### 34.5 Nine-dimension executable completeness matrix
+
+The table below replaces the former incomplete dimension cells.  `DQ` means a
+supplied required metric defect as §§34.3--34.4 define; `I` means absence or
+valid ineligibility.  All threshold comparisons use the §33.5 exact units and
+equality semantics, except the Environmental `n >= minimum_points` and range
+`>= minimum_covariate_range` rules stated here.
+
+| Dimension | complete evidence and result rule | I / DQI separation | interpretation and causal result | required fixture/test coverage |
+|---|---|---|---|---|
+| SignalIntegrity | `descriptive.{rms,robust_standard_deviation}` V, `spikes.flagged_fraction` 1, and the unique `drift` row where `model == TheilSen`, `slope_v_per_s` V/s; absolute drift; max severity | no source is runtime error; each missing/invalid supplied metric is DQI | `observed_behavior`; `observed` with adequate direct evidence; mapped mechanism may change category only | FX-01/02/04/05/08; positive, negative, DQI, equality |
+| CalibrationHealth | selected model row matching `selected_model`: `slope_efficiency` 1, `statistics.rmse_v` V; report `validation.prediction_bias_v` V and `hysteresis.mean_hysteresis_v` V | absent artifact I; supplied absent selected model/metric or invalid value DQI | `calibration_issue` / `observed`; mapped mechanism category only | FX-08; positive, negative, absent-I, DQI, equality |
+| DynamicResponseHealth | §34.3 selected fit and four named baseline distribution means plus fit RMSE | absent artifact/baseline/feature/statistic I; selected event/fit/metric/denominator defect DQI | `observed_behavior` / `observed`; mapped mechanism category only | FX-03/05/08; producer eligible-order selection, denominator, DQI, equality |
+| ReferenceStability | no legal V1 source field | always I / `reference_anchor_unavailable`; no DQI route because no anchor is selected | `observed_behavior` / `indeterminate` | FX-01; anchor-unavailable and same-source rejection |
+| EnvironmentalRobustness | one estimation artifact's increasing-timestamp pairs `(unexplained_residual_v, configured covariate)`; RMS V, Spearman rho, count/range | absent artifact or missing paired covariate I; nonfinite timestamp/value/mixed flow unit DQI | `environmental_effect` / `observed` | FX-06/08; positive, negative, I, DQI, equality |
+| ModelConsistency | independently evaluate estimation residuals or model `(observed_voltage_v - predicted_voltage_v)` residuals, never a mixed array | §34.4 rows 10--12, including exact mixed-source rule | `model_inconsistency` / `observed`; never physical-degradation category | FX-06/08; positive, negative, I, DQI, mixed, contradiction, equality |
+| Observability | `observability.{numerical_rank,state_count,condition_number,unobservable_states,weakly_observable_states,empirical_identifiability_passed}` | absent estimation I; missing/nonfinite condition or missing required members DQI | `model_inconsistency` / `observed` | FX-06/08; positive, negative, I, DQI, equality |
+| UncertaintyHealth | one model artifact's `uncertainty.{status,total_variance_v2,standard_error_v}` per point | absent/not-requested I; declared partial is normal partial fraction; declared complete with missing/negative/nonfinite variance/SE DQI | `model_inconsistency` / `observed` | FX-06/08; positive, negative, I, DQI, equality |
+| DataQuality | signal `sampling.{finite_sample_count,missing_fraction,interval_cv,duplicate_timestamps,non_monotonic_timestamps,interpolation_gap_exceeded}` | every missing/invalid gate DQI; all passing gates within baseline | `observed_behavior` / `observed` | FX-01/04/08; pass, every DQI gate, equality |
+
+EnvironmentalRobustness has one explicit boundary contract: after finite,
+strictly increasing timestamps and paired values are established, `n ==
+minimum_points` and `range == minimum_covariate_range` are adequate, while
+one less is `indeterminate` / `required_quantity_absent`.  `abs(rho) ==`
+watch/degraded/critical is that status.  `RMS == minimum_residual_rms_v` is
+actionable; `RMS <` that value is within baseline.  `minimum_covariate_range`
+has the unit of the selected covariate: K, S/m, mol/L, or the one exact common
+nonempty flow unit.  A mixed/missing flow unit is DQI / `unit_mismatch`.
+
+### 34.6 PC-AGG-01..07 — deterministic aggregate interpretation and causality
+
+A positive dimension is exactly a dimension with status `watch`, `degraded`,
+or `critical`; its evidence state must be `adequate_evidence` or
+`contradictory_evidence`.  Status alone is insufficient if a malformed report
+claims one of those values.  The explicit classification is:
+
+| dimension status | positive | reason |
+|---|---|---|
+| `within_baseline` | no | normal evidence, no positive health pattern |
+| `watch` | yes | positive warning pattern |
+| `degraded` | yes | positive degradation pattern |
+| `critical` | yes | positive critical pattern |
+| `data_quality_insufficient` | no | no scientifically usable positive finding |
+| `indeterminate` | no | no decision |
+
+The total causal order, weakest to strongest, is
+`indeterminate < observed < associated < hypothesized < experimentally_supported < validated_for_domain`.
+It is an ordering of support, not of severity or proof.  Composition takes the
+minimum causal status among positive dimensions only.  The full algorithm is:
+
+1. Validate nine unique declaration-order dimensions and their status/evidence
+   invariants; invalid input is `SchemaInvariant`.
+2. Use the existing overall-status priority exactly: any critical, then any
+   degraded, then any watch, then any DQI, then any indeterminate, else within
+   baseline.
+3. Collect positive dimensions in `HealthDimension` declaration order.  Zero
+   positives yields aggregate causal `indeterminate`, regardless of DQI or I
+   dimensions.  One positive yields that dimension's causal status.  Multiple
+   positives yield the weakest ordered status, including repeated values.
+4. A positive contradictory finding remains included; its reasons and evidence
+   are retained.  DQI and I dimensions never lower the causal aggregate, but
+   remain visible through overall status/reasons.  An interpretation without
+   causal evidence is not positive unless its status is watch or worse.
+5. Aggregate categories are the declaration-order, duplicate-free categories
+   of positive dimensions only.  Aggregate reason provenance is each positive
+   `dimension` followed by that dimension's declaration-order reason codes;
+   duplicate `(dimension, reason)` pairs are removed.  Aggregate source IDs
+   are the bytewise sorted union of consumed IDs from positive dimensions;
+   excluded IDs are the corresponding sorted union.  This is the complete
+   audit trail.
+
+Consequently all-DQI, all-I, no evaluated (which cannot occur in a valid
+schema-4 nine-row report), and a mix of only DQI/I all have causal
+`indeterminate`.  A positive `observed` plus DQI remains `observed`; a
+positive `associated` plus I remains `associated`; positive `observed` plus
+positive `hypothesized` composes to `observed`.
+
+### 34.7 Interpretation and causal per-dimension re-audit
+
+| Dimension | adequate normal category | mapped/exception category | absent, DQI, contradiction | causal result |
+|---|---|---|---|---|
+| SignalIntegrity | `observed_behavior` | `possible_physical_degradation` only by §34.2 table | default category with reason retained; contradiction remains observed behavior unless mapping predicate is met | adequate direct = observed; otherwise indeterminate |
+| CalibrationHealth | `calibration_issue` | possible physical degradation only by exact calibration binding | default category/reason | adequate direct = observed; otherwise indeterminate |
+| DynamicResponseHealth | `observed_behavior` | possible physical degradation only by exact dynamic binding | default category/reason | adequate direct = observed; otherwise indeterminate |
+| ReferenceStability | `observed_behavior` | none | observed behavior / anchor unavailable | indeterminate |
+| EnvironmentalRobustness | `environmental_effect` | none | environmental effect/reason | adequate direct = observed; otherwise indeterminate |
+| ModelConsistency | `model_inconsistency` | none; never physical degradation | model inconsistency/reason | adequate direct = observed; otherwise indeterminate |
+| Observability | `model_inconsistency` | none | model inconsistency/reason | adequate direct = observed; otherwise indeterminate |
+| UncertaintyHealth | `model_inconsistency` | none | model inconsistency/reason | adequate direct = observed; otherwise indeterminate |
+| DataQuality | `observed_behavior` | none | observed behavior/reason | observed when gates pass; indeterminate is unreachable for valid Phase-C input |
+
+No category establishes status, and no category establishes causality.  The
+only Phase-B category path is the exact-ID binding above.  Phase-B support
+alone never proves, names, or implies the strongest causal status.
+
+### 34.8 PC-FIX-09..16 — executable fixture grammar and generation
+
+The canonical root remains `tests/fixtures/phase_c/`.  Each fixture directory
+contains only the literal file names in its row below.  Each `.json` is
+generated by the deterministic test builder, then production
+`domain::write_artifact`, then public `read_artifact`; each `.toml` is
+checked-in UTF-8 canonical TOML.  The builder calls are named
+`phase_c_fixture_<id>_<component>()`, initialize every required public field,
+and set only the values in the source-value matrix below away from the shared
+valid values.  It never hand-authors an `ArtifactId`, `semantic_sha256`, or
+derived evidence ID.  Artifact identity is the production writer's identity
+for the exact builder payload; expected dependency assertions use the returned
+`ArtifactId`, not an invented literal hash.  Evidence IDs below are literal
+adapter IDs and must compare exactly.
+
+Shared valid source values, used unless a fixture row overrides them, are:
+
+* signal: schema 3, known scope `(experiment=exp-c-01,sensor=sensor-c-01,
+  channel=potential_v)`, unit `V`, `descriptive.rms=0.0005`, robust SD
+  `0.0004`, spike fraction `0.0`, one `TheilSen` drift slope `0.00001 V/s`;
+  sampling finite count 4, missing fraction 0, interval CV 0, duplicates 0,
+  non-monotonic 0, interpolation gap false;
+* dynamic event: `event_index=7`, timestamp `100.0 s`, kind
+  `concentration_step`, analyte `Na+`, metadata `sample_matrix=water`,
+  `temperature_k=298.15`, concentration before `1 mol/L`, after `2 mol/L`,
+  selected `Double` converged fit with tau-fast `0.15 s`, tau-slow `1.50 s`,
+  time-to-90 `3.00 s`, total amplitude `0.070 V`, and RMSE `0.001 V`;
+* PC-FX-03's `transient.json` has serialized event ordinals exactly
+  `[0,1,2,3,4,5,6,7,8]` in that order. The builder initializes ordinals
+  `0..=6` from the same complete valid transient-event template as ordinal 7,
+  with timestamps exactly `30.0,40.0,50.0,60.0,70.0,80.0,90.0 s`, and then
+  changes only their five C metrics to the four baseline means and
+  `rmse_v=0.0005 V`; those seven events are valid but unconsumed. Ordinal 8
+  has timestamp `110.0 s`, the same source-event context, and is built with
+  `TransientEventResult::failed(8, ...)`. This is a report-shaped fixture for
+  health evaluation, not a claim that ordinal 7 is semantically unique.
+  `phase_c_dynamic_response_event_index_uses_producer_eligible_event_order`
+  separately calls the real `analyze_experiment` producer with the exact
+  phase-2 synthetic measurement (`time=-20..=120 s`, pre-event `0.30 V`,
+  post-event `0.20 + 0.10*exp(-t/12) V`). It creates each experiment through
+  `ElectrochemicalExperiment::new`, first with source events
+  `reading_start@-1 s`, `concentration_step@0 s(value=0.01)`,
+  `flow_change@10 s`, `concentration_step@20 s(value=0.02)`,
+  `concentration_step@20 s(value=0.03)`, and
+  `concentration_step@120 s(value=0.04)`, then with only the two `20.0 s`
+  concentration-step inputs reversed. Every concentration step uses
+  `unit=mol/L`, `analyte=K+`, and no annotation or metadata. With
+  `event_kind=concentration_step` and no optional selection, the first source
+  sequence must serialize `(ordinal,timestamp,value)` as
+  `[(0,0.0,0.01),(1,20.0,0.02),(2,20.0,0.03),(3,120.0,0.04)]`; the second
+  must serialize
+  `[(0,0.0,0.01),(1,20.0,0.03),(2,20.0,0.02),(3,120.0,0.04)]`. This proves
+  the constructor's ascending-timestamp order and its preserved equal-time
+  tie order. The test fails if Phase C re-sorts the report, selects by a
+  timestamp/value tuple, or treats an ordinal as a source-order-invariant
+  semantic identifier;
+* baseline distributions: exact keys in §34.3, units `(s,s,s,V)`, sample
+  count 3, means `(0.10,1.00,2.00,0.100)`, and all other statistics `None`;
+* Phase-B row: schema 4 known matching scope, definition/current ID
+  `mechanism-fouling-v1`, evidence level `hypothesized`, validation
+  `not_applicable`, empty contradiction summaries and no
+  `CriticalContradiction` reason;
+* config: every §33.5 threshold takes the literal illustrated value, selected
+  event index 7, the four exact baseline keys in §34.3, and one exact
+  `mechanism-fouling-v1 -> signal_integrity -> possible_physical_degradation`
+  binding.
+
+Every artifact builder records the following literal contract metadata before
+calling the canonical writer; generated lineage is always `Known` and is made
+by `known_lineage_from_artifact` with producer version
+`rust_electroanalysis_cli@0.1.0`, the scope shown, no direct
+dependencies unless a fixture row lists one, and a distinct stated acquisition
+family.  The writer, rather than a fixture literal, owns `ArtifactId` and the
+semantic hash.
+
+| component filename when present | Rust type / artifact kind / schema | exact scope and family | Phase-C fields consumed |
+|---|---|---|---|
+| `signal.json` | `SignalAnalysisReport` / `signal_analysis` / 3 | `exp-c-01`, `sensor-c-01`, `potential_v`; `family-signal` | the ten shared signal fields |
+| `baseline.json` | `SensorHealthBaseline` / `health_baseline` / 3 | `exp-c-01`, `sensor-c-01`, `potential_v`; `family-baseline` | four named distributions and their means |
+| `transient.json` | `TransientAnalysisReport` / `transient_analysis` / 3 | `exp-c-01`, `sensor-c-01`, `potential_v`; `family-transient` | report experiment/channel, producer-order ordinals 0--8, and only ordinal-7 selected fit fields |
+| `calibration.json` | `CalibrationAnalysisReport` / `calibration_analysis` / 3 | `exp-c-01`, `sensor-c-01`, `potential_v`; `family-calibration` | selected model, slope, RMSE, prediction bias, hysteresis |
+| `mechanism.json` | `MechanismAnalysisReport` / `mechanism_analysis` / 4 | `exp-c-01`, `sensor-c-01`, `potential_v`; `family-mechanism` | definition/current identity, level, validation, contradiction summaries |
+| `estimation.json` | `StateEstimationReport` / `state_estimation` / 4 | `exp-c-01`, `sensor-c-01`, `potential_v`; `family-estimation` | timestamps, residuals, environment, update status, observability |
+| `model.json` | `ModelAnalysisReport` / `ism_model_analysis` / 5 | `exp-c-01`, `sensor-c-01`, `potential_v`; `family-model` | points, observed/predicted/residual values, uncertainty, validity |
+| `lineage_catalog.json` | `ArtifactLineageCatalog` / catalog schema 1 | contains the generated component identities and stated family edges | only `resolve_lineage` / `classify_independence` results |
+
+#### PC-FX-06 — complete literal `model.json` payload
+
+`tests/fixtures/phase_c/PC-FX-06/estimation-model/model.json` is built as the
+following complete `ModelAnalysisReport`, then written through
+`domain::write_artifact` and reread through `domain::read_artifact`. This is a
+writer-valid model-analysis artifact, not a hand-authored JSON approximation.
+
+```text
+schema_version = 5
+artifact_kind = "ism_model_analysis"
+model_definition = {
+  schema_version: 4,
+  model_id: "pc-fx-06-model-v1",
+  description: "PC-FX-06 fixed three-point residual and uncertainty fixture.",
+  validity_domain: "PC-FX-06 synthetic in-domain fixture only.",
+  uncertainty_incomplete: false,
+  states: [], parameters: [], inputs: [], components: []
+}
+identifiability = {
+  structural: not_assessed, practical: not_assessed, parameter_ids: [],
+  contradictory_evidence: [],
+  missing_evidence: ["PC-FX-06 makes no parameter-identifiability claim."],
+  warnings: []
+}
+evidence = ["PC-FX-06 static model artifact; no physical-mechanism conclusion."]
+```
+
+The empty four model-definition collections are literal, not omitted. They are
+valid because `ModelDefinition::validate_schema` requires schema 1--4 and
+nonempty `model_id`, `description`, and `validity_domain`, then validates each
+present collection member; it does not require a state, parameter, input, or
+component. No model-definition field is chosen by an implementation agent.
+
+The report has exactly three points, in this order. At every point,
+`state_values=[]`, `contributions=[]`, and:
+
+```text
+equilibrium = {
+  status: indeterminate, classification: indeterminate,
+  supporting_evidence: [], contradictory_evidence: [], missing_evidence: [],
+  validity_domain: "PC-FX-06 synthetic in-domain fixture only.",
+  satisfied_criteria: [], violated_criteria: [], confidence: 0.0, warnings: []
+}
+validity = {
+  is_valid: true,
+  checked_domain: "PC-FX-06 synthetic in-domain fixture only.",
+  violations: [], warnings: []
+}
+uncertainty = {
+  status: complete,
+  total_variance_v2: Some(0.00000025),
+  standard_error_v: Some(0.0005),
+  state_variance_v2: Some(0.0),
+  parameter_variance_v2: Some(0.0),
+  observation_variance_v2: Some(0.00000025),
+  missing_sources: [], assumptions: ["PC-FX-06 complete fixed uncertainty."],
+  state_jacobian_methods: [], parameter_jacobian_methods: []
+}
+```
+
+| point index | `time_s` | `observed_voltage_v` | `predicted_voltage_v` | `unexplained_residual_v` |
+|---:|---:|---:|---:|---:|
+| 0 | `0.0 s` | `Some(0.002 V)` | `0.0 V` | `Some(0.002 V)` |
+| 1 | `1.0 s` | `Some(0.002 V)` | `0.0 V` | `Some(0.002 V)` |
+| 2 | `2.0 s` | `Some(0.002 V)` | `0.0 V` | `Some(0.002 V)` |
+
+For each row, Phase C recomputes and asserts the frozen residual contract:
+`0.002 - 0.0 = 0.002 V`, `0.002 - 0.0 = 0.002 V`, and
+`0.002 - 0.0 = 0.002 V`. Thus each stored residual is exactly
+`observed_voltage_v - predicted_voltage_v`; the inverse sign, any other
+finite value, or `None` is not acceptable for this fixture. Also,
+`0.0005 V * 0.0005 V = 0.00000025 V²`; the three uncertainty variance
+components sum to that total variance. These equality checks are fixture
+contracts, independent of the writer's finite-value validation.
+
+The builder first uses `current_unknown_lineage(5)`, then assigns the report's
+only lineage by calling `known_lineage_from_artifact` with
+`ArtifactKind::ModelAnalysis`, schema `5`, producer version
+`rust_electroanalysis_cli@0.1.0`, `Single(ExperimentId("exp-c-01"))`,
+`Specific("sensor-c-01")`, `Specific("potential_v")`, known acquisition
+family `family-model`, and an empty direct-dependency vector. The returned
+`identity.artifact_id` and `semantic_sha256` are the expected model identity;
+the test compares the health dependency to that returned value. No fixture
+code may supply an artifact ID or hash literal.
+
+The frozen PC-FX-06 model calculations are: model residual RMS is
+`sqrt((0.002² + 0.002² + 0.002²) / 3) = 0.002 V`; bias is
+`(0.002 + 0.002 + 0.002) / 3 = 0.002 V`. Each equals the configured degraded
+limit and is below the critical limit, so `ModelConsistency` is exactly
+`degraded / threshold_degraded / model_inconsistency / observed`. The partial
+uncertainty fraction is `0 / 3 = 0`; every standard error is `0.0005 V`,
+below the `0.001 V` watch limit, so `UncertaintyHealth` is exactly
+`within_baseline / threshold_within_limit / model_inconsistency / observed`.
+
+The tests that use this literal path have no implicit model payload:
+
+| exact test | PC-FX-06 input and exact result | falsification mutation |
+|---|---|---|
+| `phase_c_model_consistency_positive_finding` | full PC-FX-06 source set; ModelConsistency is the degraded tuple above | change model residual evaluation to use prediction minus observation |
+| `phase_c_residual_sign_is_measured_minus_predicted` | `model.json` points 0--2; each three-term arithmetic equality above holds before thresholding | reverse subtraction or accept a stored mismatch |
+| `phase_c_model_consistency_negative_finding` | `model.json` only, with the PC-FX-06 builder changing all observed voltages to their corresponding predicted voltage and all stored residuals to `0.0 V`; ModelConsistency is `within_baseline / threshold_within_limit / model_inconsistency / observed` | reuse the positive residual array |
+| `phase_c_model_consistency_quality_insufficient` | `model.json` only, with point 1 `observed_voltage_v=None`; ModelConsistency is `data_quality_insufficient / required_quantity_absent / model_inconsistency / indeterminate` | replace the missing observed voltage with zero |
+| `phase_c_model_consistency_threshold_boundaries` | `model.json` only; set all three computed/stored residuals respectively to `0.001 V`, `0.002 V`, and `0.005 V`; expected statuses are watch, degraded, and critical | use an exclusive equality comparison |
+| `phase_c_uncertainty_health_negative_finding` | `model.json` only, with the unchanged complete three-point uncertainty above; UncertaintyHealth is the within-baseline tuple above | ignore the complete status or variance/SE relation |
+| `phase_c_health_cli_e2e_writes_and_rereads_schema4_artifact` | full PC-FX-06 source set; public CLI produces the exact nine-row schema-4 result below and rereads it | bypass the runner or omit a consumed model dependency |
+
+The exact reusable EvidenceId sets used in fixture expectations are:
+
+```text
+S = [signal.descriptive.rms,
+     signal.descriptive.robust_standard_deviation,
+     signal.spikes.flagged_fraction,
+     signal.drift.theil_sen.slope_v_per_s,
+     signal.sampling.finite_sample_count, signal.sampling.missing_fraction,
+     signal.sampling.interval_cv, signal.sampling.duplicate_timestamps,
+     signal.sampling.non_monotonic_timestamps,
+     signal.sampling.interpolation_gap_exceeded]
+T7 = [transient.event.7.tau_fast_s, transient.event.7.tau_slow_s,
+      transient.event.7.time_to_90_percent_s,
+      transient.event.7.response_amplitude_v, transient.event.7.fit_rmse_v]
+B = [baseline.dynamic.tau_fast_s.mean, baseline.dynamic.tau_slow_s.mean,
+     baseline.dynamic.time_to_90_percent_s.mean,
+     baseline.dynamic.response_amplitude_v.mean]
+M = [mechanism.hypothesis.mechanism-fouling-v1.assessment]
+E = [estimation.point.0.unexplained_residual_v,
+     estimation.point.1.unexplained_residual_v,
+     estimation.point.2.unexplained_residual_v,
+     estimation.point.0.environment.temperature_k,
+     estimation.point.1.environment.temperature_k,
+     estimation.point.2.environment.temperature_k,
+     estimation.observability.numerical_rank,
+     estimation.observability.state_count,
+     estimation.observability.condition_number,
+     estimation.observability.unobservable_states,
+     estimation.observability.weakly_observable_states,
+     estimation.observability.empirical_identifiability_passed]
+MO = [model.point.0.unexplained_residual_v, model.point.1.unexplained_residual_v,
+      model.point.2.unexplained_residual_v,
+      model.point.0.uncertainty.status, model.point.0.uncertainty.standard_error_v,
+      model.point.0.uncertainty.total_variance_v2,
+      model.point.1.uncertainty.status, model.point.1.uncertainty.standard_error_v,
+      model.point.1.uncertainty.total_variance_v2,
+      model.point.2.uncertainty.status, model.point.2.uncertainty.standard_error_v,
+      model.point.2.uncertainty.total_variance_v2]
+```
+
+#### PC-FX-06 — complete expected Phase-C output
+
+The CLI E2E output is `SensorHealthAssessment` schema `4`, kind
+`health_assessment`, with a present `phase_c` report. Its nine declaration-order
+dimension rows are exactly:
+
+| dimension | status | evidence state | sole reason code | interpretation category | causal status |
+|---|---|---|---|---|---|
+| SignalIntegrity | `within_baseline` | `adequate_evidence` | `threshold_within_limit` | `observed_behavior` | `observed` |
+| CalibrationHealth | `indeterminate` | `no_evidence` | `optional_source_absent` | `calibration_issue` | `indeterminate` |
+| DynamicResponseHealth | `indeterminate` | `no_evidence` | `optional_source_absent` | `observed_behavior` | `indeterminate` |
+| ReferenceStability | `indeterminate` | `no_evidence` | `reference_anchor_unavailable` | `observed_behavior` | `indeterminate` |
+| EnvironmentalRobustness | `critical` | `adequate_evidence` | `threshold_critical` | `environmental_effect` | `observed` |
+| ModelConsistency | `degraded` | `adequate_evidence` | `threshold_degraded` | `model_inconsistency` | `observed` |
+| Observability | `within_baseline` | `adequate_evidence` | `threshold_within_limit` | `model_inconsistency` | `observed` |
+| UncertaintyHealth | `within_baseline` | `adequate_evidence` | `threshold_within_limit` | `model_inconsistency` | `observed` |
+| DataQuality | `within_baseline` | `adequate_evidence` | `threshold_within_limit` | `observed_behavior` | `observed` |
+
+EnvironmentalRobustness is critical because the exact estimation triples are
+`(time_s, unexplained_residual_v, temperature_k) = (0.0,0.002,298.0),
+(1.0,0.002,299.0), (2.0,0.002,300.0)`: `n=3`, range `2 K`, residual
+RMS `0.002 V`, and Spearman `rho=1.0`; `abs(rho) >= 0.85` is critical.
+Observability is within baseline because `numerical_rank=2`, `state_count=2`,
+`condition_number=50.0`, `weakly_observable_states=[]`,
+`unobservable_states=[]`, and `empirical_identifiability_passed=true`.
+
+The exact aggregate is `overall_status=critical`,
+`overall_interpretation_categories=[environmental_effect,model_inconsistency]`,
+and `overall_causal_status=observed`. The consumed evidence ID union is
+exactly `S + E + MO`, bytewise sorted and duplicate-free; the excluded vector
+is exactly `[]`. The health artifact's direct dependencies are exactly
+`ID(signal):DerivedFrom`, `ID(estimation):TransformationInput`, and
+`ID(model):TransformationInput`, sorted by the existing lineage rule. The
+catalog is read to classify known distinct families but has no artifact ID and
+is not a dependency. All three consumed source lineages are `Known`; the
+health writer derives its own identity from this complete payload and those
+three dependencies. These facts, rather than any arbitrary hash literal, are
+the complete lineage expectation.
+
+`B` is an exact new Phase-C baseline adapter family, with its source field
+path the configured literal feature key plus `.mean`; no legacy normalized
+comparison is used.  Every fixture assertion compares the indicated sets after
+bytewise sort, not a set-size shorthand.
+
+| Fixture ID and literal files | exact overrides and source values | complete expected report / dependencies |
+|---|---|---|
+| PC-FX-01 `base`: `phase_c.toml`, `signal.json` | shared valid signal/config only | SI `within_baseline/threshold_within_limit/observed_behavior/observed`; CH `indeterminate/optional_source_absent/calibration_issue/indeterminate`; DR `indeterminate/optional_source_absent/observed_behavior/indeterminate`; RS `indeterminate/reference_anchor_unavailable/observed_behavior/indeterminate`; ER `indeterminate/optional_source_absent/environmental_effect/indeterminate`; MC, OB, UH each `indeterminate/optional_source_absent/model_inconsistency/indeterminate`; DQ `within_baseline/threshold_within_limit/observed_behavior/observed`. Overall `indeterminate`, categories `[]`, causal `indeterminate`; consumed `S`; excluded `[]`; dependency `{ID(signal): DerivedFrom}`. |
+| PC-FX-02 `signal-degraded`: `phase_c.toml`, `signal.json` | shared signal except `descriptive.rms=0.002 V` | SI `degraded/threshold_degraded/observed_behavior/observed`; every other result equals FX-01. Overall `degraded`, categories `[observed_behavior]`, causal `observed`; consumed `S`; excluded `[]`; same one dependency. |
+| PC-FX-03 `dynamic-selected`: `phase_c.toml`, `signal.json`, `baseline.json`, `transient.json` | the complete ordinal sequence 0--8 and its source-order construction are fixed above; ordinal 7 is valid/degraded and ordinal 8 is failed/unselected | SI/DQ as FX-01; DR `degraded/threshold_degraded/observed_behavior/observed`; all other dimensions as FX-01. Overall `degraded`, categories `[observed_behavior]`, causal `observed`; consumed `S + T7 + B`; excluded `[]`; dependencies signal DerivedFrom, baseline Prior, transient TransformationInput. |
+| PC-FX-04 `quality-insufficient`: `phase_c.toml`, `signal.json` | shared signal except `sampling.missing_fraction=0.20` | SI as FX-01; DQ `data_quality_insufficient/quality_gate_failed/observed_behavior/indeterminate`; all absent dimensions as FX-01. Overall `data_quality_insufficient`, categories `[]`, causal `indeterminate`; consumed `S`; excluded `[]`; signal only dependency. |
+| PC-FX-05 `mechanism-noncausal`: `phase_c.toml`, `signal.json`, `mechanism.json` | FX-02 signal and shared Phase-B row | SI `degraded/threshold_degraded/possible_physical_degradation/observed`; DQ as FX-01; others as FX-01. Overall `degraded`, categories `[possible_physical_degradation]`, causal `observed`; consumed `S + M`; excluded `[]`; dependencies signal DerivedFrom, mechanism TransformationInput. |
+| PC-FX-06 `estimation-model`: `phase_c.toml`, `signal.json`, `estimation.json`, `model.json`, `lineage_catalog.json` | the complete literal model payload, its lineage construction, point arithmetic, uncertainty decomposition, and estimation values are fixed in the PC-FX-06 subsections above; catalog resolves the distinct known families. | SignalIntegrity `within_baseline/adequate_evidence/threshold_within_limit/observed_behavior/observed`; CalibrationHealth `indeterminate/no_evidence/optional_source_absent/calibration_issue/indeterminate`; DynamicResponseHealth `indeterminate/no_evidence/optional_source_absent/observed_behavior/indeterminate`; ReferenceStability `indeterminate/no_evidence/reference_anchor_unavailable/observed_behavior/indeterminate`; EnvironmentalRobustness `critical/adequate_evidence/threshold_critical/environmental_effect/observed`; ModelConsistency `degraded/adequate_evidence/threshold_degraded/model_inconsistency/observed`; Observability `within_baseline/adequate_evidence/threshold_within_limit/model_inconsistency/observed`; UncertaintyHealth `within_baseline/adequate_evidence/threshold_within_limit/model_inconsistency/observed`; DataQuality `within_baseline/adequate_evidence/threshold_within_limit/observed_behavior/observed`. Overall `critical`, categories `[environmental_effect,model_inconsistency]`, causal `observed`; consumed `S + E + MO`; excluded `[]`; dependencies `ID(signal):DerivedFrom`, `ID(estimation):TransformationInput`, `ID(model):TransformationInput`; catalog no dependency. |
+| PC-FX-07 `lineage-dependent`: `phase_c.toml`, `signal.json`, `mechanism.json`, `lineage_catalog.json` | FX-05 values, but catalog classifies signal/mechanism family relation `SameSource` | all nine statuses, reasons, categories, causal values, consumed IDs, and dependencies equal FX-05 exactly: `S + M`, excluded `[]`, overall `degraded/observed`. It proves that a dependent mechanism cannot create a second direct observed source or a causal promotion. |
+| PC-FX-08 `negative`: `phase_c.toml`, `signal.json`, `estimation.json`, `wrong_kind_signal.json`, `future_signal.json`, `scope_mismatch_estimation.json`, `unit_mismatch_signal.json`, `missing_signal_metric.json`, `contradictory_model.json` | each named file differs only in the indicated condition: health baseline kind in signal path; schema 4 signal; known different estimation sensor scope; signal unit `Ohm`; `descriptive.rms=None`; model and estimation adequate but classes watch/degraded respectively | exact per-variant nine-row result and identity sets are in the immediately following PC-FX-08 matrix; no result is implied by prose. |
+
+The following is its complete result matrix.  The dimension order in every vector is exactly
+`[SI, CH, DR, RS, ER, MC, OB, UH, DQ]`; each cell is
+`status/reason/category/causal`.
+
+| PC-FX-08 invocation | complete nine-dimension vector | aggregate / IDs / dependencies |
+|---|---|---|
+| `--signal-results wrong_kind_signal.json` | no vector: typed `WrongPhaseCArtifactKind { expected: signal_analysis, actual: health_baseline }` | no artifact, IDs, or dependencies |
+| `--signal-results future_signal.json` | no vector: typed `UnsupportedPhaseCArtifactSchema { expected: 3, actual: 4 }` | no artifact, IDs, or dependencies |
+| `signal.json + scope_mismatch_estimation.json` | `[within_baseline/threshold_within_limit/observed_behavior/observed, indeterminate/optional_source_absent/calibration_issue/indeterminate, indeterminate/optional_source_absent/observed_behavior/indeterminate, indeterminate/reference_anchor_unavailable/observed_behavior/indeterminate, indeterminate/scope_incompatible/environmental_effect/indeterminate, indeterminate/scope_incompatible/model_inconsistency/indeterminate, indeterminate/scope_incompatible/model_inconsistency/indeterminate, indeterminate/optional_source_absent/model_inconsistency/indeterminate, within_baseline/threshold_within_limit/observed_behavior/observed]` | overall `indeterminate`, categories `[]`, causal `indeterminate`; consumed `S`; excluded `E`; dependency only `{ID(signal): DerivedFrom}` |
+| `--signal-results unit_mismatch_signal.json` | `[data_quality_insufficient/unit_mismatch/observed_behavior/indeterminate, indeterminate/optional_source_absent/calibration_issue/indeterminate, indeterminate/optional_source_absent/observed_behavior/indeterminate, indeterminate/reference_anchor_unavailable/observed_behavior/indeterminate, indeterminate/optional_source_absent/environmental_effect/indeterminate, indeterminate/optional_source_absent/model_inconsistency/indeterminate, indeterminate/optional_source_absent/model_inconsistency/indeterminate, indeterminate/optional_source_absent/model_inconsistency/indeterminate, within_baseline/threshold_within_limit/observed_behavior/observed]` | overall `data_quality_insufficient`, categories `[]`, causal `indeterminate`; consumed `S`; excluded `[]`; signal DerivedFrom |
+| `--signal-results missing_signal_metric.json` | `[data_quality_insufficient/required_quantity_absent/observed_behavior/indeterminate, indeterminate/optional_source_absent/calibration_issue/indeterminate, indeterminate/optional_source_absent/observed_behavior/indeterminate, indeterminate/reference_anchor_unavailable/observed_behavior/indeterminate, indeterminate/optional_source_absent/environmental_effect/indeterminate, indeterminate/optional_source_absent/model_inconsistency/indeterminate, indeterminate/optional_source_absent/model_inconsistency/indeterminate, indeterminate/optional_source_absent/model_inconsistency/indeterminate, within_baseline/threshold_within_limit/observed_behavior/observed]` | overall `data_quality_insufficient`, categories `[]`, causal `indeterminate`; consumed `S - {signal.descriptive.rms}`; excluded `[]`; signal DerivedFrom |
+| `signal.json + estimation.json + contradictory_model.json` | `[within_baseline/threshold_within_limit/observed_behavior/observed, indeterminate/optional_source_absent/calibration_issue/indeterminate, indeterminate/optional_source_absent/observed_behavior/indeterminate, indeterminate/reference_anchor_unavailable/observed_behavior/indeterminate, critical/threshold_critical/environmental_effect/observed, degraded/contradictory_evidence/model_inconsistency/observed, within_baseline/threshold_within_limit/model_inconsistency/observed, within_baseline/threshold_within_limit/model_inconsistency/observed, within_baseline/threshold_within_limit/observed_behavior/observed]` | overall `critical`, categories `[environmental_effect,model_inconsistency]`, causal `observed`; consumed `S + E + MO`; excluded `[]`; signal DerivedFrom, estimation/model TransformationInput |
+
+The fixture README records symbolic identities as `ID(signal)`, `ID(baseline)`,
+and so on only after writer generation, together with the literal EvidenceId
+sets listed above.  The expected IDs are complete because the test compares
+each symbol to the runtime writer return and compares every dependence to that
+same result; no value is left to author invention.  PC-FX-06's complete result
+is the row above, not “exact status/IDs” placeholder language.
+
+### 34.9 Fixture completeness and fixture-to-test matrix
+
+| fixture | component files complete | values complete | nine findings / categories / causal / DQ complete | lineage and IDs complete | generator | exact tests |
+|---|---|---|---|---|---|---|
+| PC-FX-01 | yes | yes | yes | yes | deterministic builder + writer | `phase_c_base_fixture_exact_nine_findings`, `phase_c_signal_integrity_negative_finding`, `phase_c_data_quality_negative_finding`, `phase_c_absent_evidence_is_indeterminate_not_healthy` |
+| PC-FX-02 | yes | yes | yes | yes | deterministic builder + writer | `phase_c_signal_integrity_positive_finding`, `phase_c_hypothesis_binding_never_uses_display_or_component_name` |
+| PC-FX-03 | yes | yes | yes | yes | deterministic builder + writer | `phase_c_dynamic_response_event_index_uses_producer_eligible_event_order`, `phase_c_dynamic_response_positive_finding`, `phase_c_dynamic_response_denominators_use_mean` |
+| PC-FX-04 | yes | yes | yes | yes | deterministic builder + writer | `phase_c_bad_signal_quality_is_data_quality_insufficient`, `phase_c_data_quality_positive_finding` |
+| PC-FX-05 | yes | yes | yes | yes | deterministic builder + writer | `phase_c_mapped_supported_mechanism_changes_interpretation_only`, `phase_c_mapped_mechanism_never_establishes_causality` |
+| PC-FX-06 | yes | yes | yes | yes | deterministic builder + writer | `phase_c_health_cli_e2e_writes_and_rereads_schema4_artifact`, `phase_c_environmental_robustness_positive_finding`, `phase_c_model_consistency_positive_finding`, `phase_c_observability_negative_finding`, `phase_c_uncertainty_health_negative_finding` |
+| PC-FX-07 | yes | yes | yes | yes | deterministic builder + writer | `phase_c_dependent_lineage_cannot_promote_mapped_mechanism`, `phase_c_independent_evidence_required_for_associated_status` |
+| PC-FX-08 | yes | yes | yes | yes | deterministic builder + writer, then a one-field serialization mutation only for reader negative cases | `phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version`, `phase_c_scope_mismatch_cannot_support_finding`, `phase_c_signal_integrity_quality_insufficient`, `phase_c_contradictory_evidence_remains_visible` |
+
+### 34.10 Complete mandatory test inventory
+
+The mandatory inventory is 100 exact test functions. The 57 names already
+listed in §33.11 remain mandatory except that this section supplies their
+superseding expected results. The following 43 rows are the complete added
+set; together they are the rebuilt 100-test inventory, not a target count.
+Each test is in `tests/phase_c_sensor_health_evidence.rs`, exercises the named
+production path, names a fixture or literal builder input, asserts every
+listed result/reason, and fails under the listed scientifically relevant
+mutation.
+
+| exact function | requirement | path / input | exact expected result | mutation that must fail |
+|---|---|---|---|---|
+| `phase_c_hypothesis_binding_uses_exact_hypothesis_id` | PC-BIND-01 | stage 5--11; FX-05 | exact binding produces its one mechanism ID | case-fold or trim ID |
+| `phase_c_unmapped_phase_b_hypothesis_is_not_eligible` | PC-BIND-02 | stage 6; FX-05 with binding removed | SI category observed behavior, causal observed, no mechanism dependency/ID | consume unbound record |
+| `phase_c_hypothesis_binding_rejects_wrong_health_dimension` | PC-BIND-03 | strict config load | ModelConsistency binding rejected `InvalidPhaseCConfig` | accept forbidden dimension |
+| `phase_c_hypothesis_binding_never_uses_display_or_component_name` | PC-BIND-04 | stage 6; FX-02 mismatched ID but same display/component | no mechanism evidence/category change | name/component matching |
+| `phase_c_mapped_supported_mechanism_changes_interpretation_only` | PC-BIND-05 | stage 10; FX-05 | possible degradation + observed causal | set causal from category |
+| `phase_c_mapped_mechanism_never_establishes_causality` | PC-BIND-06 | stage 11; FX-05 | causal exactly observed | promote from Phase-B level |
+| `phase_c_dependent_lineage_cannot_promote_mapped_mechanism` | PC-BIND-07 | stage 11; FX-07 | causal observed / no association | count same source family |
+| `phase_c_duplicate_mechanism_hypothesis_id_rejects_input` | PC-BIND-08 | stage 5 builder | `InvalidEvidence` | select first duplicate |
+| `phase_c_dynamic_response_zero_selected_events_is_indeterminate` | PC-DYN-01 | stage 8; `selected_event_index=7` and an otherwise valid C-compatible all-event report whose strictly increasing stored ordinals are exactly `[0,1,2]` | I / selected_transient_event_absent | choose the first event or treat the configuration as a vector index |
+| `phase_c_dynamic_response_one_selected_event_is_evaluated` | PC-DYN-02 | stage 8; FX-03 | degraded / threshold_degraded | ignore selected index |
+| `phase_c_dynamic_response_duplicate_selected_event_is_dqi` | PC-DYN-03 | stage 8 builder duplicates index 7 | DQI / selected_transient_event_ambiguous | select one duplicate |
+| `phase_c_dynamic_response_event_index_uses_producer_eligible_event_order` | PC-DYN-04 | transient producer → writer → Phase-C stages 6--12; the two exact equal-timestamp source sequences in §34.8 | the two ordinal/timestamp/value sequences fixed in §34.8, then the ordinal-7 FX-03 selection; no general source-order-invariance claim | select by timestamp/value, sort the report, or preserve a semantic event across the equal-time source-order mutation |
+| `phase_c_dynamic_response_invalid_nonselected_event_is_ignored` | PC-DYN-05 | stage 8; FX-03 event 8 | unchanged FX-03 report | scan every event |
+| `phase_c_dynamic_response_invalid_selected_event_is_dqi` | PC-DYN-06 | stage 8 failed selected fit | DQI / selected_transient_event_invalid | downgrade to I |
+| `phase_c_dynamic_response_scope_mismatch_is_indeterminate` | PC-SCOPE-01 | stage 5--8; FX-03 transient lineage sensor scope changed to `sensor-c-02` | I / scope_incompatible; no transient source ID or dependency | treat a cross-scope transient as selected evidence |
+| `phase_c_dynamic_response_denominators_use_mean` | PC-DYN-07 | stage 8; FX-03 median differs from mean | degraded computed from mean | use median/quantile |
+| `phase_c_dynamic_response_missing_baseline_feature_is_indeterminate` | PC-DYN-08 | stage 8 no tau-fast distribution | I / baseline_feature_absent | use similar feature |
+| `phase_c_dynamic_response_missing_baseline_mean_is_indeterminate` | PC-DYN-09 | stage 8 mean None | I / baseline_statistic_absent | substitute median |
+| `phase_c_dynamic_response_zero_baseline_denominator_is_dqi` | PC-DYN-10 | stage 8; selected tau-fast distribution `mean=0.0 s` | DQI / baseline_denominator_zero | divide or treat as I |
+| `phase_c_dynamic_response_near_zero_baseline_denominator_is_dqi` | PC-DYN-10 | stage 8; selected amplitude distribution `mean=5e-13 V` | DQI / baseline_denominator_near_zero | divide or treat as I |
+| `phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi` | PC-DYN-10 | stage 6 direct typed baseline-adapter input before writer validation; selected tau-fast distribution `mean=NaN s`, with all other PC-FX-03 values valid | DQI / invalid_quantity | coerce the nonfinite denominator to zero or treat it as a missing baseline |
+| `phase_c_optional_source_absent_is_indeterminate` | PC-DQ-04 | stage 8; FX-01 | CH I / optional_source_absent | mark healthy |
+| `phase_c_supplied_required_metric_absent_is_dqi` | PC-DQ-05 | stage 8; FX-08 missing RMS | SI DQI / required_quantity_absent | return I |
+| `phase_c_nonfinite_signal_metric_is_dqi` | PC-DQ-06 | stage 6 direct typed adapter input with `signal.descriptive.rms=NaN` before the writer boundary | DQI / invalid_quantity | omit the metric |
+| `phase_c_invalid_unit_is_dqi` | PC-DQ-07 | stage 6; FX-08 Ohm signal | SI DQI / unit_mismatch | unit coercion |
+| `phase_c_scope_mismatch_is_indeterminate_not_dqi` | PC-DQ-08 | stages 5--8; FX-08 | affected dims I / scope_incompatible | flag bad quality |
+| `phase_c_legacy_lineage_blocks_promotion_not_direct_finding` | PC-DQ-09 | stage 11 LegacyUnknown | direct status retained, causal I | reject direct observation |
+| `phase_c_mixed_valid_invalid_model_sources_preserves_valid_result` | PC-DQ-10 | stage 8 valid PC-FX-06 estimation plus a model whose point 1 has `observed_voltage_v=None` | estimation's degraded result plus `optional_invalid_source_excluded` | force DQI despite the complete valid estimation candidate |
+| `phase_c_no_sufficient_valid_model_source_uses_precedence` | PC-DQ-11 | stage 8 with no estimation path and a supplied model whose point 1 has `observed_voltage_v=None` | DQI / required_quantity_absent | use absent-source reason |
+| `phase_c_contradictory_valid_sources_are_visible` | PC-DQ-12 | stage 8 FX-08 | MC degraded / contradictory_evidence | discard conflicting source |
+| `phase_c_base_fixture_exact_nine_findings` | PC-FIX-09 | CLI stages 1--15; FX-01 | literal FX-01 nine-row vector, categories, causal result, `S`, and `ID(signal)` dependency | omit a row or replace an I with within baseline |
+| `phase_c_calibration_health_quality_insufficient` | PC-TEST-01 | stage 8 selected calibration missing RMSE | DQI / required_quantity_absent | return I |
+| `phase_c_environmental_robustness_quality_insufficient` | PC-TEST-02 | stage 8; config `covariate=flow`, `estimates[0..2].environmental_context.source_records[0].source_unit` is exactly `["mL/min","L/min","mL/min"]` | DQI / unit_mismatch | normalize or accept mixed source units |
+| `phase_c_environmental_robustness_minimum_point_count_is_indeterminate` | PC-TEST-03 | stage 8; exactly two finite, strictly increasing temperature/residual pairs with all other PC-FX-06 values valid | I / required_quantity_absent | accept fewer than `minimum_points=3` |
+| `phase_c_observability_quality_insufficient` | PC-TEST-04 | stage 8; supplied estimation `observability.condition_number=None` | DQI / required_quantity_absent | return I |
+| `phase_c_environmental_robustness_nonincreasing_timestamp_is_dqi` | PC-TEST-02 | stage 8; `estimates[0..2].timestamp_s=[0.0,0.0,2.0] s` with all residual/covariate values otherwise PC-FX-06-valid | DQI / invalid_quantity | accept a non-increasing timestamp sequence |
+| `phase_c_observability_nonfinite_condition_number_is_dqi` | PC-TEST-04 | stage 8 direct typed adapter input with `observability.condition_number=NaN` before the writer boundary | DQI / invalid_quantity | coerce the nonfinite condition number |
+| `phase_c_aggregate_zero_positive_dimensions_is_indeterminate` | PC-AGG-01 | compose FX-01 | causal I, categories [] | include within baseline |
+| `phase_c_aggregate_one_positive_dimension_uses_its_causal_status` | PC-AGG-02 | compose FX-02 | observed causal | default I |
+| `phase_c_aggregate_mixed_causal_strength_uses_minimum` | PC-AGG-03 | production report builder with observed + hypothesized positive rows | observed causal | choose maximum |
+| `phase_c_aggregate_dqi_and_indeterminate_do_not_lower_positive_causality` | PC-AGG-04 | FX-02 plus DQI/I dimensions | observed causal, DQI overall only if no positive severity | include nonpositive |
+| `phase_c_aggregate_reason_provenance_is_ordered_and_deduplicated` | PC-AGG-05 | compose multiple positives | declaration-order reason provenance | hash-map iteration |
+| `phase_c_aggregate_causal_order_boundaries_are_total` | PC-AGG-06 | compose each adjacent causal pair | weaker exact variant | missing ordering branch |
+
+The prior mandatory tests are additionally amended as follows: every
+`*_quality_insufficient` test asserts one exact §34.4 reason; every
+`*_indeterminate_without_*` test asserts one exact
+`optional_source_absent` or `reference_anchor_unavailable` tuple for each
+dimension it names; the DynamicResponse positive/negative/boundary tests use
+`selected_event_index=7` and the four stated means; the former aggregate test
+remains a compatibility regression and asserts the same result as the six
+PC-AGG tests above; and the former broad independence test asserts the
+reachable V1 ceiling rather than inventing a second direct source. No test may
+merely assert `Ok`, a record count, or a generic error.
+
+### 34.10A Exact DQI and Indeterminate test audit
+
+This is the complete audit of status-bearing mandatory DQI tests. Each row is
+one fixture/input defect, one production path, one status, one reason code,
+and one falsification mutation as specified in §§33.11 or 34.10. No row has an
+alternative trigger or alternative reason.
+
+| mandatory test | one exact defect | exact DQI result |
+|---|---|---|
+| `phase_c_bad_signal_quality_is_data_quality_insufficient` | `signal.sampling.missing_fraction=0.20` | `quality_gate_failed` |
+| `phase_c_signal_integrity_quality_insufficient` | `signal.descriptive.rms=None` | `required_quantity_absent` |
+| `phase_c_dynamic_response_quality_insufficient` | selected ordinal 7 has `failure=Some("fixture failure")` | `selected_transient_event_invalid` |
+| `phase_c_dynamic_response_duplicate_selected_event_is_dqi` | two serialized selected ordinal-7 records | `selected_transient_event_ambiguous` |
+| `phase_c_dynamic_response_invalid_selected_event_is_dqi` | selected ordinal 7 has no converged selected fit | `selected_transient_event_invalid` |
+| `phase_c_dynamic_response_zero_baseline_denominator_is_dqi` | selected tau-fast mean `0.0 s` | `baseline_denominator_zero` |
+| `phase_c_dynamic_response_near_zero_baseline_denominator_is_dqi` | selected amplitude mean `5e-13 V` | `baseline_denominator_near_zero` |
+| `phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi` | direct typed selected tau-fast mean `NaN s` before writer validation | `invalid_quantity` |
+| `phase_c_calibration_health_quality_insufficient` | selected calibration `statistics.rmse_v=None` | `required_quantity_absent` |
+| `phase_c_environmental_robustness_quality_insufficient` | `estimates[0..2].environmental_context.source_records[0].source_unit=[mL/min,L/min,mL/min]` | `unit_mismatch` |
+| `phase_c_environmental_robustness_nonincreasing_timestamp_is_dqi` | `estimates[0..2].timestamp_s=[0.0,0.0,2.0] s` | `invalid_quantity` |
+| `phase_c_model_consistency_quality_insufficient` | model point 1 `observed_voltage_v=None` | `required_quantity_absent` |
+| `phase_c_observability_quality_insufficient` | `observability.condition_number=None` | `required_quantity_absent` |
+| `phase_c_observability_nonfinite_condition_number_is_dqi` | direct typed `condition_number=NaN` before writer validation | `invalid_quantity` |
+| `phase_c_uncertainty_health_quality_insufficient` | complete uncertainty `total_variance_v2=-0.00000025` | `invalid_quantity` |
+| `phase_c_data_quality_positive_finding` | `signal.sampling.missing_fraction=0.20` | `quality_gate_failed` |
+| `phase_c_data_quality_quality_insufficient` | `signal.sampling.interval_cv=None` | `required_quantity_absent` |
+| `phase_c_supplied_required_metric_absent_is_dqi` | `signal.descriptive.rms=None` in PC-FX-08 | `required_quantity_absent` |
+| `phase_c_nonfinite_signal_metric_is_dqi` | direct typed `signal.descriptive.rms=NaN` before writer validation | `invalid_quantity` |
+| `phase_c_invalid_unit_is_dqi` | signal potential unit `Ohm` | `unit_mismatch` |
+| `phase_c_no_sufficient_valid_model_source_uses_precedence` | only supplied model has point 1 `observed_voltage_v=None` | `required_quantity_absent` |
+
+The exact Indeterminate audit is similarly closed. The optional-source test
+asserts six explicitly named `optional_source_absent` rows and one separately
+named `reference_anchor_unavailable` row; it does not allow either reason for
+any one row. `phase_c_dynamic_response_zero_selected_events_is_indeterminate`,
+`phase_c_dynamic_response_missing_baseline_feature_is_indeterminate`,
+`phase_c_dynamic_response_missing_baseline_mean_is_indeterminate`,
+`phase_c_dynamic_response_scope_mismatch_is_indeterminate`,
+`phase_c_calibration_health_indeterminate_without_artifact`,
+`phase_c_environmental_robustness_indeterminate_without_estimation`,
+`phase_c_environmental_robustness_minimum_point_count_is_indeterminate`,
+`phase_c_observability_indeterminate_without_estimation`,
+`phase_c_reference_stability_is_indeterminate_without_independent_anchor`,
+and `phase_c_scope_mismatch_cannot_support_finding` each have the one
+input/reason pair in their inventory row. A mandatory function may make more
+than one fixed assertion only for a fixed fixture matrix; it may not accept a
+choice of scientific cause, precedence result, or reason code. Therefore:
+
+```text
+mandatory DQI tests with alternative triggers = 0
+mandatory DQI tests with alternative reasons = 0
+mandatory Indeterminate tests with ambiguous causes = 0
+```
+
+### 34.11 Traceability, two-implementer check, and re-review gate
+
+| requirement group | production owner/path | mandatory acceptance tests |
+|---|---|---|
+| PC-BIND-01..08 | `health_config::PhaseCHealthEvidenceConfig`, `health::phase_c::{validate_source_compatibility,prepare_phase_c_evidence,derive_interpretation_category,derive_causal_status}` | eight `phase_c_*hypothesis*` / mapped-mechanism tests in §34.10 |
+| PC-DYN-01..10 / PC-SCOPE-01 | `health::phase_c::evaluate_dimension(DynamicResponseHealth)` | thirteen `phase_c_dynamic_response_*` tests in §34.10 plus FX-03 |
+| PC-DQ-04..12 | `prepare_phase_c_evidence`, `evaluate_data_quality`, `evaluate_dimension` | `phase_c_optional_source_absent_is_indeterminate`, `phase_c_supplied_required_metric_absent_is_dqi`, `phase_c_nonfinite_signal_metric_is_dqi`, `phase_c_invalid_unit_is_dqi`, `phase_c_scope_mismatch_is_indeterminate_not_dqi`, `phase_c_legacy_lineage_blocks_promotion_not_direct_finding`, `phase_c_mixed_valid_invalid_model_sources_preserves_valid_result`, `phase_c_no_sufficient_valid_model_source_uses_precedence`, and `phase_c_contradictory_valid_sources_are_visible` |
+| PC-FIX-09 | canonical FX-01 builder/writer/reader | `phase_c_base_fixture_exact_nine_findings` |
+| PC-FIX-10 | canonical FX-02 builder/writer/reader | `phase_c_signal_integrity_positive_finding` |
+| PC-FIX-11 | canonical FX-03 builder/writer/reader | `phase_c_dynamic_response_event_index_uses_producer_eligible_event_order` |
+| PC-FIX-12 | canonical FX-04 builder/writer/reader | `phase_c_bad_signal_quality_is_data_quality_insufficient` |
+| PC-FIX-13 | canonical FX-05 builder/writer/reader | `phase_c_mapped_supported_mechanism_changes_interpretation_only` |
+| PC-FIX-14 | canonical FX-06 builder/writer/reader | `phase_c_health_cli_e2e_writes_and_rereads_schema4_artifact` |
+| PC-FIX-15 | canonical FX-07 builder/writer/reader | `phase_c_dependent_lineage_cannot_promote_mapped_mechanism` |
+| PC-FIX-16 | canonical FX-08 builder/writer/reader | `phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version`; `phase_c_contradictory_evidence_remains_visible` |
+| PC-AGG-01..06 | `compose_phase_c_report` | six `phase_c_aggregate_*` tests in §34.10 |
+| PC-AGG-07 | `compose_phase_c_report` overall-status priority | existing `phase_c_aggregate_status_and_causal_status_follow_fixed_rule` with exact §34.6 priority assertions |
+| PC-TEST-01..06 | dimension evaluators and §34.10A audit | calibration DQI; two exact EnvironmentalRobustness DQI cases; EnvironmentalRobustness minimum-count indeterminacy; two exact Observability DQI cases; PC-TEST-05 is the zero-alternative DQI audit and PC-TEST-06 is the zero-ambiguity Indeterminate audit |
+
+The final Phase-C completeness audit must report zero for every item in Part Q
+of the remediation request, including undefined type/owner/wire/schema/migration
+decisions, unspecified evidence/threshold/DQ/interpretation/causal/binding/
+event/denominator/source/scope/lineage/independence/aggregate rules, ownerless
+stages, incomplete fixtures, unmapped requirements or acceptance criteria,
+missing exact test names, tests without falsification meaning, and
+implementation inventions.  The nine-dimension matrix is PASS for each of
+the nine rows in §34.5; interpretation and causal contracts are PASS and
+separate; all eight fixture rows are complete.
+
+Two independent implementation agents using §§33 and 34 have no permitted
+choice about exact hypothesis binding, unmapped hypotheses, event selection,
+denominator statistic, zero/multiple events, I versus DQI, mixed sources, any
+dimension result, category, causal status, positive classification, causal
+ordering/composition, fixture paths/values/outputs, or test names.  Every
+two-implementer answer is therefore **NO**.  A reviewer must independently
+verify this assertion and the complete cumulative branch diff; this planning
+author does not self-approve the plan.
+
+### 34.11A Cascading nine-dimension re-audit
+
+The five rereview failures and their direct closure are: DynamicResponseHealth
+was fully caused by P1-1 and is closed by the producer-order selector;
+EnvironmentalRobustness was fully caused by P1-3 and is closed by its two
+single-case DQI contracts; ModelConsistency was fully caused by P1-2 and is
+closed by the literal PC-FX-06 model payload and residual arithmetic;
+Observability was fully caused by P1-3 and is closed by its two single-case
+DQI contracts; and UncertaintyHealth was fully caused by P1-2 and is closed
+by the complete PC-FX-06 uncertainty payload and calculation. No new
+scientific rule is introduced for a dimension that was already closed.
+
+| dimension | exact controlling evidence after this remediation | plan-contract result |
+|---|---|---|
+| SignalIntegrity | §33.6 units/thresholds and §34.10A one-case DQI rows | PASS |
+| CalibrationHealth | §33.6 and `phase_c_calibration_health_quality_insufficient` | PASS |
+| DynamicResponseHealth | §34.3 actual producer ordinal, denominator means, and exact tests | PASS |
+| ReferenceStability | unchanged `reference_anchor_unavailable` contract | PASS |
+| EnvironmentalRobustness | §34.10 two exact DQI fixtures plus existing boundary/positive/negative tests | PASS |
+| ModelConsistency | PC-FX-06 literal observed/predicted/residual values and RMS/bias calculation | PASS |
+| Observability | §34.10 exact absent-condition and nonfinite-condition tests | PASS |
+| UncertaintyHealth | PC-FX-06 complete uncertainty fields, variance/SE equality, and threshold calculation | PASS |
+| DataQuality | unchanged common precedence plus exact single-case DQI tests | PASS |
+
+For every row, the source fields, units, equality behavior, positive/negative
+rule, contradiction handling, Indeterminate rule, DQI rule, interpretation,
+causal status, fixture values, and named falsification test remain the
+controlling text in §§33.3--33.7 and §§34.2--34.10A. The table is a
+reconciliation index, not a second evaluator or a redesign of the passed
+aggregate, Phase-B binding, or common-precedence contracts.
+
+### 34.12 Source-contract re-audit and actual-consumption closure
+
+This is the completed source audit required after the P1 corrections.  “PASS”
+means the source has a bounded reader, exact fields, scope/lineage rule,
+absence rule, invalid-input rule, interpretation effect, causal effect, and
+actual-consumption dependency rule.  It does not mean that an optional source
+is always sufficient to decide a finding.
+
+| source | exact Phase-C consumption and scope | absent / invalid behavior | interpretation / causal effect | dependency | result |
+|---|---|---|---|---|---|
+| primary `SignalAnalysisReport` | §34.8 `S`; required known assessment scope | absent/wrong kind/schema runtime error; selected metric defect DQI | observed behavior / observed only | always `DerivedFrom` | PASS |
+| `SensorHealthBaseline` | §34.3 four opaque configured distribution keys and their `mean` only | absent/key/mean unavailable I; invalid selected denominator DQI | comparison only / no causal support | `Prior` only when a dynamic denominator is read | PASS |
+| `TransientAnalysisReport` | report scope plus exactly `T7`, selected by stored artifact-local ordinal `event_index=7` under §34.3's producer eligible-order contract | absent I; selected event/fit/metric defect DQI | observed behavior / observed only | `TransformationInput` only when selected event is read | PASS |
+| `CalibrationAnalysisReport` | selected model slope/RMSE, validation prediction bias, hysteresis mean | absent I; supplied selected record/metric/unit defect DQI | calibration issue / observed only | `TransformationInput` only when one field is read | PASS |
+| `StateEstimationReport` | `E`, update status, exact residual/environment/observability fields | absent I; invalid selected field DQI; incompatible scope excluded/I | environmental or model inconsistency / observed only | `TransformationInput` only when a retained field is read | PASS |
+| `ModelAnalysisReport` | `MO`, observed-predicted residual or producer residual, uncertainty/validity fields | absent I; invalid selected field DQI; incompatible scope excluded/I | model inconsistency / observed only; model prediction is not a physical cause | `TransformationInput` only when a retained field is read | PASS |
+| schema-4 `MechanismAnalysisReport` | exact `M`, only after §34.2 ID binding and exact scope | absent/unmapped no effect; duplicate/mismatched ID invalid input | possible physical degradation category only / cannot exceed observed in V1 | `TransformationInput` only when category predicate reads `M` | PASS |
+| `ArtifactLineageCatalog` | schema-1 resolver/classifier only | absent gives unknown independence; malformed catalog runtime error | can prevent promotion; never changes a direct raw finding | never a dependency because it has no artifact identity | PASS |
+| `EisFitArtifact` | no C evidence field in V1 | absent/invalid has no C effect except legacy projection behavior | none / none | no C dependency | UNSUPPORTED BY PHASE C V1 |
+
+Every source validation follows the same actual-consumption rule.  A supplied
+path is not an output dependency merely because it was read.  A dependency
+appears only when its generated EvidenceId is in a dimension's consumed vector
+or when the required signal is the assessment root.  Invalid absent fields
+have no invented ID; finite available excluded fields appear only in
+`excluded_evidence_ids`.  This rule is independently exercised by
+`phase_c_actual_consumption_lineage_excludes_unused_inputs`, all four existing
+optional-source tests, the PC-FX-03/05/06/07/08 assertions, and the exact
+matrices in §34.8.
+
+### 34.13 Remediated planning completeness audit
+
+The following is the required pre-rereview audit of the plan, not a claim that
+production code has been implemented.  All counts must remain zero after any
+future documentation-only edit; a nonzero cell reopens the relevant P1.
+
+| audit item | count | controlling evidence |
+|---|---:|---|
+| undefined normative types, owners, wire tokens, schema decisions, migration rules | 0 | §§33.3, 33.5, 33.8, 34.2--34.4 |
+| unspecified evidence-to-finding rules, thresholds, units, or threshold-boundary semantics | 0 | §§33.5--33.7, 34.3, 34.5 |
+| unspecified or contradictory data-quality rules | 0 | §34.4 controls all nine rows |
+| unspecified interpretation or causal-status rules | 0 | §§34.2, 34.6--34.7 |
+| unspecified Phase-B bindings, event selection, or denominator statistics | 0 | §§34.2--34.3 |
+| unspecified source compatibility, scope, lineage, independence, API, or pipeline-stage owners | 0 | §§33.4, 33.9, 34.12 |
+| unspecified aggregate composition, positive classification, or causal order | 0 | §34.6 |
+| unspecified fixture paths, component values, expected semantics, ID rules, or generation method | 0 | §§34.8--34.9 |
+| unmapped requirements or acceptance criteria | 0 | §§33.11, 34.11; 98/98 mapped |
+| missing exact mandatory test names or tests without falsification meaning | 0 | §34.10; 100 unique named tests |
+| implementation inventions required | 0 | §§33--34 |
+
+The Phase-C readiness condition for independent planning rereview is therefore
+that this documentation change alone is committed and independently reviewed;
+it is not authorization to implement Phase C.  The independent reviewer must
+recalculate the table against the final cumulative diff, run the prescribed
+repository validation from that commit, and issue the verdict.
