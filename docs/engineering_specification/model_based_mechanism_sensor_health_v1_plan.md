@@ -8260,39 +8260,79 @@ The exact new/changed API signatures are:
 ```rust
 pub fn load(path: &Path) -> Result<LoadedPhaseCHealthEvidenceConfig, HealthError>;
 pub fn load_lineage_catalog(path: &Path) -> Result<ArtifactLineageCatalog, HealthError>;
-pub fn load_phase_c_inputs(workspace: &Path, inputs: PhaseCHealthInputPaths)
-    -> Result<PhaseCHealthInputs, RunnerError>;
-pub fn validate_source_compatibility(inputs: &PhaseCHealthInputs,
+
+// src/health/mod.rs
+pub(crate) mod phase_c;
+
+// src/runners/health.rs -- private runner-only orchestration helper
+fn load_phase_c_inputs(workspace: &Path, paths: PhaseCHealthInputPaths)
+    -> Result<crate::health::phase_c::PhaseCHealthInputs, RunnerError>;
+
+// src/health/phase_c.rs -- Phase-C evaluation-domain owner
+pub(crate) struct PhaseCHealthInputs { /* private fields */ }
+pub(crate) struct PhaseCEligibleInputs { /* private fields */ }
+pub(crate) fn assemble_phase_c_inputs(
+    signal: SignalAnalysisReport,
+    baseline: Option<SensorHealthBaseline>,
+    transient: Option<TransientAnalysisReport>,
+    calibration: Option<CalibrationAnalysisReport>,
+    estimation: Option<StateEstimationReport>,
+    model: Option<ModelAnalysisReport>,
+    mechanism: Option<MechanismAnalysisReport>,
+    lineage_catalog: Option<ArtifactLineageCatalog>,
+    current_context: Context,
+) -> PhaseCHealthInputs;
+pub(crate) fn validate_source_compatibility(inputs: &PhaseCHealthInputs,
     catalog: Option<&ArtifactLineageCatalog>) -> Result<PhaseCEligibleInputs, HealthError>;
-pub fn prepare_phase_c_evidence(inputs: &PhaseCEligibleInputs,
+pub(crate) fn prepare_phase_c_evidence(inputs: &PhaseCEligibleInputs,
     config: &PhaseCHealthEvidenceConfig) -> Result<EvidenceBundle, HealthError>;
-pub fn evaluate_data_quality(bundle: &EvidenceBundle,
+pub(crate) fn evaluate_data_quality(bundle: &EvidenceBundle,
     inputs: &PhaseCEligibleInputs, config: &PhaseCHealthEvidenceConfig)
     -> PhaseCHealthDimensionAssessment;
-pub fn evaluate_dimension(dimension: HealthDimension, bundle: &EvidenceBundle,
+pub(crate) fn evaluate_dimension(dimension: HealthDimension, bundle: &EvidenceBundle,
     inputs: &PhaseCEligibleInputs, config: &PhaseCHealthEvidenceConfig)
     -> Result<PhaseCHealthDimensionAssessment, HealthError>;
-pub fn evaluate_all_dimensions(bundle: &EvidenceBundle, inputs: &PhaseCEligibleInputs,
+pub(crate) fn evaluate_all_dimensions(bundle: &EvidenceBundle, inputs: &PhaseCEligibleInputs,
     config: &PhaseCHealthEvidenceConfig) -> Result<Vec<PhaseCHealthDimensionAssessment>, HealthError>;
-pub fn derive_interpretation_category(assessment: &mut PhaseCHealthDimensionAssessment,
+pub(crate) fn derive_interpretation_category(assessment: &mut PhaseCHealthDimensionAssessment,
     mechanism: Option<&MechanismAnalysisReport>) -> Result<(), HealthError>;
-pub fn derive_causal_status(assessment: &mut PhaseCHealthDimensionAssessment,
+pub(crate) fn derive_causal_status(assessment: &mut PhaseCHealthDimensionAssessment,
     bundle: &EvidenceBundle, mechanism: Option<&MechanismAnalysisReport>,
     config: &PhaseCHealthEvidenceConfig) -> Result<(), HealthError>;
-pub fn compose_phase_c_report(config: &LoadedPhaseCHealthEvidenceConfig,
+pub(crate) fn compose_phase_c_report(config: &LoadedPhaseCHealthEvidenceConfig,
     dimensions: Vec<PhaseCHealthDimensionAssessment>, bundle: EvidenceBundle)
     -> Result<PhaseCSensorHealthEvidenceReport, HealthError>;
-pub fn assemble_phase_c_assessment(/* current legacy arguments */, phase_c: PhaseCSensorHealthEvidenceReport,
+fn assemble_phase_c_assessment(/* current legacy arguments */, phase_c: PhaseCSensorHealthEvidenceReport,
     consumed_sources: &[(&ArtifactLineageState, ArtifactDependencyRole)])
     -> Result<SensorHealthAssessment, RunnerError>;
 ```
 
-`PhaseCHealthInputPaths`, `PhaseCHealthInputs`, and `PhaseCEligibleInputs` are
-new private `src/runners/health.rs` structs, each with exactly one field for
-the listed source artifact and no generic path map.  The three evaluator
-functions are `pub(crate)` in `src/health/phase_c.rs`; config loading is public
-only to the runner.  No function accepts an arbitrary JSON value, raw evidence
-bundle, or untyped source.
+`PhaseCHealthInputPaths` is the sole private `src/runners/health.rs`
+orchestration type. It has exactly one path field for each listed source
+artifact and no generic path map, is consumed only by that file's private
+loader, and is never named by a Phase-C evaluator. `PhaseCHealthInputs` and
+`PhaseCEligibleInputs` are instead owned by `crate::health::phase_c`, are
+exactly `pub(crate)`, and have private fields. The runner reads the typed
+artifacts, invokes `phase_c::assemble_phase_c_inputs`, and forwards the
+result; it never field-initializes either Phase-C domain type.
+
+`assemble_phase_c_inputs` is the sole construction API for
+`PhaseCHealthInputs`; `validate_source_compatibility` is the sole construction
+API for `PhaseCEligibleInputs`. The latter remains the complete
+eligible/ineligible compatibility decision of stage 5. All supporting
+`phase_c` adapters that are not in the signature block (`prepare_signal_evidence`,
+`prepare_baseline_context`, `prepare_transient_evidence`,
+`prepare_calibration_evidence`, `prepare_estimation_evidence`,
+`prepare_model_evidence`, and `prepare_mechanism_interpretation_evidence`) are
+private to `src/health/phase_c.rs`. They are not cross-module APIs.
+
+Every cross-module Phase-C evaluator/assembly function in this block is
+exactly `pub(crate) fn`; none is `pub fn`. The crate-visible module declaration
+allows `runners::health` and crate-internal callers to name
+`crate::health::phase_c`, while downstream crates cannot access this module or
+its types/functions. Config loading and the persisted result types retain only
+their independently approved visibility. No function accepts an arbitrary JSON
+value, raw evidence bundle, or untyped source.
 
 ### 33.10 CLI and error contract
 
@@ -9488,8 +9528,8 @@ The placement field for the three affected scientific mappings is not implied:
 it is explicitly reconciled here and in the literal §35.7B internal-test rows.
 `PC-DYN-10` maps
 `phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi` to the
-INTERNAL UNIT TEST owner `src/runners/health.rs` /
-`crate::runners::health::tests`, direct typed
+INTERNAL UNIT TEST owner `src/health/phase_c.rs` /
+`crate::health::phase_c::tests`, direct module-owned typed
 `super::PhaseCEligibleInputs`, and
 `evaluate_dimension(HealthDimension::DynamicResponseHealth, ...)`.
 `PC-DQ-06` maps `phase_c_nonfinite_signal_metric_is_dqi` to that same internal
@@ -10120,18 +10160,16 @@ complete and deterministic: every name in `I100`, and every one of the ten
 §35.7 names, belongs to exactly one row below. No catch-all permits a direct
 call to an inaccessible symbol.
 
-The three `N3` conflicts are reproduced, not inferred. `PhaseCHealthInputPaths`,
-`PhaseCHealthInputs`, and `PhaseCEligibleInputs` are private
-`src/runners/health.rs` types (§33.9), while the Phase-C evaluators in
-`src/health/phase_c.rs` are private or `pub(crate)`. An external integration
-test is a separate crate: it can neither name/construct
-`runners::health::PhaseCEligibleInputs` nor call the evaluator through that
-private typed path. Its permitted public artifact/CLI route serializes through
-the finite-value/JCS boundary and therefore cannot carry the required `NaN`.
-For DynamicResponse, SignalIntegrity, and Observability, widening visibility
-would be required to retain the exact direct typed contract; that widening is
-prohibited. Thus all three are internal by necessity, while their unrelated
-public artifact/CLI coverage remains external.
+The three `N3` placement conflicts are reproduced, not inferred. An external
+integration test is a separate crate: it cannot name the crate-internal
+`health::phase_c::PhaseCEligibleInputs` or call its `pub(crate)` evaluator.
+Its permitted public artifact/CLI route serializes through the finite-value/JCS
+boundary and therefore cannot carry the required `NaN`. For DynamicResponse,
+SignalIntegrity, and Observability, widening visibility would be required to
+retain the exact direct typed contract; that widening is prohibited. Thus all
+three are internal by necessity, in the child test module of the owner of the
+typed inputs/evaluators, while their unrelated public artifact/CLI coverage
+remains external.
 
 | audited exact-name set | count | classification | exact owner / source path | direct input and target visibility / legal invocation |
 |---|---:|---|---|---|
@@ -10140,7 +10178,7 @@ public artifact/CLI coverage remains external.
 | `phase_c_canonical_health_writer_never_emits_schema3`, `phase_c_schema4_rejects_missing_or_null_phase_c`, and `phase_c_legacy_schema3_health_artifact_remains_readable` | 3 | EXTERNAL INTEGRATION TEST | `tests/artifact_contract.rs` | Public static fixture or public wire mutation; call public `domain::write_artifact` or `domain::read_artifact`, with no legacy-helper call. |
 | `phase_c_legacy_health_cli_without_config_writes_schema3`, `phase_c_health_cli_with_phase_c_config_writes_schema4`, `phase_c_legacy_schema3_writer_is_route_restricted`, `phase_c_legacy_health_cli_does_not_synthesize_phase_c`, `phase_c_health_cli_rejects_phase_c_sources_without_config`, and `phase_c_legacy_schema3_identity_and_lineage_are_deterministic` | 6 | EXTERNAL INTEGRATION TEST | `tests/phase_c_sensor_health_evidence.rs` | Public CLI paths, emitted artifact, public reader, identity, and lineage only; no legacy-helper or Phase-C evaluator call. |
 | `phase_c_legacy_schema3_writer_rejects_non_schema3_input` | 1 | INTERNAL UNIT TEST | `src/domain/artifact.rs`, `#[cfg(test)] mod tests` | Same-module typed `SensorHealthAssessment`; call `super::write_legacy_sensor_health_assessment_v3`, which remains `pub(crate)`. |
-| `N3 = { phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi, phase_c_nonfinite_signal_metric_is_dqi, phase_c_observability_nonfinite_condition_number_is_dqi }` | 3 | INTERNAL UNIT TEST | `src/runners/health.rs`, `#[cfg(test)] mod tests` | Directly construct the private owner-module `super::PhaseCEligibleInputs`; call crate-visible `crate::health::phase_c::prepare_phase_c_evidence` and `crate::health::phase_c::evaluate_dimension`. No JSON, JCS, artifact writer, CLI, public re-export, wrapper, or feature-gated seam is used to inject `NaN`. |
+| `N3 = { phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi, phase_c_nonfinite_signal_metric_is_dqi, phase_c_observability_nonfinite_condition_number_is_dqi }` | 3 | INTERNAL UNIT TEST | `src/health/phase_c.rs`, `crate::health::phase_c::tests` | Directly construct the parent-module `super::PhaseCEligibleInputs` with private fields accessed legally by the child test module; call `super::prepare_phase_c_evidence` and `super::evaluate_dimension`. No JSON, JCS, artifact writer, CLI, public re-export, wrapper, or feature-gated seam is used to inject `NaN`. |
 
 Thus the inventory contains **106 external integration tests** and **4 internal
 unit tests**; `106 + 4 = 110`. There is no other classification. The 106
@@ -10181,16 +10219,19 @@ non-downgrade behavior, public schema-3 reader compatibility, CLI option
 handling, and identity/lineage behavior.
 
 The three additional direct internal contracts are frozen literally as follows.
-They are in the owner of the private input type, which is the narrowest module
-that can construct that type and still call the `pub(crate)` evaluator. The
-typed `NaN` is injected before the serialization boundary; the evaluator result
-is the asserted scientific result, not a JSON-invalid-input surrogate.
+They are in `src/health/phase_c.rs`, the owner of the crate-visible input type
+with private fields and of every evaluator they call. The `#[cfg(test)] mod
+tests` child may construct `super::PhaseCEligibleInputs` directly and call its
+parent's private or crate-visible items under Rust's parent/child privacy
+rule. The typed `NaN` is injected before the serialization boundary; the
+evaluator result is the asserted scientific result, not a JSON-invalid-input
+surrogate.
 
 | test function | classification | source file / `#[cfg(test)]` module path | private typed input and exact `NaN` field | evaluator and legal direct access | exact result and falsification |
 |---|---|---|---|---|---|
-| `phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi` | INTERNAL UNIT TEST | `src/runners/health.rs`; `crate::runners::health::tests` | `super::PhaseCEligibleInputs`; its compatible baseline’s selected `tau_fast` distribution `mean = NaN s`, with every other PC-FX-03 value valid | `crate::health::phase_c::prepare_phase_c_evidence(&inputs, &config)` followed by `crate::health::phase_c::evaluate_dimension(HealthDimension::DynamicResponseHealth, &bundle, &inputs, &config)`; `super::PhaseCEligibleInputs` is legal because the unit module is inside its private owner, and the evaluator is `pub(crate)` | `DataQualityInsufficient` with exactly `invalid_quantity`; fail if `NaN` is normal, returns `Indeterminate`, uses a different DQI reason, uses a different baseline statistic, coerces to zero, or treats it as absent. |
-| `phase_c_nonfinite_signal_metric_is_dqi` | INTERNAL UNIT TEST | `src/runners/health.rs`; `crate::runners::health::tests` | `super::PhaseCEligibleInputs`; supplied typed signal `descriptive.rms = NaN V`, with the other required SignalIntegrity values and unit valid | `crate::health::phase_c::prepare_phase_c_evidence(&inputs, &config)` followed by `crate::health::phase_c::evaluate_dimension(HealthDimension::SignalIntegrity, &bundle, &inputs, &config)` through the same legal private-owner / `pub(crate)` paths | `DataQualityInsufficient` with exactly `invalid_quantity`; fail if it omits the metric, treats `NaN` as normal or missing, returns `Indeterminate`, or returns another reason. |
-| `phase_c_observability_nonfinite_condition_number_is_dqi` | INTERNAL UNIT TEST | `src/runners/health.rs`; `crate::runners::health::tests` | `super::PhaseCEligibleInputs`; supplied typed estimation `observability.condition_number = NaN` | `crate::health::phase_c::prepare_phase_c_evidence(&inputs, &config)` followed by `crate::health::phase_c::evaluate_dimension(HealthDimension::Observability, &bundle, &inputs, &config)` through the same legal private-owner / `pub(crate)` paths | `DataQualityInsufficient` with exactly `invalid_quantity`; fail if it coerces the condition number, returns `Indeterminate`, returns another reason, or conflates this case with `condition_number = None`, which remains `required_quantity_absent`. |
+| `phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi` | INTERNAL UNIT TEST | `src/health/phase_c.rs`; `crate::health::phase_c::tests` | `super::PhaseCEligibleInputs`; its compatible baseline’s selected `tau_fast` distribution `mean = NaN s`, with every other PC-FX-03 value valid | `super::prepare_phase_c_evidence(&inputs, &config)` followed by `super::evaluate_dimension(HealthDimension::DynamicResponseHealth, &bundle, &inputs, &config)`; the child module has legal access to its parent-owned private fields and `pub(crate)` evaluator | `DataQualityInsufficient` with exactly `invalid_quantity`; fail if `NaN` is normal, returns `Indeterminate`, uses a different DQI reason, uses a different baseline statistic, coerces to zero, or treats it as absent. |
+| `phase_c_nonfinite_signal_metric_is_dqi` | INTERNAL UNIT TEST | `src/health/phase_c.rs`; `crate::health::phase_c::tests` | `super::PhaseCEligibleInputs`; supplied typed signal `descriptive.rms = NaN V`, with the other required SignalIntegrity values and unit valid | `super::prepare_phase_c_evidence(&inputs, &config)` followed by `super::evaluate_dimension(HealthDimension::SignalIntegrity, &bundle, &inputs, &config)` through the same legal parent/child paths | `DataQualityInsufficient` with exactly `invalid_quantity`; fail if it omits the metric, treats `NaN` as normal or missing, returns `Indeterminate`, or returns another reason. |
+| `phase_c_observability_nonfinite_condition_number_is_dqi` | INTERNAL UNIT TEST | `src/health/phase_c.rs`; `crate::health::phase_c::tests` | `super::PhaseCEligibleInputs`; supplied typed estimation `observability.condition_number = NaN` | `super::prepare_phase_c_evidence(&inputs, &config)` followed by `super::evaluate_dimension(HealthDimension::Observability, &bundle, &inputs, &config)` through the same legal parent/child paths | `DataQualityInsufficient` with exactly `invalid_quantity`; fail if it coerces the condition number, returns `Indeterminate`, returns another reason, or conflates this case with `condition_number = None`, which remains `required_quantity_absent`. |
 
 The visibility audit is therefore frozen as follows: all 110 names were
 audited; the four names explicitly listed as internal above are the only
@@ -10207,9 +10248,9 @@ cross-check the complete output against all 110 exact mandatory names from
 §§33.11, 34.10, and 35.7. The internal tests must be discovered under the
 library harness as
 `domain::artifact::tests::phase_c_legacy_schema3_writer_rejects_non_schema3_input`,
-`runners::health::tests::phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi`,
-`runners::health::tests::phase_c_nonfinite_signal_metric_is_dqi`, and
-`runners::health::tests::phase_c_observability_nonfinite_condition_number_is_dqi`.
+`health::phase_c::tests::phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi`,
+`health::phase_c::tests::phase_c_nonfinite_signal_metric_is_dqi`, and
+`health::phase_c::tests::phase_c_observability_nonfinite_condition_number_is_dqi`.
 The external tests must be discovered in the
 `phase_c_sensor_health_evidence` and `artifact_contract` targets at their exact
 source locations above. A missing mandatory name, duplicate mandatory name,
@@ -10291,8 +10332,8 @@ can disagree about all of the following:
 * whether `phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi`,
   `phase_c_nonfinite_signal_metric_is_dqi`, or
   `phase_c_observability_nonfinite_condition_number_is_dqi` is an internal
-  unit test; its literal `src/runners/health.rs` /
-  `crate::runners::health::tests` placement; its direct
+  unit test; its literal `src/health/phase_c.rs` /
+  `crate::health::phase_c::tests` placement; its direct
   `super::PhaseCEligibleInputs` construction path; the exact `NaN` field;
   the exact `evaluate_dimension` call and dimension; or its
   `DataQualityInsufficient` / `invalid_quantity` result;
@@ -10314,3 +10355,112 @@ Every answer is **NO**. These conclusions are planning requirements, not a
 claim that Phase-C production implementation has occurred. An independent
 amendment reviewer, not the author of this remediation, must validate the
 complete cumulative diff and issue the final verdict.
+
+### 35.9 Phase-C internal API ownership and visibility remediation
+
+This subsection is the controlling ownership/visibility reconciliation for
+§§33.9, 34.11, 35.7B, and 35.8. It changes neither the 15-stage order nor any
+scientific, artifact, CLI, schema, identity, lineage, source, scope, or test
+result contract. Planning status for every item in this subsection is **NOT
+YET IMPLEMENTED**.
+
+`src/health/phase_c.rs` is the authoritative owner of the Phase-C
+evaluation-domain inputs and evaluator APIs. `src/runners/health.rs` remains
+an orchestration/CLI runner: it reads the paths/artifacts, invokes the
+crate-visible Phase-C construction/evaluation APIs, and assembles the approved
+schema-4 result. It neither defines `PhaseCEligibleInputs` nor field-initializes
+any Phase-C evaluation-domain type. The one required declaration in
+`src/health/mod.rs` is literally:
+
+```rust
+pub(crate) mod phase_c;
+```
+
+This makes `crate::health::phase_c` nameable by the runner and other
+crate-internal callers without exposing the module to downstream crates. No
+public re-export is permitted.
+
+The exact cross-module ownership table is normative:
+
+| Symbol | Owner file/module | Kind | Visibility | Constructed/called by | Consumed by | Test owner | Public API? |
+|---|---|---|---|---|---|---|---|
+| `phase_c` | `src/health/mod.rs` / `crate::health` | module | `pub(crate) mod` | module declaration | runner and crate-internal callers | `crate::health::phase_c::tests` child | no |
+| `PhaseCHealthInputPaths` | `src/runners/health.rs` | runner path struct | private | runner CLI/orchestration only | private `load_phase_c_inputs` only | none | no |
+| `PhaseCHealthInputs` | `src/health/phase_c.rs` / `crate::health::phase_c` | source-input struct | `pub(crate)`; fields private | `assemble_phase_c_inputs` | `validate_source_compatibility`; runner forwards opaquely | `crate::health::phase_c::tests` if needed | no |
+| `assemble_phase_c_inputs` | `src/health/phase_c.rs` | assembly function | `pub(crate) fn` | `runners::health::load_phase_c_inputs`, after its typed artifact reads | runner forwards output to stage 5 | `crate::health::phase_c::tests` | no |
+| `PhaseCEligibleInputs` | `src/health/phase_c.rs` / `crate::health::phase_c` | eligible evaluation-input struct | `pub(crate)`; fields private | `validate_source_compatibility` only | evidence preparation and every Phase-C evaluator | `crate::health::phase_c::tests` | no |
+| `validate_source_compatibility` | `src/health/phase_c.rs` | compatibility/eligibility function | `pub(crate) fn` | runner at stage 5 | stage 6 and later evaluators through its returned `PhaseCEligibleInputs` | `crate::health::phase_c::tests` | no |
+| `prepare_phase_c_evidence` | `src/health/phase_c.rs` | evidence-preparation function | `pub(crate) fn` | runner after stage 5 | data-quality, dimension, causal, and aggregate evaluation | `crate::health::phase_c::tests` | no |
+| `evaluate_data_quality` | `src/health/phase_c.rs` | dimension evaluator | `pub(crate) fn` | runner/internal Phase-C orchestration | DataQuality result composition | `crate::health::phase_c::tests` | no |
+| `evaluate_dimension` | `src/health/phase_c.rs` | one-dimension evaluator | `pub(crate) fn` | runner/internal Phase-C orchestration | `evaluate_all_dimensions`, interpretation, causal, and aggregate flow | `crate::health::phase_c::tests` | no |
+| `evaluate_all_dimensions` | `src/health/phase_c.rs` | nine-dimension evaluator | `pub(crate) fn` | runner/internal Phase-C orchestration | interpretation/causal/aggregate flow | `crate::health::phase_c::tests` | no |
+| `derive_interpretation_category` | `src/health/phase_c.rs` | interpretation evaluator | `pub(crate) fn` | runner/internal Phase-C orchestration | finalized dimension assessments | `crate::health::phase_c::tests` | no |
+| `derive_causal_status` | `src/health/phase_c.rs` | causal evaluator | `pub(crate) fn` | runner/internal Phase-C orchestration | finalized dimension assessments | `crate::health::phase_c::tests` | no |
+| `compose_phase_c_report` | `src/health/phase_c.rs` | aggregate evaluator | `pub(crate) fn` | runner/internal Phase-C orchestration | runner stage 14 | `crate::health::phase_c::tests` | no |
+| `assemble_phase_c_assessment` | `src/runners/health.rs` | runner artifact-assembly function | private runner helper | runner at stage 14 | stage 15 writer | external artifact/CLI tests | no |
+
+`PhaseCEligibleInputs` has exactly `pub(crate)` struct visibility and private
+fields. `validate_source_compatibility` is its sole production construction
+API. The runner receives the value from that Phase-C API and forwards it only
+through the table's crate-visible functions; it does not create a field-level
+test seam. `PhaseCHealthInputs` has the same encapsulation: the runner supplies
+already-read typed source values to `assemble_phase_c_inputs`, whose private
+fields prevent both runner field initialization and accidental source-map
+expansion. No field on either struct is `pub` or `pub(crate)`.
+
+The relevant unchanged stage semantics, with the corrected ownership only, are
+frozen below. “Runner caller” names the orchestration caller, not an ownership
+transfer to `runners::health`.
+
+| Stage | Function | Module owner | Input type | Output type | Visibility | Runner caller |
+|---:|---|---|---|---|---|---|
+| 3 | `load_phase_c_inputs` then `assemble_phase_c_inputs` | private `runners::health` loader; `health::phase_c` constructs domain input | private `PhaseCHealthInputPaths`, then loaded typed source artifacts | `health::phase_c::PhaseCHealthInputs` | loader private; constructor `pub(crate) fn` | `health::assess` |
+| 5 | `validate_source_compatibility` | `health::phase_c` | `&PhaseCHealthInputs` plus optional catalog | `PhaseCEligibleInputs` | `pub(crate) fn` | `health::assess` |
+| 6 | `prepare_phase_c_evidence` | `health::phase_c` | `&PhaseCEligibleInputs`, config | `EvidenceBundle` | `pub(crate) fn` | `health::assess` |
+| 7 | `evaluate_data_quality` | `health::phase_c` | bundle, `&PhaseCEligibleInputs`, config | DataQuality assessment | `pub(crate) fn` | `health::assess` |
+| 8 | `evaluate_dimension` | `health::phase_c` | dimension, bundle, `&PhaseCEligibleInputs`, config | one dimension assessment | `pub(crate) fn` | `health::assess` |
+| 9 | `evaluate_all_dimensions` | `health::phase_c` | bundle, `&PhaseCEligibleInputs`, config | nine assessments | `pub(crate) fn` | `health::assess` |
+| 10 | `derive_interpretation_category` | `health::phase_c` | assessment, mechanism | interpretation category | `pub(crate) fn` | `health::assess` |
+| 11 | `derive_causal_status` | `health::phase_c` | assessment, bundle, mechanism, config | causal status | `pub(crate) fn` | `health::assess` |
+| 12 | `compose_phase_c_report` | `health::phase_c` | config, nine assessments, bundle | Phase-C report | `pub(crate) fn` | `health::assess` |
+| 14 | `assemble_phase_c_assessment` | `runners::health` | legacy projection, Phase-C report, consumed sources | schema-4 `SensorHealthAssessment` | private runner helper | `health::assess` |
+
+The runner imports only the crate-visible symbols in the ownership table, in
+particular `assemble_phase_c_inputs`, `validate_source_compatibility`,
+`prepare_phase_c_evidence`, the three evaluation/derivation functions, and
+`compose_phase_c_report`. It owns neither a Phase-C evaluator-domain type nor
+a second construction route. Phase-C supporting adapters are private to
+`phase_c.rs`; `PhaseCHealthInputPaths` and its loader are private to the runner
+and never appear in a `phase_c` signature. This eliminates circular type
+ownership and every private-sibling type reference.
+
+The three NaN tests are frozen at exactly
+`src/health/phase_c.rs` → `crate::health::phase_c::tests` under
+`#[cfg(test)] mod tests`:
+
+| Test | Exact private input mutation | Exact evaluator | Expected result |
+|---|---|---|---|
+| `phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi` | selected compatible DynamicResponse baseline `tau_fast.mean = NaN s` | `super::evaluate_dimension(HealthDimension::DynamicResponseHealth, ...)` | `DataQualityInsufficient` / `invalid_quantity` |
+| `phase_c_nonfinite_signal_metric_is_dqi` | `signal.descriptive.rms = NaN V` | `super::evaluate_dimension(HealthDimension::SignalIntegrity, ...)` | `DataQualityInsufficient` / `invalid_quantity` |
+| `phase_c_observability_nonfinite_condition_number_is_dqi` | `observability.condition_number = NaN` | `super::evaluate_dimension(HealthDimension::Observability, ...)` | `DataQualityInsufficient` / `invalid_quantity`; `None` remains `required_quantity_absent` |
+
+The child `tests` module may access its parent `phase_c` module's private
+fields/functions, so its direct `super::PhaseCEligibleInputs` construction is
+legal without any public or test-only visibility expansion. The legacy writer
+test remains unchanged at `src/domain/artifact.rs` →
+`crate::domain::artifact::tests`. The mandatory inventory remains exactly four
+internal unit tests and 106 external integration tests (eight in
+`tests/artifact_contract.rs` and 98 in
+`tests/phase_c_sensor_health_evidence.rs`); the three relocated names are
+discovered from the library harness as `health::phase_c::tests::*`.
+
+The cross-module-visibility audit requires all of the following to remain
+zero: private types named by sibling signatures; crate-visible symbols in an
+undeclared/inaccessible module; `pub` versus `pub(crate)` evaluator conflicts;
+unnecessary public symbols; duplicate `PhaseCEligibleInputs` owners;
+cross-module symbols without frozen visibility; test-only public APIs;
+external inaccessible calls; internal inaccessible calls; test-placement
+conflicts; pipeline ownership contradictions; API-signature contradictions;
+missing/duplicate mandatory names; and implementation inventions. No public
+downstream Phase-C API, public re-export, or public NaN injection route is
+authorized.
