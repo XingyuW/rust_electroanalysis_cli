@@ -8360,11 +8360,16 @@ module, never production code.  Required fixture directories and purposes are:
 | `PC-FX-07/lineage-dependent` | two apparently corroborating sources with shared family | no independent count/promotion |
 | `PC-FX-08/negative` | wrong kind, unsupported schema, scope mismatch, invalid unit, missing quantity, and contradictory variants | typed errors or exact indeterminate/DQI/contradiction outcomes |
 
-Mandatory tests are in new `tests/phase_c_sensor_health_evidence.rs` unless
-the named schema test belongs in existing `tests/artifact_contract.rs`.  Every
-test must assert the named semantic status/category/causal status/reason and
-the listed mutation must fail it; `Ok`, record count, and fixture-load-only
-assertions are forbidden.
+Mandatory-test classification, exact owner path, and test discovery are
+normatively fixed by §35.7B.  In particular, public schema-boundary tests are
+in `tests/artifact_contract.rs`, public Phase-C route/behavior tests are in
+`tests/phase_c_sensor_health_evidence.rs`, and the one direct contract test
+for the crate-private legacy helper is a same-module unit test in
+`src/domain/artifact.rs`. Every external test must assert the named semantic
+status/category/causal status/reason through a public route or public artifact
+boundary; it must not call a private or `pub(crate)` production symbol. The
+listed mutation must fail; `Ok`, record count, and fixture-load-only assertions
+are forbidden.
 
 | Exact test | Scenario / production path | Required assertion and failing mutation |
 |---|---|---|
@@ -8436,9 +8441,12 @@ coverage listed above.
 
 The implementation creates `docs/engineering_specification/phase_c_sensor_health_evidence_traceability.md`
 with exactly: `Requirement ID`, `Acceptance Criterion`, `Implementation
-Symbol`, `Production Execution Path`, `Exact Test Function`, `Fixture/Data
-Source`, `Result`, `Compatibility Impact`, and `Scientific Risk`.  Planning
-must not mark a row PASS.  Stable requirement IDs are PC-SCHEMA-01..04,
+Symbol`, `Production Execution Path`, `Exact Test Function`, `Test
+Classification`, `Test Owner / Source Path`, `Directly Exercised Function or
+Public Route`, `Fixture / Input`, `Expected Result`, `Falsification Mutation`,
+`Result`, `Compatibility Impact`, and `Scientific Risk`. The classification
+and owner/path values are the deterministic §35.7B inventory bindings.
+Planning must not mark a row PASS.  Stable requirement IDs are PC-SCHEMA-01..04,
 PC-SOURCE-01..08, PC-SCOPE-01..03, PC-LINEAGE-01..04, PC-DQ-01..03,
 PC-HEALTH-01..09, PC-INTERP-01..03, PC-CAUSE-01..05, PC-CLI-01..03, and
 PC-FX-01..08.  Every test above maps to one or more of these IDs; no test
@@ -9334,8 +9342,10 @@ The mandatory inventory is 100 exact test functions. The 57 names already
 listed in §33.11 remain mandatory except that this section supplies their
 superseding expected results. The following 43 rows are the complete added
 set; together they are the rebuilt 100-test inventory, not a target count.
-Each test is in `tests/phase_c_sensor_health_evidence.rs`, exercises the named
-production path, names a fixture or literal builder input, asserts every
+Their exact external target is determined by §35.7B: the five enumerated
+public schema-boundary tests are in `tests/artifact_contract.rs`; the other 95
+are in `tests/phase_c_sensor_health_evidence.rs`. Each test exercises the
+named production path, names a fixture or literal builder input, asserts every
 listed result/reason, and fails under the listed scientifically relevant
 mutation.
 
@@ -9727,6 +9737,11 @@ pub(crate) fn write_legacy_sensor_health_assessment_v3(
 ) -> Result<(), ArtifactError>;
 ```
 
+Its visibility is frozen as exactly `pub(crate)`. It must not become `pub`,
+gain a public re-export, gain a public test-only wrapper, or gain a
+feature-gated public testing API. The re-export above remains crate-visible
+only for the legacy runner; it is not a test seam or public artifact API.
+
 It is not a generic versioned writer and must not accept an artifact kind,
 arbitrary version, JSON value, or arbitrary `VersionedArtifact`. Its caller is
 only `runners::health::export_legacy_assessment`, which is reachable only from
@@ -9889,7 +9904,7 @@ schema-3-only helper. Existing tests are not renamed or weakened.
 |---|---|---|---|---|---|
 | PC-LSW-01 | No-config `health assess` writes schema 3, no wire `phase_c`, preserves legacy semantic output, and public reread succeeds. | `cli::normalize_cli` → `main::run` → `runners::health::assess_legacy` → `export_legacy_assessment` → legacy writer | `phase_c_legacy_health_cli_without_config_writes_schema3` | legacy wire preserved | prevents invalid fabricated C claim |
 | PC-LSW-02 | Configured `health assess` executes Phase C and writes schema 4 with complete non-null `phase_c`. | `assess` → `assess_phase_c` → §33.9 stages 3--15 | `phase_c_health_cli_with_phase_c_config_writes_schema4` | additive current output | preserves C evidence requirement |
-| PC-LSW-03 | Canonical writer never writes schema 3; the helper cannot be the Phase-C writer and rejects every non-schema-3 input before other validation. | `domain::write_artifact`; private legacy helper is reachable only from legacy export | `phase_c_canonical_health_writer_never_emits_schema3`; `phase_c_legacy_schema3_writer_is_route_restricted`; `phase_c_legacy_schema3_writer_rejects_non_schema3_input` | generic writer unchanged | prevents mixed schema/result meanings |
+| PC-LSW-03 | Canonical writer never writes schema 3; the helper cannot be the Phase-C writer and rejects every non-schema-3 input before other validation. | `domain::write_artifact`; private legacy helper is reachable only from legacy export | `phase_c_canonical_health_writer_never_emits_schema3` and `phase_c_legacy_schema3_writer_is_route_restricted` are external integration tests; `phase_c_legacy_schema3_writer_rejects_non_schema3_input` is the §35.7B internal unit test in `src/domain/artifact.rs` | generic writer unchanged | prevents mixed schema/result meanings |
 | PC-LSW-04 | Legacy mode never constructs or synthesizes a default/empty Phase-C report. | `assess_legacy`, legacy writer precondition | `phase_c_legacy_health_cli_does_not_synthesize_phase_c` | legacy semantics unchanged | prevents fabricated evidence |
 | PC-LSW-05 | `SensorHealthAssessment::CURRENT_SCHEMA_VERSION` remains 4. | `results::artifact_contracts` and canonical writer | `phase_c_canonical_health_writer_never_emits_schema3` | current schema fixed | prevents compatibility-driven downgrade |
 | PC-LSW-06 | The independent static schema-3 fixture and fresh legacy route output remain readable as `phase_c=None`. | `results::health` typed conversion → `read_artifact` | `phase_c_legacy_schema3_health_artifact_remains_readable` | reader compatibility preserved | prevents false C interpretation |
@@ -9912,7 +9927,7 @@ mutations:
 | `phase_c_legacy_schema3_health_artifact_remains_readable` | Read only the independent static fixture at `tests/fixtures/phase_c/writer_boundary/legacy_health_assessment_v3.json` defined verbatim in §35.7A through public `read_artifact::<SensorHealthAssessment>`. It succeeds with `artifact_kind=HealthAssessment`, typed `schema_version=3`, `assessment_id="phase-c-legacy-schema3-fixture"`, `experiment_id=Some("phase-c-legacy-experiment")`, one `signal.mean` feature with `Some(0.2)` V, `overall_status=DataQualityInsufficient`, `phase_c=None`, and `lineage=LegacyUnknown { source_schema_version: None, reason: FieldAbsentInLegacyArtifact }`; therefore it has no `ArtifactId` or direct dependencies. The legacy-CLI test separately proves fresh writer output. | require C data for schema 3, infer an ArtifactId/dependency, or generate this reader input through the legacy writer |
 | `phase_c_health_cli_rejects_phase_c_sources_without_config` | Each Phase-C-only flag, and a combined set, without config returns the exact invalid-combination error; `--mechanism-results` alone remains valid legacy input. | ignore or implicitly consume a Phase-C-only path |
 | `phase_c_legacy_schema3_identity_and_lineage_are_deterministic` | Two output paths from equal known legacy sources have equal schema-3 identity and sorted dependencies; reread equals written lineage. | use output path, schema 4, or unordered dependencies in identity |
-| `phase_c_legacy_schema3_writer_rejects_non_schema3_input` | Construct the schema-3 legacy-compatible typed assessment represented by §35.7A, change only `schema_version` to `4`, retain `phase_c=None`, and call `write_legacy_sensor_health_assessment_v3` at an initially absent temporary output path. It returns exactly `ArtifactError::UnsupportedSchemaVersion { path: <that passed path>, expected: ArtifactKind::HealthAssessment, actual: 4 }`; no output file exists. This schema-4 representative proves the contract for schema 1, 2, and every future non-3 value, each of which has the same variant and fields with only `actual` changed. | return `Validation`, validate `phase_c` before the schema guard, write schema 4, or silently rewrite/downgrade the input |
+| `phase_c_legacy_schema3_writer_rejects_non_schema3_input` | **INTERNAL UNIT TEST** in `src/domain/artifact.rs` / `#[cfg(test)] mod tests`. Construct the schema-3 legacy-compatible typed assessment represented by §35.7A, change only `schema_version` to `4`, retain `phase_c=None`, and call `super::write_legacy_sensor_health_assessment_v3` at an initially absent temporary output path. It returns exactly `ArtifactError::UnsupportedSchemaVersion { path: <that passed path>, expected: ArtifactKind::HealthAssessment, actual: 4 }`; no output file exists. This schema-4 representative proves the contract for schema 1, 2, and every future non-3 value, each of which has the same variant and fields with only `actual` changed. | return `Validation`, validate `phase_c` before the schema guard, write schema 4, or silently rewrite/downgrade the input |
 
 `phase_c_health_cli_rejects_phase_c_sources_without_config` also proves that
 the HealthAssess spelling `--state-estimation-artifact` is rejected rather
@@ -10064,6 +10079,73 @@ the common non-3 guard because its first operation uses the unconstrained
 predicate `schema_version != 3`; the schema-1, schema-2, and future rows are
 still contractual and must not acquire version-specific behavior.
 
+### 35.7B Mandatory-test placement, visibility, and discovery contract
+
+The final mandatory inventory remains exactly **110 unique exact test
+functions**. It is a cross-target inventory, not the contents of one external
+test binary. The test classification and owner/source path are deterministic:
+
+| inventory subset | unique names | classification | exact owner / source path | visibility / invocation rule |
+|---|---:|---|---|---|
+| §33.11/§34.10 public schema-boundary subset: `phase_c_schema3_health_assessment_remains_readable`, `phase_c_schema4_requires_complete_nine_dimension_report`, `phase_c_schema4_roundtrip_preserves_wire_contract`, `phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version`, and `phase_c_schema4_rejects_retired_phase_c_aliases` | 5 | EXTERNAL INTEGRATION TEST | `tests/artifact_contract.rs` | Call only public artifact reader/writer behavior. |
+| Remaining exact names in the 100-test §33.11/§34.10 inventory | 95 | EXTERNAL INTEGRATION TEST | `tests/phase_c_sensor_health_evidence.rs` | Exercise the public CLI, public artifact reader/writer, or public result artifact. Descriptions such as “evaluator” identify the production behavior exercised, not permission to call a non-public evaluator directly. |
+| `phase_c_canonical_health_writer_never_emits_schema3`, `phase_c_schema4_rejects_missing_or_null_phase_c`, and `phase_c_legacy_schema3_health_artifact_remains_readable` | 3 | EXTERNAL INTEGRATION TEST | `tests/artifact_contract.rs` | Call public `domain::write_artifact` or public `read_artifact`; no legacy-helper call. |
+| `phase_c_legacy_health_cli_without_config_writes_schema3`, `phase_c_health_cli_with_phase_c_config_writes_schema4`, `phase_c_legacy_schema3_writer_is_route_restricted`, `phase_c_legacy_health_cli_does_not_synthesize_phase_c`, `phase_c_health_cli_rejects_phase_c_sources_without_config`, and `phase_c_legacy_schema3_identity_and_lineage_are_deterministic` | 6 | EXTERNAL INTEGRATION TEST | `tests/phase_c_sensor_health_evidence.rs` | Exercise externally observable CLI, route, emitted artifact, schema, reader, identity, and lineage behavior; no legacy-helper call. |
+| `phase_c_legacy_schema3_writer_rejects_non_schema3_input` | 1 | INTERNAL UNIT TEST | `src/domain/artifact.rs`, `#[cfg(test)] mod tests` | Directly call the helper through same-module `super::write_legacy_sensor_health_assessment_v3`. |
+
+Thus the inventory contains 109 external integration tests, one internal unit
+test, and no other classification. These rules, together with the existing
+per-test requirement, fixture/input, expected-result, and falsification
+columns in §§33--34 and §35.7, make every mandatory-test record
+deterministically derivable. The implementation traceability document must
+copy those fields and record `NOT YET IMPLEMENTED` during planning rather than
+prematurely marking a test PASS.
+
+The direct helper-contract test is frozen exactly as follows:
+
+```text
+source file: src/domain/artifact.rs
+test module: #[cfg(test)] mod tests
+test function: phase_c_legacy_schema3_writer_rejects_non_schema3_input
+function under test: domain::write_legacy_sensor_health_assessment_v3
+direct access mechanism: same-library, same-module super::write_legacy_sensor_health_assessment_v3
+classification: INTERNAL UNIT TEST
+```
+
+It constructs the §35.7A schema-3 legacy-compatible typed assessment, changes
+only `schema_version` to `4`, retains `phase_c=None`, and passes an initially
+absent output path directly to the helper. It must return exactly
+`ArtifactError::UnsupportedSchemaVersion { path: <that passed path>, expected:
+ArtifactKind::HealthAssessment, actual: 4 }`; no file is written. Returning
+`ArtifactError::Validation`, writing schema 4, accepting schema 4, or silently
+downgrading it all fail this test. The direct call is legal because this is a
+library-crate unit test in the helper's owner module; an external test under
+`tests/` is a separate crate and cannot call the `pub(crate)` helper.
+
+The internal test does not replace public coverage. The external targets above
+retain substantive coverage for the legacy no-config/schema-3 route, the
+configured Phase-C/schema-4 route, the route restriction, generic-writer
+non-downgrade behavior, public schema-3 reader compatibility, CLI option
+handling, and identity/lineage behavior.
+
+The visibility audit is also frozen: `phase_c_legacy_schema3_writer_rejects_non_schema3_input`
+is the only mandatory direct call to a non-public Phase-C or legacy-writer
+symbol. Every other mandatory test that exercises a `pub(crate)` evaluator,
+private runner helper, or private input struct does so through its public
+route/artifact effect. Therefore other external tests directly calling an
+inaccessible private or `pub(crate)` symbol = 0; required production-visibility
+expansions = 0; new public test seams = 0; and test-only public APIs = 0.
+
+Implementation completion must run `cargo test --locked --all -- --list` and
+cross-check the complete output against all 110 exact mandatory names. The
+internal test must be discovered under the library harness as
+`domain::artifact::tests::phase_c_legacy_schema3_writer_rejects_non_schema3_input`;
+the external tests must be discovered in the `phase_c_sensor_health_evidence`
+and `artifact_contract` targets at their exact source locations above. Missing
+mandatory names = 0, duplicate mandatory names = 0, ignored mandatory tests =
+0, and placement ambiguities = 0. No completion criterion may require all 110
+tests to be discovered in a single external target.
+
 ### 35.8 Completion audit and two-implementer check
 
 The amendment is complete only when the following counts are all zero:
@@ -10094,6 +10176,14 @@ missing exact writer-boundary tests
 tests referencing nonexistent fixtures
 tests without falsification meaning
 missing mandatory test names
+duplicate mandatory test names
+unspecified mandatory-test classification
+unspecified mandatory-test owner/path
+unspecified direct-helper test placement
+external tests calling inaccessible private or `pub(crate)` symbols
+single-external-target mandatory-test completeness assumptions
+unspecified complete-inventory test-discovery method
+public visibility expansions required only for testing
 unmapped amendment requirements
 unmapped amendment acceptance criteria
 implementation inventions required
@@ -10114,7 +10204,13 @@ can disagree about all of the following:
 * the literal static fixture path, all its literal payload fields, its absent
   `phase_c`/lineage/identity/dependencies, and its independent provenance;
 * the exact helper error for schema 4 and for schema 1, schema 2, and future
-  schemas; or its first-validation schema guard;
+  schemas; its first-validation schema guard; its exact `pub(crate)`
+  visibility; or the `src/domain/artifact.rs` same-module internal-test
+  placement/access mechanism;
+* whether the direct helper test is an internal unit test, whether public route
+  coverage remains external, whether all 110 mandatory tests must be in one
+  external target, how the complete cross-target inventory is discovered, or
+  whether a public testing seam is required;
 * no-config schema 3, configured schema 4, default-report fabrication, route
   selection, `CURRENT_SCHEMA_VERSION`, legacy ArtifactId/lineage behavior,
   optional-flag routing, or Phase-C-only pipeline execution.
