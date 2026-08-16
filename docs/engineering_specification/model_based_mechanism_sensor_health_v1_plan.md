@@ -8363,11 +8363,15 @@ module, never production code.  Required fixture directories and purposes are:
 Mandatory-test classification, exact owner path, and test discovery are
 normatively fixed by §35.7B.  In particular, public schema-boundary tests are
 in `tests/artifact_contract.rs`, public Phase-C route/behavior tests are in
-`tests/phase_c_sensor_health_evidence.rs`, and the one direct contract test
-for the crate-private legacy helper is a same-module unit test in
-`src/domain/artifact.rs`. Every external test must assert the named semantic
+`tests/phase_c_sensor_health_evidence.rs`, and four direct contracts are
+internal unit tests: the crate-private legacy helper in `src/domain/artifact.rs`
+and the three typed nonfinite-input evaluator contracts in
+`src/runners/health.rs`. Every external test must assert the named semantic
 status/category/causal status/reason through a public route or public artifact
 boundary; it must not call a private or `pub(crate)` production symbol. The
+three nonfinite contracts are the deliberate exception because a JSON/JCS/CLI
+boundary cannot represent their exact `NaN` input. Their internal placement is
+specified literally in §35.7B and does not replace public-route coverage. The
 listed mutation must fail; `Ok`, record count, and fixture-load-only assertions
 are forbidden.
 
@@ -9342,12 +9346,13 @@ The mandatory inventory is 100 exact test functions. The 57 names already
 listed in §33.11 remain mandatory except that this section supplies their
 superseding expected results. The following 43 rows are the complete added
 set; together they are the rebuilt 100-test inventory, not a target count.
-Their exact external target is determined by §35.7B: the five enumerated
-public schema-boundary tests are in `tests/artifact_contract.rs`; the other 95
-are in `tests/phase_c_sensor_health_evidence.rs`. Each test exercises the
-named production path, names a fixture or literal builder input, asserts every
-listed result/reason, and fails under the listed scientifically relevant
-mutation.
+Their placement is determined by §35.7B: the five enumerated public
+schema-boundary tests are in `tests/artifact_contract.rs`; the three named
+nonfinite typed-input tests are internal unit tests in `src/runners/health.rs`;
+and the other 92 are in `tests/phase_c_sensor_health_evidence.rs`. Each test
+exercises the named production path, names a fixture or literal builder input,
+asserts every listed result/reason, and fails under the listed scientifically
+relevant mutation.
 
 | exact function | requirement | path / input | exact expected result | mutation that must fail |
 |---|---|---|---|---|
@@ -9478,6 +9483,24 @@ mandatory Indeterminate tests with ambiguous causes = 0
 | PC-AGG-01..06 | `compose_phase_c_report` | six `phase_c_aggregate_*` tests in §34.10 |
 | PC-AGG-07 | `compose_phase_c_report` overall-status priority | existing `phase_c_aggregate_status_and_causal_status_follow_fixed_rule` with exact §34.6 priority assertions |
 | PC-TEST-01..06 | dimension evaluators and §34.10A audit | calibration DQI; two exact EnvironmentalRobustness DQI cases; EnvironmentalRobustness minimum-count indeterminacy; two exact Observability DQI cases; PC-TEST-05 is the zero-alternative DQI audit and PC-TEST-06 is the zero-ambiguity Indeterminate audit |
+
+The placement field for the three affected scientific mappings is not implied:
+it is explicitly reconciled here and in the literal §35.7B internal-test rows.
+`PC-DYN-10` maps
+`phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi` to the
+INTERNAL UNIT TEST owner `src/runners/health.rs` /
+`crate::runners::health::tests`, direct typed
+`super::PhaseCEligibleInputs`, and
+`evaluate_dimension(HealthDimension::DynamicResponseHealth, ...)`.
+`PC-DQ-06` maps `phase_c_nonfinite_signal_metric_is_dqi` to that same internal
+owner/type and `evaluate_dimension(HealthDimension::SignalIntegrity, ...)`.
+`PC-HEALTH-07` and `PC-TEST-04` map
+`phase_c_observability_nonfinite_condition_number_is_dqi` to that same
+internal owner/type and `evaluate_dimension(HealthDimension::Observability,
+...)`. All other tests in those requirement rows retain the external targets
+fixed by §35.7B. These are placement/access changes only: every fixture/input,
+status, reason, and falsification criterion remains the unchanged scientific
+contract.
 
 The final Phase-C completeness audit must report zero for every item in Part Q
 of the remediation request, including undefined type/owner/wire/schema/migration
@@ -9913,6 +9936,13 @@ schema-3-only helper. Existing tests are not renamed or weakened.
 | PC-LSW-09 | Config absence selects only legacy mode; config presence selects only Phase-C mode. | `cli::normalize_cli`, `main::run`, `runners::health::assess` | `phase_c_legacy_health_cli_without_config_writes_schema3`; `phase_c_health_cli_with_phase_c_config_writes_schema4` | deterministic CLI transition | prevents wrong scientific route |
 | PC-LSW-10 | Phase-C-only source flags without config reject and never implicitly activate or alter legacy assessment. | `cli::normalize_cli` invalid combination guard and runner defensive guard | `phase_c_health_cli_rejects_phase_c_sources_without_config` | legacy flags remain valid | prevents silent source consumption |
 
+PC-LSW placement is unchanged: its only internal mandatory test remains
+`phase_c_legacy_schema3_writer_rejects_non_schema3_input` in
+`src/domain/artifact.rs` / `crate::domain::artifact::tests`. The three
+additional internal tests in §35.7B map only their existing scientific
+requirements (`PC-DYN-10`, `PC-DQ-06`, `PC-HEALTH-07`, and `PC-TEST-04`);
+they do not add, remove, or alter a PC-LSW acceptance criterion.
+
 The tests have the following exact minimum assertions and falsifying
 mutations:
 
@@ -10083,20 +10113,42 @@ still contractual and must not acquire version-specific behavior.
 
 The final mandatory inventory remains exactly **110 unique exact test
 functions**. It is a cross-target inventory, not the contents of one external
-test binary. The test classification and owner/source path are deterministic:
+test binary. Let `I100` be the exact 100-name set enumerated in §§33.11 and
+34.10, `S5` be the five explicitly named public schema-boundary names below,
+and `N3` be the three explicitly named nonfinite names below. The audit is
+complete and deterministic: every name in `I100`, and every one of the ten
+§35.7 names, belongs to exactly one row below. No catch-all permits a direct
+call to an inaccessible symbol.
 
-| inventory subset | unique names | classification | exact owner / source path | visibility / invocation rule |
+The three `N3` conflicts are reproduced, not inferred. `PhaseCHealthInputPaths`,
+`PhaseCHealthInputs`, and `PhaseCEligibleInputs` are private
+`src/runners/health.rs` types (§33.9), while the Phase-C evaluators in
+`src/health/phase_c.rs` are private or `pub(crate)`. An external integration
+test is a separate crate: it can neither name/construct
+`runners::health::PhaseCEligibleInputs` nor call the evaluator through that
+private typed path. Its permitted public artifact/CLI route serializes through
+the finite-value/JCS boundary and therefore cannot carry the required `NaN`.
+For DynamicResponse, SignalIntegrity, and Observability, widening visibility
+would be required to retain the exact direct typed contract; that widening is
+prohibited. Thus all three are internal by necessity, while their unrelated
+public artifact/CLI coverage remains external.
+
+| audited exact-name set | count | classification | exact owner / source path | direct input and target visibility / legal invocation |
 |---|---:|---|---|---|
-| §33.11/§34.10 public schema-boundary subset: `phase_c_schema3_health_assessment_remains_readable`, `phase_c_schema4_requires_complete_nine_dimension_report`, `phase_c_schema4_roundtrip_preserves_wire_contract`, `phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version`, and `phase_c_schema4_rejects_retired_phase_c_aliases` | 5 | EXTERNAL INTEGRATION TEST | `tests/artifact_contract.rs` | Call only public artifact reader/writer behavior. |
-| Remaining exact names in the 100-test §33.11/§34.10 inventory | 95 | EXTERNAL INTEGRATION TEST | `tests/phase_c_sensor_health_evidence.rs` | Exercise the public CLI, public artifact reader/writer, or public result artifact. Descriptions such as “evaluator” identify the production behavior exercised, not permission to call a non-public evaluator directly. |
-| `phase_c_canonical_health_writer_never_emits_schema3`, `phase_c_schema4_rejects_missing_or_null_phase_c`, and `phase_c_legacy_schema3_health_artifact_remains_readable` | 3 | EXTERNAL INTEGRATION TEST | `tests/artifact_contract.rs` | Call public `domain::write_artifact` or public `read_artifact`; no legacy-helper call. |
-| `phase_c_legacy_health_cli_without_config_writes_schema3`, `phase_c_health_cli_with_phase_c_config_writes_schema4`, `phase_c_legacy_schema3_writer_is_route_restricted`, `phase_c_legacy_health_cli_does_not_synthesize_phase_c`, `phase_c_health_cli_rejects_phase_c_sources_without_config`, and `phase_c_legacy_schema3_identity_and_lineage_are_deterministic` | 6 | EXTERNAL INTEGRATION TEST | `tests/phase_c_sensor_health_evidence.rs` | Exercise externally observable CLI, route, emitted artifact, schema, reader, identity, and lineage behavior; no legacy-helper call. |
-| `phase_c_legacy_schema3_writer_rejects_non_schema3_input` | 1 | INTERNAL UNIT TEST | `src/domain/artifact.rs`, `#[cfg(test)] mod tests` | Directly call the helper through same-module `super::write_legacy_sensor_health_assessment_v3`. |
+| `S5 = { phase_c_schema3_health_assessment_remains_readable, phase_c_schema4_requires_complete_nine_dimension_report, phase_c_schema4_roundtrip_preserves_wire_contract, phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version, phase_c_schema4_rejects_retired_phase_c_aliases }` | 5 | EXTERNAL INTEGRATION TEST | `tests/artifact_contract.rs` | Public fixture JSON and public `SensorHealthAssessment` reader/writer contract only; call public `domain::read_artifact` and `domain::write_artifact`, never a private evaluator or input struct. |
+| `I100 \ (S5 ∪ N3)` | 92 | EXTERNAL INTEGRATION TEST | `tests/phase_c_sensor_health_evidence.rs` | The exact fixture/input, result, and falsification mutation remain the per-name §33.11/§34.10 rows. Construct only public fixture/artifact/CLI inputs and observe public CLI, artifact-reader, artifact-writer, or result-artifact behavior. “Evaluator” in a scientific row names behavior exercised, never permission to call a non-public evaluator. |
+| `phase_c_canonical_health_writer_never_emits_schema3`, `phase_c_schema4_rejects_missing_or_null_phase_c`, and `phase_c_legacy_schema3_health_artifact_remains_readable` | 3 | EXTERNAL INTEGRATION TEST | `tests/artifact_contract.rs` | Public static fixture or public wire mutation; call public `domain::write_artifact` or `domain::read_artifact`, with no legacy-helper call. |
+| `phase_c_legacy_health_cli_without_config_writes_schema3`, `phase_c_health_cli_with_phase_c_config_writes_schema4`, `phase_c_legacy_schema3_writer_is_route_restricted`, `phase_c_legacy_health_cli_does_not_synthesize_phase_c`, `phase_c_health_cli_rejects_phase_c_sources_without_config`, and `phase_c_legacy_schema3_identity_and_lineage_are_deterministic` | 6 | EXTERNAL INTEGRATION TEST | `tests/phase_c_sensor_health_evidence.rs` | Public CLI paths, emitted artifact, public reader, identity, and lineage only; no legacy-helper or Phase-C evaluator call. |
+| `phase_c_legacy_schema3_writer_rejects_non_schema3_input` | 1 | INTERNAL UNIT TEST | `src/domain/artifact.rs`, `#[cfg(test)] mod tests` | Same-module typed `SensorHealthAssessment`; call `super::write_legacy_sensor_health_assessment_v3`, which remains `pub(crate)`. |
+| `N3 = { phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi, phase_c_nonfinite_signal_metric_is_dqi, phase_c_observability_nonfinite_condition_number_is_dqi }` | 3 | INTERNAL UNIT TEST | `src/runners/health.rs`, `#[cfg(test)] mod tests` | Directly construct the private owner-module `super::PhaseCEligibleInputs`; call crate-visible `crate::health::phase_c::prepare_phase_c_evidence` and `crate::health::phase_c::evaluate_dimension`. No JSON, JCS, artifact writer, CLI, public re-export, wrapper, or feature-gated seam is used to inject `NaN`. |
 
-Thus the inventory contains 109 external integration tests, one internal unit
-test, and no other classification. These rules, together with the existing
-per-test requirement, fixture/input, expected-result, and falsification
-columns in §§33--34 and §35.7, make every mandatory-test record
+Thus the inventory contains **106 external integration tests** and **4 internal
+unit tests**; `106 + 4 = 110`. There is no other classification. The 106
+external names have exact existing targets (8 in `tests/artifact_contract.rs`,
+98 in `tests/phase_c_sensor_health_evidence.rs`), and the four internal names
+have exact library source-file/module owners. These rules, together with the
+existing per-name requirement, fixture/input, expected-result, and
+falsification columns in §§33--34 and §35.7, make every mandatory-test record
 deterministically derivable. The implementation traceability document must
 copy those fields and record `NOT YET IMPLEMENTED` during planning rather than
 prematurely marking a test PASS.
@@ -10128,23 +10180,45 @@ configured Phase-C/schema-4 route, the route restriction, generic-writer
 non-downgrade behavior, public schema-3 reader compatibility, CLI option
 handling, and identity/lineage behavior.
 
-The visibility audit is also frozen: `phase_c_legacy_schema3_writer_rejects_non_schema3_input`
-is the only mandatory direct call to a non-public Phase-C or legacy-writer
-symbol. Every other mandatory test that exercises a `pub(crate)` evaluator,
-private runner helper, or private input struct does so through its public
-route/artifact effect. Therefore other external tests directly calling an
-inaccessible private or `pub(crate)` symbol = 0; required production-visibility
-expansions = 0; new public test seams = 0; and test-only public APIs = 0.
+The three additional direct internal contracts are frozen literally as follows.
+They are in the owner of the private input type, which is the narrowest module
+that can construct that type and still call the `pub(crate)` evaluator. The
+typed `NaN` is injected before the serialization boundary; the evaluator result
+is the asserted scientific result, not a JSON-invalid-input surrogate.
+
+| test function | classification | source file / `#[cfg(test)]` module path | private typed input and exact `NaN` field | evaluator and legal direct access | exact result and falsification |
+|---|---|---|---|---|---|
+| `phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi` | INTERNAL UNIT TEST | `src/runners/health.rs`; `crate::runners::health::tests` | `super::PhaseCEligibleInputs`; its compatible baseline’s selected `tau_fast` distribution `mean = NaN s`, with every other PC-FX-03 value valid | `crate::health::phase_c::prepare_phase_c_evidence(&inputs, &config)` followed by `crate::health::phase_c::evaluate_dimension(HealthDimension::DynamicResponseHealth, &bundle, &inputs, &config)`; `super::PhaseCEligibleInputs` is legal because the unit module is inside its private owner, and the evaluator is `pub(crate)` | `DataQualityInsufficient` with exactly `invalid_quantity`; fail if `NaN` is normal, returns `Indeterminate`, uses a different DQI reason, uses a different baseline statistic, coerces to zero, or treats it as absent. |
+| `phase_c_nonfinite_signal_metric_is_dqi` | INTERNAL UNIT TEST | `src/runners/health.rs`; `crate::runners::health::tests` | `super::PhaseCEligibleInputs`; supplied typed signal `descriptive.rms = NaN V`, with the other required SignalIntegrity values and unit valid | `crate::health::phase_c::prepare_phase_c_evidence(&inputs, &config)` followed by `crate::health::phase_c::evaluate_dimension(HealthDimension::SignalIntegrity, &bundle, &inputs, &config)` through the same legal private-owner / `pub(crate)` paths | `DataQualityInsufficient` with exactly `invalid_quantity`; fail if it omits the metric, treats `NaN` as normal or missing, returns `Indeterminate`, or returns another reason. |
+| `phase_c_observability_nonfinite_condition_number_is_dqi` | INTERNAL UNIT TEST | `src/runners/health.rs`; `crate::runners::health::tests` | `super::PhaseCEligibleInputs`; supplied typed estimation `observability.condition_number = NaN` | `crate::health::phase_c::prepare_phase_c_evidence(&inputs, &config)` followed by `crate::health::phase_c::evaluate_dimension(HealthDimension::Observability, &bundle, &inputs, &config)` through the same legal private-owner / `pub(crate)` paths | `DataQualityInsufficient` with exactly `invalid_quantity`; fail if it coerces the condition number, returns `Indeterminate`, returns another reason, or conflates this case with `condition_number = None`, which remains `required_quantity_absent`. |
+
+The visibility audit is therefore frozen as follows: all 110 names were
+audited; the four names explicitly listed as internal above are the only
+mandatory direct calls to a non-public Phase-C or legacy-writer symbol; and the
+other 106 tests are external and call only accessible public routes. The only
+placement conflicts found were the three `N3` nonfinite tests; after their
+placement, external tests directly calling an inaccessible private or
+`pub(crate)` symbol = 0, internal tests lacking legal access = 0, required
+production-visibility expansions = 0, public re-exports = 0, new public test
+seams = 0, test-only public APIs = 0, and feature-gated test seams = 0.
 
 Implementation completion must run `cargo test --locked --all -- --list` and
-cross-check the complete output against all 110 exact mandatory names. The
-internal test must be discovered under the library harness as
-`domain::artifact::tests::phase_c_legacy_schema3_writer_rejects_non_schema3_input`;
-the external tests must be discovered in the `phase_c_sensor_health_evidence`
-and `artifact_contract` targets at their exact source locations above. Missing
-mandatory names = 0, duplicate mandatory names = 0, ignored mandatory tests =
-0, and placement ambiguities = 0. No completion criterion may require all 110
-tests to be discovered in a single external target.
+cross-check the complete output against all 110 exact mandatory names from
+§§33.11, 34.10, and 35.7. The internal tests must be discovered under the
+library harness as
+`domain::artifact::tests::phase_c_legacy_schema3_writer_rejects_non_schema3_input`,
+`runners::health::tests::phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi`,
+`runners::health::tests::phase_c_nonfinite_signal_metric_is_dqi`, and
+`runners::health::tests::phase_c_observability_nonfinite_condition_number_is_dqi`.
+The external tests must be discovered in the
+`phase_c_sensor_health_evidence` and `artifact_contract` targets at their exact
+source locations above. A missing mandatory name, duplicate mandatory name,
+ignored mandatory test, or renamed substitute is blocking. Full mandatory
+execution is `cargo test --locked --all`; it exercises both library/internal
+and external targets. `cargo test --locked --test phase_c_sensor_health_evidence`
+and the applicable `artifact_contract` target execution are useful focused
+external checks, but neither single target is a replacement for full
+cross-target discovery or execution.
 
 ### 35.8 Completion audit and two-implementer check
 
@@ -10180,9 +10254,16 @@ duplicate mandatory test names
 unspecified mandatory-test classification
 unspecified mandatory-test owner/path
 unspecified direct-helper test placement
+unspecified direct typed-nonfinite test placement
+unspecified internal test module/access expression
+unspecified external test target
 external tests calling inaccessible private or `pub(crate)` symbols
+internal tests unable to access their typed input or evaluator
 single-external-target mandatory-test completeness assumptions
 unspecified complete-inventory test-discovery method
+unspecified complete mandatory-test execution method
+unspecified final internal/external test count
+NaN scientific tests replaced by serialization-boundary surrogates
 public visibility expansions required only for testing
 unmapped amendment requirements
 unmapped amendment acceptance criteria
@@ -10207,10 +10288,24 @@ can disagree about all of the following:
   schemas; its first-validation schema guard; its exact `pub(crate)`
   visibility; or the `src/domain/artifact.rs` same-module internal-test
   placement/access mechanism;
-* whether the direct helper test is an internal unit test, whether public route
-  coverage remains external, whether all 110 mandatory tests must be in one
-  external target, how the complete cross-target inventory is discovered, or
-  whether a public testing seam is required;
+* whether `phase_c_dynamic_response_nonfinite_baseline_denominator_is_dqi`,
+  `phase_c_nonfinite_signal_metric_is_dqi`, or
+  `phase_c_observability_nonfinite_condition_number_is_dqi` is an internal
+  unit test; its literal `src/runners/health.rs` /
+  `crate::runners::health::tests` placement; its direct
+  `super::PhaseCEligibleInputs` construction path; the exact `NaN` field;
+  the exact `evaluate_dimension` call and dimension; or its
+  `DataQualityInsufficient` / `invalid_quantity` result;
+* whether any of those three `NaN` tests may use a JSON/CLI/serialization
+  surrogate, whether their placement requires a public re-export, wrapper,
+  feature-gated seam, or other production visibility widening, or whether
+  `condition_number=None` may be conflated with `condition_number=NaN`;
+* whether the four internal / 106 external counts are exact, whether public
+  route coverage remains external, whether all 110 mandatory tests must be in
+  one external target, which of `artifact_contract`,
+  `phase_c_sensor_health_evidence`, or the library harness owns each test, how
+  the complete cross-target inventory is discovered, how all mandatory tests
+  are executed, or whether a public testing seam is required;
 * no-config schema 3, configured schema 4, default-report fabrication, route
   selection, `CURRENT_SCHEMA_VERSION`, legacy ArtifactId/lineage behavior,
   optional-flag routing, or Phase-C-only pipeline execution.
