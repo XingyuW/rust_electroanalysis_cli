@@ -9567,3 +9567,325 @@ that this documentation change alone is committed and independently reviewed;
 it is not authorization to implement Phase C.  The independent reviewer must
 recalculate the table against the final cumulative diff, run the prescribed
 repository validation from that commit, and issue the verdict.
+
+## 35. Phase C legacy schema-3 health-writer boundary amendment
+
+### 35.1 Authority, confirmed blocker, and narrow supersession
+
+This post-approval amendment is the sole active Phase-C contract for the two
+`health assess` write modes, schema selection, legacy health writer API,
+legacy output identity, route selection, and the additional test and
+traceability requirements below. It supersedes only the otherwise ambiguous
+writer language in §§33.2, 33.8--33.10, 33.12, and 34.10--34.13. All
+unaffected Phase-C requirements remain active, including the nine dimensions,
+the data-quality/Indeterminate precedence, interpretation and causal rules,
+Phase-B binding, DynamicResponse rules, source contracts, actual-consumption
+lineage semantics, fixtures, aggregation, and the 15-stage Phase-C pipeline.
+
+The reported implementation blocker is **CONFIRMED** against the integrated
+repository at `bc709ce51b1180730287eb7b629d77529063841e`:
+
+1. `runners::health::assess` constructs the legacy
+   `SensorHealthAssessment` and reaches `export_assessment`, which calls
+   `domain::write_artifact`.
+2. `domain::write_artifact` accepts a supported legacy version but replaces
+   its serialized `schema_version` with `T::CURRENT_SCHEMA_VERSION`, stamps
+   the current artifact kind, and validates that resulting value.
+3. §§33.8 and 34 require `SensorHealthAssessment::CURRENT_SCHEMA_VERSION =
+   4`, where a `phase_c` report is required and non-null.
+4. The no-`--phase-c-config` legacy calculation neither executes the Phase-C
+   pipeline nor constructs a Phase-C report.
+
+Consequently the original approved wording required the legacy route both to
+remain unchanged and to write an invalid schema-4 artifact. This amendment
+selects the narrowly scoped legacy schema-3 compatibility writer described in
+this section. It does not select a default report, implicit Phase-C execution,
+or a change to the generic writer.
+
+### 35.2 Frozen write modes and current-schema meaning
+
+There are exactly two production `health assess` write modes.
+
+| mode | exact trigger | computation | artifact output | writer |
+|---|---|---|---|---|
+| Legacy health mode | `--phase-c-config` absent and no Phase-C-only source flag supplied | Existing legacy feature, comparison, rule, finding, and assessment path, unchanged | `SensorHealthAssessment`, `schema_version = 3`, `artifact_kind = "health_assessment"`, with no `phase_c` member on the wire | `domain::write_legacy_sensor_health_assessment_v3` only |
+| Phase-C mode | `--phase-c-config <PATH>` present | The approved §33.9 stages 3--15 and legacy projection stage 13 | `SensorHealthAssessment`, `schema_version = 4`, `artifact_kind = "health_assessment"`, and a complete non-null `phase_c` report | `domain::write_artifact` only |
+
+After Phase-C implementation,
+`SensorHealthAssessment::CURRENT_SCHEMA_VERSION` is **4** and
+`LEGACY_SCHEMA_VERSIONS` is **`&[1, 2, 3]`**. The current-schema value is not
+lowered to retain legacy output.
+
+The terms below are deliberately distinct:
+
+* The **canonical current-schema writer** is `domain::write_artifact` when it
+  writes `SensorHealthAssessment` in Phase-C mode. Once schema 4 is current,
+  it never writes schema 3.
+* The **legacy health compatibility writer** is the private typed function in
+  §35.4. It writes schema 3 only for the no-Phase-C `health assess` route.
+
+The legacy writer must never write schema 4, produce `phase_c`, fabricate a
+default or empty Phase-C report, alter a legacy health calculation or field
+meaning, accept another artifact type, downgrade a schema-4 health artifact,
+be called by Phase-C mode, mutate `domain::write_artifact`, or affect A0, A1,
+or Phase-B behavior. The Phase-C canonical writer must never emit schema 3.
+
+### 35.3 Exact route selection and CLI contract
+
+`runners::health::assess` is the sole production route selector. Its expanded
+public internal-call signature is exactly:
+
+```rust
+pub fn assess(
+    workspace: &Path,
+    signal_path: &Path,
+    transient: Option<&Path>,
+    calibration: Option<&Path>,
+    eis: Option<&Path>,
+    legacy_mechanism_results: Option<&Path>,
+    baseline_path: Option<&Path>,
+    metadata: Option<&Path>,
+    legacy_config_path: Option<&Path>,
+    phase_c_config: Option<&Path>,
+    estimation_artifact: Option<&Path>,
+    model_artifact: Option<&Path>,
+    phase_c_mechanism_artifact: Option<&Path>,
+    lineage_catalog: Option<&Path>,
+    output: Option<&Path>,
+) -> Result<(), RunnerError>;
+```
+
+Its first operation is exactly this conceptual match, before loading any
+Phase-C-only source:
+
+```text
+None + no Phase-C-only source path  -> assess_legacy(...) -> legacy writer
+Some(config) + any optional-source combination -> assess_phase_c(...) -> stages 3--15 -> canonical writer
+None + one or more Phase-C-only source paths -> typed invalid-combination error; no artifact
+```
+
+`assess_legacy` is a private extraction of the existing body and calls the
+renamed private `export_legacy_assessment`; it performs no Phase-C loading or
+evaluation. `assess_phase_c` is a private owner of the approved Phase-C path.
+It receives a private `PhaseCHealthInputPaths` with exactly the four
+Phase-C-only fields shown above plus the already approved shared source paths;
+it has no generic path map. This is a dispatch extraction only, not a
+scientific redesign.
+
+`cli::normalize_cli` is responsible only for rejecting an invalid user-facing
+combination before it reaches the runner; it does not select an alternate
+runtime path. It must return `CliError::InvalidCombination` when a
+`health assess` invocation omits `--phase-c-config` but supplies any of:
+
+```text
+--estimation-artifact
+--model-artifact
+--mechanism-artifact
+--lineage-catalog
+```
+
+Within `health assess`, the Phase-C estimation spelling is exactly
+`--estimation-artifact`. `--state-estimation-artifact` is not an alias in this
+subcommand and remains rejected by clap as an unknown health-assess option; it
+continues to have only its existing mechanism-command meaning. Optional
+Phase-C source flags never activate Phase C themselves.
+
+The existing `--mechanism-results` remains a legacy-projection input. In
+Phase-C mode it and `--mechanism-artifact` are the approved alias pair: public
+readers must resolve the same known `ArtifactId` or the invocation fails with
+`ConflictingEvidenceInput`; equal known IDs deduplicate. In legacy mode only
+`--mechanism-results` is accepted. `--transient-results`,
+`--calibration-results`, and `--baseline` retain their existing legacy roles
+and are shared source inputs when Phase-C mode is selected.
+`--eis-fit`, `--metadata`, and `--config` remain legacy-projection-only inputs
+even with Phase-C mode selected; `--config` never substitutes for
+`--phase-c-config`. With a valid `--phase-c-config`, no optional Phase-C
+source is required: its presence alone deterministically selects the Phase-C
+mode and the 15-stage pipeline. No direct evidence-bundle, raw-state,
+prior-health, reference-anchor, arbitrary-JSON, or Phase-B-config option is
+added.
+
+### 35.4 Frozen health-only legacy writer API and wire behavior
+
+No existing exact-schema or compatibility writer can be reused: the only
+repository artifact writer intentionally performs current-schema migration.
+Implementation therefore adds this one, typed, crate-private API in
+`src/domain/artifact.rs`, re-exported at `pub(crate)` visibility from
+`src/domain/mod.rs` only for `runners::health`:
+
+```rust
+pub(crate) fn write_legacy_sensor_health_assessment_v3(
+    path: &Path,
+    assessment: &crate::results::SensorHealthAssessment,
+) -> Result<(), ArtifactError>;
+```
+
+It is not a generic versioned writer and must not accept an artifact kind,
+arbitrary version, JSON value, or arbitrary `VersionedArtifact`. Its caller is
+only `runners::health::export_legacy_assessment`, which is reachable only from
+`runners::health::assess_legacy`.
+
+Before serializing, the writer requires exactly
+`assessment.schema_version == 3` and `assessment.phase_c.is_none()`; any other
+value returns the existing typed `ArtifactError::Validation` or
+`ArtifactError::UnsupportedSchemaVersion` as applicable. It uses the existing
+finite-value guard `validate_serialized_finite`, `serde_json::to_value`, the
+existing `validate_value::<SensorHealthAssessment>` reader-contract check,
+`serde_json::to_string_pretty`, and `reject_nonfinite_tokens`. It removes the
+optional `phase_c` key from the JSON object, then writes exactly
+`schema_version: 3` and `artifact_kind: "health_assessment"`. This preserves
+the schema-3 wire shape rather than serializing `"phase_c": null`.
+
+The helper creates the parent directory and uses the same direct
+`fs::write` behavior as `domain::write_artifact`; there is no existing atomic
+artifact-write contract to change. It returns no identity because identity is
+owned by `ArtifactLineageState` on the assessment. The helper preserves that
+typed lineage value verbatim and neither recomputes nor upgrades it.
+
+`src/results/health.rs` owns schema validation. Its schema-sensitive
+validation must allow schemas 1--3 with no `phase_c` wire member to
+deserialize with `phase_c = None`, and the legacy writer must emit no
+`phase_c` key for schema 3. For schema 4 it must reject a missing or null
+`phase_c` before typed deserialization completes, then apply the existing
+complete-nine-dimension, token, and overall-status invariants.
+`src/results/artifact_contracts.rs` retains the current-4 / legacy-1--3
+contract. `domain::write_artifact` retains its existing current-schema upgrade
+semantics and has no schema-3 exception; its current-health validation is the
+already approved schema-4 enforcement.
+
+### 35.5 Legacy identity, lineage, reader, and migration invariants
+
+The legacy compatibility writer preserves, rather than invents, the identity
+and lineage made by the existing legacy assessment assembly. Before its call,
+`assess_legacy` continues to invoke `derived_lineage` for
+`ArtifactKind::HealthAssessment` with schema **3** and the existing producer
+key `"health-assessment-v1"`. For a complete known input set,
+`known_lineage_from_artifact` creates the exact legacy artifact identity:
+
+* `ArtifactId` is `sha256:<semantic_sha256>` of the RFC 8785/JCS identity
+  view, not a hash of the pretty-written file bytes or its output path.
+* That view contains `artifact_kind = HealthAssessment`, `schema_version = 3`,
+  the existing `rust_electroanalysis_cli@<CARGO_PKG_VERSION>` producer value,
+  propagated experiment/sensor/channel/family scopes, sorted/deduplicated
+  direct dependencies, and the scientific payload after the existing helper
+  removes `lineage`, `schema_version`, `artifact_kind`, warnings, and volatile
+  provenance paths/timestamp.
+* Each known legacy input produces its existing role (`DerivedFrom`, `Prior`,
+  or `TransformationInput`). `known_lineage_from_artifact` sorts dependencies
+  by role discriminant, artifact-kind token, and ArtifactId, then deduplicates
+  them. A `LegacyUnknown` input adds no fabricated dependency and retains the
+  existing explicit unknown behavior.
+
+Thus schema version participates in identity as **3** for legacy output and
+as **4** for Phase-C output. The writer must serialize the already calculated
+legacy lineage exactly; it must not change scopes, family sets, dependency
+ordering, producer version, identity, or semantic digest. The mandatory
+identity test uses the same fully known source inputs written to two distinct
+output paths, asserts equal schema-3 identities and canonical dependency
+order, and asserts that public reread preserves that lineage. A0 and A1
+identity semantics are unchanged.
+
+Schema-1--3 artifacts remain readable through `read_artifact`; a schema-3
+health report has no implied Phase-C result and reads as `phase_c = None`.
+Schema-4 output is always canonical and has valid non-null `phase_c`; missing
+or null `phase_c` is rejected. No writer fabricates `phase_c` during a legacy
+write or migration.
+
+### 35.6 Pipeline, compatibility, and non-goals
+
+The approved 15-stage pipeline is exactly the **Phase-C-mode** path. Its
+stage 15 remains `domain::write_artifact` followed by public
+`read_artifact`. Legacy mode is retained backward compatibility and does not
+pretend to run no-op Phase-C stages. Its legacy write is outside that pipeline
+and remains the existing legacy calculation followed by the dedicated helper.
+
+| contract surface | final disposition |
+|---|---|
+| Legacy health CLI semantics | unchanged |
+| Legacy health wire output | schema 3 preserved |
+| Phase-C health output | additive schema 4 with complete non-null `phase_c` |
+| Generic artifact writer | unchanged |
+| Existing schema-3 reader | preserved |
+| Phase-C schema-4 reader/writer | additive/current |
+| A0, A1, and Phase B | unchanged |
+| Nine dimensions, DQI/Indeterminate, interpretation/causality, bindings, DynamicResponse, fixtures, aggregation, source contracts | unchanged |
+
+No production Rust, tests, fixtures, Cargo files, existing tags, approved
+planning branch, or Phase-C implementation branch are changed by this
+planning amendment. This section authorizes neither a general old-schema
+escape hatch nor resumption of Phase-C implementation before independent
+planning-amendment review.
+
+### 35.7 Amendment requirements, mandatory tests, and traceability
+
+The stable amendment requirements are PC-LSW-01..10. They add ten
+requirements and ten acceptance criteria to the 98 already controlled by
+§§33--34: the final implementation traceability document therefore contains
+**108 requirements and 108 acceptance criteria**, each independently mapped.
+The 100-test inventory in §34.10 gains these nine exact tests, for a final
+mandatory inventory of **109 exact test functions**. Existing tests are not
+renamed or weakened.
+
+| requirement | acceptance criterion | exact planned implementation symbol / production path | exact mandatory test | compatibility impact | scientific risk |
+|---|---|---|---|---|---|
+| PC-LSW-01 | No-config `health assess` writes schema 3, no wire `phase_c`, preserves legacy semantic output, and public reread succeeds. | `cli::normalize_cli` → `main::run` → `runners::health::assess_legacy` → `export_legacy_assessment` → legacy writer | `phase_c_legacy_health_cli_without_config_writes_schema3` | legacy wire preserved | prevents invalid fabricated C claim |
+| PC-LSW-02 | Configured `health assess` executes Phase C and writes schema 4 with complete non-null `phase_c`. | `assess` → `assess_phase_c` → §33.9 stages 3--15 | `phase_c_health_cli_with_phase_c_config_writes_schema4` | additive current output | preserves C evidence requirement |
+| PC-LSW-03 | Canonical writer never writes schema 3; legacy writer cannot be the Phase-C writer. | `domain::write_artifact`; private legacy helper is reachable only from legacy export | `phase_c_canonical_health_writer_never_emits_schema3`; `phase_c_legacy_schema3_writer_is_route_restricted` | generic writer unchanged | prevents mixed schema/result meanings |
+| PC-LSW-04 | Legacy mode never constructs or synthesizes a default/empty Phase-C report. | `assess_legacy`, legacy writer precondition | `phase_c_legacy_health_cli_does_not_synthesize_phase_c` | legacy semantics unchanged | prevents fabricated evidence |
+| PC-LSW-05 | `SensorHealthAssessment::CURRENT_SCHEMA_VERSION` remains 4. | `results::artifact_contracts` and canonical writer | `phase_c_canonical_health_writer_never_emits_schema3` | current schema fixed | prevents compatibility-driven downgrade |
+| PC-LSW-06 | Schema-3 legacy files, including fresh legacy route output, remain readable as `phase_c=None`. | `results::health` schema validation → `read_artifact` | `phase_c_legacy_schema3_health_artifact_remains_readable` | reader compatibility preserved | prevents false C interpretation |
+| PC-LSW-07 | Schema 4 rejects absent or null `phase_c`. | schema-4 validation in `results::health` / `domain::artifact::validate_value` | `phase_c_schema4_rejects_missing_or_null_phase_c` | current wire invariant preserved | prevents incomplete evidence artifacts |
+| PC-LSW-08 | Legacy schema-3 identity, dependency order, and lineage state remain deterministic and unchanged by output path. | `derived_lineage` → `known_lineage_from_artifact` → legacy writer | `phase_c_legacy_schema3_identity_and_lineage_are_deterministic` | A0/A1 identity frozen | prevents provenance corruption |
+| PC-LSW-09 | Config absence selects only legacy mode; config presence selects only Phase-C mode. | `cli::normalize_cli`, `main::run`, `runners::health::assess` | `phase_c_legacy_health_cli_without_config_writes_schema3`; `phase_c_health_cli_with_phase_c_config_writes_schema4` | deterministic CLI transition | prevents wrong scientific route |
+| PC-LSW-10 | Phase-C-only source flags without config reject and never implicitly activate or alter legacy assessment. | `cli::normalize_cli` invalid combination guard and runner defensive guard | `phase_c_health_cli_rejects_phase_c_sources_without_config` | legacy flags remain valid | prevents silent source consumption |
+
+The tests have the following exact minimum assertions and falsifying
+mutations:
+
+| exact test | required scenario and assertion | mutation that must fail |
+|---|---|---|
+| `phase_c_legacy_health_cli_without_config_writes_schema3` | Real CLI invocation without `--phase-c-config`; JSON has schema 3 and no `phase_c`; legacy fields equal the fixed legacy baseline; public reader succeeds. | replace legacy helper with generic writer |
+| `phase_c_health_cli_with_phase_c_config_writes_schema4` | Real configured CLI invocation exercises all Phase-C stages; JSON has schema 4 and complete non-null `phase_c`. | bypass the C pipeline or write schema 3 |
+| `phase_c_canonical_health_writer_never_emits_schema3` | A valid Phase-C assessment passed to `domain::write_artifact` emits schema 4; `CURRENT_SCHEMA_VERSION == 4`. | preserve supplied schema 3 in generic writer |
+| `phase_c_legacy_schema3_writer_is_route_restricted` | Configured route output is schema 4 and legacy output is schema 3; the helper is crate-private and only legacy export calls it. | call the legacy helper from Phase-C export |
+| `phase_c_legacy_health_cli_does_not_synthesize_phase_c` | Legacy assembled assessment has `phase_c=None`; output omits the key rather than serializing null/default data. | construct an empty report or emit null as a schema-4 substitute |
+| `phase_c_schema4_rejects_missing_or_null_phase_c` | Mutate independently valid schema-4 wire copies to omit and to null `phase_c`; both public reads fail with `SchemaInvariant`. | accept either form |
+| `phase_c_legacy_schema3_health_artifact_remains_readable` | Fresh legacy route output and the existing schema-3 fixture read as `phase_c=None`. | require C data for schema 3 |
+| `phase_c_health_cli_rejects_phase_c_sources_without_config` | Each Phase-C-only flag, and a combined set, without config returns the exact invalid-combination error; `--mechanism-results` alone remains valid legacy input. | ignore or implicitly consume a Phase-C-only path |
+| `phase_c_legacy_schema3_identity_and_lineage_are_deterministic` | Two output paths from equal known legacy sources have equal schema-3 identity and sorted dependencies; reread equals written lineage. | use output path, schema 4, or unordered dependencies in identity |
+
+`phase_c_health_cli_rejects_phase_c_sources_without_config` also proves that
+the HealthAssess spelling `--state-estimation-artifact` is rejected rather
+than aliased. All 109 tests must map to one or more traceability rows; every
+PC-LSW row above has one or more exact tests. Therefore unmapped active
+requirements = 0, unmapped acceptance criteria = 0, missing exact mandatory
+test names = 0, and implementation inventions required = 0.
+
+### 35.8 Completion audit and two-implementer check
+
+The amendment is complete only when the following counts are all zero:
+
+```text
+unspecified legacy write mode decisions
+unspecified Phase-C write mode decisions
+unspecified writer API decisions
+unspecified schema-version decisions
+unspecified route-selection decisions
+unspecified optional-source behavior
+unspecified ArtifactId behavior
+unspecified lineage behavior
+unspecified reader/migration behavior
+contradictory canonical-writer language
+missing mandatory test names
+unmapped amendment requirements
+unmapped amendment acceptance criteria
+implementation inventions required
+```
+
+Two independent implementers must both answer **NO** when asked whether they
+can disagree about no-config schema 3, configured schema 4, schema-4
+`phase_c` nullability, default-report fabrication, either writer selection,
+generic-writer modification, `CURRENT_SCHEMA_VERSION`, legacy ArtifactId or
+lineage behavior, optional-flag route selection, Phase-C pipeline execution,
+or the exact tests proving the split. These conclusions are planning
+requirements, not a claim that Phase-C production implementation has occurred.
