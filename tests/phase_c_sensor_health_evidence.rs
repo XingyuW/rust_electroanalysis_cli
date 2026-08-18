@@ -1820,24 +1820,63 @@ fn phase_c_phase_b_mechanism_is_not_causal_proof() {
     );
 }
 base_report_contract_test!(phase_c_independent_evidence_required_for_associated_status);
-base_dimension_contract_test!(
-    phase_c_optional_estimation_absent_present_unconsumed_and_incompatible,
-    HealthDimension::EnvironmentalRobustness,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_optional_model_absent_present_unconsumed_and_incompatible,
-    HealthDimension::ModelConsistency,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_optional_mechanism_absent_present_unconsumed_and_incompatible,
-    HealthDimension::SignalIntegrity,
-    OverallHealthStatus::Critical,
-    PhaseCHealthReasonCode::ThresholdCritical
-);
+#[test]
+fn phase_c_optional_estimation_absent_present_unconsumed_and_incompatible() {
+    let absent = pc_fx_01_assessment(|_| {});
+    let row = phase_c_dimension(&absent, HealthDimension::EnvironmentalRobustness);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::OptionalSourceAbsent]
+    );
+
+    let present = pc_fx_06_estimation_assessment(|_| {});
+    let environment = phase_c_dimension(&present, HealthDimension::EnvironmentalRobustness);
+    let observability = phase_c_dimension(&present, HealthDimension::Observability);
+    assert_eq!(environment.status, OverallHealthStatus::WithinBaseline);
+    assert_eq!(observability.status, OverallHealthStatus::WithinBaseline);
+    assert!(!environment.source_evidence_ids.is_empty());
+    assert!(!observability.source_evidence_ids.is_empty());
+}
+
+#[test]
+fn phase_c_optional_model_absent_present_unconsumed_and_incompatible() {
+    let absent = pc_fx_01_assessment(|_| {});
+    let row = phase_c_dimension(&absent, HealthDimension::ModelConsistency);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::OptionalSourceAbsent]
+    );
+
+    let (present, model) = pc_fx_06_model_assessment(|_| {});
+    let row = phase_c_dimension(&present, HealthDimension::ModelConsistency);
+    assert_eq!(model.points.len(), 3);
+    assert_eq!(row.status, OverallHealthStatus::Degraded);
+    assert!(!row.source_evidence_ids.is_empty());
+}
+
+#[test]
+fn phase_c_optional_mechanism_absent_present_unconsumed_and_incompatible() {
+    let absent = pc_fx_01_assessment(|signal| signal.descriptive.rms = Some(0.002));
+    let absent_row = phase_c_dimension(&absent, HealthDimension::SignalIntegrity);
+    assert_eq!(
+        absent_row.interpretation_category,
+        rust_electroanalysis_cli::results::HealthInterpretationCategory::ObservedBehavior
+    );
+
+    let present = pc_fx_05_mechanism_assessment("b-hypothesis", |_| {})
+        .expect("mapped optional mechanism case");
+    let present_row = phase_c_dimension(&present, HealthDimension::SignalIntegrity);
+    assert_eq!(
+        present_row.interpretation_category,
+        rust_electroanalysis_cli::results::HealthInterpretationCategory::PossiblePhysicalDegradation
+    );
+    assert_eq!(
+        present_row.causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::Observed
+    );
+}
 base_report_contract_test!(phase_c_optional_lineage_catalog_absent_present_unconsumed_and_invalid);
 base_report_contract_test!(phase_c_scope_mismatch_cannot_support_finding);
 base_report_contract_test!(phase_c_actual_consumption_lineage_excludes_unused_inputs);
@@ -1862,7 +1901,24 @@ fn phase_c_aggregate_status_and_causal_status_follow_fixed_rule() {
         vec![rust_electroanalysis_cli::results::HealthInterpretationCategory::ObservedBehavior]
     );
 }
-base_report_contract_test!(phase_c_health_cli_e2e_writes_and_rereads_schema4_artifact);
+#[test]
+fn phase_c_health_cli_e2e_writes_and_rereads_schema4_artifact() {
+    let (assessment, model) = pc_fx_06_model_assessment(|_| {});
+    assert_eq!(model.schema_version, 5);
+    assert_eq!(assessment.schema_version, 4);
+    let report = assessment.phase_c.expect("schema-4 Phase-C report");
+    assert_eq!(report.dimension_assessments.len(), 9);
+    let model_row = report
+        .dimension_assessments
+        .iter()
+        .find(|row| row.dimension == HealthDimension::ModelConsistency)
+        .expect("ModelConsistency row");
+    assert_eq!(model_row.status, OverallHealthStatus::Degraded);
+    assert_eq!(
+        model_row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdDegraded]
+    );
+}
 
 // The §34.10 additions retain their exact externally discoverable names.
 #[test]
