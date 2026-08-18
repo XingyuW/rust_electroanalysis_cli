@@ -302,7 +302,7 @@ pub fn validate_ucum_unit(unit: &str) -> Result<EvidenceUnitDimension, EvidenceB
         "K" | "°C" | "degC" => Some(EvidenceUnitDimension::Temperature),
         "Ohm" => Some(EvidenceUnitDimension::Impedance),
         "F" | "H" | "Hz" | "V/s" | "V/decade" | "Ohm s^-1/2" | "Ohm^-1 s^alpha"
-        | "H s^(alpha-1)" | "Ohm s^alpha" | "Ohm^-1 s^gamma" | "a.u." => {
+        | "H s^(alpha-1)" | "Ohm s^alpha" | "Ohm^-1 s^gamma" | "mL/min" | "L/min" | "a.u." => {
             Some(EvidenceUnitDimension::OtherApproved)
         }
         _ => None,

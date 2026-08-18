@@ -14,7 +14,7 @@ use rust_electroanalysis_cli::{
         BaselineFeatureDistribution, CalibrationAnalysisReport, DriftModelKind, HealthDimension,
         HealthDomain, HealthEvidenceState, ModelAnalysisPoint, ModelAnalysisReport,
         OverallHealthStatus, PhaseCHealthReasonCode, SensorHealthAssessment, SensorHealthBaseline,
-        SignalAnalysisReport, TransientAnalysisReport,
+        SignalAnalysisReport, StateEstimationReport, TransientAnalysisReport,
     },
     runners::health,
     transient_config::ResolvedTransientConfig,
@@ -497,6 +497,99 @@ fn pc_fx_03_dynamic_assessment(
     let assessment = read_artifact(&output.join("health_assessment.json"))
         .expect("publicly reread PC-FX-03 assessment");
     std::fs::remove_dir_all(&workspace).expect("remove PC-FX-03 workspace");
+    assessment
+}
+
+/// PC-FX-06 estimation source with three finite, ordered points. The source
+/// fixture supplies its public schema shape; the Phase-C-consumed residual,
+/// environment, and observability quantities are set here explicitly.
+fn pc_fx_06_estimation_assessment(
+    mutate: impl FnOnce(&mut StateEstimationReport),
+) -> SensorHealthAssessment {
+    pc_fx_06_estimation_assessment_with_config(mutate, |_| {})
+}
+
+fn pc_fx_06_estimation_assessment_with_config(
+    mutate: impl FnOnce(&mut StateEstimationReport),
+    mutate_config: impl FnOnce(&mut String),
+) -> SensorHealthAssessment {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut signal: SignalAnalysisReport = read_artifact(
+        &root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json"),
+    )
+    .expect("read source shape");
+    signal.unit = "V".into();
+    signal.descriptive.rms = Some(0.0005);
+    signal.descriptive.robust_standard_deviation = Some(0.0004);
+    signal.spikes.flagged_fraction = Some(0.0);
+    signal.sampling.finite_sample_count = 4;
+    signal.sampling.missing_fraction = Some(0.0);
+    signal.sampling.interval_cv = Some(0.0);
+    signal.sampling.duplicate_timestamps = 0;
+    signal.sampling.non_monotonic_timestamps = 0;
+    signal.sampling.interpolation_gap_exceeded = false;
+    signal
+        .drift
+        .iter_mut()
+        .find(|row| row.model == DriftModelKind::TheilSen)
+        .expect("source shape supplies Theil-Sen drift")
+        .slope_v_per_s = Some(0.00001);
+    let mut estimation: StateEstimationReport =
+        read_artifact(&root.join("tests/fixtures/phase_b/e2e/state_estimation_e2e_2.json"))
+            .expect("read estimation source shape");
+    let template = estimation.estimates[0].clone();
+    estimation.estimates = [0.0, 1.0, 2.0]
+        .into_iter()
+        .map(|time| {
+            let mut point = template.clone();
+            point.timestamp_s = time;
+            point.unexplained_residual_v = Some(0.002);
+            point.environmental_context.temperature_k = Some(298.15 + time);
+            point
+        })
+        .collect();
+    estimation.observability.state_count = 2;
+    estimation.observability.numerical_rank = 2;
+    estimation.observability.condition_number = Some(50.0);
+    estimation.observability.unobservable_states.clear();
+    estimation.observability.weakly_observable_states.clear();
+    estimation.observability.empirical_identifiability_passed = true;
+    mutate(&mut estimation);
+
+    let workspace = temporary_output_dir();
+    std::fs::create_dir_all(&workspace).expect("create fixture workspace");
+    let signal_path = workspace.join("signal.json");
+    let estimation_path = workspace.join("estimation.json");
+    let config_path = workspace.join("phase_c.toml");
+    write_artifact(&signal_path, &signal).expect("write PC-FX-06 signal");
+    write_artifact(&estimation_path, &estimation).expect("write PC-FX-06 estimation");
+    let mut config =
+        std::fs::read_to_string(root.join("tests/fixtures/phase_c/config/valid_phase_c.toml"))
+            .expect("read strict Phase-C configuration");
+    mutate_config(&mut config);
+    std::fs::write(&config_path, config).expect("write strict Phase-C configuration");
+    let output = workspace.join("output");
+    health::assess(
+        &workspace,
+        &signal_path,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&config_path),
+        Some(&estimation_path),
+        None,
+        None,
+        None,
+        Some(&output),
+    )
+    .expect("PC-FX-06 public Phase-C route");
+    let assessment = read_artifact(&output.join("health_assessment.json"))
+        .expect("publicly reread PC-FX-06 estimation assessment");
+    std::fs::remove_dir_all(&workspace).expect("remove PC-FX-06 workspace");
     assessment
 }
 
@@ -1115,42 +1208,96 @@ fn phase_c_dynamic_response_threshold_boundaries() {
         assert_eq!(row.reason_codes, vec![expected_reason]);
     }
 }
-base_dimension_contract_test!(
-    phase_c_reference_stability_is_indeterminate_without_independent_anchor,
-    HealthDimension::ReferenceStability,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::ReferenceAnchorUnavailable
-);
+#[test]
+fn phase_c_reference_stability_is_indeterminate_without_independent_anchor() {
+    let assessment = pc_fx_01_assessment(|_| {});
+    let row = phase_c_dimension(&assessment, HealthDimension::ReferenceStability);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(row.evidence_state, HealthEvidenceState::NoEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ReferenceAnchorUnavailable]
+    );
+    assert!(
+        row.source_evidence_ids.is_empty(),
+        "no reference offset is an anchor"
+    );
+}
 base_dimension_contract_test!(
     phase_c_reference_stability_rejects_same_source_anchor_as_independent,
     HealthDimension::ReferenceStability,
     OverallHealthStatus::Indeterminate,
     PhaseCHealthReasonCode::ReferenceAnchorUnavailable
 );
-base_dimension_contract_test!(
-    phase_c_environmental_robustness_positive_finding,
-    HealthDimension::EnvironmentalRobustness,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_environmental_robustness_negative_finding,
-    HealthDimension::EnvironmentalRobustness,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_environmental_robustness_indeterminate_without_estimation,
-    HealthDimension::EnvironmentalRobustness,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_environmental_robustness_threshold_boundaries,
-    HealthDimension::EnvironmentalRobustness,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
+#[test]
+fn phase_c_environmental_robustness_positive_finding() {
+    let assessment = pc_fx_06_estimation_assessment(|estimation| {
+        for (point, residual) in estimation.estimates.iter_mut().zip([0.002, 0.004, 0.006]) {
+            point.unexplained_residual_v = Some(residual);
+        }
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::EnvironmentalRobustness);
+    assert_eq!(row.status, OverallHealthStatus::Critical);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdCritical]
+    );
+}
+
+#[test]
+fn phase_c_environmental_robustness_negative_finding() {
+    let assessment = pc_fx_06_estimation_assessment(|_| {});
+    let row = phase_c_dimension(&assessment, HealthDimension::EnvironmentalRobustness);
+    assert_eq!(row.status, OverallHealthStatus::WithinBaseline);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
+    );
+}
+
+#[test]
+fn phase_c_environmental_robustness_indeterminate_without_estimation() {
+    let assessment = pc_fx_01_assessment(|_| {});
+    let row = phase_c_dimension(&assessment, HealthDimension::EnvironmentalRobustness);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(row.evidence_state, HealthEvidenceState::NoEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::OptionalSourceAbsent]
+    );
+}
+
+#[test]
+fn phase_c_environmental_robustness_threshold_boundaries() {
+    // The three-point PC-FX-06 order can produce exact Spearman 0.5 or 1.0;
+    // use the former at the watch side, then the exact full monotonic result
+    // at/above the configured critical limit.
+    let watch = pc_fx_06_estimation_assessment(|estimation| {
+        for (point, residual) in estimation.estimates.iter_mut().zip([0.002, 0.006, 0.004]) {
+            point.unexplained_residual_v = Some(residual);
+        }
+    });
+    let row = phase_c_dimension(&watch, HealthDimension::EnvironmentalRobustness);
+    assert_eq!(row.status, OverallHealthStatus::Watch);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdWatch]
+    );
+
+    let critical = pc_fx_06_estimation_assessment(|estimation| {
+        for (point, residual) in estimation.estimates.iter_mut().zip([0.002, 0.004, 0.006]) {
+            point.unexplained_residual_v = Some(residual);
+        }
+    });
+    let row = phase_c_dimension(&critical, HealthDimension::EnvironmentalRobustness);
+    assert_eq!(row.status, OverallHealthStatus::Critical);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdCritical]
+    );
+}
 #[test]
 fn phase_c_model_consistency_positive_finding() {
     let (assessment, model) = pc_fx_06_model_assessment(|_| {});
@@ -1267,30 +1414,70 @@ fn phase_c_model_consistency_threshold_boundaries() {
         );
     }
 }
-base_dimension_contract_test!(
-    phase_c_observability_positive_finding,
-    HealthDimension::Observability,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_observability_negative_finding,
-    HealthDimension::Observability,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_observability_indeterminate_without_estimation,
-    HealthDimension::Observability,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_observability_threshold_boundaries,
-    HealthDimension::Observability,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
+#[test]
+fn phase_c_observability_positive_finding() {
+    let assessment = pc_fx_06_estimation_assessment(|estimation| {
+        estimation.observability.numerical_rank = 1;
+        estimation.observability.state_count = 2;
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::Observability);
+    assert_eq!(row.status, OverallHealthStatus::Critical);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdCritical]
+    );
+}
+
+#[test]
+fn phase_c_observability_negative_finding() {
+    let assessment = pc_fx_06_estimation_assessment(|_| {});
+    let row = phase_c_dimension(&assessment, HealthDimension::Observability);
+    assert_eq!(row.status, OverallHealthStatus::WithinBaseline);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
+    );
+}
+
+#[test]
+fn phase_c_observability_indeterminate_without_estimation() {
+    let assessment = pc_fx_01_assessment(|_| {});
+    let row = phase_c_dimension(&assessment, HealthDimension::Observability);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::OptionalSourceAbsent]
+    );
+}
+
+#[test]
+fn phase_c_observability_threshold_boundaries() {
+    for (condition_number, expected_status, expected_reason) in [
+        (
+            100.0,
+            OverallHealthStatus::Watch,
+            PhaseCHealthReasonCode::ThresholdWatch,
+        ),
+        (
+            1000.0,
+            OverallHealthStatus::Degraded,
+            PhaseCHealthReasonCode::ThresholdDegraded,
+        ),
+        (
+            10000.0,
+            OverallHealthStatus::Critical,
+            PhaseCHealthReasonCode::ThresholdCritical,
+        ),
+    ] {
+        let assessment = pc_fx_06_estimation_assessment(|estimation| {
+            estimation.observability.condition_number = Some(condition_number);
+        });
+        let row = phase_c_dimension(&assessment, HealthDimension::Observability);
+        assert_eq!(row.status, expected_status, "condition={condition_number}");
+        assert_eq!(row.reason_codes, vec![expected_reason]);
+    }
+}
 #[test]
 fn phase_c_uncertainty_health_positive_finding() {
     let (assessment, _) = pc_fx_06_model_assessment(|model| {
@@ -1816,30 +2003,80 @@ fn phase_c_calibration_health_quality_insufficient() {
         vec![PhaseCHealthReasonCode::RequiredQuantityAbsent]
     );
 }
-base_dimension_contract_test!(
-    phase_c_environmental_robustness_quality_insufficient,
-    HealthDimension::EnvironmentalRobustness,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_environmental_robustness_minimum_point_count_is_indeterminate,
-    HealthDimension::EnvironmentalRobustness,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_observability_quality_insufficient,
-    HealthDimension::Observability,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_environmental_robustness_nonincreasing_timestamp_is_dqi,
-    HealthDimension::EnvironmentalRobustness,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
+#[test]
+fn phase_c_environmental_robustness_quality_insufficient() {
+    let assessment = pc_fx_06_estimation_assessment_with_config(
+        |estimation| {
+            for (index, point) in estimation.estimates.iter_mut().enumerate() {
+                point.environmental_context.flow = Some(1.0 + index as f64);
+                point.environmental_context.source_records = vec![
+                    rust_electroanalysis_cli::estimation::environment::AlignedValueSummary {
+                        source_series: "flow".into(),
+                        source_timestamps: vec![point.timestamp_s],
+                        alignment: rust_electroanalysis_cli::estimation::environment::AlignmentMethod::Fallback,
+                        time_gap_s: 0.0,
+                        interpolated: false,
+                        extrapolated: false,
+                        source_unit: Some(if index == 1 { "L/min" } else { "mL/min" }.into()),
+                        conversion: None,
+                    },
+                ];
+            }
+        },
+        |config| {
+            *config = config.replace("covariate = \"temperature_k\"", "covariate = \"flow\"");
+        },
+    );
+    let row = phase_c_dimension(&assessment, HealthDimension::EnvironmentalRobustness);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(row.reason_codes, vec![PhaseCHealthReasonCode::UnitMismatch]);
+}
+
+#[test]
+fn phase_c_environmental_robustness_minimum_point_count_is_indeterminate() {
+    let assessment = pc_fx_06_estimation_assessment(|estimation| {
+        estimation.estimates.truncate(2);
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::EnvironmentalRobustness);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(
+        row.evidence_state,
+        HealthEvidenceState::InsufficientEvidence
+    );
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::RequiredQuantityAbsent]
+    );
+}
+
+#[test]
+fn phase_c_observability_quality_insufficient() {
+    let assessment = pc_fx_06_estimation_assessment(|estimation| {
+        estimation.observability.condition_number = None;
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::Observability);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::RequiredQuantityAbsent]
+    );
+}
+
+#[test]
+fn phase_c_environmental_robustness_nonincreasing_timestamp_is_dqi() {
+    let assessment = pc_fx_06_estimation_assessment(|estimation| {
+        estimation.estimates[1].timestamp_s = 0.0;
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::EnvironmentalRobustness);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::InvalidQuantity]
+    );
+}
 base_report_contract_test!(phase_c_aggregate_zero_positive_dimensions_is_indeterminate);
 base_report_contract_test!(phase_c_aggregate_one_positive_dimension_uses_its_causal_status);
 base_report_contract_test!(phase_c_aggregate_mixed_causal_strength_uses_minimum);
