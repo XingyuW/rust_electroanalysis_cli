@@ -1,17 +1,23 @@
 use rust_electroanalysis_cli::{
     cli::{CliError, CommandSpec, parse_cli_args},
-    domain::{read_artifact, write_artifact},
+    domain::{
+        AnalysisProvenance, ElectrochemicalExperiment, ExperimentEvent, ExperimentEventKind,
+        MeasurementChannel, MultiChannelMeasurement, SensorMetadata, read_artifact, write_artifact,
+    },
     health_config::PhaseCHealthEvidenceConfig,
     model::{
         AssessmentStatus, EquilibriumAssessment, EquilibriumStatus, IdentifiabilityReport,
         ModelDefinition, PredictionUncertainty, UncertaintyStatus, ValidityReport,
     },
+    potentiometry::{TransientAnalysisOptions, analyze_experiment},
     results::{
-        DriftModelKind, HealthDimension, HealthEvidenceState, ModelAnalysisPoint,
-        ModelAnalysisReport, OverallHealthStatus, PhaseCHealthReasonCode, SensorHealthAssessment,
-        SignalAnalysisReport,
+        BaselineFeatureDistribution, CalibrationAnalysisReport, DriftModelKind, HealthDimension,
+        HealthDomain, HealthEvidenceState, ModelAnalysisPoint, ModelAnalysisReport,
+        OverallHealthStatus, PhaseCHealthReasonCode, SensorHealthAssessment, SensorHealthBaseline,
+        SignalAnalysisReport, TransientAnalysisReport,
     },
     runners::health,
+    transient_config::ResolvedTransientConfig,
 };
 use std::{
     path::PathBuf,
@@ -264,6 +270,234 @@ fn pc_fx_06_model_assessment(
         .expect("publicly reread PC-FX-06 assessment");
     std::fs::remove_dir_all(&workspace).expect("remove PC-FX-06 workspace");
     (assessment, reread)
+}
+
+/// Public-writer PC-FX-02 calibration case. The A0 report supplies only the
+/// producer-owned shape; this builder supplies every Phase-C-consumed metric
+/// so the tests control the thresholds rather than inherited fixture values.
+fn pc_fx_02_calibration_assessment(
+    mutate: impl FnOnce(&mut CalibrationAnalysisReport),
+) -> SensorHealthAssessment {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut signal: SignalAnalysisReport = read_artifact(
+        &root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json"),
+    )
+    .expect("read source shape");
+    signal.unit = "V".into();
+    signal.descriptive.rms = Some(0.0005);
+    signal.descriptive.robust_standard_deviation = Some(0.0004);
+    signal.spikes.flagged_fraction = Some(0.0);
+    signal.sampling.finite_sample_count = 4;
+    signal.sampling.missing_fraction = Some(0.0);
+    signal.sampling.interval_cv = Some(0.0);
+    signal.sampling.duplicate_timestamps = 0;
+    signal.sampling.non_monotonic_timestamps = 0;
+    signal.sampling.interpolation_gap_exceeded = false;
+    signal
+        .drift
+        .iter_mut()
+        .find(|row| row.model == DriftModelKind::TheilSen)
+        .expect("source shape supplies Theil-Sen drift")
+        .slope_v_per_s = Some(0.00001);
+    let mut calibration: CalibrationAnalysisReport = read_artifact(
+        &root
+            .join("tests/fixtures/a0_artifact_contracts/schema1/calibration_analysis.schema1.json"),
+    )
+    .expect("read calibration source shape");
+    let selected = calibration
+        .selected_model
+        .expect("selected calibration model");
+    let model = calibration
+        .candidate_models
+        .iter_mut()
+        .find(|model| model.model_kind == selected)
+        .expect("selected calibration model row");
+    model.slope_efficiency = Some(0.99);
+    model.statistics.rmse_v = Some(0.0005);
+    calibration
+        .validation
+        .as_mut()
+        .expect("calibration validation")
+        .prediction_bias_v = Some(0.0005);
+    calibration.hysteresis = Some(rust_electroanalysis_cli::results::HysteresisResult {
+        mean_hysteresis_v: Some(0.0005),
+        ..Default::default()
+    });
+    mutate(&mut calibration);
+
+    let workspace = temporary_output_dir();
+    std::fs::create_dir_all(&workspace).expect("create fixture workspace");
+    let signal_path = workspace.join("signal.json");
+    let calibration_path = workspace.join("calibration.json");
+    let config_path = workspace.join("phase_c.toml");
+    write_artifact(&signal_path, &signal).expect("write PC-FX-02 signal");
+    write_artifact(&calibration_path, &calibration).expect("write PC-FX-02 calibration");
+    let reread: CalibrationAnalysisReport =
+        read_artifact(&calibration_path).expect("reread PC-FX-02 calibration");
+    assert_eq!(reread.selected_model, calibration.selected_model);
+    std::fs::copy(
+        root.join("tests/fixtures/phase_c/config/valid_phase_c.toml"),
+        &config_path,
+    )
+    .expect("copy strict Phase-C configuration");
+    let output = workspace.join("output");
+    health::assess(
+        &workspace,
+        &signal_path,
+        None,
+        Some(&calibration_path),
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&config_path),
+        None,
+        None,
+        None,
+        None,
+        Some(&output),
+    )
+    .expect("PC-FX-02 public Phase-C route");
+    let assessment = read_artifact(&output.join("health_assessment.json"))
+        .expect("publicly reread PC-FX-02 assessment");
+    std::fs::remove_dir_all(&workspace).expect("remove PC-FX-02 workspace");
+    assessment
+}
+
+/// PC-FX-03 is a public writer/runner scenario whose selected event is the
+/// artifact-local ordinal 7.  It deliberately carries valid unselected
+/// events 0..6 and a failed event 8 so tests can prove selection, rather than
+/// accidentally exercise a source-event identity or a whole-report scan.
+fn pc_fx_03_dynamic_assessment(
+    mutate: impl FnOnce(&mut TransientAnalysisReport, &mut SensorHealthBaseline),
+) -> SensorHealthAssessment {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut signal: SignalAnalysisReport = read_artifact(
+        &root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json"),
+    )
+    .expect("read source shape");
+    signal.unit = "V".into();
+    signal.descriptive.rms = Some(0.0005);
+    signal.descriptive.robust_standard_deviation = Some(0.0004);
+    signal.spikes.flagged_fraction = Some(0.0);
+    signal.sampling.finite_sample_count = 4;
+    signal.sampling.missing_fraction = Some(0.0);
+    signal.sampling.interval_cv = Some(0.0);
+    signal.sampling.duplicate_timestamps = 0;
+    signal.sampling.non_monotonic_timestamps = 0;
+    signal.sampling.interpolation_gap_exceeded = false;
+    signal
+        .drift
+        .iter_mut()
+        .find(|row| row.model == DriftModelKind::TheilSen)
+        .expect("source shape supplies Theil-Sen drift")
+        .slope_v_per_s = Some(0.00001);
+
+    let mut transient: TransientAnalysisReport = read_artifact(
+        &root.join("tests/fixtures/a0_artifact_contracts/schema2/transient_analysis.schema2.json"),
+    )
+    .expect("read transient source shape");
+    let template = transient.events[0].clone();
+    transient.events = (0..=8)
+        .map(|index| {
+            let mut event = template.clone();
+            event.event_index = index;
+            event.event.timestamp = 30.0 + index as f64 * 10.0;
+            let selected_model = event.selected_model.expect("source selected model");
+            let fit = event
+                .candidate_fits
+                .iter_mut()
+                .find(|fit| fit.model == selected_model && fit.is_successful())
+                .expect("source successful selected fit");
+            fit.derived_features.tau_fast_s = Some(if index == 7 { 0.15 } else { 0.10 });
+            fit.derived_features.tau_slow_s = Some(if index == 7 { 1.50 } else { 1.00 });
+            fit.derived_features.time_to_90_percent_s = Some(if index == 7 { 3.00 } else { 2.00 });
+            fit.derived_features.total_response_amplitude_v =
+                Some(if index == 7 { 0.070 } else { 0.100 });
+            fit.statistics.rmse_v = Some(if index == 7 { 0.001 } else { 0.0005 });
+            event
+        })
+        .collect();
+    let failed_template = transient.events[8].clone();
+    transient.events[8] = rust_electroanalysis_cli::results::TransientEventResult::failed(
+        8,
+        failed_template.event,
+        failed_template.concentration_before,
+        failed_template.concentration_after,
+        "fixture failure",
+    );
+
+    let mut baseline: SensorHealthBaseline = read_artifact(
+        &root
+            .join("tests/fixtures/a0_artifact_contracts/health_baseline_schema2_correct_kind.json"),
+    )
+    .expect("read baseline source shape");
+    baseline.feature_distributions = [
+        ("phase_c.tau_fast", "s", 0.10),
+        ("phase_c.tau_slow", "s", 1.00),
+        ("phase_c.time_to_90_percent", "s", 2.00),
+        ("phase_c.response_amplitude", "V", 0.100),
+    ]
+    .into_iter()
+    .map(|(feature, unit, mean)| BaselineFeatureDistribution {
+        feature: feature.into(),
+        unit: unit.into(),
+        domain: HealthDomain::DynamicResponse,
+        sample_count: 3,
+        mean: Some(mean),
+        standard_deviation: None,
+        median: None,
+        mad: None,
+        quantiles: Vec::new(),
+        minimum: None,
+        maximum: None,
+        reference_direction: None,
+        comparison_context: None,
+        empirical_values: Vec::new(),
+    })
+    .collect();
+    mutate(&mut transient, &mut baseline);
+
+    let workspace = temporary_output_dir();
+    std::fs::create_dir_all(&workspace).expect("create fixture workspace");
+    let signal_path = workspace.join("signal.json");
+    let transient_path = workspace.join("transient.json");
+    let baseline_path = workspace.join("baseline.json");
+    let config_path = workspace.join("phase_c.toml");
+    write_artifact(&signal_path, &signal).expect("write PC-FX-03 signal");
+    write_artifact(&transient_path, &transient).expect("write PC-FX-03 transient");
+    write_artifact(&baseline_path, &baseline).expect("write PC-FX-03 baseline");
+    std::fs::write(
+        &config_path,
+        std::fs::read_to_string(root.join("tests/fixtures/phase_c/config/valid_phase_c.toml"))
+            .expect("read strict configuration")
+            .replace("selected_event_index = 0", "selected_event_index = 7"),
+    )
+    .expect("write ordinal-seven configuration");
+    let output = workspace.join("output");
+    health::assess(
+        &workspace,
+        &signal_path,
+        Some(&transient_path),
+        None,
+        None,
+        None,
+        Some(&baseline_path),
+        None,
+        None,
+        Some(&config_path),
+        None,
+        None,
+        None,
+        None,
+        Some(&output),
+    )
+    .expect("PC-FX-03 public Phase-C route");
+    let assessment = read_artifact(&output.join("health_assessment.json"))
+        .expect("publicly reread PC-FX-03 assessment");
+    std::fs::remove_dir_all(&workspace).expect("remove PC-FX-03 workspace");
+    assessment
 }
 
 fn phase_c_dimension(
@@ -697,54 +931,190 @@ fn phase_c_signal_integrity_threshold_boundaries() {
         assert_eq!(row.reason_codes, vec![reason], "rms={rms}");
     }
 }
-base_dimension_contract_test!(
-    phase_c_calibration_health_positive_finding,
-    HealthDimension::CalibrationHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_calibration_health_negative_finding,
-    HealthDimension::CalibrationHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_calibration_health_indeterminate_without_artifact,
-    HealthDimension::CalibrationHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_calibration_health_threshold_boundaries,
-    HealthDimension::CalibrationHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_positive_finding,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_negative_finding,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_quality_insufficient,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_threshold_boundaries,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
+#[test]
+fn phase_c_calibration_health_positive_finding() {
+    let assessment = pc_fx_02_calibration_assessment(|calibration| {
+        let selected = calibration.selected_model.expect("selected model");
+        calibration
+            .candidate_models
+            .iter_mut()
+            .find(|model| model.model_kind == selected)
+            .expect("selected model row")
+            .slope_efficiency = Some(0.90);
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::CalibrationHealth);
+    assert_eq!(row.status, OverallHealthStatus::Degraded);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdDegraded]
+    );
+}
+
+#[test]
+fn phase_c_calibration_health_negative_finding() {
+    let assessment = pc_fx_02_calibration_assessment(|_| {});
+    let row = phase_c_dimension(&assessment, HealthDimension::CalibrationHealth);
+    assert_eq!(row.status, OverallHealthStatus::WithinBaseline);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
+    );
+}
+
+#[test]
+fn phase_c_calibration_health_indeterminate_without_artifact() {
+    let assessment = pc_fx_01_assessment(|_| {});
+    let row = phase_c_dimension(&assessment, HealthDimension::CalibrationHealth);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(row.evidence_state, HealthEvidenceState::NoEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::OptionalSourceAbsent]
+    );
+}
+
+#[test]
+fn phase_c_calibration_health_threshold_boundaries() {
+    for (slope_efficiency, expected_status, expected_reason) in [
+        (
+            0.95,
+            OverallHealthStatus::Watch,
+            PhaseCHealthReasonCode::ThresholdWatch,
+        ),
+        (
+            0.90,
+            OverallHealthStatus::Degraded,
+            PhaseCHealthReasonCode::ThresholdDegraded,
+        ),
+        (
+            0.80,
+            OverallHealthStatus::Critical,
+            PhaseCHealthReasonCode::ThresholdCritical,
+        ),
+    ] {
+        let assessment = pc_fx_02_calibration_assessment(|calibration| {
+            let selected = calibration.selected_model.expect("selected model");
+            calibration
+                .candidate_models
+                .iter_mut()
+                .find(|model| model.model_kind == selected)
+                .expect("selected model row")
+                .slope_efficiency = Some(slope_efficiency);
+        });
+        let row = phase_c_dimension(&assessment, HealthDimension::CalibrationHealth);
+        assert_eq!(
+            row.status, expected_status,
+            "slope efficiency={slope_efficiency}"
+        );
+        assert_eq!(row.reason_codes, vec![expected_reason]);
+    }
+}
+#[test]
+fn phase_c_dynamic_response_positive_finding() {
+    let assessment = pc_fx_03_dynamic_assessment(|_, _| {});
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::Degraded);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdDegraded]
+    );
+}
+
+#[test]
+fn phase_c_dynamic_response_negative_finding() {
+    let assessment = pc_fx_03_dynamic_assessment(|transient, _| {
+        let event = transient
+            .events
+            .iter_mut()
+            .find(|event| event.event_index == 7)
+            .unwrap();
+        let selected = event.selected_model.unwrap();
+        let fit = event
+            .candidate_fits
+            .iter_mut()
+            .find(|fit| fit.model == selected)
+            .unwrap();
+        fit.derived_features.tau_fast_s = Some(0.10);
+        fit.derived_features.tau_slow_s = Some(1.00);
+        fit.derived_features.time_to_90_percent_s = Some(2.00);
+        fit.derived_features.total_response_amplitude_v = Some(0.100);
+        fit.statistics.rmse_v = Some(0.0005);
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::WithinBaseline);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
+    );
+}
+
+#[test]
+fn phase_c_dynamic_response_quality_insufficient() {
+    let assessment = pc_fx_03_dynamic_assessment(|transient, _| {
+        let event = transient.events[7].clone();
+        transient.events[7] = rust_electroanalysis_cli::results::TransientEventResult::failed(
+            7,
+            event.event,
+            event.concentration_before,
+            event.concentration_after,
+            "fixture failure",
+        );
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::SelectedTransientEventInvalid]
+    );
+}
+
+#[test]
+fn phase_c_dynamic_response_threshold_boundaries() {
+    for (tau_fast_s, expected_status, expected_reason) in [
+        (
+            0.110,
+            OverallHealthStatus::Watch,
+            PhaseCHealthReasonCode::ThresholdWatch,
+        ),
+        (
+            0.150,
+            OverallHealthStatus::Degraded,
+            PhaseCHealthReasonCode::ThresholdDegraded,
+        ),
+        (
+            0.200,
+            OverallHealthStatus::Critical,
+            PhaseCHealthReasonCode::ThresholdCritical,
+        ),
+    ] {
+        let assessment = pc_fx_03_dynamic_assessment(|transient, _| {
+            let event = transient
+                .events
+                .iter_mut()
+                .find(|event| event.event_index == 7)
+                .unwrap();
+            let selected = event.selected_model.unwrap();
+            let fit = event
+                .candidate_fits
+                .iter_mut()
+                .find(|fit| fit.model == selected)
+                .unwrap();
+            fit.derived_features.tau_fast_s = Some(tau_fast_s);
+            fit.derived_features.tau_slow_s = Some(1.00);
+            fit.derived_features.time_to_90_percent_s = Some(2.00);
+            fit.derived_features.total_response_amplitude_v = Some(0.100);
+            fit.statistics.rmse_v = Some(0.0005);
+        });
+        let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+        assert_eq!(row.status, expected_status, "tau fast={tau_fast_s} s");
+        assert_eq!(row.reason_codes, vec![expected_reason]);
+    }
+}
 base_dimension_contract_test!(
     phase_c_reference_stability_is_indeterminate_without_independent_anchor,
     HealthDimension::ReferenceStability,
@@ -1100,73 +1470,308 @@ base_report_contract_test!(phase_c_mapped_supported_mechanism_changes_interpreta
 base_report_contract_test!(phase_c_mapped_mechanism_never_establishes_causality);
 base_report_contract_test!(phase_c_dependent_lineage_cannot_promote_mapped_mechanism);
 base_report_contract_test!(phase_c_duplicate_mechanism_hypothesis_id_rejects_input);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_zero_selected_events_is_indeterminate,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_one_selected_event_is_evaluated,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_duplicate_selected_event_is_dqi,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_report_contract_test!(phase_c_dynamic_response_event_index_uses_producer_eligible_event_order);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_invalid_nonselected_event_is_ignored,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_invalid_selected_event_is_dqi,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
+#[test]
+fn phase_c_dynamic_response_zero_selected_events_is_indeterminate() {
+    let assessment = pc_fx_03_dynamic_assessment(|transient, _| {
+        transient.events.retain(|event| event.event_index < 3);
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(
+        row.evidence_state,
+        HealthEvidenceState::InsufficientEvidence
+    );
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::SelectedTransientEventAbsent]
+    );
+}
+
+#[test]
+fn phase_c_dynamic_response_one_selected_event_is_evaluated() {
+    let assessment = pc_fx_03_dynamic_assessment(|transient, _| {
+        transient.events.retain(|event| event.event_index == 7);
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::Degraded);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdDegraded]
+    );
+}
+
+#[test]
+fn phase_c_dynamic_response_duplicate_selected_event_is_dqi() {
+    let assessment = pc_fx_03_dynamic_assessment(|transient, _| {
+        let mut duplicate = transient.events[7].clone();
+        duplicate.event_index = 7;
+        transient.events.push(duplicate);
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::SelectedTransientEventAmbiguous]
+    );
+}
+#[test]
+fn phase_c_dynamic_response_event_index_uses_producer_eligible_event_order() {
+    let producer_report = |equal_timestamp_values: (f64, f64)| {
+        let measurement = MultiChannelMeasurement::new(
+            (-20..=220).map(f64::from).collect(),
+            vec![MeasurementChannel::from_values(
+                "E1",
+                "V",
+                (-20..=220)
+                    .map(|time| {
+                        let time = f64::from(time);
+                        if time < 0.0 {
+                            0.30
+                        } else {
+                            0.20 + 0.10 * (-time / 12.0).exp()
+                        }
+                    })
+                    .collect(),
+            )],
+        )
+        .expect("synthetic measurement");
+        let concentration = |timestamp, value| ExperimentEvent {
+            timestamp,
+            kind: ExperimentEventKind::ConcentrationStep,
+            value: Some(value),
+            unit: Some("mol/L".into()),
+            analyte: Some("K+".into()),
+            annotation: None,
+            metadata: None,
+        };
+        let experiment = ElectrochemicalExperiment::new(
+            "pc-fx-03-producer-order",
+            SensorMetadata::default(),
+            None,
+            measurement,
+            Vec::new(),
+            vec![
+                ExperimentEvent {
+                    timestamp: -1.0,
+                    kind: ExperimentEventKind::ReadingStart,
+                    value: None,
+                    unit: None,
+                    analyte: None,
+                    annotation: None,
+                    metadata: None,
+                },
+                concentration(0.0, 0.01),
+                ExperimentEvent {
+                    timestamp: 10.0,
+                    kind: ExperimentEventKind::FlowChange,
+                    value: None,
+                    unit: None,
+                    analyte: None,
+                    annotation: None,
+                    metadata: None,
+                },
+                concentration(20.0, equal_timestamp_values.0),
+                concentration(20.0, equal_timestamp_values.1),
+                concentration(120.0, 0.04),
+            ],
+            "water",
+            AnalysisProvenance {
+                software_version: "phase-c-test".into(),
+                input_path: "pc-fx-03.csv".into(),
+                input_sha256: "pc-fx-03".into(),
+                configuration_path: None,
+                configuration_sha256: None,
+                generation_timestamp: 1,
+                git_commit: None,
+            },
+        )
+        .expect("producer experiment");
+        let mut config = ResolvedTransientConfig::default();
+        config.segmentation.minimum_points = 20;
+        config.segmentation.minimum_duration_s = 20.0;
+        config.segmentation.pre_event_s = 20.0;
+        config.segmentation.post_event_s = 80.0;
+        config.uncertainty.bootstrap_iterations = 0;
+        config.plotting.enabled = false;
+        analyze_experiment(
+            &experiment,
+            "E1/V",
+            &TransientAnalysisOptions {
+                event_kind: ExperimentEventKind::ConcentrationStep,
+                event_index: None,
+                config,
+            },
+        )
+        .expect("real transient producer")
+    };
+    let first = producer_report((0.02, 0.03));
+    let second = producer_report((0.03, 0.02));
+    let projection = |report: &TransientAnalysisReport| {
+        report
+            .events
+            .iter()
+            .map(|event| {
+                (
+                    event.event_index,
+                    event.event.timestamp,
+                    event.event.value.unwrap(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        projection(&first),
+        vec![
+            (0, 0.0, 0.01),
+            (1, 20.0, 0.02),
+            (2, 20.0, 0.03),
+            (3, 120.0, 0.04)
+        ]
+    );
+    assert_eq!(
+        projection(&second),
+        vec![
+            (0, 0.0, 0.01),
+            (1, 20.0, 0.03),
+            (2, 20.0, 0.02),
+            (3, 120.0, 0.04)
+        ]
+    );
+    let assessment = pc_fx_03_dynamic_assessment(|_, _| {});
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::Degraded);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdDegraded]
+    );
+}
+#[test]
+fn phase_c_dynamic_response_invalid_nonselected_event_is_ignored() {
+    let assessment = pc_fx_03_dynamic_assessment(|transient, _| {
+        assert!(
+            transient.events[8].failure.is_some(),
+            "fixture event 8 is invalid"
+        );
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::Degraded);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdDegraded]
+    );
+}
+
+#[test]
+fn phase_c_dynamic_response_invalid_selected_event_is_dqi() {
+    let assessment = pc_fx_03_dynamic_assessment(|transient, _| {
+        let selected = transient
+            .events
+            .iter_mut()
+            .find(|event| event.event_index == 7)
+            .unwrap();
+        selected.selected_model = None;
+        selected.candidate_fits.clear();
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::SelectedTransientEventInvalid]
+    );
+}
 base_dimension_contract_test!(
     phase_c_dynamic_response_scope_mismatch_is_indeterminate,
     HealthDimension::DynamicResponseHealth,
     OverallHealthStatus::Indeterminate,
     PhaseCHealthReasonCode::OptionalSourceAbsent
 );
-base_dimension_contract_test!(
-    phase_c_dynamic_response_denominators_use_mean,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_missing_baseline_feature_is_indeterminate,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_missing_baseline_mean_is_indeterminate,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_zero_baseline_denominator_is_dqi,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_dynamic_response_near_zero_baseline_denominator_is_dqi,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
+#[test]
+fn phase_c_dynamic_response_denominators_use_mean() {
+    let assessment = pc_fx_03_dynamic_assessment(|_, baseline| {
+        let tau_fast = baseline
+            .feature_distributions
+            .iter_mut()
+            .find(|distribution| distribution.feature == "phase_c.tau_fast")
+            .unwrap();
+        tau_fast.mean = Some(0.10);
+        tau_fast.median = Some(0.50);
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::Degraded);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdDegraded]
+    );
+}
+
+#[test]
+fn phase_c_dynamic_response_missing_baseline_feature_is_indeterminate() {
+    let assessment = pc_fx_03_dynamic_assessment(|_, baseline| {
+        baseline
+            .feature_distributions
+            .retain(|distribution| distribution.feature != "phase_c.tau_fast");
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::BaselineFeatureAbsent]
+    );
+}
+
+#[test]
+fn phase_c_dynamic_response_missing_baseline_mean_is_indeterminate() {
+    let assessment = pc_fx_03_dynamic_assessment(|_, baseline| {
+        baseline
+            .feature_distributions
+            .iter_mut()
+            .find(|distribution| distribution.feature == "phase_c.tau_fast")
+            .unwrap()
+            .mean = None;
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::BaselineStatisticAbsent]
+    );
+}
+
+#[test]
+fn phase_c_dynamic_response_zero_baseline_denominator_is_dqi() {
+    let assessment = pc_fx_03_dynamic_assessment(|_, baseline| {
+        baseline
+            .feature_distributions
+            .iter_mut()
+            .find(|distribution| distribution.feature == "phase_c.tau_fast")
+            .unwrap()
+            .mean = Some(0.0);
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::BaselineDenominatorZero]
+    );
+}
+
+#[test]
+fn phase_c_dynamic_response_near_zero_baseline_denominator_is_dqi() {
+    let assessment = pc_fx_03_dynamic_assessment(|_, baseline| {
+        baseline
+            .feature_distributions
+            .iter_mut()
+            .find(|distribution| distribution.feature == "phase_c.response_amplitude")
+            .unwrap()
+            .mean = Some(5e-13);
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::BaselineDenominatorNearZero]
+    );
+}
 base_dimension_contract_test!(
     phase_c_optional_source_absent_is_indeterminate,
     HealthDimension::CalibrationHealth,
@@ -1191,12 +1796,26 @@ base_report_contract_test!(phase_c_mixed_valid_invalid_model_sources_preserves_v
 base_report_contract_test!(phase_c_no_sufficient_valid_model_source_uses_precedence);
 base_report_contract_test!(phase_c_contradictory_valid_sources_are_visible);
 base_report_contract_test!(phase_c_base_fixture_exact_nine_findings);
-base_dimension_contract_test!(
-    phase_c_calibration_health_quality_insufficient,
-    HealthDimension::CalibrationHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
+#[test]
+fn phase_c_calibration_health_quality_insufficient() {
+    let assessment = pc_fx_02_calibration_assessment(|calibration| {
+        let selected = calibration.selected_model.expect("selected model");
+        calibration
+            .candidate_models
+            .iter_mut()
+            .find(|model| model.model_kind == selected)
+            .expect("selected model row")
+            .statistics
+            .rmse_v = None;
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::CalibrationHealth);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::RequiredQuantityAbsent]
+    );
+}
 base_dimension_contract_test!(
     phase_c_environmental_robustness_quality_insufficient,
     HealthDimension::EnvironmentalRobustness,

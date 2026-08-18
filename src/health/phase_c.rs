@@ -2278,11 +2278,21 @@ fn normal(
 }
 
 fn severity(value: f64, thresholds: &LevelThreshold) -> OverallHealthStatus {
-    if value >= thresholds.critical {
+    // Several Phase-C metrics are derived by subtraction (for example the
+    // calibration slope-efficiency error).  A mathematically exact configured
+    // boundary such as `|1.0 - 0.90| = 0.10` can otherwise land one ULP below
+    // its decimal threshold.  Preserve the specified inclusive boundary
+    // semantics without treating a meaningful below-threshold value as equal.
+    let at_or_above = |candidate: f64, threshold: f64| {
+        candidate > threshold
+            || (candidate - threshold).abs()
+                <= f64::EPSILON * 8.0 * candidate.abs().max(threshold.abs()).max(1.0)
+    };
+    if at_or_above(value, thresholds.critical) {
         OverallHealthStatus::Critical
-    } else if value >= thresholds.degraded {
+    } else if at_or_above(value, thresholds.degraded) {
         OverallHealthStatus::Degraded
-    } else if value >= thresholds.watch {
+    } else if at_or_above(value, thresholds.watch) {
         OverallHealthStatus::Watch
     } else {
         OverallHealthStatus::WithinBaseline
