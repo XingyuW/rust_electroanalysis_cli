@@ -8406,7 +8406,8 @@ in `tests/artifact_contract.rs`, public Phase-C route/behavior tests are in
 `tests/phase_c_sensor_health_evidence.rs`, and four direct contracts are
 internal unit tests: the crate-private legacy helper in `src/domain/artifact.rs`
 and the three typed nonfinite-input evaluator contracts in
-`src/runners/health.rs`. Every external test must assert the named semantic
+`src/health/phase_c.rs` under `crate::health::phase_c::tests`. Every external
+test must assert the named semantic
 status/category/causal status/reason through a public route or public artifact
 boundary; it must not call a private or `pub(crate)` production symbol. The
 three nonfinite contracts are the deliberate exception because a JSON/JCS/CLI
@@ -9388,7 +9389,8 @@ superseding expected results. The following 43 rows are the complete added
 set; together they are the rebuilt 100-test inventory, not a target count.
 Their placement is determined by §35.7B: the five enumerated public
 schema-boundary tests are in `tests/artifact_contract.rs`; the three named
-nonfinite typed-input tests are internal unit tests in `src/runners/health.rs`;
+nonfinite typed-input tests are internal unit tests in `src/health/phase_c.rs`
+under `crate::health::phase_c::tests`;
 and the other 92 are in `tests/phase_c_sensor_health_evidence.rs`. Each test
 exercises the named production path, names a fixture or literal builder input,
 asserts every listed result/reason, and fails under the listed scientifically
