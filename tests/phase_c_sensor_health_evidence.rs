@@ -1,8 +1,10 @@
 use rust_electroanalysis_cli::{
     cli::{CliError, CommandSpec, parse_cli_args},
     domain::{
-        AnalysisProvenance, ElectrochemicalExperiment, ExperimentEvent, ExperimentEventKind,
-        MeasurementChannel, MultiChannelMeasurement, SensorMetadata, read_artifact, write_artifact,
+        AcquisitionFamilyId, AnalysisProvenance, ArtifactAcquisitionFamilies,
+        ArtifactExperimentScope, ArtifactKind, ElectrochemicalExperiment, ExperimentEvent,
+        ExperimentEventKind, ExperimentId, MeasurementChannel, MultiChannelMeasurement, ScopeKey,
+        SensorMetadata, known_lineage_from_artifact, read_artifact, write_artifact,
     },
     health_config::PhaseCHealthEvidenceConfig,
     model::{
@@ -73,6 +75,39 @@ fn base_phase_c_assessment() -> SensorHealthAssessment {
         read_artifact(&output.join("health_assessment.json")).expect("schema-4 assessment");
     std::fs::remove_dir_all(output).expect("remove test output");
     assessment
+}
+
+/// Executes the legacy health route deliberately without a Phase-C config and
+/// captures both the public reader result and the actual legacy wire shape.
+fn legacy_health_assessment() -> (SensorHealthAssessment, serde_json::Value) {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let signal =
+        root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json");
+    let output = temporary_output_dir();
+    health::assess(
+        &root,
+        &signal,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&output),
+    )
+    .expect("legacy health runner");
+    let path = output.join("health_assessment.json");
+    let assessment = read_artifact(&path).expect("publicly reread legacy assessment");
+    let wire = serde_json::from_slice(&std::fs::read(&path).expect("read legacy wire"))
+        .expect("parse legacy wire");
+    std::fs::remove_dir_all(output).expect("remove legacy workspace");
+    (assessment, wire)
 }
 
 /// PC-FX-01 is deliberately assembled through the public artifact writer and
@@ -372,6 +407,16 @@ fn pc_fx_02_calibration_assessment(
 fn pc_fx_03_dynamic_assessment(
     mutate: impl FnOnce(&mut TransientAnalysisReport, &mut SensorHealthBaseline),
 ) -> SensorHealthAssessment {
+    pc_fx_03_dynamic_assessment_with_signal(|_, transient, baseline| mutate(transient, baseline))
+}
+
+fn pc_fx_03_dynamic_assessment_with_signal(
+    mutate: impl FnOnce(
+        &mut SignalAnalysisReport,
+        &mut TransientAnalysisReport,
+        &mut SensorHealthBaseline,
+    ),
+) -> SensorHealthAssessment {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let mut signal: SignalAnalysisReport = read_artifact(
         &root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json"),
@@ -457,7 +502,7 @@ fn pc_fx_03_dynamic_assessment(
         empirical_values: Vec::new(),
     })
     .collect();
-    mutate(&mut transient, &mut baseline);
+    mutate(&mut signal, &mut transient, &mut baseline);
 
     let workspace = temporary_output_dir();
     std::fs::create_dir_all(&workspace).expect("create fixture workspace");
@@ -1866,12 +1911,63 @@ fn phase_c_dynamic_response_invalid_selected_event_is_dqi() {
         vec![PhaseCHealthReasonCode::SelectedTransientEventInvalid]
     );
 }
-base_dimension_contract_test!(
-    phase_c_dynamic_response_scope_mismatch_is_indeterminate,
-    HealthDimension::DynamicResponseHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
+#[test]
+fn phase_c_dynamic_response_scope_mismatch_is_indeterminate() {
+    let assessment = pc_fx_03_dynamic_assessment_with_signal(|signal, transient, _| {
+        let experiment_scope = ArtifactExperimentScope::single(
+            ExperimentId::new("pc-fx-03-experiment").expect("experiment ID"),
+        )
+        .expect("single experiment scope");
+        let families = ArtifactAcquisitionFamilies::known([AcquisitionFamilyId::new(
+            "pc-fx-03-signal-family",
+        )
+        .expect("family ID")])
+        .expect("known signal family");
+        signal.lineage = known_lineage_from_artifact(
+            ArtifactKind::SignalAnalysis,
+            signal.schema_version,
+            "phase-c-test",
+            experiment_scope.clone(),
+            ScopeKey::specific("sensor-c-01").expect("sensor scope"),
+            ScopeKey::specific(signal.channel.clone()).expect("channel scope"),
+            families,
+            Vec::new(),
+            signal,
+        )
+        .expect("known signal lineage");
+        transient.experiment_id = "pc-fx-03-experiment".into();
+        transient.lineage = known_lineage_from_artifact(
+            ArtifactKind::TransientAnalysis,
+            transient.schema_version,
+            "phase-c-test",
+            experiment_scope,
+            ScopeKey::specific("sensor-c-02").expect("mismatched sensor scope"),
+            ScopeKey::specific(transient.channel.clone()).expect("channel scope"),
+            ArtifactAcquisitionFamilies::known([AcquisitionFamilyId::new(
+                "pc-fx-03-transient-family",
+            )
+            .expect("family ID")])
+            .expect("known transient family"),
+            Vec::new(),
+            transient,
+        )
+        .expect("known mismatched transient lineage");
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(
+        row.evidence_state,
+        HealthEvidenceState::InsufficientEvidence
+    );
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ScopeIncompatible]
+    );
+    assert!(
+        row.source_artifact_ids.is_empty(),
+        "incompatible transient is not consumed"
+    );
+}
 #[test]
 fn phase_c_dynamic_response_denominators_use_mean() {
     let assessment = pc_fx_03_dynamic_assessment(|_, baseline| {
@@ -1959,30 +2055,117 @@ fn phase_c_dynamic_response_near_zero_baseline_denominator_is_dqi() {
         vec![PhaseCHealthReasonCode::BaselineDenominatorNearZero]
     );
 }
-base_dimension_contract_test!(
-    phase_c_optional_source_absent_is_indeterminate,
-    HealthDimension::CalibrationHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_supplied_required_metric_absent_is_dqi,
-    HealthDimension::DataQuality,
-    OverallHealthStatus::DataQualityInsufficient,
-    PhaseCHealthReasonCode::QualityGateFailed
-);
-base_dimension_contract_test!(
-    phase_c_invalid_unit_is_dqi,
-    HealthDimension::DataQuality,
-    OverallHealthStatus::DataQualityInsufficient,
-    PhaseCHealthReasonCode::QualityGateFailed
-);
+#[test]
+fn phase_c_optional_source_absent_is_indeterminate() {
+    let assessment = pc_fx_01_assessment(|_| {});
+    let row = phase_c_dimension(&assessment, HealthDimension::CalibrationHealth);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(row.evidence_state, HealthEvidenceState::NoEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::OptionalSourceAbsent]
+    );
+}
+
+#[test]
+fn phase_c_supplied_required_metric_absent_is_dqi() {
+    let assessment = pc_fx_01_assessment(|signal| signal.descriptive.rms = None);
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::RequiredQuantityAbsent]
+    );
+}
+
+#[test]
+fn phase_c_invalid_unit_is_dqi() {
+    let assessment = pc_fx_01_assessment(|signal| signal.unit = "Ohm".into());
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(row.reason_codes, vec![PhaseCHealthReasonCode::UnitMismatch]);
+}
 base_report_contract_test!(phase_c_scope_mismatch_is_indeterminate_not_dqi);
 base_report_contract_test!(phase_c_legacy_lineage_blocks_promotion_not_direct_finding);
 base_report_contract_test!(phase_c_mixed_valid_invalid_model_sources_preserves_valid_result);
 base_report_contract_test!(phase_c_no_sufficient_valid_model_source_uses_precedence);
 base_report_contract_test!(phase_c_contradictory_valid_sources_are_visible);
-base_report_contract_test!(phase_c_base_fixture_exact_nine_findings);
+#[test]
+fn phase_c_base_fixture_exact_nine_findings() {
+    let assessment = pc_fx_01_assessment(|_| {});
+    let report = assessment.phase_c.expect("Phase-C report");
+    let exact = [
+        (
+            HealthDimension::SignalIntegrity,
+            OverallHealthStatus::WithinBaseline,
+            PhaseCHealthReasonCode::ThresholdWithinLimit,
+        ),
+        (
+            HealthDimension::CalibrationHealth,
+            OverallHealthStatus::Indeterminate,
+            PhaseCHealthReasonCode::OptionalSourceAbsent,
+        ),
+        (
+            HealthDimension::DynamicResponseHealth,
+            OverallHealthStatus::Indeterminate,
+            PhaseCHealthReasonCode::OptionalSourceAbsent,
+        ),
+        (
+            HealthDimension::ReferenceStability,
+            OverallHealthStatus::Indeterminate,
+            PhaseCHealthReasonCode::ReferenceAnchorUnavailable,
+        ),
+        (
+            HealthDimension::EnvironmentalRobustness,
+            OverallHealthStatus::Indeterminate,
+            PhaseCHealthReasonCode::OptionalSourceAbsent,
+        ),
+        (
+            HealthDimension::ModelConsistency,
+            OverallHealthStatus::Indeterminate,
+            PhaseCHealthReasonCode::OptionalSourceAbsent,
+        ),
+        (
+            HealthDimension::Observability,
+            OverallHealthStatus::Indeterminate,
+            PhaseCHealthReasonCode::OptionalSourceAbsent,
+        ),
+        (
+            HealthDimension::UncertaintyHealth,
+            OverallHealthStatus::Indeterminate,
+            PhaseCHealthReasonCode::OptionalSourceAbsent,
+        ),
+        (
+            HealthDimension::DataQuality,
+            OverallHealthStatus::WithinBaseline,
+            PhaseCHealthReasonCode::ThresholdWithinLimit,
+        ),
+    ];
+    assert_eq!(report.dimension_assessments.len(), 9);
+    for (row, (dimension, status, reason)) in report.dimension_assessments.iter().zip(exact) {
+        assert_eq!(row.dimension, dimension);
+        assert_eq!(row.status, status, "{dimension:?}");
+        assert_eq!(row.reason_codes, vec![reason], "{dimension:?}");
+    }
+    assert_eq!(report.overall_status, OverallHealthStatus::Indeterminate);
+    assert!(report.overall_interpretation_categories.is_empty());
+    assert_eq!(
+        report.overall_causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::Indeterminate
+    );
+    let signal_ids = report
+        .evidence_bundle
+        .records
+        .iter()
+        .filter(|record| record.evidence_id.0.starts_with("signal."))
+        .count();
+    assert_eq!(
+        signal_ids, 10,
+        "PC-FX-01 carries the complete signal evidence set"
+    );
+}
 #[test]
 fn phase_c_calibration_health_quality_insufficient() {
     let assessment = pc_fx_02_calibration_assessment(|calibration| {
@@ -2077,16 +2260,84 @@ fn phase_c_environmental_robustness_nonincreasing_timestamp_is_dqi() {
         vec![PhaseCHealthReasonCode::InvalidQuantity]
     );
 }
-base_report_contract_test!(phase_c_aggregate_zero_positive_dimensions_is_indeterminate);
-base_report_contract_test!(phase_c_aggregate_one_positive_dimension_uses_its_causal_status);
+#[test]
+fn phase_c_aggregate_zero_positive_dimensions_is_indeterminate() {
+    let assessment = pc_fx_01_assessment(|_| {});
+    let report = assessment.phase_c.expect("Phase-C report");
+    assert_eq!(report.overall_status, OverallHealthStatus::Indeterminate);
+    assert_eq!(
+        report.overall_causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::Indeterminate
+    );
+    assert!(report.overall_interpretation_categories.is_empty());
+}
+
+#[test]
+fn phase_c_aggregate_one_positive_dimension_uses_its_causal_status() {
+    let assessment = pc_fx_01_assessment(|signal| signal.descriptive.rms = Some(0.002));
+    let report = assessment.phase_c.expect("Phase-C report");
+    let signal = report
+        .dimension_assessments
+        .iter()
+        .find(|row| row.dimension == HealthDimension::SignalIntegrity)
+        .expect("SignalIntegrity row");
+    assert_eq!(signal.status, OverallHealthStatus::Degraded);
+    assert_eq!(
+        signal.causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::Observed
+    );
+    assert_eq!(report.overall_status, OverallHealthStatus::Degraded);
+    assert_eq!(report.overall_causal_status, signal.causal_status);
+}
 base_report_contract_test!(phase_c_aggregate_mixed_causal_strength_uses_minimum);
 base_report_contract_test!(phase_c_aggregate_dqi_and_indeterminate_do_not_lower_positive_causality);
 base_report_contract_test!(phase_c_aggregate_reason_provenance_is_ordered_and_deduplicated);
 base_report_contract_test!(phase_c_aggregate_causal_order_boundaries_are_total);
 
 // §35.7 legacy writer-route additions, all through public CLI/reader paths.
-base_report_contract_test!(phase_c_legacy_health_cli_without_config_writes_schema3);
-base_report_contract_test!(phase_c_health_cli_with_phase_c_config_writes_schema4);
-base_report_contract_test!(phase_c_legacy_schema3_writer_is_route_restricted);
-base_report_contract_test!(phase_c_legacy_health_cli_does_not_synthesize_phase_c);
-base_report_contract_test!(phase_c_legacy_schema3_identity_and_lineage_are_deterministic);
+#[test]
+fn phase_c_legacy_health_cli_without_config_writes_schema3() {
+    let (assessment, wire) = legacy_health_assessment();
+    assert_eq!(assessment.schema_version, 3);
+    assert_eq!(assessment.phase_c, None);
+    assert_eq!(wire["schema_version"], 3);
+    assert!(wire.get("phase_c").is_none(), "legacy wire omits Phase-C");
+}
+
+#[test]
+fn phase_c_health_cli_with_phase_c_config_writes_schema4() {
+    let assessment = pc_fx_01_assessment(|_| {});
+    assert_eq!(assessment.schema_version, 4);
+    assert!(assessment.phase_c.is_some());
+}
+
+#[test]
+fn phase_c_legacy_schema3_writer_is_route_restricted() {
+    let (legacy, legacy_wire) = legacy_health_assessment();
+    let phase_c = pc_fx_01_assessment(|_| {});
+    assert_eq!(legacy.schema_version, 3);
+    assert!(legacy_wire.get("phase_c").is_none());
+    assert_eq!(phase_c.schema_version, 4);
+    assert!(phase_c.phase_c.is_some());
+}
+
+#[test]
+fn phase_c_legacy_health_cli_does_not_synthesize_phase_c() {
+    let (assessment, wire) = legacy_health_assessment();
+    assert_eq!(assessment.phase_c, None);
+    assert!(
+        wire.get("phase_c").is_none(),
+        "must not serialize null/default Phase-C"
+    );
+    assert_eq!(wire["schema_version"], 3);
+}
+
+#[test]
+fn phase_c_legacy_schema3_identity_and_lineage_are_deterministic() {
+    let (first, first_wire) = legacy_health_assessment();
+    let (second, second_wire) = legacy_health_assessment();
+    assert_eq!(first.assessment_id, second.assessment_id);
+    assert_eq!(first.lineage, second.lineage);
+    assert_eq!(first_wire["assessment_id"], second_wire["assessment_id"]);
+    assert_eq!(first_wire["lineage"], second_wire["lineage"]);
+}

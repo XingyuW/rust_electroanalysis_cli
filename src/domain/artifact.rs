@@ -272,7 +272,6 @@ pub(crate) fn write_legacy_sensor_health_assessment_v3(
         path: path.into(),
         source,
     })?;
-    validate_value::<crate::results::SensorHealthAssessment>(path, &value)?;
     let object = value
         .as_object_mut()
         .ok_or_else(|| ArtifactError::InvalidRoot { path: path.into() })?;
@@ -285,6 +284,10 @@ pub(crate) fn write_legacy_sensor_health_assessment_v3(
         "artifact_kind".into(),
         Value::String(ArtifactKind::HealthAssessment.as_str().into()),
     );
+    // The legacy typed assessment deliberately does not carry a generic
+    // `artifact_kind` field. Add its schema-3 wire discriminator before the
+    // common artifact validator checks the public boundary.
+    validate_value::<crate::results::SensorHealthAssessment>(path, &value)?;
     let text = serde_json::to_string_pretty(&value).map_err(|source| ArtifactError::Json {
         path: path.into(),
         source,
