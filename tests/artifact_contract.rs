@@ -4,9 +4,10 @@ use rust_electroanalysis_cli::{
     results::{
         CalibrationAnalysisReport, CalibrationObservationSet, EisFitArtifact, HealthTrendReport,
         MechanismAnalysisReport, ModelAnalysisReport, ModelCompilationArtifact,
-        SensorHealthAssessment, SensorHealthBaseline, SignalAnalysisReport, StateEstimationReport,
-        StoredCalibrationModel, TransientAnalysisReport, ValidationResults,
+        OverallHealthStatus, SensorHealthAssessment, SensorHealthBaseline, SignalAnalysisReport,
+        StateEstimationReport, StoredCalibrationModel, TransientAnalysisReport, ValidationResults,
     },
+    runners::health,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -49,6 +50,48 @@ fn path(name: &str) -> PathBuf {
         nonce,
         id
     ))
+}
+
+fn configured_phase_c_assessment() -> SensorHealthAssessment {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let output = path("phase_c_schema4_source");
+    health::assess(
+        &root,
+        &root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json"),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&root.join("tests/fixtures/phase_c/config/valid_phase_c.toml")),
+        None,
+        None,
+        None,
+        None,
+        Some(&output),
+    )
+    .expect("configured Phase-C assessment");
+    let artifact = read_artifact(&output.join("health_assessment.json")).expect("reader");
+    fs::remove_dir_all(output).expect("remove output");
+    artifact
+}
+
+fn write_health_value(name: &str, value: &serde_json::Value) -> PathBuf {
+    let output = path(name);
+    let mut value = value.clone();
+    value
+        .as_object_mut()
+        .expect("health artifact object")
+        .entry("artifact_kind")
+        .or_insert_with(|| serde_json::Value::String("health_assessment".into()));
+    fs::write(
+        &output,
+        serde_json::to_vec(&value).expect("serialize mutation"),
+    )
+    .expect("write");
+    output
 }
 
 #[test]
@@ -272,4 +315,114 @@ fn phase_c_schema4_rejects_missing_or_null_phase_c() {
         ));
         fs::remove_file(output).ok();
     }
+}
+
+#[test]
+fn phase_c_schema3_health_assessment_remains_readable() {
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/phase_c/writer_boundary/legacy_health_assessment_v3.json");
+    let assessment: SensorHealthAssessment =
+        read_artifact(&fixture).expect("read schema-3 fixture");
+    assert_eq!(assessment.schema_version, 3);
+    assert_eq!(assessment.assessment_id, "phase-c-legacy-schema3-fixture");
+    assert_eq!(
+        assessment.experiment_id.as_deref(),
+        Some("phase-c-legacy-experiment")
+    );
+    assert_eq!(
+        assessment.overall_status,
+        OverallHealthStatus::DataQualityInsufficient
+    );
+    assert!(assessment.phase_c.is_none());
+}
+
+#[test]
+fn phase_c_schema4_requires_complete_nine_dimension_report() {
+    let assessment = configured_phase_c_assessment();
+    let mut value = serde_json::to_value(&assessment).expect("serialize current artifact");
+    value["phase_c"]["dimension_assessments"]
+        .as_array_mut()
+        .unwrap()
+        .pop();
+    let output = write_health_value("phase_c_missing_dimension", &value);
+    assert!(matches!(
+        read_artifact::<SensorHealthAssessment>(&output),
+        Err(ArtifactError::Validation { message })
+            if message == "schema-4 health assessment requires exactly one record for each health dimension"
+    ));
+    fs::remove_file(output).ok();
+}
+
+#[test]
+fn phase_c_schema4_roundtrip_preserves_wire_contract() {
+    let assessment = configured_phase_c_assessment();
+    let output = path("phase_c_schema4_roundtrip");
+    write_artifact(&output, &assessment).expect("canonical writer accepts complete Phase-C report");
+    let raw: serde_json::Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+    assert_eq!(raw["schema_version"], 4);
+    assert_eq!(raw["artifact_kind"], "health_assessment");
+    assert!(raw["phase_c"].is_object());
+    assert_eq!(
+        read_artifact::<SensorHealthAssessment>(&output).expect("public reread"),
+        assessment
+    );
+    fs::remove_file(output).ok();
+}
+
+#[test]
+fn phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version() {
+    let assessment = configured_phase_c_assessment();
+    for (name, mutate) in [
+        ("wrong_kind", 0_u8),
+        ("missing_kind", 1_u8),
+        ("future_version", 2_u8),
+    ] {
+        let mut value = serde_json::to_value(&assessment).expect("serialize current artifact");
+        match mutate {
+            0 => value["artifact_kind"] = "signal_analysis".into(),
+            1 => {
+                value
+                    .as_object_mut()
+                    .expect("object")
+                    .remove("artifact_kind");
+            }
+            _ => value["schema_version"] = 5.into(),
+        }
+        let output = if mutate == 1 {
+            let output = path(name);
+            fs::write(
+                &output,
+                serde_json::to_vec(&value).expect("serialize mutation"),
+            )
+            .expect("write missing-kind mutation");
+            output
+        } else {
+            write_health_value(name, &value)
+        };
+        match mutate {
+            0 | 1 => assert!(matches!(
+                read_artifact::<SensorHealthAssessment>(&output),
+                Err(ArtifactError::IncompatibleKind { .. })
+            )),
+            _ => assert!(matches!(
+                read_artifact::<SensorHealthAssessment>(&output),
+                Err(ArtifactError::UnsupportedSchemaVersion { actual: 5, .. })
+            )),
+        }
+        fs::remove_file(output).ok();
+    }
+}
+
+#[test]
+fn phase_c_schema4_rejects_retired_phase_c_aliases() {
+    let assessment = configured_phase_c_assessment();
+    let mut value = serde_json::to_value(&assessment).expect("serialize current artifact");
+    value["phase_c"]["phase_c_report"] = value["phase_c"].clone();
+    let output = write_health_value("phase_c_retired_alias", &value);
+    let result = read_artifact::<SensorHealthAssessment>(&output);
+    assert!(
+        matches!(result, Err(ArtifactError::Validation { .. })),
+        "{result:?}"
+    );
+    fs::remove_file(output).ok();
 }
