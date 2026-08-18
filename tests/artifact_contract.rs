@@ -1,6 +1,8 @@
 use rust_electroanalysis_cli::{
     ArtifactKind, CurrentArtifactKindPolicy, VersionedArtifact,
-    domain::{ArtifactError, read_artifact, write_artifact},
+    domain::{
+        ArtifactError, ArtifactLineageState, UnknownLineageReason, read_artifact, write_artifact,
+    },
     results::{
         CalibrationAnalysisReport, CalibrationObservationSet, EisFitArtifact, HealthTrendReport,
         MechanismAnalysisReport, ModelAnalysisReport, ModelCompilationArtifact,
@@ -275,10 +277,41 @@ fn a0_ac_compat_01_preserves_eis_fit_and_health_baseline_matrices() {
 fn phase_c_legacy_schema3_health_artifact_remains_readable() {
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/phase_c/writer_boundary/legacy_health_assessment_v3.json");
+    let wire: serde_json::Value =
+        serde_json::from_slice(&fs::read(&fixture).expect("read independent wire fixture"))
+            .expect("parse independent wire fixture");
+    assert_eq!(wire["artifact_kind"], "health_assessment");
+    assert_eq!(wire["schema_version"], 3);
+    for absent in ["phase_c", "lineage", "artifact_id", "dependencies"] {
+        assert!(
+            wire.get(absent).is_none(),
+            "the independently checked-in schema-3 fixture must not invent {absent}"
+        );
+    }
     let assessment: SensorHealthAssessment = read_artifact(&fixture).expect("read legacy fixture");
     assert_eq!(assessment.schema_version, 3);
     assert_eq!(assessment.assessment_id, "phase-c-legacy-schema3-fixture");
-    assert!(assessment.phase_c.is_none());
+    assert_eq!(
+        assessment.experiment_id.as_deref(),
+        Some("phase-c-legacy-experiment")
+    );
+    assert_eq!(assessment.sensor_id, None);
+    assert_eq!(
+        assessment.overall_status,
+        OverallHealthStatus::DataQualityInsufficient
+    );
+    assert_eq!(assessment.features.len(), 1);
+    assert_eq!(assessment.features[0].name, "signal.mean");
+    assert_eq!(assessment.features[0].value, Some(0.2));
+    assert_eq!(assessment.features[0].unit, "V");
+    assert_eq!(assessment.phase_c, None);
+    assert_eq!(
+        assessment.lineage,
+        ArtifactLineageState::LegacyUnknown {
+            source_schema_version: None,
+            reason: UnknownLineageReason::FieldAbsentInLegacyArtifact,
+        }
+    );
 }
 
 #[test]
@@ -286,33 +319,50 @@ fn phase_c_canonical_health_writer_never_emits_schema3() {
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/phase_c/writer_boundary/legacy_health_assessment_v3.json");
     let assessment: SensorHealthAssessment = read_artifact(&fixture).expect("read legacy fixture");
+    assert_eq!(assessment.schema_version, 3);
+    assert_eq!(assessment.phase_c, None);
     let output = path("phase_c_canonical_writer");
-    assert!(matches!(
-        write_artifact(&output, &assessment),
-        Err(ArtifactError::Validation { message }) if message == "schema-4 health assessment requires a non-null phase_c"
-    ));
+    let result = write_artifact(&output, &assessment);
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "artifact schema validation failed: schema-4 health assessment requires a non-null phase_c"
+    );
     assert!(!output.exists());
 }
 
 #[test]
 fn phase_c_schema4_rejects_missing_or_null_phase_c() {
-    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/phase_c/writer_boundary/legacy_health_assessment_v3.json");
-    let value: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(fixture).unwrap()).unwrap();
-    for phase_c in [None, Some(serde_json::Value::Null)] {
-        let mut value = value.clone();
-        let object = value.as_object_mut().unwrap();
-        object.insert("schema_version".into(), 4.into());
+    let canonical = configured_phase_c_assessment();
+    let canonical_path = path("phase_c_complete_schema4_wire");
+    write_artifact(&canonical_path, &canonical).expect("write valid schema-4 wire");
+    let complete_wire: serde_json::Value =
+        serde_json::from_slice(&fs::read(&canonical_path).expect("read canonical wire"))
+            .expect("parse canonical wire");
+    fs::remove_file(&canonical_path).expect("remove canonical wire");
+    for (case, phase_c) in [("missing", None), ("null", Some(serde_json::Value::Null))] {
+        let mut value = complete_wire.clone();
+        let object = value.as_object_mut().expect("health artifact object");
         if let Some(phase_c) = phase_c {
             object.insert("phase_c".into(), phase_c);
+        } else {
+            object.remove("phase_c");
         }
-        let output = path("phase_c_missing_report");
-        fs::write(&output, serde_json::to_string(&value).unwrap()).unwrap();
-        assert!(matches!(
-            read_artifact::<SensorHealthAssessment>(&output),
-            Err(ArtifactError::Validation { message }) if message == "schema-4 health assessment requires a non-null phase_c"
-        ));
+        let output = path(&format!("phase_c_{case}_report"));
+        fs::write(
+            &output,
+            serde_json::to_vec(&value).expect("serialize mutation"),
+        )
+        .expect("write mutation");
+        assert_eq!(
+            read_artifact::<SensorHealthAssessment>(&output)
+                .expect_err("schema-4 must reject a missing or null report")
+                .to_string(),
+            "artifact schema validation failed: schema-4 health assessment requires a non-null phase_c"
+        );
+        assert!(
+            output.exists(),
+            "reader failures must not mutate the input fixture"
+        );
         fs::remove_file(output).ok();
     }
 }
@@ -333,24 +383,40 @@ fn phase_c_schema3_health_assessment_remains_readable() {
         assessment.overall_status,
         OverallHealthStatus::DataQualityInsufficient
     );
-    assert!(assessment.phase_c.is_none());
+    assert_eq!(assessment.phase_c, None);
+    assert_eq!(assessment.features[0].name, "signal.mean");
+    assert_eq!(assessment.features[0].value, Some(0.2));
+    assert_eq!(
+        assessment.lineage,
+        ArtifactLineageState::LegacyUnknown {
+            source_schema_version: None,
+            reason: UnknownLineageReason::FieldAbsentInLegacyArtifact,
+        }
+    );
 }
 
 #[test]
 fn phase_c_schema4_requires_complete_nine_dimension_report() {
     let assessment = configured_phase_c_assessment();
-    let mut value = serde_json::to_value(&assessment).expect("serialize current artifact");
-    value["phase_c"]["dimension_assessments"]
-        .as_array_mut()
-        .unwrap()
-        .pop();
-    let output = write_health_value("phase_c_missing_dimension", &value);
-    assert!(matches!(
-        read_artifact::<SensorHealthAssessment>(&output),
-        Err(ArtifactError::Validation { message })
-            if message == "schema-4 health assessment requires exactly one record for each health dimension"
-    ));
-    fs::remove_file(output).ok();
+    for (case, mutate) in [("missing", false), ("duplicate", true)] {
+        let mut value = serde_json::to_value(&assessment).expect("serialize current artifact");
+        let rows = value["phase_c"]["dimension_assessments"]
+            .as_array_mut()
+            .expect("nine-row Phase-C report");
+        if mutate {
+            rows.push(rows[0].clone());
+        } else {
+            rows.pop();
+        }
+        let output = write_health_value(&format!("phase_c_{case}_dimension"), &value);
+        assert_eq!(
+            read_artifact::<SensorHealthAssessment>(&output)
+                .expect_err("a schema-4 report requires exactly one of every dimension")
+                .to_string(),
+            "artifact schema validation failed: schema-4 health assessment requires exactly one record for each health dimension"
+        );
+        fs::remove_file(output).ok();
+    }
 }
 
 #[test]
@@ -362,6 +428,13 @@ fn phase_c_schema4_roundtrip_preserves_wire_contract() {
     assert_eq!(raw["schema_version"], 4);
     assert_eq!(raw["artifact_kind"], "health_assessment");
     assert!(raw["phase_c"].is_object());
+    assert!(raw.get("phase_c_report").is_none());
+    assert_eq!(
+        raw["phase_c"]["dimension_assessments"]
+            .as_array()
+            .map(Vec::len),
+        Some(9)
+    );
     assert_eq!(
         read_artifact::<SensorHealthAssessment>(&output).expect("public reread"),
         assessment
@@ -400,13 +473,25 @@ fn phase_c_schema4_rejects_wrong_kind_missing_kind_and_future_version() {
             write_health_value(name, &value)
         };
         match mutate {
-            0 | 1 => assert!(matches!(
+            0 => assert!(matches!(
                 read_artifact::<SensorHealthAssessment>(&output),
-                Err(ArtifactError::IncompatibleKind { .. })
+                Err(ArtifactError::IncompatibleKind { expected: ArtifactKind::HealthAssessment, actual: Some(actual), .. }) if actual == "signal_analysis"
+            )),
+            1 => assert!(matches!(
+                read_artifact::<SensorHealthAssessment>(&output),
+                Err(ArtifactError::IncompatibleKind {
+                    expected: ArtifactKind::HealthAssessment,
+                    actual: None,
+                    ..
+                })
             )),
             _ => assert!(matches!(
                 read_artifact::<SensorHealthAssessment>(&output),
-                Err(ArtifactError::UnsupportedSchemaVersion { actual: 5, .. })
+                Err(ArtifactError::UnsupportedSchemaVersion {
+                    expected: ArtifactKind::HealthAssessment,
+                    actual: 5,
+                    ..
+                })
             )),
         }
         fs::remove_file(output).ok();
@@ -419,9 +504,10 @@ fn phase_c_schema4_rejects_retired_phase_c_aliases() {
     let mut value = serde_json::to_value(&assessment).expect("serialize current artifact");
     value["phase_c"]["phase_c_report"] = value["phase_c"].clone();
     let output = write_health_value("phase_c_retired_alias", &value);
-    let result = read_artifact::<SensorHealthAssessment>(&output);
+    let result = read_artifact::<SensorHealthAssessment>(&output)
+        .expect_err("schema-4 must reject a retired Phase-C alias");
     assert!(
-        matches!(result, Err(ArtifactError::Validation { .. })),
+        matches!(result, ArtifactError::Validation { ref message } if message.contains("unknown field `phase_c_report`")),
         "{result:?}"
     );
     fs::remove_file(output).ok();

@@ -1,9 +1,10 @@
 use rust_electroanalysis_cli::{
     cli::{CliError, CommandSpec, parse_cli_args},
-    domain::read_artifact,
+    domain::{read_artifact, write_artifact},
     health_config::PhaseCHealthEvidenceConfig,
     results::{
-        HealthDimension, OverallHealthStatus, PhaseCHealthReasonCode, SensorHealthAssessment,
+        DriftModelKind, HealthDimension, HealthEvidenceState, OverallHealthStatus,
+        PhaseCHealthReasonCode, SensorHealthAssessment, SignalAnalysisReport,
     },
     runners::health,
 };
@@ -61,6 +62,83 @@ fn base_phase_c_assessment() -> SensorHealthAssessment {
         read_artifact(&output.join("health_assessment.json")).expect("schema-4 assessment");
     std::fs::remove_dir_all(output).expect("remove test output");
     assessment
+}
+
+/// PC-FX-01 is deliberately assembled through the public artifact writer and
+/// the public health runner.  The legacy A0 fixture is only a complete source
+/// shape; every health-relevant value is overwritten below so a test cannot
+/// accidentally inherit its old, critical signal metrics.
+fn pc_fx_01_assessment(mutate: impl FnOnce(&mut SignalAnalysisReport)) -> SensorHealthAssessment {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut signal: SignalAnalysisReport = read_artifact(
+        &root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json"),
+    )
+    .expect("read source shape");
+    signal.unit = "V".into();
+    signal.descriptive.rms = Some(0.0005);
+    signal.descriptive.robust_standard_deviation = Some(0.0004);
+    signal.spikes.flagged_fraction = Some(0.0);
+    signal.sampling.finite_sample_count = 4;
+    signal.sampling.missing_fraction = Some(0.0);
+    signal.sampling.interval_cv = Some(0.0);
+    signal.sampling.duplicate_timestamps = 0;
+    signal.sampling.non_monotonic_timestamps = 0;
+    signal.sampling.interpolation_gap_exceeded = false;
+    let drift = signal
+        .drift
+        .iter_mut()
+        .find(|row| row.model == DriftModelKind::TheilSen)
+        .expect("source shape supplies Theil-Sen drift");
+    drift.slope_v_per_s = Some(0.00001);
+    mutate(&mut signal);
+
+    let workspace = temporary_output_dir();
+    let signal_path = workspace.join("signal.json");
+    let config_path = workspace.join("phase_c.toml");
+    write_artifact(&signal_path, &signal).expect("write public signal artifact");
+    std::fs::create_dir_all(&workspace).expect("create fixture workspace");
+    std::fs::copy(
+        root.join("tests/fixtures/phase_c/config/valid_phase_c.toml"),
+        &config_path,
+    )
+    .expect("copy strict Phase-C configuration");
+    let output = workspace.join("output");
+    health::assess(
+        &workspace,
+        &signal_path,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&config_path),
+        None,
+        None,
+        None,
+        None,
+        Some(&output),
+    )
+    .expect("configured public Phase-C route");
+    let assessment = read_artifact(&output.join("health_assessment.json"))
+        .expect("publicly reread schema-4 result");
+    std::fs::remove_dir_all(&workspace).expect("remove fixture workspace");
+    assessment
+}
+
+fn phase_c_dimension(
+    assessment: &SensorHealthAssessment,
+    dimension: HealthDimension,
+) -> &rust_electroanalysis_cli::results::PhaseCHealthDimensionAssessment {
+    assessment
+        .phase_c
+        .as_ref()
+        .expect("Phase-C report")
+        .dimension_assessments
+        .iter()
+        .find(|row| row.dimension == dimension)
+        .expect("named Phase-C dimension")
 }
 
 fn assert_base_dimension(
@@ -248,43 +326,116 @@ fn phase_c_configured_runner_writes_schema4_assessment() {
 // schema-mode behavior observable without a crate-private evaluator seam.
 base_report_contract_test!(phase_c_config_requires_every_threshold_and_rejects_unknown_field);
 base_report_contract_test!(phase_c_config_roundtrip_preserves_threshold_units_and_tokens);
-base_dimension_contract_test!(
-    phase_c_absent_evidence_is_indeterminate_not_healthy,
-    HealthDimension::CalibrationHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_bad_signal_quality_is_data_quality_insufficient,
-    HealthDimension::DataQuality,
-    OverallHealthStatus::DataQualityInsufficient,
-    PhaseCHealthReasonCode::QualityGateFailed
-);
+#[test]
+fn phase_c_absent_evidence_is_indeterminate_not_healthy() {
+    let assessment = pc_fx_01_assessment(|_| {});
+    for dimension in [
+        HealthDimension::CalibrationHealth,
+        HealthDimension::DynamicResponseHealth,
+        HealthDimension::EnvironmentalRobustness,
+        HealthDimension::ModelConsistency,
+        HealthDimension::Observability,
+        HealthDimension::UncertaintyHealth,
+    ] {
+        let row = phase_c_dimension(&assessment, dimension);
+        assert_eq!(
+            row.status,
+            OverallHealthStatus::Indeterminate,
+            "{dimension:?}"
+        );
+        assert_eq!(
+            row.evidence_state,
+            HealthEvidenceState::NoEvidence,
+            "{dimension:?}"
+        );
+        assert_eq!(
+            row.reason_codes,
+            vec![PhaseCHealthReasonCode::OptionalSourceAbsent],
+            "{dimension:?}"
+        );
+    }
+    let reference = phase_c_dimension(&assessment, HealthDimension::ReferenceStability);
+    assert_eq!(reference.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(reference.evidence_state, HealthEvidenceState::NoEvidence);
+    assert_eq!(
+        reference.reason_codes,
+        vec![PhaseCHealthReasonCode::ReferenceAnchorUnavailable]
+    );
+}
+
+#[test]
+fn phase_c_bad_signal_quality_is_data_quality_insufficient() {
+    let assessment = pc_fx_01_assessment(|signal| signal.sampling.missing_fraction = Some(0.20));
+    let row = phase_c_dimension(&assessment, HealthDimension::DataQuality);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::QualityGateFailed]
+    );
+}
 base_report_contract_test!(phase_c_contradictory_evidence_remains_visible);
-base_dimension_contract_test!(
-    phase_c_signal_integrity_positive_finding,
-    HealthDimension::SignalIntegrity,
-    OverallHealthStatus::Critical,
-    PhaseCHealthReasonCode::ThresholdCritical
-);
-base_dimension_contract_test!(
-    phase_c_signal_integrity_negative_finding,
-    HealthDimension::SignalIntegrity,
-    OverallHealthStatus::Critical,
-    PhaseCHealthReasonCode::ThresholdCritical
-);
-base_dimension_contract_test!(
-    phase_c_signal_integrity_quality_insufficient,
-    HealthDimension::DataQuality,
-    OverallHealthStatus::DataQualityInsufficient,
-    PhaseCHealthReasonCode::QualityGateFailed
-);
-base_dimension_contract_test!(
-    phase_c_signal_integrity_threshold_boundaries,
-    HealthDimension::SignalIntegrity,
-    OverallHealthStatus::Critical,
-    PhaseCHealthReasonCode::ThresholdCritical
-);
+#[test]
+fn phase_c_signal_integrity_positive_finding() {
+    let assessment = pc_fx_01_assessment(|signal| signal.descriptive.rms = Some(0.002));
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(row.status, OverallHealthStatus::Degraded);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdDegraded]
+    );
+}
+
+#[test]
+fn phase_c_signal_integrity_negative_finding() {
+    let assessment = pc_fx_01_assessment(|_| {});
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(row.status, OverallHealthStatus::WithinBaseline);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
+    );
+}
+
+#[test]
+fn phase_c_signal_integrity_quality_insufficient() {
+    let assessment = pc_fx_01_assessment(|signal| signal.descriptive.rms = None);
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::RequiredQuantityAbsent]
+    );
+}
+
+#[test]
+fn phase_c_signal_integrity_threshold_boundaries() {
+    for (rms, status, reason) in [
+        (
+            0.001,
+            OverallHealthStatus::Watch,
+            PhaseCHealthReasonCode::ThresholdWatch,
+        ),
+        (
+            0.002,
+            OverallHealthStatus::Degraded,
+            PhaseCHealthReasonCode::ThresholdDegraded,
+        ),
+        (
+            0.005,
+            OverallHealthStatus::Critical,
+            PhaseCHealthReasonCode::ThresholdCritical,
+        ),
+    ] {
+        let assessment = pc_fx_01_assessment(|signal| signal.descriptive.rms = Some(rms));
+        let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+        assert_eq!(row.status, status, "rms={rms}");
+        assert_eq!(row.reason_codes, vec![reason], "rms={rms}");
+    }
+}
 base_dimension_contract_test!(
     phase_c_calibration_health_positive_finding,
     HealthDimension::CalibrationHealth,
