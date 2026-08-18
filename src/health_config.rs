@@ -1,7 +1,11 @@
 //! Configuration for baseline comparison and transparent health rules.
 
-use crate::domain::ConfigurationError;
+use crate::{
+    domain::ConfigurationError, health::error::HealthError,
+    mechanism::config::MechanismHypothesisId, results::HealthDimension,
+};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -250,5 +254,312 @@ impl LoadedHealthConfig {
             source_path: Some(path),
             warnings: Vec::new(),
         })
+    }
+}
+
+/// Strict, opt-in configuration for the Phase-C evidence evaluator.  It is
+/// intentionally independent of the permissive legacy health configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PhaseCHealthEvidenceConfig {
+    pub schema_version: u32,
+    pub maximum_reference_alignment_difference_s: f64,
+    pub data_quality: PhaseCDataQualityConfig,
+    pub signal_integrity: PhaseCSignalIntegrityConfig,
+    pub calibration_health: PhaseCCalibrationHealthConfig,
+    pub dynamic_response_health: PhaseCDynamicResponseHealthConfig,
+    pub environmental_robustness: PhaseCEnvironmentalRobustnessConfig,
+    pub model_consistency: PhaseCModelConsistencyConfig,
+    pub observability: PhaseCObservabilityConfig,
+    pub uncertainty_health: PhaseCUncertaintyHealthConfig,
+    pub causal_promotion: PhaseCCausalPromotionConfig,
+    #[serde(default)]
+    pub phase_b_hypothesis_bindings: Vec<PhaseCHypothesisBinding>,
+    /// Runtime provenance; skipped so it cannot alter the strict TOML shape.
+    #[serde(skip)]
+    config_sha256: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LevelThreshold {
+    pub watch: f64,
+    pub degraded: f64,
+    pub critical: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PhaseCDataQualityConfig {
+    pub minimum_finite_samples: usize,
+    pub maximum_missing_fraction: f64,
+    pub maximum_interval_cv: f64,
+    pub maximum_duplicate_timestamps: usize,
+    pub maximum_non_monotonic_timestamps: usize,
+    pub allow_interpolation_gap_exceeded: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PhaseCSignalIntegrityConfig {
+    pub maximum_rms_noise_v: LevelThreshold,
+    pub maximum_robust_noise_standard_deviation_v: LevelThreshold,
+    pub maximum_spike_fraction: LevelThreshold,
+    pub maximum_absolute_drift_v_per_s: LevelThreshold,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PhaseCCalibrationHealthConfig {
+    pub maximum_absolute_slope_efficiency_error: LevelThreshold,
+    pub maximum_rmse_v: LevelThreshold,
+    pub maximum_absolute_prediction_bias_v: LevelThreshold,
+    pub maximum_hysteresis_v: LevelThreshold,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PhaseCDynamicResponseHealthConfig {
+    pub selected_event_index: usize,
+    pub baseline_tau_fast_feature: String,
+    pub baseline_tau_slow_feature: String,
+    pub baseline_time_to_90_percent_feature: String,
+    pub baseline_response_amplitude_feature: String,
+    pub maximum_tau_fast_ratio: LevelThreshold,
+    pub maximum_tau_slow_ratio: LevelThreshold,
+    pub maximum_time_to_90_percent_ratio: LevelThreshold,
+    pub maximum_response_amplitude_relative_loss: LevelThreshold,
+    pub maximum_fit_rmse_v: LevelThreshold,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvironmentalCovariate {
+    TemperatureK,
+    ConductivitySPerM,
+    IonicStrengthMolL,
+    Flow,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PhaseCEnvironmentalRobustnessConfig {
+    pub covariate: EnvironmentalCovariate,
+    pub minimum_points: usize,
+    pub minimum_covariate_range: f64,
+    pub minimum_absolute_spearman_correlation: LevelThreshold,
+    pub minimum_residual_rms_v: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PhaseCModelConsistencyConfig {
+    pub maximum_residual_rms_v: LevelThreshold,
+    pub maximum_residual_bias_v: LevelThreshold,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PhaseCObservabilityConfig {
+    pub maximum_condition_number: LevelThreshold,
+    pub require_empirical_identifiability: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PhaseCUncertaintyHealthConfig {
+    pub maximum_partial_uncertainty_fraction: LevelThreshold,
+    pub maximum_standard_error_v: LevelThreshold,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PhaseCCausalPromotionConfig {
+    pub minimum_independent_supporting_evidence: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PhaseCHypothesisRelationship {
+    PossiblePhysicalDegradation,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PhaseCHypothesisBinding {
+    pub hypothesis_id: MechanismHypothesisId,
+    pub health_dimension: HealthDimension,
+    pub relationship: PhaseCHypothesisRelationship,
+}
+
+pub struct LoadedPhaseCHealthEvidenceConfig {
+    pub config: PhaseCHealthEvidenceConfig,
+    pub source_path: PathBuf,
+    pub config_sha256: String,
+}
+
+impl PhaseCHealthEvidenceConfig {
+    pub fn load(path: &Path) -> Result<LoadedPhaseCHealthEvidenceConfig, HealthError> {
+        let bytes = fs::read(path).map_err(HealthError::Io)?;
+        let text =
+            std::str::from_utf8(&bytes).map_err(|error| HealthError::InvalidPhaseCConfig {
+                message: format!("configuration is not valid UTF-8: {error}"),
+            })?;
+        let mut config: Self =
+            toml::from_str(text).map_err(|error| HealthError::InvalidPhaseCConfig {
+                message: error.to_string(),
+            })?;
+        config.validate()?;
+        let config_sha256 = Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        config.config_sha256 = Some(config_sha256.clone());
+        Ok(LoadedPhaseCHealthEvidenceConfig {
+            config,
+            source_path: path.to_path_buf(),
+            config_sha256,
+        })
+    }
+
+    pub(crate) fn configuration_hash(&self) -> Option<&str> {
+        self.config_sha256.as_deref()
+    }
+
+    pub fn validate(&self) -> Result<(), HealthError> {
+        let invalid = |message: &str| HealthError::InvalidPhaseCConfig {
+            message: message.into(),
+        };
+        if self.schema_version != 1
+            || !self.maximum_reference_alignment_difference_s.is_finite()
+            || self.maximum_reference_alignment_difference_s < 0.0
+        {
+            return Err(invalid(
+                "schema_version must be 1 and maximum_reference_alignment_difference_s must be finite and non-negative",
+            ));
+        }
+        if self.data_quality.minimum_finite_samples < 2
+            || !self.data_quality.maximum_missing_fraction.is_finite()
+            || !(0.0..=1.0).contains(&self.data_quality.maximum_missing_fraction)
+            || !self.data_quality.maximum_interval_cv.is_finite()
+            || self.data_quality.maximum_interval_cv < 0.0
+        {
+            return Err(invalid("invalid data_quality configuration"));
+        }
+        for threshold in [
+            &self.signal_integrity.maximum_rms_noise_v,
+            &self
+                .signal_integrity
+                .maximum_robust_noise_standard_deviation_v,
+            &self.signal_integrity.maximum_spike_fraction,
+            &self.signal_integrity.maximum_absolute_drift_v_per_s,
+            &self
+                .calibration_health
+                .maximum_absolute_slope_efficiency_error,
+            &self.calibration_health.maximum_rmse_v,
+            &self.calibration_health.maximum_absolute_prediction_bias_v,
+            &self.calibration_health.maximum_hysteresis_v,
+            &self.dynamic_response_health.maximum_tau_fast_ratio,
+            &self.dynamic_response_health.maximum_tau_slow_ratio,
+            &self
+                .dynamic_response_health
+                .maximum_time_to_90_percent_ratio,
+            &self
+                .dynamic_response_health
+                .maximum_response_amplitude_relative_loss,
+            &self.dynamic_response_health.maximum_fit_rmse_v,
+            &self
+                .environmental_robustness
+                .minimum_absolute_spearman_correlation,
+            &self.model_consistency.maximum_residual_rms_v,
+            &self.model_consistency.maximum_residual_bias_v,
+            &self.observability.maximum_condition_number,
+            &self.uncertainty_health.maximum_partial_uncertainty_fraction,
+            &self.uncertainty_health.maximum_standard_error_v,
+        ] {
+            if !threshold.watch.is_finite()
+                || !threshold.degraded.is_finite()
+                || !threshold.critical.is_finite()
+                || threshold.watch < 0.0
+                || !(threshold.watch < threshold.degraded
+                    && threshold.degraded < threshold.critical)
+            {
+                return Err(invalid(
+                    "each Phase-C threshold must be finite and strictly ordered",
+                ));
+            }
+        }
+        for threshold in [
+            &self.dynamic_response_health.maximum_tau_fast_ratio,
+            &self.dynamic_response_health.maximum_tau_slow_ratio,
+            &self
+                .dynamic_response_health
+                .maximum_time_to_90_percent_ratio,
+            &self.observability.maximum_condition_number,
+            &self.uncertainty_health.maximum_standard_error_v,
+        ] {
+            if threshold.watch <= 0.0 {
+                return Err(invalid(
+                    "ratio, condition-number, and standard-error thresholds must be strictly positive",
+                ));
+            }
+        }
+        if self
+            .dynamic_response_health
+            .baseline_tau_fast_feature
+            .is_empty()
+            || self
+                .dynamic_response_health
+                .baseline_tau_slow_feature
+                .is_empty()
+            || self
+                .dynamic_response_health
+                .baseline_time_to_90_percent_feature
+                .is_empty()
+            || self
+                .dynamic_response_health
+                .baseline_response_amplitude_feature
+                .is_empty()
+            || self.environmental_robustness.minimum_points < 3
+            || !self
+                .environmental_robustness
+                .minimum_covariate_range
+                .is_finite()
+            || self.environmental_robustness.minimum_covariate_range <= 0.0
+            || !self
+                .environmental_robustness
+                .minimum_residual_rms_v
+                .is_finite()
+            || self.environmental_robustness.minimum_residual_rms_v < 0.0
+            || self
+                .causal_promotion
+                .minimum_independent_supporting_evidence
+                < 2
+        {
+            return Err(invalid(
+                "invalid Phase-C dynamic, environmental, or causal configuration",
+            ));
+        }
+        let mut previous = None;
+        for binding in &self.phase_b_hypothesis_bindings {
+            if binding.hypothesis_id.is_empty()
+                || !matches!(
+                    binding.health_dimension,
+                    HealthDimension::SignalIntegrity
+                        | HealthDimension::CalibrationHealth
+                        | HealthDimension::DynamicResponseHealth
+                )
+            {
+                return Err(invalid("invalid Phase-C hypothesis binding"));
+            }
+            if let Some(last) = previous.replace(&binding.hypothesis_id)
+                && last >= &binding.hypothesis_id
+            {
+                return Err(invalid(
+                    "Phase-C hypothesis bindings must be lexical and unique",
+                ));
+            }
+        }
+        Ok(())
     }
 }

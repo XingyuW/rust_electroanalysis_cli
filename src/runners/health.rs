@@ -1,6 +1,6 @@
 use crate::{
     health::{self, baseline::Context},
-    health_config::LoadedHealthConfig,
+    health_config::{LoadedHealthConfig, PhaseCHealthEvidenceConfig},
     results::{HealthDomain, HealthWarning, SensorHealthAssessment, SensorHealthBaseline},
     runners::RunnerError,
 };
@@ -126,7 +126,7 @@ pub fn baseline(
     Ok(())
 }
 #[allow(clippy::too_many_arguments)]
-pub fn assess(
+fn build_legacy_assessment(
     workspace: &Path,
     signal_path: &Path,
     transient: Option<&Path>,
@@ -136,8 +136,8 @@ pub fn assess(
     baseline_path: Option<&Path>,
     metadata: Option<&Path>,
     config_path: Option<&Path>,
-    output: Option<&Path>,
-) -> Result<(), RunnerError> {
+    _output: Option<&Path>,
+) -> Result<SensorHealthAssessment, RunnerError> {
     let loaded = LoadedHealthConfig::load(workspace, config_path)?;
     let signal_path = resolve(workspace, signal_path);
     let signal: crate::results::SignalAnalysisReport = crate::domain::read_artifact(&signal_path)?;
@@ -308,8 +308,382 @@ pub fn assess(
         &lineage_sources,
         fallback_scope,
     );
+    Ok(assessment)
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PhaseCHealthInputPaths<'a> {
+    transient: Option<&'a Path>,
+    calibration: Option<&'a Path>,
+    baseline: Option<&'a Path>,
+    estimation: Option<&'a Path>,
+    model: Option<&'a Path>,
+    mechanism: Option<&'a Path>,
+    lineage_catalog: Option<&'a Path>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn assess(
+    workspace: &Path,
+    signal_path: &Path,
+    transient: Option<&Path>,
+    calibration: Option<&Path>,
+    eis: Option<&Path>,
+    legacy_mechanism_results: Option<&Path>,
+    baseline_path: Option<&Path>,
+    metadata: Option<&Path>,
+    legacy_config_path: Option<&Path>,
+    phase_c_config: Option<&Path>,
+    estimation_artifact: Option<&Path>,
+    model_artifact: Option<&Path>,
+    phase_c_mechanism_artifact: Option<&Path>,
+    lineage_catalog: Option<&Path>,
+    output: Option<&Path>,
+) -> Result<(), RunnerError> {
+    let phase_c_only = [
+        estimation_artifact,
+        model_artifact,
+        phase_c_mechanism_artifact,
+        lineage_catalog,
+    ]
+    .into_iter()
+    .any(|path| path.is_some());
+    match (phase_c_config, phase_c_only) {
+        (None, false) => assess_legacy(
+            workspace,
+            signal_path,
+            transient,
+            calibration,
+            eis,
+            legacy_mechanism_results,
+            baseline_path,
+            metadata,
+            legacy_config_path,
+            output,
+        ),
+        (None, true) => Err(RunnerError::Message(
+            "Phase-C artifact flags require --phase-c-config".into(),
+        )),
+        (Some(config), _) => assess_phase_c(
+            workspace,
+            signal_path,
+            transient,
+            calibration,
+            eis,
+            legacy_mechanism_results,
+            baseline_path,
+            metadata,
+            legacy_config_path,
+            config,
+            PhaseCHealthInputPaths {
+                transient,
+                calibration,
+                baseline: baseline_path,
+                estimation: estimation_artifact,
+                model: model_artifact,
+                mechanism: phase_c_mechanism_artifact,
+                lineage_catalog,
+            },
+            output,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assess_legacy(
+    workspace: &Path,
+    signal_path: &Path,
+    transient: Option<&Path>,
+    calibration: Option<&Path>,
+    eis: Option<&Path>,
+    mechanism: Option<&Path>,
+    baseline_path: Option<&Path>,
+    metadata: Option<&Path>,
+    config_path: Option<&Path>,
+    output: Option<&Path>,
+) -> Result<(), RunnerError> {
+    let assessment = build_legacy_assessment(
+        workspace,
+        signal_path,
+        transient,
+        calibration,
+        eis,
+        mechanism,
+        baseline_path,
+        metadata,
+        config_path,
+        output,
+    )?;
+    export_legacy_assessment(workspace, output, &assessment)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assess_phase_c(
+    workspace: &Path,
+    signal_path: &Path,
+    transient: Option<&Path>,
+    calibration: Option<&Path>,
+    eis: Option<&Path>,
+    legacy_mechanism: Option<&Path>,
+    baseline_path: Option<&Path>,
+    metadata: Option<&Path>,
+    legacy_config: Option<&Path>,
+    phase_c_config_path: &Path,
+    paths: PhaseCHealthInputPaths<'_>,
+    output: Option<&Path>,
+) -> Result<(), RunnerError> {
+    let config_path = resolve(workspace, phase_c_config_path);
+    let loaded_phase_c = PhaseCHealthEvidenceConfig::load(&config_path)?;
+    let mechanism_path = reconcile_mechanism_paths(workspace, legacy_mechanism, paths.mechanism)?;
+    let mut assessment = build_legacy_assessment(
+        workspace,
+        signal_path,
+        transient,
+        calibration,
+        eis,
+        mechanism_path.as_deref(),
+        baseline_path,
+        metadata,
+        legacy_config,
+        output,
+    )?;
+    let current_context = metadata
+        .map(|path| load_context(&resolve(workspace, path)))
+        .transpose()?
+        .unwrap_or_default();
+    let inputs = load_phase_c_inputs(
+        workspace,
+        signal_path,
+        paths,
+        mechanism_path.as_deref(),
+        current_context,
+    )?;
+    let eligible = crate::health::phase_c::validate_source_compatibility(&inputs, None)?;
+    let bundle =
+        crate::health::phase_c::prepare_phase_c_evidence(&eligible, &loaded_phase_c.config)?;
+    let mut dimensions = crate::health::phase_c::evaluate_all_dimensions(
+        &bundle,
+        &eligible,
+        &loaded_phase_c.config,
+    )?;
+    let mechanism_for_interpretation = mechanism_path
+        .as_ref()
+        .map(|path| crate::domain::read_artifact::<crate::results::MechanismAnalysisReport>(path))
+        .transpose()?;
+    let signal_for_mechanism: crate::results::SignalAnalysisReport =
+        crate::domain::read_artifact(&resolve(workspace, signal_path))?;
+    let mechanism_for_interpretation = mechanism_for_interpretation
+        .filter(|report| phase_c_mechanism_is_eligible(&signal_for_mechanism, report));
+    if let Some(report) = &mechanism_for_interpretation {
+        let mut seen = std::collections::BTreeSet::new();
+        for row in &report.hypothesis_assessments {
+            if row.definition.hypothesis_id.is_empty()
+                || row.definition.hypothesis_id != row.current.hypothesis_id
+                || !seen.insert(row.current.hypothesis_id.clone())
+            {
+                return Err(crate::health::error::HealthError::InvalidEvidence {
+                    source_name: "mechanism_analysis".into(),
+                    field: "hypothesis_assessments".into(),
+                }
+                .into());
+            }
+        }
+    }
+    for dimension in &mut dimensions {
+        // A Phase-B hypothesis only informs the dimension to which this
+        // configuration explicitly binds it.  Passing the whole mechanism
+        // report here would let a supported SignalIntegrity hypothesis alter,
+        // for example, CalibrationHealth as well.
+        let mapped_mechanism = mechanism_for_interpretation.as_ref().map(|report| {
+            let mut mapped = report.clone();
+            mapped.hypothesis_assessments.retain(|row| {
+                loaded_phase_c
+                    .config
+                    .phase_b_hypothesis_bindings
+                    .iter()
+                    .any(|binding| {
+                        binding.hypothesis_id == row.current.hypothesis_id
+                            && binding.health_dimension == dimension.dimension
+                    })
+            });
+            mapped
+        });
+        crate::health::phase_c::derive_interpretation_category(
+            dimension,
+            mapped_mechanism.as_ref(),
+        )?;
+        crate::health::phase_c::derive_causal_status(
+            dimension,
+            &bundle,
+            mapped_mechanism.as_ref(),
+            &loaded_phase_c.config,
+        )?;
+    }
+    crate::health::phase_c::populate_consumed_artifact_ids(&mut dimensions, &bundle);
+    let sources = crate::health::phase_c::consumed_lineage_sources(&eligible, &dimensions);
+    let phase_c =
+        crate::health::phase_c::compose_phase_c_report(&loaded_phase_c, dimensions, bundle)?;
+    assessment = assemble_phase_c_assessment(assessment, phase_c, &sources)?;
     export_assessment(workspace, output, &assessment)
 }
+
+fn phase_c_mechanism_is_eligible(
+    signal: &crate::results::SignalAnalysisReport,
+    mechanism: &crate::results::MechanismAnalysisReport,
+) -> bool {
+    mechanism.schema_version == 4
+        && matches!(
+            (&signal.lineage, &mechanism.lineage),
+            (
+                crate::domain::ArtifactLineageState::Known { identity: left, .. },
+                crate::domain::ArtifactLineageState::Known { identity: right, .. },
+            ) if left.experiment_scope == right.experiment_scope
+                && left.sensor_scope == right.sensor_scope
+                && left.channel_scope == right.channel_scope
+        )
+}
+
+fn assemble_phase_c_assessment(
+    mut assessment: SensorHealthAssessment,
+    phase_c: crate::results::PhaseCSensorHealthEvidenceReport,
+    consumed_sources: &[(
+        crate::domain::ArtifactLineageState,
+        crate::domain::ArtifactDependencyRole,
+    )],
+) -> Result<SensorHealthAssessment, RunnerError> {
+    let scope = lineage_scope(&assessment.lineage);
+    assessment.schema_version = 4;
+    assessment.overall_status = phase_c.overall_status;
+    assessment.phase_c = Some(phase_c);
+    assessment.lineage = derived_lineage_schema(
+        crate::domain::ArtifactKind::HealthAssessment,
+        &assessment,
+        consumed_sources,
+        scope,
+        4,
+    );
+    Ok(assessment)
+}
+
+fn load_phase_c_inputs(
+    workspace: &Path,
+    signal_path: &Path,
+    paths: PhaseCHealthInputPaths<'_>,
+    mechanism_path: Option<&Path>,
+    current_context: Context,
+) -> Result<crate::health::phase_c::PhaseCHealthInputs, RunnerError> {
+    let signal = crate::domain::read_artifact(&resolve(workspace, signal_path))?;
+    let baseline = paths
+        .baseline
+        .map(|path| crate::domain::read_artifact(&resolve(workspace, path)))
+        .transpose()?;
+    let transient = paths
+        .transient
+        .map(|path| crate::domain::read_artifact(&resolve(workspace, path)))
+        .transpose()?;
+    let calibration = paths
+        .calibration
+        .map(|path| crate::domain::read_artifact(&resolve(workspace, path)))
+        .transpose()?;
+    let estimation = paths
+        .estimation
+        .map(|path| crate::domain::read_artifact(&resolve(workspace, path)))
+        .transpose()?;
+    let model = paths
+        .model
+        .map(|path| crate::domain::read_artifact(&resolve(workspace, path)))
+        .transpose()?;
+    let mechanism = mechanism_path
+        .map(crate::domain::read_artifact)
+        .transpose()?;
+    let catalog = paths
+        .lineage_catalog
+        .map(|path| load_lineage_catalog(&resolve(workspace, path)))
+        .transpose()?;
+    Ok(crate::health::phase_c::assemble_phase_c_inputs(
+        signal,
+        baseline,
+        transient,
+        calibration,
+        estimation,
+        model,
+        mechanism,
+        catalog,
+        current_context,
+    ))
+}
+
+fn load_lineage_catalog(path: &Path) -> Result<crate::domain::ArtifactLineageCatalog, RunnerError> {
+    let catalog: crate::domain::ArtifactLineageCatalog = serde_json::from_slice(&fs::read(path)?)
+        .map_err(|error| {
+        crate::health::error::HealthError::LineageCatalogInvalid {
+            message: error.to_string(),
+        }
+    })?;
+    if catalog.schema_version != 1 {
+        return Err(crate::health::error::HealthError::LineageCatalogInvalid {
+            message: "catalog schema must be 1".into(),
+        }
+        .into());
+    }
+    let mut validated = crate::domain::ArtifactLineageCatalog::default();
+    for (key, node) in catalog.artifacts {
+        if key != node.identity.artifact_id {
+            return Err(crate::health::error::HealthError::LineageCatalogInvalid {
+                message: "catalog map key does not match node identity".into(),
+            }
+            .into());
+        }
+        validated.insert(node).map_err(|error| {
+            crate::health::error::HealthError::LineageCatalogInvalid {
+                message: error.to_string(),
+            }
+        })?;
+    }
+    Ok(validated)
+}
+
+fn reconcile_mechanism_paths(
+    workspace: &Path,
+    legacy: Option<&Path>,
+    phase_c: Option<&Path>,
+) -> Result<Option<PathBuf>, RunnerError> {
+    match (legacy, phase_c) {
+        (Some(left), Some(right)) => {
+            let left_path = resolve(workspace, left);
+            let right_path = resolve(workspace, right);
+            let left_report: crate::results::MechanismAnalysisReport =
+                crate::domain::read_artifact(&left_path)?;
+            let right_report: crate::results::MechanismAnalysisReport =
+                crate::domain::read_artifact(&right_path)?;
+            let left_id = match &left_report.lineage {
+                crate::domain::ArtifactLineageState::Known { identity, .. } => {
+                    Some(identity.artifact_id.clone())
+                }
+                _ => None,
+            };
+            let right_id = match &right_report.lineage {
+                crate::domain::ArtifactLineageState::Known { identity, .. } => {
+                    Some(identity.artifact_id.clone())
+                }
+                _ => None,
+            };
+            if left_id.is_none() || left_id != right_id {
+                return Err(
+                    crate::health::error::HealthError::ConflictingEvidenceInput {
+                        left: left_path.display().to_string(),
+                        right: right_path.display().to_string(),
+                    }
+                    .into(),
+                );
+            }
+            Ok(Some(left_path))
+        }
+        (Some(path), None) | (None, Some(path)) => Ok(Some(resolve(workspace, path))),
+        (None, None) => Ok(None),
+    }
+}
+
 pub fn trend(
     workspace: &Path,
     manifest: &Path,
@@ -413,6 +787,20 @@ pub fn report(workspace: &Path, results: &Path, output: Option<&Path>) -> Result
     println!("Health report written to {}", dest.display());
     Ok(())
 }
+fn export_legacy_assessment(
+    workspace: &Path,
+    output: Option<&Path>,
+    r: &SensorHealthAssessment,
+) -> Result<(), RunnerError> {
+    let dir = output_dir(workspace, output, "health");
+    fs::create_dir_all(&dir)?;
+    crate::domain::write_legacy_sensor_health_assessment_v3(
+        &dir.join(&r.configuration.export.assessment_filename),
+        r,
+    )?;
+    write_assessment_sidecars(&dir, r)
+}
+
 fn export_assessment(
     workspace: &Path,
     output: Option<&Path>,
@@ -422,6 +810,11 @@ fn export_assessment(
     fs::create_dir_all(&dir)?;
     let c = &r.configuration.export;
     crate::domain::write_artifact(&dir.join(&c.assessment_filename), r)?;
+    write_assessment_sidecars(&dir, r)
+}
+
+fn write_assessment_sidecars(dir: &Path, r: &SensorHealthAssessment) -> Result<(), RunnerError> {
+    let c = &r.configuration.export;
     let mut f = csv::Writer::from_path(dir.join(&c.features_filename))?;
     f.write_record(["feature", "domain", "value", "unit", "source"])?;
     for x in &r.features {
@@ -458,7 +851,7 @@ fn export_assessment(
     }
     fs::write(dir.join(&c.report_filename), human_report(r))?;
     if r.configuration.plotting.enabled {
-        crate::plottings::health_plot::plot_health_assessment(r, &dir)?;
+        crate::plottings::health_plot::plot_health_assessment(r, dir)?;
     }
     println!("Health assessment written to {}", dir.display());
     Ok(())
@@ -486,6 +879,19 @@ fn derived_lineage<T: Serialize>(
     )],
     fallback_scope: crate::domain::ArtifactExperimentScope,
 ) -> crate::domain::ArtifactLineageState {
+    derived_lineage_schema(artifact_kind, artifact, sources, fallback_scope, 3)
+}
+
+fn derived_lineage_schema<T: Serialize>(
+    artifact_kind: crate::domain::ArtifactKind,
+    artifact: &T,
+    sources: &[(
+        crate::domain::ArtifactLineageState,
+        crate::domain::ArtifactDependencyRole,
+    )],
+    fallback_scope: crate::domain::ArtifactExperimentScope,
+    schema_version: u32,
+) -> crate::domain::ArtifactLineageState {
     let (source_scope, acquisition_families) = crate::domain::lineage_scope_and_families(
         match artifact_kind {
             crate::domain::ArtifactKind::HealthBaseline => "health-baseline-v1",
@@ -505,7 +911,7 @@ fn derived_lineage<T: Serialize>(
         .collect::<Vec<_>>();
     crate::domain::known_lineage_from_artifact(
         artifact_kind,
-        3,
+        schema_version,
         format!("rust_electroanalysis_cli@{}", env!("CARGO_PKG_VERSION")),
         experiment_scope,
         crate::domain::ScopeKey::Unspecified,
@@ -514,7 +920,7 @@ fn derived_lineage<T: Serialize>(
         dependencies,
         artifact,
     )
-    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(3))
+    .unwrap_or_else(|_| crate::domain::current_unknown_lineage(schema_version))
 }
 fn human_report(r: &SensorHealthAssessment) -> String {
     let mut s = format!(

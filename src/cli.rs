@@ -314,6 +314,7 @@ pub struct SignalResidualsCommand {
 }
 
 #[derive(Debug, Subcommand)]
+#[allow(clippy::large_enum_variant)]
 pub enum HealthCommand {
     Baseline(HealthBaselineCommand),
     Assess(HealthAssessCommand),
@@ -347,6 +348,16 @@ pub struct HealthAssessCommand {
     pub metadata: Option<PathBuf>,
     #[arg(long)]
     pub config: Option<PathBuf>,
+    #[arg(long)]
+    pub phase_c_config: Option<PathBuf>,
+    #[arg(long)]
+    pub estimation_artifact: Option<PathBuf>,
+    #[arg(long)]
+    pub model_artifact: Option<PathBuf>,
+    #[arg(long)]
+    pub mechanism_artifact: Option<PathBuf>,
+    #[arg(long)]
+    pub lineage_catalog: Option<PathBuf>,
     #[arg(long)]
     pub output: Option<PathBuf>,
 }
@@ -826,6 +837,11 @@ pub enum CommandSpec {
         baseline: Option<PathBuf>,
         metadata: Option<PathBuf>,
         config_path: Option<PathBuf>,
+        phase_c_config: Option<PathBuf>,
+        estimation_artifact: Option<PathBuf>,
+        model_artifact: Option<PathBuf>,
+        mechanism_artifact: Option<PathBuf>,
+        lineage_catalog: Option<PathBuf>,
         output: Option<PathBuf>,
     },
     HealthTrend {
@@ -1206,17 +1222,38 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     config_path: c.config,
                     output: c.output,
                 },
-                HealthCommand::Assess(c) => CommandSpec::HealthAssess {
-                    signal_results: c.signal_results,
-                    transient_results: c.transient_results,
-                    calibration_results: c.calibration_results,
-                    eis_fit: c.eis_fit,
-                    mechanism_results: c.mechanism_results,
-                    baseline: c.baseline,
-                    metadata: c.metadata,
-                    config_path: c.config,
-                    output: c.output,
-                },
+                HealthCommand::Assess(c) => {
+                    if c.phase_c_config.is_none()
+                        && [
+                            c.estimation_artifact.as_ref(),
+                            c.model_artifact.as_ref(),
+                            c.mechanism_artifact.as_ref(),
+                            c.lineage_catalog.as_ref(),
+                        ]
+                        .into_iter()
+                        .any(|flag| flag.is_some())
+                    {
+                        return Err(CliError::InvalidCombination(
+                            "health assess Phase-C artifact flags require --phase-c-config".into(),
+                        ));
+                    }
+                    CommandSpec::HealthAssess {
+                        signal_results: c.signal_results,
+                        transient_results: c.transient_results,
+                        calibration_results: c.calibration_results,
+                        eis_fit: c.eis_fit,
+                        mechanism_results: c.mechanism_results,
+                        baseline: c.baseline,
+                        metadata: c.metadata,
+                        config_path: c.config,
+                        phase_c_config: c.phase_c_config,
+                        estimation_artifact: c.estimation_artifact,
+                        model_artifact: c.model_artifact,
+                        mechanism_artifact: c.mechanism_artifact,
+                        lineage_catalog: c.lineage_catalog,
+                        output: c.output,
+                    }
+                }
                 HealthCommand::Trend(c) => CommandSpec::HealthTrend {
                     manifest: c.manifest,
                     baseline: c.baseline,

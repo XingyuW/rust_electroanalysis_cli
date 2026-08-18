@@ -62,7 +62,9 @@ impl LegacySourceFingerprint {
     }
 }
 
-pub type HealthDimension = crate::results::HealthDomain;
+/// A1's health target now points at Phase C's nine-dimension vocabulary.
+/// The older `HealthDomain` remains only in the legacy health projection.
+pub type HealthDimension = crate::results::HealthDimension;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EvidenceTarget {

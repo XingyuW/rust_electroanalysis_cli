@@ -13,6 +13,7 @@ pub mod measurement;
 pub mod metadata;
 pub mod provenance;
 
+pub(crate) use artifact::write_legacy_sensor_health_assessment_v3;
 pub use artifact::{
     ArtifactError, ArtifactKind, CurrentArtifactKindPolicy, VersionedArtifact, read_artifact,
     validate_serialized_finite, write_artifact,

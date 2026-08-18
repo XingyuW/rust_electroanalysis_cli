@@ -72,6 +72,10 @@ pub trait VersionedArtifact: Serialize + DeserializeOwned {
     /// Must validate the complete typed artifact before JSON can erase a
     /// non-finite float. There is intentionally no accepting default.
     fn validate_before_json(&self) -> Result<(), ArtifactError>;
+    /// Validation that requires the typed representation after a public read.
+    fn validate_after_read(&self) -> Result<(), ArtifactError> {
+        Ok(())
+    }
     /// A1's migration boundary can always preserve an explicit lineage state
     /// even for historical result structs that predate the typed field.
     fn lineage_state(&self) -> crate::domain::ArtifactLineageState {
@@ -129,10 +133,20 @@ pub fn read_artifact<T: VersionedArtifact>(path: &Path) -> Result<T, ArtifactErr
         source,
     })?;
     validate_value::<T>(path, &value)?;
-    serde_json::from_value(value).map_err(|source| ArtifactError::Json {
-        path: path.into(),
-        source,
-    })
+    let artifact: T = serde_json::from_value(value).map_err(|source| {
+        if T::ARTIFACT_KIND == ArtifactKind::HealthAssessment {
+            ArtifactError::Validation {
+                message: format!("invalid health assessment payload: {source}"),
+            }
+        } else {
+            ArtifactError::Json {
+                path: path.into(),
+                source,
+            }
+        }
+    })?;
+    artifact.validate_after_read()?;
+    Ok(artifact)
 }
 
 pub fn write_artifact<T: VersionedArtifact>(
@@ -228,6 +242,66 @@ pub fn write_artifact<T: VersionedArtifact>(
     })
 }
 
+/// Writes the one frozen legacy health-assessment representation.  This is
+/// deliberately not a generic old-schema escape hatch: only the no-Phase-C
+/// health runner calls it, and it can only ever emit schema 3.
+pub(crate) fn write_legacy_sensor_health_assessment_v3(
+    path: &Path,
+    assessment: &crate::results::SensorHealthAssessment,
+) -> Result<(), ArtifactError> {
+    if assessment.schema_version != 3 {
+        return Err(ArtifactError::UnsupportedSchemaVersion {
+            path: path.to_path_buf(),
+            expected: ArtifactKind::HealthAssessment,
+            actual: assessment.schema_version,
+        });
+    }
+    if assessment.phase_c.is_some() {
+        return Err(ArtifactError::Validation {
+            message: "schema-3 health assessment must not contain phase_c".into(),
+        });
+    }
+    validate_serialized_finite(assessment).map_err(|error| match error {
+        ArtifactError::NonFiniteValue { field_path, .. } => ArtifactError::NonFiniteValue {
+            path: path.into(),
+            field_path,
+        },
+        other => other,
+    })?;
+    let mut value = serde_json::to_value(assessment).map_err(|source| ArtifactError::Json {
+        path: path.into(),
+        source,
+    })?;
+    validate_value::<crate::results::SensorHealthAssessment>(path, &value)?;
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| ArtifactError::InvalidRoot { path: path.into() })?;
+    object.remove("phase_c");
+    object.insert(
+        "schema_version".into(),
+        Value::Number(serde_json::Number::from(3)),
+    );
+    object.insert(
+        "artifact_kind".into(),
+        Value::String(ArtifactKind::HealthAssessment.as_str().into()),
+    );
+    let text = serde_json::to_string_pretty(&value).map_err(|source| ArtifactError::Json {
+        path: path.into(),
+        source,
+    })?;
+    reject_nonfinite_tokens(path, &text)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|source| ArtifactError::Io {
+            path: parent.into(),
+            source,
+        })?;
+    }
+    fs::write(path, text).map_err(|source| ArtifactError::Io {
+        path: path.into(),
+        source,
+    })
+}
+
 fn validate_value<T: VersionedArtifact>(path: &Path, value: &Value) -> Result<(), ArtifactError> {
     let object = value
         .as_object()
@@ -296,7 +370,46 @@ fn validate_value<T: VersionedArtifact>(path: &Path, value: &Value) -> Result<()
             });
         }
     }
+    if T::ARTIFACT_KIND == ArtifactKind::HealthAssessment
+        && schema == T::CURRENT_SCHEMA_VERSION
+        && object.get("phase_c").is_none_or(Value::is_null)
+    {
+        return Err(ArtifactError::Validation {
+            message: "schema-4 health assessment requires a non-null phase_c".into(),
+        });
+    }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn phase_c_legacy_schema3_writer_rejects_non_schema3_input() {
+        let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/phase_c/writer_boundary/legacy_health_assessment_v3.json");
+        let mut assessment: crate::results::SensorHealthAssessment =
+            read_artifact(&fixture).expect("legacy fixture reads");
+        assessment.schema_version = 4;
+        let output = std::env::temp_dir().join(format!(
+            "phase_c_legacy_writer_rejects_schema4_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        assert!(matches!(
+            write_legacy_sensor_health_assessment_v3(&output, &assessment),
+            Err(ArtifactError::UnsupportedSchemaVersion {
+                expected: ArtifactKind::HealthAssessment,
+                actual: 4,
+                ..
+            })
+        ));
+        assert!(!output.exists());
+    }
 }
 
 fn schema_version(path: &Path, object: &Map<String, Value>) -> Result<u32, ArtifactError> {

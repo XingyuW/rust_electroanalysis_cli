@@ -227,3 +227,49 @@ fn a0_ac_compat_01_preserves_eis_fit_and_health_baseline_matrices() {
         })
     ));
 }
+
+#[test]
+fn phase_c_legacy_schema3_health_artifact_remains_readable() {
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/phase_c/writer_boundary/legacy_health_assessment_v3.json");
+    let assessment: SensorHealthAssessment = read_artifact(&fixture).expect("read legacy fixture");
+    assert_eq!(assessment.schema_version, 3);
+    assert_eq!(assessment.assessment_id, "phase-c-legacy-schema3-fixture");
+    assert!(assessment.phase_c.is_none());
+}
+
+#[test]
+fn phase_c_canonical_health_writer_never_emits_schema3() {
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/phase_c/writer_boundary/legacy_health_assessment_v3.json");
+    let assessment: SensorHealthAssessment = read_artifact(&fixture).expect("read legacy fixture");
+    let output = path("phase_c_canonical_writer");
+    assert!(matches!(
+        write_artifact(&output, &assessment),
+        Err(ArtifactError::Validation { message }) if message == "schema-4 health assessment requires a non-null phase_c"
+    ));
+    assert!(!output.exists());
+}
+
+#[test]
+fn phase_c_schema4_rejects_missing_or_null_phase_c() {
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/phase_c/writer_boundary/legacy_health_assessment_v3.json");
+    let value: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(fixture).unwrap()).unwrap();
+    for phase_c in [None, Some(serde_json::Value::Null)] {
+        let mut value = value.clone();
+        let object = value.as_object_mut().unwrap();
+        object.insert("schema_version".into(), 4.into());
+        if let Some(phase_c) = phase_c {
+            object.insert("phase_c".into(), phase_c);
+        }
+        let output = path("phase_c_missing_report");
+        fs::write(&output, serde_json::to_string(&value).unwrap()).unwrap();
+        assert!(matches!(
+            read_artifact::<SensorHealthAssessment>(&output),
+            Err(ArtifactError::Validation { message }) if message == "schema-4 health assessment requires a non-null phase_c"
+        ));
+        fs::remove_file(output).ok();
+    }
+}

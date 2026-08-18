@@ -408,6 +408,11 @@ fn run() -> Result<(), ApplicationError> {
             baseline,
             metadata,
             config_path,
+            phase_c_config,
+            estimation_artifact,
+            model_artifact,
+            mechanism_artifact,
+            lineage_catalog,
             output,
         } => {
             health::assess(
@@ -420,6 +425,11 @@ fn run() -> Result<(), ApplicationError> {
                 baseline.as_deref(),
                 metadata.as_deref(),
                 config_path.as_deref(),
+                phase_c_config.as_deref(),
+                estimation_artifact.as_deref(),
+                model_artifact.as_deref(),
+                mechanism_artifact.as_deref(),
+                lineage_catalog.as_deref(),
                 output.as_deref(),
             )?;
         }
