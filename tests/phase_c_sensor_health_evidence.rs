@@ -14,20 +14,25 @@ use rust_electroanalysis_cli::{
     potentiometry::{TransientAnalysisOptions, analyze_experiment},
     results::{
         BaselineFeatureDistribution, CalibrationAnalysisReport, DriftModelKind, HealthDimension,
-        HealthDomain, HealthEvidenceState, ModelAnalysisPoint, ModelAnalysisReport,
-        OverallHealthStatus, PhaseCHealthReasonCode, SensorHealthAssessment, SensorHealthBaseline,
-        SignalAnalysisReport, StateEstimationReport, TransientAnalysisReport,
+        HealthDomain, HealthEvidenceState, MechanismAnalysisReport, ModelAnalysisPoint,
+        ModelAnalysisReport, OverallHealthStatus, PhaseCHealthReasonCode, SensorHealthAssessment,
+        SensorHealthBaseline, SignalAnalysisReport, StateEstimationReport, TransientAnalysisReport,
     },
     runners::health,
     transient_config::ResolvedTransientConfig,
 };
 use std::{
     path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
+    process::Command,
+    sync::{
+        Mutex, OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 
 static NEXT_OUTPUT_ID: AtomicU64 = AtomicU64::new(0);
+static PHASE_B_CLI_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 fn temporary_output_dir() -> PathBuf {
     let nonce = SystemTime::now()
@@ -636,6 +641,128 @@ fn pc_fx_06_estimation_assessment_with_config(
         .expect("publicly reread PC-FX-06 estimation assessment");
     std::fs::remove_dir_all(&workspace).expect("remove PC-FX-06 workspace");
     assessment
+}
+
+/// PC-FX-05 obtains its Phase-B source from the production mechanism CLI.
+/// The explicit binding ID is supplied by each scenario so name/component or
+/// position matching cannot accidentally make an unmapped hypothesis eligible.
+fn pc_fx_05_mechanism_assessment(
+    binding_id: &str,
+    mutate_mechanism: impl FnOnce(&mut MechanismAnalysisReport),
+) -> Result<SensorHealthAssessment, String> {
+    let _guard = PHASE_B_CLI_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .map_err(|error| error.to_string())?;
+    struct AppConfigRestore {
+        path: PathBuf,
+        contents: Vec<u8>,
+    }
+    impl Drop for AppConfigRestore {
+        fn drop(&mut self) {
+            let _ = std::fs::write(&self.path, &self.contents);
+        }
+    }
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let _app_config_restore = AppConfigRestore {
+        path: root.join("config/app.toml"),
+        contents: std::fs::read(root.join("config/app.toml")).map_err(|error| error.to_string())?,
+    };
+    let workspace = temporary_output_dir();
+    std::fs::create_dir_all(&workspace).map_err(|error| error.to_string())?;
+    let mut signal: SignalAnalysisReport = read_artifact(
+        &root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json"),
+    )
+    .map_err(|error| error.to_string())?;
+    signal.unit = "V".into();
+    signal.descriptive.rms = Some(0.002);
+    signal.descriptive.robust_standard_deviation = Some(0.0004);
+    signal.spikes.flagged_fraction = Some(0.0);
+    signal.sampling.finite_sample_count = 4;
+    signal.sampling.missing_fraction = Some(0.0);
+    signal.sampling.interval_cv = Some(0.0);
+    signal.sampling.duplicate_timestamps = 0;
+    signal.sampling.non_monotonic_timestamps = 0;
+    signal.sampling.interpolation_gap_exceeded = false;
+    signal
+        .drift
+        .iter_mut()
+        .find(|row| row.model == DriftModelKind::TheilSen)
+        .expect("source shape supplies Theil-Sen drift")
+        .slope_v_per_s = Some(0.00001);
+    signal.lineage = known_lineage_from_artifact(
+        ArtifactKind::SignalAnalysis,
+        signal.schema_version,
+        "phase-c-test",
+        ArtifactExperimentScope::single(ExperimentId::new("b-e2e-1").expect("experiment ID"))
+            .expect("single experiment scope"),
+        ScopeKey::Unspecified,
+        ScopeKey::Unspecified,
+        ArtifactAcquisitionFamilies::known([
+            AcquisitionFamilyId::new("pc-fx-05-signal-family").expect("family ID")
+        ])
+        .expect("known family"),
+        Vec::new(),
+        &signal,
+    )
+    .expect("known PC-FX-05 signal lineage");
+    let signal_path = workspace.join("signal.json");
+    write_artifact(&signal_path, &signal).map_err(|error| error.to_string())?;
+
+    let mechanism_output = workspace.join("mechanism");
+    let status = Command::new(env!("CARGO_BIN_EXE_rust_electroanalysis_cli"))
+        .current_dir(&root)
+        .args(["mechanism", "compare", "--eis-artifact"])
+        .arg(root.join("tests/fixtures/phase_b/e2e/eis_fit_e2e_1.json"))
+        .args(["--transient-artifact"])
+        .arg(root.join("tests/fixtures/phase_b/e2e/transient_analysis_e2e_1.json"))
+        .args(["--mechanism-evidence-config"])
+        .arg(root.join("tests/fixtures/phase_b/config/e2e_experimentally_supported.toml"))
+        .args(["--output"])
+        .arg(&mechanism_output)
+        .status()
+        .map_err(|error| error.to_string())?;
+    if !status.success() {
+        return Err("production Phase-B mechanism CLI failed".into());
+    }
+    let mechanism_path = mechanism_output.join("mechanism_results.json");
+    let mut mechanism: MechanismAnalysisReport =
+        read_artifact(&mechanism_path).map_err(|error| error.to_string())?;
+    mutate_mechanism(&mut mechanism);
+    write_artifact(&mechanism_path, &mechanism).map_err(|error| error.to_string())?;
+
+    let config_path = workspace.join("phase_c.toml");
+    let mut config =
+        std::fs::read_to_string(root.join("tests/fixtures/phase_c/config/valid_phase_c.toml"))
+            .map_err(|error| error.to_string())?;
+    config.push_str(&format!(
+        "\n[[phase_b_hypothesis_bindings]]\nhypothesis_id = \"{binding_id}\"\nhealth_dimension = \"signal_integrity\"\nrelationship = \"possible_physical_degradation\"\n"
+    ));
+    std::fs::write(&config_path, config).map_err(|error| error.to_string())?;
+    let output = workspace.join("output");
+    let result = health::assess(
+        &workspace,
+        &signal_path,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&config_path),
+        None,
+        None,
+        Some(&mechanism_path),
+        None,
+        Some(&output),
+    )
+    .map_err(|error| error.to_string())
+    .and_then(|_| {
+        read_artifact(&output.join("health_assessment.json")).map_err(|error| error.to_string())
+    });
+    let _ = std::fs::remove_dir_all(&workspace);
+    result
 }
 
 fn phase_c_dimension(
@@ -1666,8 +1793,32 @@ fn phase_c_data_quality_threshold_boundaries() {
         vec![PhaseCHealthReasonCode::QualityGateFailed]
     );
 }
-base_report_contract_test!(phase_c_interpretation_and_causal_status_are_separate);
-base_report_contract_test!(phase_c_phase_b_mechanism_is_not_causal_proof);
+#[test]
+fn phase_c_interpretation_and_causal_status_are_separate() {
+    let assessment =
+        pc_fx_05_mechanism_assessment("b-hypothesis", |_| {}).expect("mapped Phase-B case");
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(row.interpretation_category, rust_electroanalysis_cli::results::HealthInterpretationCategory::PossiblePhysicalDegradation);
+    assert_eq!(
+        row.causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::Observed
+    );
+}
+
+#[test]
+fn phase_c_phase_b_mechanism_is_not_causal_proof() {
+    let assessment =
+        pc_fx_05_mechanism_assessment("b-hypothesis", |_| {}).expect("mapped Phase-B case");
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(
+        row.causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::Observed
+    );
+    assert_ne!(
+        row.causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::ExperimentallySupported
+    );
+}
 base_report_contract_test!(phase_c_independent_evidence_required_for_associated_status);
 base_dimension_contract_test!(
     phase_c_optional_estimation_absent_present_unconsumed_and_incompatible,
@@ -1690,18 +1841,138 @@ base_dimension_contract_test!(
 base_report_contract_test!(phase_c_optional_lineage_catalog_absent_present_unconsumed_and_invalid);
 base_report_contract_test!(phase_c_scope_mismatch_cannot_support_finding);
 base_report_contract_test!(phase_c_actual_consumption_lineage_excludes_unused_inputs);
-base_report_contract_test!(phase_c_aggregate_status_and_causal_status_follow_fixed_rule);
+#[test]
+fn phase_c_aggregate_status_and_causal_status_follow_fixed_rule() {
+    let assessment = pc_fx_01_assessment(|signal| signal.descriptive.rms = Some(0.005));
+    let report = assessment.phase_c.expect("Phase-C report");
+    let signal = report
+        .dimension_assessments
+        .iter()
+        .find(|row| row.dimension == HealthDimension::SignalIntegrity)
+        .expect("SignalIntegrity row");
+    assert_eq!(signal.status, OverallHealthStatus::Critical);
+    assert_eq!(
+        signal.causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::Observed
+    );
+    assert_eq!(report.overall_status, OverallHealthStatus::Critical);
+    assert_eq!(report.overall_causal_status, signal.causal_status);
+    assert_eq!(
+        report.overall_interpretation_categories,
+        vec![rust_electroanalysis_cli::results::HealthInterpretationCategory::ObservedBehavior]
+    );
+}
 base_report_contract_test!(phase_c_health_cli_e2e_writes_and_rereads_schema4_artifact);
 
 // The §34.10 additions retain their exact externally discoverable names.
-base_report_contract_test!(phase_c_hypothesis_binding_uses_exact_hypothesis_id);
-base_report_contract_test!(phase_c_unmapped_phase_b_hypothesis_is_not_eligible);
-base_report_contract_test!(phase_c_hypothesis_binding_rejects_wrong_health_dimension);
-base_report_contract_test!(phase_c_hypothesis_binding_never_uses_display_or_component_name);
-base_report_contract_test!(phase_c_mapped_supported_mechanism_changes_interpretation_only);
-base_report_contract_test!(phase_c_mapped_mechanism_never_establishes_causality);
+#[test]
+fn phase_c_hypothesis_binding_uses_exact_hypothesis_id() {
+    let assessment =
+        pc_fx_05_mechanism_assessment("b-hypothesis", |_| {}).expect("exact ID binding");
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(row.interpretation_category, rust_electroanalysis_cli::results::HealthInterpretationCategory::PossiblePhysicalDegradation);
+    assert!(
+        row.source_evidence_ids
+            .iter()
+            .any(|id| id.0 == "mechanism.hypothesis.b-hypothesis.assessment")
+    );
+}
+
+#[test]
+fn phase_c_unmapped_phase_b_hypothesis_is_not_eligible() {
+    let assessment = pc_fx_05_mechanism_assessment("unmapped-hypothesis", |_| {})
+        .expect("unmapped binding case");
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(
+        row.interpretation_category,
+        rust_electroanalysis_cli::results::HealthInterpretationCategory::ObservedBehavior
+    );
+    assert!(
+        !row.source_evidence_ids
+            .iter()
+            .any(|id| id.0.starts_with("mechanism.hypothesis."))
+    );
+}
+#[test]
+fn phase_c_hypothesis_binding_rejects_wrong_health_dimension() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workspace = temporary_output_dir();
+    std::fs::create_dir_all(&workspace).expect("create config workspace");
+    let config = workspace.join("wrong-binding.toml");
+    let canonical =
+        std::fs::read_to_string(root.join("tests/fixtures/phase_c/config/valid_phase_c.toml"))
+            .expect("read canonical config");
+    std::fs::write(
+        &config,
+        format!(
+            "{canonical}\n[[phase_b_hypothesis_bindings]]\nhypothesis_id = \"mechanism-fouling-v1\"\nhealth_dimension = \"model_consistency\"\nrelationship = \"possible_physical_degradation\"\n"
+        ),
+    )
+    .expect("write forbidden binding config");
+    let error = match PhaseCHealthEvidenceConfig::load(&config) {
+        Err(error) => error,
+        Ok(_) => panic!("ModelConsistency is not Phase-B bindable"),
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("invalid Phase-C hypothesis binding")
+    );
+    std::fs::remove_dir_all(workspace).expect("remove config workspace");
+}
+#[test]
+fn phase_c_hypothesis_binding_never_uses_display_or_component_name() {
+    let assessment =
+        pc_fx_05_mechanism_assessment("b-eis-tau", |_| {}).expect("component-like non-ID binding");
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(
+        row.interpretation_category,
+        rust_electroanalysis_cli::results::HealthInterpretationCategory::ObservedBehavior
+    );
+    assert!(
+        !row.source_evidence_ids
+            .iter()
+            .any(|id| id.0.starts_with("mechanism.hypothesis."))
+    );
+}
+
+#[test]
+fn phase_c_mapped_supported_mechanism_changes_interpretation_only() {
+    let assessment =
+        pc_fx_05_mechanism_assessment("b-hypothesis", |_| {}).expect("mapped Phase-B case");
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(row.interpretation_category, rust_electroanalysis_cli::results::HealthInterpretationCategory::PossiblePhysicalDegradation);
+    assert_eq!(
+        row.causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::Observed
+    );
+}
+
+#[test]
+fn phase_c_mapped_mechanism_never_establishes_causality() {
+    let assessment =
+        pc_fx_05_mechanism_assessment("b-hypothesis", |_| {}).expect("mapped Phase-B case");
+    let row = phase_c_dimension(&assessment, HealthDimension::SignalIntegrity);
+    assert_eq!(
+        row.causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::Observed
+    );
+    assert_ne!(
+        row.causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::ValidatedForDomain
+    );
+}
 base_report_contract_test!(phase_c_dependent_lineage_cannot_promote_mapped_mechanism);
-base_report_contract_test!(phase_c_duplicate_mechanism_hypothesis_id_rejects_input);
+#[test]
+fn phase_c_duplicate_mechanism_hypothesis_id_rejects_input() {
+    let error = pc_fx_05_mechanism_assessment("b-hypothesis", |mechanism| {
+        mechanism
+            .hypothesis_assessments
+            .push(mechanism.hypothesis_assessments[0].clone());
+    })
+    .expect_err("duplicate Phase-B hypothesis IDs must be rejected");
+    assert!(error.contains("hypothesis_assessments"));
+}
 #[test]
 fn phase_c_dynamic_response_zero_selected_events_is_indeterminate() {
     let assessment = pc_fx_03_dynamic_assessment(|transient, _| {
@@ -2290,7 +2561,34 @@ fn phase_c_aggregate_one_positive_dimension_uses_its_causal_status() {
     assert_eq!(report.overall_causal_status, signal.causal_status);
 }
 base_report_contract_test!(phase_c_aggregate_mixed_causal_strength_uses_minimum);
-base_report_contract_test!(phase_c_aggregate_dqi_and_indeterminate_do_not_lower_positive_causality);
+#[test]
+fn phase_c_aggregate_dqi_and_indeterminate_do_not_lower_positive_causality() {
+    let assessment = pc_fx_01_assessment(|signal| {
+        signal.descriptive.rms = Some(0.002);
+        signal.sampling.missing_fraction = Some(0.20);
+    });
+    let report = assessment.phase_c.expect("Phase-C report");
+    let signal = report
+        .dimension_assessments
+        .iter()
+        .find(|row| row.dimension == HealthDimension::SignalIntegrity)
+        .expect("SignalIntegrity row");
+    let data_quality = report
+        .dimension_assessments
+        .iter()
+        .find(|row| row.dimension == HealthDimension::DataQuality)
+        .expect("DataQuality row");
+    assert_eq!(
+        signal.causal_status,
+        rust_electroanalysis_cli::results::CausalStatus::Observed
+    );
+    assert_eq!(
+        data_quality.status,
+        OverallHealthStatus::DataQualityInsufficient
+    );
+    assert_eq!(report.overall_status, OverallHealthStatus::Degraded);
+    assert_eq!(report.overall_causal_status, signal.causal_status);
+}
 base_report_contract_test!(phase_c_aggregate_reason_provenance_is_ordered_and_deduplicated);
 base_report_contract_test!(phase_c_aggregate_causal_order_boundaries_are_total);
 

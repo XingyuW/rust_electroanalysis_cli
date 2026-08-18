@@ -123,8 +123,8 @@ The frozen source of each exact input, result/reason, and falsification mutation
 - Internal owners: 4/4
 - Artifact-contract owners: 8/8
 - Phase-C integration owners: 98/98
-- Substantive after this remediation step: 76/110
-- Remaining incomplete shared-fixture wrappers: 34/110
+- Substantive after this remediation step: 85/110
+- Remaining incomplete shared-fixture wrappers: 25/110
 - Traceability rows: 110/110
 - Unsupported PASS claims: 0 — rows marked `INCOMPLETE` are deliberately not acceptance PASS claims.
 - Ready for Phase-C implementation review: **no** until every remaining row owns the literal fixture/input, exact result/reason, and its documented falsification mutation.
