@@ -16,8 +16,8 @@ use crate::{
     evidence_adapters::AdapterContext,
     health::{baseline::Context, error::HealthError},
     health_config::{
-        EnvironmentalCovariate, LevelThreshold, LoadedPhaseCHealthEvidenceConfig,
-        PhaseCHealthEvidenceConfig,
+        ComparabilityConfig, EnvironmentalCovariate, LevelThreshold,
+        LoadedPhaseCHealthEvidenceConfig, PhaseCHealthEvidenceConfig,
     },
     results::{
         CalibrationAnalysisReport, CausalStatus, HealthDimension, HealthEvidenceState,
@@ -39,6 +39,7 @@ pub(crate) struct PhaseCHealthInputs {
     mechanism: Option<MechanismAnalysisReport>,
     lineage_catalog: Option<ArtifactLineageCatalog>,
     current_context: Context,
+    comparability: ComparabilityConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +53,7 @@ pub(crate) struct PhaseCEligibleInputs {
     mechanism: Option<MechanismAnalysisReport>,
     lineage_catalog: Option<ArtifactLineageCatalog>,
     current_context: Context,
+    comparability: ComparabilityConfig,
     transient_compatible: bool,
     calibration_compatible: bool,
     estimation_compatible: bool,
@@ -70,6 +72,7 @@ pub(crate) fn assemble_phase_c_inputs(
     mechanism: Option<MechanismAnalysisReport>,
     lineage_catalog: Option<ArtifactLineageCatalog>,
     current_context: Context,
+    comparability: ComparabilityConfig,
 ) -> PhaseCHealthInputs {
     PhaseCHealthInputs {
         signal,
@@ -81,6 +84,7 @@ pub(crate) fn assemble_phase_c_inputs(
         mechanism,
         lineage_catalog,
         current_context,
+        comparability,
     }
 }
 
@@ -100,6 +104,7 @@ pub(crate) fn validate_source_compatibility(
         mechanism: inputs.mechanism.clone(),
         lineage_catalog: catalog.cloned().or_else(|| inputs.lineage_catalog.clone()),
         current_context: inputs.current_context.clone(),
+        comparability: inputs.comparability.clone(),
         transient_compatible: inputs.transient.as_ref().is_none_or(|item| {
             compatible(&item.lineage)
                 && inputs
@@ -140,9 +145,6 @@ pub(crate) fn prepare_phase_c_evidence(
     inputs: &PhaseCEligibleInputs,
     config: &PhaseCHealthEvidenceConfig,
 ) -> Result<EvidenceBundle, HealthError> {
-    // Context is carried from the runner for baseline comparability and is
-    // intentionally retained even when no DynamicResponse source is present.
-    let _current_context = &inputs.current_context;
     let _mechanism_is_compatible = inputs.mechanism_compatible;
     let catalog = inputs.lineage_catalog.clone().unwrap_or_default();
     let mut builder = EvidenceBundleBuilder::new(
@@ -326,13 +328,15 @@ pub(crate) fn prepare_phase_c_evidence(
             let Some(model) = event.selected_model else {
                 continue;
             };
-            let Some(fit) = event
+            let matching_successful_fits = event
                 .candidate_fits
                 .iter()
-                .find(|fit| fit.model == model && fit.is_successful())
-            else {
+                .filter(|fit| fit.model == model && fit.is_successful())
+                .collect::<Vec<_>>();
+            if matching_successful_fits.len() != 1 {
                 continue;
-            };
+            }
+            let fit = matching_successful_fits[0];
             add_scalar(
                 &mut builder,
                 format!("transient.event.{index}.tau_fast_s"),
@@ -429,7 +433,12 @@ pub(crate) fn prepare_phase_c_evidence(
                 .environmental_context
                 .source_records
                 .iter()
-                .filter_map(|record| record.source_unit.as_deref())
+                .filter_map(|record| {
+                    record
+                        .source_unit
+                        .as_deref()
+                        .filter(|unit| !unit.is_empty())
+                })
                 .next()
                 .unwrap_or("1");
             add_scalar(
@@ -1184,6 +1193,26 @@ fn evaluate_dynamic(
             ids_for(bundle, HealthDimension::DynamicResponseHealth),
         );
     }
+    let baseline_context = baseline_context(baseline);
+    if matches!(
+        crate::health::normalization::comparable(
+            &inputs.current_context,
+            &baseline_context,
+            &inputs.comparability,
+        )
+        .0,
+        crate::results::FeatureComparability::NotComparable
+    ) {
+        return finding(
+            HealthDimension::DynamicResponseHealth,
+            OverallHealthStatus::Indeterminate,
+            HealthEvidenceState::InsufficientEvidence,
+            HealthInterpretationCategory::ObservedBehavior,
+            CausalStatus::Indeterminate,
+            vec![PhaseCHealthReasonCode::BaselineIncomparable],
+            Vec::new(),
+        );
+    }
     if transient
         .events
         .windows(2)
@@ -1233,18 +1262,20 @@ fn evaluate_dynamic(
             source_evidence_ids.clone(),
         );
     };
-    let Some(fit) = event
+    let matching_successful_fits = event
         .candidate_fits
         .iter()
-        .find(|fit| fit.model == model && fit.is_successful())
-    else {
+        .filter(|fit| fit.model == model && fit.is_successful())
+        .collect::<Vec<_>>();
+    if matching_successful_fits.len() != 1 {
         return dqi(
             HealthDimension::DynamicResponseHealth,
             HealthInterpretationCategory::ObservedBehavior,
             PhaseCHealthReasonCode::SelectedTransientEventInvalid,
             source_evidence_ids.clone(),
         );
-    };
+    }
+    let fit = matching_successful_fits[0];
     if event.failure.is_some() {
         return dqi(
             HealthDimension::DynamicResponseHealth,
@@ -1442,14 +1473,21 @@ fn evaluate_environment(
         );
     }
     if config.environmental_robustness.covariate == EnvironmentalCovariate::Flow {
-        let units = report
+        let source_units = report
             .estimates
             .iter()
             .flat_map(|point| point.environmental_context.source_records.iter())
-            .filter_map(|record| record.source_unit.as_deref())
-            .filter(|unit| !unit.is_empty())
+            .map(|record| record.source_unit.as_deref())
+            .collect::<Vec<_>>();
+        let units = source_units
+            .iter()
+            .copied()
             .collect::<std::collections::BTreeSet<_>>();
-        if units.len() != 1 {
+        if source_units
+            .iter()
+            .any(|unit| unit.is_none_or(str::is_empty))
+            || units.len() != 1
+        {
             return dqi(
                 HealthDimension::EnvironmentalRobustness,
                 HealthInterpretationCategory::EnvironmentalEffect,
@@ -2278,24 +2316,33 @@ fn normal(
 }
 
 fn severity(value: f64, thresholds: &LevelThreshold) -> OverallHealthStatus {
-    // Several Phase-C metrics are derived by subtraction (for example the
-    // calibration slope-efficiency error).  A mathematically exact configured
-    // boundary such as `|1.0 - 0.90| = 0.10` can otherwise land one ULP below
-    // its decimal threshold.  Preserve the specified inclusive boundary
-    // semantics without treating a meaningful below-threshold value as equal.
-    let at_or_above = |candidate: f64, threshold: f64| {
-        candidate > threshold
-            || (candidate - threshold).abs()
-                <= f64::EPSILON * 8.0 * candidate.abs().max(threshold.abs()).max(1.0)
-    };
-    if at_or_above(value, thresholds.critical) {
+    if value >= thresholds.critical {
         OverallHealthStatus::Critical
-    } else if at_or_above(value, thresholds.degraded) {
+    } else if value >= thresholds.degraded {
         OverallHealthStatus::Degraded
-    } else if at_or_above(value, thresholds.watch) {
+    } else if value >= thresholds.watch {
         OverallHealthStatus::Watch
     } else {
         OverallHealthStatus::WithinBaseline
+    }
+}
+
+fn baseline_context(baseline: &SensorHealthBaseline) -> Context {
+    Context {
+        sensor_id: None,
+        sensor_type: baseline.sensor_type.clone(),
+        sensor_design: baseline.sensor_design.clone(),
+        analyte: baseline.analyte.clone(),
+        sample_matrix: baseline.sample_matrix.clone(),
+        temperature_k: baseline
+            .temperature_domain_k
+            .map(|(minimum, maximum)| (minimum + maximum) / 2.0),
+        temperature_values_k: baseline
+            .temperature_domain_k
+            .map(|(minimum, maximum)| vec![minimum, maximum])
+            .unwrap_or_default(),
+        experiment_id: None,
+        metadata_source: None,
     }
 }
 
@@ -2411,6 +2458,7 @@ mod tests {
             mechanism: None,
             lineage_catalog: None,
             current_context: Context::default(),
+            comparability: ComparabilityConfig::default(),
             transient_compatible: true,
             calibration_compatible: true,
             estimation_compatible: true,

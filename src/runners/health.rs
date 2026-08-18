@@ -457,6 +457,7 @@ fn assess_phase_c(
         paths,
         mechanism_path.as_deref(),
         current_context,
+        assessment.configuration.comparability.clone(),
     )?;
     let eligible = crate::health::phase_c::validate_source_compatibility(&inputs, None)?;
     let bundle =
@@ -571,6 +572,7 @@ fn load_phase_c_inputs(
     paths: PhaseCHealthInputPaths<'_>,
     mechanism_path: Option<&Path>,
     current_context: Context,
+    comparability: crate::health_config::ComparabilityConfig,
 ) -> Result<crate::health::phase_c::PhaseCHealthInputs, RunnerError> {
     let signal = crate::domain::read_artifact(&resolve(workspace, signal_path))?;
     let baseline = paths
@@ -610,6 +612,7 @@ fn load_phase_c_inputs(
         mechanism,
         catalog,
         current_context,
+        comparability,
     ))
 }
 
