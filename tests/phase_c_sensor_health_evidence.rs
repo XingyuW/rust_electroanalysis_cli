@@ -2,9 +2,14 @@ use rust_electroanalysis_cli::{
     cli::{CliError, CommandSpec, parse_cli_args},
     domain::{read_artifact, write_artifact},
     health_config::PhaseCHealthEvidenceConfig,
+    model::{
+        AssessmentStatus, EquilibriumAssessment, EquilibriumStatus, IdentifiabilityReport,
+        ModelDefinition, PredictionUncertainty, UncertaintyStatus, ValidityReport,
+    },
     results::{
-        DriftModelKind, HealthDimension, HealthEvidenceState, OverallHealthStatus,
-        PhaseCHealthReasonCode, SensorHealthAssessment, SignalAnalysisReport,
+        DriftModelKind, HealthDimension, HealthEvidenceState, ModelAnalysisPoint,
+        ModelAnalysisReport, OverallHealthStatus, PhaseCHealthReasonCode, SensorHealthAssessment,
+        SignalAnalysisReport,
     },
     runners::health,
 };
@@ -127,6 +132,140 @@ fn pc_fx_01_assessment(mutate: impl FnOnce(&mut SignalAnalysisReport)) -> Sensor
     assessment
 }
 
+/// The literal PC-FX-06 model payload: three `0.002 V - 0.0 V` residuals
+/// and complete `0.00000025 V^2` / `0.0005 V` uncertainty.  It is always
+/// written and reread through the production artifact boundary before the
+/// public health runner consumes it.
+fn pc_fx_06_model_assessment(
+    mutate: impl FnOnce(&mut ModelAnalysisReport),
+) -> (SensorHealthAssessment, ModelAnalysisReport) {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut signal: SignalAnalysisReport = read_artifact(
+        &root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json"),
+    )
+    .expect("read source shape");
+    signal.unit = "V".into();
+    signal.descriptive.rms = Some(0.0005);
+    signal.descriptive.robust_standard_deviation = Some(0.0004);
+    signal.spikes.flagged_fraction = Some(0.0);
+    signal.sampling.finite_sample_count = 4;
+    signal.sampling.missing_fraction = Some(0.0);
+    signal.sampling.interval_cv = Some(0.0);
+    signal.sampling.duplicate_timestamps = 0;
+    signal.sampling.non_monotonic_timestamps = 0;
+    signal.sampling.interpolation_gap_exceeded = false;
+    signal
+        .drift
+        .iter_mut()
+        .find(|row| row.model == DriftModelKind::TheilSen)
+        .expect("source shape supplies Theil-Sen drift")
+        .slope_v_per_s = Some(0.00001);
+
+    let uncertainty = PredictionUncertainty {
+        status: UncertaintyStatus::Complete,
+        total_variance_v2: Some(0.00000025),
+        standard_error_v: Some(0.0005),
+        state_variance_v2: Some(0.0),
+        parameter_variance_v2: Some(0.0),
+        observation_variance_v2: Some(0.00000025),
+        missing_sources: Vec::new(),
+        assumptions: vec!["PC-FX-06 complete fixed uncertainty.".into()],
+        state_jacobian_methods: Vec::new(),
+        parameter_jacobian_methods: Vec::new(),
+    };
+    let point = |time_s| ModelAnalysisPoint {
+        time_s,
+        observed_voltage_v: Some(0.002),
+        predicted_voltage_v: 0.0,
+        uncertainty: uncertainty.clone(),
+        state_values: Vec::new(),
+        contributions: Vec::new(),
+        equilibrium: EquilibriumAssessment {
+            status: AssessmentStatus::Indeterminate,
+            classification: EquilibriumStatus::Indeterminate,
+            supporting_evidence: Vec::new(),
+            contradictory_evidence: Vec::new(),
+            missing_evidence: Vec::new(),
+            validity_domain: "PC-FX-06 synthetic in-domain fixture only.".into(),
+            satisfied_criteria: Vec::new(),
+            violated_criteria: Vec::new(),
+            confidence: 0.0,
+            warnings: Vec::new(),
+        },
+        validity: ValidityReport {
+            is_valid: true,
+            checked_domain: "PC-FX-06 synthetic in-domain fixture only.".into(),
+            violations: Vec::new(),
+            warnings: Vec::new(),
+        },
+        unexplained_residual_v: Some(0.002),
+    };
+    let mut model = ModelAnalysisReport {
+        schema_version: 5,
+        lineage: rust_electroanalysis_cli::domain::legacy_unknown_lineage(),
+        artifact_kind: "ism_model_analysis".into(),
+        model_definition: ModelDefinition {
+            schema_version: 4,
+            model_id: "pc-fx-06-model-v1".into(),
+            description: "PC-FX-06 fixed three-point residual and uncertainty fixture.".into(),
+            validity_domain: "PC-FX-06 synthetic in-domain fixture only.".into(),
+            uncertainty_incomplete: false,
+            states: Vec::new(),
+            parameters: Vec::new(),
+            inputs: Vec::new(),
+            components: Vec::new(),
+        },
+        points: vec![point(0.0), point(1.0), point(2.0)],
+        identifiability: IdentifiabilityReport {
+            structural: AssessmentStatus::NotAssessed,
+            practical: AssessmentStatus::NotAssessed,
+            parameter_ids: Vec::new(),
+            contradictory_evidence: Vec::new(),
+            missing_evidence: vec!["PC-FX-06 makes no parameter-identifiability claim.".into()],
+            warnings: Vec::new(),
+        },
+        evidence: vec!["PC-FX-06 static model artifact; no physical-mechanism conclusion.".into()],
+    };
+    mutate(&mut model);
+
+    let workspace = temporary_output_dir();
+    std::fs::create_dir_all(&workspace).expect("create fixture workspace");
+    let signal_path = workspace.join("signal.json");
+    let model_path = workspace.join("model.json");
+    let config_path = workspace.join("phase_c.toml");
+    write_artifact(&signal_path, &signal).expect("write PC-FX-06 signal");
+    write_artifact(&model_path, &model).expect("write PC-FX-06 model");
+    let reread: ModelAnalysisReport = read_artifact(&model_path).expect("reread PC-FX-06 model");
+    std::fs::copy(
+        root.join("tests/fixtures/phase_c/config/valid_phase_c.toml"),
+        &config_path,
+    )
+    .expect("copy strict Phase-C configuration");
+    let output = workspace.join("output");
+    health::assess(
+        &workspace,
+        &signal_path,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&config_path),
+        None,
+        Some(&model_path),
+        None,
+        None,
+        Some(&output),
+    )
+    .expect("PC-FX-06 public Phase-C route");
+    let assessment = read_artifact(&output.join("health_assessment.json"))
+        .expect("publicly reread PC-FX-06 assessment");
+    std::fs::remove_dir_all(&workspace).expect("remove PC-FX-06 workspace");
+    (assessment, reread)
+}
+
 fn phase_c_dimension(
     assessment: &SensorHealthAssessment,
     dimension: HealthDimension,
@@ -208,6 +347,35 @@ fn phase_c_health_cli_rejects_phase_c_sources_without_config() {
         parse_cli_args(&args),
         Err(CliError::InvalidCombination(_))
     ));
+
+    // Parser validation is not the route contract by itself: the public
+    // runner must also reject a Phase-C-only source before attempting to read
+    // an otherwise irrelevant signal path.
+    let workspace = temporary_output_dir();
+    let signal = workspace.join("unread-signal.json");
+    let estimation = workspace.join("estimation.json");
+    let error = health::assess(
+        &workspace,
+        &signal,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&estimation),
+        None,
+        None,
+        None,
+        None,
+    )
+    .expect_err("estimation artifact without Phase-C config is invalid");
+    assert_eq!(
+        error.to_string(),
+        "workflow error: Phase-C artifact flags require --phase-c-config"
+    );
 }
 
 #[test]
@@ -230,17 +398,22 @@ fn phase_c_health_cli_parses_exact_optional_artifact_flags() {
         "catalog.json".into(),
     ];
     let parsed = parse_cli_args(&args).expect("valid Phase-C CLI invocation");
-    assert!(matches!(
-        parsed.command,
-        Some(CommandSpec::HealthAssess {
-            phase_c_config: Some(_),
-            estimation_artifact: Some(_),
-            model_artifact: Some(_),
-            mechanism_artifact: Some(_),
-            lineage_catalog: Some(_),
-            ..
-        })
-    ));
+    let Some(CommandSpec::HealthAssess {
+        phase_c_config: Some(phase_c_config),
+        estimation_artifact: Some(estimation_artifact),
+        model_artifact: Some(model_artifact),
+        mechanism_artifact: Some(mechanism_artifact),
+        lineage_catalog: Some(lineage_catalog),
+        ..
+    }) = parsed.command
+    else {
+        panic!("the documented Phase-C artifact flags must remain distinct");
+    };
+    assert_eq!(phase_c_config, PathBuf::from("phase_c.toml"));
+    assert_eq!(estimation_artifact, PathBuf::from("estimation.json"));
+    assert_eq!(model_artifact, PathBuf::from("model.json"));
+    assert_eq!(mechanism_artifact, PathBuf::from("mechanism.json"));
+    assert_eq!(lineage_catalog, PathBuf::from("catalog.json"));
 }
 
 #[test]
@@ -324,8 +497,96 @@ fn phase_c_configured_runner_writes_schema4_assessment() {
 // The frozen §33.11 public inventory.  These tests deliberately use the
 // public CLI/runner/artifact route: its fixed output makes absence, DQI, and
 // schema-mode behavior observable without a crate-private evaluator seam.
-base_report_contract_test!(phase_c_config_requires_every_threshold_and_rejects_unknown_field);
-base_report_contract_test!(phase_c_config_roundtrip_preserves_threshold_units_and_tokens);
+#[test]
+fn phase_c_config_requires_every_threshold_and_rejects_unknown_field() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let canonical =
+        std::fs::read_to_string(root.join("tests/fixtures/phase_c/config/valid_phase_c.toml"))
+            .expect("read canonical strict configuration");
+    let workspace = temporary_output_dir();
+    std::fs::create_dir_all(&workspace).expect("create config workspace");
+
+    let missing = workspace.join("missing.toml");
+    std::fs::write(
+        &missing,
+        canonical.replace(
+            "maximum_fit_rmse_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }\n",
+            "",
+        ),
+    )
+    .expect("write missing-threshold config");
+    let error = match PhaseCHealthEvidenceConfig::load(&missing) {
+        Err(error) => error,
+        Ok(_) => panic!("every Phase-C threshold is required"),
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("missing field `maximum_fit_rmse_v`")
+    );
+
+    let unknown = workspace.join("unknown.toml");
+    std::fs::write(
+        &unknown,
+        format!("{canonical}\nunknown_phase_c_field = 1\n"),
+    )
+    .expect("write unknown-field config");
+    let error = match PhaseCHealthEvidenceConfig::load(&unknown) {
+        Err(error) => error,
+        Ok(_) => panic!("strict Phase-C config must reject unknown fields"),
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("unknown field `unknown_phase_c_field`")
+    );
+    std::fs::remove_dir_all(workspace).expect("remove config workspace");
+}
+
+#[test]
+fn phase_c_config_roundtrip_preserves_threshold_units_and_tokens() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let canonical = root.join("tests/fixtures/phase_c/config/valid_phase_c.toml");
+    let loaded = PhaseCHealthEvidenceConfig::load(&canonical).expect("load canonical config");
+    let workspace = temporary_output_dir();
+    std::fs::create_dir_all(&workspace).expect("create config workspace");
+    let roundtrip = workspace.join("roundtrip.toml");
+    let serialized = toml::to_string(&loaded.config).expect("serialize strict Phase-C config");
+    for field in [
+        "maximum_rms_noise_v",
+        "maximum_tau_fast_ratio",
+        "maximum_residual_rms_v",
+        "maximum_standard_error_v",
+    ] {
+        assert!(
+            serialized.contains(field),
+            "roundtrip retains threshold token {field}"
+        );
+    }
+    std::fs::write(&roundtrip, &serialized).expect("write roundtrip config");
+    let reread = PhaseCHealthEvidenceConfig::load(&roundtrip).expect("reread config");
+    // `config_sha256` intentionally fingerprints the raw source bytes, so a
+    // canonical TOML reserialization has a different provenance hash while
+    // preserving every semantic configuration field.
+    assert_eq!(
+        toml::to_string(&reread.config).expect("reserialize roundtrip config"),
+        serialized
+    );
+    assert_ne!(reread.config_sha256, loaded.config_sha256);
+    assert_eq!(
+        reread.config.signal_integrity.maximum_rms_noise_v.degraded,
+        0.002
+    );
+    assert_eq!(
+        reread
+            .config
+            .dynamic_response_health
+            .maximum_tau_fast_ratio
+            .watch,
+        1.10
+    );
+    std::fs::remove_dir_all(workspace).expect("remove config workspace");
+}
 #[test]
 fn phase_c_absent_evidence_is_indeterminate_not_healthy() {
     let assessment = pc_fx_01_assessment(|_| {});
@@ -520,31 +781,122 @@ base_dimension_contract_test!(
     OverallHealthStatus::Indeterminate,
     PhaseCHealthReasonCode::OptionalSourceAbsent
 );
-base_dimension_contract_test!(
-    phase_c_model_consistency_positive_finding,
-    HealthDimension::ModelConsistency,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_report_contract_test!(phase_c_residual_sign_is_measured_minus_predicted);
-base_dimension_contract_test!(
-    phase_c_model_consistency_negative_finding,
-    HealthDimension::ModelConsistency,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_model_consistency_quality_insufficient,
-    HealthDimension::ModelConsistency,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_model_consistency_threshold_boundaries,
-    HealthDimension::ModelConsistency,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
+#[test]
+fn phase_c_model_consistency_positive_finding() {
+    let (assessment, model) = pc_fx_06_model_assessment(|_| {});
+    assert_eq!(model.points.len(), 3);
+    for point in &model.points {
+        assert_eq!(point.time_s.fract(), 0.0);
+        assert_eq!(point.observed_voltage_v.unwrap(), 0.002);
+        assert_eq!(point.predicted_voltage_v, 0.0);
+        assert_eq!(point.unexplained_residual_v, Some(0.002));
+        assert_eq!(point.uncertainty.total_variance_v2, Some(0.00000025));
+        assert_eq!(point.uncertainty.standard_error_v, Some(0.0005));
+        assert_eq!(
+            point.uncertainty.standard_error_v.unwrap().powi(2),
+            0.00000025
+        );
+    }
+    let row = phase_c_dimension(&assessment, HealthDimension::ModelConsistency);
+    assert_eq!(row.status, OverallHealthStatus::Degraded);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdDegraded]
+    );
+}
+
+#[test]
+fn phase_c_residual_sign_is_measured_minus_predicted() {
+    let (assessment, model) = pc_fx_06_model_assessment(|_| {});
+    for point in &model.points {
+        let observed = point
+            .observed_voltage_v
+            .expect("literal PC-FX-06 observation");
+        assert_eq!(observed - point.predicted_voltage_v, 0.002);
+        assert_eq!(
+            point.unexplained_residual_v,
+            Some(observed - point.predicted_voltage_v)
+        );
+        assert_ne!(
+            point.unexplained_residual_v,
+            Some(point.predicted_voltage_v - observed)
+        );
+    }
+    let row = phase_c_dimension(&assessment, HealthDimension::ModelConsistency);
+    assert_eq!(row.status, OverallHealthStatus::Degraded);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdDegraded]
+    );
+}
+
+#[test]
+fn phase_c_model_consistency_negative_finding() {
+    let (assessment, _) = pc_fx_06_model_assessment(|model| {
+        for point in &mut model.points {
+            point.observed_voltage_v = Some(point.predicted_voltage_v);
+            point.unexplained_residual_v = Some(0.0);
+        }
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::ModelConsistency);
+    assert_eq!(row.status, OverallHealthStatus::WithinBaseline);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
+    );
+}
+
+#[test]
+fn phase_c_model_consistency_quality_insufficient() {
+    let (assessment, _) = pc_fx_06_model_assessment(|model| {
+        model.points[1].observed_voltage_v = None;
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::ModelConsistency);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::RequiredQuantityAbsent]
+    );
+}
+
+#[test]
+fn phase_c_model_consistency_threshold_boundaries() {
+    for (residual, expected_status, expected_reason) in [
+        (
+            0.001,
+            OverallHealthStatus::Watch,
+            PhaseCHealthReasonCode::ThresholdWatch,
+        ),
+        (
+            0.002,
+            OverallHealthStatus::Degraded,
+            PhaseCHealthReasonCode::ThresholdDegraded,
+        ),
+        (
+            0.005,
+            OverallHealthStatus::Critical,
+            PhaseCHealthReasonCode::ThresholdCritical,
+        ),
+    ] {
+        let (assessment, _) = pc_fx_06_model_assessment(|model| {
+            for point in &mut model.points {
+                point.observed_voltage_v = Some(residual);
+                point.predicted_voltage_v = 0.0;
+                point.unexplained_residual_v = Some(residual);
+            }
+        });
+        let row = phase_c_dimension(&assessment, HealthDimension::ModelConsistency);
+        assert_eq!(row.status, expected_status, "residual={residual} V");
+        assert_eq!(
+            row.reason_codes,
+            vec![expected_reason],
+            "residual={residual} V"
+        );
+    }
+}
 base_dimension_contract_test!(
     phase_c_observability_positive_finding,
     HealthDimension::Observability,
@@ -569,54 +921,149 @@ base_dimension_contract_test!(
     OverallHealthStatus::Indeterminate,
     PhaseCHealthReasonCode::OptionalSourceAbsent
 );
-base_dimension_contract_test!(
-    phase_c_uncertainty_health_positive_finding,
-    HealthDimension::UncertaintyHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_uncertainty_health_negative_finding,
-    HealthDimension::UncertaintyHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_uncertainty_health_quality_insufficient,
-    HealthDimension::UncertaintyHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_uncertainty_health_threshold_boundaries,
-    HealthDimension::UncertaintyHealth,
-    OverallHealthStatus::Indeterminate,
-    PhaseCHealthReasonCode::OptionalSourceAbsent
-);
-base_dimension_contract_test!(
-    phase_c_data_quality_positive_finding,
-    HealthDimension::DataQuality,
-    OverallHealthStatus::DataQualityInsufficient,
-    PhaseCHealthReasonCode::QualityGateFailed
-);
-base_dimension_contract_test!(
-    phase_c_data_quality_negative_finding,
-    HealthDimension::DataQuality,
-    OverallHealthStatus::DataQualityInsufficient,
-    PhaseCHealthReasonCode::QualityGateFailed
-);
-base_dimension_contract_test!(
-    phase_c_data_quality_quality_insufficient,
-    HealthDimension::DataQuality,
-    OverallHealthStatus::DataQualityInsufficient,
-    PhaseCHealthReasonCode::QualityGateFailed
-);
-base_dimension_contract_test!(
-    phase_c_data_quality_threshold_boundaries,
-    HealthDimension::DataQuality,
-    OverallHealthStatus::DataQualityInsufficient,
-    PhaseCHealthReasonCode::QualityGateFailed
-);
+#[test]
+fn phase_c_uncertainty_health_positive_finding() {
+    let (assessment, _) = pc_fx_06_model_assessment(|model| {
+        let fourth = model.points[0].clone();
+        model.points.push(fourth);
+        model.points[3].uncertainty.status = UncertaintyStatus::Partial;
+        model.points[3].uncertainty.total_variance_v2 = None;
+        model.points[3].uncertainty.standard_error_v = None;
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::UncertaintyHealth);
+    assert_eq!(row.status, OverallHealthStatus::Degraded);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdDegraded]
+    );
+}
+
+#[test]
+fn phase_c_uncertainty_health_negative_finding() {
+    let (assessment, model) = pc_fx_06_model_assessment(|_| {});
+    for point in &model.points {
+        assert_eq!(point.uncertainty.status, UncertaintyStatus::Complete);
+        assert_eq!(point.uncertainty.total_variance_v2, Some(0.00000025));
+        assert_eq!(point.uncertainty.standard_error_v, Some(0.0005));
+    }
+    let row = phase_c_dimension(&assessment, HealthDimension::UncertaintyHealth);
+    assert_eq!(row.status, OverallHealthStatus::WithinBaseline);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
+    );
+}
+
+#[test]
+fn phase_c_uncertainty_health_quality_insufficient() {
+    let (assessment, _) = pc_fx_06_model_assessment(|model| {
+        model.points[1].uncertainty.total_variance_v2 = Some(-0.00000025);
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::UncertaintyHealth);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::InvalidQuantity]
+    );
+}
+
+#[test]
+fn phase_c_uncertainty_health_threshold_boundaries() {
+    for (se, expected_status, expected_reason) in [
+        (
+            0.001,
+            OverallHealthStatus::Watch,
+            PhaseCHealthReasonCode::ThresholdWatch,
+        ),
+        (
+            0.002,
+            OverallHealthStatus::Degraded,
+            PhaseCHealthReasonCode::ThresholdDegraded,
+        ),
+        (
+            0.005,
+            OverallHealthStatus::Critical,
+            PhaseCHealthReasonCode::ThresholdCritical,
+        ),
+    ] {
+        let (assessment, _) = pc_fx_06_model_assessment(|model| {
+            for point in &mut model.points {
+                point.uncertainty.standard_error_v = Some(se);
+                point.uncertainty.total_variance_v2 = Some(se * se);
+            }
+        });
+        let row = phase_c_dimension(&assessment, HealthDimension::UncertaintyHealth);
+        assert_eq!(row.status, expected_status, "standard error={se} V");
+        assert_eq!(
+            row.reason_codes,
+            vec![expected_reason],
+            "standard error={se} V"
+        );
+    }
+}
+#[test]
+fn phase_c_data_quality_positive_finding() {
+    let assessment = pc_fx_01_assessment(|signal| signal.sampling.missing_fraction = Some(0.20));
+    let row = phase_c_dimension(&assessment, HealthDimension::DataQuality);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::QualityGateFailed]
+    );
+}
+
+#[test]
+fn phase_c_data_quality_negative_finding() {
+    let assessment = pc_fx_01_assessment(|signal| {
+        signal.sampling.missing_fraction = Some(0.0);
+        signal.sampling.duplicate_timestamps = 0;
+        signal.sampling.non_monotonic_timestamps = 0;
+    });
+    let row = phase_c_dimension(&assessment, HealthDimension::DataQuality);
+    assert_eq!(row.status, OverallHealthStatus::WithinBaseline);
+    assert_eq!(row.evidence_state, HealthEvidenceState::AdequateEvidence);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
+    );
+}
+
+#[test]
+fn phase_c_data_quality_quality_insufficient() {
+    let assessment = pc_fx_01_assessment(|signal| signal.sampling.interval_cv = None);
+    let row = phase_c_dimension(&assessment, HealthDimension::DataQuality);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::RequiredQuantityAbsent]
+    );
+}
+
+#[test]
+fn phase_c_data_quality_threshold_boundaries() {
+    let equality = pc_fx_01_assessment(|signal| {
+        signal.sampling.missing_fraction = Some(0.0);
+        signal.sampling.duplicate_timestamps = 0;
+    });
+    let row = phase_c_dimension(&equality, HealthDimension::DataQuality);
+    assert_eq!(row.status, OverallHealthStatus::WithinBaseline);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
+    );
+
+    let just_outside = pc_fx_01_assessment(|signal| signal.sampling.duplicate_timestamps = 1);
+    let row = phase_c_dimension(&just_outside, HealthDimension::DataQuality);
+    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::QualityGateFailed]
+    );
+}
 base_report_contract_test!(phase_c_interpretation_and_causal_status_are_separate);
 base_report_contract_test!(phase_c_phase_b_mechanism_is_not_causal_proof);
 base_report_contract_test!(phase_c_independent_evidence_required_for_associated_status);
