@@ -2,10 +2,11 @@ use rust_electroanalysis_cli::{
     cli::{CliError, CommandSpec, parse_cli_args},
     domain::{
         AcquisitionFamilyId, AnalysisProvenance, ArtifactAcquisitionFamilies,
-        ArtifactExperimentScope, ArtifactKind, ArtifactLineageCatalog, ArtifactLineageNode,
-        ElectrochemicalExperiment, ExperimentEvent, ExperimentEventKind, ExperimentId,
-        MeasurementChannel, MultiChannelMeasurement, ScopeKey, SensorMetadata,
-        known_lineage_from_artifact, read_artifact, write_artifact,
+        ArtifactDependencyRole, ArtifactExperimentScope, ArtifactKind, ArtifactLineageCatalog,
+        ArtifactLineageNode, ArtifactLineageState, ElectrochemicalExperiment, ExperimentEvent,
+        ExperimentEventKind, ExperimentId, MeasurementChannel, MultiChannelMeasurement, ScopeKey,
+        SensorMetadata, dependency_from_lineage, known_lineage_from_artifact, read_artifact,
+        write_artifact,
     },
     health_config::PhaseCHealthEvidenceConfig,
     model::{
@@ -1069,13 +1070,21 @@ fn phase_c_health_cli_rejects_phase_c_sources_without_config() {
                 if message == "health assess Phase-C artifact flags require --phase-c-config"
         ));
         let workspace = temporary_output_dir();
+        let output = workspace.join("assessment");
+        let artifact = output.join("health_assessment.json");
         std::fs::create_dir_all(&workspace).expect("create invalid-combination workspace");
+        assert!(
+            !artifact.exists(),
+            "invalid CLI case must start without an output artifact"
+        );
         let result = Command::new(env!("CARGO_BIN_EXE_rust_electroanalysis_cli"))
             .current_dir(&workspace)
             .args(["health", "assess", "--signal-results"])
             .arg(&signal)
             .arg(flag)
             .arg("phase-c-only.json")
+            .args(["--output"])
+            .arg(&output)
             .output()
             .expect("Phase-C-only CLI invocation");
         assert!(!result.status.success());
@@ -1083,10 +1092,41 @@ fn phase_c_health_cli_rejects_phase_c_sources_without_config() {
             String::from_utf8_lossy(&result.stderr)
                 .contains("health assess Phase-C artifact flags require --phase-c-config")
         );
+        assert!(
+            !artifact.exists(),
+            "invalid CLI case must not leave a complete or partial health artifact"
+        );
+        std::fs::remove_dir_all(workspace).expect("remove invalid-combination workspace");
     }
 
+    let combined_args = vec![
+        "electroanalysis".into(),
+        "health".into(),
+        "assess".into(),
+        "--signal-results".into(),
+        "signal.json".into(),
+        "--estimation-artifact".into(),
+        "estimation.json".into(),
+        "--model-artifact".into(),
+        "model.json".into(),
+        "--mechanism-artifact".into(),
+        "mechanism.json".into(),
+        "--lineage-catalog".into(),
+        "catalog.json".into(),
+    ];
+    assert!(matches!(
+        parse_cli_args(&combined_args),
+        Err(CliError::InvalidCombination(message))
+            if message == "health assess Phase-C artifact flags require --phase-c-config"
+    ));
     let combined_workspace = temporary_output_dir();
+    let combined_output = combined_workspace.join("assessment");
+    let combined_artifact = combined_output.join("health_assessment.json");
     std::fs::create_dir_all(&combined_workspace).expect("create combined-flags workspace");
+    assert!(
+        !combined_artifact.exists(),
+        "combined invalid CLI case must start without an output artifact"
+    );
     let combined = Command::new(env!("CARGO_BIN_EXE_rust_electroanalysis_cli"))
         .current_dir(&combined_workspace)
         .args(["health", "assess", "--signal-results"])
@@ -1101,6 +1141,8 @@ fn phase_c_health_cli_rejects_phase_c_sources_without_config() {
             "--lineage-catalog",
             "catalog.json",
         ])
+        .args(["--output"])
+        .arg(&combined_output)
         .output()
         .expect("combined Phase-C-only CLI invocation");
     assert!(!combined.status.success());
@@ -1108,6 +1150,11 @@ fn phase_c_health_cli_rejects_phase_c_sources_without_config() {
         String::from_utf8_lossy(&combined.stderr)
             .contains("health assess Phase-C artifact flags require --phase-c-config")
     );
+    assert!(
+        !combined_artifact.exists(),
+        "combined invalid CLI case must not leave a complete or partial health artifact"
+    );
+    std::fs::remove_dir_all(combined_workspace).expect("remove combined-flags workspace");
 
     let workspace = temporary_output_dir();
     let output = workspace.join("assessment");
@@ -1453,30 +1500,6 @@ fn phase_c_signal_integrity_negative_finding() {
         row.reason_codes,
         vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
     );
-
-    let incompatible = pc_fx_03_dynamic_assessment(|_, baseline| {
-        baseline.analyte = Some("Na+".into());
-    });
-    let row = phase_c_dimension(&incompatible, HealthDimension::DynamicResponseHealth);
-    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
-    assert_eq!(
-        row.evidence_state,
-        HealthEvidenceState::InsufficientEvidence
-    );
-    assert_eq!(
-        row.reason_codes,
-        vec![PhaseCHealthReasonCode::BaselineIncomparable]
-    );
-    assert!(
-        !matches!(
-            row.status,
-            OverallHealthStatus::WithinBaseline
-                | OverallHealthStatus::Watch
-                | OverallHealthStatus::Degraded
-                | OverallHealthStatus::Critical
-        ),
-        "an incompatible baseline must not retain a dynamic threshold finding"
-    );
 }
 
 #[test]
@@ -1633,6 +1656,30 @@ fn phase_c_dynamic_response_negative_finding() {
     assert_eq!(
         row.reason_codes,
         vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
+    );
+
+    let incompatible = pc_fx_03_dynamic_assessment(|_, baseline| {
+        baseline.analyte = Some("Na+".into());
+    });
+    let row = phase_c_dimension(&incompatible, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(
+        row.evidence_state,
+        HealthEvidenceState::InsufficientEvidence
+    );
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::BaselineIncomparable]
+    );
+    assert!(
+        !matches!(
+            row.status,
+            OverallHealthStatus::WithinBaseline
+                | OverallHealthStatus::Watch
+                | OverallHealthStatus::Degraded
+                | OverallHealthStatus::Critical
+        ),
+        "an incompatible baseline must not retain a dynamic threshold finding"
     );
 }
 
@@ -3535,8 +3582,119 @@ fn phase_c_legacy_health_cli_without_config_writes_schema3() {
     assert_eq!(assessment.phase_c, None);
     assert_eq!(wire["schema_version"], 3);
     assert!(wire.get("phase_c").is_none(), "legacy wire omits Phase-C");
-    assert!(!assessment.assessment_id.is_empty());
-    assert!(!assessment.features.is_empty());
+    assert_eq!(wire["artifact_kind"], "health_assessment");
+    assert_eq!(assessment.assessment_id, "health:signal:a0-test:E1");
+    assert_eq!(wire["assessment_id"], "health:signal:a0-test:E1");
+    assert_eq!(assessment.sensor_id, None);
+    assert_eq!(assessment.experiment_id, None);
+    assert_eq!(
+        assessment.overall_status,
+        OverallHealthStatus::Indeterminate
+    );
+    assert_eq!(wire["overall_status"], "indeterminate");
+    assert_eq!(
+        assessment.missing_domains,
+        vec![
+            HealthDomain::DynamicResponse,
+            HealthDomain::Calibration,
+            HealthDomain::Impedance,
+            HealthDomain::MechanismEvidence,
+        ]
+    );
+    let fixed_legacy_feature_baseline = assessment
+        .features
+        .iter()
+        .map(|feature| {
+            (
+                feature.name.clone(),
+                feature.value,
+                feature.unit.clone(),
+                feature.domain,
+                feature.source.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        fixed_legacy_feature_baseline,
+        vec![
+            (
+                "signal.rms_noise".into(),
+                Some(0.21472615802499273),
+                "V".into(),
+                HealthDomain::SignalNoise,
+                "signal".into(),
+            ),
+            (
+                "signal.robust_noise_standard_deviation".into(),
+                Some(0.0000018513624480238964),
+                "V".into(),
+                HealthDomain::SignalNoise,
+                "signal".into(),
+            ),
+            (
+                "signal.peak_to_peak".into(),
+                Some(0.09999999999861116),
+                "V".into(),
+                HealthDomain::SignalNoise,
+                "signal".into(),
+            ),
+            (
+                "signal.allan_minimum".into(),
+                None,
+                "V".into(),
+                HealthDomain::SignalNoise,
+                "signal".into(),
+            ),
+            (
+                "signal.allan_minimum_averaging_time".into(),
+                None,
+                "s".into(),
+                HealthDomain::SignalNoise,
+                "signal".into(),
+            ),
+            (
+                "signal.robust_drift_rate".into(),
+                Some(-0.0000033748856111274917),
+                "V/s".into(),
+                HealthDomain::Drift,
+                "signal".into(),
+            ),
+            (
+                "signal.spike_fraction".into(),
+                Some(0.0),
+                "fraction".into(),
+                HealthDomain::SignalNoise,
+                "signal".into(),
+            ),
+            (
+                "signal.missing_fraction".into(),
+                Some(0.0),
+                "fraction".into(),
+                HealthDomain::DataQuality,
+                "signal".into(),
+            ),
+            (
+                "signal.sampling_irregularity".into(),
+                Some(0.05496471862793072),
+                "fraction".into(),
+                HealthDomain::DataQuality,
+                "signal".into(),
+            ),
+            (
+                "signal.common_mode_fraction".into(),
+                None,
+                "fraction".into(),
+                HealthDomain::SignalNoise,
+                "signal".into(),
+            ),
+        ]
+    );
+    assert!(
+        assessment
+            .features
+            .iter()
+            .all(|feature| feature.warning.is_none())
+    );
 }
 
 #[test]
@@ -3574,27 +3732,139 @@ fn phase_c_legacy_health_cli_does_not_synthesize_phase_c() {
 
 #[test]
 fn phase_c_legacy_schema3_identity_and_lineage_are_deterministic() {
-    let (first, first_wire) = legacy_health_assessment();
-    let (second, second_wire) = legacy_health_assessment();
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workspace = temporary_output_dir();
+    std::fs::create_dir_all(&workspace).expect("create known-lineage workspace");
+
+    let mut signal: SignalAnalysisReport = read_artifact(
+        &root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json"),
+    )
+    .expect("read signal source");
+    signal.lineage = known_lineage_from_artifact(
+        ArtifactKind::SignalAnalysis,
+        signal.schema_version,
+        "phase-c-legacy-lineage-test",
+        ArtifactExperimentScope::Unknown,
+        ScopeKey::Unspecified,
+        ScopeKey::Unspecified,
+        ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &signal,
+    )
+    .expect("known signal lineage");
+    let mut mechanism: MechanismAnalysisReport = read_artifact(
+        &root.join("tests/fixtures/a0_artifact_contracts/schema1/mechanism_analysis.schema1.json"),
+    )
+    .expect("read mechanism source");
+    mechanism.lineage = known_lineage_from_artifact(
+        ArtifactKind::MechanismAnalysis,
+        mechanism.schema_version,
+        "phase-c-legacy-lineage-test",
+        ArtifactExperimentScope::Unknown,
+        ScopeKey::Unspecified,
+        ScopeKey::Unspecified,
+        ArtifactAcquisitionFamilies::Unknown,
+        Vec::new(),
+        &mechanism,
+    )
+    .expect("known mechanism lineage");
+    let signal_path = workspace.join("known-signal.json");
+    let mechanism_path = workspace.join("known-mechanism.json");
+    write_artifact(&signal_path, &signal).expect("write known signal source");
+    write_artifact(&mechanism_path, &mechanism).expect("write known mechanism source");
+
+    let supplied_dependencies = vec![
+        dependency_from_lineage(&signal.lineage, ArtifactDependencyRole::DerivedFrom)
+            .expect("known signal dependency"),
+        dependency_from_lineage(
+            &mechanism.lineage,
+            ArtifactDependencyRole::TransformationInput,
+        )
+        .expect("known mechanism dependency"),
+    ];
+    let mut expected_canonical_dependencies = supplied_dependencies.clone();
+    expected_canonical_dependencies.sort_by(|left, right| {
+        left.role
+            .discriminant()
+            .cmp(&right.role.discriminant())
+            .then_with(|| {
+                left.artifact_kind
+                    .as_str()
+                    .cmp(right.artifact_kind.as_str())
+            })
+            .then_with(|| left.artifact_id.cmp(&right.artifact_id))
+    });
+    assert_ne!(
+        supplied_dependencies, expected_canonical_dependencies,
+        "the legacy CLI receives known source dependencies in noncanonical order"
+    );
+
+    let run_legacy_cli = |output: &PathBuf| {
+        let result = Command::new(env!("CARGO_BIN_EXE_rust_electroanalysis_cli"))
+            .current_dir(&workspace)
+            .args(["health", "assess", "--signal-results"])
+            .arg(&signal_path)
+            .args(["--mechanism-results"])
+            .arg(&mechanism_path)
+            .args(["--output"])
+            .arg(output)
+            .output()
+            .expect("known-lineage legacy CLI invocation");
+        assert!(
+            result.status.success(),
+            "known-lineage legacy CLI failed: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let artifact_path = output.join("health_assessment.json");
+        let assessment: SensorHealthAssessment =
+            read_artifact(&artifact_path).expect("publicly reread legacy artifact");
+        let wire: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&artifact_path).expect("read legacy wire"))
+                .expect("parse legacy wire");
+        (assessment, wire)
+    };
+
+    let first_output = workspace.join("first-output");
+    let second_output = workspace.join("second-output");
+    assert_ne!(
+        first_output, second_output,
+        "outputs must use distinct paths"
+    );
+    let (first, first_wire) = run_legacy_cli(&first_output);
+    let (second, second_wire) = run_legacy_cli(&second_output);
     assert_eq!(first.assessment_id, second.assessment_id);
     assert_eq!(first.lineage, second.lineage);
     assert_eq!(first_wire["assessment_id"], second_wire["assessment_id"]);
     assert_eq!(first_wire["lineage"], second_wire["lineage"]);
-    match (&first.lineage, &second.lineage) {
-        (
-            rust_electroanalysis_cli::domain::ArtifactLineageState::Known {
-                direct_dependencies: first_dependencies,
-                ..
-            },
-            rust_electroanalysis_cli::domain::ArtifactLineageState::Known {
-                direct_dependencies: second_dependencies,
-                ..
-            },
-        ) => assert_eq!(first_dependencies, second_dependencies),
-        (
-            rust_electroanalysis_cli::domain::ArtifactLineageState::LegacyUnknown { .. },
-            rust_electroanalysis_cli::domain::ArtifactLineageState::LegacyUnknown { .. },
-        ) => {}
-        _ => panic!("legacy route must preserve one deterministic lineage state"),
-    }
+    let ArtifactLineageState::Known {
+        direct_dependencies: first_dependencies,
+        ..
+    } = &first.lineage
+    else {
+        panic!("known legacy sources must produce known health-assessment lineage");
+    };
+    let ArtifactLineageState::Known {
+        direct_dependencies: second_dependencies,
+        ..
+    } = &second.lineage
+    else {
+        panic!("known legacy sources must preserve known health-assessment lineage");
+    };
+    assert_eq!(
+        first_dependencies.as_slice(),
+        expected_canonical_dependencies.as_slice()
+    );
+    assert_eq!(
+        second_dependencies.as_slice(),
+        expected_canonical_dependencies.as_slice()
+    );
+    assert_eq!(
+        first_wire["lineage"],
+        serde_json::to_value(&first.lineage).expect("serialize public lineage")
+    );
+    assert_eq!(
+        second_wire["lineage"],
+        serde_json::to_value(&second.lineage).expect("serialize public lineage")
+    );
+    std::fs::remove_dir_all(workspace).expect("remove known-lineage workspace");
 }
