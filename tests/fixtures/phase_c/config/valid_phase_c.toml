@@ -1,0 +1,56 @@
+schema_version = 1
+maximum_reference_alignment_difference_s = 1.0
+
+[data_quality]
+minimum_finite_samples = 2
+maximum_missing_fraction = 0.0
+maximum_interval_cv = 0.0
+maximum_duplicate_timestamps = 0
+maximum_non_monotonic_timestamps = 0
+allow_interpolation_gap_exceeded = false
+
+[signal_integrity]
+maximum_rms_noise_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+maximum_robust_noise_standard_deviation_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+maximum_spike_fraction = { watch = 0.01, degraded = 0.05, critical = 0.10 }
+maximum_absolute_drift_v_per_s = { watch = 0.0001, degraded = 0.001, critical = 0.01 }
+
+[calibration_health]
+maximum_absolute_slope_efficiency_error = { watch = 0.05, degraded = 0.10, critical = 0.20 }
+maximum_rmse_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+maximum_absolute_prediction_bias_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+maximum_hysteresis_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+
+[dynamic_response_health]
+selected_event_index = 0
+baseline_tau_fast_feature = "phase_c.tau_fast"
+baseline_tau_slow_feature = "phase_c.tau_slow"
+baseline_time_to_90_percent_feature = "phase_c.time_to_90_percent"
+baseline_response_amplitude_feature = "phase_c.response_amplitude"
+maximum_tau_fast_ratio = { watch = 1.10, degraded = 1.50, critical = 2.00 }
+maximum_tau_slow_ratio = { watch = 1.10, degraded = 1.50, critical = 2.00 }
+maximum_time_to_90_percent_ratio = { watch = 1.10, degraded = 1.50, critical = 2.00 }
+maximum_response_amplitude_relative_loss = { watch = 0.10, degraded = 0.25, critical = 0.50 }
+maximum_fit_rmse_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+
+[environmental_robustness]
+covariate = "temperature_k"
+minimum_points = 3
+minimum_covariate_range = 0.01
+minimum_absolute_spearman_correlation = { watch = 0.30, degraded = 0.60, critical = 0.85 }
+minimum_residual_rms_v = 0.0
+
+[model_consistency]
+maximum_residual_rms_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+maximum_residual_bias_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+
+[observability]
+maximum_condition_number = { watch = 100.0, degraded = 1000.0, critical = 10000.0 }
+require_empirical_identifiability = true
+
+[uncertainty_health]
+maximum_partial_uncertainty_fraction = { watch = 0.10, degraded = 0.25, critical = 0.50 }
+maximum_standard_error_v = { watch = 0.001, degraded = 0.002, critical = 0.005 }
+
+[causal_promotion]
+minimum_independent_supporting_evidence = 2

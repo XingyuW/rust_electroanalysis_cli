@@ -132,6 +132,7 @@ pub fn assemble(
         configuration: config,
         provenance,
         warnings,
+        phase_c: None,
     };
     assessment.lineage = crate::domain::known_lineage_from_artifact(
         crate::domain::ArtifactKind::HealthAssessment,

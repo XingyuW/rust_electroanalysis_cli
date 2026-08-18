@@ -445,7 +445,11 @@ fn mhi_t02f_producer_roundtrip() {
         provenance(&input),
         Vec::new(),
     );
-    let assessment: SensorHealthAssessment = roundtrip(&root.join("assessment.json"), &assessment);
+    // Health assessments are now schema-4 artifacts in the generic writer.
+    // A legacy projection cannot be silently upgraded because it has no
+    // Phase-C evidence report; the health runner owns the dedicated schema-3
+    // compatibility writer.
+    assert!(write_artifact(&root.join("assessment.json"), &assessment).is_err());
     let trend: HealthTrendReport =
         health_trend_report("a0-trend", Vec::new(), assessment.provenance.clone());
     roundtrip(&root.join("health-trend.json"), &trend);
