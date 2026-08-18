@@ -403,14 +403,14 @@ mod tests {
                 .expect("clock")
                 .as_nanos()
         ));
-        assert!(matches!(
-            write_legacy_sensor_health_assessment_v3(&output, &assessment),
+        match write_legacy_sensor_health_assessment_v3(&output, &assessment) {
             Err(ArtifactError::UnsupportedSchemaVersion {
+                path,
                 expected: ArtifactKind::HealthAssessment,
                 actual: 4,
-                ..
-            })
-        ));
+            }) => assert_eq!(path, output),
+            other => panic!("expected schema-3 writer rejection, got {other:?}"),
+        }
         assert!(!output.exists());
     }
 }

@@ -49,37 +49,55 @@ fn temporary_output_dir() -> PathBuf {
     ))
 }
 
-/// Executes the legacy health route deliberately without a Phase-C config and
-/// captures both the public reader result and the actual legacy wire shape.
-fn legacy_health_assessment() -> (SensorHealthAssessment, serde_json::Value) {
+/// Executes the real health CLI route and captures the public reader result
+/// and actual wire shape.
+fn health_cli_assessment(
+    phase_c_config: Option<&std::path::Path>,
+) -> (SensorHealthAssessment, serde_json::Value) {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let signal =
         root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json");
-    let output = temporary_output_dir();
-    health::assess(
-        &root,
-        &signal,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        Some(&output),
-    )
-    .expect("legacy health runner");
+    let workspace = temporary_output_dir();
+    let output = workspace.join("assessment");
+    std::fs::create_dir_all(&workspace).expect("create health CLI workspace");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rust_electroanalysis_cli"));
+    command
+        .current_dir(&workspace)
+        .args(["health", "assess", "--signal-results"])
+        .arg(&signal);
+    if let Some(config) = phase_c_config {
+        command.args(["--phase-c-config"]).arg(config);
+    }
+    let result = command
+        .args(["--output"])
+        .arg(&output)
+        .output()
+        .expect("health CLI");
+    assert!(
+        result.status.success(),
+        "health CLI failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr),
+    );
     let path = output.join("health_assessment.json");
-    let assessment = read_artifact(&path).expect("publicly reread legacy assessment");
-    let wire = serde_json::from_slice(&std::fs::read(&path).expect("read legacy wire"))
-        .expect("parse legacy wire");
-    std::fs::remove_dir_all(output).expect("remove legacy workspace");
+    let assessment = read_artifact(&path).expect("publicly reread CLI assessment");
+    let wire = serde_json::from_slice(&std::fs::read(&path).expect("read CLI wire"))
+        .expect("parse CLI wire");
+    std::fs::remove_dir_all(workspace).expect("remove health CLI workspace");
     (assessment, wire)
+}
+
+/// Executes the legacy health CLI route deliberately without a Phase-C config.
+fn legacy_health_assessment() -> (SensorHealthAssessment, serde_json::Value) {
+    health_cli_assessment(None)
+}
+
+/// Executes the configured Phase-C health CLI route with the frozen config.
+fn configured_health_cli_assessment() -> (SensorHealthAssessment, serde_json::Value) {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    health_cli_assessment(Some(
+        &root.join("tests/fixtures/phase_c/config/valid_phase_c.toml"),
+    ))
 }
 
 /// PC-FX-01 is deliberately assembled through the public artifact writer and
@@ -1026,48 +1044,98 @@ fn phase_c_dimension(
 
 #[test]
 fn phase_c_health_cli_rejects_phase_c_sources_without_config() {
-    let args = vec![
-        "electroanalysis".into(),
-        "health".into(),
-        "assess".into(),
-        "--signal-results".into(),
-        "signal.json".into(),
-        "--estimation-artifact".into(),
-        "estimation.json".into(),
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let signal =
+        root.join("tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json");
+    let phase_c_only_flags = [
+        "--estimation-artifact",
+        "--model-artifact",
+        "--mechanism-artifact",
+        "--lineage-catalog",
     ];
-    assert!(matches!(
-        parse_cli_args(&args),
-        Err(CliError::InvalidCombination(_))
-    ));
+    for flag in phase_c_only_flags {
+        let args = vec![
+            "electroanalysis".into(),
+            "health".into(),
+            "assess".into(),
+            "--signal-results".into(),
+            "signal.json".into(),
+            flag.into(),
+            "phase-c-only.json".into(),
+        ];
+        assert!(matches!(
+            parse_cli_args(&args),
+            Err(CliError::InvalidCombination(message))
+                if message == "health assess Phase-C artifact flags require --phase-c-config"
+        ));
+        let workspace = temporary_output_dir();
+        std::fs::create_dir_all(&workspace).expect("create invalid-combination workspace");
+        let result = Command::new(env!("CARGO_BIN_EXE_rust_electroanalysis_cli"))
+            .current_dir(&workspace)
+            .args(["health", "assess", "--signal-results"])
+            .arg(&signal)
+            .arg(flag)
+            .arg("phase-c-only.json")
+            .output()
+            .expect("Phase-C-only CLI invocation");
+        assert!(!result.status.success());
+        assert!(
+            String::from_utf8_lossy(&result.stderr)
+                .contains("health assess Phase-C artifact flags require --phase-c-config")
+        );
+    }
 
-    // Parser validation is not the route contract by itself: the public
-    // runner must also reject a Phase-C-only source before attempting to read
-    // an otherwise irrelevant signal path.
-    let workspace = temporary_output_dir();
-    let signal = workspace.join("unread-signal.json");
-    let estimation = workspace.join("estimation.json");
-    let error = health::assess(
-        &workspace,
-        &signal,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        Some(&estimation),
-        None,
-        None,
-        None,
-        None,
-    )
-    .expect_err("estimation artifact without Phase-C config is invalid");
-    assert_eq!(
-        error.to_string(),
-        "workflow error: Phase-C artifact flags require --phase-c-config"
+    let combined_workspace = temporary_output_dir();
+    std::fs::create_dir_all(&combined_workspace).expect("create combined-flags workspace");
+    let combined = Command::new(env!("CARGO_BIN_EXE_rust_electroanalysis_cli"))
+        .current_dir(&combined_workspace)
+        .args(["health", "assess", "--signal-results"])
+        .arg(&signal)
+        .args([
+            "--estimation-artifact",
+            "estimation.json",
+            "--model-artifact",
+            "model.json",
+            "--mechanism-artifact",
+            "mechanism.json",
+            "--lineage-catalog",
+            "catalog.json",
+        ])
+        .output()
+        .expect("combined Phase-C-only CLI invocation");
+    assert!(!combined.status.success());
+    assert!(
+        String::from_utf8_lossy(&combined.stderr)
+            .contains("health assess Phase-C artifact flags require --phase-c-config")
     );
+
+    let workspace = temporary_output_dir();
+    let output = workspace.join("assessment");
+    std::fs::create_dir_all(&workspace).expect("create legacy control workspace");
+    let mechanism =
+        root.join("tests/fixtures/a0_artifact_contracts/schema1/mechanism_analysis.schema1.json");
+    let legacy = Command::new(env!("CARGO_BIN_EXE_rust_electroanalysis_cli"))
+        .current_dir(&workspace)
+        .args(["health", "assess", "--signal-results"])
+        .arg(&signal)
+        .args(["--mechanism-results"])
+        .arg(mechanism)
+        .args(["--output"])
+        .arg(&output)
+        .output()
+        .expect("legacy mechanism-results CLI invocation");
+    assert!(
+        legacy.status.success(),
+        "legacy control failed: {}",
+        String::from_utf8_lossy(&legacy.stderr)
+    );
+    let wire: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(output.join("health_assessment.json")).expect("legacy output"),
+    )
+    .expect("legacy output JSON");
+    assert_eq!(wire["schema_version"], 3);
+    assert!(wire.get("phase_c").is_none());
+    std::fs::remove_dir_all(workspace).expect("remove legacy control workspace");
 }
 
 #[test]
@@ -1385,6 +1453,30 @@ fn phase_c_signal_integrity_negative_finding() {
         row.reason_codes,
         vec![PhaseCHealthReasonCode::ThresholdWithinLimit]
     );
+
+    let incompatible = pc_fx_03_dynamic_assessment(|_, baseline| {
+        baseline.analyte = Some("Na+".into());
+    });
+    let row = phase_c_dimension(&incompatible, HealthDimension::DynamicResponseHealth);
+    assert_eq!(row.status, OverallHealthStatus::Indeterminate);
+    assert_eq!(
+        row.evidence_state,
+        HealthEvidenceState::InsufficientEvidence
+    );
+    assert_eq!(
+        row.reason_codes,
+        vec![PhaseCHealthReasonCode::BaselineIncomparable]
+    );
+    assert!(
+        !matches!(
+            row.status,
+            OverallHealthStatus::WithinBaseline
+                | OverallHealthStatus::Watch
+                | OverallHealthStatus::Degraded
+                | OverallHealthStatus::Critical
+        ),
+        "an incompatible baseline must not retain a dynamic threshold finding"
+    );
 }
 
 #[test]
@@ -1433,7 +1525,8 @@ fn phase_c_calibration_health_positive_finding() {
             .iter_mut()
             .find(|model| model.model_kind == selected)
             .expect("selected model row")
-            .slope_efficiency = Some(0.90);
+            .statistics
+            .rmse_v = Some(0.002);
     });
     let row = phase_c_dimension(&assessment, HealthDimension::CalibrationHealth);
     assert_eq!(row.status, OverallHealthStatus::Degraded);
@@ -1470,19 +1563,19 @@ fn phase_c_calibration_health_indeterminate_without_artifact() {
 
 #[test]
 fn phase_c_calibration_health_threshold_boundaries() {
-    for (slope_efficiency, expected_status, expected_reason) in [
+    for (rmse_v, expected_status, expected_reason) in [
         (
-            0.95,
+            0.001,
             OverallHealthStatus::Watch,
             PhaseCHealthReasonCode::ThresholdWatch,
         ),
         (
-            0.90,
+            0.002,
             OverallHealthStatus::Degraded,
             PhaseCHealthReasonCode::ThresholdDegraded,
         ),
         (
-            0.80,
+            0.005,
             OverallHealthStatus::Critical,
             PhaseCHealthReasonCode::ThresholdCritical,
         ),
@@ -1494,13 +1587,11 @@ fn phase_c_calibration_health_threshold_boundaries() {
                 .iter_mut()
                 .find(|model| model.model_kind == selected)
                 .expect("selected model row")
-                .slope_efficiency = Some(slope_efficiency);
+                .statistics
+                .rmse_v = Some(rmse_v);
         });
         let row = phase_c_dimension(&assessment, HealthDimension::CalibrationHealth);
-        assert_eq!(
-            row.status, expected_status,
-            "slope efficiency={slope_efficiency}"
-        );
+        assert_eq!(row.status, expected_status, "calibration RMSE={rmse_v} V");
         assert_eq!(row.reason_codes, vec![expected_reason]);
     }
 }
@@ -1568,24 +1659,41 @@ fn phase_c_dynamic_response_quality_insufficient() {
 
 #[test]
 fn phase_c_dynamic_response_threshold_boundaries() {
+    let watch_threshold = 1.10_f64;
     for (tau_fast_s, expected_status, expected_reason) in [
         (
-            0.110,
+            watch_threshold,
             OverallHealthStatus::Watch,
             PhaseCHealthReasonCode::ThresholdWatch,
         ),
         (
-            0.150,
+            1.50,
             OverallHealthStatus::Degraded,
             PhaseCHealthReasonCode::ThresholdDegraded,
         ),
         (
-            0.200,
+            2.00,
             OverallHealthStatus::Critical,
             PhaseCHealthReasonCode::ThresholdCritical,
         ),
+        (
+            f64::from_bits(watch_threshold.to_bits() - 1),
+            OverallHealthStatus::WithinBaseline,
+            PhaseCHealthReasonCode::ThresholdWithinLimit,
+        ),
+        (
+            f64::from_bits(watch_threshold.to_bits() + 1),
+            OverallHealthStatus::Watch,
+            PhaseCHealthReasonCode::ThresholdWatch,
+        ),
     ] {
-        let assessment = pc_fx_03_dynamic_assessment(|transient, _| {
+        let assessment = pc_fx_03_dynamic_assessment(|transient, baseline| {
+            baseline
+                .feature_distributions
+                .iter_mut()
+                .find(|feature| feature.feature == "phase_c.tau_fast")
+                .expect("tau-fast baseline distribution")
+                .mean = Some(1.0);
             let event = transient
                 .events
                 .iter_mut()
@@ -2668,21 +2776,54 @@ fn phase_c_dynamic_response_invalid_nonselected_event_is_ignored() {
 
 #[test]
 fn phase_c_dynamic_response_invalid_selected_event_is_dqi() {
-    let assessment = pc_fx_03_dynamic_assessment(|transient, _| {
+    let zero_match = pc_fx_03_dynamic_assessment(|transient, _| {
         let selected = transient
             .events
             .iter_mut()
             .find(|event| event.event_index == 7)
-            .unwrap();
-        selected.selected_model = None;
+            .expect("selected event");
         selected.candidate_fits.clear();
     });
-    let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
-    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
-    assert_eq!(
-        row.reason_codes,
-        vec![PhaseCHealthReasonCode::SelectedTransientEventInvalid]
-    );
+    let duplicate_match = pc_fx_03_dynamic_assessment(|transient, _| {
+        let selected = transient
+            .events
+            .iter_mut()
+            .find(|event| event.event_index == 7)
+            .expect("selected event");
+        let model = selected.selected_model.expect("selected model");
+        let duplicate = selected
+            .candidate_fits
+            .iter()
+            .find(|fit| fit.model == model && fit.is_successful())
+            .expect("one successful fit")
+            .clone();
+        selected.candidate_fits.push(duplicate);
+    });
+    let reordered_duplicate_match = pc_fx_03_dynamic_assessment(|transient, _| {
+        let selected = transient
+            .events
+            .iter_mut()
+            .find(|event| event.event_index == 7)
+            .expect("selected event");
+        let model = selected.selected_model.expect("selected model");
+        let duplicate = selected
+            .candidate_fits
+            .iter()
+            .find(|fit| fit.model == model && fit.is_successful())
+            .expect("one successful fit")
+            .clone();
+        selected.candidate_fits.push(duplicate);
+        selected.candidate_fits.reverse();
+    });
+    for assessment in [zero_match, duplicate_match, reordered_duplicate_match] {
+        let row = phase_c_dimension(&assessment, HealthDimension::DynamicResponseHealth);
+        assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+        assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+        assert_eq!(
+            row.reason_codes,
+            vec![PhaseCHealthReasonCode::SelectedTransientEventInvalid]
+        );
+    }
 }
 #[test]
 fn phase_c_dynamic_response_scope_mismatch_is_indeterminate() {
@@ -3093,32 +3234,47 @@ fn phase_c_calibration_health_quality_insufficient() {
 }
 #[test]
 fn phase_c_environmental_robustness_quality_insufficient() {
-    let assessment = pc_fx_06_estimation_assessment_with_config(
-        |estimation| {
-            for (index, point) in estimation.estimates.iter_mut().enumerate() {
-                point.environmental_context.flow = Some(1.0 + index as f64);
-                point.environmental_context.source_records = vec![
-                    rust_electroanalysis_cli::estimation::environment::AlignedValueSummary {
-                        source_series: "flow".into(),
-                        source_timestamps: vec![point.timestamp_s],
-                        alignment: rust_electroanalysis_cli::estimation::environment::AlignmentMethod::Fallback,
-                        time_gap_s: 0.0,
-                        interpolated: false,
-                        extrapolated: false,
-                        source_unit: Some(if index == 1 { "L/min" } else { "mL/min" }.into()),
-                        conversion: None,
-                    },
-                ];
-            }
-        },
-        |config| {
-            *config = config.replace("covariate = \"temperature_k\"", "covariate = \"flow\"");
-        },
-    );
+    let assess_flow_units = |source_units: &[Option<&str>]| {
+        pc_fx_06_estimation_assessment_with_config(
+            |estimation| {
+                for (index, point) in estimation.estimates.iter_mut().enumerate() {
+                    point.environmental_context.flow = Some(1.0 + index as f64);
+                    point.environmental_context.source_records = vec![
+                        rust_electroanalysis_cli::estimation::environment::AlignedValueSummary {
+                            source_series: "flow".into(),
+                            source_timestamps: vec![point.timestamp_s],
+                            alignment: rust_electroanalysis_cli::estimation::environment::AlignmentMethod::Fallback,
+                            time_gap_s: 0.0,
+                            interpolated: false,
+                            extrapolated: false,
+                            source_unit: source_units[index].map(str::to_owned),
+                            conversion: None,
+                        },
+                    ];
+                }
+            },
+            |config| {
+                *config = config.replace("covariate = \"temperature_k\"", "covariate = \"flow\"");
+            },
+        )
+    };
+    for source_units in [
+        [Some("mL/min"), Some("L/min"), Some("mL/min")],
+        [None, None, None],
+        [Some(""), Some(""), Some("")],
+        [Some("mL/min"), None, Some("mL/min")],
+        [Some("mL/min"), Some(""), Some("mL/min")],
+    ] {
+        let assessment = assess_flow_units(&source_units);
+        let row = phase_c_dimension(&assessment, HealthDimension::EnvironmentalRobustness);
+        assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
+        assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
+        assert_eq!(row.reason_codes, vec![PhaseCHealthReasonCode::UnitMismatch]);
+    }
+    let assessment = assess_flow_units(&[Some("mL/min"), Some("mL/min"), Some("mL/min")]);
     let row = phase_c_dimension(&assessment, HealthDimension::EnvironmentalRobustness);
-    assert_eq!(row.status, OverallHealthStatus::DataQualityInsufficient);
-    assert_eq!(row.evidence_state, HealthEvidenceState::PoorDataQuality);
-    assert_eq!(row.reason_codes, vec![PhaseCHealthReasonCode::UnitMismatch]);
+    assert_ne!(row.status, OverallHealthStatus::DataQualityInsufficient);
+    assert_ne!(row.reason_codes, vec![PhaseCHealthReasonCode::UnitMismatch]);
 }
 
 #[test]
@@ -3379,23 +3535,30 @@ fn phase_c_legacy_health_cli_without_config_writes_schema3() {
     assert_eq!(assessment.phase_c, None);
     assert_eq!(wire["schema_version"], 3);
     assert!(wire.get("phase_c").is_none(), "legacy wire omits Phase-C");
+    assert!(!assessment.assessment_id.is_empty());
+    assert!(!assessment.features.is_empty());
 }
 
 #[test]
 fn phase_c_health_cli_with_phase_c_config_writes_schema4() {
-    let assessment = pc_fx_01_assessment(|_| {});
+    let (assessment, wire) = configured_health_cli_assessment();
     assert_eq!(assessment.schema_version, 4);
-    assert!(assessment.phase_c.is_some());
+    let phase_c = assessment
+        .phase_c
+        .expect("configured CLI creates Phase-C evidence");
+    assert_eq!(phase_c.dimension_assessments.len(), 9);
+    assert!(wire.get("phase_c").is_some());
 }
 
 #[test]
 fn phase_c_legacy_schema3_writer_is_route_restricted() {
     let (legacy, legacy_wire) = legacy_health_assessment();
-    let phase_c = pc_fx_01_assessment(|_| {});
+    let (phase_c, phase_c_wire) = configured_health_cli_assessment();
     assert_eq!(legacy.schema_version, 3);
     assert!(legacy_wire.get("phase_c").is_none());
     assert_eq!(phase_c.schema_version, 4);
     assert!(phase_c.phase_c.is_some());
+    assert!(phase_c_wire.get("phase_c").is_some());
 }
 
 #[test]
@@ -3417,4 +3580,21 @@ fn phase_c_legacy_schema3_identity_and_lineage_are_deterministic() {
     assert_eq!(first.lineage, second.lineage);
     assert_eq!(first_wire["assessment_id"], second_wire["assessment_id"]);
     assert_eq!(first_wire["lineage"], second_wire["lineage"]);
+    match (&first.lineage, &second.lineage) {
+        (
+            rust_electroanalysis_cli::domain::ArtifactLineageState::Known {
+                direct_dependencies: first_dependencies,
+                ..
+            },
+            rust_electroanalysis_cli::domain::ArtifactLineageState::Known {
+                direct_dependencies: second_dependencies,
+                ..
+            },
+        ) => assert_eq!(first_dependencies, second_dependencies),
+        (
+            rust_electroanalysis_cli::domain::ArtifactLineageState::LegacyUnknown { .. },
+            rust_electroanalysis_cli::domain::ArtifactLineageState::LegacyUnknown { .. },
+        ) => {}
+        _ => panic!("legacy route must preserve one deterministic lineage state"),
+    }
 }
