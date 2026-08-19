@@ -576,7 +576,7 @@ The following reproduction record is part of the implementation contract:
 | PD-P1-02 | section 4 required the generic reader for every input but gave the catalog an ad-hoc exception; no pairwise compatibility rule existed | `ArtifactLineageCatalog` is not `VersionedArtifact`; `src/runners/health.rs::load_lineage_catalog` contains the only local parse/validate pattern; A1 identities contain scope/family information | dedicated domain reader and a literal compatibility matrix |
 | PD-P1-03 | section 5 only listed summary top-level names; no manifest schema existed | public artifacts have typed nested payloads and stable ordering, but no Phase-D types | typed, closed summary and manifest schemas |
 | PD-P1-04 | D-FIG-03 invented a unit, D-FIG-04 negated stored imaginary impedance, and D-FIG-06 implicitly selected a candidate | `BaselineComparison` has no unit; `HealthFeature.unit` is the authority; EIS stores `z_imag_ohm`; transient results have a model but no selected-fit index | source-authority and representation-validation rules only |
-| PD-P1-05 | 48 named tests did not substantively cover manifest, D-TBL-04/05, Bode, compatibility, catalog reading, publication, numeric format, or all figure defects; fixture labels were conceptual | `tests/fixtures` uses literal directory/file contracts | the reviewed predecessor expanded this to 66; this remediation replaces it with the 71-test literal fixture contract in 18.11–18.12 |
+| PD-P1-05 | 48 named tests did not substantively cover manifest, D-TBL-04/05, Bode, compatibility, catalog reading, publication, numeric format, or all figure defects; fixture labels were conceptual | `tests/fixtures` uses literal directory/file contracts | the reviewed predecessor expanded this to 66; the final remediation replaces it with the 73-test sealed fixture ledger and test contract in 18.11.2–18.12 |
 | PD-P1-06 | section 10 said `NA` but left finite-number and cross-format representation unspecified | artifact readers reject non-finite numeric source data before projection | one exact finite formatter and serialization rules |
 
 The second independent re-review reproduced the five remaining P1s against
@@ -833,12 +833,23 @@ PublicSummaryV1 {
   rendering: PublicRenderingMetadataV1
 }
 
-PublicInputReferenceV1 {
-  input_flag: InputFlagV1,
+PublicInputReferenceV1 =
+  Artifact(PublicArtifactInputReferenceV1) |
+  LineageCatalog(PublicLineageCatalogInputReferenceV1)
+
+PublicArtifactInputReferenceV1 {
+  input_kind: PublicInputReferenceKindV1 = artifact,
+  input_flag: ArtifactInputFlagV1,
   supplied_path_basename: Option<String>, artifact_kind: Option<ArtifactKindV1>,
-  schema_version: Option<u32>, lineage: LineagePresentationV1,
-  acquisition_families: AcquisitionFamilyPresentationV1,
+  schema_version: Option<u32>, lineage: Option<LineagePresentationV1>,
+  acquisition_families: Option<AcquisitionFamilyPresentationV1>,
   availability: AvailabilityV1
+}
+
+PublicLineageCatalogInputReferenceV1 {
+  input_kind: PublicInputReferenceKindV1 = lineage_catalog,
+  supplied_path_basename: Option<String>, schema_version: Option<u32>,
+  availability: AvailabilityV1, validation: CatalogValidationV1
 }
 
 PublicCompatibilityV1 { required_pair: CompatibilityStatusV1,
@@ -915,6 +926,57 @@ PublicRenderingMetadataV1 { json_schema: String = "public_summary.schema1",
   csv_newline: String = "LF", timestamp: Option<String> = null }
 ```
 
+`PublicInputReferenceV1` is serialized as one object, not as a Rust externally
+tagged enum: it uses `#[serde(tag = "input_kind", rename_all = "snake_case")]`.
+The exact artifact object is
+
+```text
+{ "input_kind": "artifact", "input_flag": ArtifactInputFlagV1,
+  "supplied_path_basename": String|null, "artifact_kind": ArtifactKindV1|null,
+  "schema_version": u32|null, "lineage": LineagePresentationV1|null,
+  "acquisition_families": AcquisitionFamilyPresentationV1|null,
+  "availability": AvailabilityV1 }
+```
+
+and the exact catalog object is
+
+```text
+{ "input_kind": "lineage_catalog", "supplied_path_basename": String|null,
+  "schema_version": u32|null, "availability": AvailabilityV1,
+  "validation": CatalogValidationV1 }
+```
+
+`input_references` contains nine artifact objects in `ArtifactInputFlagV1`
+order followed by exactly one lineage-catalog object.  An absent artifact has
+`supplied_path_basename`, `artifact_kind`, `schema_version`, `lineage`, and
+`acquisition_families` as `null`; it is not a legacy artifact and no state is
+invented for it. A supplied legacy artifact has its actual
+`LegacyUnknown` lineage and `legacy_unknown` families presentation. A
+selected, unavailable artifact retains the source-derived fields that were
+read before the unavailable projection; an unread absent source has only the
+null form. A supplied artifact copies all five artifact-specific fields from
+the canonical reader.  A catalog that is
+supplied and successfully read has `availability="available"`,
+`validation="validated"`, its supplied basename, and `schema_version=1`.  An
+absent catalog has `availability="not_provided"`,
+`validation="not_applicable"`, and both nullable fields `null`.  A catalog
+whose schema is unsupported, whose JSON or structure is invalid, whose root
+has duplicate keys, whose map key does not match its node identity, or whose
+node/dependency validation fails raises `PublicReportError::LineageCatalog`;
+therefore it has no successful-summary reference.  A structurally valid
+catalog may have a dependency not represented by another catalog node; that is
+node-level resolution information and still uses the supplied/validated
+catalog reference.  `LegacyUnknown` is a state of an input artifact, not a
+catalog node or catalog reference.
+
+The catalog object deliberately has no `input_flag`, `artifact_id`,
+`artifact_kind`, `lineage`, `acquisition_families`, direct dependencies,
+aggregate families, or synthetic identity.  `ArtifactLineageCatalog` supplies
+only its own `schema_version` and its node map; family and lineage data belong
+to individual `ArtifactLineageNode`s and are projected only through the
+dedicated artifact lineage roots/table.  A catalog is provenance metadata, not
+scientific evidence and not an `ArtifactIdentity` root.
+
 All fields above are required. `Option` is encoded as JSON `null`; `Vec` is
 encoded as `[]`; no key is omitted and no `serde_json::Value`, map, or generic
 wrapper is allowed.  `analysis_id` and `assessment_id` are the validated
@@ -929,8 +991,11 @@ The closed enum vocabulary is as follows.  The listed token is both the Rust
 | enum | tokens | source authority |
 |---|---|---|
 | `InputFlagV1` | `mechanism`, `health`, `eis`, `transient`, `calibration`, `calibration_observations`, `signal`, `estimation`, `model`, `lineage_catalog` | fixed CLI flag inventory in 18.4 |
+| `ArtifactInputFlagV1` | `mechanism`, `health`, `eis`, `transient`, `calibration`, `calibration_observations`, `signal`, `estimation`, `model` | `InputFlagV1` excluding `lineage_catalog`; only this type may select the `Artifact` input-reference variant |
+| `PublicInputReferenceKindV1` | `artifact`, `lineage_catalog` | closed tagged-union discriminator; `#[serde(tag = "input_kind")]`, never inferred from a nullable field |
 | `ArtifactKindV1` | `eis_fit`, `transient_analysis`, `calibration_observations`, `calibration_model`, `calibration_analysis`, `signal_analysis`, `health_baseline`, `health_assessment`, `health_trend`, `mechanism_analysis`, `state_estimation`, `ism_model_compilation`, `ism_model_analysis`, `ism_model_validation`, `artifact_lineage_catalog` | complete `ArtifactKind` vocabulary plus catalog contract |
 | `AvailabilityV1` | `available`, `available_with_warnings`, `not_provided`, `not_selected`, `unavailable` | reader/projection/selection outcome; only the first two permit populated source-derived detail |
+| `CatalogValidationV1` | `validated`, `not_applicable` | `validated` only after `read_artifact_lineage_catalog` succeeds; `not_applicable` only when the catalog flag is absent. Parse, schema, duplicate-key, key/identity, and node-validation failures abort before either public document exists. |
 | `CompatibilityStatusV1` | `compatible`, `legacy_unknown`, `not_provided`, `not_applicable` | exact Phase-C scope gate in 18.4; `incompatible` never serializes because it aborts |
 | `CompatibilityAxisV1` | `experiment_scope`, `sensor_scope`, `channel_scope` | first unequal Phase-C axis in that order; acquisition families are excluded |
 | `LineagePresentationStatusV1` | `known`, `legacy_unknown` | `ArtifactLineageState` tag |
@@ -972,9 +1037,10 @@ conclusion.
 ### 18.6 Closed `render_manifest.schema1.json`
 
 The render manifest is presentation provenance, not a scientific artifact: it
-has no `ArtifactIdentity`, no `artifact_kind`, no lineage root, no dependency
-registration, and cannot substitute for A1 lineage.  Its complete closed type
-graph is:
+has no manifest-level `ArtifactIdentity`, artifact kind, lineage root, or
+dependency registration, and cannot substitute for A1 lineage. Its artifact
+input-reference variant copies an input artifact kind only where a real
+artifact was read. Its complete closed type graph is:
 
 ```text
 RenderManifestV1 {
@@ -994,11 +1060,21 @@ RenderManifestV1 {
   determinism: ManifestDeterminismV1
 }
 
-ManifestInputReferenceV1 { input_flag: InputFlagV1,
+ManifestInputReferenceV1 =
+  Artifact(ManifestArtifactInputReferenceV1) |
+  LineageCatalog(ManifestLineageCatalogInputReferenceV1)
+ManifestArtifactInputReferenceV1 {
+  input_kind: ManifestInputReferenceKindV1 = artifact,
+  input_flag: ArtifactInputFlagV1, supplied_path_basename: Option<String>,
   artifact_kind: Option<ArtifactKindV1>, schema_version: Option<u32>,
-  lineage: LineagePresentationV1,
-  acquisition_families: AcquisitionFamilyPresentationV1,
+  lineage: Option<LineagePresentationV1>,
+  acquisition_families: Option<AcquisitionFamilyPresentationV1>,
   availability: AvailabilityV1, compatibility: CompatibilityStatusV1 }
+ManifestLineageCatalogInputReferenceV1 {
+  input_kind: ManifestInputReferenceKindV1 = lineage_catalog,
+  supplied_path_basename: Option<String>, schema_version: Option<u32>,
+  availability: AvailabilityV1, validation: CatalogValidationV1,
+  compatibility: CompatibilityStatusV1 = not_applicable }
 RequestedOutputSelectionV1 { formats: Vec<RenderFormatV1>, figures: Vec<FigureIdV1>,
   tables: Vec<TableIdV1>, figures_mode: SelectionModeV1,
   tables_mode: SelectionModeV1, overwrite: bool }
@@ -1036,7 +1112,28 @@ and `explicit`; `JsonObjectOrderV1` has only `declaration_order`; and
 and `legacy_lineage_unknown`.  These, plus the section 18.5 enums, are every
 semantic token in the manifest; there are no free-form status strings.
 
-`input_references` use the fixed input-flag order. `formats`, `figures`, and
+`ManifestInputReferenceV1` uses the same `#[serde(tag = "input_kind",
+rename_all = "snake_case")]` object encoding as the summary, with the same
+two literal discriminator values: `artifact` and `lineage_catalog`.
+`ManifestInputReferenceKindV1` is exactly those two tokens and has the same
+source authority as `PublicInputReferenceKindV1`; the two named enums remain
+separate because this is a separately-versioned public document. Its artifact
+object has, in declaration order, `input_kind`, `input_flag`,
+`supplied_path_basename`, `artifact_kind`, `schema_version`, `lineage`,
+`acquisition_families`, `availability`, and `compatibility`. Its catalog
+object has, in declaration order, `input_kind`, `supplied_path_basename`,
+`schema_version`, `availability`, `validation`, and `compatibility`. The
+summary's nullability rules apply verbatim. The catalog `compatibility` is
+always `not_applicable`, because section 18.4 forbids a catalog/artifact scope
+gate. A supplied catalog has `available`/`validated`/schema `1`; an absent
+catalog has `not_provided`/`not_applicable`/schema `null`; a catalog reader
+failure produces no manifest. No manifest catalog object contains an artifact
+ID or kind, lineage state, direct dependencies, acquisition-family state, or
+aggregate scientific claim. Catalog node information is represented only by
+the separate root/provenance projections.
+
+`input_references` use the nine-value `ArtifactInputFlagV1` order followed by
+the one catalog object. `formats`, `figures`, and
 `tables` use the requested order after duplicate validation; all other arrays
 use the section 18.5 ordering rule. `render_order` is ordinal 0 upward;
 `generated_files` has the same order but omits unavailable paths, with SVG
@@ -1185,7 +1282,7 @@ The reviewed fixture matrix immediately below is retained only to explain the
 finding; it is not normative and must not be implemented. In particular,
 neither an omitted field nor a phrase such as "clone current" authorizes an
 implementation to select a value, a provenance record, or an identity. The
-complete normative fixture contract is section 18.11.1.
+complete normative fixture contract is section 18.11.2.
 
 | fixture set / exact files | literal relevant content / purpose |
 |---|---|
@@ -1195,16 +1292,20 @@ complete normative fixture contract is section 18.11.1.
 | `edge/transient_zero_match.json`, `edge/transient_duplicate_match.json` | clone current transient; respectively selected model has no converged candidate and has exactly two converged `Exponential` candidates with different literal predicted series `[0.11,0.19]` and `[0.12,0.18]`. |
 | `edge/eis_bode.json`, `edge/eis_nyquist_sign.json` | EIS Bode adds source magnitude `[10.198...,5.099...]`, phase `[-11.309..., -11.309...]`, fitted magnitude/phase literal arrays; Nyquist uses the current negative serialized imag values to prove no sign change. |
 | `edge/incompatible_sensor.json`, `edge/incompatible_experiment.json`, `edge/incompatible_optional.json` | clone the named current artifact changing only `sensor_scope=Specific(sensor-B)`, `experiment_scope=Single(exp-beta)`, or optional EIS `channel_scope=Specific(other-channel)` respectively. |
-| reviewed scope/legacy examples | retracted: section 18.4 now reuses Phase-C admissibility exactly and section 18.11.1 provides the normative mutation records. |
+| reviewed scope/legacy examples | retracted: section 18.4 now reuses Phase-C admissibility exactly and section 18.11.2 is the sole normative fixture authority. |
 | `edge/catalog_schema2.json`, `edge/catalog_bad_key.json`, `edge/catalog_duplicate_key.json`, `edge/catalog_malformed.json` | schema 2; schema 1 with key `sha256:` ID different from node identity; schema 1 raw JSON text containing the same artifact map key twice; and text `{not-json}`. |
 | `edge/numeric_values.json` | valid source values `0.0`, `-0.0`, `0.000001`, `100000000000000000000.0`, `1.25`, and threshold `0.041`; expected formatted values are produced by section 18.9, not a renderer golden. |
 | `edge/dqi_health.json`, `edge/indeterminate_health.json`, `edge/signal_missing.json`, `edge/model_missing.json`, `edge/large_history.json` | each is a literal clone of `current` changing only: first `data_quality` dimension to `data_quality_insufficient` with reason `required_quantity_absent`; second `observability` to `indeterminate` with `insufficient_evidence`; third `analysis_values=[0.10,null,0.20]`; fourth one model point's `observed_voltage_v` and `unexplained_residual_v` to null; fifth mechanism `hypothesis_history` to exactly 1,000 entries `history-0000` through `history-0999` and Phase-C evidence records to exactly 10,000 IDs `evidence-00000` through `evidence-09999`, each otherwise the same valid typed value. |
 | `failure/write_denied/`, `failure/unmanaged_output/` | a test-only injected writer returns `io::ErrorKind::PermissionDenied` for staged `tables/mechanism_evidence.csv`; unmanaged output contains literal `keep.txt` with `do not delete`. |
 
-The preceding matrix is superseded by section 18.11.1 and creates no
+The preceding matrix is superseded by section 18.11.2 and creates no
 implementation permission.
 
-#### 18.11.1 Normative literal fixture capsules
+#### 18.11.1 Historical, non-normative fixture capsules (superseded)
+
+This entire subsection is retained solely as review history. It creates no
+implementation permission, fixture source, mutation recipe, producer choice,
+or expected-output contract. Section 18.11.2 replaces it in full.
 
 Phase D adds no opaque, partly-described artifact fixture. Every future input
 artifact fixture is either a byte-for-byte copy of one named committed source
@@ -1321,7 +1422,92 @@ fixtures remain separate structural cases and their manifest rows include their
 complete valid node identities and direct dependencies. A malformed catalog
 never reaches staging or publication.
 
-### 18.12 Mandatory test inventory — exactly 71 unique tests
+#### 18.11.2 Sealed Phase-D fixture ledger (normative)
+
+This subsection is the only fixture authority. `tests/fixtures/phase_d/` is
+materialized exactly from this ledger; no report, health, mechanism, model, or
+other producer command is a fixture source. Each row is either an exact
+byte-identical copy of an existing committed file at base
+`1b04f22b0588e48e39808a870eb55b254272a88c`, or a literal UTF-8 JSON byte
+stream embedded below. A `copy` is made by copying the named source bytes with
+no parse/reformat/rewrite operation. A `literal-gzip-base64` is made by base64
+decoding while ignoring ASCII whitespace, gzip-decompressing, verifying the
+listed uncompressed SHA-256, and writing those bytes unchanged. This is an
+encoding of complete file content, not a recipe, template, default, or
+producer invocation. All JSON readers use the listed relative destination.
+
+The one canonical base bundle is `phase_d_b_e2e_v1`. Every *Known* identity in
+that bundle has `experiment_scope={"Single":{"experiment_id":"b-e2e-1"}}`,
+`sensor_scope="Unspecified"`, and `channel_scope="Unspecified"`. Thus the
+approved Phase-C three-axis gate accepts every known/known comparison in the
+base. The calibration-analysis, signal-analysis, and model-analysis sources
+are intentionally serialized legacy inputs; they are not assigned an invented
+scope, family, producer version, or identity, and their Phase-C treatment is
+the already-approved `legacy_unknown` path. Acquisition families remain
+explicit provenance only: mechanism and health are `Unknown`; EIS is
+`Known(["b-family-eis"])`; transient is
+`Known(["b-family-transient"])`; calibration observations is
+`Known(["b-family-calibration"])`; estimation is
+`Known(["b-family-estimation"])`.
+
+| fixture ID / destination | model and exact source or complete literal SHA-256 | canonical reader outcome and immutable identity/provenance facts |
+|---|---|---|
+| `base.mechanism` → `base/mechanism.json` | `literal-gzip-base64`; `b24422b8e1ec3f99fcea4a9f7c7f225dfe6f77550b0365b6cda80447fd306b8b` | `MechanismAnalysisReport`, schema 4, `analysis_id="mechanism-phase-b:b-e2e-1"`, identity `sha256:a9e888019fd01dee61c98390a27bd9c6ca80eafe6b6379b77ca41f6a42a8c5b0`, semantic SHA `a9e888019fd01dee61c98390a27bd9c6ca80eafe6b6379b77ca41f6a42a8c5b0`, producer `phase-d-fixture-v1`; provenance `{software_version:"phase-b-fixture-generator",input_path:"phase-b-fixture-input",input_sha256:"0000000000000000000000000000000000000000000000000000000000000000",configuration_path:null,configuration_sha256:null,generation_timestamp:0,git_commit:null}`; four direct dependencies exactly as in the literal catalog row below. |
+| `base.health` → `base/health.json` | `literal-gzip-base64`; `4265b48a0a70ff6ec89eb214a2cc8c2194cbd43bb7b7098482a7686e2eee73b3` | `SensorHealthAssessment`, schema 4, `assessment_id="health:signal:a0-test:E1"`, identity `sha256:4717ab60c11af2a14fb665ff07427530861d2eb52773b288a733b9e814562964`, semantic SHA `4717ab60c11af2a14fb665ff07427530861d2eb52773b288a733b9e814562964`, producer `phase-d-fixture-v1`; provenance `{software_version:"a0-test",input_path:"fixture-input.json",input_sha256:"a0-test",configuration_path:null,configuration_sha256:null,generation_timestamp:1,git_commit:null}`. Its complete Phase-C report has config schema `1` and SHA `946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4`. |
+| `base.eis` → `base/eis.json` | `copy` of `tests/fixtures/phase_b/e2e/eis_fit_e2e_1.json`; `352dbbd578437a2260d066f7b59795a036f37be89ce1bf4edae55cd00d5e0e8c` | `EisFitReport`, schema 3, identity/semantic SHA `sha256:325483a1050eb603dd7b15c9587cfae97fa41aaf29a393a71c6082725b028e44` / `325483a1050eb603dd7b15c9587cfae97fa41aaf29a393a71c6082725b028e44`, producer `phase-b-fixture-generator`; serialized provenance is copied byte-for-byte. |
+| `base.transient` → `base/transient.json` | `copy` of `tests/fixtures/phase_b/e2e/transient_analysis_e2e_1.json`; `cb79b7ddccacf91fb27a44f2e7a791a096e2c7b068dc0f310b426fab5792bc75` | `TransientAnalysisReport`, schema 3, identity/semantic SHA `sha256:d9465a5deff1224c5190dae21a674c34e9eb293f88055973491616ea2ba02b5c` / `d9465a5deff1224c5190dae21a674c34e9eb293f88055973491616ea2ba02b5c`, producer `phase-b-fixture-generator`; serialized provenance is copied byte-for-byte. |
+| `base.calibration_observations` → `base/calibration_observations.json` | `copy` of `tests/fixtures/phase_b/e2e/calibration_observations_e2e_2.json`; `d743434c21a19ba77a98247c29c2f2cc9d2b1617ecd046e426895ae5a7d1ff5b` | `CalibrationObservations`, schema 3, identity/semantic SHA `sha256:927c0d3e846978f80e964fb040bfcca3e15cfffaf79bd712e223b6cf6d71c4f3` / `927c0d3e846978f80e964fb040bfcca3e15cfffaf79bd712e223b6cf6d71c4f3`, producer `phase-b-fixture-generator`; serialized provenance is copied byte-for-byte. |
+| `base.estimation` → `base/estimation.json` | `copy` of `tests/fixtures/phase_b/e2e/state_estimation_e2e_2.json`; `3d843cdae227db31ddfcbe97b05c4f035e9b72e29aef86168782f34e41d942e2` | `StateEstimationReport`, schema 4, identity/semantic SHA `sha256:12b73e011b71dfe35bf5e6d88ba15ecf4767a7fc1e2c95820602e6c120dc5ddf` / `12b73e011b71dfe35bf5e6d88ba15ecf4767a7fc1e2c95820602e6c120dc5ddf`, producer `phase-b-fixture-generator`; serialized provenance is copied byte-for-byte. |
+| `base.calibration` → `base/calibration.json` | `copy` of `tests/fixtures/a0_artifact_contracts/schema1/calibration_analysis.schema1.json`; `a3648941985e8566124f640f4bf1f7354d7bfa235de96a5aa6392bcffeb8e286` | `CalibrationAnalysisReport`, schema 1, actual `LegacyUnknown { source_schema_version: null, reason: FieldAbsentInLegacyArtifact }`; all serialized configuration, validation, provenance, and payload bytes are the source bytes. |
+| `base.signal` → `base/signal.json` | `copy` of `tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json`; `91af947caf9de80f875327eaf18f6bb40c0c02e34ad44fedf3f0ea14ff9981a8` | `SignalAnalysisReport`, schema 1, actual `LegacyUnknown { source_schema_version: null, reason: FieldAbsentInLegacyArtifact }`; every timestamp, value, statistic, configuration, provenance, and warning is the source byte stream. |
+| `base.model` → `base/model.json` | `literal-gzip-base64`; `f01a0360afb6a36e1d3c3649e01f56602f7ba9e7ab105eea4d75c76fcd595b0a` | `ModelAnalysisReport`, schema 5, `artifact_kind="ism_model_analysis"`, actual `LegacyUnknown { source_schema_version: 5, reason: FieldAbsentInLegacyArtifact }`; it has three ordered points `(time_s, observed_voltage_v, predicted_voltage_v, unexplained_residual_v)=(0,0.002,0,0.002),(1,0.002,0,0.002),(2,0.002,0,0.002)` and complete `0.00000025 V^2`/`0.0005 V` uncertainty in each point. |
+| `base.catalog` → `base/lineage_catalog.json` | `literal-gzip-base64`; `6b06d3a7a8b530d1acd4471d7bfc28de95e592a6726a9e72a81015c1ac0db320` | `ArtifactLineageCatalog`, schema 1, exactly six lexical map keys and nodes; it is not an artifact, has no identity, no provenance, no producer version, and no acquisition-family state of its own. |
+
+The `base.catalog` six keys, which are also its complete node set, are exactly
+`sha256:12b73e011b71dfe35bf5e6d88ba15ecf4767a7fc1e2c95820602e6c120dc5ddf`,
+`sha256:325483a1050eb603dd7b15c9587cfae97fa41aaf29a393a71c6082725b028e44`,
+`sha256:4717ab60c11af2a14fb665ff07427530861d2eb52773b288a733b9e814562964`,
+`sha256:927c0d3e846978f80e964fb040bfcca3e15cfffaf79bd712e223b6cf6d71c4f3`,
+`sha256:a9e888019fd01dee61c98390a27bd9c6ca80eafe6b6379b77ca41f6a42a8c5b0`,
+and `sha256:d9465a5deff1224c5190dae21a674c34e9eb293f88055973491616ea2ba02b5c`.
+Only the mechanism node has dependencies, in this exact canonical order:
+calibration-observations / EIS-fit / state-estimation / transient-analysis,
+each role `TransformationInput` and each artifact ID exactly as the named base
+file. Every other node has `direct_dependencies=[]`. The catalog intentionally
+does not add nodes for the three legacy inputs.
+
+The complete bytes for the four `literal-gzip-base64` entries follow. They are
+normative Unicode-free ASCII transport of the complete UTF-8 JSON content;
+their uncompressed SHA-256 values above, not gzip metadata, are authoritative.
+
+```text
+base/mechanism.json
+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
+```
+
+The following concatenated stream is retained only as a non-normative
+transport check; the individually labelled streams below are authoritative:
+
+```text
+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
+```
+
+The following individually labelled streams supersede the preceding
+non-normative concatenated transport dump:
+
+```text
+health_phase_d_scope.json
+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
+model.json
+H4sICAQHhWoAA21vZGVsLmpzb24A7VhNi9swEL3vrxA+1yEbuhTaU6EUCqUU2p5KEYo0WU9XllxJ9m5Y9r93LMeKP5K0hz2UYsglmjdfb95MII9XjGXCBdwJGfgdGpW9Zhn6kpdWgebCCL336LMXLRAaVGAkEOY7faeXL0EElCyC2Q4fQu3gDTOWVQW5SaHzEmQhDEVk0hqpa4/WrDLy/hFDtgEpO4otagx7ivzYRSZ0cEKhDNbt+TBzdCREid6jueWzqsj2iSoQTpQQwOWTHExqgWWs4VAFOSQ0R+WHWSpHzLSdtMQYG7jwHuijsgPAB1dL6vs84l44Q4V2YenpKXau0YC4hWPHH+FWyP03c2fsvUnPZHAgvG1fsvcIWr3deurng+nwbw/DOyRrC7K1k8C9LKAUvAHXUk7eNxHwlAroJqxghwZDB0ncl5U1lGTEhAIvHVYHaPa1cAB5ZdGEdvKgmAOPqhaaCaNYTRNxQZB13wtj1ROCpqrHsbtaMKqvKoSHXOXxLW+us+mIRp6zNl+muYgAI+igJI6mbVJTOELshPZwADVCoyKVcGVLgs4K6pth6Jnfm1BAVIfeMzR55xOl1XEc6fFJmWmkUd24rVsyhzW2S/arJpluHdblQAStjyZhkYyl6EdA69ryUaKhVpMAuvC7tBTr1XpsurxXZ3draPdUg98hKE6SoBJQzBBEf+0vVunrqrIk3wt5nmUaw3hoNVVxvuzprsaVSbOxtHquIffG6kDLy5uO3/UmQSoHLblzzHE/W2Fy6qyGyegDlrS3E/hAtWM9kBrqskoKSgYydfv4OTL1bnydh4uZJZ9Ts+/uiJ8y1HEQNUhNEIUUjzcbgm1WN5C/GkCPR/WnkHZLUE5fC6tmQY/Iccixdok5o4RTHJyzLpG/vpnoDv6Yr5/BxVwH/aZDMbAGG4Q+2f5MM7WBh4p+cQxJor+QJ3TTK32y8wXIO3J8Jvmj5zEPBaJfLZgtxuwanduIq0GPy1FbjtrfHLXr5agtR40tR205av/RUdssR205auyfP2pX/f8tJ/4VePoNFQ0ZNQUSAAA=
+catalog.json
+H4sICAQHhWoAA2NhdGFsb2cuanNvbgDtV01PGzEQvfMrUM5E8vcH/6Dqse0JVauxPSYWyW66XigI8d/rJTRaKA1hN/TSHCI59qzfzPObGfv+5PR0lv0CV1DdYJtTU8/OT+lZPw1tlyL4LpeZ+zLRWy6ASXVOmdMcCaVO0xCRSxclqmCMAyrRR6GVBh09ReatNIwowlB5ykjwMoS43bBsmQLWXeruBnMD7CqFsnAw3LNXEK5SvcHooMMKc5dW0PU8DIz/YEgMFtdtE649toPl2XoBGeduHtNtd93i/BJrbKFr2uGueLvGNq1K/FX2zRqfUVDWv6T6cvly9vl3G3rcHBnO6Wxg9rAdPwzjwDo37RZt9q3Oa/QpJgxDx/wC6hqXb9qB/3GdcurZqiKs0jJhfhnE57r52VNy8TyGQk3/wd18QPjA4vtf3F9BEYuvNnroPZssiZMXMLOQWiyyCLjGumjTb2K62Hj0ZPZbkJxJYThQIgk6RXgI2lHZA2kfAa2OIChAZBa45aCpV8QwzaQjzKAQYxNhMu6uRMCUq5i6nfrnR/0fSv8pjxL+ZAlMEr7QVEOB9ZQWCKAiOqVkjEQLpiUnRtHA0EmmNXfMGNCcO4uGCqmYVaOFPxl3l/AXCMtuUUHOmHMvrwO0gLBNgRv6P2i/mF89Kn63eief4yT1WqY9CRyNUFabaAiWLaMjgrjoPXAsiRRjhKitC5oyZIw75aMqf7yIfKx6J+PuUq+HZXLtYyetGpexvXkc52Md/yd1fED/qHo+WRuTMgJKbhlDqI2B0ICoqLeGWwJMu2C98lAcgojKKV4c0NqX7hIVCAbGl5YyNiMm4+7KiBX2Akh5VUENy7ucdufCsaBPKOiTD3Jf+W69eMbuh9fbkRW3fNY2j8c++9pCnWPTbh47n+r1dTd77Vz3iOuA1//9HgAfE8YBn/PvfNB/TDzBCiVBBoyRMia8pJYEQEZBaeG5QIuOWR5LnkhpNReWKqoQmAPCnPRvxNP1nqa+ULxSzvaO6Gn0aheYHMDILnBA4t5J2/FG9HE3oi3xo+5DkzXxzvvQSf97+AU6PqV1EBUAAA==
+```
+
+No fixture construction may choose or synthesize a field omitted from these
+four byte streams.
+
+### 18.12 Mandatory test inventory — exactly 73 unique tests
 
 All tests live in `tests/phase_d_reporting_public_output.rs` unless marked
 unit; a test name appears once.  `R` is the requirement in section 18.13,
@@ -1402,18 +1588,21 @@ falsification result.  Status `ok` means successful complete publication;
 | 69 | `phase_d_catalog_reader_rejects_structurally_invalid_catalog` integration | R05/AC69; domain catalog reader | `failure/catalog_invalid_structure.json` exact bytes → `err(LineageCatalog::Json)` and no final root; falsifies array-as-map fallback |
 | 70 | `phase_d_different_known_acquisition_families_are_projected_not_rejected` integration | R06/AC70; compatibility/projection | manifest different-families row plus required pair → `ok`, compatibility `compatible`, both literal family lists projected, no independence label; falsifies family-equality gating |
 | 71 | `phase_d_comparable_with_warnings_is_rendered_and_disclosed` integration | R13/AC71; figure/table/document/manifest | manifest comparable-with-warnings health row → D-FIG-03 and D-TBL-07 written with literal values and closed warning in manifest plus Markdown; falsifies silent drop or divergence |
+| 72 | `phase_d_lineage_catalog_input_reference_is_catalog_variant_without_artifact_fields` integration | R09/R10/AC72; summary/manifest | `base/catalog` supplied with the base bundle → both documents contain exactly one catalog-specific tagged reference; its exact JSON object has `input_kind="lineage_catalog"`, basename `lineage_catalog.json`, schema `1`, availability `available`, validation `validated`, and (manifest only) compatibility `not_applicable`; its key set proves the absence of `input_flag`, `artifact_id`, `artifact_kind`, `lineage`, and `acquisition_families`. |
+| 73 | `phase_d_fixture_ledger_materializes_exact_literal_files_and_canonical_readers_accept_them` integration | R23/AC73; fixture ledger/readers | materialize every section-18.11.2 copy or decoded literal, verify every listed SHA-256, read every accepted entry through its canonical reader, and verify every listed identity/provenance/scope/family fact; malformed and structural-invalid catalog entries must return their stated error. This falsifies missing bytes, bad hash/ID, hidden producer choice, omitted provenance, or a fixture that cannot be constructed from this document. |
 
 ### 18.13 Traceability, two-implementer audit, and readiness
 
-There are exactly **22 requirements**, **71 acceptance criteria**, and **71
+There are exactly **23 requirements**, **73 acceptance criteria**, and **73
 mandatory tests**.  Requirement IDs are `D-R01` route/parser, `R02` selection,
 `R03` atomic output, `R04` artifact readers, `R05` catalog reader, `R06`
 required compatibility, `R07` optional compatibility, `R08` legacy projection,
 `R09` public summary, `R10` manifest, `R11` Markdown, `R12` tables, `R13`
 scientific figures, `R14` figure validity, `R15` format/selection semantics,
 `R16` numeric determinism, `R17` failure publication, `R18` immutability,
-`R19` repeatability, `R20` scale, `R21` literal non-circular fixtures, and
-`R22` public error reachability. Acceptance criteria AC01–AC71 map one-to-one
+`R19` repeatability, `R20` scale, `R21` literal non-circular fixtures,
+`R22` public error reachability, and `R23` sealed fixture materialization.
+Acceptance criteria AC01–AC73 map one-to-one
 to the corresponding inventory
 row, named owner target, fixture/input, expected status/error, and
 falsification purpose.  Thus unmapped requirements = 0, unmapped criteria =
@@ -1431,9 +1620,10 @@ disagreement axes = 0.
 
 The second independent-review findings are closed in the plan as follows:
 PD-RR-P1-01 by the public reachability proof and AC67; PD-RR-P1-02 by the
-verbatim Phase-C gate and AC70; PD-RR-P1-03 by the closed graphs/enums in
-18.5–18.6; PD-RR-P1-04 by D-TBL-04 and AC71; and PD-RR-P1-05 by 18.11.1 plus
-AC68–AC69. PD-P1-06 is unchanged by 18.9. The final planning audit requires
+verbatim Phase-C gate and AC70; PD-RR-P1-03 by the tagged catalog variants in
+18.5–18.6 and AC72; PD-RR-P1-04 by D-TBL-04 and AC71; and PD-RR-P1-05 by the
+sealed ledger in 18.11.2 and AC73. PD-P1-06 is unchanged by 18.9. The final
+planning audit requires
 zero inaccessible public payloads, error transport ambiguities, new
 compatibility theories, family-equality gates, undefined type references or
 tokens, availability/lineage/manifest ambiguity, D-TBL-04 contradictions,
@@ -1450,8 +1640,8 @@ and manifest = the closed graphs in 18.5–18.6; availability/lineage = their
 listed enums and null rules; D-TBL-04 = root plus direct-dependency tagged
 rows in 18.10; catalog-only nodes = never; `ComparableWithWarnings` = render
 with the stated manifest/Markdown warning in both figure and table; fixture
-identity/provenance = the literal manifest and canonical hash recipe in
-18.11.1; malformed bytes/errors = the two code blocks in 18.11.1; and the
-mandatory test count = 71. Two conforming implementers therefore have zero
+identity/provenance = the sealed bytes and canonical hash recipe in 18.11.2;
+malformed bytes/errors = the two code blocks in 18.11.2; and the mandatory
+test count = 73. Two conforming implementers therefore have zero
 material disagreements and zero implementation inventions. Any discovered
 choice outside those answers is a planning defect and blocks implementation.
