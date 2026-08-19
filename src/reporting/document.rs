@@ -873,6 +873,22 @@ fn limitations(p: &PublicReportProjection, figures: &[FigureId]) -> Vec<PublicLi
             output_id: None,
         });
     }
+    for comparison in &p.health.baseline_comparison {
+        if matches!(
+            comparison.comparability,
+            FeatureComparability::ComparableWithWarnings
+        ) {
+            values.push(PublicLimitationV1 {
+                code: WarningCodeV1::BaselineComparableWithWarnings,
+                message: comparison
+                    .override_reason
+                    .clone()
+                    .unwrap_or_else(|| "Comparable with upstream context warning.".into()),
+                input_flag: Some(InputFlagV1::Health),
+                output_id: Some(FigureId::CurrentVsBaseline.as_str().into()),
+            });
+        }
+    }
     for figure in figures {
         if let Some(reason) = p.figure_reason(*figure) {
             values.push(PublicLimitationV1 {

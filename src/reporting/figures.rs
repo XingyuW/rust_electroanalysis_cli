@@ -45,6 +45,17 @@ struct FigurePayload {
     series: Vec<Series>,
 }
 
+/// Fixed-margin display geometry for copied serialized coordinates.  It is
+/// intentionally calculated only from the finite presentation payload; it
+/// neither changes nor derives a scientific value.
+#[derive(Clone, Copy)]
+struct DisplayBounds {
+    x_min: f64,
+    x_max: f64,
+    y_min: f64,
+    y_max: f64,
+}
+
 pub fn write_figure(
     root: &Path,
     id: FigureId,
@@ -727,6 +738,7 @@ fn token<T: serde::Serialize>(value: &T) -> String {
 }
 
 fn svg_document(id: FigureId, payload: &FigurePayload, width: u32, height: u32) -> String {
+    let bounds = display_bounds(payload);
     let mut svg = format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\"><title>{}</title><desc>{}</desc><metadata>phase_d_figure={}; threshold_lines=0</metadata><rect width=\"100%\" height=\"100%\" fill=\"white\"/><text x=\"80\" y=\"70\" font-family=\"sans-serif\" font-size=\"36\">{}</text><text x=\"80\" y=\"110\" font-family=\"sans-serif\" font-size=\"18\">x: {}</text><text x=\"80\" y=\"140\" font-family=\"sans-serif\" font-size=\"18\">y: {}</text><line x1=\"120\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#1e1e1e\" stroke-width=\"2\"/><line x1=\"120\" y1=\"190\" x2=\"120\" y2=\"{}\" stroke=\"#1e1e1e\" stroke-width=\"2\"/>",
         escape(payload.title),
@@ -747,7 +759,7 @@ fn svg_document(id: FigureId, payload: &FigurePayload, width: u32, height: u32) 
             escape(&series.label)
         ));
         for point in &series.points {
-            let (x, y) = point_position(point, series_index, width, height);
+            let (x, y) = point_position(point, series_index, width, height, bounds);
             svg.push_str(&format!("<circle cx=\"{x}\" cy=\"{y}\" r=\"5\" fill=\"{}\"><title>x={} y={}</title></circle>", colour_hex(series.colour), escape(&point.x_text), escape(&point.y_text)));
         }
         svg.push_str("</g>");
@@ -768,6 +780,7 @@ fn write_png(
     id: FigureId,
 ) -> Result<(), PublicReportError> {
     let mut image: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_pixel(width, height, WHITE);
+    let bounds = display_bounds(payload);
     draw_line(
         &mut image,
         120,
@@ -780,7 +793,7 @@ fn write_png(
     for (series_index, series) in payload.series.iter().enumerate() {
         let mut last = None;
         for point in &series.points {
-            let (x, y) = point_position(point, series_index, width, height);
+            let (x, y) = point_position(point, series_index, width, height, bounds);
             if let Some((last_x, last_y)) = last {
                 draw_line(&mut image, last_x, last_y, x, y, series.colour);
             }
@@ -797,15 +810,69 @@ fn write_png(
         })
 }
 
-fn point_position(point: &Point, series_index: usize, width: u32, height: u32) -> (i32, i32) {
-    let usable_width = (width as i32 - 260).max(1);
-    let usable_height = (height as i32 - 380).max(1);
-    let x = 140 + ((point.x.abs() as u64 % usable_width as u64) as i32);
+fn display_bounds(payload: &FigurePayload) -> DisplayBounds {
+    let mut xs = payload
+        .series
+        .iter()
+        .flat_map(|series| series.points.iter().map(|point| point.x))
+        .filter(|value| value.is_finite())
+        .collect::<Vec<_>>();
+    let mut ys = payload
+        .series
+        .iter()
+        .flat_map(|series| series.points.iter().filter_map(|point| point.y))
+        .filter(|value| value.is_finite())
+        .collect::<Vec<_>>();
+    if xs.is_empty() {
+        xs.push(0.0);
+    }
+    if ys.is_empty() {
+        ys.push(0.0);
+    }
+    let (mut x_min, mut x_max) = xs
+        .into_iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(min, max), value| {
+            (min.min(value), max.max(value))
+        });
+    let (mut y_min, mut y_max) = ys
+        .into_iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(min, max), value| {
+            (min.min(value), max.max(value))
+        });
+    if x_min == x_max {
+        x_min -= 0.5;
+        x_max += 0.5;
+    }
+    if y_min == y_max {
+        y_min -= 0.5;
+        y_max += 0.5;
+    }
+    DisplayBounds {
+        x_min,
+        x_max,
+        y_min,
+        y_max,
+    }
+}
+
+fn point_position(
+    point: &Point,
+    series_index: usize,
+    width: u32,
+    height: u32,
+    bounds: DisplayBounds,
+) -> (i32, i32) {
+    let left = 120.0;
+    let right = width as f64 - 100.0;
+    let top = 190.0;
+    let bottom = height as f64 - 130.0;
+    let x = left + (point.x - bounds.x_min) / (bounds.x_max - bounds.x_min) * (right - left);
     let y = point
         .y
-        .map(|value| 220 + ((value.abs() * 1000.0) as u64 % usable_height as u64) as i32)
-        .unwrap_or(200 + (series_index as i32 * 12));
-    (x, y)
+        .map_or(top + 16.0 + series_index as f64 * 12.0, |value| {
+            bottom - (value - bounds.y_min) / (bounds.y_max - bounds.y_min) * (bottom - top)
+        });
+    (x.round() as i32, y.round() as i32)
 }
 fn draw_disc(image: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, x: i32, y: i32, colour: Rgb<u8>) {
     for dx in -3..=3 {

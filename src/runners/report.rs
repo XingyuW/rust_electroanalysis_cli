@@ -257,7 +257,15 @@ fn write_manifest(
         crate::report_config::ReportFormat::Json => vec!["json"],
         crate::report_config::ReportFormat::Markdown => vec!["markdown"],
     };
-    let generated_files = written.iter().map(generated_file).collect::<Vec<_>>();
+    // The manifest is itself a generated certified output.  Include its fixed
+    // final path before serializing so the manifest describes the complete
+    // staged bundle without any post-write mutation or self-referential hash.
+    let mut generated_paths = written.to_vec();
+    generated_paths.push("render_manifest.schema1.json".into());
+    let generated_files = generated_paths
+        .iter()
+        .map(generated_file)
+        .collect::<Vec<_>>();
     let render_order = generated_files
         .iter()
         .enumerate()
@@ -589,6 +597,26 @@ fn manifest_warnings(
             input_flag: Some(InputFlagV1::LineageCatalog),
             output_id: None,
         });
+    }
+    for comparison in &projection.health.baseline_comparison {
+        if matches!(
+            comparison.comparability,
+            crate::results::FeatureComparability::ComparableWithWarnings
+        ) {
+            warnings.push(ManifestWarningV1 {
+                code: WarningCodeV1::BaselineComparableWithWarnings,
+                message: comparison
+                    .override_reason
+                    .clone()
+                    .unwrap_or_else(|| "Comparable with upstream context warning.".into()),
+                input_flag: Some(InputFlagV1::Health),
+                output_id: Some(
+                    crate::report_config::FigureId::CurrentVsBaseline
+                        .as_str()
+                        .into(),
+                ),
+            });
+        }
     }
     for (id, _) in unavailable {
         warnings.push(ManifestWarningV1 {

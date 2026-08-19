@@ -670,13 +670,16 @@ fn current_vs_baseline(
             .filter(|feature| feature.name == row.feature && !feature.unit.is_empty())
             .collect::<Vec<_>>();
         let reason = match row.comparability {
+            // Unit authority is a separate required presentation boundary.
+            // Never infer a unit from another feature, even if upstream
+            // comparability is also unavailable.
+            _ if units.len() != 1 => Some(AvailabilityReason::UnitAuthorityUnavailable),
             crate::results::FeatureComparability::NotComparable => {
                 Some(AvailabilityReason::NotComparable)
             }
             crate::results::FeatureComparability::Unknown => {
                 Some(AvailabilityReason::ComparisonUnknown)
             }
-            _ if units.len() != 1 => Some(AvailabilityReason::UnitAuthorityUnavailable),
             _ if !row.current_value.is_some_and(f64::is_finite)
                 || !row.baseline_value.is_some_and(f64::is_finite) =>
             {

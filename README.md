@@ -2708,6 +2708,32 @@ This project is distributed as open source under the terms of the [MIT License](
 
 ## Canonical physical input boundary
 
+## Certified public scientific reports
+
+The certified public-output route is `electroanalysis report render`. It accepts only already validated serialized artifacts; it never discovers raw files, fits models, recomputes statistics, resolves lineage, or promotes an association to causality.
+
+```text
+electroanalysis report render \
+  --mechanism mechanism_analysis.json \
+  --health health_assessment.json \
+  --output-dir public_report \
+  [--lineage-catalog artifact_lineage_catalog.json] \
+  [--eis eis_fit.json] [--transient transient_analysis.json] \
+  [--calibration calibration_analysis.json \
+   --calibration-observations calibration_observations.json] \
+  [--signal signal_analysis.json] [--estimation state_estimation.json] \
+  [--model ism_model_analysis.json] \
+  [--format all|json|markdown] \
+  [--figures all|none|ID[,ID...]] \
+  [--tables all|none|ID[,ID...]] [--overwrite]
+```
+
+`--mechanism`, `--health`, and `--output-dir` are required. Calibration and calibration observations are an all-or-nothing pair. `--format all` writes both the public summary JSON and Markdown report; `json` or `markdown` selects one document plus the manifest. Tables and figures are controlled independently. Omitted figure selection is best-effort; explicitly selecting an unavailable output fails without publishing a bundle.
+
+The published directory contains `render_manifest.schema1.json`, the selected human/machine document(s), selected CSV tables in `tables/`, and SVG/PNG pairs in `figures/`. Publication is private staging followed by a directory rename. Existing directories require `--overwrite` and must contain only a recognized prior Phase-D bundle; unrelated files, directories, or symlinks are rejected unchanged.
+
+All public files are deterministic and projection-only. They use serialized scientific values and clearly report `NA`, unavailable outputs, legacy lineage, data-quality limitations, and producer assessment status rather than supplying a new conclusion.
+
 `electrodata-io` is the canonical physical/scientific input boundary. It owns
 file and container detection, parsing, worksheet selection, raw schema/units,
 recovery policies, provenance, diagnostics, and structured input errors. This

@@ -10,3 +10,4 @@ pub(crate) mod reader;
 pub(crate) mod tables;
 
 pub use error::{AvailabilityReason, CompatibilityAxis, PublicReportError, PublicationPhase};
+pub use tables::format_public_f64;
