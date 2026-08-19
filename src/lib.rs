@@ -35,6 +35,8 @@ pub mod plot_config;
 pub mod plot_runner;
 pub mod potentiometry;
 pub mod regression_mod;
+pub mod report_config;
+pub mod reporting;
 pub mod results;
 pub mod runners;
 pub mod search_config;

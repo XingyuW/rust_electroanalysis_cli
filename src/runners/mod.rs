@@ -22,6 +22,7 @@ pub mod mechanism;
 pub mod model;
 pub mod model_validation;
 pub mod plot;
+pub mod report;
 pub mod search;
 pub mod signal;
 pub mod transient;
@@ -69,6 +70,8 @@ pub enum RunnerError {
     Fitting(#[from] FittingError),
     #[error(transparent)]
     Reporting(#[from] ReportingError),
+    #[error(transparent)]
+    PublicReport(#[from] crate::reporting::PublicReportError),
     #[error(transparent)]
     Workspace(#[from] WorkspaceError),
     #[error(transparent)]

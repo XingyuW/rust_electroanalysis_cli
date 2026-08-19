@@ -31,11 +31,12 @@ pub use lineage::{
     AcquisitionFamilyId, AggregateExperimentScopeId, ArtifactAcquisitionFamilies,
     ArtifactDependency, ArtifactDependencyRole, ArtifactExperimentScope, ArtifactId,
     ArtifactIdentity, ArtifactLineageCatalog, ArtifactLineageNode, ArtifactLineageState,
-    EvidenceIndependence, ExperimentId, LineageResolutionReason, LineageResolutionStatus,
-    ResolvedAcquisitionFamilies, ResolvedArtifactLineage, ScopeKey, UnknownLineageReason,
-    artifact_identity_from_payload, artifact_scope_from_experiment_ids, current_unknown_lineage,
-    dependency_from_lineage, known_lineage_from_artifact, legacy_unknown_lineage,
-    lineage_scope_and_families, resolve_known_artifact_id, resolve_lineage, semantic_sha256,
+    EvidenceIndependence, ExperimentId, LineageCatalogReadError, LineageResolutionReason,
+    LineageResolutionStatus, ResolvedAcquisitionFamilies, ResolvedArtifactLineage, ScopeKey,
+    UnknownLineageReason, artifact_identity_from_payload, artifact_scope_from_experiment_ids,
+    current_unknown_lineage, dependency_from_lineage, known_lineage_from_artifact,
+    legacy_unknown_lineage, lineage_scope_and_families, read_artifact_lineage_catalog,
+    resolve_known_artifact_id, resolve_lineage, semantic_sha256,
 };
 pub use measurement::{
     CHANNEL_ALIASES_METADATA_KEY, ChannelMetadata, CoordinateConversion, MeasurementChannel,
