@@ -14,7 +14,7 @@ use crate::{
     },
 };
 use serde::Serialize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -34,6 +34,7 @@ pub(crate) struct CompatibilityOutcome {
 /// Typed, canonical-reader-only inputs for a public report render.
 #[derive(Debug, Clone)]
 pub(crate) struct ReportInputs {
+    pub input_paths: ReportInputPaths,
     pub mechanism: MechanismAnalysisReport,
     pub health: SensorHealthAssessment,
     pub lineage_catalog: Option<ArtifactLineageCatalog>,
@@ -46,6 +47,20 @@ pub(crate) struct ReportInputs {
     pub model: Option<ModelAnalysisReport>,
     pub required_compatibility: CompatibilityOutcome,
     pub optional_compatibility: Vec<(&'static str, &'static str, CompatibilityOutcome)>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ReportInputPaths {
+    pub mechanism: PathBuf,
+    pub health: PathBuf,
+    pub lineage_catalog: Option<PathBuf>,
+    pub eis: Option<PathBuf>,
+    pub transient: Option<PathBuf>,
+    pub calibration: Option<PathBuf>,
+    pub calibration_observations: Option<PathBuf>,
+    pub signal: Option<PathBuf>,
+    pub estimation: Option<PathBuf>,
+    pub model: Option<PathBuf>,
 }
 
 impl ReportInputs {
@@ -171,6 +186,18 @@ impl ReportInputs {
         )?;
 
         Ok(Self {
+            input_paths: ReportInputPaths {
+                mechanism: options.mechanism.clone(),
+                health: options.health.clone(),
+                lineage_catalog: options.lineage_catalog.clone(),
+                eis: options.eis.clone(),
+                transient: options.transient.clone(),
+                calibration: options.calibration.clone(),
+                calibration_observations: options.calibration_observations.clone(),
+                signal: options.signal.clone(),
+                estimation: options.estimation.clone(),
+                model: options.model.clone(),
+            },
             mechanism,
             health,
             lineage_catalog,

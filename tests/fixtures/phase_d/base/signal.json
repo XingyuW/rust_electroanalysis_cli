@@ -1,0 +1,267 @@
+{
+  "allan": null,
+  "analysis_id": "signal:phase-d-signal-input:E1",
+  "analysis_timestamps": [
+    0.0,
+    1.0,
+    2.0,
+    3.0,
+    4.0,
+    5.0,
+    6.0,
+    7.0
+  ],
+  "analysis_values": [
+    0.1,
+    0.11,
+    null,
+    0.13,
+    0.14,
+    0.15,
+    0.16,
+    0.17
+  ],
+  "artifact_kind": "signal_analysis",
+  "channel": "E1",
+  "configuration": {
+    "allan": {
+      "enabled": false,
+      "minimum_clusters": 8,
+      "tau_points": 30
+    },
+    "correlation": {
+      "enabled": false,
+      "lag_step_s": null,
+      "maximum_lag_s": 60.0,
+      "minimum_observations": 3
+    },
+    "drift": {
+      "minimum_duration_s": 300.0,
+      "models": [
+        "ordinary_linear",
+        "theil_sen"
+      ]
+    },
+    "export": {
+      "allan_filename": "signal_allan.csv",
+      "correlations_filename": "signal_correlations.csv",
+      "drift_filename": "signal_drift.csv",
+      "psd_filename": "signal_psd.csv",
+      "report_filename": "signal_report.txt",
+      "results_filename": "signal_results.json",
+      "spikes_filename": "signal_spikes.csv",
+      "summary_filename": "signal_summary.csv"
+    },
+    "plotting": {
+      "enabled": true
+    },
+    "psd": {
+      "detrend": "linear",
+      "enabled": false,
+      "fft_length": null,
+      "frequency_bands": [],
+      "maximum_frequency_hz": null,
+      "minimum_frequency_hz": null,
+      "overlap_fraction": 0.5,
+      "parseval_tolerance": 0.1,
+      "segment_duration_s": null,
+      "segment_points": 256,
+      "window": "hann"
+    },
+    "sampling": {
+      "duplicate_timestamp_policy": "error",
+      "maximum_interpolation_gap_s": 5.0,
+      "non_monotonic_timestamp_policy": "error",
+      "policy": "require_regular",
+      "regularity_relative_tolerance": 0.01,
+      "resample_interval_s": null
+    },
+    "schema_version": 1,
+    "spikes": {
+      "enabled": true,
+      "mad_threshold": 4.0,
+      "maximum_flagged_fraction": 0.25,
+      "method": "hampel",
+      "minimum_local_observations": 5,
+      "window_duration_s": null,
+      "window_points": 11
+    },
+    "statistics": {
+      "confidence_level": 0.95,
+      "quantiles": [
+        0.01,
+        0.05,
+        0.25,
+        0.5,
+        0.75,
+        0.95,
+        0.99
+      ]
+    },
+    "windowing": {
+      "eligible_event_kinds": [
+        "concentration_step",
+        "flow_change",
+        "temperature_change",
+        "interferent_addition"
+      ],
+      "end_s": null,
+      "exclude_after_event_s": 0.0,
+      "exclude_before_event_s": 0.0,
+      "relative_end_s": null,
+      "relative_start_s": null,
+      "source": "entire_measurement",
+      "start_s": null
+    }
+  },
+  "correlations": [],
+  "descriptive": {
+    "confidence_interval": [
+      0.1181523331901064,
+      0.1561333810956079
+    ],
+    "count": 7,
+    "excess_kurtosis": -1.7050268122371823,
+    "interquartile_range": 0.035,
+    "maximum": 0.17,
+    "mean": 0.13714285714285715,
+    "median": 0.14,
+    "median_absolute_deviation": 0.01999999999999999,
+    "minimum": 0.1,
+    "peak_to_peak": 0.07,
+    "quantiles": [
+      {
+        "probability": 0.01,
+        "value": 0.10060000000000001
+      },
+      {
+        "probability": 0.05,
+        "value": 0.10300000000000001
+      },
+      {
+        "probability": 0.25,
+        "value": 0.12
+      },
+      {
+        "probability": 0.5,
+        "value": 0.14
+      },
+      {
+        "probability": 0.75,
+        "value": 0.155
+      },
+      {
+        "probability": 0.95,
+        "value": 0.167
+      },
+      {
+        "probability": 0.99,
+        "value": 0.1694
+      }
+    ],
+    "rms": 0.1391812795293554,
+    "robust_standard_deviation": 0.029651999999999984,
+    "sample_variance": 0.0006571428571428573,
+    "skewness": -0.18691318931098788,
+    "standard_deviation": 0.025634797778466233
+  },
+  "drift": [],
+  "experiment_id": null,
+  "lineage": {
+    "Known": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "phase-d-fixture-family"
+          ]
+        },
+        "artifact_id": "sha256:0c4c7f89787d26002ccbedad8c9336cd190a2a721b1e0bc0f319c4df420a4733",
+        "artifact_kind": "signal_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "b-e2e-1"
+          }
+        },
+        "producer_version": "phase-d-fixture-v1",
+        "schema_version": 3,
+        "semantic_sha256": "0c4c7f89787d26002ccbedad8c9336cd190a2a721b1e0bc0f319c4df420a4733",
+        "sensor_scope": "Unspecified"
+      }
+    }
+  },
+  "provenance": {
+    "configuration_path": "phase-d-signal.toml",
+    "configuration_sha256": "phase-d-signal-config",
+    "generation_timestamp": 0,
+    "git_commit": null,
+    "input_path": "phase-d-signal.csv",
+    "input_sha256": "phase-d-signal-input",
+    "software_version": "phase-d-fixture-v1"
+  },
+  "psd": null,
+  "residual_analysis": [],
+  "sampling": {
+    "duplicate_timestamps": 0,
+    "duration_s": 7.0,
+    "effective_frequency_hz": 1.0,
+    "end_time_s": 7.0,
+    "finite_sample_count": 7,
+    "interpolated_indices": [],
+    "interpolation_count": 0,
+    "interpolation_gap_exceeded": false,
+    "interval_cv": 0.0,
+    "interval_stddev_s": 0.0,
+    "is_regular": true,
+    "maximum_interval_s": 1.0,
+    "mean_interval_s": 1.0,
+    "median_interval_s": 1.0,
+    "minimum_interval_s": 1.0,
+    "missing_fraction": 0.125,
+    "non_monotonic_timestamps": 0,
+    "output_missing_indices": [],
+    "resolved_duplicate_groups": 0,
+    "sample_count": 8,
+    "sorted_rows": 0,
+    "start_time_s": 0.0,
+    "target_interval_s": null,
+    "transformations": []
+  },
+  "schema_version": 3,
+  "sensor_id": null,
+  "spikes": {
+    "flagged": [],
+    "flagged_fraction": 0.0,
+    "maximum_flagged_fraction": 0.25,
+    "method": "hampel"
+  },
+  "unit": "V",
+  "warnings": [
+    "record_too_short",
+    "drift_duration_insufficient",
+    "drift_duration_insufficient"
+  ],
+  "window": {
+    "detrending_method": "Linear",
+    "end_s": 7.0,
+    "excluded_intervals": [],
+    "excluded_observations": 0,
+    "missing_observations": 1,
+    "resampling_method": null,
+    "selected_observation_count": 8,
+    "source": "entire_measurement",
+    "source_observation_count": 8,
+    "source_timestamps": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0
+    ],
+    "start_s": 0.0
+  }
+}

@@ -10,12 +10,14 @@ use crate::{
     },
 };
 use serde::Serialize;
+use std::path::PathBuf;
 
 /// Presentation-only copies of canonical inputs.  This has no artifact
 /// identity, lineage constructor, mutable source access, or science-module
 /// dependency.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub(crate) struct PublicReportProjection {
+    pub input_paths: ReportInputPaths,
     pub mechanism: MechanismAnalysisReport,
     pub health: SensorHealthAssessment,
     pub lineage_catalog: Option<ArtifactLineageCatalog>,
@@ -34,9 +36,35 @@ pub(crate) struct PublicReportProjection {
     )>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub(crate) struct ReportInputPaths {
+    pub mechanism: PathBuf,
+    pub health: PathBuf,
+    pub lineage_catalog: Option<PathBuf>,
+    pub eis: Option<PathBuf>,
+    pub transient: Option<PathBuf>,
+    pub calibration: Option<PathBuf>,
+    pub calibration_observations: Option<PathBuf>,
+    pub signal: Option<PathBuf>,
+    pub estimation: Option<PathBuf>,
+    pub model: Option<PathBuf>,
+}
+
 impl PublicReportProjection {
     pub fn from_inputs(inputs: &ReportInputs) -> Self {
         Self {
+            input_paths: ReportInputPaths {
+                mechanism: inputs.input_paths.mechanism.clone(),
+                health: inputs.input_paths.health.clone(),
+                lineage_catalog: inputs.input_paths.lineage_catalog.clone(),
+                eis: inputs.input_paths.eis.clone(),
+                transient: inputs.input_paths.transient.clone(),
+                calibration: inputs.input_paths.calibration.clone(),
+                calibration_observations: inputs.input_paths.calibration_observations.clone(),
+                signal: inputs.input_paths.signal.clone(),
+                estimation: inputs.input_paths.estimation.clone(),
+                model: inputs.input_paths.model.clone(),
+            },
             mechanism: inputs.mechanism.clone(),
             health: inputs.health.clone(),
             lineage_catalog: inputs.lineage_catalog.clone(),
@@ -221,22 +249,37 @@ fn eis_reason(value: &EisFitArtifact) -> Option<AvailabilityReason> {
 }
 
 fn transient_reason(value: &TransientAnalysisReport) -> Option<AvailabilityReason> {
+    let mut selected = false;
     for event in &value.events {
         let Some(model) = &event.selected_model else {
             continue;
         };
+        selected = true;
         let matches = event
             .candidate_fits
             .iter()
             .filter(|fit| fit.is_successful() && &fit.model == model)
-            .count();
-        return match matches {
-            1 => None,
-            0 => Some(AvailabilityReason::SelectedFitNotFound),
-            _ => Some(AvailabilityReason::SelectedFitAmbiguous),
-        };
+            .collect::<Vec<_>>();
+        if matches.is_empty() {
+            return Some(AvailabilityReason::SelectedFitNotFound);
+        }
+        if matches.len() > 1 {
+            return Some(AvailabilityReason::SelectedFitAmbiguous);
+        }
+        let fit = matches[0];
+        let predicted_matches_raw = fit.predicted_v.len() == event.segment.raw_time_local.len();
+        let predicted_matches_fitted =
+            fit.predicted_v.len() == event.segment.fitted_time_local.len();
+        let residual_matches_raw = fit.residuals_v.len() == event.segment.raw_time_local.len();
+        let residual_matches_fitted =
+            fit.residuals_v.len() == event.segment.fitted_time_local.len();
+        if (!predicted_matches_raw && !predicted_matches_fitted)
+            || (!residual_matches_raw && !residual_matches_fitted)
+        {
+            return Some(AvailabilityReason::SerializedSeriesInvalid);
+        }
     }
-    Some(AvailabilityReason::SelectedFitNotFound)
+    (!selected).then_some(AvailabilityReason::SelectedFitNotFound)
 }
 
 fn calibration_reason(

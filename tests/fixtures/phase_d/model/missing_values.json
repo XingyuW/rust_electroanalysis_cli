@@ -1,0 +1,156 @@
+{
+  "artifact_kind": "ism_model_analysis",
+  "evidence": [
+    "Static model fixture; no physical-mechanism conclusion."
+  ],
+  "identifiability": {
+    "contradictory_evidence": [],
+    "missing_evidence": [
+      "No parameter-identifiability claim."
+    ],
+    "parameter_ids": [],
+    "practical": "not_assessed",
+    "structural": "not_assessed",
+    "warnings": []
+  },
+  "lineage": {
+    "LegacyUnknown": {
+      "reason": "FieldAbsentInLegacyArtifact",
+      "source_schema_version": 5
+    }
+  },
+  "model_definition": {
+    "components": [],
+    "description": "Three-point fixed residual and uncertainty fixture.",
+    "inputs": [],
+    "model_id": "phase-d-model-v1",
+    "parameters": [],
+    "schema_version": 4,
+    "states": [],
+    "uncertainty_incomplete": false,
+    "validity_domain": "phase-d-model fixture is synthetically in-domain."
+  },
+  "points": [
+    {
+      "contributions": [],
+      "equilibrium": {
+        "classification": "indeterminate",
+        "confidence": 0.0,
+        "contradictory_evidence": [],
+        "missing_evidence": [],
+        "satisfied_criteria": [],
+        "status": "indeterminate",
+        "supporting_evidence": [],
+        "validity_domain": "phase-d-model fixture is synthetically in-domain.",
+        "violated_criteria": [],
+        "warnings": []
+      },
+      "observed_voltage_v": null,
+      "predicted_voltage_v": 0.0,
+      "state_values": [],
+      "time_s": 0.0,
+      "uncertainty": {
+        "assumptions": [
+          "fixed Phase-D model fixture uncertainty"
+        ],
+        "missing_sources": [],
+        "observation_variance_v2": 2.5e-7,
+        "parameter_jacobian_methods": [],
+        "parameter_variance_v2": 0.0,
+        "standard_error_v": 0.0005,
+        "state_jacobian_methods": [],
+        "state_variance_v2": 0.0,
+        "status": "complete",
+        "total_variance_v2": 2.5e-7
+      },
+      "unexplained_residual_v": null,
+      "validity": {
+        "checked_domain": "phase-d-model fixture is synthetically in-domain.",
+        "is_valid": true,
+        "violations": [],
+        "warnings": []
+      }
+    },
+    {
+      "contributions": [],
+      "equilibrium": {
+        "classification": "indeterminate",
+        "confidence": 0.0,
+        "contradictory_evidence": [],
+        "missing_evidence": [],
+        "satisfied_criteria": [],
+        "status": "indeterminate",
+        "supporting_evidence": [],
+        "validity_domain": "phase-d-model fixture is synthetically in-domain.",
+        "violated_criteria": [],
+        "warnings": []
+      },
+      "observed_voltage_v": 0.002,
+      "predicted_voltage_v": 0.0,
+      "state_values": [],
+      "time_s": 1.0,
+      "uncertainty": {
+        "assumptions": [
+          "fixed Phase-D model fixture uncertainty"
+        ],
+        "missing_sources": [],
+        "observation_variance_v2": 2.5e-7,
+        "parameter_jacobian_methods": [],
+        "parameter_variance_v2": 0.0,
+        "standard_error_v": 0.0005,
+        "state_jacobian_methods": [],
+        "state_variance_v2": 0.0,
+        "status": "complete",
+        "total_variance_v2": 2.5e-7
+      },
+      "unexplained_residual_v": 0.002,
+      "validity": {
+        "checked_domain": "phase-d-model fixture is synthetically in-domain.",
+        "is_valid": true,
+        "violations": [],
+        "warnings": []
+      }
+    },
+    {
+      "contributions": [],
+      "equilibrium": {
+        "classification": "indeterminate",
+        "confidence": 0.0,
+        "contradictory_evidence": [],
+        "missing_evidence": [],
+        "satisfied_criteria": [],
+        "status": "indeterminate",
+        "supporting_evidence": [],
+        "validity_domain": "phase-d-model fixture is synthetically in-domain.",
+        "violated_criteria": [],
+        "warnings": []
+      },
+      "observed_voltage_v": 0.002,
+      "predicted_voltage_v": 0.0,
+      "state_values": [],
+      "time_s": 2.0,
+      "uncertainty": {
+        "assumptions": [
+          "fixed Phase-D model fixture uncertainty"
+        ],
+        "missing_sources": [],
+        "observation_variance_v2": 2.5e-7,
+        "parameter_jacobian_methods": [],
+        "parameter_variance_v2": 0.0,
+        "standard_error_v": 0.0005,
+        "state_jacobian_methods": [],
+        "state_variance_v2": 0.0,
+        "status": "complete",
+        "total_variance_v2": 2.5e-7
+      },
+      "unexplained_residual_v": 0.002,
+      "validity": {
+        "checked_domain": "phase-d-model fixture is synthetically in-domain.",
+        "is_valid": true,
+        "violations": [],
+        "warnings": []
+      }
+    }
+  ],
+  "schema_version": 5
+}

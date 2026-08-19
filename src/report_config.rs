@@ -159,7 +159,20 @@ pub struct ReportSelection {
 impl ReportSelection {
     pub fn parse(figures: Option<&str>, tables: Option<&str>) -> Result<Self, PublicReportError> {
         Ok(Self {
-            figures: parse_selector(figures, "figures", FigureId::ALL, FigureId::from_str)?,
+            // Optional-source figures cannot be selected until their canonical
+            // artifacts have been read.  Keep the fixed required default here;
+            // the runner appends supplied optional sources after projection.
+            figures: match figures {
+                Some(value) => {
+                    parse_selector(Some(value), "figures", FigureId::ALL, FigureId::from_str)?
+                }
+                None => vec![
+                    FigureId::MechanismTimescale,
+                    FigureId::SensorHealthDimensionStatus,
+                    FigureId::CurrentVsBaseline,
+                    FigureId::Lineage,
+                ],
+            },
             tables: parse_selector(tables, "tables", TableId::ALL, TableId::from_str)?,
             figures_mode: if figures.is_some() {
                 SelectionMode::Explicit

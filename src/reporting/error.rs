@@ -1,9 +1,9 @@
 use crate::domain::{ArtifactError, LineageCatalogReadError};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{io, path::PathBuf};
 use thiserror::Error;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CompatibilityAxis {
     ExperimentScope,
@@ -11,7 +11,7 @@ pub enum CompatibilityAxis {
     ChannelScope,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PublicationPhase {
     BackupRename,
@@ -20,7 +20,7 @@ pub enum PublicationPhase {
     BackupCleanup,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AvailabilityReason {
     NotProvided,
