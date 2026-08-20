@@ -32,7 +32,7 @@ pub(crate) struct CompatibilityOutcome {
 }
 
 /// Typed, canonical-reader-only inputs for a public report render.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct ReportInputs {
     pub input_paths: ReportInputPaths,
     pub mechanism: MechanismAnalysisReport,
@@ -77,6 +77,15 @@ impl ReportInputs {
             mechanism.schema_version,
             &[1, 2, 3, 4],
         )?;
+        if mechanism.provenance.is_none() {
+            return Err(PublicReportError::Artifact {
+                flag: "--mechanism",
+                path: options.mechanism.clone(),
+                source: ArtifactError::Validation {
+                    message: "Phase-D mechanism input must serialize analysis provenance".into(),
+                },
+            });
+        }
         let health = read_artifact::<SensorHealthAssessment>("--health", &options.health)?;
         ensure_schema("--health", &options.health, health.schema_version, &[3, 4])?;
 
@@ -304,7 +313,9 @@ fn require_compatible(
     right_flag: &'static str,
     right: &ArtifactLineageState,
 ) -> Result<CompatibilityOutcome, PublicReportError> {
-    if let Some((axis, left_value, right_value)) = scope_mismatch(left, right) {
+    if !crate::health::phase_c::scope_compatible(left, right) {
+        let (axis, left_value, right_value) = scope_mismatch(left, right)
+            .expect("the shared Phase-C predicate rejects only a known unequal scope axis");
         return Err(PublicReportError::RequiredInputsIncompatible {
             left_flag,
             right_flag,
@@ -329,7 +340,9 @@ fn optional_compatible(
     required_flag: &'static str,
     expected: &ArtifactLineageState,
 ) -> Result<CompatibilityOutcome, PublicReportError> {
-    if let Some((axis, actual_value, expected_value)) = scope_mismatch(actual, expected) {
+    if !crate::health::phase_c::scope_compatible(actual, expected) {
+        let (axis, actual_value, expected_value) = scope_mismatch(actual, expected)
+            .expect("the shared Phase-C predicate rejects only a known unequal scope axis");
         return Err(PublicReportError::OptionalInputIncompatible {
             flag,
             required_flag,

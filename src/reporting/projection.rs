@@ -1,4 +1,4 @@
-//! Immutable copied presentation state for the Phase-D renderer.
+//! Immutable borrowed presentation state for the Phase-D renderer.
 
 use crate::{
     domain::{ArtifactLineageCatalog, ArtifactLineageState},
@@ -9,34 +9,37 @@ use crate::{
         StateEstimationReport, TransientAnalysisReport,
     },
 };
-use serde::Serialize;
 use std::path::PathBuf;
 
-/// Presentation-only copies of canonical inputs.  This has no artifact
+/// Presentation-only view over canonical inputs. This has no artifact
 /// identity, lineage constructor, mutable source access, or science-module
 /// dependency.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub(crate) struct PublicReportProjection {
+#[derive(Debug)]
+pub(crate) struct PublicReportProjection<'a> {
     pub input_paths: ReportInputPaths,
-    pub mechanism: MechanismAnalysisReport,
-    pub health: SensorHealthAssessment,
-    pub lineage_catalog: Option<ArtifactLineageCatalog>,
-    pub eis: Option<EisFitArtifact>,
-    pub transient: Option<TransientAnalysisReport>,
-    pub calibration: Option<CalibrationAnalysisReport>,
-    pub calibration_observations: Option<CalibrationObservationSet>,
-    pub signal: Option<SignalAnalysisReport>,
-    pub estimation: Option<StateEstimationReport>,
-    pub model: Option<ModelAnalysisReport>,
+    pub mechanism: &'a MechanismAnalysisReport,
+    pub health: &'a SensorHealthAssessment,
+    pub lineage_catalog: Option<&'a ArtifactLineageCatalog>,
+    pub eis: Option<&'a EisFitArtifact>,
+    pub transient: Option<&'a TransientAnalysisReport>,
+    pub calibration: Option<&'a CalibrationAnalysisReport>,
+    pub calibration_observations: Option<&'a CalibrationObservationSet>,
+    pub signal: Option<&'a SignalAnalysisReport>,
+    pub estimation: Option<&'a StateEstimationReport>,
+    pub model: Option<&'a ModelAnalysisReport>,
     pub required_compatibility: crate::reporting::reader::CompatibilityOutcome,
     pub optional_compatibility: Vec<(
         &'static str,
         &'static str,
         crate::reporting::reader::CompatibilityOutcome,
     )>,
+    pub health_evidence_records: Vec<&'a crate::evidence::EvidenceRecord>,
+    pub mechanism_history_count: usize,
+    pub history_projection_traversals: usize,
+    pub evidence_projection_traversals: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ReportInputPaths {
     pub mechanism: PathBuf,
     pub health: PathBuf,
@@ -50,8 +53,20 @@ pub(crate) struct ReportInputPaths {
     pub model: Option<PathBuf>,
 }
 
-impl PublicReportProjection {
-    pub fn from_inputs(inputs: &ReportInputs) -> Self {
+impl<'a> PublicReportProjection<'a> {
+    pub fn from_inputs(inputs: &'a ReportInputs) -> Self {
+        let mechanism_history_count = inputs.mechanism.hypothesis_history.len();
+        let mut health_evidence_records = inputs
+            .health
+            .phase_c
+            .as_ref()
+            .map(|phase| phase.evidence_bundle.records.iter().collect::<Vec<_>>())
+            .unwrap_or_default();
+        health_evidence_records.sort_by(|left, right| {
+            left.evidence_id
+                .cmp(&right.evidence_id)
+                .then(evidence_source_key(left).cmp(&evidence_source_key(right)))
+        });
         Self {
             input_paths: ReportInputPaths {
                 mechanism: inputs.input_paths.mechanism.clone(),
@@ -65,18 +80,22 @@ impl PublicReportProjection {
                 estimation: inputs.input_paths.estimation.clone(),
                 model: inputs.input_paths.model.clone(),
             },
-            mechanism: inputs.mechanism.clone(),
-            health: inputs.health.clone(),
-            lineage_catalog: inputs.lineage_catalog.clone(),
-            eis: inputs.eis.clone(),
-            transient: inputs.transient.clone(),
-            calibration: inputs.calibration.clone(),
-            calibration_observations: inputs.calibration_observations.clone(),
-            signal: inputs.signal.clone(),
-            estimation: inputs.estimation.clone(),
-            model: inputs.model.clone(),
+            mechanism: &inputs.mechanism,
+            health: &inputs.health,
+            lineage_catalog: inputs.lineage_catalog.as_ref(),
+            eis: inputs.eis.as_ref(),
+            transient: inputs.transient.as_ref(),
+            calibration: inputs.calibration.as_ref(),
+            calibration_observations: inputs.calibration_observations.as_ref(),
+            signal: inputs.signal.as_ref(),
+            estimation: inputs.estimation.as_ref(),
+            model: inputs.model.as_ref(),
             required_compatibility: inputs.required_compatibility,
             optional_compatibility: inputs.optional_compatibility.clone(),
+            health_evidence_records,
+            mechanism_history_count,
+            history_projection_traversals: 1,
+            evidence_projection_traversals: usize::from(inputs.health.phase_c.is_some()),
         }
     }
 
@@ -85,6 +104,15 @@ impl PublicReportProjection {
     }
     pub fn health_is_legacy(&self) -> bool {
         self.health.schema_version < 4
+    }
+
+    pub fn traversal_audit(&self) -> (usize, usize, usize, usize) {
+        (
+            self.history_projection_traversals,
+            self.evidence_projection_traversals,
+            self.mechanism_history_count,
+            self.health_evidence_records.len(),
+        )
     }
 
     pub fn figure_reason(
@@ -104,32 +132,24 @@ impl PublicReportProjection {
                 .phase_c
                 .is_none()
                 .then_some(AvailabilityReason::LegacyPhaseCNotSerialized),
-            FigureId::CurrentVsBaseline => baseline_reason(&self.health),
-            FigureId::EisNyquist | FigureId::EisBode => self
+            FigureId::CurrentVsBaseline => baseline_reason(self.health),
+            FigureId::EisNyquist => self
                 .eis
-                .as_ref()
-                .map_or(Some(AvailabilityReason::NotProvided), eis_reason),
+                .map_or(Some(AvailabilityReason::NotProvided), eis_nyquist_reason),
+            FigureId::EisBode => self
+                .eis
+                .map_or(Some(AvailabilityReason::NotProvided), eis_bode_reason),
             FigureId::TransientResponse => self
                 .transient
-                .as_ref()
                 .map_or(Some(AvailabilityReason::NotProvided), transient_reason),
-            FigureId::CalibrationPerformance => calibration_reason(
-                self.calibration.as_ref(),
-                self.calibration_observations.as_ref(),
-            ),
-            FigureId::SignalDiagnostics => {
-                self.signal
-                    .as_ref()
-                    .map_or(Some(AvailabilityReason::NotProvided), |value| {
-                        value
-                            .analysis_timestamps
-                            .is_empty()
-                            .then_some(AvailabilityReason::SerializedSeriesUnavailable)
-                    })
+            FigureId::CalibrationPerformance => {
+                calibration_reason(self.calibration, self.calibration_observations)
             }
+            FigureId::SignalDiagnostics => self
+                .signal
+                .map_or(Some(AvailabilityReason::NotProvided), signal_reason),
             FigureId::EstimationObservedPredicted => {
                 self.estimation
-                    .as_ref()
                     .map_or(Some(AvailabilityReason::NotProvided), |value| {
                         (value
                             .estimates
@@ -146,7 +166,6 @@ impl PublicReportProjection {
             }
             FigureId::ModelObservedPredicted => {
                 self.model
-                    .as_ref()
                     .map_or(Some(AvailabilityReason::NotProvided), |value| {
                         (value
                             .points
@@ -193,25 +212,58 @@ impl PublicReportProjection {
     }
 }
 
+fn evidence_source_key(record: &crate::evidence::EvidenceRecord) -> (&str, &str, &str) {
+    match &record.source.artifact {
+        crate::evidence::EvidenceArtifactSource::Known {
+            artifact_id,
+            artifact_kind,
+        } => (
+            artifact_kind.as_str(),
+            artifact_id.0.as_str(),
+            record.source.field_path.as_str(),
+        ),
+        crate::evidence::EvidenceArtifactSource::LegacyUnknown {
+            artifact_kind,
+            source_fingerprint,
+        } => (
+            artifact_kind.as_str(),
+            source_fingerprint.0.as_str(),
+            record.source.field_path.as_str(),
+        ),
+    }
+}
+
 fn baseline_reason(health: &SensorHealthAssessment) -> Option<AvailabilityReason> {
     if health.baseline_comparison.is_empty() {
         return Some(AvailabilityReason::SerializedSeriesUnavailable);
     }
+    let mut saw_unit_failure = false;
+    let mut saw_comparable = false;
+    let mut saw_unknown = false;
+    let mut saw_not_comparable = false;
     for comparison in &health.baseline_comparison {
-        if !matches!(
-            comparison.comparability,
-            crate::results::FeatureComparability::Comparable
-                | crate::results::FeatureComparability::ComparableWithWarnings
-        ) {
-            continue;
-        }
         let count = health
             .features
             .iter()
             .filter(|feature| feature.name == comparison.feature && !feature.unit.is_empty())
             .count();
         if count != 1 {
-            return Some(AvailabilityReason::UnitAuthorityUnavailable);
+            saw_unit_failure = true;
+            continue;
+        }
+        match comparison.comparability {
+            crate::results::FeatureComparability::Comparable
+            | crate::results::FeatureComparability::ComparableWithWarnings => {
+                saw_comparable = true;
+            }
+            crate::results::FeatureComparability::Unknown => {
+                saw_unknown = true;
+                continue;
+            }
+            crate::results::FeatureComparability::NotComparable => {
+                saw_not_comparable = true;
+                continue;
+            }
         }
         if comparison.current_value.is_some_and(f64::is_finite)
             && comparison.baseline_value.is_some_and(f64::is_finite)
@@ -219,10 +271,20 @@ fn baseline_reason(health: &SensorHealthAssessment) -> Option<AvailabilityReason
             return None;
         }
     }
-    Some(AvailabilityReason::NoComparableFinitePair)
+    if saw_unit_failure {
+        Some(AvailabilityReason::UnitAuthorityUnavailable)
+    } else if saw_comparable {
+        Some(AvailabilityReason::NoComparableFinitePair)
+    } else if saw_unknown {
+        Some(AvailabilityReason::ComparisonUnknown)
+    } else if saw_not_comparable {
+        Some(AvailabilityReason::NotComparable)
+    } else {
+        Some(AvailabilityReason::SerializedSeriesUnavailable)
+    }
 }
 
-fn eis_reason(value: &EisFitArtifact) -> Option<AvailabilityReason> {
+fn eis_nyquist_reason(value: &EisFitArtifact) -> Option<AvailabilityReason> {
     let count = value.source.frequency_hz.len();
     if count == 0
         || value.source.z_real_ohm.len() != count
@@ -248,8 +310,41 @@ fn eis_reason(value: &EisFitArtifact) -> Option<AvailabilityReason> {
     }
 }
 
+fn eis_bode_reason(value: &EisFitArtifact) -> Option<AvailabilityReason> {
+    let count = value.source.frequency_hz.len();
+    if count == 0
+        || !value
+            .source
+            .frequency_hz
+            .iter()
+            .any(|frequency| frequency.is_finite() && *frequency > 0.0)
+        || value.fitted.magnitude_ohm.len() != count
+        || value.fitted.phase_deg.len() != count
+    {
+        return Some(AvailabilityReason::SerializedSeriesInvalid);
+    }
+    let source_magnitude_len = value
+        .source
+        .source_measured_magnitude_ohm
+        .as_ref()
+        .map_or(value.source.derived_magnitude_ohm.len(), Vec::len);
+    let source_phase_len = value
+        .source
+        .source_measured_phase_deg
+        .as_ref()
+        .map_or(value.source.derived_phase_deg.len(), Vec::len);
+    if source_magnitude_len != count || source_phase_len != count {
+        return Some(AvailabilityReason::SerializedSeriesInvalid);
+    }
+    None
+}
+
 fn transient_reason(value: &TransientAnalysisReport) -> Option<AvailabilityReason> {
     let mut selected = false;
+    let mut valid = false;
+    let mut missing = false;
+    let mut ambiguous = false;
+    let mut invalid = false;
     for event in &value.events {
         let Some(model) = &event.selected_model else {
             continue;
@@ -261,25 +356,35 @@ fn transient_reason(value: &TransientAnalysisReport) -> Option<AvailabilityReaso
             .filter(|fit| fit.is_successful() && &fit.model == model)
             .collect::<Vec<_>>();
         if matches.is_empty() {
-            return Some(AvailabilityReason::SelectedFitNotFound);
+            missing = true;
+            continue;
         }
         if matches.len() > 1 {
-            return Some(AvailabilityReason::SelectedFitAmbiguous);
+            ambiguous = true;
+            continue;
         }
         let fit = matches[0];
-        let predicted_matches_raw = fit.predicted_v.len() == event.segment.raw_time_local.len();
-        let predicted_matches_fitted =
-            fit.predicted_v.len() == event.segment.fitted_time_local.len();
-        let residual_matches_raw = fit.residuals_v.len() == event.segment.raw_time_local.len();
-        let residual_matches_fitted =
-            fit.residuals_v.len() == event.segment.fitted_time_local.len();
-        if (!predicted_matches_raw && !predicted_matches_fitted)
-            || (!residual_matches_raw && !residual_matches_fitted)
+        if event.segment.raw_time_local.len() != event.segment.raw_potential_v.len()
+            || event.segment.fitted_time_local.is_empty()
+            || fit.predicted_v.is_empty()
+            || fit.residuals_v.is_empty()
         {
-            return Some(AvailabilityReason::SerializedSeriesInvalid);
+            invalid = true;
+            continue;
         }
+        valid = true;
     }
-    (!selected).then_some(AvailabilityReason::SelectedFitNotFound)
+    if valid {
+        None
+    } else if ambiguous {
+        Some(AvailabilityReason::SelectedFitAmbiguous)
+    } else if invalid {
+        Some(AvailabilityReason::SerializedSeriesInvalid)
+    } else if missing || !selected {
+        Some(AvailabilityReason::SelectedFitNotFound)
+    } else {
+        Some(AvailabilityReason::SerializedSeriesUnavailable)
+    }
 }
 
 fn calibration_reason(
@@ -289,13 +394,41 @@ fn calibration_reason(
     let (Some(calibration), Some(_)) = (calibration, observations) else {
         return Some(AvailabilityReason::PairedInputNotProvided);
     };
-    if calibration
-        .validation
-        .as_ref()
-        .is_some_and(|value| !value.predictions.is_empty())
-    {
+    if calibration.validation.as_ref().is_some_and(|value| {
+        value.predictions.iter().any(|point| {
+            point.observed_log10_activity.is_some_and(f64::is_finite)
+                && point.observed_potential_v.is_finite()
+                && point.predicted_potential_v.is_some_and(f64::is_finite)
+        })
+    }) {
         None
     } else {
         Some(AvailabilityReason::SerializedSeriesUnavailable)
     }
+}
+
+fn signal_reason(value: &SignalAnalysisReport) -> Option<AvailabilityReason> {
+    let time_available = value.analysis_timestamps.len() == value.analysis_values.len()
+        && value
+            .analysis_timestamps
+            .iter()
+            .zip(&value.analysis_values)
+            .any(|(x, y)| x.is_finite() && y.is_some_and(f64::is_finite));
+    let psd_available = value.psd.as_ref().is_some_and(|psd| {
+        psd.frequency_hz.len() == psd.psd.len()
+            && psd
+                .frequency_hz
+                .iter()
+                .zip(&psd.psd)
+                .any(|(x, y)| x.is_finite() && *x > 0.0 && y.is_finite())
+    });
+    let allan_available = value.allan.as_ref().is_some_and(|allan| {
+        allan.points.iter().any(|point| {
+            point.averaging_time_s.is_finite()
+                && point.averaging_time_s > 0.0
+                && point.deviation.is_some_and(f64::is_finite)
+        })
+    });
+    (!time_available && !psd_available && !allan_available)
+        .then_some(AvailabilityReason::SerializedSeriesUnavailable)
 }

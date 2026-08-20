@@ -88,7 +88,7 @@ fn run() -> Result<(), ApplicationError> {
             tables.as_deref(),
         )
         .map_err(RunnerError::from)?;
-        let outcome = report::render(
+        let outcome = report::run(
             &rust_electroanalysis_cli::report_config::ReportRenderOptions {
                 mechanism,
                 health,

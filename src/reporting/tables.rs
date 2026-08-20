@@ -19,7 +19,7 @@ pub fn format_public_f64(value: f64) -> Result<String, &'static str> {
     }
 }
 
-pub fn write_selected_tables(
+pub(crate) fn write_selected_tables(
     root: &Path,
     projection: &PublicReportProjection,
     selected: &[crate::report_config::TableId],
@@ -33,7 +33,7 @@ pub fn write_selected_tables(
     for id in selected {
         let filename = match id {
             crate::report_config::TableId::MechanismEvidence => "mechanism_evidence.csv",
-            crate::report_config::TableId::HealthDimensions => "sensor_health_dimensions.csv",
+            crate::report_config::TableId::HealthDimensions => "health_dimensions.csv",
             crate::report_config::TableId::EvidenceProvenance => "evidence_provenance.csv",
             crate::report_config::TableId::ArtifactLineage => "artifact_lineage.csv",
             crate::report_config::TableId::TimescaleComparison => "timescale_comparison.csv",
@@ -68,6 +68,19 @@ pub fn write_selected_tables(
 }
 
 fn writer(path: &Path) -> Result<csv::Writer<File>, PublicReportError> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("ELECTROANALYSIS_PHASE_D_TEST_FAIL_WRITE")
+        .as_deref()
+        .is_some_and(|relative| path.ends_with(relative))
+    {
+        return Err(PublicReportError::Write {
+            path: path.to_path_buf(),
+            source: std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "injected Phase-D staged writer failure",
+            ),
+        });
+    }
     let file = File::create(path).map_err(|source| PublicReportError::Write {
         path: path.to_path_buf(),
         source,
@@ -254,30 +267,36 @@ fn health_dimensions(
                 writer
                     .write_record([
                         token(&row.dimension).as_str(),
-                        crate::reporting::claims::health_status_text(row.status),
+                        health_dimension_label(row.dimension),
                         token(&row.status).as_str(),
                         token(&row.evidence_state).as_str(),
                         joined(&row.reason_codes).as_str(),
                         token(&row.interpretation_category).as_str(),
                         token(&row.causal_status).as_str(),
-                        row.source_evidence_ids
-                            .iter()
-                            .map(|id| id.0.as_str())
-                            .collect::<Vec<_>>()
-                            .join(";")
-                            .as_str(),
-                        row.excluded_evidence_ids
-                            .iter()
-                            .map(|id| id.0.as_str())
-                            .collect::<Vec<_>>()
-                            .join(";")
-                            .as_str(),
-                        row.source_artifact_ids
-                            .iter()
-                            .map(|id| id.0.as_str())
-                            .collect::<Vec<_>>()
-                            .join(";")
-                            .as_str(),
+                        cell(
+                            &row.source_evidence_ids
+                                .iter()
+                                .map(|id| id.0.as_str())
+                                .collect::<Vec<_>>()
+                                .join(";"),
+                        )
+                        .as_str(),
+                        cell(
+                            &row.excluded_evidence_ids
+                                .iter()
+                                .map(|id| id.0.as_str())
+                                .collect::<Vec<_>>()
+                                .join(";"),
+                        )
+                        .as_str(),
+                        cell(
+                            &row.source_artifact_ids
+                                .iter()
+                                .map(|id| id.0.as_str())
+                                .collect::<Vec<_>>()
+                                .join(";"),
+                        )
+                        .as_str(),
                         "current",
                     ])
                     .map_err(|source| csv_error(path, source))?;
@@ -305,6 +324,20 @@ fn health_dimensions(
     })
 }
 
+fn health_dimension_label(dimension: crate::results::HealthDimension) -> &'static str {
+    match dimension {
+        crate::results::HealthDimension::SignalIntegrity => "Signal integrity",
+        crate::results::HealthDimension::CalibrationHealth => "Calibration health",
+        crate::results::HealthDimension::DynamicResponseHealth => "Dynamic response health",
+        crate::results::HealthDimension::ReferenceStability => "Reference stability",
+        crate::results::HealthDimension::EnvironmentalRobustness => "Environmental robustness",
+        crate::results::HealthDimension::ModelConsistency => "Model consistency",
+        crate::results::HealthDimension::Observability => "Observability",
+        crate::results::HealthDimension::UncertaintyHealth => "Uncertainty health",
+        crate::results::HealthDimension::DataQuality => "Data quality",
+    }
+}
+
 fn evidence_provenance(
     path: &Path,
     projection: &PublicReportProjection,
@@ -330,8 +363,8 @@ fn evidence_provenance(
             "temporal_support",
         ])
         .map_err(|source| csv_error(path, source))?;
-    if let Some(phase_c) = &projection.health.phase_c {
-        for record in &phase_c.evidence_bundle.records {
+    if projection.health.phase_c.is_some() {
+        for &record in &projection.health_evidence_records {
             let (kind, id) = match &record.source.artifact {
                 crate::evidence::EvidenceArtifactSource::Known {
                     artifact_id,
@@ -350,10 +383,10 @@ fn evidence_provenance(
                     "sensor_health",
                     record.evidence_id.0.as_str(),
                     token(&record.target).as_str(),
-                    token(&record.source_class).as_str(),
-                    token(&record.direction).as_str(),
-                    token(&record.availability).as_str(),
-                    token(&record.validity).as_str(),
+                    snake_enum_token(&record.source_class).as_str(),
+                    snake_enum_token(&record.direction).as_str(),
+                    snake_enum_token(&record.availability).as_str(),
+                    snake_enum_token(&record.validity).as_str(),
                     number(record.quantity.as_ref().map(|value| value.value))?.as_str(),
                     record
                         .quantity
@@ -371,16 +404,146 @@ fn evidence_provenance(
                     id.as_str(),
                     record.source.field_path.as_str(),
                     token(&record.experiment_scope).as_str(),
-                    "NA",
+                    evidence_acquisition_families(record, projection).as_str(),
                     "NA",
                 ])
                 .map_err(|source| csv_error(path, source))?;
         }
     }
+    let (mechanism_id, mechanism_scope, mechanism_families) = mechanism_evidence_source(projection);
+    let mut phase_b = projection
+        .mechanism
+        .comparisons
+        .iter()
+        .flat_map(|comparison| {
+            comparison
+                .supporting_evidence
+                .iter()
+                .map(move |id| (comparison, id, "supports"))
+                .chain(
+                    comparison
+                        .contradictory_evidence
+                        .iter()
+                        .map(move |id| (comparison, id, "contradicts")),
+                )
+        })
+        .collect::<Vec<_>>();
+    phase_b.sort_by(
+        |(left_comparison, left_id, left_direction),
+         (right_comparison, right_id, right_direction)| {
+            left_id
+                .cmp(right_id)
+                .then(
+                    left_comparison
+                        .comparison_id
+                        .cmp(&right_comparison.comparison_id),
+                )
+                .then(left_direction.cmp(right_direction))
+        },
+    );
+    for (comparison, evidence_id, direction) in phase_b {
+        writer
+            .write_record([
+                "mechanism",
+                evidence_id.as_str(),
+                comparison.comparison_id.as_str(),
+                "producer_assessment",
+                direction,
+                "available",
+                "not_assessed",
+                "NA",
+                "NA",
+                "NA",
+                "mechanism_analysis",
+                mechanism_id.as_str(),
+                "$.comparisons[].supporting_evidence/contradictory_evidence",
+                mechanism_scope.as_str(),
+                mechanism_families.as_str(),
+                "NA",
+            ])
+            .map_err(|source| csv_error(path, source))?;
+    }
     writer.flush().map_err(|source| PublicReportError::Write {
         path: path.to_path_buf(),
         source,
     })
+}
+
+fn evidence_acquisition_families(
+    record: &crate::evidence::EvidenceRecord,
+    projection: &PublicReportProjection<'_>,
+) -> String {
+    let crate::evidence::EvidenceArtifactSource::Known { artifact_id, .. } =
+        &record.source.artifact
+    else {
+        return "legacy_unknown".into();
+    };
+    projection
+        .supplied_lineages()
+        .into_iter()
+        .find_map(|(_, lineage)| match lineage {
+            ArtifactLineageState::Known { identity, .. }
+                if &identity.artifact_id == artifact_id =>
+            {
+                Some(match &identity.acquisition_families {
+                    crate::domain::ArtifactAcquisitionFamilies::Known(values) => {
+                        if values.is_empty() {
+                            "[]".into()
+                        } else {
+                            values
+                                .iter()
+                                .map(|value| value.0.as_str())
+                                .collect::<Vec<_>>()
+                                .join(";")
+                        }
+                    }
+                    crate::domain::ArtifactAcquisitionFamilies::Unknown => "unknown".into(),
+                })
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| "unknown".into())
+}
+
+fn mechanism_evidence_source(projection: &PublicReportProjection<'_>) -> (String, String, String) {
+    match &projection.mechanism.lineage {
+        ArtifactLineageState::Known { identity, .. } => (
+            identity.artifact_id.0.clone(),
+            token(&identity.experiment_scope),
+            match &identity.acquisition_families {
+                crate::domain::ArtifactAcquisitionFamilies::Known(values) if values.is_empty() => {
+                    "[]".into()
+                }
+                crate::domain::ArtifactAcquisitionFamilies::Known(values) => values
+                    .iter()
+                    .map(|value| value.0.as_str())
+                    .collect::<Vec<_>>()
+                    .join(";"),
+                crate::domain::ArtifactAcquisitionFamilies::Unknown => "unknown".into(),
+            },
+        ),
+        ArtifactLineageState::LegacyUnknown { .. } => (
+            "legacy_unknown".into(),
+            "legacy_unknown".into(),
+            "legacy_unknown".into(),
+        ),
+    }
+}
+
+fn snake_enum_token<T: Serialize>(value: &T) -> String {
+    let token = token(value);
+    let mut result = String::new();
+    for (index, character) in token.chars().enumerate() {
+        if character.is_ascii_uppercase() {
+            if index > 0 {
+                result.push('_');
+            }
+            result.push(character.to_ascii_lowercase());
+        } else {
+            result.push(character);
+        }
+    }
+    result
 }
 
 fn artifact_lineage(
@@ -512,6 +675,13 @@ fn timescale_comparison(
             .transient_timescales
             .iter()
             .find(|value| value.timescale_id == row.transient_timescale_id);
+        let warning_messages = cell(
+            &row.warnings
+                .iter()
+                .map(|warning| warning.message.as_str())
+                .collect::<Vec<_>>()
+                .join(";"),
+        );
         writer
             .write_record([
                 row.comparison_id.as_str(),
@@ -534,12 +704,7 @@ fn timescale_comparison(
                 cell(&row.supporting_evidence.join(";")).as_str(),
                 cell(&row.contradictory_evidence.join(";")).as_str(),
                 cell(&row.alternative_explanations.join(";")).as_str(),
-                row.warnings
-                    .iter()
-                    .map(|w| w.message.as_str())
-                    .collect::<Vec<_>>()
-                    .join(";")
-                    .as_str(),
+                warning_messages.as_str(),
             ])
             .map_err(|source| csv_error(path, source))?;
     }
@@ -644,7 +809,7 @@ fn current_vs_baseline(
     if rows.is_empty() {
         writer
             .write_record([
-                "not_serialized",
+                "serialized_series_unavailable",
                 "NA",
                 "NA",
                 "NA",
@@ -670,9 +835,6 @@ fn current_vs_baseline(
             .filter(|feature| feature.name == row.feature && !feature.unit.is_empty())
             .collect::<Vec<_>>();
         let reason = match row.comparability {
-            // Unit authority is a separate required presentation boundary.
-            // Never infer a unit from another feature, even if upstream
-            // comparability is also unavailable.
             _ if units.len() != 1 => Some(AvailabilityReason::UnitAuthorityUnavailable),
             crate::results::FeatureComparability::NotComparable => {
                 Some(AvailabilityReason::NotComparable)

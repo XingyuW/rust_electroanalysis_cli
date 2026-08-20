@@ -1,10 +1,10 @@
 //! Clap-neutral configuration for the certified Phase-D public report route.
 
 use crate::reporting::PublicReportError;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, path::PathBuf, str::FromStr};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReportFormat {
     All,
@@ -35,7 +35,7 @@ impl ReportFormat {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FigureId {
     MechanismTimescale,
@@ -94,7 +94,7 @@ impl FromStr for FigureId {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TableId {
     MechanismEvidence,
@@ -141,7 +141,7 @@ impl FromStr for TableId {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SelectionMode {
     Default,

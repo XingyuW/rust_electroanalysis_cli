@@ -11,3 +11,5 @@ pub(crate) mod tables;
 
 pub use error::{AvailabilityReason, CompatibilityAxis, PublicReportError, PublicationPhase};
 pub use tables::format_public_f64;
+
+pub(crate) use crate::runners::report::render_public_report;

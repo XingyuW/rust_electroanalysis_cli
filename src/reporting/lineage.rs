@@ -25,13 +25,14 @@ pub enum AcquisitionFamilyStatusV1 {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AcquisitionFamilyPresentationV1 {
     pub status: AcquisitionFamilyStatusV1,
     pub values: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "kind")]
+#[serde(rename_all = "snake_case", tag = "kind", deny_unknown_fields)]
 pub enum ExperimentScopeV1 {
     Single {
         experiment_id: String,
@@ -44,7 +45,7 @@ pub enum ExperimentScopeV1 {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "kind")]
+#[serde(rename_all = "snake_case", tag = "kind", deny_unknown_fields)]
 pub enum ScopeKeyV1 {
     Specific { value: String },
     All,
@@ -52,6 +53,7 @@ pub enum ScopeKeyV1 {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PublicArtifactIdentityV1 {
     pub artifact_id: String,
     pub artifact_kind: ArtifactKind,
@@ -65,6 +67,7 @@ pub struct PublicArtifactIdentityV1 {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PublicDependencyV1 {
     pub artifact_id: String,
     pub artifact_kind: ArtifactKind,
@@ -72,6 +75,7 @@ pub struct PublicDependencyV1 {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LineagePresentationV1 {
     pub status: LineagePresentationStatusV1,
     pub identity: Option<PublicArtifactIdentityV1>,
@@ -80,6 +84,7 @@ pub struct LineagePresentationV1 {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProvenancePresentationV1 {
     pub software_version: String,
     pub input_sha256: String,
@@ -88,6 +93,7 @@ pub struct ProvenancePresentationV1 {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PublicLineageRootV1 {
     pub input_flag: crate::reporting::document::InputFlagV1,
     pub lineage: LineagePresentationV1,
@@ -164,23 +170,12 @@ pub(crate) fn project_families(
     }
 }
 
-pub(crate) fn project_provenance(
-    provenance: Option<&AnalysisProvenance>,
-) -> ProvenancePresentationV1 {
-    let provenance = provenance.cloned().unwrap_or_else(|| AnalysisProvenance {
-        software_version: "not_serialized".into(),
-        input_path: "not_serialized".into(),
-        input_sha256: "not_serialized".into(),
-        configuration_path: None,
-        configuration_sha256: None,
-        generation_timestamp: 0,
-        git_commit: None,
-    });
+pub(crate) fn project_provenance(provenance: &AnalysisProvenance) -> ProvenancePresentationV1 {
     ProvenancePresentationV1 {
-        software_version: provenance.software_version,
-        input_sha256: provenance.input_sha256,
-        configuration_sha256: provenance.configuration_sha256,
-        git_commit: provenance.git_commit,
+        software_version: provenance.software_version.clone(),
+        input_sha256: provenance.input_sha256.clone(),
+        configuration_sha256: provenance.configuration_sha256.clone(),
+        git_commit: provenance.git_commit.clone(),
     }
 }
 

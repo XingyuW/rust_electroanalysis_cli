@@ -2117,7 +2117,7 @@ fn scope_key_from_lineage(lineage: &ArtifactLineageState, sensor: bool) -> Scope
     }
 }
 
-fn scope_compatible(left: &ArtifactLineageState, right: &ArtifactLineageState) -> bool {
+pub(crate) fn scope_compatible(left: &ArtifactLineageState, right: &ArtifactLineageState) -> bool {
     match (left, right) {
         (
             ArtifactLineageState::Known { identity: left, .. },
