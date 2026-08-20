@@ -8,25 +8,30 @@ use rust_electroanalysis_cli::domain::{
 };
 use std::fs;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static TEMP_DIR_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+fn temporary_fixture_dir() -> PathBuf {
+    let sequence = TEMP_DIR_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!(
+        "rust_electroanalysis_phase1_{}_{}",
+        std::process::id(),
+        sequence
+    ));
+    fs::create_dir(&path).expect("create fixture directory");
+    path
+}
 
 fn write_fixture(extension: &str, contents: &str) -> PathBuf {
-    let suffix = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    let path = std::env::temp_dir().join(format!(
-        "rust_electroanalysis_phase1_{}_{}.{}",
-        std::process::id(),
-        suffix,
-        extension
-    ));
+    let path = temporary_fixture_dir().join(format!("fixture.{extension}"));
     fs::write(&path, contents).expect("write fixture");
     path
 }
 
 fn remove_fixture(path: PathBuf) {
-    fs::remove_file(path).expect("remove fixture");
+    fs::remove_file(&path).expect("remove fixture");
+    fs::remove_dir(path.parent().expect("fixture directory")).expect("remove fixture directory");
 }
 
 #[test]
