@@ -1807,7 +1807,7 @@ the 18.11.2 ledger.
 | 62 | `phase_d_rendering_does_not_mutate_health_assessment` integration | R18/AC62; projection | current clone equality after ok/failure |
 | 63 | `phase_d_rendering_does_not_mutate_mechanism_assessment` integration | R18/AC63; projection | current clone equality after ok/failure |
 | 64 | `phase_d_repeated_render_is_deterministic` integration | R19/AC64; all writers | two fresh roots → byte-identical JSON/CSV/Markdown/metadata |
-| 65 | `phase_d_large_history_does_not_duplicate_artifact_series_unboundedly` integration | R20/AC65; certified `report render` → reporting projection/writers | `phase_d_large_history_v1` must first read `N-F29` and `N-F30` with their prescribed `domain::read_artifact` readers, assert the typed production fields `mechanism.hypothesis_history.len()==1000` and `health.phase_c.evidence_bundle.records.len()==10000` before rendering, then render the normal default bundle. The test asserts the already-frozen E19 31-path contract (summary, seven CSVs, eleven SVGs, eleven PNGs, manifest) in its frozen order; each public summary and manifest contains exactly one mechanism and one health input record. Test-only counters at the history/evidence projection boundary report one traversal of each source collection for the full render. The collection cardinalities, artifact identity/provenance, and serialized scientific values are unchanged after rendering; a counter greater than one, an output row/path multiplied per renderer, a scientific recomputation, an invalid output, or a non-certified reader route fails. |
+| 65 | `phase_d_large_history_does_not_duplicate_artifact_series_unboundedly` integration | R20/AC65; certified `report render` → reporting projection/writers | `phase_d_large_history_v1` must first read `N-F29` and `N-F30` with their prescribed `domain::read_artifact` readers, assert the typed production fields `mechanism.hypothesis_history.len()==1000` and `health.phase_c.evidence_bundle.records.len()==10000` before rendering. It uses the E19 JSON file classes (`--format json`) with `--figures` and `--tables` omitted, so table and figure selection is the normal default best-effort mode, never an explicit `all` request. The test asserts E40's exact ordered 25 generated paths and its exact three default-unavailable figure records/reasons; unavailable figures have no SVG/PNG generated-file entry. Each public summary and manifest contains exactly one mechanism and one health input record. Test-only counters at the history/evidence projection boundary report exactly one traversal of each source collection for the full render. `PublicReportProjection` must not retain a complete clone of `N-F29` or `N-F30` merely to service an output: a large serialized collection is traversed once into bounded presentation summaries/references, or borrowed/consumed through one bounded projection path, and is never cloned per table, figure, document, or manifest. The collection cardinalities, source artifacts, identity/provenance, and serialized scientific values are unchanged after rendering; a counter other than one, one-copy-per-renderer duplication, an output row/path multiplied per renderer, a scientific recomputation, an invalid output, or a non-certified reader route fails. This is a structural/cardinality/traversal contract, not a byte/RSS performance threshold. |
 | 66 | `phase_d_golden_expectations_are_hand_derived_from_fixture_literals` unit | R21/AC66; test fixtures | repository fixture audit → no renderer-generated golden |
 | 67 | `phase_d_public_report_error_is_publicly_reachable` integration | R22/AC67; reporting/runners | external integration test imports `reporting::PublicReportError`, converts it with `RunnerError::from`, and matches `RunnerError::PublicReport`; falsifies inaccessible public payload |
 | 68 | `phase_d_catalog_reader_rejects_syntactically_malformed_json` integration | R05/AC68; domain catalog reader | `N-X01` exact `{not-json}\n` bytes → `err(LineageCatalogReadError::Json)` and no final root; falsifies accidental acceptance/late publication |
@@ -1971,16 +1971,104 @@ parse and nonzero length; `E35` specifies JSON writes summary+manifest and no
 Markdown, Markdown writes report+manifest and no summary; `E36` fixes default
 best-effort versus explicit failure; `E37` uses `0`, `-0`, finite displays and
 NaN failure from 18.9; `E38` preserves/omits roots exactly; `E39` requires
-byte-identical second render; `E40` invokes certified `report render` on
-`phase_d_large_history_v1` only after the two prescribed typed readers accept
-`N-F29,N-F30`, then fixes the exact production fields
+byte-identical second render.
+
+`E40` is the certified scale-render contract for test 65. It invokes
+`electroanalysis report render` on `phase_d_large_history_v1` only after the
+prescribed canonical `domain::read_artifact` readers accept `N-F29` as the
+schema-4 `MechanismAnalysisReport` and `N-F30` as the schema-4
+`SensorHealthAssessment`; every other supplied input uses the unchanged
+`phase_d_large_history_v1` mapping in section 18.11.2. Before rendering, it asserts exactly
 `mechanism.hypothesis_history.len()==1000` and
-`health.phase_c.evidence_bundle.records.len()==10000` before render. It
-requires the same ordered 31-path E19 output contract, valid outputs, exactly
-one mechanism and one health input record in each public summary and manifest,
-and one instrumented projection traversal per source collection; it rejects
-renderer-per-collection output multiplication,
-unbounded duplication, and any scientific recomputation. `E43` distinguishes
+`health.phase_c.evidence_bundle.records.len()==10000`. It uses `--format json`
+and omits `--figures` and `--tables`: this is the normal default table/figure
+selection mode from 18.8, including its best-effort unavailable-output
+semantics, and is not an explicit `all` request. E40 inherits E19's JSON
+file classes and ordering only; its different sealed scale bytes determine
+availability under section 18.8 and do not inherit E19's generated-path count.
+
+The generated-file list is exactly these 25 UTF-8 relative paths, in this
+order:
+
+1. `public_summary.schema1.json`
+2. `tables/mechanism_evidence.csv`
+3. `tables/health_dimensions.csv`
+4. `tables/evidence_provenance.csv`
+5. `tables/artifact_lineage.csv`
+6. `tables/timescale_comparison.csv`
+7. `tables/model_consistency.csv`
+8. `tables/current_vs_baseline.csv`
+9. `figures/sensor_health_dimension_status.svg`
+10. `figures/sensor_health_dimension_status.png`
+11. `figures/eis_nyquist.svg`
+12. `figures/eis_nyquist.png`
+13. `figures/eis_bode.svg`
+14. `figures/eis_bode.png`
+15. `figures/transient_response.svg`
+16. `figures/transient_response.png`
+17. `figures/calibration_performance.svg`
+18. `figures/calibration_performance.png`
+19. `figures/signal_diagnostics.svg`
+20. `figures/signal_diagnostics.png`
+21. `figures/model_observed_predicted.svg`
+22. `figures/model_observed_predicted.png`
+23. `figures/lineage.svg`
+24. `figures/lineage.png`
+25. `render_manifest.schema1.json`
+
+The eight renderable figure IDs in that list are, in order,
+`sensor_health_dimension_status`, `eis_nyquist`, `eis_bode`,
+`transient_response`, `calibration_performance`, `signal_diagnostics`,
+`model_observed_predicted`, and `lineage`. Their renderability is fixed by the
+sealed bundle: `N-F30` has a valid schema-4 nine-dimension Phase-C assessment;
+`N-F03` has positive finite matching EIS series; `N-F04` has its one unique
+successful selected fit; paired `N-F05`/`N-F07` have aligned serialized
+calibration validation predictions; `N-F08` has its serialized analysis time
+series (its PSD/Allan panel availability remains independently recorded);
+`N-F09` has three finite serialized model predictions; and D-FIG-11 is always
+renderable from the required roots. No scientific value is added, inferred, or
+recomputed to obtain this list.
+
+The manifest has exactly three `unavailable_outputs` figure records, in the
+default D-FIG order, and no other unavailable figure record:
+
+1. `mechanism_timescale` — `serialized_series_unavailable`: `N-F29` has zero
+   serialized comparisons with a finite stored `log10_distance`, as required
+   by D-FIG-01.
+2. `current_vs_baseline` — `comparison_unknown`: every `N-F30`
+   `baseline_comparison` entry has serialized `comparability="unknown"`; under
+   D-FIG-03 this is the closed unknown-comparison outcome, not a renderer-side
+   baseline or unit inference.
+3. `estimation_observed_predicted` — `serialized_series_unavailable`: `N-F06`
+   supplies fewer than two finite timestamped measured/predicted series points,
+   as required by D-FIG-09.
+
+Those three records use `output_kind="figure"` and the listed existing
+`AvailabilityReasonV1` tokens. They appear only in
+`render_manifest.schema1.json`'s `unavailable_outputs`; there is no generated
+file or `generated_files` entry for
+`figures/mechanism_timescale.svg`, `figures/mechanism_timescale.png`,
+`figures/current_vs_baseline.svg`, `figures/current_vs_baseline.png`,
+`figures/estimation_observed_predicted.svg`, or
+`figures/estimation_observed_predicted.png`. Thus the scale bundle has one
+public summary, seven CSV tables, eight renderable figures in SVG and PNG, and
+one manifest: `1 + 7 + (8 * 2) + 1 == 25` generated files. Each generated
+output remains valid, and each public summary and manifest contains exactly
+one mechanism and one health input record.
+
+Test-only counters at the history/evidence projection boundary report exactly
+one traversal of each source collection for the complete render. The source
+collections may be traversed once into bounded presentation
+summaries/references, or borrowed/consumed through one bounded projection
+path if the architecture permits. `PublicReportProjection` must not retain a
+complete clone of `N-F29` or `N-F30` merely to service an output, and no source
+vector may be cloned into every table, figure, document, or manifest. The
+test rejects a counter other than one, one-copy-per-renderer duplication, an
+output row/path multiplied per renderer, changed source artifacts,
+identity/provenance, or serialized scientific values, any scientific
+recomputation, any invalid output, or any non-certified reader route. This is
+a structural/cardinality/traversal falsification contract; it introduces no
+byte or RSS threshold. `E43` distinguishes
 `N-X01` `Json` from `N-X02` non-`Json` `UnknownField` and requires no root for
 each. `E46` is the exact closed catalog objects; `E47` checks every final
 checksum, reader, schema, identity, provenance, Phase-C/evidence invariant,
@@ -2019,8 +2107,12 @@ scope compatibility, acquisition-family presentation, public-summary/manifest
 field shape, availability tokens, D-TBL-04 row/order/candidate universe,
 ComparableWithWarnings behavior, Nyquist sign, baseline unit, transient fit
 uniqueness, numeric spelling, fixture paths/bytes/identities/provenance,
-malformed-catalog errors, test names/count, or publication failure. Material
-disagreement axes = 0.
+malformed-catalog errors, test names/count, or publication failure. For E40
+they also have no material choice on scale-bundle members, the two source
+counts, the JSON format and default figure/table selection, the 25 generated paths,
+the three unavailable IDs/reasons and their manifest-only representation,
+counter value, or bounded-projection/no-per-renderer-duplication behavior.
+Material disagreement axes = 0.
 
 The second independent-review findings are closed in the plan as follows:
 PD-RR-P1-01 by the public reachability proof and AC67; PD-RR-P1-02 by the
