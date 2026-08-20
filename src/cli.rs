@@ -75,6 +75,11 @@ pub enum Command {
         #[command(subcommand)]
         command: HealthCommand,
     },
+    /// Render the certified Phase-D public scientific-output bundle.
+    Report {
+        #[command(subcommand)]
+        command: ReportCommand,
+    },
     /// Estimate latent activity and sensor-response states from time-resolved measurements.
     Estimate {
         #[command(subcommand)]
@@ -85,6 +90,62 @@ pub enum Command {
         #[command(subcommand)]
         command: ModelCommand,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ReportCommand {
+    Render(ReportRenderCommand),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum ReportFormatArg {
+    All,
+    Json,
+    Markdown,
+}
+
+impl From<ReportFormatArg> for crate::report_config::ReportFormat {
+    fn from(value: ReportFormatArg) -> Self {
+        match value {
+            ReportFormatArg::All => Self::All,
+            ReportFormatArg::Json => Self::Json,
+            ReportFormatArg::Markdown => Self::Markdown,
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+pub struct ReportRenderCommand {
+    #[arg(long, value_name = "PATH")]
+    pub mechanism: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    pub health: PathBuf,
+    #[arg(long = "output-dir", value_name = "PATH")]
+    pub output_dir: PathBuf,
+    #[arg(long = "lineage-catalog", value_name = "PATH")]
+    pub lineage_catalog: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub eis: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub transient: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub calibration: Option<PathBuf>,
+    #[arg(long = "calibration-observations", value_name = "PATH")]
+    pub calibration_observations: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub signal: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub estimation: Option<PathBuf>,
+    #[arg(long, value_name = "PATH")]
+    pub model: Option<PathBuf>,
+    #[arg(long, value_enum, default_value_t = ReportFormatArg::All)]
+    pub format: ReportFormatArg,
+    #[arg(long, value_name = "all|none|ID[,ID...]")]
+    pub figures: Option<String>,
+    #[arg(long, value_name = "all|none|ID[,ID...]")]
+    pub tables: Option<String>,
+    #[arg(long)]
+    pub overwrite: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -925,6 +986,23 @@ pub enum CommandSpec {
         results: PathBuf,
         output: Option<PathBuf>,
     },
+    ReportRender {
+        mechanism: PathBuf,
+        health: PathBuf,
+        output_dir: PathBuf,
+        lineage_catalog: Option<PathBuf>,
+        eis: Option<PathBuf>,
+        transient: Option<PathBuf>,
+        calibration: Option<PathBuf>,
+        calibration_observations: Option<PathBuf>,
+        signal: Option<PathBuf>,
+        estimation: Option<PathBuf>,
+        model: Option<PathBuf>,
+        format: crate::report_config::ReportFormat,
+        figures: Option<String>,
+        tables: Option<String>,
+        overwrite: bool,
+    },
 }
 
 /// Errors raised while parsing or validating command-line arguments.
@@ -1016,7 +1094,8 @@ impl CliArgs {
             | Some(CommandSpec::HealthBaseline { .. })
             | Some(CommandSpec::HealthAssess { .. })
             | Some(CommandSpec::HealthTrend { .. })
-            | Some(CommandSpec::HealthReport { .. }) => {}
+            | Some(CommandSpec::HealthReport { .. })
+            | Some(CommandSpec::ReportRender { .. }) => {}
             Some(CommandSpec::EstimateRun { .. })
             | Some(CommandSpec::EstimateValidate { .. })
             | Some(CommandSpec::EstimateSimulate { .. })
@@ -1263,6 +1342,25 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                 HealthCommand::Report(c) => CommandSpec::HealthReport {
                     results: c.results,
                     output: c.output,
+                },
+            },
+            Command::Report { command } => match command {
+                ReportCommand::Render(c) => CommandSpec::ReportRender {
+                    mechanism: c.mechanism,
+                    health: c.health,
+                    output_dir: c.output_dir,
+                    lineage_catalog: c.lineage_catalog,
+                    eis: c.eis,
+                    transient: c.transient,
+                    calibration: c.calibration,
+                    calibration_observations: c.calibration_observations,
+                    signal: c.signal,
+                    estimation: c.estimation,
+                    model: c.model,
+                    format: c.format.into(),
+                    figures: c.figures,
+                    tables: c.tables,
+                    overwrite: c.overwrite,
                 },
             },
             Command::Estimate { command } => match command {

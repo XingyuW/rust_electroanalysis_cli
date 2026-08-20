@@ -8,7 +8,11 @@ use super::artifact::ArtifactKind;
 use serde::{Deserialize, Serialize, de};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::{Path, PathBuf},
+};
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
@@ -658,6 +662,274 @@ impl ArtifactLineageCatalog {
         self.artifacts
             .insert(node.identity.artifact_id.clone(), node);
         Ok(())
+    }
+}
+
+/// Errors from the canonical JSON reader for an artifact-lineage catalog.
+///
+/// A catalog deliberately is not a [`crate::domain::VersionedArtifact`]: it
+/// has no `ArtifactKind` and it is provenance metadata rather than a
+/// scientific artifact.  Keeping this vocabulary separate makes malformed
+/// JSON distinguishable from a syntactically-valid closed-schema violation.
+#[derive(Debug, Error)]
+pub enum LineageCatalogReadError {
+    #[error("artifact lineage catalog I/O error for {path}: {source}")]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("artifact lineage catalog JSON error for {path}: {source}")]
+    Json {
+        path: PathBuf,
+        #[source]
+        source: serde_json::Error,
+    },
+    #[error("artifact lineage catalog {path} must be a JSON object")]
+    InvalidRoot { path: PathBuf },
+    #[error("artifact lineage catalog {path} contains unknown field {field}")]
+    UnknownField { path: PathBuf, field: String },
+    #[error("artifact lineage catalog {path} repeats field {field}")]
+    DuplicateField { path: PathBuf, field: String },
+    #[error("artifact lineage catalog {path} repeats artifact key {key}")]
+    DuplicateArtifactKey { path: PathBuf, key: String },
+    #[error("artifact lineage catalog {path} has unsupported schema version {actual}")]
+    UnsupportedSchemaVersion { path: PathBuf, actual: u32 },
+    #[error("artifact lineage catalog {path} key {key} does not match identity {identity}")]
+    KeyIdentityMismatch {
+        path: PathBuf,
+        key: String,
+        identity: String,
+    },
+    #[error("artifact lineage catalog validation failed for {path}: {source}")]
+    Validation {
+        path: PathBuf,
+        #[source]
+        source: LineageError,
+    },
+}
+
+const CATALOG_INVALID_ROOT: &str = "__phase_d_catalog_invalid_root";
+const CATALOG_UNKNOWN_FIELD: &str = "__phase_d_catalog_unknown_field:";
+const CATALOG_DUPLICATE_FIELD: &str = "__phase_d_catalog_duplicate_field:";
+const CATALOG_DUPLICATE_ARTIFACT_KEY: &str = "__phase_d_catalog_duplicate_artifact_key:";
+
+/// Reads the one canonical, closed-schema artifact-lineage catalog.
+///
+/// The custom map visitors intentionally see duplicate JSON keys before a
+/// `BTreeMap` can overwrite one.  Consumers such as Phase D must use this
+/// reader rather than deserialize catalog content locally.
+pub fn read_artifact_lineage_catalog(
+    path: &Path,
+) -> Result<ArtifactLineageCatalog, LineageCatalogReadError> {
+    let text = fs::read_to_string(path).map_err(|source| LineageCatalogReadError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let mut deserializer = serde_json::Deserializer::from_str(&text);
+    let wire = CatalogWire::deserialize(&mut deserializer)
+        .map_err(|source| map_catalog_deserialize_error(path, source))?;
+    deserializer
+        .end()
+        .map_err(|source| LineageCatalogReadError::Json {
+            path: path.to_path_buf(),
+            source,
+        })?;
+
+    if wire.schema_version != 1 {
+        return Err(LineageCatalogReadError::UnsupportedSchemaVersion {
+            path: path.to_path_buf(),
+            actual: wire.schema_version,
+        });
+    }
+
+    let mut catalog = ArtifactLineageCatalog::default();
+    let mut keys = BTreeSet::new();
+    for (key, node) in wire.artifacts {
+        if !keys.insert(key.clone()) {
+            return Err(LineageCatalogReadError::DuplicateArtifactKey {
+                path: path.to_path_buf(),
+                key: key.0,
+            });
+        }
+        if key != node.identity.artifact_id {
+            return Err(LineageCatalogReadError::KeyIdentityMismatch {
+                path: path.to_path_buf(),
+                key: key.0,
+                identity: node.identity.artifact_id.0,
+            });
+        }
+        catalog
+            .insert(node)
+            .map_err(|source| LineageCatalogReadError::Validation {
+                path: path.to_path_buf(),
+                source,
+            })?;
+    }
+    Ok(catalog)
+}
+
+fn map_catalog_deserialize_error(
+    path: &Path,
+    source: serde_json::Error,
+) -> LineageCatalogReadError {
+    // `serde_json` appends source coordinates to visitor errors.  Strip that
+    // transport detail before matching the closed reader vocabulary while
+    // retaining the original `serde_json::Error` for genuine JSON failures.
+    let message = source.to_string();
+    let marker = message.split(" at line ").next().unwrap_or(&message);
+    let location = path.to_path_buf();
+    if marker == CATALOG_INVALID_ROOT {
+        LineageCatalogReadError::InvalidRoot { path: location }
+    } else if let Some(field) = marker.strip_prefix(CATALOG_UNKNOWN_FIELD) {
+        LineageCatalogReadError::UnknownField {
+            path: location,
+            field: field.to_string(),
+        }
+    } else if let Some(field) = marker.strip_prefix(CATALOG_DUPLICATE_FIELD) {
+        LineageCatalogReadError::DuplicateField {
+            path: location,
+            field: field.to_string(),
+        }
+    } else if let Some(key) = marker.strip_prefix(CATALOG_DUPLICATE_ARTIFACT_KEY) {
+        LineageCatalogReadError::DuplicateArtifactKey {
+            path: location,
+            key: key.to_string(),
+        }
+    } else {
+        LineageCatalogReadError::Json {
+            path: location,
+            source,
+        }
+    }
+}
+
+struct CatalogWire {
+    schema_version: u32,
+    artifacts: Vec<(ArtifactId, ArtifactLineageNode)>,
+}
+
+impl<'de> Deserialize<'de> for CatalogWire {
+    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_any(CatalogWireVisitor)
+    }
+}
+
+struct CatalogWireVisitor;
+
+impl<'de> de::Visitor<'de> for CatalogWireVisitor {
+    type Value = CatalogWire;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a closed artifact-lineage catalog object")
+    }
+
+    fn visit_map<A: de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let mut schema_version = None;
+        let mut artifacts = None;
+        while let Some(field) = map.next_key::<String>()? {
+            match field.as_str() {
+                "schema_version" => {
+                    if schema_version.is_some() {
+                        return Err(de::Error::custom(format!(
+                            "{CATALOG_DUPLICATE_FIELD}schema_version"
+                        )));
+                    }
+                    schema_version = Some(map.next_value()?);
+                }
+                "artifacts" => {
+                    if artifacts.is_some() {
+                        return Err(de::Error::custom(format!(
+                            "{CATALOG_DUPLICATE_FIELD}artifacts"
+                        )));
+                    }
+                    artifacts = Some(map.next_value_seed(ArtifactEntriesSeed)?);
+                }
+                _ => {
+                    let _: de::IgnoredAny = map.next_value()?;
+                    return Err(de::Error::custom(format!("{CATALOG_UNKNOWN_FIELD}{field}")));
+                }
+            }
+        }
+        Ok(CatalogWire {
+            schema_version: schema_version
+                .ok_or_else(|| de::Error::missing_field("schema_version"))?,
+            artifacts: artifacts.ok_or_else(|| de::Error::missing_field("artifacts"))?,
+        })
+    }
+
+    fn visit_bool<E: de::Error>(self, _: bool) -> Result<Self::Value, E> {
+        Err(E::custom(CATALOG_INVALID_ROOT))
+    }
+
+    fn visit_i64<E: de::Error>(self, _: i64) -> Result<Self::Value, E> {
+        Err(E::custom(CATALOG_INVALID_ROOT))
+    }
+
+    fn visit_u64<E: de::Error>(self, _: u64) -> Result<Self::Value, E> {
+        Err(E::custom(CATALOG_INVALID_ROOT))
+    }
+
+    fn visit_f64<E: de::Error>(self, _: f64) -> Result<Self::Value, E> {
+        Err(E::custom(CATALOG_INVALID_ROOT))
+    }
+
+    fn visit_str<E: de::Error>(self, _: &str) -> Result<Self::Value, E> {
+        Err(E::custom(CATALOG_INVALID_ROOT))
+    }
+
+    fn visit_none<E: de::Error>(self) -> Result<Self::Value, E> {
+        Err(E::custom(CATALOG_INVALID_ROOT))
+    }
+
+    fn visit_seq<A: de::SeqAccess<'de>>(self, _: A) -> Result<Self::Value, A::Error> {
+        Err(de::Error::custom(CATALOG_INVALID_ROOT))
+    }
+}
+
+struct ArtifactEntriesSeed;
+
+impl<'de> de::DeserializeSeed<'de> for ArtifactEntriesSeed {
+    type Value = Vec<(ArtifactId, ArtifactLineageNode)>;
+
+    fn deserialize<D: de::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_any(ArtifactEntriesVisitor)
+    }
+}
+
+struct ArtifactEntriesVisitor;
+
+impl<'de> de::Visitor<'de> for ArtifactEntriesVisitor {
+    type Value = Vec<(ArtifactId, ArtifactLineageNode)>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("an artifact-lineage catalog artifacts object")
+    }
+
+    fn visit_map<A: de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let mut entries = Vec::new();
+        let mut keys = BTreeSet::new();
+        while let Some(key) = map.next_key::<ArtifactId>()? {
+            if !keys.insert(key.clone()) {
+                return Err(de::Error::custom(format!(
+                    "{CATALOG_DUPLICATE_ARTIFACT_KEY}{}",
+                    key.0
+                )));
+            }
+            entries.push((key, map.next_value()?));
+        }
+        Ok(entries)
+    }
+
+    fn visit_bool<E: de::Error>(self, _: bool) -> Result<Self::Value, E> {
+        Err(E::custom(CATALOG_INVALID_ROOT))
+    }
+
+    fn visit_seq<A: de::SeqAccess<'de>>(self, _: A) -> Result<Self::Value, A::Error> {
+        Err(de::Error::custom(CATALOG_INVALID_ROOT))
     }
 }
 

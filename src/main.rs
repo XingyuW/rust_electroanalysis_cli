@@ -8,7 +8,7 @@ use rust_electroanalysis_cli::domain::{ConfigurationError, WorkspaceError};
 use rust_electroanalysis_cli::plot_config::PlotConfig;
 use rust_electroanalysis_cli::runners::{
     RunnerError, calibration, estimation, fit, health, mechanism, model, model_validation, plot,
-    search, signal, transient,
+    report, search, signal, transient,
 };
 use rust_electroanalysis_cli::workspace::{self, LastRunMode};
 use thiserror::Error as ThisError;
@@ -61,6 +61,60 @@ fn run() -> Result<(), ApplicationError> {
         );
         return Ok(());
     };
+
+    // Phase D is intentionally independent of workspace last-run state and
+    // configuration mutation. Its artifact-only route therefore dispatches
+    // before the legacy workspace bootstrap used by analysis workflows.
+    if let CommandSpec::ReportRender {
+        mechanism,
+        health,
+        output_dir,
+        lineage_catalog,
+        eis,
+        transient,
+        calibration,
+        calibration_observations,
+        signal,
+        estimation,
+        model,
+        format,
+        figures,
+        tables,
+        overwrite,
+    } = command
+    {
+        let selection = rust_electroanalysis_cli::report_config::ReportSelection::parse(
+            figures.as_deref(),
+            tables.as_deref(),
+        )
+        .map_err(RunnerError::from)?;
+        let outcome = report::run(
+            &rust_electroanalysis_cli::report_config::ReportRenderOptions {
+                mechanism,
+                health,
+                output_dir,
+                lineage_catalog,
+                eis,
+                transient,
+                calibration,
+                calibration_observations,
+                signal,
+                estimation,
+                model,
+                format,
+                selection,
+                overwrite,
+            },
+        )
+        .map_err(RunnerError::from)?;
+        println!(
+            "{} ({} written, {} unavailable)",
+            outcome.output_dir.display(),
+            outcome.written_files,
+            outcome.unavailable_files
+        );
+        return Ok(());
+    }
 
     let workspace_dir = std::env::current_dir().map_err(WorkspaceError::from)?;
     let mut workspace_setup = workspace::prepare_workspace(&workspace_dir)?;
@@ -633,6 +687,9 @@ fn run() -> Result<(), ApplicationError> {
         }
         CommandSpec::ModelReport { results, output } => {
             model::report(&workspace_dir, &results, output.as_deref())?;
+        }
+        CommandSpec::ReportRender { .. } => {
+            unreachable!("Phase-D report dispatch returns before workspace setup")
         }
     }
 
