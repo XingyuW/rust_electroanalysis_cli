@@ -2706,8 +2706,6 @@ This project is distributed as open source under the terms of the [MIT License](
 
 *Generated from codebase analysis. For questions, refer to the source code or open an issue.*
 
-## Canonical physical input boundary
-
 ## Certified public scientific reports
 
 The certified public-output route is `electroanalysis report render`. It accepts only already validated serialized artifacts; it never discovers raw files, fits models, recomputes statistics, resolves lineage, or promotes an association to causality.
@@ -2733,6 +2731,8 @@ electroanalysis report render \
 The published directory contains `render_manifest.schema1.json`, the selected human/machine document(s), selected CSV tables in `tables/`, and SVG/PNG pairs in `figures/`. Publication is private staging followed by a directory rename. Existing directories require `--overwrite` and must contain only a recognized prior Phase-D bundle; unrelated files, directories, or symlinks are rejected unchanged.
 
 All public files are deterministic and projection-only. They use serialized scientific values and clearly report `NA`, unavailable outputs, legacy lineage, data-quality limitations, and producer assessment status rather than supplying a new conclusion.
+
+## Canonical physical input boundary
 
 `electrodata-io` is the canonical physical/scientific input boundary. It owns
 file and container detection, parsing, worksheet selection, raw schema/units,

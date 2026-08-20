@@ -12,6 +12,12 @@
 - `results/`: named result structures, including `CircuitFitResult` and the
   serializable transient report types.
 - `runners/`: thin plot, fit, search, and transient workflow boundaries.
+- `reporting/`: certified Phase-D public-summary, Markdown, CSV, SVG/PNG,
+  lineage-presentation, and atomic-publication components. These modules only
+  project validated serialized artifacts and do not perform scientific
+  reassessment.
+- `report_config.rs`: closed format, figure/table selection, and render-option
+  contracts for `electroanalysis report render`.
 - `workspace.rs`: workspace bootstrap and TOML config lifecycle.
 - `plot_config.rs`: plotting TOML schema/load/migration/resolution.
 - `search_config.rs`: analysis TOML schema/load/validation.
@@ -33,3 +39,13 @@ Scientific equations and ECM evolution remain in `impedance/`; runners only
 coordinate existing modules. `data_file/`, `impedance/`, and `plottings/` are
 preserved as the implementation subsystems. `domain/` does not depend on the
 plotting renderer.
+
+The certified public-output entry point is `electroanalysis report render`.
+It requires mechanism and health artifacts plus an output directory; lineage,
+EIS, transient, paired calibration inputs, signal, estimation, and model
+artifacts are optional. Format selection controls JSON and Markdown documents,
+while table and figure selections independently accept `all`, `none`, or a
+closed comma-separated ID list. Successful publication always includes the
+render manifest and uses private staging followed by an atomic directory
+rename. Existing scientific commands and legacy plotting paths remain separate
+and retain their established behavior.
