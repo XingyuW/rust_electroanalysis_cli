@@ -203,7 +203,7 @@ protocol inputs; implementation defaults are forbidden.
 | E-SCI-04 | Quantify health classification performance against an independent reference. | Every endpoint uses the exhaustive section 3.4 partitions and emits the six category ID sets/counts, exact eligible/evaluable denominators, coverage/missing-state rates, confusion metrics, Wilson intervals for defined binomial proportions, and point-only balanced accuracy. Every eligible record appears exactly once. |
 | E-SCI-05 | Expose domain generalization rather than pooling it away. | Every endpoint emits overall and each closed section 3.6 required-stratum view. Empty or below either declared record/family minimum is indeterminate and forces the parent endpoint indeterminate regardless of aggregate success. |
 | E-SCI-06 | Preserve reference-outcome authority and uncertainty. | Every reference endpoint and combined reference/catalog closure satisfies section 3.5. Structurally invalid authority is a hard error; a complete but protocol-ineligible reference is excluded with one precedence-selected typed reason only for software-exclusive support. Reference contradictions are falsifying evidence, derived or unknown-dependent references cannot pass holdout separation, and a physical mechanism outcome cannot be `unavailable` or selectively excluded. |
-| E-SCI-07 | Separate software validation from physical scientific validation. | Software requests can never emit `physically_validated`. Physical requests hard-fail before scoring without globally distinct owner/registry authority IDs and keys, dual signatures accepted by the frozen weak-key-rejecting strict verifier against the binary's independently committed trust store, exact physical/blinded/domain-equal holdout bindings, and usable semantic outcome for every mechanism reference. Actual post-partition family underpowering is indeterminate, never silently excluded. Absence of a physical cohort never blocks software implementation or E-SW. |
+| E-SCI-07 | Separate software validation from physical scientific validation. | Software requests can never emit `physically_validated`. A physical request against an `UNPROVISIONED` production trust store hard-fails `PhysicalApprovalTrustNotProvisioned` before scoring; a `PROVISIONED` request additionally requires globally distinct real owner/registry authority IDs and keys, dual signatures accepted by the frozen weak-key-rejecting strict verifier against the binary's embedded production store, exact physical/blinded/domain-equal holdout bindings, and usable semantic outcome for every mechanism reference. Test-only known-answer roots certify verifier behavior only. Actual post-partition family underpowering is indeterminate, never silently excluded. Absence of a physical cohort or production provisioning never blocks software implementation or E-SW. |
 | E-SCI-08 | Make every result reconstructible and byte-reproducible. | Authority-assisted report validation rereads the exact hashed protocol, dataset, trust store, and consumed sources and reconstructs every set, count, metric, exclusion, separation decision, endpoint/claim outcome, lineage/provenance reference, and report ID. Section 4.4 freezes every JSON field, CSV/Markdown cell, manifest token, and cross-platform numerical bit vector. |
 
 The protocol may demand stronger sampling, replication, confidence, or domain
@@ -791,7 +791,7 @@ else any does_not_meet_protocol -> does_not_meet_protocol
 else -> meets_protocol
 ```
 
-### 3.8 Immutable physical-approval authority
+### 3.8 Immutable physical-approval authority and production provisioning
 
 Every release claim declares `requested_level`. Software claims may be scored
 from synthetic, constructed, physical, or unknown-origin data but can emit only
@@ -831,21 +831,21 @@ holdout separation still controls fail/indeterminate, and actual record/family
 power still controls indeterminate; neither operation selectively removes a
 record from the physical metric denominator.
 
-The runtime trust authority is not supplied by the protocol, dataset, approval,
-environment, or CLI. Phase E adds a closed
-`config/mhi_physical_approval_trust_store.schema1.json` reviewed and committed
-with the implementation, embeds its exact bytes in the binary with
-`include_bytes!`, and records its SHA-256 in every physical report. The strict
-approval reader validates those embedded bytes during physical-path
-initialization, after protocol validation and before opening the dataset; an
-all-software run does not parse or report the store. The complete closed JSON
-wire schema is:
+The production runtime trust authority is never supplied by the protocol,
+dataset, approval, environment, CLI, feature flag, or network. Phase E embeds
+the exact bytes of the one reviewed production file
+`config/mhi_physical_approval_trust_store.schema1.json` with `include_bytes!`.
+It is the only authority selectable by the production CLI. The strict approval
+reader validates those bytes during physical-path initialization, after
+protocol validation and before opening the dataset; an all-software run does
+not parse or report the store. The complete closed JSON wire schema is:
 
 ```text
 PhysicalApprovalTrustStoreV1 {
   schema_version:1,
   trust_store_id:"mhi_physical_approval_trust_store_v1",
-  trust_roots:[nonempty canonical PhysicalApprovalTrustRootV1]
+  provisioning_state:"UNPROVISIONED" | "PROVISIONED",
+  trust_roots:[canonical PhysicalApprovalTrustRootV1]
 }
 
 PhysicalApprovalTrustRootV1 {
@@ -857,51 +857,99 @@ PhysicalApprovalTrustRootV1 {
 }
 ```
 
-The JSON field name is exactly `trust_roots`; no alias such as `roots` or
-`approval_roots` is accepted. Root entries sort uniquely by `trust_root_id`.
-The union of every `project_owner_authority_id` and
-`registry_authority_id` is globally unique, so the two authority IDs in one
-root are necessarily different. The union of every canonically recompressed
-owner and registry public-key byte array is also globally unique, so one
-mathematical key can never occupy both roles in one root or any roles in
-different roots. Each public key is exactly 32 bytes encoded as 64 lowercase
-hex characters.
+The JSON field names and displayed order are exact; no alias such as `roots`,
+`approval_roots`, or a state alias is accepted. The two provisioning states
+are closed and have the following exact representation and behavior:
 
-After closed field validation in displayed schema order, trust-store semantic
-checks run exactly: (1) nonempty roots sorted uniquely by `trust_root_id`;
-(2) authority-ID global uniqueness in root order, owner before registry;
-(3) key hex/length decode in that same order; (4) the point/canonical/weak-key
-checks below in that same order; (5) canonical-key global uniqueness in that
-same order; and
-(6) selected-root lookup. The first failure stops the stage.
+| `provisioning_state` | Required `trust_roots` value | Physical-request behavior |
+|---|---|---|
+| `UNPROVISIONED` | The only valid value is `[]`. | Hard-fail `PhysicalApprovalTrustNotProvisioned` before scientific scoring, dataset opening, approval parsing, or report creation. There is no fallback to a software request. |
+| `PROVISIONED` | A nonempty canonical array of `PhysicalApprovalTrustRootV1`. | Continue with the strict selected-root, approval-binding, and scientific gates in this section. |
+
+`UNPROVISIONED` is a supported production state: E-SW/software validation and
+software release behavior remain fully usable, but no physical claim can be
+authorized. The initial Phase-E production file is `UNPROVISIONED`; it contains
+no public trust root. A physical request against it returns the exact typed
+error above regardless of any protocol, dataset, approval, or test fixture
+contents. Implementation must remove the currently embedded public test-vector
+keys from this production file rather than merely ignore them. Its absence must
+never block Phase-E software implementation or a software-only release.
+
+In `PROVISIONED`, root entries sort uniquely by `trust_root_id`. The union of
+every `project_owner_authority_id` and `registry_authority_id` is globally
+unique, so the two authority IDs in one root are necessarily different. The
+union of every canonically recompressed owner and registry public-key byte
+array is also globally unique, so one mathematical key can never occupy both
+roles in one root or any roles in different roots. Each public key is exactly
+32 bytes encoded as 64 lowercase hex characters.
+
+Production provisioning requires real independently controlled owner and
+registry keys. Their private material is never committed and must not be
+publicly known. Public Ed25519 test-vector keys, including keys whose matching
+private seed/material is published, are prohibited as `PROVISIONED` production
+roots. Replacing the initial `UNPROVISIONED` file, changing a provisioned root,
+or changing any provisioning/public-root custody evidence requires a forward
+plan amendment and independent security review before deployment.
+
+After closed field validation in displayed schema order, semantic checks run
+exactly: (1) state/array consistency; (2) for `PROVISIONED`, roots sorted
+uniquely by `trust_root_id`; (3) authority-ID global uniqueness in root order,
+owner before registry; (4) key hex/length decode in that same order; (5) the
+point/canonical/weak-key checks below in that same order; (6) canonical-key
+global uniqueness in that same order; and (7) selected-root lookup. The first
+failure stops the stage. `UNPROVISIONED` stops after its empty-array check with
+`PhysicalApprovalTrustNotProvisioned` when and only when a physical request is
+being processed.
 
 Phase E uses exactly
 `ed25519-dalek = { version = "=2.2.0", default-features = false }` with no
 features; the `std`, `legacy_compatibility`, `batch`, `digest`, `hazmat`,
 signing, key-generation, PKCS#8, PEM, random, and Serde surfaces are not used.
-At physical-path startup, after store ID/root/authority/key-shape checks, every
-decoded key is passed to `ed25519_dalek::VerifyingKey::from_bytes` in canonical
-root order and owner before registry order. Its exact input bytes must then
-equal `verifying_key.to_edwards().compress().to_bytes()`, and `is_weak()` must
-be false. A parse failure is hard `PhysicalApprovalPublicKeyInvalid`, a
-recompression mismatch is hard `PhysicalApprovalNoncanonicalPublicKey`, and
-`is_weak()==true` is hard `PhysicalApprovalWeakPublicKey`. Global key
-distinctness compares these canonical recompressed arrays only after every key
-passes those checks. This validation applies to selected and
-unused roots and requires no fabricated signature. For each selected approval
-signature, exact 64 decoded bytes are passed to
-`ed25519_dalek::Signature::try_from`, then
+At `PROVISIONED` physical-path startup, after store ID/root/authority/key-shape
+checks, every decoded key is passed to `ed25519_dalek::VerifyingKey::from_bytes`
+in canonical root order and owner before registry order. Its exact input bytes
+must then equal `verifying_key.to_edwards().compress().to_bytes()`, and
+`is_weak()` must be false. A parse failure is hard
+`PhysicalApprovalPublicKeyInvalid`, a recompression mismatch is hard
+`PhysicalApprovalNoncanonicalPublicKey`, and `is_weak()==true` is hard
+`PhysicalApprovalWeakPublicKey`. Global key distinctness compares these
+canonical recompressed arrays only after every key passes those checks. This
+validation applies to selected and unused roots and requires no fabricated
+signature. For each selected approval signature, exact 64 decoded bytes are
+passed to `ed25519_dalek::Signature::try_from`, then
 `VerifyingKey::verify_strict(approval_signing_bytes, signature)` must return
 `Ok(())`; ordinary `verify`, `verify_batch`, and `ring::signature::ED25519`
 are forbidden on this authority path. A signature parse/strict-verification
 failure is the role-specific hard `PhysicalApprovalOwnerSignatureInvalid` or
 `PhysicalApprovalRegistrySignatureInvalid`. Thus malformed/noncanonical
-public-key/signature encodings, noncanonical scalars, weak/low-order public keys, and weak-key
-forgeries do not authorize a physical claim. V1 has no runtime key discovery,
-environment override, network lookup, validity clock, or dataset-supplied key.
-Changing the store, root field name, key separation rule, verifier version or
-features, or cryptographic algorithm is a forward plan revision requiring an
-independent security/scientific review and new frozen implementation SHA.
+public-key/signature encodings, noncanonical scalars, weak/low-order public
+keys, and weak-key forgeries do not authorize a physical claim. V1 has no
+runtime key discovery, environment override, network lookup, validity clock,
+dataset-supplied key, signing capability, or test-root selection path.
+
+E-T29's cryptographic known answers use a literal `PROVISIONED`
+`PhysicalApprovalTrustStoreV1` only through a pure verifier API exposed to
+tests behind an approved test-only boundary. It is neither embedded nor
+loadable by the production binary. Tests may supply that literal authority
+directly to the pure verifier; the production CLI must always use only the
+embedded production store and must prove that no CLI/configuration/environment
+route selects or loads a test root. The fixture authority is a software
+conformance authority, not a physical-approval authority. It may use published
+test-vector public keys only because it cannot authorize a real physical
+claim.
+
+Passing E-T29 therefore means only: “the software correctly enforces the
+physical-approval contract.” It does not mean that a real physical cohort was
+approved or that Phase E is physically validated. `physically_validated`
+release language requires real `PROVISIONED` production roots, a real
+dual-signed approval, an actual approved physical cohort, passing scientific
+endpoints/strata, and the same exact domain authority. No test-only signature
+or authority can satisfy a real release gate.
+
+Changing the production store, root field name, key separation rule, verifier
+version or features, cryptographic algorithm, or provisioning/public-root
+custody requires a forward plan revision, independent security/scientific
+review, and a new frozen implementation SHA.
 
 `OwnerApprovalEvidenceV1` contains exactly:
 
@@ -1032,7 +1080,7 @@ created until the review gate in section 8 passes.
 | `src/mhi_validation/mod.rs` | Narrow facade for protocol validation and the pure evaluation API. No filesystem access in the evaluator. |
 | `src/mhi_validation/error.rs` | Closed typed error vocabulary for protocol, dataset, compatibility, overlap, reference, metric, and publication failures. |
 | `src/mhi_validation/protocol.rs` | Parse and validate the exact closed TOML structs in section 4.3; reject absent scientific fields, invalid mapping partitions, contradictory rules, and unknown fields. |
-| `src/mhi_validation/approval.rs` | Strictly read the embedded physical-approval trust store and `OwnerApprovalEvidenceV1`; verify file hash, record ID, both Ed25519 signatures, selected owner/registry root, and exact protocol/cohort/claim bindings. It never accepts dataset/protocol/environment-supplied keys. |
+| `src/mhi_validation/approval.rs` | Strictly read the embedded production physical-approval trust store and `OwnerApprovalEvidenceV1`; enforce the closed provisioning state, then verify file hash, record ID, both Ed25519 signatures, selected owner/registry root, and exact protocol/cohort/claim bindings. Its pure verifier has one approved test-only literal-trust boundary; production never accepts dataset/protocol/environment/test-supplied keys. |
 | `src/mhi_validation/reader.rs` | Use additive `domain::read_artifact_strict` for the dataset and referenced mechanism/health artifacts plus additive `domain::read_artifact_lineage_catalog_strict` for the required catalog; verify duplicate-free/unknown-free bytes, kind, schema, recomputed semantic identity, file hash, declaration equality, combined graph closure, and canonical path containment. |
 | `src/mhi_validation/partition.rs` | Apply sections 3.2, 3.5, and 3.6 exactly: endpoint/view membership, source-key deduplication, lineage/reference closure, experiment/family overlap, strata, and total eligible/excluded/not-applicable accounting. No filename or timestamp inference. |
 | `src/mhi_validation/mechanism.rs` | Project already-serialized Phase B outcomes into declared validation endpoints and exact counts. It must not call the Phase B assessor. |
@@ -1106,10 +1154,17 @@ VerifiedEmbeddedTrustStore {
 OwnerApprovalEvidenceV1::read_and_validate(
     path,
     expected_file_sha256,
-    embedded_trust_store,
+    production_trust_store,
     protocol,
     dataset,
 ) -> Result<Self, MhiValidationError>
+#[cfg(test)]
+verify_physical_approval_known_answer_test(
+    literal_test_trust_store: &PhysicalApprovalTrustStoreV1,
+    approval_signing_bytes: &[u8],
+    owner_signature: &[u8],
+    registry_signature: &[u8],
+) -> Result<(), MhiValidationError>
 ValidationInputs::read(protocol, dataset_path) -> Result<Self, MhiValidationError>
 evaluate_mhi_validation(
     protocol: &MhiValidationProtocolV1,
@@ -1141,8 +1196,10 @@ The complete production execution path is frozen as:
    and dataset CLI paths must be existing regular non-symlink files, and their
    canonical paths must be distinct from each other and outside the canonical
    output/stage/backup trees. If and only if at least one claim is physical, the
-   binary then strictly validates its embedded trust-store bytes and resolves
-   the declared root ID before opening the dataset or any scientific source.
+   binary then strictly validates its embedded production trust-store bytes. An
+   `UNPROVISIONED` store returns `PhysicalApprovalTrustNotProvisioned`; only a
+   `PROVISIONED` store continues to resolve the declared root ID, before opening
+   the dataset or any scientific source.
 4. `reader::ValidationInputs::read` uses `domain::read_artifact_strict` for the
    dataset and every present declared mechanism/health path, and
    `domain::read_artifact_lineage_catalog_strict` for the one required catalog. It
@@ -1179,10 +1236,13 @@ the next:
 
 1. CLI option and lexical input/output path shape;
 2. protocol UTF-8/TOML parse, closed-schema, then semantic validation;
-3. for physical protocols only, embedded trust-store structure/hash in exact
-   field order, canonical roots, globally distinct authority IDs, globally
-   canonical point-recompression plus weak-key validation, globally distinct
-   canonical public-key bytes, then selected-root lookup;
+3. for physical protocols only, embedded production trust-store structure/hash
+   in exact field order, then provisioning-state/array consistency; an
+   `UNPROVISIONED` store returns `PhysicalApprovalTrustNotProvisioned`, while a
+   `PROVISIONED` store continues through canonical roots, globally distinct
+   authority IDs, globally canonical point-recompression plus weak-key
+   validation, globally distinct canonical public-key bytes, then selected-root
+   lookup;
 4. dataset I/O, duplicate scan, kind/schema, source-file SHA-256 computation,
    closed structure,
    protocol binding, and cohort-hash recomputation, in that order;
@@ -2578,11 +2638,11 @@ temporary copy; production code never generates an oracle.
 | E-R14 | E-AC14 | E-T23 | `expected/golden_bundle/mhi_validation_report.schema1.json`; `expected/golden_bundle/validation_execution_manifest.schema1.json`; `expected/golden_replace_execution_manifest.schema1.json`; `expected/golden_bundle/validation_summary.md`; `expected/golden_bundle/tables/cohort_coverage.csv`; `expected/golden_bundle/tables/leakage_assessment.csv`; `expected/golden_bundle/tables/mechanism_validation.csv`; `expected/golden_bundle/tables/health_validation.csv`; `expected/golden_bundle/tables/exclusion_ledger.csv`; `expected/golden_bundle/tables/compatibility_matrix.csv`; `publication/unmanaged_bundle/sentinel.txt`; `expected/publication_state_table.schema1.json` | copy the nine create-new goldens to the test-owned managed output, then force lock contention; existing stage/backup/symlink; unmanaged output; concurrent create after preflight; no-replace unsupported/failure; exchange unsupported/failure; replace the managed output namespace before the final precheck; after that precheck but before exchange, atomically replace it with the unmanaged sentinel tree; separately mutate a managed old-generation file through the held identity in that interval; after exchange and before the ordered proof, separately replace then same-inode-mutate the newly visible output; crash before/after every parent fsync and each generation proof; stage→backup failure; each reverse-order deletion failure including partial backup | precheck replacement hard-fails uncommitted `PublicationConcurrentManagedOutputChanged` and leaves the competitor at output; precheck-to-exchange old-generation replacement/mutation returns `PublicationCommittedForeignSwapDetected` and preserves it whole at stage; post-exchange new-generation replacement/mutation returns `PublicationCommittedVisibleOutputChanged` and preserves the entire old stage without cleanup; each returns exact identity/fingerprint tokens and no success; every other case matches the section 4.5 error/commit/residue table; successful overwrite uses the replacement manifest; exchange never leaves output absent; every metadata transition is directory-fsynced |
 | E-R15 | E-AC15 | E-T24 | `source_guards/forbidden_dependencies.txt` | add each forbidden assessor/reverse import token to temporary source sample | guard fails for Phase-B assessor, Phase-C assessor, and Phase-D→E dependency |
 | E-R15 | E-AC15 | E-T25 | `phase_d_golden/input_manifest.txt`; `phase_d_golden/file_sha256s.txt` | run Phase D before/after additive Phase-E build; mutate one expected byte | identical bytes pass; mutation fails |
-| E-R16 | E-AC16 | E-T26 | `dataset/software_valid.schema1.json`; `report/valid.schema1.json`; `approval/valid.schema1.json`; `trust/embedded_trust_store.schema1.json` | missing/wrong kind; schema 0/2; unknown/duplicate nested field; nonfinite; negative zero; invalid tag/token/signature length; rename `trust_roots` to `roots`/`approval_roots`; empty/unsorted/duplicate roots; same owner/registry authority ID in one root; duplicate authority ID across roots; same owner/registry canonical key in one root; duplicate canonical key across roots/roles; 31/33-byte key; exact nondecompressible y=2 point `0200000000000000000000000000000000000000000000000000000000000000`; exact ZIP-215-decodable noncanonical identity alias `eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f`; unused canonical identity key `0100000000000000000000000000000000000000000000000000000000000000` | exact schema-1/strict-reader acceptance and typed rejection matrix; only exact nonempty `trust_roots` bytes with globally distinct IDs/canonical keys and every key passing `from_bytes`, recompression equality, and `is_weak()==false` pass; y=2 hard-fails `PhysicalApprovalPublicKeyInvalid`, the alias hard-fails `PhysicalApprovalNoncanonicalPublicKey`, and unused identity hard-fails `PhysicalApprovalWeakPublicKey`; no old reader behavior change |
+| E-R16 | E-AC16 | E-T26 | `dataset/software_valid.schema1.json`; `report/valid.schema1.json`; `approval/valid.schema1.json`; `trust/test_only_known_answer_trust_store.schema1.json`; `trust/test_only_invalid_identity_weak_key.schema1.json` | missing/wrong kind; schema 0/2; unknown/duplicate nested field; nonfinite; negative zero; invalid tag/token/signature length; missing/unknown `provisioning_state`; `UNPROVISIONED` with roots or `PROVISIONED` with empty roots; rename `trust_roots` to `roots`/`approval_roots`; unsorted/duplicate provisioned roots; same owner/registry authority ID in one root; duplicate authority ID across roots; same owner/registry canonical key in one root; duplicate canonical key across roots/roles; 31/33-byte key; exact nondecompressible y=2 point `0200000000000000000000000000000000000000000000000000000000000000`; exact ZIP-215-decodable noncanonical identity alias `eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f`; unused canonical identity key `0100000000000000000000000000000000000000000000000000000000000000` | exact schema-1/strict-reader acceptance and typed rejection matrix; only `UNPROVISIONED` with `[]`, or exact `PROVISIONED` `trust_roots` bytes with globally distinct IDs/canonical keys and every key passing `from_bytes`, recompression equality, and `is_weak()==false`, pass; y=2 hard-fails `PhysicalApprovalPublicKeyInvalid`, the alias hard-fails `PhysicalApprovalNoncanonicalPublicKey`, and unused identity hard-fails `PhysicalApprovalWeakPublicKey`; no old reader behavior change |
 | E-R16 | E-AC16 | E-T27 | `compatibility/existing_artifact_fixture_inventory.schema1.json`; `compatibility/existing_artifact_matrix.md` | inventory must equal the literal historical set below; flip one expected kind/schema/acceptance/byte-hash cell at a time | every historical fixture retains exact baseline result/bytes; any expectation mutation fails |
 | E-R17 | E-AC17 | E-T28 | `protocol/software_valid.toml`; `dataset/synthetic_perfect.schema1.json`; `approval/none.txt` | perfect metrics; relabel filename/method as physical | only `software_validated_only`; origin is never inferred; physical outcome impossible |
-| E-R17 | E-AC17 | E-T29 | `protocol/physical_valid.toml`; `dataset/physical_valid.schema1.json`; `dataset/physical_selective_unavailable.schema1.json`; `approval/valid.schema1.json`; `approval/valid_selective_unavailable.schema1.json`; `approval/invalid_self_signed.schema1.json`; `approval/invalid_identity_forgery.schema1.json`; `trust/embedded_trust_store.schema1.json`; `trust/invalid_identity_weak_key.schema1.json`; `reference/complete_sources.schema1.json` | missing approval; wrong purpose; unknown root; dataset/protocol-supplied attacker key; wrong owner/registry key; copy the owner signature into the registry field; malformed/noncanonical-scalar/one-signature payload; set the selected owner key to identity encoding `0100000000000000000000000000000000000000000000000000000000000000` and its signature to identity-R/zero-S `01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000` over an arbitrary altered payload, then apply the same identity-key mutation separately to the registry role; replace either selected role separately with nondecompressible y=2 key `0200000000000000000000000000000000000000000000000000000000000000`; wrong file/record/cohort/protocol/claim/endpoint/domain/origin/authority binding; missing/legacy assessed source or reference; synthetic/unknown origin; disallowed reference method/authority; unblinded/unquantified/over-limit reference; incomplete reference node; use the precommitted mutually hash-bound dataset/approval pair containing 100 fully authoritative/physical/blinded/quantified/complete mechanism records, 98 semantic outcomes `unavailable`, and only two supporting records/families; declared minimum <2; actual one family/missing stratum; valid dual-signed two-family case | only the exact no-feature `ed25519-dalek 2.2.0` `from_bytes`/recompression/`is_weak`/`Signature::try_from`/`verify_strict` sequence is accepted; each literal identity forgery hard-fails `PhysicalApprovalWeakPublicKey` before signature verification, each y=2 key hard-fails `PhysicalApprovalPublicKeyInvalid`, copied/malformed/strict-invalid role signatures hard-fail their role-specific error, and all trust/schema/binding/origin/physical-reference-authority failures hard-fail before exclusion or scoring; the independently valid dual-signed 98-outcome fixture hard-fails `PhysicalReferenceOutcomeUnavailable` with no report, proving the result is not merely an approval-hash mismatch; actual family/record underpowering is indeterminate; only the exact dual-verified named passing claim emits `physically_validated` |
-| E-R18 | E-AC18 | E-T30 | `expected/phase_e_fixture_inventory.schema1.json`; `expected/final_validation_review_ledger.md` | compare inventory to every regular file under `tests/fixtures/phase_e`; require each inventory row's E-R/E-AC/E-T/mutation/oracle to equal this section; omit/stale one command, SHA, fixture row, independent review, or P0/P1 disposition; change the direct Dalek declaration/features, any of the six section-4.6 new lock versions/checksums/edges, or any pre-existing lock entry | any missing/extra/duplicate/unmapped fixture, stale evidence, forbidden feature, dependency drift, or old-lock drift fails; only complete same-SHA independently approved evidence plus the exact six-package lock delta passes the gate |
+| E-R17 | E-AC17 | E-T29 | `protocol/physical_valid.toml`; `dataset/physical_valid.schema1.json`; `dataset/physical_selective_unavailable.schema1.json`; `approval/valid.schema1.json`; `approval/valid_selective_unavailable.schema1.json`; `approval/invalid_self_signed.schema1.json`; `approval/invalid_identity_forgery.schema1.json`; `trust/test_only_known_answer_trust_store.schema1.json`; `trust/test_only_invalid_identity_weak_key.schema1.json`; `reference/complete_sources.schema1.json` | invoke the production CLI physical route while its embedded production store is `UNPROVISIONED`; then, only through the approved test-only pure-verifier boundary, use the literal known-answer store and mutate: missing approval; wrong purpose; unknown root; dataset/protocol-supplied attacker key; wrong owner/registry key; copy the owner signature into the registry field; malformed/noncanonical-scalar/one-signature payload; set the selected owner key to identity encoding `0100000000000000000000000000000000000000000000000000000000000000` and its signature to identity-R/zero-S `01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000` over an arbitrary altered payload, then apply the same identity-key mutation separately to the registry role; replace either selected role separately with nondecompressible y=2 key `0200000000000000000000000000000000000000000000000000000000000000`; wrong file/record/cohort/protocol/claim/endpoint/domain/origin/authority binding; missing/legacy assessed source or reference; synthetic/unknown origin; disallowed reference method/authority; unblinded/unquantified/over-limit reference; incomplete reference node; use the precommitted mutually hash-bound dataset/approval pair containing 100 fully authoritative/physical/blinded/quantified/complete mechanism records, 98 semantic outcomes `unavailable`, and only two supporting records/families; declared minimum <2; actual one family/missing stratum; valid dual-signed two-family case; attempt every CLI/config/environment/protocol test-root-selection route | the production CLI always hard-fails a physical request with `PhysicalApprovalTrustNotProvisioned` before dataset/scoring and cannot select test roots; only the exact no-feature `ed25519-dalek 2.2.0` `from_bytes`/recompression/`is_weak`/`Signature::try_from`/`verify_strict` sequence is accepted by the test-only pure verifier; each literal identity forgery hard-fails `PhysicalApprovalWeakPublicKey` before signature verification, each y=2 key hard-fails `PhysicalApprovalPublicKeyInvalid`, copied/malformed/strict-invalid role signatures hard-fail their role-specific error, and all test-store/schema/binding/origin/physical-reference-authority failures hard-fail before exclusion or scoring; the independently valid dual-signed 98-outcome fixture hard-fails `PhysicalReferenceOutcomeUnavailable` with no report, proving the result is not merely an approval-hash mismatch; actual family/record underpowering is indeterminate; only the exact test-boundary dual-verified named passing case emits `physically_validated`, and it is software conformance evidence only |
+| E-R18 | E-AC18 | E-T30 | `expected/phase_e_fixture_inventory.schema1.json`; `expected/author_validation_evidence_ledger.md` | compare inventory to every regular file under `tests/fixtures/phase_e`; require each inventory row's E-R/E-AC/E-T/mutation/oracle to equal this section; omit/stale one committed author command/result, fixture row, mapping, dependency/lock audit, or P0/P1 author disposition; add a candidate commit SHA or an independent GO to the committed author ledger; change the direct Dalek declaration/features, any of the six section-4.6 new lock versions/checksums/edges, or any pre-existing lock entry; after freeze, omit/retarget/unsign one required external review attestation or change its `REVIEW_SHA`, plan tags, platform result, required command result, reviewer GO/NO-GO, or P0/P1 disposition | any missing/extra/duplicate/unmapped fixture, stale committed author evidence, self-approval, forbidden feature, dependency drift, old-lock drift, or incomplete/mismatched external attestation fails its applicable gate; the candidate is ready for independent review only with complete committed author evidence, while approval/integration requires the protected same-`REVIEW_SHA` independent-GO attestation set plus the exact six-package lock delta |
 
 For E-T29, “the same identity-key mutation separately to the registry role”
 means replacing both that role's key and that role's signature with the same
@@ -2603,17 +2663,70 @@ inventory; reviewers independently cross-check with
 `rg --files tests/fixtures/phase_e`. Aliases, directories, globs, “same as,”
 and “all fixtures” are forbidden values.
 
-`trust/embedded_trust_store.schema1.json` is a hand-reviewed byte-for-byte test
-copy of `config/mhi_physical_approval_trust_store.schema1.json`; E-T26/E-T29
-require equality to the `include_bytes!` payload and its reported SHA-256. It is
-never opened as runtime trust authority, and changing only the fixture cannot
-change which signatures the binary trusts.
+`expected/author_validation_evidence_ledger.md` is the other committed E-T30
+artifact. It contains the exact Phase-E fixture inventory reference; complete
+requirement/AC/test/fixture/mutation/oracle mapping; exact dependency and lock
+audit; exact commands required for author validation; author-side command
+results; and author-side P0/P1/P2 dispositions. It contains no implementation
+candidate commit SHA, no `REVIEW_SHA`, no independent-review record, and no GO
+approval. It is evidence frozen with the candidate, not self-approval.
 
-No owner/registry private key, seed, signer, or fixture-regeneration helper is
-committed. `approval/valid.schema1.json` and
+The required post-freeze E-T30 record is an external, non-self-referential,
+protected signed-tag attestation set on `origin`; it is never committed back
+into `REVIEW_SHA`. After the implementation branch is frozen, exactly these
+four immutable annotated tags must be created, each targeting the exact
+`REVIEW_SHA` commit object (not a later commit or a merge):
+
+```text
+ism-mechanism-health-v1-e-review-scientific-<REVIEW_SHA>
+ism-mechanism-health-v1-e-review-architecture-<REVIEW_SHA>
+ism-mechanism-health-v1-e-review-security-<REVIEW_SHA>
+ism-mechanism-health-v1-e-review-compatibility-<REVIEW_SHA>
+```
+
+Each tag must be SSH- or OpenPGP-signed by the independently authorized
+reviewer for its named role. The remote must protect these tag names against
+update and deletion; integration verifies the target object, tag signature,
+authorized signer, and immutable remote ref. Each signed tag body is a
+canonical UTF-8 `PhaseEReviewAttestationV1` record containing exactly its
+format version, `REVIEW_SHA`, sorted applicable approved plan tags (including
+the latest R2 tag and predecessors), reviewer role and identity, that role's
+GO/NO-GO decision, the complete P0/P1/P2 disposition, Linux validation result,
+macOS validation result, and the required command/result set. The four tags
+together are the complete independent review-attestation component. They may
+name no candidate other than their target `REVIEW_SHA`; a missing, unsigned,
+retargeted, unauthorized, NO-GO, or incomplete tag blocks approval and
+integration. Because tags annotate rather than alter the reviewed commit, this
+records same-SHA independent review without requiring that review to appear in
+the commit being reviewed.
+
+`trust/test_only_known_answer_trust_store.schema1.json` is a literal test-only
+`PROVISIONED` store passed directly to the pure verifier by E-T26/E-T29. It is
+not a copy of `config/mhi_physical_approval_trust_store.schema1.json`, is never
+embedded in or opened by the production CLI, and cannot change which authority
+the binary trusts. The embedded production file is `UNPROVISIONED` until a real
+separately reviewed production provisioning occurs. The test-only file may
+contain public test-vector keys solely as software-conformance inputs; those
+keys never become production physical authority.
+
+No owner/registry private key, seed, signer, signing capability, or
+fixture-regeneration helper is committed. `approval/valid.schema1.json` and
 `approval/valid_selective_unavailable.schema1.json` are immutable literal
-known-answer signatures created outside the production/test runtime and bound
-to their exact cohort fixtures; tests verify but never regenerate them.
+known-answer signatures created offline, outside the production and test
+runtimes, and bound to their exact cohort fixtures. Only public test keys,
+signed literal approvals, literal protocol/dataset/reference files, and
+expected hashes/errors/results may be committed. The fixture authority retains
+private material outside the repository or destroys it after authoring; tests
+verify the literals and never regenerate them.
+
+Golden scientific and output fixtures are independent authorities, not an
+output-update mechanism. Literal source fixtures are constructed from this
+approved plan; expected scientific ledgers are hand-derived or independently
+derived; and byte goldens may be assembled by an independent fixture-authoring
+process. Production output may be compared against them but must never
+overwrite, update, or regenerate their oracle values. `UPDATE_GOLDENS=1` or
+any equivalent production-generated-oracle path is forbidden. Independent
+review confirms golden bytes against this plan.
 
 The historical compatibility set mapped to E-R16 → E-AC16 → E-T27 is exactly:
 
@@ -2879,18 +2992,46 @@ Independent reviewers must review exactly `REVIEW_SHA`. If the branch advances
 after that freeze, the review remains valid for `REVIEW_SHA`; later commits are
 simply unreviewed. No stale-SHA stop loop is permitted.
 
-The frozen implementation commit may be approved only when:
+Two non-interchangeable gates apply to this frozen candidate.
 
-- E-SW passes in full on Linux and macOS;
-- for every requested physical claim, E-SCI passes with exact dual-signed
-  section 3.8 approval and embedded-root verification; an all-software release
+`READY_FOR_PHASE_E_IMPLEMENTATION_REVIEW=YES` is permitted when and only when:
+
+- all production implementation required by the approved plan is complete;
+- all author-executable E-SW tests are complete, all required literal fixtures
+  and mutation oracles are committed, and author-side traceability is complete;
+- local/macOS validation passes wherever it is executed, including the exact
+  results recorded in the committed author evidence ledger;
+- the implementation branch is committed, pushed, and clean;
+- `REVIEW_SHA` is frozen at the exact remote branch commit; and
+- the committed E-T30 author-side evidence is complete and contains zero
+  self-approval.
+
+This review-candidate gate does not require any independent GO, an external
+attestation, or Linux validation that the author cannot execute on a macOS-only
+workstation. The author must not fabricate a Linux result. The author completes
+available local/macOS validation and pushes the exact candidate; CI and
+independent validation then execute the required Linux and macOS commands on
+that same `REVIEW_SHA` and record their results in the post-freeze signed-tag
+attestations.
+
+`READY_FOR_PHASE_E_IMPLEMENTATION_APPROVAL_AND_INTEGRATION=YES` is permitted
+only after all of the following hold for the same exact `REVIEW_SHA`:
+
+- the four section 7.3 protected signed review-attestation tags are complete,
+  valid, and GO for scientific, architecture, security, and compatibility;
+- required Linux and macOS validation and every required command pass as
+  recorded in those attestations;
+- for every requested physical claim, E-SCI passes with a real dual-signed
+  section 3.8 `PROVISIONED` production-root approval; an all-software release
   has no physical claim and is explicitly limited to E-SW wording;
 - the full locked regression suite and Phase D byte-compatibility checks pass;
 - source, schema, fixture, and generated-output diffs match the approved scope;
-- independent scientific, architecture, security, and compatibility reviewers
-  all record GO; and
+- no P0 or P1 remains; and
 - the validated commit has an explicit rollback target at the pre-merge
   `main` commit.
+
+Linux failure is a blocker for approval/integration, not necessarily for
+freezing and submitting the candidate for independent review.
 
 ### 8.6 Integration and cleanup
 
@@ -2925,8 +3066,9 @@ Phase E is complete only when all of these statements are true:
 
 1. Every E-SCI objective has a passing test or, only where a physical claim is
    requested, exact dual-signed section 3.8 approval evidence verified against
-   the embedded reviewed trust store and a passing physical-validation record,
-   with no silent unavailable data.
+   real `PROVISIONED` embedded production roots and a passing physical-validation
+   record, with no silent unavailable data. Test-only known-answer evidence is
+   not a physical-validation record.
 2. Both new artifact schemas, protocol/trust/approval authorities, source graphs,
    and the output bundle are closed, canonical, byte-deterministic,
    provenance-complete, and published under the section 4.5 state machine.
@@ -2936,7 +3078,9 @@ Phase E is complete only when all of these statements are true:
 4. Phase B/C/D artifacts remain immutable and their scientific semantics are
    unchanged.
 5. All baseline and Phase E test/CI gates pass.
-6. Independent scientific, architecture, and compatibility reviews record GO.
+6. Independent scientific, architecture, security, and compatibility reviews
+   record GO for the exact reviewed SHA through the section 7.3 attestation
+   mechanism.
 7. Release language distinguishes software validation from physical validation
    and names the exact validated domain.
 
@@ -2967,8 +3111,8 @@ into one helper-only test is not sufficient.
 | E-R14 | Exact nine-file output obeys closed field/cell bytes and the locked no-clobber/two-generation-bound exchange/fsync publication state machine. | `output.rs`, runner | E-AC14: success publishes exact bytes; every write/fsync/noreplace/exchange/race/partial-cleanup failure returns exact commit/residue state; unmanaged output present at preflight is untouched, a foreign old generation is preserved whole at stage, and a changed newly visible generation prevents all old-stage cleanup under its typed committed error. | E-T22, E-T23 | Manifest self-hash, timestamp, either exchange generation is unbound, foreign cleanup, output namespace gap, un-fsynced metadata, ambiguous residue, or unverified bytes occur. |
 | E-R15 | Phase B/C assessors and Phase D projection/output remain unchanged and independent of Phase E. | source dependency guards; full baseline suite | E-AC15: source guards and baseline/golden tests prove no reverse dependency or output drift. | E-T24, E-T25 | Phase E reassesses/mutates sources or identical Phase D input produces changed public output. |
 | E-R16 | New artifact kinds are additive and schema-1-only; existing serialization/migration remains exact. | `artifact.rs`, `artifact_contracts.rs` | E-AC16: new round trips and negative matrices pass while all existing fixture matrices retain prior results. | E-T26, E-T27 | Existing token/schema behavior changes or a Phase E future/legacy schema is silently accepted. |
-| E-R17 | Software and physical requests are distinct; physical claims require exact origin/blinding/quantification, usable mechanism semantic outcomes, domain-equal endpoints, globally separate owner/registry IDs and keys, and immutable dual signatures accepted only by the frozen strict verifier before scoring. | protocol/report/trust/approval schemas, assessment | E-AC17: self-signed/synthetic/constructed/unknown/unapproved, weak-key-forged, same-key-dual-role, domain-overbroad, or semantic-outcome-unavailable input cannot emit `physically_validated`; actual underpowering is indeterminate; only a strict dual-verified named passing claim can. | E-T28, E-T29 | Dataset/protocol keys authenticate themselves, a weak/same key or one signature suffices, approval/domain mismatch is downgraded, or synthetic/unblinded/outcome-unavailable/underpowered evidence obtains a physical claim. |
-| E-R18 | Full same-SHA CI, independent reviews, exact Phase-E fixture inventory, historical literal set, frozen dependency delta, and exhaustive mutation/oracle ledger gate release. | CI and review records | E-AC18: all 18 requirements, 18 ACs, 30 tests, every literal fixture/mutation/oracle, command, review, plan tag, final SHA, and exact six-package lock delta are mapped with zero unresolved P0/P1. | E-T30 | Any filesystem fixture is absent/extra/aliased/unmapped, dependency drifts, or any command/review/SHA is stale or self-approved. |
+| E-R17 | Software and physical requests are distinct. The production trust store is explicitly `UNPROVISIONED` or `PROVISIONED`; production roots are real independently controlled authority only, while literal test roots are accessible solely through the test-only pure verifier. A provisioned physical claim requires exact origin/blinding/quantification, usable mechanism semantic outcomes, domain-equal endpoints, globally separate owner/registry IDs and keys, and immutable dual signatures accepted only by the frozen strict verifier before scoring. | protocol/report/trust/approval schemas, assessment | E-AC17: an unprovisioned production request hard-fails before scoring; self-signed/synthetic/constructed/unknown/unapproved, weak-key-forged, same-key-dual-role, domain-overbroad, or semantic-outcome-unavailable input cannot emit `physically_validated`; test-only signatures cannot satisfy a release gate; actual underpowering is indeterminate; only a real provisioned strict dual-verified named passing claim can. | E-T28, E-T29 | A production test-vector root, dataset/protocol self-authentication, test-root selection route, weak/same key, one signature, approval/domain downgrade, or synthetic/unblinded/outcome-unavailable/underpowered evidence obtains a physical claim. |
+| E-R18 | Full same-`REVIEW_SHA` CI and independent review attestation, exact Phase-E fixture inventory, committed author-side evidence, historical literal set, frozen dependency delta, and exhaustive mutation/oracle ledger gate approval/integration. | CI, committed author evidence, and protected signed review tags | E-AC18: all 18 requirements, 18 ACs, 30 tests, every literal fixture/mutation/oracle and required command are mapped; committed author evidence has no candidate SHA or approval; and the four external signed attestations bind their GO/NO-GO, platform results, plan tags, P0/P1/P2 disposition, and required command results to one exact `REVIEW_SHA`, with zero unresolved P0/P1 and the exact six-package lock delta. | E-T30 | Any filesystem fixture is absent/extra/aliased/unmapped, dependency drifts, author evidence self-approves or names its candidate SHA, or any command/review/tag/SHA is stale, missing, unsigned, retargeted, unauthorized, or NO-GO. |
 
 ### 10.1 Exact required test registry
 
@@ -3003,7 +3147,7 @@ into one helper-only test is not sufficient.
 | E-T27 | `phase_e_preserves_all_existing_artifact_migration_contracts` |
 | E-T28 | `phase_e_synthetic_only_run_is_software_validated_only` |
 | E-T29 | `phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power` |
-| E-T30 | committed exact-fixture inventory plus validation/review ledger tying every command and independent GO record to the final implementation SHA |
+| E-T30 | committed exact-fixture inventory plus author-validation evidence; post-freeze protected signed review attestations tying independent GO and platform/command results to exact `REVIEW_SHA` |
 
 Planning traceability totals are 18 requirements, 18 acceptance criteria, and
 30 required tests/evidence records. Unmapped requirements = 0; acceptance
@@ -3032,8 +3176,8 @@ P0/P1 findings.
 | P1-E-010 | Section 4.4 defines the complete report/manifest nested records, exact nine-file set, JSON/CSV/Markdown byte rules, every row/cell/null mapping, Markdown projection/escaping, and literal golden authority. |
 | P1-E-011 | Section 4.5 defines a persistent exclusive lock, Linux/macOS no-replace and exchange primitives, file/directory fsync points, commit boundaries, both-generation identity/fingerprint binding, foreign-swap/old-stage preservation, exact no-clobber behavior, and typed deterministic residue/cleanup states. |
 | P1-E-012 | Sections 3.8 and 7.4 separate software and physical gates: synthetic perfection and selectively excluded unavailable mechanism outcomes cannot produce a physical claim; only exact dual-verified, semantic-outcome-available physical holdout authority plus passing powered views can. |
-| P1-E-013 | Section 8 preserves main-only durable workflow, forward-only plan changes on `main`, immutable review SHAs/tags, one post-approval temporary implementation branch, and no stale-SHA loop; this planning task creates no branch/tag/commit. |
-| P1-E-014 | Sections 7.3 and 10 map 18 requirements, 18 criteria, and 30 tests to literal fixture paths, mutation/oracle rows including selective physical outcome exclusion, nested catalog fields, strict-key forgeries/aliases/role reuse, both domain-containment directions, and overwrite replacement/mutation races, a filesystem-exact fixture inventory, the literal historical compatibility set, and a same-SHA independent review ledger with aliases/globs forbidden. |
+| P1-E-013 | Section 8 preserves main-only durable workflow, forward-only plan changes on `main`, immutable review SHAs/tags, one post-approval temporary implementation branch, the distinct review-candidate versus approval/integration gates, and no stale-SHA loop; this R2 planning task creates only its prescribed forward documentation commit, not an implementation branch, approval tag, or merge. |
+| P1-E-014 | Sections 7.3 and 10 map 18 requirements, 18 criteria, and 30 tests to literal fixture paths, mutation/oracle rows including selective physical outcome exclusion, nested catalog fields, strict-key forgeries/aliases/role reuse, both domain-containment directions, and overwrite replacement/mutation races, a filesystem-exact fixture inventory, the literal historical compatibility set, committed non-self-approving author evidence, and a protected same-`REVIEW_SHA` external independent-attestation set with aliases/globs forbidden. |
 | P0-R2-001 | Sections 3.3, 3.5, and 3.8 hard-fail any physical supporting mechanism reference whose semantic outcome is `unavailable` before partitioning; E-T29's exact 98-of-100 mutation proves such records cannot be selected out to manufacture a 2/2 physical pass. |
 | P1-R2-001 | Section 3.8 names the closed root array field exactly `trust_roots`, forbids aliases, and freezes canonical root/ID/key validation for every selected and unused key; the third-round strict-verifier remediation below supersedes the rejected `ring` assumption. |
 | P1-R2-002 | Sections 3.6 and 4.3 authorize the additive domain-owned `read_artifact_lineage_catalog_strict`, enumerate every permitted nested existing-wire key/tag, reuse one internal canonical text parser over the unchanged exact bytes, preserve the existing reader's result, and add same-byte strict-vs-existing mutations in E-T11. |
