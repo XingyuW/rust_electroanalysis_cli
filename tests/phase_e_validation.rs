@@ -1,6 +1,9 @@
 use rust_electroanalysis_cli::{
     cli::{CommandSpec, parse_cli_args},
-    domain::{ArtifactError, read_artifact, read_artifact_strict},
+    domain::{
+        ArtifactError, read_artifact, read_artifact_lineage_catalog,
+        read_artifact_lineage_catalog_strict, read_artifact_strict,
+    },
     mhi_validation::{
         MhiValidationProtocolV1,
         approval::PhysicalApprovalTrustStoreV1,
@@ -92,7 +95,7 @@ fn phase_e_protocol_roundtrip_preserves_all_scientific_rules() {
     assert_eq!(protocol.release_scope.len(), 1);
     assert_eq!(
         MhiValidationProtocolV1::sha256_of_bytes(&bytes),
-        "84e0612214f08bd4a7fec19320ca75714cb4b56e72d3c23f518fcb5e26f9f494"
+        "a098c83e08f488d49f16be4c4fc27b09d87ca3752a7af7b50069ba6e9e09b47e"
     );
 }
 
@@ -133,6 +136,25 @@ fn phase_e_reader_hard_fails_duplicate_json_without_changing_existing_reader() {
         read_artifact::<MhiValidationDatasetV1>(&path).is_ok(),
         "legacy reader compatibility remains unchanged"
     );
+    fs::remove_dir_all(directory).expect("cleanup");
+}
+
+#[test]
+fn phase_e_strict_catalog_reader_rejects_nested_unknown_without_changing_legacy_reader() {
+    let directory = temp("strict_catalog");
+    fs::create_dir_all(&directory).expect("directory");
+    let path = directory.join("lineage.json");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/phase_d/base/lineage_catalog.json");
+    let text = fs::read_to_string(source).expect("catalog fixture");
+    let mutated = text.replacen(
+        "\"producer_version\": \"phase-b-fixture-generator\",",
+        "\"producer_version\": \"phase-b-fixture-generator\",\n        \"phase_e_unknown\": true,",
+        1,
+    );
+    fs::write(&path, mutated).expect("write mutation");
+    assert!(read_artifact_lineage_catalog(&path).is_ok());
+    assert!(read_artifact_lineage_catalog_strict(&path).is_err());
     fs::remove_dir_all(directory).expect("cleanup");
 }
 

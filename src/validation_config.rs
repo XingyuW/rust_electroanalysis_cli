@@ -62,6 +62,70 @@ pub enum RateTargetV1 {
     UpperConfidenceBound,
 }
 
+/// The protocol's reference blinding requirement.  This is deliberately an
+/// enum rather than free text: a spelling change must not weaken a cohort
+/// authority boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BlindingRuleV1 {
+    RequireBlinded,
+    AllowDeclaredUnblinded,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BlindingStateV1 {
+    BlindedToAssessment,
+    NotBlinded,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReferenceDependencyCompletenessV1 {
+    Complete,
+    Unknown,
+}
+
+/// The only count authorities which can appear in a Phase-E acceptance rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CountMetricV1 {
+    DeclaredCount,
+    EligibleCount,
+    ExcludedCount,
+    NotApplicableCount,
+    IndependentFamilyCount,
+    SupportCount,
+    CriticalContradictionCount,
+    NotAssessedOrOtherCount,
+    Tp,
+    Tn,
+    Fp,
+    Fn,
+    IndeterminateCount,
+    DataQualityInsufficientCount,
+    EvaluableCount,
+}
+
+/// The only rate authorities which can appear in a Phase-E acceptance rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RateMetricV1 {
+    ExclusionRate,
+    SupportFraction,
+    ContradictionFraction,
+    NotAssessedFraction,
+    Coverage,
+    IndeterminateRate,
+    DataQualityInsufficientRate,
+    Sensitivity,
+    Specificity,
+    FalsePositiveRate,
+    FalseNegativeRate,
+    BalancedAccuracy,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CategoricalSelectorV1 {
@@ -167,13 +231,13 @@ pub enum ReferenceAuthorityRuleV1 {
     Mechanism {
         allowed_methods: Vec<ReferenceMethodV1>,
         allowed_authority_ids: Vec<String>,
-        blinding_rule: String,
+        blinding_rule: BlindingRuleV1,
         uncertainty_rule: ReferenceUncertaintyRuleV1,
     },
     Health {
         allowed_methods: Vec<ReferenceMethodV1>,
         allowed_authority_ids: Vec<String>,
-        blinding_rule: String,
+        blinding_rule: BlindingRuleV1,
         uncertainty_rule: ReferenceUncertaintyRuleV1,
     },
 }
@@ -183,24 +247,81 @@ pub enum ReferenceAuthorityRuleV1 {
 pub enum AcceptanceRuleV1 {
     Count {
         rule_id: String,
-        metric: String,
+        metric: CountMetricV1,
         comparator: ComparatorV1,
         threshold_u64: u64,
     },
     Rate {
         rule_id: String,
-        metric: String,
+        metric: RateMetricV1,
         target: RateTargetV1,
         comparator: ComparatorV1,
         threshold: f64,
     },
 }
 
+/// A required stratum can select exactly the six axes predeclared by the
+/// Phase-E protocol.  A `serde_json::Value` here would silently accept an
+/// unrecognised scientific axis, so it is intentionally not used.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum StratumPredicateV1 {
+    AnalyteEquals {
+        id: String,
+    },
+    MatrixEquals {
+        id: String,
+    },
+    SensorDesignEquals {
+        id: String,
+    },
+    SensorEquals {
+        id: String,
+    },
+    CampaignEquals {
+        id: String,
+    },
+    TemperatureBand {
+        lower_kelvin_inclusive: f64,
+        upper_kelvin_exclusive: f64,
+    },
+}
+
+impl StratumPredicateV1 {
+    pub fn contains(&self, key: &DomainKeyV1) -> bool {
+        match self {
+            Self::AnalyteEquals { id } => key.analyte_id == *id,
+            Self::MatrixEquals { id } => key.matrix_id == *id,
+            Self::SensorDesignEquals { id } => key.sensor_design_id == *id,
+            Self::SensorEquals { id } => key.sensor_id == *id,
+            Self::CampaignEquals { id } => key.campaign_id == *id,
+            Self::TemperatureBand {
+                lower_kelvin_inclusive,
+                upper_kelvin_exclusive,
+            } => {
+                key.temperature_kelvin >= *lower_kelvin_inclusive
+                    && key.temperature_kelvin < *upper_kelvin_exclusive
+            }
+        }
+    }
+
+    pub const fn discriminant(&self) -> u8 {
+        match self {
+            Self::AnalyteEquals { .. } => 0,
+            Self::MatrixEquals { .. } => 1,
+            Self::SensorDesignEquals { .. } => 2,
+            Self::SensorEquals { .. } => 3,
+            Self::CampaignEquals { .. } => 4,
+            Self::TemperatureBand { .. } => 5,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RequiredStratumV1 {
     pub stratum_id: String,
-    pub predicates: Vec<serde_json::Value>,
+    pub predicates: Vec<StratumPredicateV1>,
     pub minimum_eligible_records: u64,
     pub minimum_independent_families: u64,
 }

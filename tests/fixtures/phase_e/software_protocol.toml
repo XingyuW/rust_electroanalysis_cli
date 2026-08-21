@@ -40,7 +40,7 @@ critical_policy = "any_contradicted_record_fails"
 minimum_eligible_records = 1
 minimum_independent_families = 1
 required_strata = []
-acceptance_rules = []
+acceptance_rules = [{ type = "rate", rule_id = "support", metric = "support_fraction", target = "point_estimate", comparator = "greater_than_or_equal", threshold = 0.5 }]
 
 [mechanism_endpoints.domain.analyte]
 type = "any_declared"
@@ -77,7 +77,11 @@ reference_negative_labels = ["normal"]
 minimum_eligible_records = 1
 minimum_independent_families = 1
 required_strata = []
-acceptance_rules = []
+acceptance_rules = [
+  { type = "rate", rule_id = "coverage", metric = "coverage", target = "point_estimate", comparator = "greater_than_or_equal", threshold = 0.5 },
+  { type = "rate", rule_id = "sensitivity", metric = "sensitivity", target = "point_estimate", comparator = "greater_than_or_equal", threshold = 0.5 },
+  { type = "rate", rule_id = "specificity", metric = "specificity", target = "point_estimate", comparator = "greater_than_or_equal", threshold = 0.5 },
+]
 
 [health_endpoints.target]
 type = "aggregate"

@@ -2,9 +2,16 @@
 
 use super::{MhiValidationError, MhiValidationProtocolV1};
 use crate::{
-    domain::{StrictArtifactRead, read_artifact_strict},
-    results::{MechanismAnalysisReport, MhiValidationDatasetV1, SensorHealthAssessment},
+    domain::{
+        ArtifactLineageState, StrictArtifactRead, StrictLineageCatalogRead,
+        known_lineage_from_artifact, read_artifact_lineage_catalog_strict, read_artifact_strict,
+    },
+    results::{
+        ArtifactSourceExpectationV1, MechanismAnalysisReport, MhiValidationDatasetV1,
+        SensorHealthAssessment, ValidationRecordV1,
+    },
 };
+use serde::Serialize;
 use std::{
     fs,
     path::{Component, Path, PathBuf},
@@ -14,6 +21,7 @@ use std::{
 pub struct ValidationInputs {
     pub dataset: StrictArtifactRead<MhiValidationDatasetV1>,
     pub dataset_directory: PathBuf,
+    pub lineage_catalog: StrictLineageCatalogRead,
     pub mechanism_sources: Vec<(String, StrictArtifactRead<MechanismAnalysisReport>)>,
     pub health_sources: Vec<(String, StrictArtifactRead<SensorHealthAssessment>)>,
 }
@@ -34,11 +42,26 @@ impl ValidationInputs {
             .parent()
             .expect("canonical file has parent")
             .to_path_buf();
+        let lineage_path = safe_dataset_relative_path(
+            &dataset_directory,
+            &dataset.artifact.lineage_catalog_source.relative_path,
+        )?;
+        let lineage_catalog =
+            read_artifact_lineage_catalog_strict(&lineage_path).map_err(|error| {
+                MhiValidationError::Dataset(format!("lineage catalog is invalid: {error}"))
+            })?;
+        if lineage_catalog.source_file_sha256
+            != dataset.artifact.lineage_catalog_source.source_file_sha256
+        {
+            return Err(MhiValidationError::Dataset(
+                "lineage catalog checksum does not match dataset authority".into(),
+            ));
+        }
         let mut mechanism_sources = Vec::new();
         let mut health_sources = Vec::new();
         for record in &dataset.artifact.records {
             if let Some(source) = &record.mechanism_source {
-                if source.expected_artifact_kind != "mechanism_analysis"
+                if source.expected_artifact_kind != crate::domain::ArtifactKind::MechanismAnalysis
                     || source.expected_schema_version != 4
                 {
                     return Err(MhiValidationError::Dataset(
@@ -54,10 +77,17 @@ impl ValidationInputs {
                         "mechanism source checksum or schema mismatch".into(),
                     ));
                 }
+                validate_source_authority(
+                    record,
+                    source,
+                    &artifact.artifact,
+                    &artifact.artifact.lineage,
+                    &lineage_catalog,
+                )?;
                 mechanism_sources.push((record.record_id.clone(), artifact));
             }
             if let Some(source) = &record.health_source {
-                if source.expected_artifact_kind != "health_assessment"
+                if source.expected_artifact_kind != crate::domain::ArtifactKind::HealthAssessment
                     || source.expected_schema_version != 4
                 {
                     return Err(MhiValidationError::Dataset(
@@ -73,6 +103,13 @@ impl ValidationInputs {
                         "health source checksum or schema mismatch".into(),
                     ));
                 }
+                validate_source_authority(
+                    record,
+                    source,
+                    &artifact.artifact,
+                    &artifact.artifact.lineage,
+                    &lineage_catalog,
+                )?;
                 health_sources.push((record.record_id.clone(), artifact));
             }
         }
@@ -82,10 +119,115 @@ impl ValidationInputs {
         Ok(Self {
             dataset,
             dataset_directory,
+            lineage_catalog,
             mechanism_sources,
             health_sources,
         })
     }
+}
+
+fn validate_source_authority<T: Serialize>(
+    record: &ValidationRecordV1,
+    expectation: &ArtifactSourceExpectationV1,
+    artifact: &T,
+    lineage: &ArtifactLineageState,
+    catalog: &StrictLineageCatalogRead,
+) -> Result<(), MhiValidationError> {
+    let expected_matches = match (&expectation.expected_lineage, lineage) {
+        (
+            crate::results::ExpectedLineageV1::Known {
+                artifact_id,
+                semantic_sha256,
+            },
+            ArtifactLineageState::Known { identity, .. },
+        ) => identity.artifact_id == *artifact_id && identity.semantic_sha256 == *semantic_sha256,
+        (
+            crate::results::ExpectedLineageV1::LegacyUnknown {
+                schema_version,
+                legacy_source_fingerprint,
+                reason,
+            },
+            ArtifactLineageState::LegacyUnknown {
+                source_schema_version,
+                reason: actual_reason,
+            },
+        ) => {
+            source_schema_version == &Some(*schema_version)
+                && legacy_source_fingerprint == &expectation.source_file_sha256
+                && legacy_reason_matches(reason.clone(), *actual_reason)
+        }
+        _ => false,
+    };
+    if !expected_matches {
+        return Err(MhiValidationError::Dataset(
+            "source embedded lineage does not match the dataset expectation".into(),
+        ));
+    }
+    let ArtifactLineageState::Known {
+        identity,
+        direct_dependencies,
+    } = lineage
+    else {
+        return Ok(());
+    };
+    let recomputed = known_lineage_from_artifact(
+        identity.artifact_kind,
+        identity.schema_version,
+        identity.producer_version.clone(),
+        identity.experiment_scope.clone(),
+        identity.sensor_scope.clone(),
+        identity.channel_scope.clone(),
+        identity.acquisition_families.clone(),
+        direct_dependencies.clone(),
+        artifact,
+    )
+    .map_err(|error| MhiValidationError::Dataset(format!("source semantic identity: {error}")))?;
+    if &recomputed != lineage {
+        return Err(MhiValidationError::Dataset(
+            "source semantic identity recomputation differs from embedded lineage".into(),
+        ));
+    }
+    let Some(node) = catalog.catalog.artifacts.get(&identity.artifact_id) else {
+        return Err(MhiValidationError::Dataset(
+            "scoreable source root is absent from the lineage catalog".into(),
+        ));
+    };
+    if node.identity != *identity || node.direct_dependencies != *direct_dependencies {
+        return Err(MhiValidationError::Dataset(
+            "scoreable source root does not match the lineage catalog".into(),
+        ));
+    }
+    let declared_scope = crate::results::DeclaredScopeV1 {
+        experiment_scope: identity.experiment_scope.clone(),
+        sensor_scope: identity.sensor_scope.clone(),
+        channel_scope: identity.channel_scope.clone(),
+        acquisition_families: identity.acquisition_families.clone(),
+    };
+    if record.declared_scope != declared_scope {
+        return Err(MhiValidationError::Dataset(
+            "record declared scope differs from the known source identity".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn legacy_reason_matches(
+    expected: crate::results::LegacyLineageReasonV1,
+    actual: crate::domain::UnknownLineageReason,
+) -> bool {
+    matches!(
+        (expected, actual),
+        (
+            crate::results::LegacyLineageReasonV1::FieldAbsentInLegacyArtifact,
+            crate::domain::UnknownLineageReason::FieldAbsentInLegacyArtifact,
+        ) | (
+            crate::results::LegacyLineageReasonV1::ExternalArtifactWithoutLineage,
+            crate::domain::UnknownLineageReason::ExternalArtifactWithoutLineage,
+        ) | (
+            crate::results::LegacyLineageReasonV1::MigrationInformationUnavailable,
+            crate::domain::UnknownLineageReason::MigrationInformationUnavailable,
+        )
+    )
 }
 
 pub fn safe_dataset_relative_path(

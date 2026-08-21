@@ -2,12 +2,12 @@
   "schema_version": 1,
   "artifact_kind": "mhi_validation_dataset",
   "dataset_id": "phase_e_software_dataset",
-  "protocol_sha256": "84e0612214f08bd4a7fec19320ca75714cb4b56e72d3c23f518fcb5e26f9f494",
-  "cohort_semantic_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "protocol_sha256": "a098c83e08f488d49f16be4c4fc27b09d87ca3752a7af7b50069ba6e9e09b47e",
+  "cohort_semantic_sha256": "0680b5b18869f92017b1e16687015abb9a30b769e9424c5a645d680b18477bdf",
   "lineage_catalog_source": {
     "relative_path": "lineage.json",
     "schema_version": 1,
-    "source_file_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    "source_file_sha256": "d905d50e370c260ed0ecef63fff8aabbdced821b56b9d34a2fb18a99bd8ceb82"
   },
   "reference_sources": [],
   "records": [
@@ -16,7 +16,12 @@
       "cohort_role": "validation",
       "mechanism_source": null,
       "health_source": null,
-      "declared_scope": {},
+      "declared_scope": {
+        "experiment_scope": "Unknown",
+        "sensor_scope": "Unspecified",
+        "channel_scope": "Unspecified",
+        "acquisition_families": "Unknown"
+      },
       "domain": {
         "analyte_id": "analyte",
         "matrix_id": "matrix",

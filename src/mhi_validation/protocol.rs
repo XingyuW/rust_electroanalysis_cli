@@ -1,8 +1,9 @@
 use super::error::MhiValidationError;
 use crate::validation_config::{
-    AcceptanceRuleV1, CohortRoleV1, HealthEndpointV1, MechanismEndpointV1,
-    PhysicalApprovalAuthorityV1, ReferenceAuthorityRuleV1, ReleaseClaimV1,
-    RequestedValidationLevelV1,
+    AcceptanceRuleV1, CohortRoleV1, CountMetricV1, DomainSelectorV1, HealthEndpointV1,
+    MechanismEndpointV1, PhysicalApprovalAuthorityV1, RateMetricV1, RateTargetV1,
+    ReferenceAuthorityRuleV1, ReleaseClaimV1, RequestedValidationLevelV1, StratumPredicateV1,
+    TemperatureSelectorV1,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -97,15 +98,40 @@ impl MhiValidationProtocolV1 {
                 "statistics must use the frozen wilson_95_v1 contract",
             ));
         }
+        validate_domain("target_domain", &self.target_domain)?;
         let mut endpoints = BTreeSet::new();
+        let mut previous_mechanism_endpoint = None;
         for endpoint in &self.mechanism_endpoints {
             validate_mechanism_endpoint(endpoint)?;
+            validate_domain("mechanism endpoint domain", &endpoint.domain)?;
+            if !domain_is_subset(&endpoint.domain, &self.target_domain) {
+                return Err(protocol("mechanism endpoint domain exceeds target_domain"));
+            }
+            if previous_mechanism_endpoint
+                .as_ref()
+                .is_some_and(|previous: &String| previous >= &endpoint.endpoint_id)
+            {
+                return Err(protocol("mechanism endpoints must be canonically ordered"));
+            }
+            previous_mechanism_endpoint = Some(endpoint.endpoint_id.clone());
             if !endpoints.insert(endpoint.endpoint_id.clone()) {
                 return Err(protocol("endpoint IDs must be globally unique"));
             }
         }
+        let mut previous_health_endpoint = None;
         for endpoint in &self.health_endpoints {
             validate_health_endpoint(endpoint)?;
+            validate_domain("health endpoint domain", &endpoint.domain)?;
+            if !domain_is_subset(&endpoint.domain, &self.target_domain) {
+                return Err(protocol("health endpoint domain exceeds target_domain"));
+            }
+            if previous_health_endpoint
+                .as_ref()
+                .is_some_and(|previous: &String| previous >= &endpoint.endpoint_id)
+            {
+                return Err(protocol("health endpoints must be canonically ordered"));
+            }
+            previous_health_endpoint = Some(endpoint.endpoint_id.clone());
             if !endpoints.insert(endpoint.endpoint_id.clone()) {
                 return Err(protocol("endpoint IDs must be globally unique"));
             }
@@ -127,9 +153,21 @@ impl MhiValidationProtocolV1 {
         }
         let mut claims = BTreeSet::new();
         let mut supported = BTreeSet::new();
+        let mut previous_claim = None;
         for claim in &self.release_scope {
             valid_id("claim_id", &claim.claim_id)?;
             nonempty("claim.statement", &claim.statement)?;
+            validate_domain("release claim domain", &claim.domain)?;
+            if !domain_is_subset(&claim.domain, &self.target_domain) {
+                return Err(protocol("release claim domain exceeds target_domain"));
+            }
+            if previous_claim
+                .as_ref()
+                .is_some_and(|previous: &String| previous >= &claim.claim_id)
+            {
+                return Err(protocol("release claims must be canonically ordered"));
+            }
+            previous_claim = Some(claim.claim_id.clone());
             if !claims.insert(claim.claim_id.clone()) {
                 return Err(protocol("release claim IDs must be unique"));
             }
@@ -142,6 +180,23 @@ impl MhiValidationProtocolV1 {
                     return Err(protocol("release claim references an unknown endpoint"));
                 }
                 supported.insert(id.clone());
+                let endpoint_domain = self
+                    .mechanism_endpoints
+                    .iter()
+                    .find(|endpoint| &endpoint.endpoint_id == id)
+                    .map(|endpoint| &endpoint.domain)
+                    .or_else(|| {
+                        self.health_endpoints
+                            .iter()
+                            .find(|endpoint| &endpoint.endpoint_id == id)
+                            .map(|endpoint| &endpoint.domain)
+                    })
+                    .expect("endpoint exists after membership check");
+                if endpoint_domain != &claim.domain {
+                    return Err(protocol(
+                        "supporting endpoint domain must exactly equal claim domain",
+                    ));
+                }
                 if claim.requested_level == RequestedValidationLevelV1::Physical {
                     let mechanism = self
                         .mechanism_endpoints
@@ -177,6 +232,17 @@ impl MhiValidationProtocolV1 {
                         return Err(protocol(
                             "physical claims require domain-equal holdout endpoints with minima of two",
                         ));
+                    }
+                    if let Some(endpoint) = mechanism {
+                        validate_physical_endpoint_rules(
+                            &endpoint.reference_rule,
+                            &endpoint.required_strata,
+                        )?;
+                    } else if let Some(endpoint) = health {
+                        validate_physical_endpoint_rules(
+                            &endpoint.reference_rule,
+                            &endpoint.required_strata,
+                        )?;
                     }
                 }
             }
@@ -226,7 +292,8 @@ fn validate_mechanism_endpoint(endpoint: &MechanismEndpointV1) -> Result<(), Mhi
             "support_levels contains an invalid evidence level",
         ));
     }
-    validate_reference_rule(&endpoint.reference_rule)
+    validate_reference_rule(&endpoint.reference_rule)?;
+    validate_acceptance_metrics(&endpoint.acceptance_rules, true)
 }
 
 fn validate_health_endpoint(endpoint: &HealthEndpointV1) -> Result<(), MhiValidationError> {
@@ -296,7 +363,8 @@ fn validate_health_endpoint(endpoint: &HealthEndpointV1) -> Result<(), MhiValida
             "health reference classes must be a disjoint exact partition",
         ));
     }
-    validate_reference_rule(&endpoint.reference_rule)
+    validate_reference_rule(&endpoint.reference_rule)?;
+    validate_acceptance_metrics(&endpoint.acceptance_rules, false)
 }
 
 fn valid_common_endpoint(
@@ -323,6 +391,16 @@ fn valid_common_endpoint(
         {
             return Err(protocol("strata must be unique and have positive minima"));
         }
+        validate_stratum(stratum)?;
+    }
+    if strata
+        .windows(2)
+        .any(|pair| pair[0].stratum_id >= pair[1].stratum_id)
+    {
+        return Err(protocol("required strata must be canonically ordered"));
+    }
+    if rules.is_empty() {
+        return Err(protocol("acceptance_rules must be nonempty"));
     }
     let mut rule_ids = BTreeSet::new();
     for rule in rules {
@@ -344,7 +422,13 @@ fn valid_common_endpoint(
             return Err(protocol("acceptance-rule IDs must be unique"));
         }
     }
-    Ok(())
+    if rules
+        .windows(2)
+        .any(|pair| rule_id(&pair[0]) >= rule_id(&pair[1]))
+    {
+        return Err(protocol("acceptance rules must be canonically ordered"));
+    }
+    validate_rule_constraints(rules)
 }
 
 fn validate_reference_rule(rule: &ReferenceAuthorityRuleV1) -> Result<(), MhiValidationError> {
@@ -388,6 +472,310 @@ fn validate_reference_rule(rule: &ReferenceAuthorityRuleV1) -> Result<(), MhiVal
         }
     }
     Ok(())
+}
+
+fn validate_physical_endpoint_rules(
+    rule: &ReferenceAuthorityRuleV1,
+    strata: &[crate::validation_config::RequiredStratumV1],
+) -> Result<(), MhiValidationError> {
+    let (blinding, uncertainty) = match rule {
+        ReferenceAuthorityRuleV1::Mechanism {
+            blinding_rule,
+            uncertainty_rule,
+            ..
+        }
+        | ReferenceAuthorityRuleV1::Health {
+            blinding_rule,
+            uncertainty_rule,
+            ..
+        } => (blinding_rule, uncertainty_rule),
+    };
+    if *blinding != crate::validation_config::BlindingRuleV1::RequireBlinded
+        || !matches!(
+            uncertainty,
+            crate::validation_config::ReferenceUncertaintyRuleV1::RequireQuantified { .. }
+        )
+        || strata.iter().any(|stratum| {
+            stratum.minimum_eligible_records < 2 || stratum.minimum_independent_families < 2
+        })
+    {
+        return Err(protocol(
+            "physical endpoints require blinded quantified references and strata minima of two",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_stratum(
+    stratum: &crate::validation_config::RequiredStratumV1,
+) -> Result<(), MhiValidationError> {
+    if stratum.predicates.is_empty() {
+        return Err(protocol("required stratum predicates must be nonempty"));
+    }
+    let mut previous = None;
+    for predicate in &stratum.predicates {
+        match predicate {
+            StratumPredicateV1::AnalyteEquals { id }
+            | StratumPredicateV1::MatrixEquals { id }
+            | StratumPredicateV1::SensorDesignEquals { id }
+            | StratumPredicateV1::SensorEquals { id }
+            | StratumPredicateV1::CampaignEquals { id } => valid_id("stratum predicate ID", id)?,
+            StratumPredicateV1::TemperatureBand {
+                lower_kelvin_inclusive,
+                upper_kelvin_exclusive,
+            } => validate_temperature_band(
+                "stratum temperature band",
+                *lower_kelvin_inclusive,
+                *upper_kelvin_exclusive,
+            )?,
+        }
+        let current = predicate.discriminant();
+        if previous.is_some_and(|last| last >= current) {
+            return Err(protocol(
+                "stratum predicates must be canonically ordered and use each axis once",
+            ));
+        }
+        previous = Some(current);
+    }
+    Ok(())
+}
+
+fn validate_acceptance_metrics(
+    rules: &[AcceptanceRuleV1],
+    mechanism: bool,
+) -> Result<(), MhiValidationError> {
+    let mut support = false;
+    let mut coverage = false;
+    let mut sensitivity = false;
+    let mut specificity = false;
+    for rule in rules {
+        match rule {
+            AcceptanceRuleV1::Count { metric, .. } => {
+                let mechanism_only = matches!(
+                    metric,
+                    CountMetricV1::SupportCount
+                        | CountMetricV1::CriticalContradictionCount
+                        | CountMetricV1::NotAssessedOrOtherCount
+                );
+                let health_only = matches!(
+                    metric,
+                    CountMetricV1::Tp
+                        | CountMetricV1::Tn
+                        | CountMetricV1::Fp
+                        | CountMetricV1::Fn
+                        | CountMetricV1::IndeterminateCount
+                        | CountMetricV1::DataQualityInsufficientCount
+                        | CountMetricV1::EvaluableCount
+                );
+                if mechanism_only && !mechanism || health_only && mechanism {
+                    return Err(protocol("acceptance metric is not valid for endpoint kind"));
+                }
+            }
+            AcceptanceRuleV1::Rate {
+                metric,
+                target,
+                comparator,
+                ..
+            } => {
+                let mechanism_only = matches!(
+                    metric,
+                    RateMetricV1::SupportFraction
+                        | RateMetricV1::ContradictionFraction
+                        | RateMetricV1::NotAssessedFraction
+                );
+                let health_only = matches!(
+                    metric,
+                    RateMetricV1::Coverage
+                        | RateMetricV1::IndeterminateRate
+                        | RateMetricV1::DataQualityInsufficientRate
+                        | RateMetricV1::Sensitivity
+                        | RateMetricV1::Specificity
+                        | RateMetricV1::FalsePositiveRate
+                        | RateMetricV1::FalseNegativeRate
+                        | RateMetricV1::BalancedAccuracy
+                );
+                if mechanism_only && !mechanism || health_only && mechanism {
+                    return Err(protocol("acceptance metric is not valid for endpoint kind"));
+                }
+                if *metric == RateMetricV1::BalancedAccuracy
+                    && *target != RateTargetV1::PointEstimate
+                {
+                    return Err(protocol("balanced_accuracy has point_estimate only"));
+                }
+                if mechanism
+                    && *metric == RateMetricV1::SupportFraction
+                    && *target == RateTargetV1::PointEstimate
+                    && *comparator == crate::validation_config::ComparatorV1::GreaterThanOrEqual
+                {
+                    support = true;
+                }
+                if !mechanism
+                    && *comparator == crate::validation_config::ComparatorV1::GreaterThanOrEqual
+                {
+                    match metric {
+                        RateMetricV1::Coverage => coverage = true,
+                        RateMetricV1::Sensitivity => sensitivity = true,
+                        RateMetricV1::Specificity => specificity = true,
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    if mechanism && !support {
+        return Err(protocol(
+            "mechanism endpoints require a support_fraction greater_than_or_equal rule",
+        ));
+    }
+    if !mechanism && !(coverage && sensitivity && specificity) {
+        return Err(protocol(
+            "health endpoints require coverage, sensitivity, and specificity greater_than_or_equal rules",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_rule_constraints(rules: &[AcceptanceRuleV1]) -> Result<(), MhiValidationError> {
+    use crate::validation_config::ComparatorV1;
+    for lower in rules {
+        for upper in rules {
+            match (lower, upper) {
+                (
+                    AcceptanceRuleV1::Count {
+                        metric: lower_metric,
+                        comparator: ComparatorV1::GreaterThanOrEqual,
+                        threshold_u64: lower_threshold,
+                        ..
+                    },
+                    AcceptanceRuleV1::Count {
+                        metric: upper_metric,
+                        comparator: ComparatorV1::LessThanOrEqual,
+                        threshold_u64: upper_threshold,
+                        ..
+                    },
+                ) if lower_metric == upper_metric && lower_threshold > upper_threshold => {
+                    return Err(protocol("acceptance-rule bounds are contradictory"));
+                }
+                (
+                    AcceptanceRuleV1::Rate {
+                        metric: lower_metric,
+                        target: lower_target,
+                        comparator: ComparatorV1::GreaterThanOrEqual,
+                        threshold: lower_threshold,
+                        ..
+                    },
+                    AcceptanceRuleV1::Rate {
+                        metric: upper_metric,
+                        target: upper_target,
+                        comparator: ComparatorV1::LessThanOrEqual,
+                        threshold: upper_threshold,
+                        ..
+                    },
+                ) if lower_metric == upper_metric
+                    && lower_target == upper_target
+                    && lower_threshold > upper_threshold =>
+                {
+                    return Err(protocol("acceptance-rule bounds are contradictory"));
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+fn rule_id(rule: &AcceptanceRuleV1) -> &str {
+    match rule {
+        AcceptanceRuleV1::Count { rule_id, .. } | AcceptanceRuleV1::Rate { rule_id, .. } => rule_id,
+    }
+}
+
+fn validate_domain(name: &str, domain: &DomainSelectorV1) -> Result<(), MhiValidationError> {
+    use crate::validation_config::CategoricalSelectorV1;
+    for (axis, selector) in [
+        ("analyte", &domain.analyte),
+        ("matrix", &domain.matrix),
+        ("sensor_design", &domain.sensor_design),
+        ("sensor", &domain.sensor),
+        ("campaign", &domain.campaign),
+    ] {
+        if let CategoricalSelectorV1::Allowed { ids } = selector {
+            unique_nonempty(&format!("{name}.{axis}.ids"), ids)?;
+        }
+    }
+    if let TemperatureSelectorV1::Bands { bands } = &domain.temperature {
+        if bands.is_empty() {
+            return Err(protocol(format!(
+                "{name}.temperature bands must be nonempty"
+            )));
+        }
+        let mut previous_upper = None;
+        for band in bands {
+            validate_temperature_band(
+                &format!("{name}.temperature band"),
+                band.lower_kelvin_inclusive,
+                band.upper_kelvin_exclusive,
+            )?;
+            if previous_upper.is_some_and(|upper| upper >= band.lower_kelvin_inclusive) {
+                return Err(protocol(format!(
+                    "{name}.temperature bands must be ordered and non-overlapping"
+                )));
+            }
+            previous_upper = Some(band.upper_kelvin_exclusive);
+        }
+    }
+    Ok(())
+}
+
+fn validate_temperature_band(name: &str, lower: f64, upper: f64) -> Result<(), MhiValidationError> {
+    if !lower.is_finite()
+        || !upper.is_finite()
+        || lower <= 0.0
+        || upper <= 0.0
+        || lower.to_bits() == (-0.0f64).to_bits()
+        || upper.to_bits() == (-0.0f64).to_bits()
+        || lower >= upper
+    {
+        return Err(protocol(format!(
+            "{name} must be finite positive lower < upper"
+        )));
+    }
+    Ok(())
+}
+
+fn domain_is_subset(left: &DomainSelectorV1, right: &DomainSelectorV1) -> bool {
+    use crate::validation_config::CategoricalSelectorV1;
+    fn categorical(left: &CategoricalSelectorV1, right: &CategoricalSelectorV1) -> bool {
+        match (left, right) {
+            (_, CategoricalSelectorV1::AnyDeclared) => true,
+            (CategoricalSelectorV1::AnyDeclared, CategoricalSelectorV1::Allowed { .. }) => false,
+            (
+                CategoricalSelectorV1::Allowed { ids: left },
+                CategoricalSelectorV1::Allowed { ids: right },
+            ) => left.iter().all(|id| right.binary_search(id).is_ok()),
+        }
+    }
+    fn temperature(left: &TemperatureSelectorV1, right: &TemperatureSelectorV1) -> bool {
+        match (left, right) {
+            (_, TemperatureSelectorV1::AnyDeclared) => true,
+            (TemperatureSelectorV1::AnyDeclared, TemperatureSelectorV1::Bands { .. }) => false,
+            (
+                TemperatureSelectorV1::Bands { bands: left },
+                TemperatureSelectorV1::Bands { bands: right },
+            ) => left.iter().all(|left_band| {
+                right.iter().any(|right_band| {
+                    left_band.lower_kelvin_inclusive >= right_band.lower_kelvin_inclusive
+                        && left_band.upper_kelvin_exclusive <= right_band.upper_kelvin_exclusive
+                })
+            }),
+        }
+    }
+    categorical(&left.analyte, &right.analyte)
+        && categorical(&left.matrix, &right.matrix)
+        && categorical(&left.sensor_design, &right.sensor_design)
+        && categorical(&left.sensor, &right.sensor)
+        && categorical(&left.campaign, &right.campaign)
+        && temperature(&left.temperature, &right.temperature)
 }
 
 fn valid_id(name: &str, value: &str) -> Result<(), MhiValidationError> {
