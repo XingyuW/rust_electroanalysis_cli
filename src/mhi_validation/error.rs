@@ -26,4 +26,18 @@ pub enum MhiValidationError {
     Toml(#[from] toml::de::Error),
     #[error("MHI validation output already exists: {0}")]
     OutputAlreadyExists(PathBuf),
+    #[error("MHI validation output is not a managed Phase-E bundle: {0}")]
+    OutputNotManaged(PathBuf),
+    #[error("MHI validation publication is locked: {0}")]
+    PublicationLocked(PathBuf),
+    #[error("MHI validation publication lock is invalid: {0}")]
+    PublicationLockFileInvalid(PathBuf),
+    #[error("MHI validation publication recovery residue exists near: {0}")]
+    PublicationRecoveryResidue(PathBuf),
+    #[error(
+        "MHI validation filesystem does not provide the required atomic publication primitive: {0}"
+    )]
+    UnsupportedAtomicPublicationFilesystem(PathBuf),
+    #[error("MHI validation publication destination was concurrently created: {0}")]
+    PublicationConcurrentDestinationCreated(PathBuf),
 }

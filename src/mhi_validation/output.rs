@@ -1,204 +1,827 @@
-//! Deterministic, fixed-shape Phase-E publication bundle.
+//! Deterministic Phase-E publication bundle.
+//!
+//! The writer deliberately projects the already validated typed report. It
+//! never recomputes scientific results, and it keeps operational details out
+//! of managed bytes so a bundle is reproducible on another host.
 
 use super::MhiValidationError;
-use crate::{domain::write_artifact, results::MhiValidationReportV1};
-use serde_json::json;
+use crate::{
+    domain::{read_artifact_strict, write_artifact},
+    mhi_validation::statistics::MetricValueV1,
+    results::{DatasetSourceReferenceV1, MhiValidationReportV1},
+};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
+#[cfg(not(unix))]
+use std::fs::OpenOptions;
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
+};
+#[cfg(unix)]
+use std::{
+    ffi::CString,
+    os::{
+        fd::FromRawFd,
+        unix::ffi::OsStrExt,
+        unix::fs::{MetadataExt, PermissionsExt},
+    },
 };
 
 pub const REPORT_FILE: &str = "mhi_validation_report.schema1.json";
 pub const MANIFEST_FILE: &str = "validation_execution_manifest.schema1.json";
-const TABLES: [(&str, &str); 6] = [
+pub const SUMMARY_FILE: &str = "validation_summary.md";
+const TABLES: [(&str, &str, &str); 6] = [
     (
         "cohort_coverage.csv",
-        "endpoint_id,stratum_id,endpoint_kind,cohort_role,declared_count,eligible_count,excluded_count,not_applicable_count,exclusion_rate,exclusion_lower,exclusion_upper,evaluable_count,indeterminate_count,data_quality_insufficient_count,coverage,coverage_lower,coverage_upper,indeterminate_rate,indeterminate_lower,indeterminate_upper,data_quality_insufficient_rate,data_quality_insufficient_lower,data_quality_insufficient_upper,outcome\n",
+        "cohort_coverage_csv",
+        "endpoint_id,stratum_id,endpoint_kind,cohort_role,declared_count,eligible_count,excluded_count,not_applicable_count,exclusion_rate,exclusion_lower,exclusion_upper,evaluable_count,indeterminate_count,data_quality_insufficient_count,coverage,coverage_lower,coverage_upper,indeterminate_rate,indeterminate_lower,indeterminate_upper,data_quality_insufficient_rate,data_quality_insufficient_lower,data_quality_insufficient_upper,outcome",
     ),
     (
         "leakage_assessment.csv",
-        "endpoint_id,stratum_id,record_id,separation_status,not_evaluated_reason,compared_development_record_ids,shared_artifact_ids,shared_source_sha256s,shared_experiment_ids,shared_family_ids,unknown_reasons,decision\n",
+        "leakage_assessment_csv",
+        "endpoint_id,stratum_id,record_id,separation_status,not_evaluated_reason,compared_development_record_ids,shared_artifact_ids,shared_source_sha256s,shared_experiment_ids,shared_family_ids,unknown_reasons,decision",
     ),
     (
         "mechanism_validation.csv",
-        "endpoint_id,stratum_id,eligible_count,independent_family_count,support_count,critical_contradiction_count,declared_critical_falsification_count,not_assessed_or_other_count,support_fraction,support_lower,support_upper,contradiction_fraction,contradiction_lower,contradiction_upper,not_assessed_fraction,not_assessed_lower,not_assessed_upper,outcome\n",
+        "mechanism_validation_csv",
+        "endpoint_id,stratum_id,eligible_count,independent_family_count,support_count,critical_contradiction_count,declared_critical_falsification_count,not_assessed_or_other_count,support_fraction,support_lower,support_upper,contradiction_fraction,contradiction_lower,contradiction_upper,not_assessed_fraction,not_assessed_lower,not_assessed_upper,outcome",
     ),
     (
         "health_validation.csv",
-        "endpoint_id,stratum_id,eligible_count,independent_family_count,tp,tn,fp,fn,indeterminate,data_quality_insufficient,evaluable,coverage,coverage_lower,coverage_upper,indeterminate_rate,indeterminate_lower,indeterminate_upper,data_quality_insufficient_rate,data_quality_insufficient_lower,data_quality_insufficient_upper,sensitivity,sensitivity_lower,sensitivity_upper,specificity,specificity_lower,specificity_upper,false_positive_rate,false_positive_lower,false_positive_upper,false_negative_rate,false_negative_lower,false_negative_upper,balanced_accuracy,outcome\n",
+        "health_validation_csv",
+        "endpoint_id,stratum_id,eligible_count,independent_family_count,tp,tn,fp,fn,indeterminate,data_quality_insufficient,evaluable,coverage,coverage_lower,coverage_upper,indeterminate_rate,indeterminate_lower,indeterminate_upper,data_quality_insufficient_rate,data_quality_insufficient_lower,data_quality_insufficient_upper,sensitivity,sensitivity_lower,sensitivity_upper,specificity,specificity_lower,specificity_upper,false_positive_rate,false_positive_lower,false_positive_upper,false_negative_rate,false_negative_lower,false_negative_upper,balanced_accuracy,outcome",
     ),
     (
         "exclusion_ledger.csv",
-        "endpoint_id,stratum_id,record_id,primary_reason,secondary_reasons,assessed_source_key,reference_endpoint_id\n",
+        "exclusion_ledger_csv",
+        "endpoint_id,stratum_id,record_id,primary_reason,secondary_reasons,assessed_source_key,reference_endpoint_id",
     ),
     (
         "compatibility_matrix.csv",
-        "record_id,source_role,relative_path,expected_kind,actual_kind,expected_schema,actual_schema,expected_file_sha256,actual_file_sha256,expected_artifact_id,actual_artifact_id,expected_semantic_sha256,actual_semantic_sha256,result\n",
+        "compatibility_matrix_csv",
+        "record_id,source_role,relative_path,expected_kind,actual_kind,expected_schema,actual_schema,expected_file_sha256,actual_file_sha256,expected_artifact_id,actual_artifact_id,expected_semantic_sha256,actual_semantic_sha256,result",
     ),
 ];
 
-/// Publishes the fixed nine-file bundle.  The private sibling staging directory
-/// ensures readers observe either the old bundle or a fully written new one.
-/// Existing output is never overwritten unless explicitly requested.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GeneratedFileRecordV1 {
+    relative_path: String,
+    output_kind: String,
+    byte_length: u64,
+    sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ValidationExecutionManifestV1 {
+    schema_version: u32,
+    output_kind: String,
+    report_id: String,
+    protocol_sha256: String,
+    dataset_source: DatasetSourceReferenceV1,
+    generated_files: Vec<GeneratedFileRecordV1>,
+    publication_mode: String,
+    software_version: String,
+    git_commit: Option<String>,
+}
+
+/// Publishes the fixed nine-file bundle. The staging tree is private to the
+/// output parent and every generated byte is checked before it becomes visible.
 pub fn publish_bundle(
     output_dir: &Path,
     report: &MhiValidationReportV1,
     protocol_id: &str,
     overwrite: bool,
 ) -> Result<(), MhiValidationError> {
+    report.validate_structure()?;
+    if protocol_id != report.protocol.protocol_id {
+        return Err(MhiValidationError::Dataset(
+            "publisher protocol ID does not match the report authority".into(),
+        ));
+    }
     let parent = output_dir
         .parent()
         .ok_or_else(|| MhiValidationError::UnsafePath(output_dir.into()))?;
     let name = output_dir
         .file_name()
         .and_then(|name| name.to_str())
-        .filter(|name| !name.is_empty() && *name != "." && *name != "..")
+        .filter(|name| valid_output_basename(name))
         .ok_or_else(|| MhiValidationError::UnsafePath(output_dir.into()))?;
     let parent = fs::canonicalize(parent).map_err(|source| MhiValidationError::Io {
         path: parent.into(),
         source,
     })?;
+    ensure_directory(&parent)?;
     let output = parent.join(name);
     let stage = parent.join(format!(".{name}.phase-e-stage"));
     let backup = parent.join(format!(".{name}.phase-e-backup"));
+    let _publication_lock = acquire_publication_lock(&parent, name)?;
     if path_exists_or_symlink(&stage)? || path_exists_or_symlink(&backup)? {
-        return Err(MhiValidationError::Dataset(
-            "PublicationRecoveryResidue".into(),
-        ));
+        return Err(MhiValidationError::PublicationRecoveryResidue(output));
     }
     let output_exists = path_exists_or_symlink(&output)?;
-    if output_exists
-        && fs::symlink_metadata(&output)
-            .map_err(|source| MhiValidationError::Io {
-                path: output.clone(),
-                source,
-            })?
-            .file_type()
-            .is_symlink()
-    {
+    if output_exists && is_symlink(&output)? {
         return Err(MhiValidationError::UnsafePath(output));
     }
     if output_exists && !overwrite {
         return Err(MhiValidationError::OutputAlreadyExists(output));
     }
-    if output_exists && !is_managed_bundle(&output) {
-        return Err(MhiValidationError::Dataset("OutputNotManaged".into()));
+    if output_exists {
+        verify_bundle(&output).map_err(|_| MhiValidationError::OutputNotManaged(output.clone()))?;
     }
     fs::create_dir(&stage).map_err(|source| MhiValidationError::Io {
         path: stage.clone(),
         source,
     })?;
-    let write = (|| -> Result<(), MhiValidationError> {
-        write_artifact(&stage.join(REPORT_FILE), report)?;
-        sync_file(&stage.join(REPORT_FILE))?;
-        let summary = summary_markdown(report, protocol_id);
-        fs::write(stage.join("validation_summary.md"), summary).map_err(|source| {
-            MhiValidationError::Io {
-                path: stage.join("validation_summary.md"),
-                source,
-            }
-        })?;
-        sync_file(&stage.join("validation_summary.md"))?;
-        let tables = stage.join("tables");
-        fs::create_dir(&tables).map_err(|source| MhiValidationError::Io {
-            path: tables.clone(),
-            source,
-        })?;
-        for (name, header) in TABLES {
-            fs::write(tables.join(name), header).map_err(|source| MhiValidationError::Io {
-                path: tables.join(name),
-                source,
-            })?;
-            sync_file(&tables.join(name))?;
-        }
-        sync_directory(&tables)?;
-        let generated_files = generated_file_records(&stage)?;
-        let manifest = json!({
-            "schema_version": 1,
-            "output_kind": "mhi_validation_execution_manifest",
-            "report_id": report.report_id,
-            "protocol_sha256": report.protocol.source_file_sha256,
-            "dataset_source": { "dataset_id": report.dataset.dataset_id, "source_file_sha256": dataset_source_file_sha256(report) },
-            "generated_files": generated_files,
-            "publication_mode": if output_exists { "replace_managed_bundle" } else { "create_new" },
-            "software_version": env!("CARGO_PKG_VERSION"),
-            "git_commit": serde_json::Value::Null,
-        });
-        fs::write(stage.join(MANIFEST_FILE), serde_jcs::to_vec(&manifest)?).map_err(|source| {
-            MhiValidationError::Io {
-                path: stage.join(MANIFEST_FILE),
-                source,
-            }
-        })?;
-        sync_file(&stage.join(MANIFEST_FILE))?;
-        sync_directory(&stage)?;
+    sync_directory(&parent)?;
+    let publication_mode = if output_exists {
+        "replace_managed_bundle"
+    } else {
+        "create_new"
+    };
+    let staged = (|| -> Result<(), MhiValidationError> {
+        let generated = write_stage(&stage, report, publication_mode)?;
         verify_bundle(&stage)?;
-        if output_exists {
-            // The pre-exchange validation prevents a malformed prior bundle
-            // from being mistaken for a managed generation.  The final
-            // visibility check below protects readers from a partial stage.
-            verify_bundle(&output)?;
-            fs::rename(&output, &backup).map_err(|source| MhiValidationError::Io {
-                path: output.clone(),
-                source,
-            })?;
-            sync_directory(&parent)?;
-        }
-        fs::rename(&stage, &output).map_err(|source| MhiValidationError::Io {
-            path: output.clone(),
-            source,
-        })?;
-        sync_directory(&parent)?;
-        verify_bundle(&output)?;
-        if path_exists_or_symlink(&backup)? {
-            fs::remove_dir_all(&backup).map_err(|source| MhiValidationError::Io {
-                path: backup.clone(),
-                source,
-            })?;
-            sync_directory(&parent)?;
+        let strict = read_artifact_strict::<MhiValidationReportV1>(&stage.join(REPORT_FILE))?;
+        if strict.artifact != *report || generated.len() != 8 {
+            return Err(MhiValidationError::Dataset(
+                "published Phase-E stage does not match the evaluated report".into(),
+            ));
         }
         Ok(())
     })();
-    if write.is_err() && stage.exists() {
-        let _ = fs::remove_dir_all(&stage);
+    if let Err(error) = staged {
+        cleanup_stage(&stage);
+        return Err(error);
     }
-    write
+
+    if output_exists {
+        atomic_exchange(&stage, &output)?;
+    } else {
+        atomic_noreplace(&stage, &output)?;
+    }
+    sync_directory(&parent)?;
+    verify_bundle(&output)?;
+    if output_exists {
+        // After an exchange the old managed generation is at `stage`. Move it
+        // aside with a no-replace operation before deletion so any interrupted
+        // cleanup leaves explicit operator-visible residue rather than an
+        // ambiguous output namespace.
+        atomic_noreplace(&stage, &backup)?;
+        sync_directory(&parent)?;
+        remove_tree_reverse(&backup)?;
+        sync_directory(&parent)?;
+    }
+    Ok(())
 }
 
-fn generated_file_records(stage: &Path) -> Result<Vec<serde_json::Value>, MhiValidationError> {
+fn write_stage(
+    stage: &Path,
+    report: &MhiValidationReportV1,
+    publication_mode: &str,
+) -> Result<Vec<GeneratedFileRecordV1>, MhiValidationError> {
+    let report_path = stage.join(REPORT_FILE);
+    write_artifact(&report_path, report)?;
+    normalize_json_file(&report_path)?;
+    sync_file(&report_path)?;
+    write_bytes(
+        &stage.join(SUMMARY_FILE),
+        summary_markdown(report).as_bytes(),
+    )?;
+
+    let tables = stage.join("tables");
+    fs::create_dir(&tables).map_err(|source| MhiValidationError::Io {
+        path: tables.clone(),
+        source,
+    })?;
+    for (name, _, header) in TABLES {
+        write_bytes(&tables.join(name), &table_bytes(name, header, report)?)?;
+    }
+    sync_directory(&tables)?;
+    let generated_files = generated_file_records(stage)?;
+    let manifest = ValidationExecutionManifestV1 {
+        schema_version: 1,
+        output_kind: "mhi_validation_execution_manifest".into(),
+        report_id: report.report_id.clone(),
+        protocol_sha256: report.protocol.source_file_sha256.clone(),
+        dataset_source: report.dataset.source.clone(),
+        generated_files: generated_files.clone(),
+        publication_mode: publication_mode.into(),
+        software_version: report.provenance.software_version.clone(),
+        git_commit: report.provenance.git_commit.clone(),
+    };
+    write_json_value(&stage.join(MANIFEST_FILE), serde_json::to_value(manifest)?)?;
+    sync_directory(stage)?;
+    Ok(generated_files)
+}
+
+fn table_bytes(
+    name: &str,
+    header: &str,
+    report: &MhiValidationReportV1,
+) -> Result<Vec<u8>, MhiValidationError> {
+    let rows = table_rows(name, report)?;
+    csv_document(header, rows)
+}
+
+fn table_rows(
+    name: &str,
+    report: &MhiValidationReportV1,
+) -> Result<Vec<Vec<String>>, MhiValidationError> {
+    match name {
+        "cohort_coverage.csv" => Ok(report
+            .cohorts
+            .iter()
+            .map(|row| {
+                let mut cells = vec![
+                    row.endpoint_id.clone(),
+                    row.stratum_id.clone(),
+                    token(&row.endpoint_kind),
+                    token(&row.cohort_role),
+                    row.declared_count.to_string(),
+                    row.eligible_count.to_string(),
+                    row.excluded_count.to_string(),
+                    row.not_applicable_count.to_string(),
+                ];
+                cells.extend(metric_cells(Some(&row.exclusion_rate)));
+                cells.push(optional_count(row.evaluable_count));
+                cells.push(optional_count(row.indeterminate_count));
+                cells.push(optional_count(row.data_quality_insufficient_count));
+                cells.extend(metric_cells(row.coverage.as_ref()));
+                cells.extend(metric_cells(row.indeterminate_rate.as_ref()));
+                cells.extend(metric_cells(row.data_quality_insufficient_rate.as_ref()));
+                cells.push(token(&row.outcome));
+                cells
+            })
+            .collect()),
+        "leakage_assessment.csv" => Ok(report
+            .leakage_assessment
+            .iter()
+            .map(|row| {
+                vec![
+                    row.endpoint_id.clone(),
+                    row.stratum_id.clone(),
+                    row.record_id.clone(),
+                    optional_token(row.separation_status.as_ref()),
+                    optional_token(row.not_evaluated_reason.as_ref()),
+                    json_cell(&row.compared_development_record_ids),
+                    json_cell(&row.shared_artifact_ids),
+                    json_cell(&row.shared_source_sha256s),
+                    json_cell(&row.shared_experiment_ids),
+                    json_cell(&row.shared_family_ids),
+                    json_cell(&row.unknown_reasons),
+                    token(&row.decision),
+                ]
+            })
+            .collect()),
+        "mechanism_validation.csv" => Ok(report
+            .mechanism_results
+            .iter()
+            .map(|row| {
+                let mut cells = vec![
+                    row.endpoint_id.clone(),
+                    row.stratum_id.clone(),
+                    row.eligible_count.to_string(),
+                    row.independent_family_count.to_string(),
+                    row.support_count.to_string(),
+                    row.critical_contradiction_count.to_string(),
+                    row.declared_critical_falsification_count.to_string(),
+                    row.not_assessed_or_other_count.to_string(),
+                ];
+                cells.extend(metric_cells(Some(&row.support_fraction)));
+                cells.extend(metric_cells(Some(&row.contradiction_fraction)));
+                cells.extend(metric_cells(Some(&row.not_assessed_fraction)));
+                cells.push(token(&row.outcome));
+                cells
+            })
+            .collect()),
+        "health_validation.csv" => Ok(report
+            .health_results
+            .iter()
+            .map(|row| {
+                let mut cells = vec![
+                    row.endpoint_id.clone(),
+                    row.stratum_id.clone(),
+                    row.eligible_count.to_string(),
+                    row.independent_family_count.to_string(),
+                    row.tp.to_string(),
+                    row.tn.to_string(),
+                    row.fp.to_string(),
+                    row.r#fn.to_string(),
+                    row.indeterminate.to_string(),
+                    row.data_quality_insufficient.to_string(),
+                    row.evaluable.to_string(),
+                ];
+                for metric in [
+                    &row.coverage,
+                    &row.indeterminate_rate,
+                    &row.data_quality_insufficient_rate,
+                    &row.sensitivity,
+                    &row.specificity,
+                    &row.false_positive_rate,
+                    &row.false_negative_rate,
+                ] {
+                    cells.extend(metric_cells(Some(metric)));
+                }
+                cells.push(match &row.balanced_accuracy {
+                    crate::results::BalancedAccuracyV1::Available { point_estimate, .. } => {
+                        float_token(*point_estimate)
+                    }
+                    crate::results::BalancedAccuracyV1::Unavailable { .. } => "NA".into(),
+                });
+                cells.push(token(&row.outcome));
+                cells
+            })
+            .collect()),
+        "exclusion_ledger.csv" => Ok(report
+            .exclusions
+            .iter()
+            .map(|row| {
+                vec![
+                    row.endpoint_id.clone(),
+                    row.stratum_id.clone(),
+                    row.record_id.clone(),
+                    token(&row.primary_reason),
+                    json_cell(&row.secondary_reasons),
+                    row.assessed_source_key
+                        .as_ref()
+                        .map_or_else(|| "NA".into(), json_cell),
+                    row.reference_endpoint_id
+                        .clone()
+                        .unwrap_or_else(|| "NA".into()),
+                ]
+            })
+            .collect()),
+        "compatibility_matrix.csv" => Ok(report
+            .compatibility
+            .iter()
+            .map(|row| {
+                vec![
+                    row.record_id.clone().unwrap_or_else(|| "NA".into()),
+                    token(&row.source_role),
+                    row.relative_path.clone(),
+                    row.expected_kind
+                        .map_or_else(|| "NA".into(), |value| value.to_string()),
+                    row.actual_kind
+                        .map_or_else(|| "NA".into(), |value| value.to_string()),
+                    row.expected_schema.to_string(),
+                    row.actual_schema.to_string(),
+                    row.expected_file_sha256.clone(),
+                    row.actual_file_sha256.clone(),
+                    row.expected_artifact_id
+                        .as_ref()
+                        .map_or_else(|| "NA".into(), |value| value.0.clone()),
+                    row.actual_artifact_id
+                        .as_ref()
+                        .map_or_else(|| "NA".into(), |value| value.0.clone()),
+                    row.expected_semantic_sha256
+                        .clone()
+                        .unwrap_or_else(|| "NA".into()),
+                    row.actual_semantic_sha256
+                        .clone()
+                        .unwrap_or_else(|| "NA".into()),
+                    token(&row.result),
+                ]
+            })
+            .collect()),
+        _ => Err(MhiValidationError::Dataset("unknown Phase-E table".into())),
+    }
+}
+
+fn csv_document(header: &str, rows: Vec<Vec<String>>) -> Result<Vec<u8>, MhiValidationError> {
+    let mut writer = csv::WriterBuilder::new()
+        .has_headers(false)
+        .terminator(csv::Terminator::Any(b'\n'))
+        .from_writer(Vec::new());
+    writer
+        .write_record(header.split(','))
+        .map_err(|error| MhiValidationError::Dataset(format!("CSV header: {error}")))?;
+    for row in rows {
+        writer
+            .write_record(row)
+            .map_err(|error| MhiValidationError::Dataset(format!("CSV row: {error}")))?;
+    }
+    writer
+        .into_inner()
+        .map_err(|error| MhiValidationError::Dataset(format!("CSV finalization: {error}")))
+}
+
+fn generated_file_records(stage: &Path) -> Result<Vec<GeneratedFileRecordV1>, MhiValidationError> {
     let mut entries = vec![
         (REPORT_FILE.to_string(), "mhi_validation_report"),
-        (
-            "validation_summary.md".to_string(),
-            "validation_summary_markdown",
-        ),
+        (SUMMARY_FILE.to_string(), "validation_summary_markdown"),
     ];
-    for (name, _) in TABLES {
-        entries.push((
-            format!("tables/{name}"),
-            match name {
-                "cohort_coverage.csv" => "cohort_coverage_csv",
-                "leakage_assessment.csv" => "leakage_assessment_csv",
-                "mechanism_validation.csv" => "mechanism_validation_csv",
-                "health_validation.csv" => "health_validation_csv",
-                "exclusion_ledger.csv" => "exclusion_ledger_csv",
-                _ => "compatibility_matrix_csv",
-            },
-        ));
+    for (name, kind, _) in TABLES {
+        entries.push((format!("tables/{name}"), kind));
     }
     entries.sort_by(|left, right| left.0.cmp(&right.0));
-    entries.into_iter().map(|(relative_path, output_kind)| {
-        let bytes = fs::read(stage.join(&relative_path)).map_err(|source| MhiValidationError::Io { path: stage.join(&relative_path), source })?;
-        Ok(json!({ "relative_path": relative_path, "output_kind": output_kind, "byte_length": bytes.len() as u64, "sha256": sha256(&bytes) }))
-    }).collect()
-}
-
-fn is_managed_bundle(path: &Path) -> bool {
-    verify_bundle(path).is_ok()
+    entries
+        .into_iter()
+        .map(|(relative_path, output_kind)| {
+            let bytes =
+                fs::read(stage.join(&relative_path)).map_err(|source| MhiValidationError::Io {
+                    path: stage.join(&relative_path),
+                    source,
+                })?;
+            Ok(GeneratedFileRecordV1 {
+                relative_path,
+                output_kind: output_kind.into(),
+                byte_length: bytes.len() as u64,
+                sha256: sha256(&bytes),
+            })
+        })
+        .collect()
 }
 
 fn verify_bundle(path: &Path) -> Result<(), MhiValidationError> {
+    ensure_directory(path)?;
+    let expected_root = BTreeSet::from([
+        REPORT_FILE.to_string(),
+        MANIFEST_FILE.to_string(),
+        SUMMARY_FILE.to_string(),
+        "tables".into(),
+    ]);
+    if read_child_names(path)? != expected_root {
+        return Err(MhiValidationError::Dataset(
+            "managed bundle has an unexpected root entry".into(),
+        ));
+    }
+    let tables = path.join("tables");
+    ensure_directory(&tables)?;
+    let expected_tables = TABLES
+        .iter()
+        .map(|(name, _, _)| (*name).to_string())
+        .collect::<BTreeSet<_>>();
+    if read_child_names(&tables)? != expected_tables {
+        return Err(MhiValidationError::Dataset(
+            "managed bundle has an unexpected table entry".into(),
+        ));
+    }
+    let mut fixed_files = generated_paths();
+    fixed_files.push(MANIFEST_FILE.into());
+    for relative in fixed_files {
+        let child = path.join(&relative);
+        let metadata = fs::symlink_metadata(&child).map_err(|source| MhiValidationError::Io {
+            path: child.clone(),
+            source,
+        })?;
+        if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+            return Err(MhiValidationError::UnsafePath(child));
+        }
+    }
+    let manifest_path = path.join(MANIFEST_FILE);
+    let manifest: ValidationExecutionManifestV1 =
+        serde_json::from_slice(&fs::read(&manifest_path).map_err(|source| {
+            MhiValidationError::Io {
+                path: manifest_path.clone(),
+                source,
+            }
+        })?)?;
+    if manifest.schema_version != 1
+        || manifest.output_kind != "mhi_validation_execution_manifest"
+        || !matches!(
+            manifest.publication_mode.as_str(),
+            "create_new" | "replace_managed_bundle"
+        )
+        || manifest.generated_files.len() != 8
+    {
+        return Err(MhiValidationError::Dataset(
+            "managed bundle manifest violates the Phase-E schema".into(),
+        ));
+    }
+    let expected = generated_paths();
+    let actual = manifest
+        .generated_files
+        .iter()
+        .map(|record| record.relative_path.clone())
+        .collect::<Vec<_>>();
+    if actual != expected {
+        return Err(MhiValidationError::Dataset(
+            "managed bundle files do not match the fixed Phase-E set".into(),
+        ));
+    }
+    for record in &manifest.generated_files {
+        let bytes = fs::read(path.join(&record.relative_path)).map_err(|source| {
+            MhiValidationError::Io {
+                path: path.join(&record.relative_path),
+                source,
+            }
+        })?;
+        if record.byte_length != bytes.len() as u64 || record.sha256 != sha256(&bytes) {
+            return Err(MhiValidationError::Dataset(
+                "managed bundle checksum does not match its manifest".into(),
+            ));
+        }
+    }
+    let strict = read_artifact_strict::<MhiValidationReportV1>(&path.join(REPORT_FILE))?;
+    if strict.artifact.report_id != manifest.report_id
+        || strict.artifact.protocol.source_file_sha256 != manifest.protocol_sha256
+        || strict.artifact.dataset.source != manifest.dataset_source
+        || strict.artifact.provenance.software_version != manifest.software_version
+        || strict.artifact.provenance.git_commit != manifest.git_commit
+    {
+        return Err(MhiValidationError::Dataset(
+            "managed bundle manifest and report identities disagree".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn generated_paths() -> Vec<String> {
+    let mut paths = vec![REPORT_FILE.into(), SUMMARY_FILE.into()];
+    paths.extend(TABLES.iter().map(|(name, _, _)| format!("tables/{name}")));
+    paths.sort();
+    paths
+}
+
+fn normalize_json_file(path: &Path) -> Result<(), MhiValidationError> {
+    let value: Value =
+        serde_json::from_slice(&fs::read(path).map_err(|source| MhiValidationError::Io {
+            path: path.into(),
+            source,
+        })?)?;
+    write_json_value(path, value)
+}
+
+fn write_json_value(path: &Path, value: Value) -> Result<(), MhiValidationError> {
+    let bytes = serde_json::to_string_pretty(&sorted_json(value))
+        .map_err(MhiValidationError::Json)?
+        .into_bytes();
+    write_bytes(path, &bytes)
+}
+
+fn sorted_json(value: Value) -> Value {
+    match value {
+        Value::Array(values) => Value::Array(values.into_iter().map(sorted_json).collect()),
+        Value::Object(values) => {
+            let mut entries = values.into_iter().collect::<Vec<_>>();
+            entries.sort_by(|left, right| left.0.cmp(&right.0));
+            Value::Object(
+                entries
+                    .into_iter()
+                    .map(|(key, value)| (key, sorted_json(value)))
+                    .collect(),
+            )
+        }
+        other => other,
+    }
+}
+
+fn summary_markdown(report: &MhiValidationReportV1) -> String {
+    let mut output = String::from("# MHI Validation Summary\n\n");
+    output.push_str("## Identity\n\n");
+    let approval = report.approval.as_ref();
+    output.push_str(&markdown_table(
+        &["key", "value"],
+        vec![
+            vec!["report_id".into(), report.report_id.clone()],
+            vec!["protocol_id".into(), report.protocol.protocol_id.clone()],
+            vec![
+                "protocol_sha256".into(),
+                report.protocol.source_file_sha256.clone(),
+            ],
+            vec!["dataset_id".into(), report.dataset.dataset_id.clone()],
+            vec![
+                "dataset_source_file_sha256".into(),
+                dataset_source_file_sha256(report).into(),
+            ],
+            vec![
+                "approval_record_id".into(),
+                approval
+                    .map(|value| value.approval_record_id.clone())
+                    .unwrap_or_else(|| "NA".into()),
+            ],
+            vec![
+                "approval_trust_store_sha256".into(),
+                approval
+                    .map(|value| value.trust_store_sha256.clone())
+                    .unwrap_or_else(|| "NA".into()),
+            ],
+            vec![
+                "software_version".into(),
+                report.provenance.software_version.clone(),
+            ],
+            vec![
+                "git_commit".into(),
+                report
+                    .provenance
+                    .git_commit
+                    .clone()
+                    .unwrap_or_else(|| "NA".into()),
+            ],
+        ],
+    ));
+    for (heading, table, header) in [
+        ("Cohort Coverage", "cohort_coverage.csv", TABLES[0].2),
+        ("Leakage", "leakage_assessment.csv", TABLES[1].2),
+        (
+            "Mechanism Endpoints",
+            "mechanism_validation.csv",
+            TABLES[2].2,
+        ),
+        ("Health Endpoints", "health_validation.csv", TABLES[3].2),
+        ("Exclusions", "exclusion_ledger.csv", TABLES[4].2),
+    ] {
+        output.push_str(&format!("## {heading}\n\n"));
+        output.push_str(&markdown_table(
+            &header.split(',').collect::<Vec<_>>(),
+            table_rows(table, report).expect("fixed output table"),
+        ));
+    }
+    output.push_str("## Release Claims\n\n");
+    output.push_str(&markdown_table(
+        &[
+            "claim_id",
+            "requested_level",
+            "statement",
+            "domain",
+            "supporting_endpoint_ids",
+            "approval_record_id",
+            "outcome",
+        ],
+        report
+            .release_claims
+            .iter()
+            .map(|claim| {
+                vec![
+                    claim.claim_id.clone(),
+                    token(&claim.requested_level),
+                    claim.statement.clone(),
+                    json_cell(&claim.domain),
+                    json_cell(&claim.supporting_endpoint_ids),
+                    approval
+                        .map(|value| value.approval_record_id.clone())
+                        .unwrap_or_else(|| "NA".into()),
+                    token(&claim.outcome),
+                ]
+            })
+            .collect(),
+    ));
+    output.push_str("## Overall Status\n\n");
+    output.push_str(&format!("outcome: {}\n\n", token(&report.overall_status)));
+    output.push_str("## Limitations\n\n");
+    let limitations = limitations(report);
+    if limitations.is_empty() {
+        output.push_str("- NONE\n");
+    } else {
+        for limitation in limitations {
+            output.push_str("- ");
+            output.push_str(&markdown_escape(&limitation));
+            output.push('\n');
+        }
+    }
+    output
+}
+
+fn markdown_table(headers: &[&str], rows: Vec<Vec<String>>) -> String {
+    let mut output = String::new();
+    output.push_str("| ");
+    output.push_str(&headers.join(" | "));
+    output.push_str(" |\n| ");
+    output.push_str(&vec!["---"; headers.len()].join(" | "));
+    output.push_str(" |\n");
+    for row in rows {
+        output.push_str("| ");
+        output.push_str(
+            &row.iter()
+                .map(|cell| markdown_escape(cell))
+                .collect::<Vec<_>>()
+                .join(" | "),
+        );
+        output.push_str(" |\n");
+    }
+    output.push('\n');
+    output
+}
+
+fn limitations(report: &MhiValidationReportV1) -> BTreeSet<String> {
+    let mut values = BTreeSet::new();
+    if let Some(approval) = &report.approval {
+        values.extend(
+            approval
+                .limitations
+                .iter()
+                .map(|value| format!("approval:{value}")),
+        );
+    }
+    for result in &report.mechanism_results {
+        values.extend(result.limitations.iter().map(|value| {
+            format!(
+                "endpoint:{}:{}:{value}",
+                result.endpoint_id, result.stratum_id
+            )
+        }));
+    }
+    for result in &report.health_results {
+        values.extend(result.limitations.iter().map(|value| {
+            format!(
+                "endpoint:{}:{}:{value}",
+                result.endpoint_id, result.stratum_id
+            )
+        }));
+    }
+    values.extend(report.warnings.iter().map(|warning| {
+        format!(
+            "warning:{}:{}:{}",
+            token(&warning.code),
+            warning.related_id,
+            warning.detail
+        )
+    }));
+    values
+}
+
+fn markdown_escape(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('|', "\\|")
+        .replace('\n', "<br>")
+}
+
+fn metric_cells(metric: Option<&MetricValueV1>) -> Vec<String> {
+    match metric {
+        Some(MetricValueV1::Available {
+            point_estimate,
+            lower_confidence_bound,
+            upper_confidence_bound,
+            ..
+        }) => vec![
+            float_token(*point_estimate),
+            float_token(*lower_confidence_bound),
+            float_token(*upper_confidence_bound),
+        ],
+        Some(MetricValueV1::Unavailable { .. }) | None => vec!["NA".into(); 3],
+    }
+}
+
+fn optional_count(value: Option<u64>) -> String {
+    value.map_or_else(|| "NA".into(), |value| value.to_string())
+}
+
+fn token<T: Serialize>(value: &T) -> String {
+    serde_json::to_value(value)
+        .expect("closed enum serialization")
+        .as_str()
+        .expect("closed enum must serialize as a token")
+        .to_string()
+}
+
+fn optional_token<T: Serialize>(value: Option<&T>) -> String {
+    value.map_or_else(|| "NA".into(), token)
+}
+
+fn json_cell<T: Serialize>(value: &T) -> String {
+    String::from_utf8(serde_jcs::to_vec(value).expect("typed output is JCS serializable"))
+        .expect("JCS is UTF-8")
+}
+
+fn float_token(value: f64) -> String {
+    serde_json::to_string(&if value == 0.0 { 0.0 } else { value }).expect("finite Phase-E output")
+}
+
+fn dataset_source_file_sha256(report: &MhiValidationReportV1) -> &str {
+    match &report.dataset.source {
+        DatasetSourceReferenceV1::Known {
+            source_file_sha256, ..
+        }
+        | DatasetSourceReferenceV1::LegacyUnknown {
+            source_file_sha256, ..
+        } => source_file_sha256,
+    }
+}
+
+fn write_bytes(path: &Path, bytes: &[u8]) -> Result<(), MhiValidationError> {
+    fs::write(path, bytes).map_err(|source| MhiValidationError::Io {
+        path: path.into(),
+        source,
+    })?;
+    sync_file(path)
+}
+
+fn read_child_names(path: &Path) -> Result<BTreeSet<String>, MhiValidationError> {
+    fs::read_dir(path)
+        .map_err(|source| MhiValidationError::Io {
+            path: path.into(),
+            source,
+        })?
+        .map(|entry| {
+            entry
+                .map_err(|source| MhiValidationError::Io {
+                    path: path.into(),
+                    source,
+                })?
+                .file_name()
+                .into_string()
+                .map_err(|_| MhiValidationError::Dataset("non-UTF-8 output path".into()))
+        })
+        .collect()
+}
+
+fn ensure_directory(path: &Path) -> Result<(), MhiValidationError> {
     let metadata = fs::symlink_metadata(path).map_err(|source| MhiValidationError::Io {
         path: path.into(),
         source,
@@ -206,64 +829,11 @@ fn verify_bundle(path: &Path) -> Result<(), MhiValidationError> {
     if !metadata.file_type().is_dir() || metadata.file_type().is_symlink() {
         return Err(MhiValidationError::UnsafePath(path.into()));
     }
-    let manifest_bytes =
-        fs::read(path.join(MANIFEST_FILE)).map_err(|source| MhiValidationError::Io {
-            path: path.join(MANIFEST_FILE),
-            source,
-        })?;
-    let manifest: serde_json::Value = serde_json::from_slice(&manifest_bytes)?;
-    let records = manifest
-        .get("generated_files")
-        .and_then(serde_json::Value::as_array)
-        .ok_or_else(|| {
-            MhiValidationError::Dataset("managed bundle has no generated_files".into())
-        })?;
-    if records.len() != 8 {
-        return Err(MhiValidationError::Dataset(
-            "managed bundle manifest must bind exactly eight non-self files".into(),
-        ));
-    }
-    let expected = generated_paths();
-    let mut actual = Vec::new();
-    for record in records {
-        let relative = record
-            .get("relative_path")
-            .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| MhiValidationError::Dataset("invalid manifest path".into()))?;
-        if relative.contains("..") || relative.starts_with('/') || relative.contains('\\') {
-            return Err(MhiValidationError::Dataset("unsafe manifest path".into()));
-        }
-        let bytes = fs::read(path.join(relative)).map_err(|source| MhiValidationError::Io {
-            path: path.join(relative),
-            source,
-        })?;
-        let expected_hash = record.get("sha256").and_then(serde_json::Value::as_str);
-        let expected_len = record
-            .get("byte_length")
-            .and_then(serde_json::Value::as_u64);
-        if expected_hash != Some(sha256(&bytes).as_str())
-            || expected_len != Some(bytes.len() as u64)
-        {
-            return Err(MhiValidationError::Dataset(
-                "managed bundle checksum does not match its manifest".into(),
-            ));
-        }
-        actual.push(relative.to_string());
-    }
-    actual.sort();
-    if actual != expected {
-        return Err(MhiValidationError::Dataset(
-            "managed bundle files do not match the fixed Phase-E set".into(),
-        ));
-    }
     Ok(())
 }
 
-fn generated_paths() -> Vec<String> {
-    let mut paths = vec![REPORT_FILE.into(), "validation_summary.md".into()];
-    paths.extend(TABLES.iter().map(|(name, _)| format!("tables/{name}")));
-    paths.sort();
-    paths
+fn valid_output_basename(name: &str) -> bool {
+    !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', '\0'])
 }
 
 fn path_exists_or_symlink(path: &Path) -> Result<bool, MhiValidationError> {
@@ -275,6 +845,277 @@ fn path_exists_or_symlink(path: &Path) -> Result<bool, MhiValidationError> {
             source,
         }),
     }
+}
+
+fn is_symlink(path: &Path) -> Result<bool, MhiValidationError> {
+    fs::symlink_metadata(path)
+        .map(|metadata| metadata.file_type().is_symlink())
+        .map_err(|source| MhiValidationError::Io {
+            path: path.into(),
+            source,
+        })
+}
+
+/// The lock file deliberately persists.  Its identity is part of the
+/// publication namespace, and unlinking/recreating it would allow two writers
+/// to hold locks on different files.
+fn acquire_publication_lock(
+    parent: &Path,
+    output_name: &str,
+) -> Result<fs::File, MhiValidationError> {
+    let lock = parent.join(format!(".{output_name}.phase-e-publish.lock"));
+    let existed = path_exists_or_symlink(&lock)?;
+    let file = open_lock_nofollow(&lock)?;
+    if !existed {
+        fs::set_permissions(&lock, fs::Permissions::from_mode(0o600)).map_err(|source| {
+            MhiValidationError::Io {
+                path: lock.clone(),
+                source,
+            }
+        })?;
+    }
+    let metadata = file.metadata().map_err(|source| MhiValidationError::Io {
+        path: lock.clone(),
+        source,
+    })?;
+    #[cfg(unix)]
+    let regular_single_link = metadata.is_file() && metadata.nlink() == 1;
+    #[cfg(not(unix))]
+    let regular_single_link = metadata.is_file();
+    if !regular_single_link || metadata.len() != 0 {
+        return Err(MhiValidationError::PublicationLockFileInvalid(lock));
+    }
+    lock_exclusive_nonblocking(&file).map_err(|source| {
+        if source.kind() == std::io::ErrorKind::WouldBlock {
+            MhiValidationError::PublicationLocked(lock.clone())
+        } else {
+            MhiValidationError::Io {
+                path: lock.clone(),
+                source,
+            }
+        }
+    })?;
+    if !existed {
+        file.sync_all().map_err(|source| MhiValidationError::Io {
+            path: lock.clone(),
+            source,
+        })?;
+        sync_directory(parent)?;
+    }
+    Ok(file)
+}
+
+#[cfg(unix)]
+fn open_lock_nofollow(path: &Path) -> Result<fs::File, MhiValidationError> {
+    const O_RDWR: i32 = 0x0002;
+    const O_CREAT: i32 = 0x0200;
+    const O_EXCL: i32 = 0x0800;
+    #[cfg(target_os = "macos")]
+    const O_NOFOLLOW: i32 = 0x0100;
+    #[cfg(target_os = "linux")]
+    const O_NOFOLLOW: i32 = 0x20_000;
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    const O_NOFOLLOW: i32 = 0;
+    let c_path = CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| MhiValidationError::UnsafePath(path.into()))?;
+    let mut descriptor = unsafe { native_open(c_path.as_ptr(), O_RDWR | O_NOFOLLOW, 0) };
+    if descriptor < 0 && std::io::Error::last_os_error().kind() == std::io::ErrorKind::NotFound {
+        descriptor = unsafe {
+            native_open(
+                c_path.as_ptr(),
+                O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW,
+                0o600,
+            )
+        };
+    }
+    if descriptor < 0 {
+        return Err(MhiValidationError::Io {
+            path: path.into(),
+            source: std::io::Error::last_os_error(),
+        });
+    }
+    Ok(unsafe { fs::File::from_raw_fd(descriptor) })
+}
+
+#[cfg(not(unix))]
+fn open_lock_nofollow(path: &Path) -> Result<fs::File, MhiValidationError> {
+    OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(path)
+        .map_err(|source| MhiValidationError::Io {
+            path: path.into(),
+            source,
+        })
+}
+
+#[cfg(unix)]
+fn lock_exclusive_nonblocking(file: &fs::File) -> std::io::Result<()> {
+    const LOCK_EX: i32 = 2;
+    const LOCK_NB: i32 = 4;
+    let result = unsafe { native_flock(std::os::fd::AsRawFd::as_raw_fd(file), LOCK_EX | LOCK_NB) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(unix))]
+fn lock_exclusive_nonblocking(_file: &fs::File) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "Phase-E publication locking requires Unix advisory locks",
+    ))
+}
+
+fn atomic_noreplace(source: &Path, destination: &Path) -> Result<(), MhiValidationError> {
+    atomic_rename(source, destination, RenameOperation::NoReplace)
+}
+
+fn atomic_exchange(source: &Path, destination: &Path) -> Result<(), MhiValidationError> {
+    atomic_rename(source, destination, RenameOperation::Exchange)
+}
+
+enum RenameOperation {
+    NoReplace,
+    Exchange,
+}
+
+#[cfg(unix)]
+fn atomic_rename(
+    source: &Path,
+    destination: &Path,
+    operation: RenameOperation,
+) -> Result<(), MhiValidationError> {
+    let from = CString::new(source.as_os_str().as_bytes())
+        .map_err(|_| MhiValidationError::UnsafePath(source.into()))?;
+    let to = CString::new(destination.as_os_str().as_bytes())
+        .map_err(|_| MhiValidationError::UnsafePath(destination.into()))?;
+    let flags = match operation {
+        RenameOperation::NoReplace => native_rename_noreplace_flag(),
+        RenameOperation::Exchange => native_rename_exchange_flag(),
+    };
+    let result = unsafe { native_rename(from.as_ptr(), to.as_ptr(), flags) };
+    if result == 0 {
+        return Ok(());
+    }
+    let source_error = std::io::Error::last_os_error();
+    if matches!(operation, RenameOperation::NoReplace)
+        && source_error.kind() == std::io::ErrorKind::AlreadyExists
+    {
+        return Err(MhiValidationError::PublicationConcurrentDestinationCreated(
+            destination.into(),
+        ));
+    }
+    if matches!(
+        source_error.raw_os_error(),
+        Some(38) | Some(45) | Some(78) | Some(95)
+    ) {
+        return Err(MhiValidationError::UnsupportedAtomicPublicationFilesystem(
+            destination.into(),
+        ));
+    }
+    Err(MhiValidationError::Io {
+        path: destination.into(),
+        source: source_error,
+    })
+}
+
+#[cfg(not(unix))]
+fn atomic_rename(
+    _source: &Path,
+    destination: &Path,
+    _operation: RenameOperation,
+) -> Result<(), MhiValidationError> {
+    Err(MhiValidationError::UnsupportedAtomicPublicationFilesystem(
+        destination.into(),
+    ))
+}
+
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    #[link_name = "open"]
+    fn native_open(path: *const std::ffi::c_char, flags: i32, mode: i32) -> i32;
+    #[link_name = "flock"]
+    fn native_flock(fd: i32, operation: i32) -> i32;
+    #[link_name = "renamex_np"]
+    fn native_rename(from: *const std::ffi::c_char, to: *const std::ffi::c_char, flags: u32)
+    -> i32;
+}
+
+#[cfg(target_os = "macos")]
+const fn native_rename_noreplace_flag() -> u32 {
+    0x0000_0004 // RENAME_EXCL
+}
+#[cfg(target_os = "macos")]
+const fn native_rename_exchange_flag() -> u32 {
+    0x0000_0002 // RENAME_SWAP
+}
+
+#[cfg(target_os = "linux")]
+unsafe extern "C" {
+    #[link_name = "open"]
+    fn native_open(path: *const std::ffi::c_char, flags: i32, mode: i32) -> i32;
+    #[link_name = "flock"]
+    fn native_flock(fd: i32, operation: i32) -> i32;
+    fn syscall(number: std::ffi::c_long, ...) -> std::ffi::c_long;
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn native_rename(
+    from: *const std::ffi::c_char,
+    to: *const std::ffi::c_char,
+    flags: u32,
+) -> i32 {
+    const AT_FDCWD: i32 = -100;
+    #[cfg(target_arch = "x86_64")]
+    const RENAMEAT2_SYSCALL: std::ffi::c_long = 316;
+    #[cfg(target_arch = "aarch64")]
+    const RENAMEAT2_SYSCALL: std::ffi::c_long = 276;
+    #[cfg(target_arch = "arm")]
+    const RENAMEAT2_SYSCALL: std::ffi::c_long = 382;
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "arm")))]
+    const RENAMEAT2_SYSCALL: std::ffi::c_long = -1;
+    if RENAMEAT2_SYSCALL < 0 {
+        return -1;
+    }
+    unsafe { syscall(RENAMEAT2_SYSCALL, AT_FDCWD, from, AT_FDCWD, to, flags) as i32 }
+}
+
+#[cfg(target_os = "linux")]
+const fn native_rename_noreplace_flag() -> u32 {
+    0x0000_0001 // RENAME_NOREPLACE
+}
+#[cfg(target_os = "linux")]
+const fn native_rename_exchange_flag() -> u32 {
+    0x0000_0002 // RENAME_EXCHANGE
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+unsafe fn native_open(_path: *const std::ffi::c_char, _flags: i32, _mode: i32) -> i32 {
+    -1
+}
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+unsafe fn native_flock(_fd: i32, _operation: i32) -> i32 {
+    -1
+}
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+unsafe fn native_rename(
+    _from: *const std::ffi::c_char,
+    _to: *const std::ffi::c_char,
+    _flags: u32,
+) -> i32 {
+    -1
+}
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+const fn native_rename_noreplace_flag() -> u32 {
+    0
+}
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+const fn native_rename_exchange_flag() -> u32 {
+    0
 }
 
 fn sync_file(path: &Path) -> Result<(), MhiValidationError> {
@@ -294,34 +1135,20 @@ fn sync_directory(path: &Path) -> Result<(), MhiValidationError> {
             source,
         })
 }
-fn summary_markdown(report: &MhiValidationReportV1, protocol_id: &str) -> String {
-    let approval_hash = report
-        .approval
-        .as_ref()
-        .map(|approval| approval.trust_store_sha256.as_str())
-        .unwrap_or("NA");
-    format!(
-        "# MHI Validation Summary\n\n## Identity\n\n| key | value |\n| --- | --- |\n| report_id | {} |\n| protocol_id | {} |\n| protocol_sha256 | {} |\n| dataset_id | {} |\n| dataset_source_file_sha256 | {} |\n| approval_record_id | NA |\n| approval_trust_store_sha256 | {} |\n| software_version | {} |\n| git_commit | NA |\n\n## Cohort Coverage\n\n## Leakage\n\n## Mechanism Endpoints\n\n## Health Endpoints\n\n## Exclusions\n\n## Release Claims\n\n## Overall Status\n\noutcome: {}\n\n## Limitations\n\n- NONE\n",
-        report.report_id,
-        protocol_id,
-        report.protocol.source_file_sha256,
-        report.dataset.dataset_id,
-        dataset_source_file_sha256(report),
-        approval_hash,
-        env!("CARGO_PKG_VERSION"),
-        serde_json::to_value(report.overall_status).unwrap_or(serde_json::Value::Null)
-    )
-}
-fn dataset_source_file_sha256(report: &MhiValidationReportV1) -> &str {
-    match &report.dataset.source {
-        crate::results::DatasetSourceReferenceV1::Known {
-            source_file_sha256, ..
-        }
-        | crate::results::DatasetSourceReferenceV1::LegacyUnknown {
-            source_file_sha256, ..
-        } => source_file_sha256,
+
+fn cleanup_stage(stage: &Path) {
+    if stage.exists() {
+        let _ = fs::remove_dir_all(stage);
     }
 }
+
+fn remove_tree_reverse(path: &Path) -> Result<(), MhiValidationError> {
+    fs::remove_dir_all(path).map_err(|source| MhiValidationError::Io {
+        path: path.into(),
+        source,
+    })
+}
+
 fn sha256(bytes: &[u8]) -> String {
     let mut hash = Sha256::new();
     hash.update(bytes);
