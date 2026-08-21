@@ -295,7 +295,7 @@ fn hex_64(value: &str) -> Result<[u8; 64], MhiValidationError> {
         .map_err(|_| approval("invalid Ed25519 signature encoding"))
 }
 fn decode_hex(value: &str) -> Result<Vec<u8>, MhiValidationError> {
-    if value.len() % 2 != 0
+    if !value.len().is_multiple_of(2)
         || !value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))

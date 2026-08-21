@@ -48,7 +48,7 @@ fn phase_e_cli_runs_exact_certified_route() {
     .map(str::to_string)
     .collect::<Vec<_>>();
     assert!(
-        matches!(parse_cli_args(&args).expect("CLI parses").command, Some(CommandSpec::ValidationRun { protocol, dataset, output_dir, overwrite: false }) if protocol == PathBuf::from("protocol.toml") && dataset == PathBuf::from("dataset.json") && output_dir == PathBuf::from("output"))
+        matches!(parse_cli_args(&args).expect("CLI parses").command, Some(CommandSpec::ValidationRun { protocol, dataset, output_dir, overwrite: false }) if protocol == Path::new("protocol.toml") && dataset == Path::new("dataset.json") && output_dir == Path::new("output"))
     );
 }
 

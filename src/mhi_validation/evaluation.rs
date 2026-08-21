@@ -116,15 +116,9 @@ fn protocol_sha(value: &str) -> &str {
 }
 fn compose(outcomes: impl Iterator<Item = ValidationOutcomeV1>) -> ValidationOutcomeV1 {
     let outcomes = outcomes.collect::<Vec<_>>();
-    if outcomes
-        .iter()
-        .any(|outcome| *outcome == ValidationOutcomeV1::Indeterminate)
-    {
+    if outcomes.contains(&ValidationOutcomeV1::Indeterminate) {
         ValidationOutcomeV1::Indeterminate
-    } else if outcomes
-        .iter()
-        .any(|outcome| *outcome == ValidationOutcomeV1::DoesNotMeetProtocol)
-    {
+    } else if outcomes.contains(&ValidationOutcomeV1::DoesNotMeetProtocol) {
         ValidationOutcomeV1::DoesNotMeetProtocol
     } else {
         ValidationOutcomeV1::MeetsProtocol
