@@ -24,7 +24,6 @@ pub struct MhiValidationRunOptions {
 
 pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiValidationError> {
     validate_root_file(&options.protocol)?;
-    validate_root_file(&options.dataset)?;
     if options.protocol == options.dataset
         || options.output_dir == options.protocol
         || options.output_dir == options.dataset
@@ -44,10 +43,22 @@ pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiVal
         .iter()
         .any(|claim| claim.requested_level == RequestedValidationLevelV1::Physical);
     let trust = if physical {
-        Some(PhysicalApprovalTrustStoreV1::from_embedded_bytes()?)
+        let trust = PhysicalApprovalTrustStoreV1::from_embedded_bytes()?;
+        // This gate is intentionally before dataset opening, approval parsing,
+        // evaluation, or report creation.  Production never falls back to a
+        // software claim and cannot accept a runtime-supplied test root.
+        if !trust.store.is_provisioned() {
+            return Err(MhiValidationError::PhysicalApprovalTrustNotProvisioned);
+        }
+        Some(trust)
     } else {
         None
     };
+    // A physical request against the shipped UNPROVISIONED authority stops
+    // above this line.  In particular, an attacker cannot obtain a different
+    // error (or make the reader inspect a supplied path) by choosing a missing
+    // or malformed dataset.
+    validate_root_file(&options.dataset)?;
     let mut inputs = ValidationInputs::read(&protocol, &protocol_sha256, &options.dataset)?;
     if let Some(trust) = &trust {
         let source = inputs
@@ -71,6 +82,11 @@ pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiVal
             &protocol,
             &inputs.dataset.artifact,
         )?;
+        if approval.approval_record_id != source.expected_approval_record_id {
+            return Err(MhiValidationError::Approval(
+                "approval expected record ID mismatch".into(),
+            ));
+        }
         inputs.attach_verified_approval(approval, trust.source_file_sha256.clone());
     }
     let report = evaluate_mhi_validation(&protocol, &inputs)?;

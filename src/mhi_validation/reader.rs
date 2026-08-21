@@ -70,7 +70,7 @@ impl ValidationInputs {
                     ));
                 }
                 let path = safe_dataset_relative_path(&dataset_directory, &source.relative_path)?;
-                let artifact = read_artifact_strict::<MechanismAnalysisReport>(&path)?;
+                let artifact = read_phase_e_mechanism_source(&path)?;
                 if artifact.source_file_sha256 != source.source_file_sha256
                     || artifact.artifact.schema_version != 4
                 {
@@ -96,7 +96,7 @@ impl ValidationInputs {
                     ));
                 }
                 let path = safe_dataset_relative_path(&dataset_directory, &source.relative_path)?;
-                let artifact = read_artifact_strict::<SensorHealthAssessment>(&path)?;
+                let artifact = read_phase_e_health_source(&path)?;
                 if artifact.source_file_sha256 != source.source_file_sha256
                     || artifact.artifact.schema_version != 4
                 {
@@ -137,6 +137,30 @@ impl ValidationInputs {
         self.owner_approval = Some(approval);
         self.approval_trust_store_sha256 = Some(trust_store_sha256);
     }
+}
+
+fn read_phase_e_mechanism_source(
+    path: &Path,
+) -> Result<StrictArtifactRead<MechanismAnalysisReport>, MhiValidationError> {
+    let artifact = read_artifact_strict::<MechanismAnalysisReport>(path)?;
+    if artifact.artifact.schema_version != 4 {
+        return Err(MhiValidationError::Dataset(
+            "mechanism scientific sources must be schema-4 mechanism_analysis".into(),
+        ));
+    }
+    Ok(artifact)
+}
+
+fn read_phase_e_health_source(
+    path: &Path,
+) -> Result<StrictArtifactRead<SensorHealthAssessment>, MhiValidationError> {
+    let artifact = read_artifact_strict::<SensorHealthAssessment>(path)?;
+    if artifact.artifact.schema_version != 4 {
+        return Err(MhiValidationError::Dataset(
+            "health scientific sources must be schema-4 health_assessment".into(),
+        ));
+    }
+    Ok(artifact)
 }
 
 fn validate_source_authority<T: Serialize>(
@@ -289,4 +313,19 @@ fn canonical_regular_file(path: &Path) -> Result<PathBuf, MhiValidationError> {
         path: path.into(),
         source,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn phase_e_reader_hard_fails_wrong_future_and_explicitly_excludes_legacy() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let legacy_mechanism = root.join("tests/fixtures/phase_d/legacy/mechanism_v1.json");
+        let legacy_health = root.join("tests/fixtures/phase_d/legacy/health_v3.json");
+        assert!(read_phase_e_mechanism_source(&legacy_mechanism).is_err());
+        assert!(read_phase_e_health_source(&legacy_health).is_err());
+    }
 }

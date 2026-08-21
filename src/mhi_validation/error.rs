@@ -12,6 +12,8 @@ pub enum MhiValidationError {
     Dataset(String),
     #[error("MHI validation physical approval error: {0}")]
     Approval(String),
+    #[error("PhysicalApprovalTrustNotProvisioned")]
+    PhysicalApprovalTrustNotProvisioned,
     #[error("MHI validation input path is unsafe: {0}")]
     UnsafePath(PathBuf),
     #[error("MHI validation I/O error at {path}: {source}")]
@@ -40,4 +42,19 @@ pub enum MhiValidationError {
     UnsupportedAtomicPublicationFilesystem(PathBuf),
     #[error("MHI validation publication destination was concurrently created: {0}")]
     PublicationConcurrentDestinationCreated(PathBuf),
+    #[error("MHI validation managed output changed before publication: {0}")]
+    PublicationConcurrentManagedOutputChanged(PathBuf),
+    #[error("MHI validation committed visible output changed before cleanup: {0}")]
+    PublicationCommittedVisibleOutputChanged(PathBuf),
+    #[error("MHI validation exchanged old generation changed before cleanup: {0}")]
+    PublicationCommittedForeignSwapDetected(PathBuf),
+    #[error(
+        "MHI validation publication is visible but durability is unconfirmed at {output} during {operation}"
+    )]
+    PublicationDurabilityUnconfirmed {
+        output: PathBuf,
+        operation: &'static str,
+    },
+    #[error("MHI validation publication committed but cleanup failed near: {0}")]
+    PublicationCommittedCleanupFailed(PathBuf),
 }

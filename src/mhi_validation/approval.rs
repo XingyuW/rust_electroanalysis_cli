@@ -2,6 +2,7 @@
 
 use super::{MhiValidationError, protocol::MhiValidationProtocolV1};
 use crate::results::MhiValidationDatasetV1;
+use crate::validation_config::ReferenceAuthorityRuleV1;
 use ed25519_dalek::{Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -25,7 +26,19 @@ pub struct PhysicalApprovalTrustRootV1 {
 pub struct PhysicalApprovalTrustStoreV1 {
     pub schema_version: u32,
     pub trust_store_id: String,
+    pub provisioning_state: PhysicalApprovalProvisioningStateV1,
     pub trust_roots: Vec<PhysicalApprovalTrustRootV1>,
+}
+
+/// The production authority is deliberately shipped unprovisioned in Phase E.
+/// A later, separately reviewed provisioning change may add immutable roots;
+/// neither a protocol nor any runtime input can alter this state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PhysicalApprovalProvisioningStateV1 {
+    #[serde(rename = "UNPROVISIONED")]
+    Unprovisioned,
+    #[serde(rename = "PROVISIONED")]
+    Provisioned,
 }
 
 #[derive(Debug, Clone)]
@@ -49,11 +62,20 @@ impl PhysicalApprovalTrustStoreV1 {
     }
 
     pub fn validate(&self) -> Result<(), MhiValidationError> {
-        if self.schema_version != 1
-            || self.trust_store_id != "mhi_physical_approval_trust_store_v1"
-            || self.trust_roots.is_empty()
+        if self.schema_version != 1 || self.trust_store_id != "mhi_physical_approval_trust_store_v1"
         {
             return Err(approval("invalid embedded trust-store identity"));
+        }
+        match self.provisioning_state {
+            PhysicalApprovalProvisioningStateV1::Unprovisioned if !self.trust_roots.is_empty() => {
+                return Err(approval(
+                    "UNPROVISIONED trust store must have no trust roots",
+                ));
+            }
+            PhysicalApprovalProvisioningStateV1::Provisioned if self.trust_roots.is_empty() => {
+                return Err(approval("PROVISIONED trust store must have trust roots"));
+            }
+            _ => {}
         }
         let mut root_ids = BTreeSet::new();
         let mut authorities = BTreeSet::new();
@@ -101,6 +123,13 @@ impl PhysicalApprovalTrustStoreV1 {
         Ok(())
     }
 
+    pub const fn is_provisioned(&self) -> bool {
+        matches!(
+            self.provisioning_state,
+            PhysicalApprovalProvisioningStateV1::Provisioned
+        )
+    }
+
     pub fn root(&self, id: &str) -> Result<&PhysicalApprovalTrustRootV1, MhiValidationError> {
         self.trust_roots
             .iter()
@@ -142,7 +171,7 @@ pub struct OwnerApprovalEvidenceV1 {
 }
 
 impl OwnerApprovalEvidenceV1 {
-    pub fn read_and_validate(
+    pub(crate) fn read_and_validate(
         path: &Path,
         expected_file_sha256: &str,
         embedded: &VerifiedEmbeddedTrustStore,
@@ -164,7 +193,7 @@ impl OwnerApprovalEvidenceV1 {
         Ok(approval)
     }
 
-    pub fn validate(
+    pub(crate) fn validate(
         &self,
         embedded: &VerifiedEmbeddedTrustStore,
         protocol: &MhiValidationProtocolV1,
@@ -226,6 +255,43 @@ impl OwnerApprovalEvidenceV1 {
         if !strictly_sorted(&self.endpoint_ids) || self.endpoint_ids != endpoints {
             return Err(approval("approval endpoint bindings mismatch"));
         }
+        let reference_authority_ids = protocol
+            .release_scope
+            .iter()
+            .filter(|claim| {
+                claim.requested_level
+                    == crate::validation_config::RequestedValidationLevelV1::Physical
+            })
+            .flat_map(|claim| claim.supporting_endpoint_ids.iter())
+            .filter_map(|endpoint_id| {
+                protocol
+                    .mechanism_endpoints
+                    .iter()
+                    .find(|endpoint| &endpoint.endpoint_id == endpoint_id)
+                    .map(|endpoint| &endpoint.reference_rule)
+                    .or_else(|| {
+                        protocol
+                            .health_endpoints
+                            .iter()
+                            .find(|endpoint| &endpoint.endpoint_id == endpoint_id)
+                            .map(|endpoint| &endpoint.reference_rule)
+                    })
+            })
+            .flat_map(allowed_authority_ids)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if !strictly_sorted(&self.reference_authority_ids)
+            || self.reference_authority_ids != reference_authority_ids
+        {
+            return Err(approval("approval reference-authority bindings mismatch"));
+        }
+        if self.target_domain != protocol.target_domain {
+            return Err(approval("approval target-domain binding mismatch"));
+        }
+        if self.limitations.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(approval("approval limitations must be canonically ordered"));
+        }
         let signing_bytes = self.signing_bytes()?;
         let expected_id = format!("sha256:{}", sha256(&signing_bytes));
         if self.approval_record_id != expected_id {
@@ -265,6 +331,19 @@ impl OwnerApprovalEvidenceV1 {
     }
 }
 
+fn allowed_authority_ids(rule: &ReferenceAuthorityRuleV1) -> Vec<String> {
+    match rule {
+        ReferenceAuthorityRuleV1::Mechanism {
+            allowed_authority_ids,
+            ..
+        }
+        | ReferenceAuthorityRuleV1::Health {
+            allowed_authority_ids,
+            ..
+        } => allowed_authority_ids.clone(),
+    }
+}
+
 fn verify_strict(
     key_hex: &str,
     signature_hex: &str,
@@ -274,11 +353,15 @@ fn verify_strict(
     let bytes = hex_32(key_hex)?;
     let key = VerifyingKey::from_bytes(&bytes)
         .map_err(|_| approval("PhysicalApprovalPublicKeyInvalid"))?;
-    if key.to_edwards().compress().to_bytes() != bytes || key.is_weak() {
-        return Err(approval("PhysicalApprovalPublicKeyInvalid"));
+    if key.to_edwards().compress().to_bytes() != bytes {
+        return Err(approval("PhysicalApprovalNoncanonicalPublicKey"));
     }
-    let signature =
-        Signature::try_from(hex_64(signature_hex)?.as_slice()).map_err(|_| approval(error))?;
+    if key.is_weak() {
+        return Err(approval("PhysicalApprovalWeakPublicKey"));
+    }
+    let signature_bytes = decode_hex(signature_hex).map_err(|_| approval(error))?;
+    let signature_bytes: [u8; 64] = signature_bytes.try_into().map_err(|_| approval(error))?;
+    let signature = Signature::try_from(signature_bytes.as_slice()).map_err(|_| approval(error))?;
     key.verify_strict(message, &signature)
         .map_err(|_| approval(error))
 }
@@ -287,12 +370,6 @@ fn hex_32(value: &str) -> Result<[u8; 32], MhiValidationError> {
     bytes
         .try_into()
         .map_err(|_| approval("PhysicalApprovalPublicKeyInvalid"))
-}
-fn hex_64(value: &str) -> Result<[u8; 64], MhiValidationError> {
-    let bytes = decode_hex(value)?;
-    bytes
-        .try_into()
-        .map_err(|_| approval("invalid Ed25519 signature encoding"))
 }
 fn decode_hex(value: &str) -> Result<Vec<u8>, MhiValidationError> {
     if !value.len().is_multiple_of(2)
@@ -332,4 +409,260 @@ fn sha256(bytes: &[u8]) -> String {
 }
 fn approval(message: impl Into<String>) -> MhiValidationError {
     MhiValidationError::Approval(message.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{mhi_validation::MhiValidationProtocolV1, results::MhiValidationDatasetV1};
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
+
+    fn fixture(path: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/phase_e")
+            .join(path)
+    }
+
+    fn test_trust() -> VerifiedEmbeddedTrustStore {
+        let bytes = fs::read(fixture(
+            "trust/test_only_known_answer_trust_store.schema1.json",
+        ))
+        .expect("literal test authority");
+        let store: PhysicalApprovalTrustStoreV1 =
+            serde_json::from_slice(&bytes).expect("closed test trust schema");
+        store
+            .validate()
+            .expect("test trust is provisioned and strict");
+        VerifiedEmbeddedTrustStore {
+            store,
+            source_file_sha256: sha256(&bytes),
+        }
+    }
+
+    fn physical_authorities() -> (
+        VerifiedEmbeddedTrustStore,
+        MhiValidationProtocolV1,
+        MhiValidationDatasetV1,
+        OwnerApprovalEvidenceV1,
+    ) {
+        let trust = test_trust();
+        let protocol = MhiValidationProtocolV1::from_toml(
+            &fs::read_to_string(fixture("protocol/physical_valid.toml"))
+                .expect("physical protocol"),
+        )
+        .expect("physical protocol validates");
+        let dataset: MhiValidationDatasetV1 = serde_json::from_slice(
+            &fs::read(fixture("dataset/physical_valid.schema1.json")).expect("physical dataset"),
+        )
+        .expect("physical dataset schema");
+        let approval: OwnerApprovalEvidenceV1 = serde_json::from_slice(
+            &fs::read(fixture("approval/valid.schema1.json")).expect("literal approval"),
+        )
+        .expect("approval schema");
+        (trust, protocol, dataset, approval)
+    }
+
+    fn approval_error(error: MhiValidationError) -> String {
+        match error {
+            MhiValidationError::Approval(message) => message,
+            other => panic!("expected approval error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power() {
+        let (trust, protocol, dataset, approval) = physical_authorities();
+        approval
+            .validate(&trust, &protocol, &dataset)
+            .expect("literal dual-signed test vector verifies through the pure test boundary");
+
+        let approval_file = fixture("approval/valid.schema1.json");
+        let expected_file_sha256 = sha256(&fs::read(&approval_file).expect("approval bytes"));
+        OwnerApprovalEvidenceV1::read_and_validate(
+            &approval_file,
+            &expected_file_sha256,
+            &trust,
+            &protocol,
+            &dataset,
+        )
+        .expect("file hash and literal approval verify");
+        assert!(matches!(
+            OwnerApprovalEvidenceV1::read_and_validate(
+                &fixture("approval/missing.schema1.json"),
+                &expected_file_sha256,
+                &trust,
+                &protocol,
+                &dataset,
+            ),
+            Err(MhiValidationError::Io { .. })
+        ));
+
+        let mut wrong_purpose = approval.clone();
+        wrong_purpose.approval_purpose = "wrong".into();
+        assert_eq!(
+            approval_error(
+                wrong_purpose
+                    .validate(&trust, &protocol, &dataset)
+                    .unwrap_err()
+            ),
+            "invalid approval status or purpose"
+        );
+
+        let mut wrong_root = approval.clone();
+        wrong_root.trust_root_id = "attacker_root".into();
+        assert_eq!(
+            approval_error(
+                wrong_root
+                    .validate(&trust, &protocol, &dataset)
+                    .unwrap_err()
+            ),
+            "approval trust-root binding mismatch"
+        );
+
+        let mut wrong_owner = approval.clone();
+        wrong_owner.project_owner_authority_id = "attacker_owner".into();
+        assert_eq!(
+            approval_error(
+                wrong_owner
+                    .validate(&trust, &protocol, &dataset)
+                    .unwrap_err()
+            ),
+            "approval authority binding mismatch"
+        );
+
+        let mut copied_signature = approval.clone();
+        copied_signature.registry_signature_ed25519_hex =
+            copied_signature.owner_signature_ed25519_hex.clone();
+        assert_eq!(
+            approval_error(
+                copied_signature
+                    .validate(&trust, &protocol, &dataset)
+                    .unwrap_err()
+            ),
+            "PhysicalApprovalRegistrySignatureInvalid"
+        );
+
+        let mut malformed_signature = approval.clone();
+        malformed_signature.owner_signature_ed25519_hex = "00".into();
+        assert_eq!(
+            approval_error(
+                malformed_signature
+                    .validate(&trust, &protocol, &dataset)
+                    .unwrap_err()
+            ),
+            "PhysicalApprovalOwnerSignatureInvalid"
+        );
+
+        let mut wrong_record = approval.clone();
+        wrong_record.approval_record_id =
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000".into();
+        assert_eq!(
+            approval_error(
+                wrong_record
+                    .validate(&trust, &protocol, &dataset)
+                    .unwrap_err()
+            ),
+            "approval record ID mismatch"
+        );
+
+        let mut wrong_cohort = approval.clone();
+        wrong_cohort.cohort_semantic_sha256 =
+            "0000000000000000000000000000000000000000000000000000000000000000".into();
+        assert_eq!(
+            approval_error(
+                wrong_cohort
+                    .validate(&trust, &protocol, &dataset)
+                    .unwrap_err()
+            ),
+            "approval protocol or cohort binding mismatch"
+        );
+
+        let identity_key = "0100000000000000000000000000000000000000000000000000000000000000";
+        let nondecompressible_key =
+            "0200000000000000000000000000000000000000000000000000000000000000";
+        for (key, expected) in [
+            (identity_key, "PhysicalApprovalWeakPublicKey"),
+            (nondecompressible_key, "PhysicalApprovalPublicKeyInvalid"),
+        ] {
+            for owner_role in [true, false] {
+                let mut mutated = trust.store.clone();
+                if owner_role {
+                    mutated.trust_roots[0].owner_ed25519_public_key_hex = key.into();
+                } else {
+                    mutated.trust_roots[0].registry_ed25519_public_key_hex = key.into();
+                }
+                assert_eq!(approval_error(mutated.validate().unwrap_err()), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn phase_e_artifact_contracts_accept_exact_schema1_and_reject_invalid_variants() {
+        let trusted = test_trust();
+        assert_eq!(
+            trusted.store.provisioning_state,
+            PhysicalApprovalProvisioningStateV1::Provisioned
+        );
+        assert!(trusted.store.validate().is_ok());
+
+        let mut schema2 = trusted.store.clone();
+        schema2.schema_version = 2;
+        assert_eq!(
+            approval_error(schema2.validate().unwrap_err()),
+            "invalid embedded trust-store identity"
+        );
+
+        let mut unprovisioned_with_root = trusted.store.clone();
+        unprovisioned_with_root.provisioning_state =
+            PhysicalApprovalProvisioningStateV1::Unprovisioned;
+        assert_eq!(
+            approval_error(unprovisioned_with_root.validate().unwrap_err()),
+            "UNPROVISIONED trust store must have no trust roots"
+        );
+
+        let mut provisioned_without_root = trusted.store.clone();
+        provisioned_without_root.trust_roots.clear();
+        assert_eq!(
+            approval_error(provisioned_without_root.validate().unwrap_err()),
+            "PROVISIONED trust store must have trust roots"
+        );
+
+        let mut duplicate_authority = trusted.store.clone();
+        duplicate_authority.trust_roots[0].registry_authority_id = duplicate_authority.trust_roots
+            [0]
+        .project_owner_authority_id
+        .clone();
+        assert_eq!(
+            approval_error(duplicate_authority.validate().unwrap_err()),
+            "trust authority IDs must be globally unique"
+        );
+
+        let mut duplicate_key = trusted.store.clone();
+        duplicate_key.trust_roots[0].registry_ed25519_public_key_hex = duplicate_key.trust_roots[0]
+            .owner_ed25519_public_key_hex
+            .clone();
+        assert_eq!(
+            approval_error(duplicate_key.validate().unwrap_err()),
+            "trust public keys must be globally unique"
+        );
+
+        let mut noncanonical = trusted.store.clone();
+        noncanonical.trust_roots[0].owner_ed25519_public_key_hex =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f".into();
+        assert_eq!(
+            approval_error(noncanonical.validate().unwrap_err()),
+            "PhysicalApprovalNoncanonicalPublicKey"
+        );
+
+        let alias = br#"{
+          "schema_version":1,
+          "trust_store_id":"mhi_physical_approval_trust_store_v1",
+          "provisioning_state":"UNPROVISIONED",
+          "roots":[]
+        }"#;
+        assert!(serde_json::from_slice::<PhysicalApprovalTrustStoreV1>(alias).is_err());
+    }
 }

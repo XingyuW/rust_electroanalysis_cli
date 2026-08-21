@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "artifact_kind": "mhi_validation_dataset",
-  "dataset_id": "phase_e_software_dataset",
-  "protocol_sha256": "a098c83e08f488d49f16be4c4fc27b09d87ca3752a7af7b50069ba6e9e09b47e",
-  "cohort_semantic_sha256": "0680b5b18869f92017b1e16687015abb9a30b769e9424c5a645d680b18477bdf",
+  "dataset_id": "phase_e_physical_dataset",
+  "protocol_sha256": "74b871604ba3c85d21af243282e7fc9f8606984f8d31d3d9f37f139876544329",
+  "cohort_semantic_sha256": "05391640c01e3c70a953b5d53527c651172a9a7e3ba40827005d2db957b4da16",
   "lineage_catalog_source": {
-    "relative_path": "lineage.json",
+    "relative_path": "lineage/complete.schema1.json",
     "schema_version": 1,
     "source_file_sha256": "d905d50e370c260ed0ecef63fff8aabbdced821b56b9d34a2fb18a99bd8ceb82"
   },
   "reference_sources": [],
   "records": [
     {
-      "record_id": "record_1",
-      "cohort_role": "validation",
+      "record_id": "physical_record_1",
+      "cohort_role": "holdout",
       "mechanism_source": null,
       "health_source": null,
       "declared_scope": {
@@ -30,11 +30,16 @@
         "campaign_id": "campaign",
         "temperature_kelvin": 298.15
       },
-      "evidence_origin": "synthetic",
+      "evidence_origin": "physical",
       "reference_endpoints": []
     }
   ],
-  "owner_approval_source": null,
+  "owner_approval_source": {
+    "relative_path": "approval/valid.schema1.json",
+    "schema_version": 1,
+    "source_file_sha256": "75e87de755c481c7bfcc61185bba28e58f7f4299582270bd6e5454a1de1777b0",
+    "expected_approval_record_id": "sha256:75059e591a230e7d996a92180e7e52c1b4a393f2ec2de56cf6a2ca561436b40a"
+  },
   "lineage": {
     "LegacyUnknown": {
       "source_schema_version": 1,
