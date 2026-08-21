@@ -5,8 +5,9 @@ use rust_electroanalysis_cli::{
         read_artifact_lineage_catalog_strict, read_artifact_strict,
     },
     mhi_validation::{
-        MhiValidationProtocolV1,
+        MhiValidationProtocolV1, ValidationInputs,
         approval::PhysicalApprovalTrustStoreV1,
+        evaluate_mhi_validation,
         statistics::{MetricValueV1, balanced_accuracy, wilson_95},
     },
     results::MhiValidationDatasetV1,
@@ -260,4 +261,79 @@ fn phase_e_source_guards_prohibit_reassessment_and_reverse_dependencies() {
     )
     .expect("source");
     assert!(!phase_d.contains("mhi_validation"));
+}
+
+#[test]
+fn phase_e_partition_accounts_for_every_declared_record_exactly_once() {
+    let bytes = fs::read(fixture("software_protocol.toml")).expect("fixture");
+    let protocol = MhiValidationProtocolV1::from_toml(std::str::from_utf8(&bytes).expect("UTF-8"))
+        .expect("protocol");
+    let inputs = ValidationInputs::read(
+        &protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&bytes),
+        &fixture("software_dataset.schema1.json"),
+    )
+    .expect("inputs");
+    let report = evaluate_mhi_validation(&protocol, &inputs).expect("report");
+    assert_eq!(report.record_accounting.len(), 2);
+    for cohort in &report.cohorts {
+        assert_eq!(
+            cohort.declared_count,
+            cohort.eligible_count + cohort.excluded_count
+        );
+    }
+    let mechanism = &report.mechanism_results[0];
+    assert_eq!(
+        mechanism.eligible_count,
+        mechanism.support_count
+            + mechanism.critical_contradiction_count
+            + mechanism.not_assessed_or_other_count
+    );
+    let health = &report.health_results[0];
+    assert_eq!(
+        health.eligible_count,
+        health.tp
+            + health.tn
+            + health.fp
+            + health.r#fn
+            + health.indeterminate
+            + health.data_quality_insufficient
+    );
+    assert!(report.validate_structure().is_ok());
+}
+
+#[test]
+fn phase_e_report_reconstructs_every_count_from_source_ids() {
+    let bytes = fs::read(fixture("software_protocol.toml")).expect("fixture");
+    let protocol = MhiValidationProtocolV1::from_toml(std::str::from_utf8(&bytes).expect("UTF-8"))
+        .expect("protocol");
+    let inputs = ValidationInputs::read(
+        &protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&bytes),
+        &fixture("software_dataset.schema1.json"),
+    )
+    .expect("inputs");
+    let mut report = evaluate_mhi_validation(&protocol, &inputs).expect("report");
+    report.health_results[0].tp = 1;
+    assert!(report.validate_structure().is_err());
+}
+
+#[test]
+fn phase_e_authority_assisted_report_and_all_scientific_bytes_are_exact() {
+    let bytes = fs::read(fixture("software_protocol.toml")).expect("fixture");
+    let protocol = MhiValidationProtocolV1::from_toml(std::str::from_utf8(&bytes).expect("UTF-8"))
+        .expect("protocol");
+    let inputs = ValidationInputs::read(
+        &protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&bytes),
+        &fixture("software_dataset.schema1.json"),
+    )
+    .expect("inputs");
+    let mut report = evaluate_mhi_validation(&protocol, &inputs).expect("report");
+    report
+        .validate_against(&protocol, &inputs, None)
+        .expect("exact replay");
+    report.overall_status =
+        rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::MeetsProtocol;
+    assert!(report.validate_against(&protocol, &inputs, None).is_err());
 }

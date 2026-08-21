@@ -48,7 +48,7 @@ pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiVal
     } else {
         None
     };
-    let inputs = ValidationInputs::read(&protocol, &protocol_sha256, &options.dataset)?;
+    let mut inputs = ValidationInputs::read(&protocol, &protocol_sha256, &options.dataset)?;
     if let Some(trust) = &trust {
         let source = inputs
             .dataset
@@ -64,18 +64,17 @@ pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiVal
             &inputs.dataset_directory,
             &source.relative_path,
         )?;
-        OwnerApprovalEvidenceV1::read_and_validate(
+        let approval = OwnerApprovalEvidenceV1::read_and_validate(
             &path,
             &source.source_file_sha256,
             trust,
             &protocol,
             &inputs.dataset.artifact,
         )?;
+        inputs.attach_verified_approval(approval, trust.source_file_sha256.clone());
     }
-    let mut report = evaluate_mhi_validation(&protocol, &inputs)?;
-    if let Some(trust) = trust {
-        report.approval_trust_store_sha256 = Some(trust.source_file_sha256);
-    }
+    let report = evaluate_mhi_validation(&protocol, &inputs)?;
+    report.validate_against(&protocol, &inputs, trust.as_ref())?;
     publish_bundle(
         &options.output_dir,
         &report,

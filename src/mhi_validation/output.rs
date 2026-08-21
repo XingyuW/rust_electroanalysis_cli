@@ -118,8 +118,8 @@ pub fn publish_bundle(
             "schema_version": 1,
             "output_kind": "mhi_validation_execution_manifest",
             "report_id": report.report_id,
-            "protocol_sha256": report.protocol_sha256,
-            "dataset_source": { "dataset_id": report.dataset_id, "source_file_sha256": report.dataset_source_file_sha256 },
+            "protocol_sha256": report.protocol.source_file_sha256,
+            "dataset_source": { "dataset_id": report.dataset.dataset_id, "source_file_sha256": dataset_source_file_sha256(report) },
             "generated_files": generated_files,
             "publication_mode": if output_exists { "replace_managed_bundle" } else { "create_new" },
             "software_version": env!("CARGO_PKG_VERSION"),
@@ -296,20 +296,31 @@ fn sync_directory(path: &Path) -> Result<(), MhiValidationError> {
 }
 fn summary_markdown(report: &MhiValidationReportV1, protocol_id: &str) -> String {
     let approval_hash = report
-        .approval_trust_store_sha256
-        .as_deref()
+        .approval
+        .as_ref()
+        .map(|approval| approval.trust_store_sha256.as_str())
         .unwrap_or("NA");
     format!(
         "# MHI Validation Summary\n\n## Identity\n\n| key | value |\n| --- | --- |\n| report_id | {} |\n| protocol_id | {} |\n| protocol_sha256 | {} |\n| dataset_id | {} |\n| dataset_source_file_sha256 | {} |\n| approval_record_id | NA |\n| approval_trust_store_sha256 | {} |\n| software_version | {} |\n| git_commit | NA |\n\n## Cohort Coverage\n\n## Leakage\n\n## Mechanism Endpoints\n\n## Health Endpoints\n\n## Exclusions\n\n## Release Claims\n\n## Overall Status\n\noutcome: {}\n\n## Limitations\n\n- NONE\n",
         report.report_id,
         protocol_id,
-        report.protocol_sha256,
-        report.dataset_id,
-        report.dataset_source_file_sha256,
+        report.protocol.source_file_sha256,
+        report.dataset.dataset_id,
+        dataset_source_file_sha256(report),
         approval_hash,
         env!("CARGO_PKG_VERSION"),
         serde_json::to_value(report.overall_status).unwrap_or(serde_json::Value::Null)
     )
+}
+fn dataset_source_file_sha256(report: &MhiValidationReportV1) -> &str {
+    match &report.dataset.source {
+        crate::results::DatasetSourceReferenceV1::Known {
+            source_file_sha256, ..
+        }
+        | crate::results::DatasetSourceReferenceV1::LegacyUnknown {
+            source_file_sha256, ..
+        } => source_file_sha256,
+    }
 }
 fn sha256(bytes: &[u8]) -> String {
     let mut hash = Sha256::new();

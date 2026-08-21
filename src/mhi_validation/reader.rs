@@ -19,11 +19,14 @@ use std::{
 
 #[derive(Debug)]
 pub struct ValidationInputs {
+    pub protocol_sha256: String,
     pub dataset: StrictArtifactRead<MhiValidationDatasetV1>,
     pub dataset_directory: PathBuf,
     pub lineage_catalog: StrictLineageCatalogRead,
     pub mechanism_sources: Vec<(String, StrictArtifactRead<MechanismAnalysisReport>)>,
     pub health_sources: Vec<(String, StrictArtifactRead<SensorHealthAssessment>)>,
+    pub owner_approval: Option<crate::mhi_validation::approval::OwnerApprovalEvidenceV1>,
+    pub approval_trust_store_sha256: Option<String>,
 }
 
 impl ValidationInputs {
@@ -33,11 +36,9 @@ impl ValidationInputs {
         dataset_path: &Path,
     ) -> Result<Self, MhiValidationError> {
         let dataset = read_artifact_strict::<MhiValidationDatasetV1>(dataset_path)?;
-        if dataset.artifact.protocol_sha256 != protocol_sha256 {
-            return Err(MhiValidationError::Dataset(
-                "dataset protocol_sha256 does not bind the exact protocol bytes".into(),
-            ));
-        }
+        dataset
+            .artifact
+            .validate_against_protocol(protocol, protocol_sha256)?;
         let dataset_directory = canonical_regular_file(dataset_path)?
             .parent()
             .expect("canonical file has parent")
@@ -117,12 +118,24 @@ impl ValidationInputs {
         // all protocol semantic checks run before this source read.
         let _ = protocol;
         Ok(Self {
+            protocol_sha256: protocol_sha256.into(),
             dataset,
             dataset_directory,
             lineage_catalog,
             mechanism_sources,
             health_sources,
+            owner_approval: None,
+            approval_trust_store_sha256: None,
         })
+    }
+
+    pub fn attach_verified_approval(
+        &mut self,
+        approval: crate::mhi_validation::approval::OwnerApprovalEvidenceV1,
+        trust_store_sha256: String,
+    ) {
+        self.owner_approval = Some(approval);
+        self.approval_trust_store_sha256 = Some(trust_store_sha256);
     }
 }
 

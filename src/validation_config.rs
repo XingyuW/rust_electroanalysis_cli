@@ -25,6 +25,14 @@ pub enum EvidenceOriginV1 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum EndpointKindV1 {
+    Mechanism,
+    HealthDimension,
+    HealthAggregate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RequestedValidationLevelV1 {
     Software,
     Physical,
@@ -36,6 +44,102 @@ pub enum ValidationOutcomeV1 {
     MeetsProtocol,
     DoesNotMeetProtocol,
     Indeterminate,
+}
+
+/// The single accounting result for one endpoint/view/record tuple.  This is
+/// intentionally distinct from an endpoint outcome: a holdout row can remain
+/// eligible while its visible lineage overlap makes the endpoint fail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordDecisionV1 {
+    Eligible,
+    Excluded,
+    NotApplicable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SeparationStatusV1 {
+    KnownSeparated,
+    KnownOverlap,
+    UnknownSeparation,
+}
+
+/// Closed explanation tokens for a non-provable separation.  The evaluator
+/// records these rather than replacing an authority gap with a guessed
+/// independent classification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SeparationUnknownReasonV1 {
+    AssessedExperimentScopeUnknown,
+    AssessedFamilyUnknown,
+    ReferenceExperimentScopeUnknown,
+    ReferenceFamilyUnknown,
+    ReferenceDependencyIncomplete,
+    ReferenceDependencyNodeMissing,
+    ReferenceScientificLeafMissing,
+    ReferenceScientificLeafLegacyUnknown,
+    CatalogAncestorMissing,
+    CatalogCycleReachable,
+    DevelopmentExperimentScopeUnknown,
+    DevelopmentFamilyUnknown,
+}
+
+/// The frozen Section 3.7 record-exclusion order.  Discriminants are exposed
+/// only through [`Self::ordinal`] so no caller can accidentally use enum
+/// declaration order as an undocumented wire contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExclusionReasonV1 {
+    MissingEndpointArtifactPath,
+    SourceNotPhaseBOrCScoreable,
+    MissingReferenceEndpoint,
+    ReferenceOutcomeUnavailable,
+    ReferenceMethodNotAllowed,
+    ReferenceAuthorityNotAllowed,
+    ReferenceBlindingNotAllowed,
+    ReferenceUncertaintyUnavailable,
+    ReferenceUncertaintyMeasureMismatch,
+    ReferenceUncertaintyUnitMismatch,
+    ReferenceUncertaintyAboveMaximum,
+    ValidationKnownOverlap,
+    ValidationUnknownSeparation,
+}
+
+impl ExclusionReasonV1 {
+    pub const fn ordinal(self) -> u8 {
+        match self {
+            Self::MissingEndpointArtifactPath => 1,
+            Self::SourceNotPhaseBOrCScoreable => 2,
+            Self::MissingReferenceEndpoint => 3,
+            Self::ReferenceOutcomeUnavailable => 4,
+            Self::ReferenceMethodNotAllowed => 5,
+            Self::ReferenceAuthorityNotAllowed => 6,
+            Self::ReferenceBlindingNotAllowed => 7,
+            Self::ReferenceUncertaintyUnavailable => 8,
+            Self::ReferenceUncertaintyMeasureMismatch => 9,
+            Self::ReferenceUncertaintyUnitMismatch => 10,
+            Self::ReferenceUncertaintyAboveMaximum => 11,
+            Self::ValidationKnownOverlap => 12,
+            Self::ValidationUnknownSeparation => 13,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuleEvaluationResultV1 {
+    True,
+    False,
+    Unavailable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LeakageNotEvaluatedReasonV1 {
+    NotApplicable,
+    MissingEndpointArtifactPath,
+    MissingReferenceEndpoint,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

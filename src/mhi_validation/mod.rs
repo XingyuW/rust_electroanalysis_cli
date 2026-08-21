@@ -8,6 +8,7 @@ pub mod approval;
 pub mod error;
 pub mod evaluation;
 pub mod output;
+pub mod partition;
 pub mod protocol;
 pub mod reader;
 pub mod statistics;
