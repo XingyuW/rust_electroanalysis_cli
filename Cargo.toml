@@ -25,6 +25,9 @@ genevo = "0.7.1"
 rayon = "1.12.0"
 rand = "0.8"
 rustfft = "6"
+# Phase E deliberately uses dalek's strict verifier only.  Keep this featureless
+# and pinned so physical-approval verification has a reproducible surface.
+ed25519-dalek = { version = "=2.2.0", default-features = false }
 
 [profile.release]
 opt-level      = 3

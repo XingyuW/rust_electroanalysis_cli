@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "mhi_validation_dataset",
+  "dataset_id": "phase_e_software_dataset",
+  "protocol_sha256": "84e0612214f08bd4a7fec19320ca75714cb4b56e72d3c23f518fcb5e26f9f494",
+  "cohort_semantic_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "lineage_catalog_source": {
+    "relative_path": "lineage.json",
+    "schema_version": 1,
+    "source_file_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "reference_sources": [],
+  "records": [
+    {
+      "record_id": "record_1",
+      "cohort_role": "validation",
+      "mechanism_source": null,
+      "health_source": null,
+      "declared_scope": {},
+      "domain": {
+        "analyte_id": "analyte",
+        "matrix_id": "matrix",
+        "sensor_design_id": "design",
+        "sensor_id": "sensor",
+        "campaign_id": "campaign",
+        "temperature_kelvin": 298.15
+      },
+      "evidence_origin": "synthetic",
+      "reference_endpoints": []
+    }
+  ],
+  "owner_approval_source": null,
+  "lineage": {
+    "LegacyUnknown": {
+      "source_schema_version": 1,
+      "reason": "MigrationInformationUnavailable"
+    }
+  },
+  "provenance": {},
+  "warnings": []
+}

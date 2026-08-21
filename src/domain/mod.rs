@@ -15,8 +15,8 @@ pub mod provenance;
 
 pub(crate) use artifact::write_legacy_sensor_health_assessment_v3;
 pub use artifact::{
-    ArtifactError, ArtifactKind, CurrentArtifactKindPolicy, VersionedArtifact, read_artifact,
-    validate_serialized_finite, write_artifact,
+    ArtifactError, ArtifactKind, CurrentArtifactKindPolicy, StrictArtifactRead, VersionedArtifact,
+    read_artifact, read_artifact_strict, validate_serialized_finite, write_artifact,
 };
 pub use diagnostics::{IngestionDiagnostic, MeasurementParseResult, ParseDiagnostics};
 pub use errors::{
@@ -33,10 +33,11 @@ pub use lineage::{
     ArtifactIdentity, ArtifactLineageCatalog, ArtifactLineageNode, ArtifactLineageState,
     EvidenceIndependence, ExperimentId, LineageCatalogReadError, LineageResolutionReason,
     LineageResolutionStatus, ResolvedAcquisitionFamilies, ResolvedArtifactLineage, ScopeKey,
-    UnknownLineageReason, artifact_identity_from_payload, artifact_scope_from_experiment_ids,
-    current_unknown_lineage, dependency_from_lineage, known_lineage_from_artifact,
-    legacy_unknown_lineage, lineage_scope_and_families, read_artifact_lineage_catalog,
-    resolve_known_artifact_id, resolve_lineage, semantic_sha256,
+    StrictLineageCatalogRead, UnknownLineageReason, artifact_identity_from_payload,
+    artifact_scope_from_experiment_ids, current_unknown_lineage, dependency_from_lineage,
+    known_lineage_from_artifact, legacy_unknown_lineage, lineage_scope_and_families,
+    read_artifact_lineage_catalog, read_artifact_lineage_catalog_strict, resolve_known_artifact_id,
+    resolve_lineage, semantic_sha256,
 };
 pub use measurement::{
     CHANNEL_ALIASES_METADATA_KEY, ChannelMetadata, CoordinateConversion, MeasurementChannel,

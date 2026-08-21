@@ -80,6 +80,11 @@ pub enum Command {
         #[command(subcommand)]
         command: ReportCommand,
     },
+    /// Independently validate frozen Phase-B/Phase-C artifacts against a declared cohort.
+    Validation {
+        #[command(subcommand)]
+        command: ValidationCommand,
+    },
     /// Estimate latent activity and sensor-response states from time-resolved measurements.
     Estimate {
         #[command(subcommand)]
@@ -95,6 +100,24 @@ pub enum Command {
 #[derive(Debug, Subcommand)]
 pub enum ReportCommand {
     Render(ReportRenderCommand),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ValidationCommand {
+    /// Run the sole certified Phase-E artifact-only validation route.
+    Run(ValidationRunCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct ValidationRunCommand {
+    #[arg(long, value_name = "PATH")]
+    pub protocol: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    pub dataset: PathBuf,
+    #[arg(long = "output-dir", value_name = "PATH")]
+    pub output_dir: PathBuf,
+    #[arg(long)]
+    pub overwrite: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -1003,6 +1026,12 @@ pub enum CommandSpec {
         tables: Option<String>,
         overwrite: bool,
     },
+    ValidationRun {
+        protocol: PathBuf,
+        dataset: PathBuf,
+        output_dir: PathBuf,
+        overwrite: bool,
+    },
 }
 
 /// Errors raised while parsing or validating command-line arguments.
@@ -1095,7 +1124,8 @@ impl CliArgs {
             | Some(CommandSpec::HealthAssess { .. })
             | Some(CommandSpec::HealthTrend { .. })
             | Some(CommandSpec::HealthReport { .. })
-            | Some(CommandSpec::ReportRender { .. }) => {}
+            | Some(CommandSpec::ReportRender { .. })
+            | Some(CommandSpec::ValidationRun { .. }) => {}
             Some(CommandSpec::EstimateRun { .. })
             | Some(CommandSpec::EstimateValidate { .. })
             | Some(CommandSpec::EstimateSimulate { .. })
@@ -1360,6 +1390,14 @@ fn normalize_cli(parsed: Cli) -> Result<CliArgs, CliError> {
                     format: c.format.into(),
                     figures: c.figures,
                     tables: c.tables,
+                    overwrite: c.overwrite,
+                },
+            },
+            Command::Validation { command } => match command {
+                ValidationCommand::Run(c) => CommandSpec::ValidationRun {
+                    protocol: c.protocol,
+                    dataset: c.dataset,
+                    output_dir: c.output_dir,
                     overwrite: c.overwrite,
                 },
             },

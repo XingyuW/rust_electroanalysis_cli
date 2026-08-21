@@ -709,6 +709,16 @@ pub enum LineageCatalogReadError {
     },
 }
 
+/// Strict catalog read result used by Phase E.  The historic reader continues
+/// to own its legacy I/O and error compatibility while this reader retains the
+/// exact verified source bytes for validation lineage.
+#[derive(Debug, Clone)]
+pub struct StrictLineageCatalogRead {
+    pub catalog: ArtifactLineageCatalog,
+    pub source_bytes: Vec<u8>,
+    pub source_file_sha256: String,
+}
+
 const CATALOG_INVALID_ROOT: &str = "__phase_d_catalog_invalid_root";
 const CATALOG_UNKNOWN_FIELD: &str = "__phase_d_catalog_unknown_field:";
 const CATALOG_DUPLICATE_FIELD: &str = "__phase_d_catalog_duplicate_field:";
@@ -726,7 +736,67 @@ pub fn read_artifact_lineage_catalog(
         path: path.to_path_buf(),
         source,
     })?;
-    let mut deserializer = serde_json::Deserializer::from_str(&text);
+    parse_artifact_lineage_catalog_text(path, &text)
+}
+
+/// Additive strict reader for scientific validation.  It rejects symlinked
+/// inputs and duplicate keys recursively before using the canonical catalog
+/// parser.  It does not alter the public reader's established behavior.
+pub fn read_artifact_lineage_catalog_strict(
+    path: &Path,
+) -> Result<StrictLineageCatalogRead, LineageCatalogReadError> {
+    let metadata = fs::symlink_metadata(path).map_err(|source| LineageCatalogReadError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return Err(LineageCatalogReadError::Validation {
+            path: path.to_path_buf(),
+            source: LineageError::Serialization(
+                "strict catalog input must be a regular non-symlink file".into(),
+            ),
+        });
+    }
+    let source_bytes = fs::read(path).map_err(|source| LineageCatalogReadError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    if source_bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
+        return Err(LineageCatalogReadError::Validation {
+            path: path.to_path_buf(),
+            source: LineageError::Serialization(
+                "strict catalog input must not contain a UTF-8 BOM".into(),
+            ),
+        });
+    }
+    let text = std::str::from_utf8(&source_bytes).map_err(|_| LineageCatalogReadError::Io {
+        path: path.to_path_buf(),
+        source: std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "catalog is not valid UTF-8",
+        ),
+    })?;
+    crate::domain::artifact::ensure_duplicate_free_json(text).map_err(|message| {
+        LineageCatalogReadError::Validation {
+            path: path.to_path_buf(),
+            source: LineageError::Serialization(message),
+        }
+    })?;
+    let catalog = parse_artifact_lineage_catalog_text(path, text)?;
+    let mut hash = Sha256::new();
+    hash.update(&source_bytes);
+    Ok(StrictLineageCatalogRead {
+        catalog,
+        source_bytes,
+        source_file_sha256: format!("{:x}", hash.finalize()),
+    })
+}
+
+fn parse_artifact_lineage_catalog_text(
+    path: &Path,
+    text: &str,
+) -> Result<ArtifactLineageCatalog, LineageCatalogReadError> {
+    let mut deserializer = serde_json::Deserializer::from_str(text);
     let wire = CatalogWire::deserialize(&mut deserializer)
         .map_err(|source| map_catalog_deserialize_error(path, source))?;
     deserializer

@@ -19,6 +19,7 @@ pub mod evidence;
 pub mod fit;
 pub mod health;
 pub mod mechanism;
+pub mod mhi_validation;
 pub mod model;
 pub mod model_validation;
 pub mod plot;
@@ -88,6 +89,8 @@ pub enum RunnerError {
     Estimation(#[from] crate::estimation::error::EstimationError),
     #[error(transparent)]
     Artifact(#[from] crate::domain::ArtifactError),
+    #[error(transparent)]
+    MhiValidation(#[from] crate::mhi_validation::MhiValidationError),
     #[error(transparent)]
     PhaseBSourceScope(#[from] mechanism::PhaseBSourceScopeError),
     #[error("workflow JSON error: {0}")]

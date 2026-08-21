@@ -7,8 +7,8 @@ use rust_electroanalysis_cli::cli::{CliError, CommandSpec, parse_cli_args, print
 use rust_electroanalysis_cli::domain::{ConfigurationError, WorkspaceError};
 use rust_electroanalysis_cli::plot_config::PlotConfig;
 use rust_electroanalysis_cli::runners::{
-    RunnerError, calibration, estimation, fit, health, mechanism, model, model_validation, plot,
-    report, search, signal, transient,
+    RunnerError, calibration, estimation, fit, health, mechanism, mhi_validation, model,
+    model_validation, plot, report, search, signal, transient,
 };
 use rust_electroanalysis_cli::workspace::{self, LastRunMode};
 use thiserror::Error as ThisError;
@@ -113,6 +113,26 @@ fn run() -> Result<(), ApplicationError> {
             outcome.written_files,
             outcome.unavailable_files
         );
+        return Ok(());
+    }
+
+    // Phase E is artifact-only and must not create/mutate the legacy workspace
+    // before its strict validation boundary has completed.
+    if let CommandSpec::ValidationRun {
+        protocol,
+        dataset,
+        output_dir,
+        overwrite,
+    } = command
+    {
+        mhi_validation::run_mhi_validation(mhi_validation::MhiValidationRunOptions {
+            protocol,
+            dataset,
+            output_dir: output_dir.clone(),
+            overwrite,
+        })
+        .map_err(RunnerError::from)?;
+        println!("{}", output_dir.display());
         return Ok(());
     }
 
@@ -690,6 +710,9 @@ fn run() -> Result<(), ApplicationError> {
         }
         CommandSpec::ReportRender { .. } => {
             unreachable!("Phase-D report dispatch returns before workspace setup")
+        }
+        CommandSpec::ValidationRun { .. } => {
+            unreachable!("Phase-E validation dispatch returns before workspace setup")
         }
     }
 

@@ -1,8 +1,14 @@
 //! Stable, validated JSON boundaries between analysis workflows.
 
-use serde::{Deserialize, Serialize, de::DeserializeOwned, ser};
+use serde::{
+    Deserialize, Serialize,
+    de::{DeserializeOwned, DeserializeSeed, Visitor},
+    ser,
+};
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeSet,
     fmt, fs,
     path::{Path, PathBuf},
 };
@@ -28,6 +34,10 @@ pub enum ArtifactKind {
     ModelAnalysis,
     #[serde(rename = "ism_model_validation")]
     ModelValidation,
+    #[serde(rename = "mhi_validation_dataset")]
+    MhiValidationDataset,
+    #[serde(rename = "mhi_validation_report")]
+    MhiValidationReport,
 }
 
 impl ArtifactKind {
@@ -47,6 +57,8 @@ impl ArtifactKind {
             Self::ModelCompilation => "ism_model_compilation",
             Self::ModelAnalysis => "ism_model_analysis",
             Self::ModelValidation => "ism_model_validation",
+            Self::MhiValidationDataset => "mhi_validation_dataset",
+            Self::MhiValidationReport => "mhi_validation_report",
         }
     }
 }
@@ -120,6 +132,24 @@ pub enum ArtifactError {
     NonFiniteValue { path: PathBuf, field_path: String },
     #[error("artifact schema validation failed: {message}")]
     Validation { message: String },
+    #[error("artifact {path} must be a regular non-symlink file")]
+    UnsafeFile { path: PathBuf },
+    #[error("artifact {path} contains a duplicate JSON key {key}")]
+    DuplicateJsonKey { path: PathBuf, key: String },
+    #[error("artifact {path} is not valid UTF-8")]
+    InvalidUtf8 { path: PathBuf },
+    #[error("artifact {path} contains a UTF-8 byte-order mark")]
+    Utf8Bom { path: PathBuf },
+}
+
+/// A strict read deliberately keeps both the parsed value and the exact bytes
+/// that were validated.  Validation workflows must never reread a pathname
+/// after checking its checksum.
+#[derive(Debug, Clone)]
+pub struct StrictArtifactRead<T> {
+    pub artifact: T,
+    pub source_bytes: Vec<u8>,
+    pub source_file_sha256: String,
 }
 
 pub fn read_artifact<T: VersionedArtifact>(path: &Path) -> Result<T, ArtifactError> {
@@ -147,6 +177,193 @@ pub fn read_artifact<T: VersionedArtifact>(path: &Path) -> Result<T, ArtifactErr
     })?;
     artifact.validate_after_read()?;
     Ok(artifact)
+}
+
+/// Reads an artifact at the Phase-E boundary.  Unlike the historic public
+/// reader this rejects duplicate object keys at every nesting level and
+/// returns the exact checked bytes and their file hash.  `read_artifact`
+/// intentionally remains unchanged for stored-artifact compatibility.
+pub fn read_artifact_strict<T: VersionedArtifact>(
+    path: &Path,
+) -> Result<StrictArtifactRead<T>, ArtifactError> {
+    let metadata = fs::symlink_metadata(path).map_err(|source| ArtifactError::Io {
+        path: path.into(),
+        source,
+    })?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return Err(ArtifactError::UnsafeFile { path: path.into() });
+    }
+    let source_bytes = fs::read(path).map_err(|source| ArtifactError::Io {
+        path: path.into(),
+        source,
+    })?;
+    if source_bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
+        return Err(ArtifactError::Utf8Bom { path: path.into() });
+    }
+    let text = std::str::from_utf8(&source_bytes)
+        .map_err(|_| ArtifactError::InvalidUtf8 { path: path.into() })?;
+    reject_nonfinite_tokens(path, text)?;
+    scan_duplicate_json_keys(text).map_err(|error| match error {
+        DuplicateScanError::Json(source) => ArtifactError::Json {
+            path: path.into(),
+            source,
+        },
+        DuplicateScanError::Duplicate(key) => ArtifactError::DuplicateJsonKey {
+            path: path.into(),
+            key,
+        },
+    })?;
+    let value: Value = serde_json::from_str(text).map_err(|source| ArtifactError::Json {
+        path: path.into(),
+        source,
+    })?;
+    validate_value::<T>(path, &value)?;
+    let artifact: T = serde_json::from_value(value).map_err(|source| ArtifactError::Json {
+        path: path.into(),
+        source,
+    })?;
+    artifact.validate_after_read()?;
+    let source_file_sha256 = hex_sha256(&source_bytes);
+    Ok(StrictArtifactRead {
+        artifact,
+        source_bytes,
+        source_file_sha256,
+    })
+}
+
+fn hex_sha256(bytes: &[u8]) -> String {
+    let mut hash = Sha256::new();
+    hash.update(bytes);
+    format!("{:x}", hash.finalize())
+}
+
+#[derive(Debug)]
+enum DuplicateScanError {
+    Json(serde_json::Error),
+    Duplicate(String),
+}
+
+struct DuplicateScanSeed;
+
+impl<'de> DeserializeSeed<'de> for DuplicateScanSeed {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(DuplicateScanVisitor)
+    }
+}
+
+struct DuplicateScanVisitor;
+
+impl<'de> Visitor<'de> for DuplicateScanVisitor {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a JSON value")
+    }
+
+    fn visit_bool<E>(self, _: bool) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_i64<E>(self, _: i64) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_u64<E>(self, _: u64) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_f64<E>(self, _: f64) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_str<E>(self, _: &str) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_string<E>(self, _: String) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_none<E>(self) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_unit<E>(self) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+
+    fn visit_seq<A>(self, mut sequence: A) -> Result<(), A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        while sequence.next_element_seed(DuplicateScanSeed)?.is_some() {}
+        Ok(())
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        let mut keys = BTreeSet::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if !keys.insert(key.clone()) {
+                return Err(serde::de::Error::custom(format!(
+                    "__duplicate_json_key__{key}"
+                )));
+            }
+            map.next_value_seed(DuplicateScanSeed)?;
+        }
+        Ok(())
+    }
+}
+
+fn scan_duplicate_json_keys(text: &str) -> Result<(), DuplicateScanError> {
+    let mut deserializer = serde_json::Deserializer::from_str(text);
+    let result = DuplicateScanSeed.deserialize(&mut deserializer);
+    match result {
+        Ok(()) => deserializer.end().map_err(DuplicateScanError::Json),
+        Err(error) => {
+            let message = error.to_string();
+            let marker = message.split(" at line ").next().unwrap_or(&message);
+            if let Some(key) = marker.strip_prefix("__duplicate_json_key__") {
+                Err(DuplicateScanError::Duplicate(key.to_string()))
+            } else {
+                Err(DuplicateScanError::Json(error))
+            }
+        }
+    }
+}
+
+/// Shared by the strict lineage-catalog reader.  It deliberately exposes no
+/// `serde_json::Value`, because callers must perform their own closed grammar
+/// validation after duplicate detection.
+pub(crate) fn ensure_duplicate_free_json(text: &str) -> Result<(), String> {
+    scan_duplicate_json_keys(text).map_err(|error| match error {
+        DuplicateScanError::Json(error) => error.to_string(),
+        DuplicateScanError::Duplicate(key) => format!("duplicate JSON key {key}"),
+    })
 }
 
 pub fn write_artifact<T: VersionedArtifact>(
