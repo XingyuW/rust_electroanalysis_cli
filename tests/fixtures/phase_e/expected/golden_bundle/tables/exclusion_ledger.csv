@@ -1,3 +1,1 @@
 endpoint_id,stratum_id,record_id,primary_reason,secondary_reasons,assessed_source_key,reference_endpoint_id
-health_endpoint,overall,record_1,missing_endpoint_artifact_path,"[""missing_reference_endpoint""]",NA,NA
-mechanism_endpoint,overall,record_1,missing_endpoint_artifact_path,"[""missing_reference_endpoint""]",NA,NA

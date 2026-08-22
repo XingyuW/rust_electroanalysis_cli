@@ -25,6 +25,7 @@ use rust_electroanalysis_cli::{
         TemperatureBandV1, TemperatureSelectorV1,
     },
 };
+use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
     fs,
@@ -176,6 +177,71 @@ fn assert_scientific_bundle(output: &Path) {
             .iter()
             .all(|file| file["relative_path"] != "validation_execution_manifest.schema1.json")
     );
+}
+
+/// The committed R2 bundle list is the output authority.  This helper derives
+/// neither hashes nor expected paths from production output: it first checks
+/// the independently committed golden bytes and then compares the certified
+/// route byte-for-byte against that sealed list.
+fn assert_exact_golden_bundle(output: &Path) {
+    let expected = fs::read_to_string(fixture("expected/golden_bundle_file_sha256s.txt"))
+        .expect("independent golden bundle digest list");
+    let expected = expected
+        .lines()
+        .map(|line| {
+            let mut columns = line.split('\t');
+            let relative_path = columns.next().expect("golden relative path");
+            let byte_length = columns
+                .next()
+                .expect("golden byte length")
+                .parse::<u64>()
+                .expect("golden byte length integer");
+            let sha256 = columns.next().expect("golden SHA-256");
+            assert!(columns.next().is_none(), "three golden-list columns");
+            (relative_path.to_owned(), byte_length, sha256.to_owned())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(expected.len(), 9, "R2 certifies exactly nine managed files");
+
+    let mut actual_paths = Vec::new();
+    fixture_regular_files(output, output, &mut actual_paths);
+    actual_paths.sort();
+    let expected_paths = expected
+        .iter()
+        .map(|(path, _, _)| path.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        actual_paths, expected_paths,
+        "no extra or missing managed file"
+    );
+
+    for (relative_path, byte_length, sha256) in expected {
+        let golden_path = fixture("expected/golden_bundle").join(&relative_path);
+        let golden_bytes = fs::read(&golden_path).expect("committed golden bytes");
+        assert_eq!(
+            golden_bytes.len() as u64,
+            byte_length,
+            "golden length {relative_path}"
+        );
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&golden_bytes)),
+            sha256,
+            "golden digest {relative_path}"
+        );
+
+        let actual = fs::read(output.join(&relative_path)).expect("certified output bytes");
+        assert_eq!(
+            actual.len() as u64,
+            byte_length,
+            "output length {relative_path}"
+        );
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&actual)),
+            sha256,
+            "output digest {relative_path}"
+        );
+        assert_eq!(actual, golden_bytes, "output bytes {relative_path}");
+    }
 }
 
 fn protocol_fixture(name: &str) -> MhiValidationProtocolV1 {
@@ -355,6 +421,43 @@ fn phase_e_dataset_recomputes_semantic_identity_and_rejects_root_or_path_mismatc
             if message == "record declared scope differs from the known source identity"
     ));
     fs::remove_dir_all(root).expect("declared-family root cleanup");
+
+    let (root, protocol_path, dataset_path) = staged_dataset_with_scoreable_mechanism();
+    let protocol_bytes = fs::read(&protocol_path).expect("protocol");
+    let protocol = MhiValidationProtocolV1::from_toml(
+        std::str::from_utf8(&protocol_bytes).expect("protocol UTF-8"),
+    )
+    .expect("protocol");
+    let protocol_hash = MhiValidationProtocolV1::sha256_of_bytes(&protocol_bytes);
+    let renamed = dataset_path
+        .parent()
+        .expect("dataset parent")
+        .join("sources/renamed_duplicate.schema4.json");
+    fs::copy(
+        dataset_path
+            .parent()
+            .expect("dataset parent")
+            .join("sources/mechanism_a.schema4.json"),
+        &renamed,
+    )
+    .expect("renamed duplicate source");
+    let mut dataset = read_artifact_strict::<MhiValidationDatasetV1>(&dataset_path)
+        .expect("test dataset")
+        .artifact;
+    dataset.records[1].mechanism_source = dataset.records[0].mechanism_source.clone();
+    dataset.records[1]
+        .mechanism_source
+        .as_mut()
+        .expect("copied mechanism source")
+        .relative_path = "sources/renamed_duplicate.schema4.json".into();
+    dataset.records[1].declared_scope = dataset.records[0].declared_scope.clone();
+    write_test_dataset(&dataset_path, &mut dataset);
+    assert!(matches!(
+        ValidationInputs::read(&protocol, &protocol_hash, &dataset_path),
+        Err(MhiValidationError::Dataset(ref message))
+            if message == "duplicate assessed scientific source key for endpoint"
+    ));
+    fs::remove_dir_all(root).expect("renamed duplicate root cleanup");
 }
 
 #[test]
@@ -541,6 +644,28 @@ fn phase_e_combined_reference_catalog_closure_and_authority_are_total() {
         vec![ExclusionReasonV1::ReferenceBlindingNotAllowed]
     );
 
+    let mut unknown_blinding = valid.clone();
+    let ReferenceEndpointV1::Mechanism { blinding_state, .. } = &mut unknown_blinding else {
+        unreachable!()
+    };
+    *blinding_state = BlindingStateV1::Unknown;
+    assert_eq!(
+        reference_exclusion_reasons(rule, &unknown_blinding, false)
+            .expect("unknown blinding reference"),
+        vec![ExclusionReasonV1::ReferenceBlindingNotAllowed]
+    );
+
+    let mut wrong_method_version = valid.clone();
+    let ReferenceEndpointV1::Mechanism { method_version, .. } = &mut wrong_method_version else {
+        unreachable!()
+    };
+    *method_version = "2".into();
+    assert_eq!(
+        reference_exclusion_reasons(rule, &wrong_method_version, false)
+            .expect("wrong method version"),
+        vec![ExclusionReasonV1::ReferenceMethodNotAllowed]
+    );
+
     let mut missing_uncertainty = valid.clone();
     let ReferenceEndpointV1::Mechanism { uncertainty, .. } = &mut missing_uncertainty else {
         unreachable!()
@@ -591,6 +716,24 @@ fn phase_e_combined_reference_catalog_closure_and_authority_are_total() {
             vec![expected]
         );
     }
+
+    let mut allow_unavailable = rule.clone();
+    match &mut allow_unavailable {
+        rust_electroanalysis_cli::validation_config::ReferenceAuthorityRuleV1::Mechanism {
+            uncertainty_rule,
+            ..
+        } => {
+            *uncertainty_rule =
+                rust_electroanalysis_cli::validation_config::ReferenceUncertaintyRuleV1::AllowUnavailableWithLimitation;
+        }
+        _ => unreachable!("mechanism fixture uses mechanism rule"),
+    }
+    assert_eq!(
+        reference_exclusion_reasons(&allow_unavailable, &missing_uncertainty, false)
+            .expect("allowed uncertainty limitation"),
+        Vec::<ExclusionReasonV1>::new(),
+        "allowed unavailable uncertainty is not silently recast as an authority exclusion"
+    );
 }
 
 #[test]
@@ -641,6 +784,67 @@ fn phase_e_exclusions_and_acceptance_use_complete_ordered_precedence() {
         (1..=13).collect::<Vec<_>>(),
         "the complete exclusion order is an explicit contract"
     );
+
+    use rust_electroanalysis_cli::{
+        mhi_validation::partition::{EndpointPartitionSpec, EndpointSource, partition_endpoint},
+        validation_config::RecordDecisionV1,
+    };
+    let protocol_bytes = fs::read(fixture("protocol/software_valid.toml")).expect("protocol");
+    let protocol = MhiValidationProtocolV1::from_toml(
+        std::str::from_utf8(&protocol_bytes).expect("protocol UTF-8"),
+    )
+    .expect("protocol");
+    let (root, _, dataset_path) = staged_validation_inputs(
+        "protocol/software_valid.toml",
+        "dataset/software_valid.schema1.json",
+    );
+    let mut dataset = read_artifact_strict::<MhiValidationDatasetV1>(&dataset_path)
+        .expect("dataset")
+        .artifact;
+    dataset.records[0].mechanism_source = None;
+    dataset.records[0]
+        .reference_endpoints
+        .retain(|reference| !matches!(reference, ReferenceEndpointV1::Mechanism { .. }));
+    write_test_dataset(&dataset_path, &mut dataset);
+    let inputs = ValidationInputs::read(
+        &protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&protocol_bytes),
+        &dataset_path,
+    )
+    .expect("precedence inputs");
+    let endpoint = &protocol.mechanism_endpoints[0];
+    let partition = partition_endpoint(
+        &inputs,
+        EndpointPartitionSpec {
+            endpoint_id: &endpoint.endpoint_id,
+            cohort_role: endpoint.cohort_role,
+            domain: &endpoint.domain,
+            required_strata: &endpoint.required_strata,
+            reference_rule: &endpoint.reference_rule,
+            source: EndpointSource::Mechanism,
+            physical: false,
+        },
+    )
+    .expect("precedence partition");
+    let row = partition
+        .rows
+        .iter()
+        .find(|row| row.record_id == "record_1")
+        .expect("mutated row");
+    assert_eq!(row.decision, RecordDecisionV1::Excluded);
+    assert_eq!(
+        row.primary_reason,
+        Some(ExclusionReasonV1::MissingEndpointArtifactPath)
+    );
+    assert_eq!(
+        row.secondary_reasons,
+        [ExclusionReasonV1::MissingReferenceEndpoint]
+    );
+    assert_eq!(
+        row.not_evaluated_reason.map(|reason| format!("{reason:?}")),
+        Some("MissingEndpointArtifactPath".into())
+    );
+    fs::remove_dir_all(root).expect("precedence cleanup");
 }
 
 #[test]
@@ -966,6 +1170,7 @@ fn phase_e_cli_runs_exact_certified_route() {
     })
     .expect("exact certified route");
     assert_scientific_bundle(&output);
+    assert_exact_golden_bundle(&output);
     fs::remove_dir_all(output).expect("output cleanup");
     fs::remove_dir_all(inputs).expect("input cleanup");
 }
@@ -1430,6 +1635,58 @@ fn phase_e_protocol_rejects_incomplete_conflicting_untrusted_and_nondeterministi
         protocol.validate(),
         "acceptance-rule bounds are contradictory",
     );
+
+    // Each mandatory rule is independently authoritative.  Mutating a
+    // different rule must never be masked by a generic parse failure.
+    for removed in [0usize, 1, 2] {
+        let mut protocol = protocol_fixture("protocol/software_valid.toml");
+        protocol.health_endpoints[0]
+            .acceptance_rules
+            .remove(removed);
+        protocol_error(
+            protocol.validate(),
+            "health endpoints require coverage, sensitivity, and specificity greater_than_or_equal rules",
+        );
+    }
+    for changed in [0usize, 1, 2] {
+        let mut protocol = protocol_fixture("protocol/software_valid.toml");
+        let AcceptanceRuleV1::Rate { comparator, .. } =
+            &mut protocol.health_endpoints[0].acceptance_rules[changed]
+        else {
+            unreachable!("health fixture uses rate rules")
+        };
+        *comparator = ComparatorV1::LessThanOrEqual;
+        protocol_error(
+            protocol.validate(),
+            "health endpoints require coverage, sensitivity, and specificity greater_than_or_equal rules",
+        );
+    }
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    protocol.mechanism_endpoints[0].minimum_eligible_records = 0;
+    protocol_error(protocol.validate(), "endpoint minima must be positive");
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    protocol.health_endpoints[0].minimum_independent_families = 0;
+    protocol_error(protocol.validate(), "endpoint minima must be positive");
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    protocol.mechanism_endpoints[0].required_strata = vec![RequiredStratumV1 {
+        stratum_id: "invalid_temperature".into(),
+        predicates: vec![StratumPredicateV1::TemperatureBand {
+            lower_kelvin_inclusive: 300.0,
+            upper_kelvin_exclusive: 300.0,
+        }],
+        minimum_eligible_records: 1,
+        minimum_independent_families: 1,
+    }];
+    protocol_error(
+        protocol.validate(),
+        "stratum temperature band must be finite positive lower < upper",
+    );
+    let mut protocol = protocol_fixture("protocol/physical_valid.toml");
+    protocol.mechanism_endpoints[0].minimum_independent_families = 1;
+    protocol_error(
+        protocol.validate(),
+        "physical claims require domain-equal holdout endpoints with minima of two",
+    );
 }
 
 #[test]
@@ -1521,6 +1778,77 @@ fn phase_e_strict_catalog_reader_rejects_nested_unknown_without_changing_legacy_
     fs::write(&path, mutated).expect("write mutation");
     assert!(read_artifact_lineage_catalog(&path).is_ok());
     assert!(read_artifact_lineage_catalog_strict(&path).is_err());
+
+    // R2 closes every nested catalog object for Phase E without changing the
+    // legacy parser.  The externally tagged enum cases remain legacy parser
+    // rejections too; ordinary struct fields retain their permissive baseline.
+    for (case, mutated, legacy_accepts) in [
+        (
+            "catalog node",
+            text.replacen(
+                "      \"identity\": {",
+                "      \"phase_e_unknown\": true,\n      \"identity\": {",
+                1,
+            ),
+            true,
+        ),
+        (
+            "identity",
+            text.replacen(
+                "        \"artifact_kind\": \"state_estimation\",",
+                "        \"artifact_kind\": \"state_estimation\",\n        \"phase_e_unknown\": true,",
+                1,
+            ),
+            true,
+        ),
+        (
+            "dependency",
+            text.replacen(
+                "          \"role\": \"TransformationInput\"\n        }",
+                "          \"role\": \"TransformationInput\",\n          \"phase_e_unknown\": true\n        }",
+                1,
+            ),
+            true,
+        ),
+        (
+            "single experiment scope payload",
+            text.replacen(
+                "            \"experiment_id\": \"b-e2e-1\"",
+                "            \"experiment_id\": \"b-e2e-1\",\n            \"phase_e_unknown\": true",
+                1,
+            ),
+            true,
+        ),
+        (
+            "known acquisition families payload",
+            text.replacen(
+                "          \"Known\": [\n            \"b-family-estimation\"\n          ]",
+                "          \"Known\": [\n            \"b-family-estimation\"\n          ],\n          \"phase_e_unknown\": true",
+                1,
+            ),
+            false,
+        ),
+        (
+            "specific scope-key tag",
+            text.replacen(
+                "        \"sensor_scope\": \"Unspecified\",",
+                "        \"sensor_scope\": {\"Specific\": \"sensor-a\", \"phase_e_unknown\": true},",
+                1,
+            ),
+            false,
+        ),
+    ] {
+        fs::write(&path, mutated).expect("nested mutation");
+        assert!(
+            read_artifact_lineage_catalog_strict(&path).is_err(),
+            "strict Phase-E catalog reader rejects unknown {case}"
+        );
+        assert_eq!(
+            read_artifact_lineage_catalog(&path).is_ok(),
+            legacy_accepts,
+            "legacy reader baseline for {case}"
+        );
+    }
     fs::remove_dir_all(directory).expect("cleanup");
 }
 
@@ -1847,6 +2175,71 @@ fn phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power() {
     physical_approval
         .validate_for_test_boundary(&verified_trust, &physical_protocol, &physical_dataset)
         .expect("current dual-signed physical KAT");
+
+    let approval_error = |candidate: OwnerApprovalEvidenceV1, expected: &str| match candidate
+        .validate_for_test_boundary(&verified_trust, &physical_protocol, &physical_dataset)
+    {
+        Err(MhiValidationError::Approval(actual)) => assert_eq!(actual, expected),
+        Err(other) => panic!("expected approval error {expected:?}, received {other:?}"),
+        Ok(()) => panic!("expected approval error {expected:?}, received success"),
+    };
+    let mut invalid = physical_approval.clone();
+    invalid.approval_purpose = "wrong_purpose".into();
+    approval_error(invalid, "invalid approval status or purpose");
+    let mut invalid = physical_approval.clone();
+    invalid.trust_root_id = "unknown_test_root".into();
+    approval_error(invalid, "approval trust-root binding mismatch");
+    let mut invalid = physical_approval.clone();
+    invalid.project_owner_authority_id = "attacker_owner".into();
+    approval_error(invalid, "approval authority binding mismatch");
+    let mut invalid = physical_approval.clone();
+    invalid.registry_authority_id = "attacker_registry".into();
+    approval_error(invalid, "approval authority binding mismatch");
+    let mut invalid = physical_approval.clone();
+    invalid.registry_signature_ed25519_hex = invalid.owner_signature_ed25519_hex.clone();
+    approval_error(invalid, "PhysicalApprovalRegistrySignatureInvalid");
+    let mut invalid = physical_approval.clone();
+    invalid.owner_signature_ed25519_hex = "00".into();
+    approval_error(invalid, "PhysicalApprovalOwnerSignatureInvalid");
+    let mut invalid = physical_approval.clone();
+    invalid.approval_record_id =
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000".into();
+    approval_error(invalid, "approval record ID mismatch");
+    let mut invalid = physical_approval.clone();
+    invalid.protocol_sha256 = "0".repeat(64);
+    approval_error(invalid, "approval protocol or cohort binding mismatch");
+    let mut invalid = physical_approval.clone();
+    invalid.cohort_semantic_sha256 = "0".repeat(64);
+    approval_error(invalid, "approval protocol or cohort binding mismatch");
+    let mut invalid = physical_approval.clone();
+    invalid.claim_ids = vec!["unexpected_claim".into()];
+    approval_error(invalid, "approval physical claim bindings mismatch");
+    let mut invalid = physical_approval.clone();
+    invalid.endpoint_ids = vec!["unexpected_endpoint".into()];
+    approval_error(invalid, "approval endpoint bindings mismatch");
+    let mut invalid = physical_approval.clone();
+    invalid.reference_authority_ids = vec!["unexpected_authority".into()];
+    approval_error(invalid, "approval reference-authority bindings mismatch");
+    let mut invalid = physical_approval.clone();
+    invalid.physical_origin_confirmed = false;
+    approval_error(invalid, "invalid approval status or purpose");
+
+    for (fixture_path, expected) in [
+        (
+            "approval/invalid_self_signed.schema1.json",
+            "approval protocol or cohort binding mismatch",
+        ),
+        (
+            "approval/invalid_identity_forgery.schema1.json",
+            "approval protocol or cohort binding mismatch",
+        ),
+    ] {
+        let candidate: OwnerApprovalEvidenceV1 = serde_json::from_slice(
+            &fs::read(fixture(fixture_path)).expect("invalid approval fixture"),
+        )
+        .expect("invalid approval schema");
+        approval_error(candidate, expected);
+    }
 
     let (valid_root, valid_protocol, valid_dataset) =
         staged_physical_inputs("dataset/physical_valid.schema1.json");
@@ -2543,6 +2936,41 @@ fn phase_e_mechanism_rates_intervals_and_ids_are_exact() {
     assert_eq!(mechanism.support_record_ids, ["record_1", "record_2"]);
     assert!(mechanism.critical_contradiction_record_ids.is_empty());
     fs::remove_dir_all(fixture_root).expect("cleanup staged inputs");
+
+    let (fixture_root, _, dataset) = staged_validation_inputs(
+        "protocol/software_valid.toml",
+        "dataset/software_valid.schema1.json",
+    );
+    let mut zero_eligible = read_artifact_strict::<MhiValidationDatasetV1>(&dataset)
+        .expect("zero-eligible dataset")
+        .artifact;
+    for record in &mut zero_eligible.records {
+        for reference in &mut record.reference_endpoints {
+            if let ReferenceEndpointV1::Mechanism { outcome, .. } = reference {
+                *outcome = MechanismReferenceOutcomeV1::Unavailable;
+            }
+        }
+    }
+    write_test_dataset(&dataset, &mut zero_eligible);
+    let inputs = ValidationInputs::read(
+        &protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&protocol_bytes),
+        &dataset,
+    )
+    .expect("zero-eligible inputs");
+    let report = evaluate_mhi_validation(&protocol, &inputs).expect("zero-eligible report");
+    let mechanism = &report.mechanism_results[0];
+    assert_eq!(mechanism.eligible_count, 0);
+    assert!(matches!(
+        mechanism.support_fraction,
+        MetricValueV1::Unavailable { ref reason, .. } if reason == "denominator_zero"
+    ));
+    assert!(
+        mechanism
+            .declared_critical_falsification_record_ids
+            .is_empty()
+    );
+    fs::remove_dir_all(fixture_root).expect("zero-eligible cleanup");
 }
 
 #[test]
@@ -2578,6 +3006,103 @@ fn phase_e_overall_and_closed_strata_apply_exact_record_and_family_minima() {
         rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
     );
     fs::remove_dir_all(fixture_root).expect("cleanup staged inputs");
+
+    // Membership is exercised from each record's actual domain, rather than
+    // merely accepting a declared stratum axis in protocol metadata.
+    let predicates = [
+        StratumPredicateV1::AnalyteEquals {
+            id: "analyte".into(),
+        },
+        StratumPredicateV1::MatrixEquals {
+            id: "matrix".into(),
+        },
+        StratumPredicateV1::SensorDesignEquals {
+            id: "design".into(),
+        },
+        StratumPredicateV1::SensorEquals {
+            id: "sensor".into(),
+        },
+        StratumPredicateV1::CampaignEquals {
+            id: "campaign".into(),
+        },
+        StratumPredicateV1::TemperatureBand {
+            lower_kelvin_inclusive: 298.0,
+            upper_kelvin_exclusive: 299.0,
+        },
+    ];
+    for (index, predicate) in predicates.into_iter().enumerate() {
+        let mut protocol = protocol_fixture("protocol/software_valid.toml");
+        let stratum = RequiredStratumV1 {
+            stratum_id: format!("axis_{index}"),
+            predicates: vec![predicate],
+            minimum_eligible_records: 2,
+            minimum_independent_families: 2,
+        };
+        protocol.mechanism_endpoints[0].required_strata = vec![stratum.clone()];
+        protocol.validate().expect("closed stratum protocol");
+        let (fixture_root, _, dataset) = staged_validation_inputs(
+            "protocol/software_valid.toml",
+            "dataset/software_valid.schema1.json",
+        );
+        let inputs = ValidationInputs::read(
+            &protocol,
+            &MhiValidationProtocolV1::sha256_of_bytes(&protocol_bytes),
+            &dataset,
+        )
+        .expect("stratum inputs");
+        let report = evaluate_mhi_validation(&protocol, &inputs).expect("stratum report");
+        let mechanism = report
+            .mechanism_results
+            .iter()
+            .find(|result| result.stratum_id == stratum.stratum_id)
+            .expect("mechanism stratum result");
+        assert_eq!(mechanism.eligible_record_ids, ["record_1", "record_2"]);
+        assert_eq!(mechanism.independent_family_count, 2);
+        fs::remove_dir_all(fixture_root).expect("stratum cleanup");
+    }
+
+    // A passing overall view does not rescue a required empty stratum.
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    let empty = RequiredStratumV1 {
+        stratum_id: "empty_analyte".into(),
+        predicates: vec![StratumPredicateV1::AnalyteEquals {
+            id: "unobserved".into(),
+        }],
+        minimum_eligible_records: 1,
+        minimum_independent_families: 1,
+    };
+    protocol.mechanism_endpoints[0].required_strata = vec![empty.clone()];
+    let (fixture_root, _, dataset) = staged_validation_inputs(
+        "protocol/software_valid.toml",
+        "dataset/software_valid.schema1.json",
+    );
+    let inputs = ValidationInputs::read(
+        &protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&protocol_bytes),
+        &dataset,
+    )
+    .expect("empty stratum inputs");
+    let report = evaluate_mhi_validation(&protocol, &inputs).expect("empty stratum report");
+    assert!(report.mechanism_results.iter().any(|result| {
+        result.stratum_id == "overall"
+            && result.rule_evaluations.iter().all(|rule| {
+                rule.result
+                    == rust_electroanalysis_cli::validation_config::RuleEvaluationResultV1::True
+            })
+            && result.outcome
+                == rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
+    }));
+    assert!(report.mechanism_results.iter().any(|result| {
+        result.stratum_id == empty.stratum_id
+            && result.eligible_count == 0
+            && result.outcome
+                == rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
+    }));
+    assert_eq!(
+        report.release_claims[0].outcome,
+        rust_electroanalysis_cli::validation_config::ReleaseClaimOutcomeV1::Indeterminate
+    );
+    fs::remove_dir_all(fixture_root).expect("empty stratum cleanup");
 }
 
 #[test]
@@ -3131,4 +3656,166 @@ fn phase_e_authority_assisted_report_and_all_scientific_bytes_are_exact() {
         rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate;
     assert!(report.validate_against(&protocol, &inputs, None).is_err());
     fs::remove_dir_all(fixture_root).expect("cleanup staged inputs");
+}
+
+#[test]
+fn phase_e_report_identity_bytes_and_escaping_are_independent_of_operations() {
+    let protocol_bytes = fs::read(fixture("protocol/software_valid.toml")).expect("protocol");
+    let protocol = MhiValidationProtocolV1::from_toml(
+        std::str::from_utf8(&protocol_bytes).expect("protocol UTF-8"),
+    )
+    .expect("protocol");
+    let (root, _, dataset) = staged_validation_inputs(
+        "protocol/software_valid.toml",
+        "dataset/software_valid.schema1.json",
+    );
+    let inputs = ValidationInputs::read(
+        &protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&protocol_bytes),
+        &dataset,
+    )
+    .expect("inputs");
+    let report = evaluate_mhi_validation(&protocol, &inputs).expect("report");
+
+    let preimage = serde_jcs::to_vec(&serde_json::json!({
+        "identity_domain": "mhi_validation_report_id_v1",
+        "protocol_sha256": report.protocol.source_file_sha256,
+        "dataset_source": report.dataset.source,
+        "consumed_sources": report.provenance.consumed_sources,
+    }))
+    .expect("canonical report-ID preimage");
+    let expected_preimage =
+        fs::read(fixture("expected/report_identity_preimage.jcs")).expect("R2 JCS preimage");
+    assert_eq!(
+        preimage,
+        expected_preimage
+            .strip_suffix(b"\n")
+            .unwrap_or(&expected_preimage),
+        "report ID has one exact JCS authority preimage"
+    );
+    assert_eq!(
+        report.report_id,
+        format!("sha256:{:x}", Sha256::digest(&preimage)),
+        "report ID binds protocol, dataset, and sorted consumed sources"
+    );
+    let source_order = report
+        .provenance
+        .consumed_sources
+        .iter()
+        .map(|source| serde_json::to_value(source).expect("serialized source"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        source_order
+            .iter()
+            .map(|source| source["type"].as_str().expect("source type"))
+            .collect::<Vec<_>>(),
+        [
+            "known_artifact",
+            "known_artifact",
+            "known_artifact",
+            "known_artifact",
+            "lineage_catalog",
+            "reference_authority",
+        ],
+        "consumed sources use the frozen source-kind sort order"
+    );
+    assert_eq!(
+        source_order[..4]
+            .iter()
+            .map(|source| source["artifact_id"].as_str().expect("artifact ID"))
+            .collect::<Vec<_>>(),
+        [
+            "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+            "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+            "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+            "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+        ],
+        "known source order is kind then artifact ID"
+    );
+
+    let output = temp("identity_operational_values");
+    run_mhi_validation(MhiValidationRunOptions {
+        protocol: root.join("protocol.toml"),
+        dataset,
+        output_dir: output.clone(),
+        overwrite: false,
+    })
+    .expect("certified output");
+    assert_exact_golden_bundle(&output);
+    let all_managed_bytes = [
+        "mhi_validation_report.schema1.json",
+        "validation_execution_manifest.schema1.json",
+        "validation_summary.md",
+        "tables/cohort_coverage.csv",
+        "tables/leakage_assessment.csv",
+        "tables/mechanism_validation.csv",
+        "tables/health_validation.csv",
+        "tables/exclusion_ledger.csv",
+        "tables/compatibility_matrix.csv",
+    ]
+    .into_iter()
+    .flat_map(|relative| fs::read(output.join(relative)).expect("managed bytes"))
+    .collect::<Vec<_>>();
+    for forbidden in [
+        output.to_str().expect("UTF-8 temporary output"),
+        "phase-e-stage",
+        "phase-e-backup",
+        "localhost",
+    ] {
+        assert!(
+            !all_managed_bytes
+                .windows(forbidden.len())
+                .any(|window| window == forbidden.as_bytes()),
+            "operational value {forbidden:?} does not enter scientific bytes"
+        );
+    }
+
+    let escaping: serde_json::Value = serde_json::from_slice(
+        &fs::read(fixture("expected/escaping_vectors.schema1.json")).expect("escaping vectors"),
+    )
+    .expect("escaping vector JSON");
+    for vector in escaping["vectors"].as_array().expect("escaping vectors") {
+        let mut writer = csv::WriterBuilder::new()
+            .has_headers(false)
+            .terminator(csv::Terminator::Any(b'\n'))
+            .from_writer(Vec::new());
+        let value = vector["value"].as_str().unwrap_or_else(|| {
+            if vector["label"] == "negative_zero" {
+                "0.0"
+            } else {
+                "NA"
+            }
+        });
+        writer.write_record([value]).expect("CSV escape record");
+        let actual = String::from_utf8(writer.into_inner().expect("CSV bytes")).expect("CSV UTF-8");
+        assert_eq!(
+            actual,
+            format!("{}\n", vector["csv"].as_str().expect("expected CSV cell")),
+            "exact CSV projection {}",
+            vector["label"].as_str().expect("escaping label")
+        );
+    }
+    let mechanism_csv =
+        fs::read_to_string(output.join("tables/mechanism_validation.csv")).expect("mechanism CSV");
+    let health_csv =
+        fs::read_to_string(output.join("tables/health_validation.csv")).expect("health CSV");
+    assert!(
+        mechanism_csv
+            .lines()
+            .next()
+            .expect("mechanism header")
+            .contains("support_count")
+    );
+    assert!(!mechanism_csv.contains("tp,tn,fp,fn"));
+    assert!(
+        health_csv
+            .lines()
+            .next()
+            .expect("health header")
+            .contains("tp,tn,fp,fn")
+    );
+    assert!(!health_csv.contains("support_count"));
+
+    fs::remove_dir_all(output).expect("output cleanup");
+    fs::remove_dir_all(root).expect("input cleanup");
 }

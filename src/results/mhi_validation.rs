@@ -1097,7 +1097,7 @@ impl MhiValidationReportV1 {
             |row| {
                 (
                     row.endpoint_id.clone(),
-                    row.stratum_id.clone(),
+                    view_sort_key(&row.stratum_id),
                     row.record_id.clone(),
                 )
             },
@@ -1113,7 +1113,7 @@ impl MhiValidationReportV1 {
             |row| {
                 (
                     row.endpoint_id.clone(),
-                    row.stratum_id.clone(),
+                    view_sort_key(&row.stratum_id),
                     row.record_id.clone(),
                 )
             },

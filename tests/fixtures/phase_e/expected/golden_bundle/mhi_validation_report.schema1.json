@@ -5,54 +5,63 @@
     {
       "cohort_role": "validation",
       "coverage": {
-        "denominator": 0,
-        "numerator": 0,
-        "reason": "denominator_zero",
-        "type": "unavailable"
-      },
-      "data_quality_insufficient_count": 0,
-      "data_quality_insufficient_rate": {
-        "denominator": 0,
-        "numerator": 0,
-        "reason": "denominator_zero",
-        "type": "unavailable"
-      },
-      "declared_count": 1,
-      "declared_record_ids": [
-        "record_1"
-      ],
-      "development_record_ids": [],
-      "eligible_count": 0,
-      "eligible_record_ids": [],
-      "endpoint_id": "health_endpoint",
-      "endpoint_kind": "health_aggregate",
-      "evaluable_count": 0,
-      "excluded_count": 1,
-      "excluded_record_ids": [
-        "record_1"
-      ],
-      "exclusion_rate": {
-        "denominator": 1,
-        "lower_confidence_bound": 0.20654931437723745,
-        "numerator": 1,
+        "denominator": 2,
+        "lower_confidence_bound": 0.34238022750665303,
+        "numerator": 2,
         "point_estimate": 1.0,
         "type": "available",
         "upper_confidence_bound": 1.0
       },
+      "data_quality_insufficient_count": 0,
+      "data_quality_insufficient_rate": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
+      },
+      "declared_count": 2,
+      "declared_record_ids": [
+        "record_1",
+        "record_2"
+      ],
+      "development_record_ids": [],
+      "eligible_count": 2,
+      "eligible_record_ids": [
+        "record_1",
+        "record_2"
+      ],
+      "endpoint_id": "health_endpoint",
+      "endpoint_kind": "health_dimension",
+      "evaluable_count": 2,
+      "excluded_count": 0,
+      "excluded_record_ids": [],
+      "exclusion_rate": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
+      },
       "holdout_record_ids": [],
       "indeterminate_count": 0,
       "indeterminate_rate": {
-        "denominator": 0,
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
         "numerator": 0,
-        "reason": "denominator_zero",
-        "type": "unavailable"
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
       },
       "not_applicable_count": 0,
       "not_applicable_record_ids": [],
-      "outcome": "indeterminate",
+      "outcome": "meets_protocol",
       "stratum_id": "overall",
       "validation_record_ids": [
-        "record_1"
+        "record_1",
+        "record_2"
       ]
     },
     {
@@ -60,49 +69,52 @@
       "coverage": null,
       "data_quality_insufficient_count": null,
       "data_quality_insufficient_rate": null,
-      "declared_count": 1,
+      "declared_count": 2,
       "declared_record_ids": [
-        "record_1"
+        "record_1",
+        "record_2"
       ],
       "development_record_ids": [],
-      "eligible_count": 0,
-      "eligible_record_ids": [],
+      "eligible_count": 2,
+      "eligible_record_ids": [
+        "record_1",
+        "record_2"
+      ],
       "endpoint_id": "mechanism_endpoint",
       "endpoint_kind": "mechanism",
       "evaluable_count": null,
-      "excluded_count": 1,
-      "excluded_record_ids": [
-        "record_1"
-      ],
+      "excluded_count": 0,
+      "excluded_record_ids": [],
       "exclusion_rate": {
-        "denominator": 1,
-        "lower_confidence_bound": 0.20654931437723745,
-        "numerator": 1,
-        "point_estimate": 1.0,
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
         "type": "available",
-        "upper_confidence_bound": 1.0
+        "upper_confidence_bound": 0.6576197724933469
       },
       "holdout_record_ids": [],
       "indeterminate_count": null,
       "indeterminate_rate": null,
       "not_applicable_count": 0,
       "not_applicable_record_ids": [],
-      "outcome": "indeterminate",
+      "outcome": "meets_protocol",
       "stratum_id": "overall",
       "validation_record_ids": [
-        "record_1"
+        "record_1",
+        "record_2"
       ]
     }
   ],
   "compatibility": [
     {
       "actual_artifact_id": null,
-      "actual_file_sha256": "a098c83e08f488d49f16be4c4fc27b09d87ca3752a7af7b50069ba6e9e09b47e",
+      "actual_file_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17",
       "actual_kind": null,
       "actual_schema": 1,
       "actual_semantic_sha256": null,
       "expected_artifact_id": null,
-      "expected_file_sha256": "a098c83e08f488d49f16be4c4fc27b09d87ca3752a7af7b50069ba6e9e09b47e",
+      "expected_file_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17",
       "expected_kind": null,
       "expected_schema": 1,
       "expected_semantic_sha256": null,
@@ -113,12 +125,12 @@
     },
     {
       "actual_artifact_id": null,
-      "actual_file_sha256": "3c4c3003f1da37d1cc0e71de1160619b44ea8df8d8e0845c7007a54590a36a7f",
+      "actual_file_sha256": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
       "actual_kind": "mhi_validation_dataset",
       "actual_schema": 1,
       "actual_semantic_sha256": null,
       "expected_artifact_id": null,
-      "expected_file_sha256": "3c4c3003f1da37d1cc0e71de1160619b44ea8df8d8e0845c7007a54590a36a7f",
+      "expected_file_sha256": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
       "expected_kind": "mhi_validation_dataset",
       "expected_schema": 1,
       "expected_semantic_sha256": null,
@@ -129,12 +141,12 @@
     },
     {
       "actual_artifact_id": null,
-      "actual_file_sha256": "d905d50e370c260ed0ecef63fff8aabbdced821b56b9d34a2fb18a99bd8ceb82",
+      "actual_file_sha256": "42b10b9b5b039ad98cbd7ae9103941daa1cb9a00b5865142fa52346566181fe3",
       "actual_kind": null,
       "actual_schema": 1,
       "actual_semantic_sha256": null,
       "expected_artifact_id": null,
-      "expected_file_sha256": "d905d50e370c260ed0ecef63fff8aabbdced821b56b9d34a2fb18a99bd8ceb82",
+      "expected_file_sha256": "42b10b9b5b039ad98cbd7ae9103941daa1cb9a00b5865142fa52346566181fe3",
       "expected_kind": null,
       "expected_schema": 1,
       "expected_semantic_sha256": null,
@@ -142,139 +154,172 @@
       "relative_path": "lineage/complete.schema1.json",
       "result": "compatible",
       "source_role": "lineage_catalog"
+    },
+    {
+      "actual_artifact_id": "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+      "actual_file_sha256": "02ddec85b1cb29db8458091a08bf1b007f894c1a5433802759a9c01197aab102",
+      "actual_kind": "mechanism_analysis",
+      "actual_schema": 4,
+      "actual_semantic_sha256": "b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+      "expected_artifact_id": "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+      "expected_file_sha256": "02ddec85b1cb29db8458091a08bf1b007f894c1a5433802759a9c01197aab102",
+      "expected_kind": "mechanism_analysis",
+      "expected_schema": 4,
+      "expected_semantic_sha256": "b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+      "record_id": "record_1",
+      "relative_path": "sources/mechanism_a.schema4.json",
+      "result": "compatible",
+      "source_role": "mechanism_source"
+    },
+    {
+      "actual_artifact_id": "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+      "actual_file_sha256": "8e127aa5d85bddf73ec494951bf5c88c8adf1ec35ee92ead89f896079dfeee4f",
+      "actual_kind": "mechanism_analysis",
+      "actual_schema": 4,
+      "actual_semantic_sha256": "2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+      "expected_artifact_id": "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+      "expected_file_sha256": "8e127aa5d85bddf73ec494951bf5c88c8adf1ec35ee92ead89f896079dfeee4f",
+      "expected_kind": "mechanism_analysis",
+      "expected_schema": 4,
+      "expected_semantic_sha256": "2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+      "record_id": "record_2",
+      "relative_path": "sources/mechanism_c.schema4.json",
+      "result": "compatible",
+      "source_role": "mechanism_source"
+    },
+    {
+      "actual_artifact_id": "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+      "actual_file_sha256": "ce4d3cbaf383578ac0d96fadb6ab107034e1cc2f425ae3abe04893178c93e8fe",
+      "actual_kind": "health_assessment",
+      "actual_schema": 4,
+      "actual_semantic_sha256": "2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+      "expected_artifact_id": "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+      "expected_file_sha256": "ce4d3cbaf383578ac0d96fadb6ab107034e1cc2f425ae3abe04893178c93e8fe",
+      "expected_kind": "health_assessment",
+      "expected_schema": 4,
+      "expected_semantic_sha256": "2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+      "record_id": "record_1",
+      "relative_path": "sources/health_a.schema4.json",
+      "result": "compatible",
+      "source_role": "health_source"
+    },
+    {
+      "actual_artifact_id": "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+      "actual_file_sha256": "bda104e5807209380b667dfd3473f736b1ade6525bcfad006845238d0d6457f0",
+      "actual_kind": "health_assessment",
+      "actual_schema": 4,
+      "actual_semantic_sha256": "56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+      "expected_artifact_id": "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+      "expected_file_sha256": "bda104e5807209380b667dfd3473f736b1ade6525bcfad006845238d0d6457f0",
+      "expected_kind": "health_assessment",
+      "expected_schema": 4,
+      "expected_semantic_sha256": "56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+      "record_id": "record_2",
+      "relative_path": "sources/health_c.schema4.json",
+      "result": "compatible",
+      "source_role": "health_source"
     }
   ],
   "dataset": {
-    "cohort_semantic_sha256": "0680b5b18869f92017b1e16687015abb9a30b769e9424c5a645d680b18477bdf",
+    "cohort_semantic_sha256": "72e048e6c5e4d13e25fcdcc7b611839256b72651a3e800cd59d119d1897e7b8b",
     "dataset_id": "phase_e_software_dataset",
-    "protocol_sha256": "a098c83e08f488d49f16be4c4fc27b09d87ca3752a7af7b50069ba6e9e09b47e",
+    "protocol_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17",
     "schema_version": 1,
     "source": {
       "dataset_id": "phase_e_software_dataset",
-      "legacy_fingerprint": "3c4c3003f1da37d1cc0e71de1160619b44ea8df8d8e0845c7007a54590a36a7f",
+      "legacy_fingerprint": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
       "reason": "migration_information_unavailable",
       "schema": 1,
-      "source_file_sha256": "3c4c3003f1da37d1cc0e71de1160619b44ea8df8d8e0845c7007a54590a36a7f",
+      "source_file_sha256": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
       "type": "legacy_unknown"
     }
   },
-  "exclusions": [
-    {
-      "assessed_source_key": null,
-      "endpoint_id": "health_endpoint",
-      "primary_reason": "missing_endpoint_artifact_path",
-      "record_id": "record_1",
-      "reference_endpoint_id": null,
-      "secondary_reasons": [
-        "missing_reference_endpoint"
-      ],
-      "stratum_id": "overall"
-    },
-    {
-      "assessed_source_key": null,
-      "endpoint_id": "mechanism_endpoint",
-      "primary_reason": "missing_endpoint_artifact_path",
-      "record_id": "record_1",
-      "reference_endpoint_id": null,
-      "secondary_reasons": [
-        "missing_reference_endpoint"
-      ],
-      "stratum_id": "overall"
-    }
-  ],
+  "exclusions": [],
   "health_results": [
     {
       "balanced_accuracy": {
-        "reason": "sensitivity_or_specificity_unavailable",
+        "point_estimate": 1.0,
         "sensitivity_metric_id": "sensitivity",
         "specificity_metric_id": "specificity",
-        "type": "unavailable"
+        "type": "available"
       },
       "coverage": {
-        "denominator": 0,
-        "numerator": 0,
-        "reason": "denominator_zero",
-        "type": "unavailable"
+        "denominator": 2,
+        "lower_confidence_bound": 0.34238022750665303,
+        "numerator": 2,
+        "point_estimate": 1.0,
+        "type": "available",
+        "upper_confidence_bound": 1.0
       },
       "data_quality_insufficient": 0,
       "data_quality_insufficient_rate": {
-        "denominator": 0,
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
         "numerator": 0,
-        "reason": "denominator_zero",
-        "type": "unavailable"
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
       },
       "data_quality_insufficient_record_ids": [],
-      "eligible_count": 0,
-      "eligible_family_ids": [],
-      "eligible_record_ids": [],
+      "eligible_count": 2,
+      "eligible_family_ids": [
+        "phase-e-family-a",
+        "phase-e-family-c"
+      ],
+      "eligible_record_ids": [
+        "record_1",
+        "record_2"
+      ],
       "endpoint_id": "health_endpoint",
-      "evaluable": 0,
+      "evaluable": 2,
       "false_negative_rate": {
-        "denominator": 0,
+        "denominator": 1,
+        "lower_confidence_bound": 0.0,
         "numerator": 0,
-        "reason": "positive_class_denominator_zero",
-        "type": "unavailable"
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.7934506856227626
       },
       "false_positive_rate": {
-        "denominator": 0,
+        "denominator": 1,
+        "lower_confidence_bound": 0.0,
         "numerator": 0,
-        "reason": "negative_class_denominator_zero",
-        "type": "unavailable"
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.7934506856227626
       },
       "fn": 0,
       "fn_record_ids": [],
       "fp": 0,
       "fp_record_ids": [],
-      "independent_family_count": 0,
+      "independent_family_count": 2,
       "indeterminate": 0,
       "indeterminate_rate": {
-        "denominator": 0,
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
         "numerator": 0,
-        "reason": "denominator_zero",
-        "type": "unavailable"
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
       },
       "indeterminate_record_ids": [],
       "limitations": [],
-      "outcome": "indeterminate",
-      "outcome_reasons": [
-        {
-          "actual": 0,
-          "minimum": 1,
-          "type": "eligible_record_minimum_not_met"
-        },
-        {
-          "type": "empty_view"
-        },
-        {
-          "actual": 0,
-          "minimum": 1,
-          "type": "independent_family_minimum_not_met"
-        },
-        {
-          "rule_id": "coverage",
-          "type": "required_rule_unavailable"
-        },
-        {
-          "rule_id": "sensitivity",
-          "type": "required_rule_unavailable"
-        },
-        {
-          "rule_id": "specificity",
-          "type": "required_rule_unavailable"
-        }
-      ],
+      "outcome": "meets_protocol",
+      "outcome_reasons": [],
       "rule_evaluations": [
         {
           "actual": {
             "type": "binomial_rate",
             "value": {
-              "denominator": 0,
-              "numerator": 0,
-              "reason": "denominator_zero",
-              "type": "unavailable"
+              "denominator": 2,
+              "lower_confidence_bound": 0.34238022750665303,
+              "numerator": 2,
+              "point_estimate": 1.0,
+              "type": "available",
+              "upper_confidence_bound": 1.0
             }
           },
-          "result": "unavailable",
+          "result": "true",
           "rule": {
             "comparator": "greater_than_or_equal",
             "metric": "coverage",
@@ -288,13 +333,15 @@
           "actual": {
             "type": "binomial_rate",
             "value": {
-              "denominator": 0,
-              "numerator": 0,
-              "reason": "positive_class_denominator_zero",
-              "type": "unavailable"
+              "denominator": 1,
+              "lower_confidence_bound": 0.20654931437723745,
+              "numerator": 1,
+              "point_estimate": 1.0,
+              "type": "available",
+              "upper_confidence_bound": 1.0
             }
           },
-          "result": "unavailable",
+          "result": "true",
           "rule": {
             "comparator": "greater_than_or_equal",
             "metric": "sensitivity",
@@ -308,13 +355,15 @@
           "actual": {
             "type": "binomial_rate",
             "value": {
-              "denominator": 0,
-              "numerator": 0,
-              "reason": "negative_class_denominator_zero",
-              "type": "unavailable"
+              "denominator": 1,
+              "lower_confidence_bound": 0.20654931437723745,
+              "numerator": 1,
+              "point_estimate": 1.0,
+              "type": "available",
+              "upper_confidence_bound": 1.0
             }
           },
-          "result": "unavailable",
+          "result": "true",
           "rule": {
             "comparator": "greater_than_or_equal",
             "metric": "specificity",
@@ -326,32 +375,40 @@
         }
       ],
       "sensitivity": {
-        "denominator": 0,
-        "numerator": 0,
-        "reason": "positive_class_denominator_zero",
-        "type": "unavailable"
+        "denominator": 1,
+        "lower_confidence_bound": 0.20654931437723745,
+        "numerator": 1,
+        "point_estimate": 1.0,
+        "type": "available",
+        "upper_confidence_bound": 1.0
       },
       "specificity": {
-        "denominator": 0,
-        "numerator": 0,
-        "reason": "negative_class_denominator_zero",
-        "type": "unavailable"
+        "denominator": 1,
+        "lower_confidence_bound": 0.20654931437723745,
+        "numerator": 1,
+        "point_estimate": 1.0,
+        "type": "available",
+        "upper_confidence_bound": 1.0
       },
       "stratum_id": "overall",
-      "tn": 0,
-      "tn_record_ids": [],
-      "tp": 0,
-      "tp_record_ids": []
+      "tn": 1,
+      "tn_record_ids": [
+        "record_1"
+      ],
+      "tp": 1,
+      "tp_record_ids": [
+        "record_2"
+      ]
     }
   ],
   "leakage_assessment": [
     {
       "compared_development_record_ids": [],
-      "decision": "excluded",
+      "decision": "eligible",
       "endpoint_id": "health_endpoint",
-      "not_evaluated_reason": "missing_endpoint_artifact_path",
+      "not_evaluated_reason": null,
       "record_id": "record_1",
-      "separation_status": null,
+      "separation_status": "known_separated",
       "shared_artifact_ids": [],
       "shared_experiment_ids": [],
       "shared_family_ids": [],
@@ -361,11 +418,39 @@
     },
     {
       "compared_development_record_ids": [],
-      "decision": "excluded",
+      "decision": "eligible",
+      "endpoint_id": "health_endpoint",
+      "not_evaluated_reason": null,
+      "record_id": "record_2",
+      "separation_status": "known_separated",
+      "shared_artifact_ids": [],
+      "shared_experiment_ids": [],
+      "shared_family_ids": [],
+      "shared_source_sha256s": [],
+      "stratum_id": "overall",
+      "unknown_reasons": []
+    },
+    {
+      "compared_development_record_ids": [],
+      "decision": "eligible",
       "endpoint_id": "mechanism_endpoint",
-      "not_evaluated_reason": "missing_endpoint_artifact_path",
+      "not_evaluated_reason": null,
       "record_id": "record_1",
-      "separation_status": null,
+      "separation_status": "known_separated",
+      "shared_artifact_ids": [],
+      "shared_experiment_ids": [],
+      "shared_family_ids": [],
+      "shared_source_sha256s": [],
+      "stratum_id": "overall",
+      "unknown_reasons": []
+    },
+    {
+      "compared_development_record_ids": [],
+      "decision": "eligible",
+      "endpoint_id": "mechanism_endpoint",
+      "not_evaluated_reason": null,
+      "record_id": "record_2",
+      "separation_status": "known_separated",
       "shared_artifact_ids": [],
       "shared_experiment_ids": [],
       "shared_family_ids": [],
@@ -383,61 +468,55 @@
   "mechanism_results": [
     {
       "contradiction_fraction": {
-        "denominator": 0,
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
         "numerator": 0,
-        "reason": "denominator_zero",
-        "type": "unavailable"
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
       },
       "critical_contradiction_count": 0,
       "critical_contradiction_record_ids": [],
       "declared_critical_falsification_count": 0,
       "declared_critical_falsification_record_ids": [],
-      "eligible_count": 0,
-      "eligible_family_ids": [],
-      "eligible_record_ids": [],
+      "eligible_count": 2,
+      "eligible_family_ids": [
+        "phase-e-family-a",
+        "phase-e-family-c"
+      ],
+      "eligible_record_ids": [
+        "record_1",
+        "record_2"
+      ],
       "endpoint_id": "mechanism_endpoint",
-      "independent_family_count": 0,
+      "independent_family_count": 2,
       "limitations": [],
       "not_assessed_fraction": {
-        "denominator": 0,
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
         "numerator": 0,
-        "reason": "denominator_zero",
-        "type": "unavailable"
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
       },
       "not_assessed_or_other_count": 0,
       "not_assessed_or_other_record_ids": [],
-      "outcome": "indeterminate",
-      "outcome_reasons": [
-        {
-          "actual": 0,
-          "minimum": 1,
-          "type": "eligible_record_minimum_not_met"
-        },
-        {
-          "type": "empty_view"
-        },
-        {
-          "actual": 0,
-          "minimum": 1,
-          "type": "independent_family_minimum_not_met"
-        },
-        {
-          "rule_id": "support",
-          "type": "required_rule_unavailable"
-        }
-      ],
+      "outcome": "meets_protocol",
+      "outcome_reasons": [],
       "rule_evaluations": [
         {
           "actual": {
             "type": "binomial_rate",
             "value": {
-              "denominator": 0,
-              "numerator": 0,
-              "reason": "denominator_zero",
-              "type": "unavailable"
+              "denominator": 2,
+              "lower_confidence_bound": 0.34238022750665303,
+              "numerator": 2,
+              "point_estimate": 1.0,
+              "type": "available",
+              "upper_confidence_bound": 1.0
             }
           },
-          "result": "unavailable",
+          "result": "true",
           "rule": {
             "comparator": "greater_than_or_equal",
             "metric": "support_fraction",
@@ -449,17 +528,22 @@
         }
       ],
       "stratum_id": "overall",
-      "support_count": 0,
+      "support_count": 2,
       "support_fraction": {
-        "denominator": 0,
-        "numerator": 0,
-        "reason": "denominator_zero",
-        "type": "unavailable"
+        "denominator": 2,
+        "lower_confidence_bound": 0.34238022750665303,
+        "numerator": 2,
+        "point_estimate": 1.0,
+        "type": "available",
+        "upper_confidence_bound": 1.0
       },
-      "support_record_ids": []
+      "support_record_ids": [
+        "record_1",
+        "record_2"
+      ]
     }
   ],
-  "overall_status": "indeterminate",
+  "overall_status": "meets_protocol",
   "protocol": {
     "normalized_protocol": {
       "health_endpoints": [
@@ -554,7 +638,8 @@
           },
           "required_strata": [],
           "target": {
-            "type": "aggregate"
+            "dimension_id": "signal_integrity",
+            "type": "dimension"
           }
         }
       ],
@@ -593,7 +678,7 @@
             }
           },
           "endpoint_id": "mechanism_endpoint",
-          "hypothesis_id": "hypothesis_a",
+          "hypothesis_id": "b-hypothesis",
           "mechanism_artifact_required": true,
           "minimum_eligible_records": 1,
           "minimum_independent_families": 1,
@@ -618,7 +703,7 @@
           },
           "required_strata": [],
           "support_levels": [
-            "hypothesized"
+            "validated_for_domain"
           ]
         }
       ],
@@ -702,51 +787,125 @@
       "registration_id": "phase_e_registration"
     },
     "schema_version": 1,
-    "source_file_sha256": "a098c83e08f488d49f16be4c4fc27b09d87ca3752a7af7b50069ba6e9e09b47e"
+    "source_file_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17"
   },
   "provenance": {
     "consumed_sources": [
       {
+        "artifact_id": "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+        "kind": "health_assessment",
+        "schema": 4,
+        "semantic_sha256": "2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+        "source_file_sha256": "ce4d3cbaf383578ac0d96fadb6ab107034e1cc2f425ae3abe04893178c93e8fe",
+        "type": "known_artifact"
+      },
+      {
+        "artifact_id": "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+        "kind": "health_assessment",
+        "schema": 4,
+        "semantic_sha256": "56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+        "source_file_sha256": "bda104e5807209380b667dfd3473f736b1ade6525bcfad006845238d0d6457f0",
+        "type": "known_artifact"
+      },
+      {
+        "artifact_id": "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+        "kind": "mechanism_analysis",
+        "schema": 4,
+        "semantic_sha256": "2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+        "source_file_sha256": "8e127aa5d85bddf73ec494951bf5c88c8adf1ec35ee92ead89f896079dfeee4f",
+        "type": "known_artifact"
+      },
+      {
+        "artifact_id": "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+        "kind": "mechanism_analysis",
+        "schema": 4,
+        "semantic_sha256": "b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+        "source_file_sha256": "02ddec85b1cb29db8458091a08bf1b007f894c1a5433802759a9c01197aab102",
+        "type": "known_artifact"
+      },
+      {
         "schema": 1,
-        "source_file_sha256": "d905d50e370c260ed0ecef63fff8aabbdced821b56b9d34a2fb18a99bd8ceb82",
+        "source_file_sha256": "42b10b9b5b039ad98cbd7ae9103941daa1cb9a00b5865142fa52346566181fe3",
         "type": "lineage_catalog"
+      },
+      {
+        "origin": "physical",
+        "reference_source_id": "reference_1",
+        "source_file_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "type": "reference_authority"
       }
     ],
     "dataset_source": {
       "dataset_id": "phase_e_software_dataset",
-      "legacy_fingerprint": "3c4c3003f1da37d1cc0e71de1160619b44ea8df8d8e0845c7007a54590a36a7f",
+      "legacy_fingerprint": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
       "reason": "migration_information_unavailable",
       "schema": 1,
-      "source_file_sha256": "3c4c3003f1da37d1cc0e71de1160619b44ea8df8d8e0845c7007a54590a36a7f",
+      "source_file_sha256": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
       "type": "legacy_unknown"
     },
     "git_commit": null,
-    "protocol_sha256": "a098c83e08f488d49f16be4c4fc27b09d87ca3752a7af7b50069ba6e9e09b47e",
+    "protocol_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17",
     "software_version": "0.1.0"
   },
   "record_accounting": [
     {
-      "assessed_source_key": null,
-      "decision": "excluded",
+      "assessed_source_key": {
+        "artifact_id": "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+        "artifact_kind": "health_assessment",
+        "semantic_sha256": "2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+        "type": "known"
+      },
+      "decision": "eligible",
       "endpoint_id": "health_endpoint",
-      "primary_reason": "missing_endpoint_artifact_path",
+      "primary_reason": null,
       "record_id": "record_1",
-      "reference_endpoint_id": null,
-      "secondary_reasons": [
-        "missing_reference_endpoint"
-      ],
+      "reference_endpoint_id": "health_reference_1",
+      "secondary_reasons": [],
       "stratum_id": "overall"
     },
     {
-      "assessed_source_key": null,
-      "decision": "excluded",
+      "assessed_source_key": {
+        "artifact_id": "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+        "artifact_kind": "health_assessment",
+        "semantic_sha256": "56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+        "type": "known"
+      },
+      "decision": "eligible",
+      "endpoint_id": "health_endpoint",
+      "primary_reason": null,
+      "record_id": "record_2",
+      "reference_endpoint_id": "health_reference_2",
+      "secondary_reasons": [],
+      "stratum_id": "overall"
+    },
+    {
+      "assessed_source_key": {
+        "artifact_id": "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+        "artifact_kind": "mechanism_analysis",
+        "semantic_sha256": "b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+        "type": "known"
+      },
+      "decision": "eligible",
       "endpoint_id": "mechanism_endpoint",
-      "primary_reason": "missing_endpoint_artifact_path",
+      "primary_reason": null,
       "record_id": "record_1",
-      "reference_endpoint_id": null,
-      "secondary_reasons": [
-        "missing_reference_endpoint"
-      ],
+      "reference_endpoint_id": "mechanism_reference_1",
+      "secondary_reasons": [],
+      "stratum_id": "overall"
+    },
+    {
+      "assessed_source_key": {
+        "artifact_id": "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+        "artifact_kind": "mechanism_analysis",
+        "semantic_sha256": "2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+        "type": "known"
+      },
+      "decision": "eligible",
+      "endpoint_id": "mechanism_endpoint",
+      "primary_reason": null,
+      "record_id": "record_2",
+      "reference_endpoint_id": "mechanism_reference_2",
+      "secondary_reasons": [],
       "stratum_id": "overall"
     }
   ],
@@ -773,7 +932,7 @@
           "type": "any_declared"
         }
       },
-      "outcome": "indeterminate",
+      "outcome": "software_validated_only",
       "requested_level": "software",
       "statement": "Software-only fixture",
       "supporting_endpoint_ids": [
@@ -782,7 +941,7 @@
       ]
     }
   ],
-  "report_id": "sha256:4395c2ffba66df1efeb2e7eb7a76a28cd5349188a698613d50253516b79b2bae",
+  "report_id": "sha256:4960a05cd3e8b228dde475408101a9a161ebe2990d6746011aada14d371d0f3e",
   "schema_version": 1,
   "warnings": []
 }

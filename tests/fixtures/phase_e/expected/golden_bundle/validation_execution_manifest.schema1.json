@@ -1,67 +1,67 @@
 {
   "dataset_source": {
     "dataset_id": "phase_e_software_dataset",
-    "legacy_fingerprint": "3c4c3003f1da37d1cc0e71de1160619b44ea8df8d8e0845c7007a54590a36a7f",
+    "legacy_fingerprint": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
     "reason": "migration_information_unavailable",
     "schema": 1,
-    "source_file_sha256": "3c4c3003f1da37d1cc0e71de1160619b44ea8df8d8e0845c7007a54590a36a7f",
+    "source_file_sha256": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
     "type": "legacy_unknown"
   },
   "generated_files": [
     {
-      "byte_length": 22811,
+      "byte_length": 30885,
       "output_kind": "mhi_validation_report",
       "relative_path": "mhi_validation_report.schema1.json",
-      "sha256": "3e0c1feeb1a2205e4ceb46b159e8a2833d1d944ba1204ffbc3f78fb768b6a149"
+      "sha256": "80ad9dae3b65c2009d496ebb3d40eb33af014658b65ac8b9d1658f98baed887b"
     },
     {
-      "byte_length": 700,
+      "byte_length": 755,
       "output_kind": "cohort_coverage_csv",
       "relative_path": "tables/cohort_coverage.csv",
-      "sha256": "63d0395bf429f49d0449bfbc12cceae16f4ac0c09aa1451d002287f05a42e83b"
+      "sha256": "29ae4b0020ad0d38049e69950d5d97396de1951ffd9d8dfa3f5413463bef0c77"
     },
     {
-      "byte_length": 830,
+      "byte_length": 2878,
       "output_kind": "compatibility_matrix_csv",
       "relative_path": "tables/compatibility_matrix.csv",
-      "sha256": "a85e641a56ecdef029bc0d0ef35c263b6617a10012d14c7130d55402129ab62a"
+      "sha256": "4debe1a46ca1107bf4e439388b9961927b0e4b67f3446a8a073333551a14081f"
     },
     {
-      "byte_length": 321,
+      "byte_length": 108,
       "output_kind": "exclusion_ledger_csv",
       "relative_path": "tables/exclusion_ledger.csv",
-      "sha256": "f4eb3994979639229f1bc847b345aa5a761972520f48db229b9f08b65f8f27b3"
+      "sha256": "5fcc7ec95bf2690d3539815d6e48228fc67de034b569d8385f047263cb6f9ec8"
     },
     {
-      "byte_length": 686,
+      "byte_length": 817,
       "output_kind": "health_validation_csv",
       "relative_path": "tables/health_validation.csv",
-      "sha256": "722ca727179c0f9917e2a7d2f3f37e25b4108d02c0972a4f5a89d10e70ea9b10"
+      "sha256": "bffae4c01972f27fedff2dde5ae570d04c892144efe0c2fb0947179fbcd7b3b9"
     },
     {
-      "byte_length": 402,
+      "byte_length": 533,
       "output_kind": "leakage_assessment_csv",
       "relative_path": "tables/leakage_assessment.csv",
-      "sha256": "c83fbea872a179f0ae77fe6f0827dfe371a7df1a194e976d60352e8ab70c7bf3"
+      "sha256": "48bcfc30f7acadcf155eeaf9b148ba143306dec89ffabd0a82e8fac8d20637a0"
     },
     {
-      "byte_length": 428,
+      "byte_length": 484,
       "output_kind": "mechanism_validation_csv",
       "relative_path": "tables/mechanism_validation.csv",
-      "sha256": "063a445ea9b1017191bd6922b9a8c420b6c20ebd0471ed5bf6a6c514ff9eda67"
+      "sha256": "378daedead221ce7a9a5544e910438ebc1acaf8b84c9c996a0160003611ec956"
     },
     {
-      "byte_length": 4815,
+      "byte_length": 5014,
       "output_kind": "validation_summary_markdown",
       "relative_path": "validation_summary.md",
-      "sha256": "1432649aa51eda4fdc2afbaceb7a1cbee855cd43dc6220623507a146d9b3edc9"
+      "sha256": "95b8924d68faed70b6639a3be580b370cd70db7fa8817f442db93df0f17a1898"
     }
   ],
   "git_commit": null,
   "output_kind": "mhi_validation_execution_manifest",
-  "protocol_sha256": "a098c83e08f488d49f16be4c4fc27b09d87ca3752a7af7b50069ba6e9e09b47e",
+  "protocol_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17",
   "publication_mode": "create_new",
-  "report_id": "sha256:4395c2ffba66df1efeb2e7eb7a76a28cd5349188a698613d50253516b79b2bae",
+  "report_id": "sha256:4960a05cd3e8b228dde475408101a9a161ebe2990d6746011aada14d371d0f3e",
   "schema_version": 1,
   "software_version": "0.1.0"
 }
