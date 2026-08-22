@@ -17,8 +17,14 @@
 The required registry is complete: E-R01 through E-R18, E-AC01 through
 E-AC18, and E-T01 through E-T30.  The closed fixture inventory supplies every
 fixture-to-test mapping and its mutation case and expected oracle identifier.
-Traceability totals are 18 requirements, 18 acceptance criteria, and 30
-test/evidence records.
+Traceability totals are 18/18 requirements, 18/18 acceptance criteria, and
+30/30 test/evidence records. The executable author registry is 29/29 for
+E-T01 through E-T29; E-T30 is the author-evidence gate whose independent
+post-freeze component remains external.
+
+The literal fixture inventory contains exactly 268/268 regular files. Every
+fixture has a unique complete requirement/acceptance/test/mutation/oracle
+mapping; there are zero fixture, mutation, or oracle gaps.
 
 | requirement group | acceptance criterion | tests |
 | --- | --- | --- |
@@ -40,6 +46,36 @@ test/evidence records.
 | E-R16 | E-AC16 | E-T26, E-T27 |
 | E-R17 | E-AC17 | E-T28, E-T29 |
 | E-R18 | E-AC18 | E-T30 |
+
+## Publication matrix evidence
+
+E-T22 is substantive executable coverage for the complete staging and byte
+validation matrix: all ten generated-file write ordinals, all ten generated
+file fsync ordinals, lock-file fsync, all four pre-publication directory-fsync
+ordinals, create and replacement commit-directory fsync durability outcomes,
+checksum mismatch, strict report reread failure, authority validation failure,
+manifest self-record, wrong create/replace mode, forbidden timestamp, unknown
+field, extra generated file, missing managed file, no-replace unsupported and
+failing primitives, exchange unsupported and failing primitives, exact nine
+managed files, and exactly eight non-self manifest records. Every negative
+case asserts the typed error and private/output state.
+
+E-T23 is substantive executable coverage for persistent two-process lock
+contention, concurrent create after preflight, recovery residue and symlink or
+unmanaged protections, precheck/exchange/new-generation/old-generation races,
+same-inode mutation, stage-to-backup failure, backup collision, every reverse
+deletion ordinal, every replacement directory-fsync ordinal, and committed
+cleanup residue. It asserts preserved competitor bytes, identity/fingerprint
+tokens, commit classification, stage/backup snapshots, and deterministic lock
+release.
+
+Publication errors are closed and stateful: `PublicationConcurrentManagedOutputChanged`,
+`PublicationCommittedForeignSwapDetected`, and
+`PublicationCommittedVisibleOutputChanged` carry path state, identity result,
+fingerprint result, and sorted residue paths. Staging and committed-cleanup
+failures retain their primary error and exact remaining paths. Failure seams
+are compiled only under `cfg(test)`; no production fault API, environment
+switch, CLI option, signer, private key, or test root is present.
 
 ## Dependency and lock audit
 
@@ -87,6 +123,10 @@ Host: Darwin arm64.
 | production physical request fails before dataset/scoring | PASS: PhysicalApprovalTrustNotProvisioned |
 | deterministic software golden bundle | PASS |
 
+The publication suite includes the executable E-T22 and E-T23 matrices above.
+The nine-file golden authority is 9/9 managed files and 8/8 non-self manifest
+records; no oracle is regenerated from production output.
+
 ## Author-side dispositions
 
 | severity | disposition |
@@ -104,3 +144,6 @@ Independent compatibility review: PENDING_POST_FREEZE
 Other-platform exact-commit validation: PENDING_POST_FREEZE  
 Implementation approval: PENDING_POST_FREEZE  
 Integration approval: PENDING_POST_FREEZE
+
+No self-approval, candidate SHA, review SHA, merge, implementation approval
+tag, or integration approval is recorded in this author-side artifact.

@@ -5,6 +5,7 @@
 //! of managed bytes so a bundle is reproducible on another host.
 
 use super::MhiValidationError;
+use super::error::{PublicationFingerprintResult, PublicationIdentityResult, PublicationPathState};
 use crate::{
     domain::{read_artifact_strict, write_artifact},
     mhi_validation::statistics::MetricValueV1,
@@ -131,21 +132,30 @@ pub fn publish_bundle(
     let stage = parent.join(format!(".{name}.phase-e-stage"));
     let backup = parent.join(format!(".{name}.phase-e-backup"));
     let _publication_lock = acquire_publication_lock(&parent, name)?;
-    if path_exists_or_symlink(&stage)? || path_exists_or_symlink(&backup)? {
-        return Err(MhiValidationError::PublicationRecoveryResidue(output));
+    let stage_state = classify_publication_path(&stage)?;
+    let backup_state = classify_publication_path(&backup)?;
+    if stage_state != PublicationPathState::Absent || backup_state != PublicationPathState::Absent {
+        return Err(MhiValidationError::PublicationRecoveryResidue {
+            output: output.clone(),
+            output_state: classify_publication_path(&output)?,
+            stage_state,
+            backup_state,
+            remaining_paths: private_remaining_paths(&stage, &backup),
+        });
     }
-    let output_exists = path_exists_or_symlink(&output)?;
-    if output_exists && is_symlink(&output)? {
+    let output_state = classify_publication_path(&output)?;
+    if output_state == PublicationPathState::Symlink {
         return Err(MhiValidationError::UnsafePath(output));
     }
+    let output_exists = output_state != PublicationPathState::Absent;
     if output_exists && !overwrite {
         return Err(MhiValidationError::OutputAlreadyExists(output));
     }
     let old_generation = if output_exists {
-        Some(
-            managed_generation(&output)
-                .map_err(|_| MhiValidationError::OutputNotManaged(output.clone()))?,
-        )
+        if output_state != PublicationPathState::ValidManagedBundle {
+            return Err(MhiValidationError::OutputNotManaged(output));
+        }
+        Some(managed_generation(&output)?)
     } else {
         None
     };
@@ -153,7 +163,9 @@ pub fn publish_bundle(
         path: stage.clone(),
         source,
     })?;
-    sync_directory(&parent)?;
+    if let Err(error) = sync_directory(&parent) {
+        return precommit_failure(&stage, error);
+    }
     let publication_mode = if output_exists {
         "replace_managed_bundle"
     } else {
@@ -161,45 +173,65 @@ pub fn publish_bundle(
     };
     let staged = (|| -> Result<BundleGeneration, MhiValidationError> {
         let generated = write_stage(&stage, report, publication_mode)?;
-        verify_bundle(&stage)?;
+        publication_test_hook(
+            PublicationTestPoint::BeforeStageVerification,
+            &stage,
+            &output,
+        );
+        verify_bundle_with_mode(&stage, Some(publication_mode))?;
+        publication_test_hook(
+            PublicationTestPoint::AfterStageVerificationBeforeReread,
+            &stage,
+            &output,
+        );
         let strict = read_artifact_strict::<MhiValidationReportV1>(&stage.join(REPORT_FILE))?;
+        test_authority_validation()?;
         if strict.artifact != *report || generated.len() != 8 {
             return Err(MhiValidationError::Dataset(
                 "published Phase-E stage does not match the evaluated report".into(),
             ));
         }
+        sync_directory(stage.parent().expect("stage parent"))?;
         managed_generation(&stage)
     })();
     let stage_generation = match staged {
         Ok(generation) => generation,
         Err(error) => {
-            cleanup_stage(&stage);
-            return Err(error);
+            return precommit_failure(&stage, error);
         }
     };
 
     if output_exists {
         publication_test_hook(PublicationTestPoint::BeforeManagedPrecheck, &stage, &output);
-        let unchanged = managed_generation(&output)
-            .ok()
-            .is_some_and(|generation| old_generation.as_ref() == Some(&generation));
-        if !unchanged {
-            cleanup_stage(&stage);
-            return Err(MhiValidationError::PublicationConcurrentManagedOutputChanged(output));
+        let proof = compare_generation(
+            &output,
+            old_generation.as_ref().expect("managed output generation"),
+        )?;
+        if proof.identity_result != PublicationIdentityResult::Match
+            || proof.fingerprint_result != PublicationFingerprintResult::Match
+            || proof.state != PublicationPathState::ValidManagedBundle
+        {
+            let error = MhiValidationError::PublicationConcurrentManagedOutputChanged {
+                output: output.clone(),
+                output_state: proof.state,
+                identity_result: proof.identity_result,
+                fingerprint_result: proof.fingerprint_result,
+                remaining_paths: vec![stage.clone()],
+            };
+            return precommit_failure(&stage, error);
         }
         publication_test_hook(PublicationTestPoint::BeforeExchange, &stage, &output);
         if let Err(error) = atomic_exchange(&stage, &output) {
-            cleanup_stage(&stage);
-            return Err(error);
+            return precommit_failure(&stage, error);
         }
     } else {
+        publication_test_hook(PublicationTestPoint::BeforeCreateCommit, &stage, &output);
         if let Err(error) = atomic_noreplace(&stage, &output) {
-            cleanup_stage(&stage);
-            return Err(error);
+            return precommit_failure(&stage, error);
         }
     }
     publication_test_hook(PublicationTestPoint::AfterExchange, &stage, &output);
-    if sync_directory(&parent).is_err() {
+    if let Err(error) = sync_directory(&parent) {
         return Err(MhiValidationError::PublicationDurabilityUnconfirmed {
             output,
             operation: if output_exists {
@@ -207,16 +239,56 @@ pub fn publish_bundle(
             } else {
                 "create_new"
             },
+            fsync_error: error.to_string(),
+            remaining_paths: if output_exists {
+                vec![stage.clone()]
+            } else {
+                Vec::new()
+            },
         });
     }
-    if managed_generation(&output).ok().as_ref() != Some(&stage_generation) {
-        return Err(MhiValidationError::PublicationCommittedVisibleOutputChanged(output));
+    let visible_proof = compare_generation(&output, &stage_generation)?;
+    if visible_proof.identity_result != PublicationIdentityResult::Match
+        || visible_proof.fingerprint_result != PublicationFingerprintResult::Match
+        || visible_proof.state != PublicationPathState::ValidManagedBundle
+    {
+        return Err(
+            MhiValidationError::PublicationCommittedVisibleOutputChanged {
+                output,
+                output_state: visible_proof.state,
+                identity_result: visible_proof.identity_result,
+                fingerprint_result: visible_proof.fingerprint_result,
+                remaining_paths: if output_exists {
+                    vec![stage.clone()]
+                } else {
+                    Vec::new()
+                },
+            },
+        );
     }
     if output_exists {
-        if managed_generation(&stage).ok().as_ref() != old_generation.as_ref() {
-            return Err(MhiValidationError::PublicationCommittedForeignSwapDetected(
-                output,
-            ));
+        publication_test_hook(
+            PublicationTestPoint::BeforeOldGenerationProof,
+            &stage,
+            &output,
+        );
+        let old_proof = compare_generation(
+            &stage,
+            old_generation.as_ref().expect("managed output generation"),
+        )?;
+        if old_proof.identity_result != PublicationIdentityResult::Match
+            || old_proof.fingerprint_result != PublicationFingerprintResult::Match
+            || old_proof.state != PublicationPathState::ValidManagedBundle
+        {
+            return Err(
+                MhiValidationError::PublicationCommittedForeignSwapDetected {
+                    output,
+                    stage_state: old_proof.state,
+                    identity_result: old_proof.identity_result,
+                    fingerprint_result: old_proof.fingerprint_result,
+                    remaining_paths: vec![stage.clone()],
+                },
+            );
         }
         // After an exchange the old managed generation is at `stage`. Move it
         // aside with a no-replace operation before deletion so any interrupted
@@ -227,17 +299,165 @@ pub fn publish_bundle(
             &stage,
             &output,
         );
-        if atomic_noreplace(&stage, &backup).is_err()
-            || sync_directory(&parent).is_err()
-            || remove_tree_reverse(&backup).is_err()
-            || sync_directory(&parent).is_err()
-        {
-            return Err(MhiValidationError::PublicationCommittedCleanupFailed(
+        let cleanup = (|| -> Result<(), MhiValidationError> {
+            atomic_noreplace(&stage, &backup)?;
+            sync_directory(&parent)?;
+            remove_tree_reverse(&backup)?;
+            sync_directory(&parent)?;
+            Ok(())
+        })();
+        if let Err(cleanup_error) = cleanup {
+            return Err(MhiValidationError::PublicationCommittedCleanupFailed {
                 output,
-            ));
+                stage_state: classify_publication_path(&stage)?,
+                backup_state: classify_publication_path(&backup)?,
+                remaining_paths: private_remaining_paths(&stage, &backup),
+                cleanup_error: cleanup_error.to_string(),
+            });
         }
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+struct GenerationProof {
+    state: PublicationPathState,
+    identity_result: PublicationIdentityResult,
+    fingerprint_result: PublicationFingerprintResult,
+}
+
+fn precommit_failure(
+    stage: &Path,
+    primary_error: MhiValidationError,
+) -> Result<(), MhiValidationError> {
+    match cleanup_stage(stage) {
+        Ok(()) => Err(primary_error),
+        Err(_cleanup_error) => Err(MhiValidationError::PublicationStagingCleanupFailed {
+            primary_error: primary_error.to_string(),
+            remaining_paths: remaining_paths(stage),
+        }),
+    }
+}
+
+fn classify_publication_path(path: &Path) -> Result<PublicationPathState, MhiValidationError> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(PublicationPathState::Absent);
+        }
+        Err(source) => {
+            return Err(MhiValidationError::Io {
+                path: path.into(),
+                source,
+            });
+        }
+    };
+    if metadata.file_type().is_symlink() {
+        return Ok(PublicationPathState::Symlink);
+    }
+    if managed_generation(path).is_ok() {
+        Ok(PublicationPathState::ValidManagedBundle)
+    } else {
+        Ok(PublicationPathState::Unmanaged)
+    }
+}
+
+fn compare_generation(
+    path: &Path,
+    expected: &BundleGeneration,
+) -> Result<GenerationProof, MhiValidationError> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(GenerationProof {
+                state: PublicationPathState::Absent,
+                identity_result: PublicationIdentityResult::Unavailable,
+                fingerprint_result: PublicationFingerprintResult::NotEvaluated,
+            });
+        }
+        Err(source) => {
+            return Err(MhiValidationError::Io {
+                path: path.into(),
+                source,
+            });
+        }
+    };
+    if metadata.file_type().is_symlink() {
+        return Ok(GenerationProof {
+            state: PublicationPathState::Symlink,
+            identity_result: PublicationIdentityResult::Unavailable,
+            fingerprint_result: PublicationFingerprintResult::NotEvaluated,
+        });
+    }
+    #[cfg(unix)]
+    let identity_matches = metadata.dev() == expected.device && metadata.ino() == expected.inode;
+    #[cfg(not(unix))]
+    let identity_matches = false;
+    if !identity_matches {
+        return Ok(GenerationProof {
+            state: classify_publication_path(path)?,
+            identity_result: PublicationIdentityResult::Mismatch,
+            fingerprint_result: PublicationFingerprintResult::NotEvaluated,
+        });
+    }
+    let fingerprint = match bundle_fingerprint(path) {
+        Ok(fingerprint) => fingerprint,
+        Err(_) => {
+            return Ok(GenerationProof {
+                state: classify_publication_path(path)?,
+                identity_result: PublicationIdentityResult::Match,
+                fingerprint_result: PublicationFingerprintResult::NotEvaluated,
+            });
+        }
+    };
+    if fingerprint != expected.fingerprint {
+        return Ok(GenerationProof {
+            state: classify_publication_path(path)?,
+            identity_result: PublicationIdentityResult::Match,
+            fingerprint_result: PublicationFingerprintResult::Mismatch,
+        });
+    }
+    let state = if verify_bundle(path).is_ok() {
+        PublicationPathState::ValidManagedBundle
+    } else {
+        PublicationPathState::Unmanaged
+    };
+    Ok(GenerationProof {
+        state,
+        identity_result: PublicationIdentityResult::Match,
+        fingerprint_result: PublicationFingerprintResult::Match,
+    })
+}
+
+fn private_remaining_paths(stage: &Path, backup: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    paths.extend(remaining_paths(stage));
+    paths.extend(remaining_paths(backup));
+    paths.sort();
+    paths
+}
+
+fn remaining_paths(path: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if !path_exists_or_symlink_unchecked(path) {
+        return paths;
+    }
+    paths.push(path.to_path_buf());
+    if let Ok(metadata) = fs::symlink_metadata(path)
+        && metadata.file_type().is_dir()
+        && !metadata.file_type().is_symlink()
+        && let Ok(entries) = fs::read_dir(path)
+    {
+        for entry in entries.flatten() {
+            paths.extend(remaining_paths(&entry.path()));
+        }
+    }
+    paths.sort();
+    paths
+}
+
+fn path_exists_or_symlink_unchecked(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok()
 }
 
 /// Test-only probes model a noncooperating writer at exactly the committed
@@ -246,8 +466,12 @@ pub fn publish_bundle(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PublicationTestPoint {
     BeforeManagedPrecheck,
+    BeforeCreateCommit,
     BeforeExchange,
     AfterExchange,
+    BeforeStageVerification,
+    AfterStageVerificationBeforeReread,
+    BeforeOldGenerationProof,
     BeforeOldGenerationCleanup,
 }
 
@@ -255,11 +479,22 @@ enum PublicationTestPoint {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PublicationTestHook {
     ReplaceOutputBeforePrecheck,
+    CreateOutputBeforeCommit,
     ReplaceOutputBeforeExchange,
     MutateOutputBeforeExchange,
     ReplaceVisibleOutputAfterExchange,
     MutateVisibleOutputAfterExchange,
+    MutateOldStageBeforeProof,
     PrecreateBackupBeforeCleanup,
+    MutateStagedChecksum,
+    MutateStagedReportBeforeReread,
+    AddManifestSelfRecord,
+    WrongCreateManifestMode,
+    WrongReplaceManifestMode,
+    AddManifestTimestamp,
+    AddManifestUnknownField,
+    AddExtraGeneratedFile,
+    RemoveManagedFile,
 }
 
 #[cfg(test)]
@@ -284,6 +519,9 @@ fn publication_test_hook(point: PublicationTestPoint, _stage: &Path, output: &Pa
     let matches_point = matches!(
         (hook, point),
         (
+            PublicationTestHook::CreateOutputBeforeCommit,
+            PublicationTestPoint::BeforeCreateCommit
+        ) | (
             PublicationTestHook::ReplaceOutputBeforePrecheck,
             PublicationTestPoint::BeforeManagedPrecheck
         ) | (
@@ -301,6 +539,36 @@ fn publication_test_hook(point: PublicationTestPoint, _stage: &Path, output: &Pa
         ) | (
             PublicationTestHook::PrecreateBackupBeforeCleanup,
             PublicationTestPoint::BeforeOldGenerationCleanup
+        ) | (
+            PublicationTestHook::MutateOldStageBeforeProof,
+            PublicationTestPoint::BeforeOldGenerationProof
+        ) | (
+            PublicationTestHook::MutateStagedChecksum,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::AddManifestSelfRecord,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::WrongCreateManifestMode,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::WrongReplaceManifestMode,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::AddManifestTimestamp,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::AddManifestUnknownField,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::AddExtraGeneratedFile,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::RemoveManagedFile,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::MutateStagedReportBeforeReread,
+            PublicationTestPoint::AfterStageVerificationBeforeReread
         )
     );
     if !matches_point {
@@ -310,6 +578,11 @@ fn publication_test_hook(point: PublicationTestPoint, _stage: &Path, output: &Pa
         .lock()
         .expect("publication test hook lock") = None;
     match hook {
+        PublicationTestHook::CreateOutputBeforeCommit => {
+            fs::create_dir(output).expect("create competing output");
+            fs::write(output.join("sentinel.txt"), b"concurrent competitor")
+                .expect("write competing output");
+        }
         PublicationTestHook::ReplaceOutputBeforePrecheck
         | PublicationTestHook::ReplaceOutputBeforeExchange
         | PublicationTestHook::ReplaceVisibleOutputAfterExchange => {
@@ -330,6 +603,10 @@ fn publication_test_hook(point: PublicationTestPoint, _stage: &Path, output: &Pa
             fs::write(output.join(REPORT_FILE), b"mutated generation")
                 .expect("mutate held output generation");
         }
+        PublicationTestHook::MutateOldStageBeforeProof => {
+            fs::write(_stage.join(REPORT_FILE), b"mutated old generation")
+                .expect("mutate old stage");
+        }
         PublicationTestHook::PrecreateBackupBeforeCleanup => {
             let name = output
                 .file_name()
@@ -338,7 +615,63 @@ fn publication_test_hook(point: PublicationTestPoint, _stage: &Path, output: &Pa
             fs::create_dir(output.with_file_name(format!(".{name}.phase-e-backup")))
                 .expect("precreate backup residue");
         }
+        PublicationTestHook::MutateStagedChecksum => {
+            let path = _stage.join(SUMMARY_FILE);
+            fs::write(path, b"checksum mutation").expect("mutate staged checksum");
+        }
+        PublicationTestHook::MutateStagedReportBeforeReread => {
+            fs::write(_stage.join(REPORT_FILE), b"not an artifact").expect("mutate staged report");
+        }
+        PublicationTestHook::AddManifestSelfRecord => {
+            mutate_manifest(_stage, |manifest| {
+                let mut record = manifest["generated_files"][0].clone();
+                record["relative_path"] = Value::String(MANIFEST_FILE.into());
+                manifest["generated_files"]
+                    .as_array_mut()
+                    .expect("generated files")
+                    .push(record);
+            });
+        }
+        PublicationTestHook::WrongCreateManifestMode => {
+            mutate_manifest(_stage, |manifest| {
+                manifest["publication_mode"] = Value::String("replace_managed_bundle".into());
+            });
+        }
+        PublicationTestHook::WrongReplaceManifestMode => {
+            mutate_manifest(_stage, |manifest| {
+                manifest["publication_mode"] = Value::String("create_new".into());
+            });
+        }
+        PublicationTestHook::AddManifestTimestamp => {
+            mutate_manifest(_stage, |manifest| {
+                manifest["timestamp"] = Value::String("2026-08-22T00:00:00Z".into());
+            });
+        }
+        PublicationTestHook::AddManifestUnknownField => {
+            mutate_manifest(_stage, |manifest| {
+                manifest["extra"] = Value::String("forbidden".into());
+            });
+        }
+        PublicationTestHook::AddExtraGeneratedFile => {
+            fs::write(_stage.join("unexpected.txt"), b"unexpected").expect("extra generated file");
+        }
+        PublicationTestHook::RemoveManagedFile => {
+            fs::remove_file(_stage.join(SUMMARY_FILE)).expect("remove managed file");
+        }
     }
+}
+
+#[cfg(test)]
+fn mutate_manifest(stage: &Path, mutate: impl FnOnce(&mut Value)) {
+    let path = stage.join(MANIFEST_FILE);
+    let mut value: Value =
+        serde_json::from_slice(&fs::read(&path).expect("manifest")).expect("JSON");
+    mutate(&mut value);
+    fs::write(
+        path,
+        serde_json::to_vec_pretty(&value).expect("manifest JSON"),
+    )
+    .expect("mutated manifest");
 }
 
 #[cfg(not(test))]
@@ -350,6 +683,7 @@ fn write_stage(
     publication_mode: &str,
 ) -> Result<Vec<GeneratedFileRecordV1>, MhiValidationError> {
     let report_path = stage.join(REPORT_FILE);
+    test_fault(PublicationFaultOperation::Write, &report_path)?;
     write_artifact(&report_path, report)?;
     normalize_json_file(&report_path)?;
     sync_file(&report_path)?;
@@ -603,6 +937,13 @@ fn generated_file_records(stage: &Path) -> Result<Vec<GeneratedFileRecordV1>, Mh
 }
 
 fn verify_bundle(path: &Path) -> Result<(), MhiValidationError> {
+    verify_bundle_with_mode(path, None)
+}
+
+fn verify_bundle_with_mode(
+    path: &Path,
+    expected_publication_mode: Option<&str>,
+) -> Result<(), MhiValidationError> {
     ensure_directory(path)?;
     let expected_root = BTreeSet::from([
         REPORT_FILE.to_string(),
@@ -656,6 +997,11 @@ fn verify_bundle(path: &Path) -> Result<(), MhiValidationError> {
     {
         return Err(MhiValidationError::Dataset(
             "managed bundle manifest violates the Phase-E schema".into(),
+        ));
+    }
+    if expected_publication_mode.is_some_and(|expected| manifest.publication_mode != expected) {
+        return Err(MhiValidationError::Dataset(
+            "managed bundle publication mode does not match the requested operation".into(),
         ));
     }
     let expected = generated_paths();
@@ -715,26 +1061,10 @@ fn managed_generation(path: &Path) -> Result<BundleGeneration, MhiValidationErro
             return Err(MhiValidationError::UnsafePath(path.into()));
         }
         verify_bundle(path)?;
-        let mut hasher = Sha256::new();
-        hasher.update(b"mhi_managed_bundle_fingerprint_v1\0");
-        let mut paths = generated_paths();
-        paths.push(MANIFEST_FILE.into());
-        paths.sort();
-        for relative in paths {
-            let bytes =
-                fs::read(path.join(&relative)).map_err(|source| MhiValidationError::Io {
-                    path: path.join(&relative),
-                    source,
-                })?;
-            hasher.update((relative.len() as u64).to_be_bytes());
-            hasher.update(relative.as_bytes());
-            hasher.update((bytes.len() as u64).to_be_bytes());
-            hasher.update(Sha256::digest(&bytes));
-        }
         Ok(BundleGeneration {
             device: metadata.dev(),
             inode: metadata.ino(),
-            fingerprint: format!("{:x}", hasher.finalize()),
+            fingerprint: bundle_fingerprint(path)?,
         })
     }
     #[cfg(not(unix))]
@@ -743,6 +1073,33 @@ fn managed_generation(path: &Path) -> Result<BundleGeneration, MhiValidationErro
             path.into(),
         ))
     }
+}
+
+fn bundle_fingerprint(path: &Path) -> Result<String, MhiValidationError> {
+    let mut hasher = Sha256::new();
+    hasher.update(b"mhi_managed_bundle_fingerprint_v1\0");
+    let mut paths = generated_paths();
+    paths.push(MANIFEST_FILE.into());
+    paths.sort();
+    for relative in paths {
+        let child = path.join(&relative);
+        let metadata = fs::symlink_metadata(&child).map_err(|source| MhiValidationError::Io {
+            path: child.clone(),
+            source,
+        })?;
+        if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+            return Err(MhiValidationError::UnsafePath(child));
+        }
+        let bytes = fs::read(&child).map_err(|source| MhiValidationError::Io {
+            path: child,
+            source,
+        })?;
+        hasher.update((relative.len() as u64).to_be_bytes());
+        hasher.update(relative.as_bytes());
+        hasher.update((bytes.len() as u64).to_be_bytes());
+        hasher.update(Sha256::digest(&bytes));
+    }
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn normalize_json_file(path: &Path) -> Result<(), MhiValidationError> {
@@ -1006,6 +1363,7 @@ fn dataset_source_file_sha256(report: &MhiValidationReportV1) -> &str {
 }
 
 fn write_bytes(path: &Path, bytes: &[u8]) -> Result<(), MhiValidationError> {
+    test_fault(PublicationFaultOperation::Write, path)?;
     fs::write(path, bytes).map_err(|source| MhiValidationError::Io {
         path: path.into(),
         source,
@@ -1058,15 +1416,6 @@ fn path_exists_or_symlink(path: &Path) -> Result<bool, MhiValidationError> {
     }
 }
 
-fn is_symlink(path: &Path) -> Result<bool, MhiValidationError> {
-    fs::symlink_metadata(path)
-        .map(|metadata| metadata.file_type().is_symlink())
-        .map_err(|source| MhiValidationError::Io {
-            path: path.into(),
-            source,
-        })
-}
-
 /// The lock file deliberately persists.  Its identity is part of the
 /// publication namespace, and unlinking/recreating it would allow two writers
 /// to hold locks on different files.
@@ -1107,6 +1456,7 @@ fn acquire_publication_lock(
         }
     })?;
     if !existed {
+        test_fault(PublicationFaultOperation::SyncFile, &lock)?;
         file.sync_all().map_err(|source| MhiValidationError::Io {
             path: lock.clone(),
             source,
@@ -1189,6 +1539,7 @@ fn atomic_exchange(source: &Path, destination: &Path) -> Result<(), MhiValidatio
     atomic_rename(source, destination, RenameOperation::Exchange)
 }
 
+#[derive(Debug, Clone, Copy)]
 enum RenameOperation {
     NoReplace,
     Exchange,
@@ -1200,6 +1551,9 @@ fn atomic_rename(
     destination: &Path,
     operation: RenameOperation,
 ) -> Result<(), MhiValidationError> {
+    if let Some(result) = test_rename_fault(operation, destination) {
+        return result;
+    }
     let from = CString::new(source.as_os_str().as_bytes())
         .map_err(|_| MhiValidationError::UnsafePath(source.into()))?;
     let to = CString::new(destination.as_os_str().as_bytes())
@@ -1216,9 +1570,11 @@ fn atomic_rename(
     if matches!(operation, RenameOperation::NoReplace)
         && source_error.kind() == std::io::ErrorKind::AlreadyExists
     {
-        return Err(MhiValidationError::PublicationConcurrentDestinationCreated(
-            destination.into(),
-        ));
+        return Err(
+            MhiValidationError::PublicationConcurrentDestinationCreated {
+                output: destination.into(),
+            },
+        );
     }
     if matches!(
         source_error.raw_os_error(),
@@ -1330,6 +1686,7 @@ const fn native_rename_exchange_flag() -> u32 {
 }
 
 fn sync_file(path: &Path) -> Result<(), MhiValidationError> {
+    test_fault(PublicationFaultOperation::SyncFile, path)?;
     fs::File::open(path)
         .and_then(|file| file.sync_all())
         .map_err(|source| MhiValidationError::Io {
@@ -1339,6 +1696,7 @@ fn sync_file(path: &Path) -> Result<(), MhiValidationError> {
 }
 
 fn sync_directory(path: &Path) -> Result<(), MhiValidationError> {
+    test_fault(PublicationFaultOperation::SyncDirectory, path)?;
     fs::File::open(path)
         .and_then(|file| file.sync_all())
         .map_err(|source| MhiValidationError::Io {
@@ -1347,23 +1705,241 @@ fn sync_directory(path: &Path) -> Result<(), MhiValidationError> {
         })
 }
 
-fn cleanup_stage(stage: &Path) {
-    if stage.exists() {
-        let _ = fs::remove_dir_all(stage);
+fn cleanup_stage(stage: &Path) -> Result<(), MhiValidationError> {
+    if path_exists_or_symlink_unchecked(stage) {
+        remove_tree_reverse(stage)?;
     }
+    Ok(())
 }
 
 fn remove_tree_reverse(path: &Path) -> Result<(), MhiValidationError> {
-    fs::remove_dir_all(path).map_err(|source| MhiValidationError::Io {
+    let mut entries = Vec::new();
+    collect_removal_entries(path, &mut entries)?;
+    entries.sort_by(|left, right| right.path.cmp(&left.path));
+    for entry in entries {
+        test_fault(PublicationFaultOperation::Delete, &entry.path)?;
+        if entry.is_dir {
+            fs::remove_dir(&entry.path).map_err(|source| MhiValidationError::Io {
+                path: entry.path.clone(),
+                source,
+            })?;
+        } else {
+            fs::remove_file(&entry.path).map_err(|source| MhiValidationError::Io {
+                path: entry.path.clone(),
+                source,
+            })?;
+        }
+        sync_directory(entry.path.parent().expect("removed path parent"))?;
+    }
+    test_fault(PublicationFaultOperation::Delete, path)?;
+    fs::remove_dir(path).map_err(|source| MhiValidationError::Io {
         path: path.into(),
         source,
-    })
+    })?;
+    sync_directory(path.parent().expect("removed root parent"))
+}
+
+#[derive(Debug)]
+struct RemovalEntry {
+    path: PathBuf,
+    is_dir: bool,
+}
+
+fn collect_removal_entries(
+    path: &Path,
+    entries: &mut Vec<RemovalEntry>,
+) -> Result<(), MhiValidationError> {
+    let metadata = fs::symlink_metadata(path).map_err(|source| MhiValidationError::Io {
+        path: path.into(),
+        source,
+    })?;
+    if metadata.file_type().is_dir() && !metadata.file_type().is_symlink() {
+        for entry in fs::read_dir(path).map_err(|source| MhiValidationError::Io {
+            path: path.into(),
+            source,
+        })? {
+            let entry = entry.map_err(|source| MhiValidationError::Io {
+                path: path.into(),
+                source,
+            })?;
+            let child = entry.path();
+            collect_removal_entries(&child, entries)?;
+            let child_metadata =
+                fs::symlink_metadata(&child).map_err(|source| MhiValidationError::Io {
+                    path: child.clone(),
+                    source,
+                })?;
+            entries.push(RemovalEntry {
+                path: child,
+                is_dir: child_metadata.file_type().is_dir()
+                    && !child_metadata.file_type().is_symlink(),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn sha256(bytes: &[u8]) -> String {
     let mut hash = Sha256::new();
     hash.update(bytes);
     format!("{:x}", hash.finalize())
+}
+
+#[derive(Debug, Clone, Copy)]
+enum PublicationFaultOperation {
+    Write,
+    SyncFile,
+    SyncDirectory,
+    Delete,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Copy)]
+enum PublicationFault {
+    WriteAt(usize),
+    SyncFileAt(usize),
+    SyncDirectoryAt(usize),
+    NoReplaceUnsupported,
+    NoReplaceFailure,
+    ExchangeUnsupported,
+    ExchangeFailure,
+    DeleteAt(usize),
+    AuthorityValidation,
+}
+
+#[cfg(test)]
+#[derive(Debug, Default)]
+struct PublicationFaultState {
+    fault: Option<PublicationFault>,
+    writes: usize,
+    sync_files: usize,
+    sync_directories: usize,
+    deletes: usize,
+}
+
+#[cfg(test)]
+static PUBLICATION_FAULT: std::sync::Mutex<PublicationFaultState> =
+    std::sync::Mutex::new(PublicationFaultState {
+        fault: None,
+        writes: 0,
+        sync_files: 0,
+        sync_directories: 0,
+        deletes: 0,
+    });
+
+#[cfg(test)]
+fn set_publication_fault(fault: Option<PublicationFault>) {
+    let mut state = PUBLICATION_FAULT.lock().expect("publication fault lock");
+    state.fault = fault;
+    state.writes = 0;
+    state.sync_files = 0;
+    state.sync_directories = 0;
+    state.deletes = 0;
+}
+
+fn test_fault(operation: PublicationFaultOperation, path: &Path) -> Result<(), MhiValidationError> {
+    #[cfg(test)]
+    {
+        let mut state = PUBLICATION_FAULT.lock().expect("publication fault lock");
+        let ordinal = match operation {
+            PublicationFaultOperation::Write => {
+                state.writes += 1;
+                state.writes
+            }
+            PublicationFaultOperation::SyncFile => {
+                state.sync_files += 1;
+                state.sync_files
+            }
+            PublicationFaultOperation::SyncDirectory => {
+                state.sync_directories += 1;
+                state.sync_directories
+            }
+            PublicationFaultOperation::Delete => {
+                state.deletes += 1;
+                state.deletes
+            }
+        };
+        let matches = match (state.fault, operation) {
+            (Some(PublicationFault::WriteAt(expected)), PublicationFaultOperation::Write) => {
+                ordinal == expected
+            }
+            (Some(PublicationFault::SyncFileAt(expected)), PublicationFaultOperation::SyncFile) => {
+                ordinal == expected
+            }
+            (
+                Some(PublicationFault::SyncDirectoryAt(expected)),
+                PublicationFaultOperation::SyncDirectory,
+            ) => ordinal == expected,
+            (Some(PublicationFault::DeleteAt(expected)), PublicationFaultOperation::Delete) => {
+                ordinal == expected
+            }
+            _ => false,
+        };
+        if matches {
+            state.fault = None;
+            return Err(MhiValidationError::Io {
+                path: path.into(),
+                source: std::io::Error::other("injected Phase-E publication filesystem failure"),
+            });
+        }
+    }
+    let _ = (operation, path);
+    Ok(())
+}
+
+fn test_authority_validation() -> Result<(), MhiValidationError> {
+    #[cfg(test)]
+    {
+        let mut state = PUBLICATION_FAULT.lock().expect("publication fault lock");
+        if matches!(state.fault, Some(PublicationFault::AuthorityValidation)) {
+            state.fault = None;
+            return Err(MhiValidationError::Dataset(
+                "injected Phase-E authority validation failure".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn test_rename_fault(
+    operation: RenameOperation,
+    destination: &Path,
+) -> Option<Result<(), MhiValidationError>> {
+    let mut state = PUBLICATION_FAULT.lock().expect("publication fault lock");
+    let fault = match (operation, state.fault) {
+        (RenameOperation::NoReplace, Some(PublicationFault::NoReplaceUnsupported)) => Some(Err(
+            MhiValidationError::UnsupportedAtomicPublicationFilesystem(destination.into()),
+        )),
+        (RenameOperation::NoReplace, Some(PublicationFault::NoReplaceFailure)) => {
+            Some(Err(MhiValidationError::Io {
+                path: destination.into(),
+                source: std::io::Error::other("injected Phase-E no-replace failure"),
+            }))
+        }
+        (RenameOperation::Exchange, Some(PublicationFault::ExchangeUnsupported)) => Some(Err(
+            MhiValidationError::UnsupportedAtomicPublicationFilesystem(destination.into()),
+        )),
+        (RenameOperation::Exchange, Some(PublicationFault::ExchangeFailure)) => {
+            Some(Err(MhiValidationError::Io {
+                path: destination.into(),
+                source: std::io::Error::other("injected Phase-E exchange failure"),
+            }))
+        }
+        _ => None,
+    };
+    if fault.is_some() {
+        state.fault = None;
+    }
+    fault
+}
+
+#[cfg(not(test))]
+fn test_rename_fault(
+    _operation: RenameOperation,
+    _destination: &Path,
+) -> Option<Result<(), MhiValidationError>> {
+    None
 }
 
 #[allow(dead_code)]
@@ -1386,6 +1962,7 @@ mod tests {
     };
 
     static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    static PUBLICATION_TEST_SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     fn temporary_parent(label: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!(
@@ -1468,6 +2045,81 @@ mod tests {
         );
     }
 
+    fn assert_precommit_cleanup(parent: &Path, output: &Path) {
+        assert!(
+            !output.exists(),
+            "pre-commit failure must not publish output"
+        );
+        assert!(
+            !parent.join(".bundle.phase-e-stage").exists(),
+            "pre-commit stage must be cleaned"
+        );
+        assert!(
+            !parent.join(".bundle.phase-e-backup").exists(),
+            "pre-commit backup must remain absent"
+        );
+    }
+
+    fn ensure_persistent_lock(parent: &Path) {
+        let lock = acquire_publication_lock(parent, "bundle").expect("persistent test lock");
+        drop(lock);
+    }
+
+    fn manifest(path: &Path) -> Value {
+        serde_json::from_slice(
+            &fs::read(path.join(MANIFEST_FILE)).expect("publication manifest bytes"),
+        )
+        .expect("publication manifest JSON")
+    }
+
+    fn assert_manifest_contract(path: &Path, mode: &str) {
+        let manifest = manifest(path);
+        assert_eq!(manifest["publication_mode"], mode);
+        let records = manifest["generated_files"]
+            .as_array()
+            .expect("manifest generated files");
+        assert_eq!(records.len(), 8);
+        assert!(records.iter().all(|record| {
+            record["relative_path"] != MANIFEST_FILE
+                && record["relative_path"].is_string()
+                && record["sha256"].as_str().is_some()
+        }));
+    }
+
+    fn assert_bundle_matches_golden(path: &Path) {
+        let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase_e");
+        let expected =
+            fs::read_to_string(fixture_root.join("expected/golden_bundle_file_sha256s.txt"))
+                .expect("golden digest list");
+        let rows = expected
+            .lines()
+            .map(|line| {
+                let mut columns = line.split('\t');
+                (
+                    columns.next().expect("golden path"),
+                    columns.next().expect("golden length"),
+                    columns.next().expect("golden hash"),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 9);
+        for (relative, length, digest) in rows {
+            let actual = fs::read(path.join(relative)).expect("published golden file");
+            assert_eq!(actual.len().to_string(), length, "{relative}");
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&actual)),
+                digest,
+                "{relative}"
+            );
+            assert_eq!(
+                actual,
+                fs::read(fixture_root.join("expected/golden_bundle").join(relative))
+                    .expect("golden bytes"),
+                "{relative}"
+            );
+        }
+    }
+
     fn error_targets_output(path: &Path, output: &Path) -> bool {
         path.file_name() == output.file_name()
             && path.parent().is_some_and(|parent| {
@@ -1492,6 +2144,9 @@ mod tests {
 
     #[test]
     fn phase_e_publication_is_locked_no_clobber_crash_durable_and_residue_exact() {
+        let _serial = PUBLICATION_TEST_SERIAL
+            .lock()
+            .expect("publication test serialization");
         let parent = temporary_parent("state_machine");
         let stage = parent.join(".bundle.phase-e-stage");
         let output = parent.join("bundle");
@@ -1511,7 +2166,8 @@ mod tests {
 
         assert!(matches!(
             atomic_noreplace(&stage, &output),
-            Err(MhiValidationError::PublicationConcurrentDestinationCreated(path)) if path == output
+            Err(MhiValidationError::PublicationConcurrentDestinationCreated { output: path })
+                if path == output
         ));
         assert_eq!(
             fs::read(stage.join("generation.txt")).expect("stage remains"),
@@ -1542,7 +2198,7 @@ mod tests {
                 .expect_err("residue blocks publication");
             assert!(matches!(
                 error,
-                MhiValidationError::PublicationRecoveryResidue(ref path)
+                MhiValidationError::PublicationRecoveryResidue { output: ref path, .. }
                     if error_targets_output(path, &output)
             ));
             assert!(parent.join(residue).is_dir(), "residue remains intact");
@@ -1565,7 +2221,7 @@ mod tests {
             } else {
                 assert!(matches!(
                     error,
-                    MhiValidationError::PublicationRecoveryResidue(ref path)
+                    MhiValidationError::PublicationRecoveryResidue { output: ref path, .. }
                         if error_targets_output(path, &output)
                 ));
             }
@@ -1598,7 +2254,7 @@ mod tests {
         assert!(
             matches!(
                 error,
-                MhiValidationError::PublicationConcurrentManagedOutputChanged(ref path)
+                MhiValidationError::PublicationConcurrentManagedOutputChanged { output: ref path, .. }
                     if error_targets_output(path, &output)
             ),
             "unexpected precheck error: {error:?}"
@@ -1615,7 +2271,7 @@ mod tests {
             publication_race_case(PublicationTestHook::ReplaceOutputBeforeExchange);
         assert!(matches!(
             error,
-            MhiValidationError::PublicationCommittedForeignSwapDetected(ref path)
+            MhiValidationError::PublicationCommittedForeignSwapDetected { output: ref path, .. }
                 if error_targets_output(path, &output)
         ));
         assert_managed_generation(&output);
@@ -1631,7 +2287,7 @@ mod tests {
             publication_race_case(PublicationTestHook::MutateOutputBeforeExchange);
         assert!(matches!(
             error,
-            MhiValidationError::PublicationCommittedForeignSwapDetected(ref path)
+            MhiValidationError::PublicationCommittedForeignSwapDetected { output: ref path, .. }
                 if error_targets_output(path, &output)
         ));
         assert_managed_generation(&output);
@@ -1646,7 +2302,7 @@ mod tests {
             publication_race_case(PublicationTestHook::ReplaceVisibleOutputAfterExchange);
         assert!(matches!(
             error,
-            MhiValidationError::PublicationCommittedVisibleOutputChanged(ref path)
+            MhiValidationError::PublicationCommittedVisibleOutputChanged { output: ref path, .. }
                 if error_targets_output(path, &output)
         ));
         assert_eq!(
@@ -1661,7 +2317,7 @@ mod tests {
             publication_race_case(PublicationTestHook::MutateVisibleOutputAfterExchange);
         assert!(matches!(
             error,
-            MhiValidationError::PublicationCommittedVisibleOutputChanged(ref path)
+            MhiValidationError::PublicationCommittedVisibleOutputChanged { output: ref path, .. }
                 if error_targets_output(path, &output)
         ));
         assert_eq!(
@@ -1675,12 +2331,475 @@ mod tests {
             publication_race_case(PublicationTestHook::PrecreateBackupBeforeCleanup);
         assert!(matches!(
             error,
-            MhiValidationError::PublicationCommittedCleanupFailed(ref path)
+            MhiValidationError::PublicationCommittedCleanupFailed { output: ref path, .. }
                 if error_targets_output(path, &output)
         ));
         assert_managed_generation(&output);
         assert_managed_generation(&parent.join(".bundle.phase-e-stage"));
         assert!(parent.join(".bundle.phase-e-backup").is_dir());
         fs::remove_dir_all(parent).expect("cleanup residue cleanup");
+    }
+
+    #[test]
+    fn phase_e_e_t22_complete_staging_and_byte_validation_matrix() {
+        let _serial = PUBLICATION_TEST_SERIAL
+            .lock()
+            .expect("publication test serialization");
+        let report = software_fixture_report();
+
+        let parent = temporary_parent("t22_success");
+        let output = parent.join("bundle");
+        ensure_persistent_lock(&parent);
+        publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect("create-new publication");
+        assert_managed_generation(&output);
+        assert_manifest_contract(&output, "create_new");
+        assert_bundle_matches_golden(&output);
+        let root_entries = read_child_names(&output).expect("managed root entries");
+        assert_eq!(root_entries.len(), 4);
+        assert_eq!(
+            read_child_names(&output.join("tables"))
+                .expect("table entries")
+                .len(),
+            6
+        );
+        fs::remove_dir_all(parent).expect("success cleanup");
+
+        let parent = temporary_parent("t22_replace");
+        let output = parent.join("bundle");
+        ensure_persistent_lock(&parent);
+        publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect("initial replacement generation");
+        publish_bundle(&output, &report, "phase_e_software_protocol", true)
+            .expect("managed replacement");
+        assert_manifest_contract(&output, "replace_managed_bundle");
+        fs::remove_dir_all(parent).expect("replacement cleanup");
+
+        let parent = temporary_parent("t22_wrong_replace_mode");
+        let output = parent.join("bundle");
+        ensure_persistent_lock(&parent);
+        publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect("initial generation for mode mutation");
+        set_publication_test_hook(Some(PublicationTestHook::WrongReplaceManifestMode));
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", true)
+            .expect_err("wrong replacement manifest mode");
+        set_publication_test_hook(None);
+        assert!(matches!(error, MhiValidationError::Dataset(_)));
+        assert_managed_generation(&output);
+        assert!(!parent.join(".bundle.phase-e-stage").exists());
+        fs::remove_dir_all(parent).expect("wrong replacement mode cleanup");
+
+        for ordinal in 1..=10 {
+            let parent = temporary_parent("t22_write_failure");
+            let output = parent.join("bundle");
+            ensure_persistent_lock(&parent);
+            set_publication_fault(Some(PublicationFault::WriteAt(ordinal)));
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect_err("each generated write failure is rejected");
+            set_publication_fault(None);
+            assert!(matches!(error, MhiValidationError::Io { .. }));
+            assert_precommit_cleanup(&parent, &output);
+            fs::remove_dir_all(parent).expect("write failure cleanup");
+        }
+
+        for ordinal in 1..=10 {
+            let parent = temporary_parent("t22_file_fsync_failure");
+            let output = parent.join("bundle");
+            ensure_persistent_lock(&parent);
+            set_publication_fault(Some(PublicationFault::SyncFileAt(ordinal)));
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect_err("each generated file fsync failure is rejected");
+            set_publication_fault(None);
+            assert!(matches!(error, MhiValidationError::Io { .. }));
+            assert_precommit_cleanup(&parent, &output);
+            fs::remove_dir_all(parent).expect("file fsync failure cleanup");
+        }
+
+        let parent = temporary_parent("t22_lock_fsync_failure");
+        let output = parent.join("bundle");
+        set_publication_fault(Some(PublicationFault::SyncFileAt(1)));
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect_err("lock-file fsync failure");
+        set_publication_fault(None);
+        assert!(matches!(error, MhiValidationError::Io { .. }));
+        assert!(!output.exists());
+        assert!(!parent.join(".bundle.phase-e-stage").exists());
+        assert!(parent.join(".bundle.phase-e-publish.lock").is_file());
+        fs::remove_dir_all(parent).expect("lock fsync failure cleanup");
+
+        for ordinal in 1..=4 {
+            let parent = temporary_parent("t22_directory_fsync_failure");
+            let output = parent.join("bundle");
+            ensure_persistent_lock(&parent);
+            set_publication_fault(Some(PublicationFault::SyncDirectoryAt(ordinal)));
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect_err("each staging directory fsync failure is rejected");
+            set_publication_fault(None);
+            assert!(matches!(error, MhiValidationError::Io { .. }));
+            assert_precommit_cleanup(&parent, &output);
+            fs::remove_dir_all(parent).expect("directory fsync failure cleanup");
+        }
+
+        let staged_mutations = [
+            PublicationTestHook::MutateStagedChecksum,
+            PublicationTestHook::MutateStagedReportBeforeReread,
+            PublicationTestHook::AddManifestSelfRecord,
+            PublicationTestHook::WrongCreateManifestMode,
+            PublicationTestHook::AddManifestTimestamp,
+            PublicationTestHook::AddManifestUnknownField,
+            PublicationTestHook::AddExtraGeneratedFile,
+            PublicationTestHook::RemoveManagedFile,
+        ];
+        for hook in staged_mutations {
+            let parent = temporary_parent("t22_staged_mutation");
+            let output = parent.join("bundle");
+            ensure_persistent_lock(&parent);
+            set_publication_test_hook(Some(hook));
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect_err("invalid staged bundle is rejected");
+            set_publication_test_hook(None);
+            assert!(!matches!(
+                error,
+                MhiValidationError::PublicationDurabilityUnconfirmed { .. }
+            ));
+            assert_precommit_cleanup(&parent, &output);
+            fs::remove_dir_all(parent).expect("staged mutation cleanup");
+        }
+
+        let parent = temporary_parent("t22_authority_failure");
+        let output = parent.join("bundle");
+        ensure_persistent_lock(&parent);
+        set_publication_fault(Some(PublicationFault::AuthorityValidation));
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect_err("authority validation failure");
+        set_publication_fault(None);
+        assert!(
+            matches!(error, MhiValidationError::Dataset(ref message) if message.contains("authority"))
+        );
+        assert_precommit_cleanup(&parent, &output);
+        fs::remove_dir_all(parent).expect("authority failure cleanup");
+
+        for fault in [
+            PublicationFault::NoReplaceUnsupported,
+            PublicationFault::NoReplaceFailure,
+        ] {
+            let parent = temporary_parent("t22_noreplace_failure");
+            let output = parent.join("bundle");
+            ensure_persistent_lock(&parent);
+            set_publication_fault(Some(fault));
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect_err("no-replace failure");
+            set_publication_fault(None);
+            assert!(matches!(
+                error,
+                MhiValidationError::UnsupportedAtomicPublicationFilesystem(_)
+                    | MhiValidationError::Io { .. }
+            ));
+            assert_precommit_cleanup(&parent, &output);
+            fs::remove_dir_all(parent).expect("no-replace failure cleanup");
+        }
+
+        for fault in [
+            PublicationFault::ExchangeUnsupported,
+            PublicationFault::ExchangeFailure,
+        ] {
+            let parent = temporary_parent("t22_exchange_failure");
+            let output = parent.join("bundle");
+            ensure_persistent_lock(&parent);
+            publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect("old managed generation");
+            let old_report = fs::read(output.join(REPORT_FILE)).expect("old report");
+            set_publication_fault(Some(fault));
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", true)
+                .expect_err("exchange failure");
+            set_publication_fault(None);
+            assert!(matches!(
+                error,
+                MhiValidationError::UnsupportedAtomicPublicationFilesystem(_)
+                    | MhiValidationError::Io { .. }
+            ));
+            assert_eq!(
+                fs::read(output.join(REPORT_FILE)).expect("old report remains"),
+                old_report
+            );
+            assert!(
+                !parent.join(".bundle.phase-e-stage").exists(),
+                "failed exchange cleans new stage"
+            );
+            fs::remove_dir_all(parent).expect("exchange failure cleanup");
+        }
+
+        let parent = temporary_parent("t22_create_fsync_after_commit");
+        let output = parent.join("bundle");
+        ensure_persistent_lock(&parent);
+        set_publication_fault(Some(PublicationFault::SyncDirectoryAt(5)));
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect_err("create durability is unconfirmed");
+        set_publication_fault(None);
+        assert!(matches!(
+            error,
+            MhiValidationError::PublicationDurabilityUnconfirmed {
+                operation: "create_new",
+                ..
+            }
+        ));
+        assert_managed_generation(&output);
+        assert!(!parent.join(".bundle.phase-e-stage").exists());
+        fs::remove_dir_all(parent).expect("create durability cleanup");
+
+        let parent = temporary_parent("t22_replace_fsync_after_exchange");
+        let output = parent.join("bundle");
+        ensure_persistent_lock(&parent);
+        publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect("old generation");
+        set_publication_fault(Some(PublicationFault::SyncDirectoryAt(5)));
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", true)
+            .expect_err("replacement durability is unconfirmed");
+        set_publication_fault(None);
+        assert!(matches!(
+            error,
+            MhiValidationError::PublicationDurabilityUnconfirmed {
+                operation: "replace_managed_bundle",
+                ..
+            }
+        ));
+        assert_managed_generation(&output);
+        assert_managed_generation(&parent.join(".bundle.phase-e-stage"));
+        fs::remove_dir_all(parent).expect("replacement durability cleanup");
+    }
+
+    #[test]
+    fn phase_e_e_t23_lock_holder_process() {
+        let Some(parent) = std::env::var_os("PHASE_E_LOCK_HOLDER_PARENT") else {
+            return;
+        };
+        let parent = PathBuf::from(parent);
+        let ready = PathBuf::from(
+            std::env::var_os("PHASE_E_LOCK_HOLDER_READY").expect("lock holder ready path"),
+        );
+        let release = PathBuf::from(
+            std::env::var_os("PHASE_E_LOCK_HOLDER_RELEASE").expect("lock holder release path"),
+        );
+        let lock = acquire_publication_lock(&parent, "bundle").expect("child holds lock");
+        fs::write(&ready, b"ready").expect("lock holder readiness");
+        while !release.exists() {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        drop(lock);
+    }
+
+    #[test]
+    fn phase_e_e_t23_true_lock_contention_concurrent_create_and_recovery_matrix() {
+        let _serial = PUBLICATION_TEST_SERIAL
+            .lock()
+            .expect("publication test serialization");
+        let report = software_fixture_report();
+
+        let parent = temporary_parent("t23_lock_contention");
+        let output = parent.join("bundle");
+        let ready = parent.join("ready");
+        let release = parent.join("release");
+        let mut child = std::process::Command::new(std::env::current_exe().expect("test binary"))
+            .args([
+                "--exact",
+                "mhi_validation::output::tests::phase_e_e_t23_lock_holder_process",
+                "--nocapture",
+            ])
+            .env("PHASE_E_LOCK_HOLDER_PARENT", &parent)
+            .env("PHASE_E_LOCK_HOLDER_READY", &ready)
+            .env("PHASE_E_LOCK_HOLDER_RELEASE", &release)
+            .spawn()
+            .expect("spawn independent lock holder");
+        for _ in 0..200 {
+            if ready.exists() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(
+            ready.exists(),
+            "first publisher must hold the persistent lock"
+        );
+        let contention = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect_err("second publisher must observe lock contention");
+        assert!(matches!(
+            contention,
+            MhiValidationError::PublicationLocked(_)
+        ));
+        assert!(!output.exists());
+        assert!(!parent.join(".bundle.phase-e-stage").exists());
+        assert!(!parent.join(".bundle.phase-e-backup").exists());
+        fs::write(&release, b"release").expect("release child lock");
+        assert!(child.wait().expect("wait for lock holder").success());
+        publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect("publisher completes after lock release");
+        assert_managed_generation(&output);
+        fs::remove_dir_all(parent).expect("lock contention cleanup");
+
+        let parent = temporary_parent("t23_concurrent_create");
+        let output = parent.join("bundle");
+        ensure_persistent_lock(&parent);
+        set_publication_test_hook(Some(PublicationTestHook::CreateOutputBeforeCommit));
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect_err("concurrent create after preflight");
+        set_publication_test_hook(None);
+        assert!(matches!(
+            error,
+            MhiValidationError::PublicationConcurrentDestinationCreated { output: ref path }
+                if error_targets_output(path, &output)
+        ));
+        assert_eq!(
+            fs::read(output.join("sentinel.txt")).expect("competitor output"),
+            b"concurrent competitor"
+        );
+        assert!(!parent.join(".bundle.phase-e-stage").exists());
+        fs::remove_dir_all(parent).expect("concurrent create cleanup");
+
+        for residue in [".bundle.phase-e-stage", ".bundle.phase-e-backup"] {
+            let parent = temporary_parent("t23_residue");
+            let output = parent.join("bundle");
+            ensure_persistent_lock(&parent);
+            fs::create_dir(parent.join(residue)).expect("private residue");
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect_err("residue blocks new publication");
+            assert!(matches!(
+                error,
+                MhiValidationError::PublicationRecoveryResidue {
+                    stage_state: _,
+                    backup_state: _,
+                    remaining_paths: ref paths,
+                    ..
+                } if paths.iter().any(|path| path.ends_with(residue))
+            ));
+            assert!(parent.join(residue).is_dir());
+            assert!(!output.exists());
+            fs::remove_dir_all(parent).expect("residue cleanup");
+        }
+
+        set_publication_test_hook(None);
+        for hook in [
+            PublicationTestHook::MutateOldStageBeforeProof,
+            PublicationTestHook::PrecreateBackupBeforeCleanup,
+        ] {
+            let parent = temporary_parent("t23_generation_proof");
+            let output = parent.join("bundle");
+            ensure_persistent_lock(&parent);
+            publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect("old managed generation");
+            set_publication_test_hook(Some(hook));
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", true)
+                .expect_err("generation proof or cleanup failure");
+            set_publication_test_hook(None);
+            assert!(matches!(
+                error,
+                MhiValidationError::PublicationCommittedForeignSwapDetected { .. }
+                    | MhiValidationError::PublicationCommittedCleanupFailed { .. }
+            ));
+            assert_managed_generation(&output);
+            fs::remove_dir_all(parent).expect("generation proof cleanup");
+        }
+
+        let parent = temporary_parent("t23_stage_to_backup");
+        let output = parent.join("bundle");
+        ensure_persistent_lock(&parent);
+        publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect("old managed generation");
+        set_publication_fault(Some(PublicationFault::NoReplaceFailure));
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", true)
+            .expect_err("stage-to-backup failure");
+        set_publication_fault(None);
+        assert!(matches!(
+            error,
+            MhiValidationError::PublicationCommittedCleanupFailed { .. }
+        ));
+        assert_managed_generation(&output);
+        assert_managed_generation(&parent.join(".bundle.phase-e-stage"));
+        fs::remove_dir_all(parent).expect("stage-to-backup cleanup");
+
+        for ordinal in 1..=11 {
+            let parent = temporary_parent("t23_reverse_delete");
+            let output = parent.join("bundle");
+            ensure_persistent_lock(&parent);
+            publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect("old managed generation");
+            set_publication_fault(Some(PublicationFault::DeleteAt(ordinal)));
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", true)
+                .expect_err("reverse deletion failure");
+            set_publication_fault(None);
+            assert!(matches!(
+                error,
+                MhiValidationError::PublicationCommittedCleanupFailed { .. }
+            ));
+            assert_managed_generation(&output);
+            fs::remove_dir_all(parent).expect("reverse deletion cleanup");
+        }
+
+        for ordinal in 1..=18 {
+            let parent = temporary_parent("t23_every_directory_fsync");
+            let output = parent.join("bundle");
+            ensure_persistent_lock(&parent);
+            publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect("old managed generation");
+            set_publication_fault(Some(PublicationFault::SyncDirectoryAt(ordinal)));
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", true)
+                .expect_err("directory fsync failure at every state-machine point");
+            set_publication_fault(None);
+            if ordinal <= 4 {
+                assert!(matches!(error, MhiValidationError::Io { .. }));
+            } else if ordinal == 5 {
+                assert!(matches!(
+                    error,
+                    MhiValidationError::PublicationDurabilityUnconfirmed {
+                        operation: "replace_managed_bundle",
+                        ..
+                    }
+                ));
+            } else {
+                assert!(matches!(
+                    error,
+                    MhiValidationError::PublicationCommittedCleanupFailed { .. }
+                ));
+            }
+            assert_managed_generation(&output);
+            fs::remove_dir_all(parent).expect("directory fsync matrix cleanup");
+        }
+
+        let parent = temporary_parent("t23_cleanup_dir_fsync");
+        let output = parent.join("bundle");
+        ensure_persistent_lock(&parent);
+        publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect("old managed generation");
+        set_publication_fault(Some(PublicationFault::SyncDirectoryAt(7)));
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", true)
+            .expect_err("directory fsync after backup deletion");
+        set_publication_fault(None);
+        assert!(matches!(
+            error,
+            MhiValidationError::PublicationCommittedCleanupFailed { .. }
+        ));
+        assert_managed_generation(&output);
+        fs::remove_dir_all(parent).expect("directory fsync cleanup");
+
+        let parent = temporary_parent("t23_old_replacement");
+        let output = parent.join("bundle");
+        ensure_persistent_lock(&parent);
+        publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect("old managed generation");
+        set_publication_test_hook(Some(PublicationTestHook::ReplaceOutputBeforeExchange));
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", true)
+            .expect_err("old generation replaced before exchange");
+        set_publication_test_hook(None);
+        assert!(matches!(
+            error,
+            MhiValidationError::PublicationCommittedForeignSwapDetected { .. }
+        ));
+        assert_managed_generation(&output);
+        assert_managed_generation(&parent.join(".bundle.phase-e-foreign-competitor"));
+        assert_eq!(
+            fs::read(parent.join(".bundle.phase-e-stage/sentinel.txt"))
+                .expect("foreign competitor retained at stage"),
+            b"foreign competitor"
+        );
+        fs::remove_dir_all(parent).expect("old replacement cleanup");
     }
 }

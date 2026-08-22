@@ -13,7 +13,10 @@ pub mod protocol;
 pub mod reader;
 pub mod statistics;
 
-pub use error::MhiValidationError;
+pub use error::{
+    MhiValidationError, PublicationFingerprintResult, PublicationIdentityResult,
+    PublicationPathState,
+};
 pub use evaluation::evaluate_mhi_validation;
 pub use protocol::MhiValidationProtocolV1;
 pub use reader::ValidationInputs;

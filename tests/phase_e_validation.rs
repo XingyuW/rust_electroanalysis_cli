@@ -3193,6 +3193,7 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
     actual_fixture_paths.sort();
     let actual_fixture_paths = actual_fixture_paths.into_iter().collect::<BTreeSet<_>>();
     let expected_paths = expected_fixture_paths();
+    assert_eq!(expected_paths.len(), 268, "R2 fixture inventory is 268/268");
     assert_eq!(
         actual_fixture_paths, expected_paths,
         "literal inventory must exactly cover every regular Phase-E fixture"
@@ -3258,6 +3259,10 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
         "git diff --check",
         "cargo test --locked --all",
         "PENDING_POST_FREEZE",
+        "268/268",
+        "29/29",
+        "E-T22 is substantive executable coverage",
+        "E-T23 is substantive executable coverage",
     ] {
         assert!(
             author_evidence.contains(required),
@@ -3312,6 +3317,9 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
         "phase_e_authority_assisted_report_and_all_scientific_bytes_are_exact",
         "phase_e_publication_is_atomic_and_checksum_verified",
         "phase_e_publication_is_locked_no_clobber_crash_durable_and_residue_exact",
+        "phase_e_e_t22_complete_staging_and_byte_validation_matrix",
+        "phase_e_e_t23_lock_holder_process",
+        "phase_e_e_t23_true_lock_contention_concurrent_create_and_recovery_matrix",
         "phase_e_source_guards_prohibit_reassessment_and_reverse_dependencies",
         "phase_e_preserves_phase_d_golden_outputs_byte_for_byte",
         "phase_e_artifact_contracts_accept_exact_schema1_and_reject_invalid_variants",
@@ -3323,6 +3331,22 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
         assert!(
             registry_source.contains(required),
             "missing required evidence {required}"
+        );
+    }
+    for required in [
+        "PublicationStagingCleanupFailed",
+        "PublicationConcurrentManagedOutputChanged",
+        "PublicationCommittedForeignSwapDetected",
+        "PublicationCommittedVisibleOutputChanged",
+        "SyncDirectoryAt",
+        "NoReplaceUnsupported",
+        "ExchangeUnsupported",
+        "DeleteAt",
+        "std::process::Command",
+    ] {
+        assert!(
+            registry_source.contains(required),
+            "missing publication evidence {required}"
         );
     }
     assert!(!source_text.contains("SigningKey"));
