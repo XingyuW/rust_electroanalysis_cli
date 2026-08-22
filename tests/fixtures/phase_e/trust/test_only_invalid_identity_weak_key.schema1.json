@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "trust_store_id": "mhi_physical_approval_trust_store_v1",
+  "provisioning_state": "PROVISIONED",
+  "trust_roots": [
+    {
+      "trust_root_id": "test_only_invalid_identity_root",
+      "project_owner_authority_id": "test_vector_owner",
+      "owner_ed25519_public_key_hex": "0100000000000000000000000000000000000000000000000000000000000000",
+      "registry_authority_id": "test_vector_registry",
+      "registry_ed25519_public_key_hex": "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c"
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+endpoint_id,stratum_id,record_id,separation_status,not_evaluated_reason,compared_development_record_ids,shared_artifact_ids,shared_source_sha256s,shared_experiment_ids,shared_family_ids,unknown_reasons,decision
+health_endpoint,overall,record_1,NA,missing_endpoint_artifact_path,[],[],[],[],[],[],excluded
+mechanism_endpoint,overall,record_1,NA,missing_endpoint_artifact_path,[],[],[],[],[],[],excluded

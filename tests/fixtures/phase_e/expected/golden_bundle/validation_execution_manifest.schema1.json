@@ -1,0 +1,67 @@
+{
+  "dataset_source": {
+    "dataset_id": "phase_e_software_dataset",
+    "legacy_fingerprint": "3c4c3003f1da37d1cc0e71de1160619b44ea8df8d8e0845c7007a54590a36a7f",
+    "reason": "migration_information_unavailable",
+    "schema": 1,
+    "source_file_sha256": "3c4c3003f1da37d1cc0e71de1160619b44ea8df8d8e0845c7007a54590a36a7f",
+    "type": "legacy_unknown"
+  },
+  "generated_files": [
+    {
+      "byte_length": 22811,
+      "output_kind": "mhi_validation_report",
+      "relative_path": "mhi_validation_report.schema1.json",
+      "sha256": "3e0c1feeb1a2205e4ceb46b159e8a2833d1d944ba1204ffbc3f78fb768b6a149"
+    },
+    {
+      "byte_length": 700,
+      "output_kind": "cohort_coverage_csv",
+      "relative_path": "tables/cohort_coverage.csv",
+      "sha256": "63d0395bf429f49d0449bfbc12cceae16f4ac0c09aa1451d002287f05a42e83b"
+    },
+    {
+      "byte_length": 830,
+      "output_kind": "compatibility_matrix_csv",
+      "relative_path": "tables/compatibility_matrix.csv",
+      "sha256": "a85e641a56ecdef029bc0d0ef35c263b6617a10012d14c7130d55402129ab62a"
+    },
+    {
+      "byte_length": 321,
+      "output_kind": "exclusion_ledger_csv",
+      "relative_path": "tables/exclusion_ledger.csv",
+      "sha256": "f4eb3994979639229f1bc847b345aa5a761972520f48db229b9f08b65f8f27b3"
+    },
+    {
+      "byte_length": 686,
+      "output_kind": "health_validation_csv",
+      "relative_path": "tables/health_validation.csv",
+      "sha256": "722ca727179c0f9917e2a7d2f3f37e25b4108d02c0972a4f5a89d10e70ea9b10"
+    },
+    {
+      "byte_length": 402,
+      "output_kind": "leakage_assessment_csv",
+      "relative_path": "tables/leakage_assessment.csv",
+      "sha256": "c83fbea872a179f0ae77fe6f0827dfe371a7df1a194e976d60352e8ab70c7bf3"
+    },
+    {
+      "byte_length": 428,
+      "output_kind": "mechanism_validation_csv",
+      "relative_path": "tables/mechanism_validation.csv",
+      "sha256": "063a445ea9b1017191bd6922b9a8c420b6c20ebd0471ed5bf6a6c514ff9eda67"
+    },
+    {
+      "byte_length": 4815,
+      "output_kind": "validation_summary_markdown",
+      "relative_path": "validation_summary.md",
+      "sha256": "1432649aa51eda4fdc2afbaceb7a1cbee855cd43dc6220623507a146d9b3edc9"
+    }
+  ],
+  "git_commit": null,
+  "output_kind": "mhi_validation_execution_manifest",
+  "protocol_sha256": "a098c83e08f488d49f16be4c4fc27b09d87ca3752a7af7b50069ba6e9e09b47e",
+  "publication_mode": "create_new",
+  "report_id": "sha256:4395c2ffba66df1efeb2e7eb7a76a28cd5349188a698613d50253516b79b2bae",
+  "schema_version": 1,
+  "software_version": "0.1.0"
+}

@@ -62,6 +62,12 @@
       "point_estimate_bits": "4602678819172646912",
       "lower_confidence_bound_bits": "4602678818986634049",
       "upper_confidence_bound_bits": "4602678819265653343"
+    },
+    {
+      "numerator": "4503599627370496",
+      "denominator": "9007199254740993",
+      "kind": "hard_error",
+      "reason": "CountExceedsExactF64Range"
     }
   ]
 }

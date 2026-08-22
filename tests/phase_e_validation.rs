@@ -8,12 +8,13 @@ use rust_electroanalysis_cli::{
         MhiValidationProtocolV1, ValidationInputs,
         approval::{PhysicalApprovalProvisioningStateV1, PhysicalApprovalTrustStoreV1},
         evaluate_mhi_validation,
-        statistics::{MetricValueV1, balanced_accuracy, wilson_95},
+        statistics::{MetricValueV1, balanced_accuracy, wilson_95, wilson_95_checked},
     },
     results::MhiValidationDatasetV1,
     runners::mhi_validation::{MhiValidationRunOptions, run_mhi_validation},
 };
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
@@ -25,6 +26,117 @@ fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/phase_e")
         .join(name)
+}
+
+fn fixture_regular_files(root: &Path, directory: &Path, files: &mut Vec<String>) {
+    for entry in fs::read_dir(directory).expect("fixture directory") {
+        let entry = entry.expect("fixture entry");
+        let path = entry.path();
+        let kind = entry.file_type().expect("fixture file type");
+        assert!(
+            !kind.is_symlink(),
+            "fixture inventory rejects symlink {path:?}"
+        );
+        if kind.is_dir() {
+            fixture_regular_files(root, &path, files);
+        } else {
+            assert!(
+                kind.is_file(),
+                "fixture inventory rejects non-file {path:?}"
+            );
+            files.push(
+                path.strip_prefix(root)
+                    .expect("fixture path beneath root")
+                    .to_str()
+                    .expect("UTF-8 fixture path")
+                    .replace('\\', "/"),
+            );
+        }
+    }
+}
+
+fn expected_fixture_paths() -> BTreeSet<String> {
+    let bytes = fs::read(fixture("expected/phase_e_fixture_inventory.schema1.json"))
+        .expect("closed fixture inventory");
+    let inventory: serde_json::Value = serde_json::from_slice(&bytes).expect("inventory JSON");
+    let rows = inventory.as_array().expect("inventory array");
+    let mut paths = BTreeSet::new();
+    for row in rows {
+        let relative_path = row["relative_path"].as_str().expect("relative path");
+        assert!(
+            !relative_path.contains('*')
+                && !relative_path.contains("..")
+                && !relative_path.is_empty(),
+            "literal fixture path"
+        );
+        let mappings = row["mappings"].as_array().expect("fixture mappings");
+        assert!(!mappings.is_empty(), "fixture must map to an R2 test");
+        let mut previous = None;
+        for mapping in mappings {
+            for name in [
+                "requirement_id",
+                "acceptance_criterion_id",
+                "test_id",
+                "expected_result_id",
+            ] {
+                assert!(mapping[name].as_str().is_some(), "mapping {name}");
+            }
+            assert!(
+                mapping["mutation_case_ids"]
+                    .as_array()
+                    .is_some_and(|ids| !ids.is_empty()),
+                "mutation mapping"
+            );
+            let key = format!(
+                "{}\0{}\0{}\0{}\0{}",
+                mapping["requirement_id"].as_str().expect("requirement ID"),
+                mapping["acceptance_criterion_id"]
+                    .as_str()
+                    .expect("acceptance criterion ID"),
+                mapping["test_id"].as_str().expect("test ID"),
+                mapping["mutation_case_ids"],
+                mapping["expected_result_id"]
+                    .as_str()
+                    .expect("expected result ID")
+            );
+            assert!(
+                previous.as_ref().is_none_or(|old| old < &key),
+                "canonical mapping order"
+            );
+            previous = Some(key);
+        }
+        assert!(
+            paths.insert(relative_path.to_owned()),
+            "duplicate fixture row"
+        );
+    }
+    paths
+}
+
+fn assert_exact_golden_bundle(output: &Path, manifest_fixture: &str) {
+    let golden = fixture("expected/golden_bundle");
+    for relative in [
+        "mhi_validation_report.schema1.json",
+        "validation_summary.md",
+        "tables/cohort_coverage.csv",
+        "tables/leakage_assessment.csv",
+        "tables/mechanism_validation.csv",
+        "tables/health_validation.csv",
+        "tables/exclusion_ledger.csv",
+        "tables/compatibility_matrix.csv",
+    ] {
+        assert_eq!(
+            fs::read(output.join(relative)).expect("published managed file"),
+            fs::read(golden.join(relative)).expect("literal golden file"),
+            "golden bytes {relative}"
+        );
+    }
+    assert_eq!(
+        fs::read(output.join("validation_execution_manifest.schema1.json"))
+            .expect("published manifest"),
+        fs::read(fixture(manifest_fixture)).expect("literal manifest"),
+        "exact manifest bytes"
+    );
 }
 
 #[test]
@@ -143,6 +255,25 @@ fn phase_e_cli_runs_exact_certified_route() {
     assert!(
         matches!(parse_cli_args(&args).expect("CLI parses").command, Some(CommandSpec::ValidationRun { protocol, dataset, output_dir, overwrite: false }) if protocol == Path::new("protocol.toml") && dataset == Path::new("dataset.json") && output_dir == Path::new("output"))
     );
+
+    let (inputs, protocol, dataset) = staged_validation_inputs(
+        "protocol/software_valid.toml",
+        "dataset/software_valid.schema1.json",
+    );
+    let output = temp("exact_certified_route");
+    run_mhi_validation(MhiValidationRunOptions {
+        protocol,
+        dataset,
+        output_dir: output.clone(),
+        overwrite: false,
+    })
+    .expect("exact certified route");
+    assert_exact_golden_bundle(
+        &output,
+        "expected/golden_bundle/validation_execution_manifest.schema1.json",
+    );
+    fs::remove_dir_all(output).expect("output cleanup");
+    fs::remove_dir_all(inputs).expect("input cleanup");
 }
 
 #[test]
@@ -268,16 +399,23 @@ fn phase_e_wilson_95_decimal_bits_and_serialized_vectors_are_exact() {
             .expect("denominator")
             .parse::<u64>()
             .expect("u64 denominator");
-        let value = wilson_95(numerator, denominator);
+        let value = wilson_95_checked(numerator, denominator);
         match vector["kind"].as_str().expect("kind") {
-            "unavailable" => assert!(matches!(value, MetricValueV1::Unavailable { .. })),
+            "unavailable" => assert!(matches!(
+                value.expect("valid unavailable vector"),
+                MetricValueV1::Unavailable { .. }
+            )),
+            "hard_error" => assert_eq!(
+                value.expect_err("invalid vector must hard-fail"),
+                vector["reason"].as_str().expect("hard error reason")
+            ),
             "available" => {
                 let MetricValueV1::Available {
                     point_estimate,
                     lower_confidence_bound,
                     upper_confidence_bound,
                     ..
-                } = value
+                } = value.expect("available vector")
                 else {
                     panic!("available Wilson vector")
                 };
@@ -403,17 +541,32 @@ fn phase_e_publication_is_atomic_and_checksum_verified() {
         overwrite: false,
     };
     run_mhi_validation(options.clone()).expect("first publication");
+    assert_exact_golden_bundle(
+        &output,
+        "expected/golden_bundle/validation_execution_manifest.schema1.json",
+    );
     assert!(run_mhi_validation(options.clone()).is_err());
     run_mhi_validation(MhiValidationRunOptions {
         overwrite: true,
         ..options
     })
     .expect("managed replacement");
-    let manifest: serde_json::Value = serde_json::from_slice(
-        &fs::read(output.join("validation_execution_manifest.schema1.json")).expect("manifest"),
-    )
-    .expect("JSON");
-    assert_eq!(manifest["publication_mode"], "replace_managed_bundle");
+    assert_exact_golden_bundle(
+        &output,
+        "expected/golden_replace_execution_manifest.schema1.json",
+    );
+    let parent = output.parent().expect("output parent");
+    let output_name = output.file_name().expect("output name").to_string_lossy();
+    assert!(
+        !parent
+            .join(format!(".{output_name}.phase-e-stage"))
+            .exists()
+    );
+    assert!(
+        !parent
+            .join(format!(".{output_name}.phase-e-backup"))
+            .exists()
+    );
     fs::remove_dir_all(output).expect("cleanup");
     fs::remove_dir_all(inputs).expect("cleanup staged inputs");
 }
@@ -612,6 +765,103 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
     let cargo = fs::read_to_string(root.join("Cargo.toml")).expect("Cargo manifest");
     assert!(cargo.contains("ed25519-dalek = { version = \"=2.2.0\", default-features = false }"));
     assert!(!cargo.contains("ed25519-dalek = { version = \"=2.2.0\", features"));
+    for package in [
+        "name = \"curve25519-dalek\"\nversion = \"4.1.3\"",
+        "name = \"curve25519-dalek-derive\"\nversion = \"0.1.1\"",
+        "name = \"ed25519\"\nversion = \"2.2.3\"",
+        "name = \"ed25519-dalek\"\nversion = \"2.2.0\"",
+        "name = \"fiat-crypto\"\nversion = \"0.2.9\"",
+        "name = \"signature\"\nversion = \"2.2.0\"",
+    ] {
+        assert!(
+            fs::read_to_string(root.join("Cargo.lock"))
+                .expect("Cargo lock")
+                .contains(package),
+            "required locked dependency {package}"
+        );
+    }
+
+    let fixture_root = fixture("");
+    let mut actual_fixture_paths = Vec::new();
+    fixture_regular_files(&fixture_root, &fixture_root, &mut actual_fixture_paths);
+    actual_fixture_paths.sort();
+    let actual_fixture_paths = actual_fixture_paths.into_iter().collect::<BTreeSet<_>>();
+    let expected_paths = expected_fixture_paths();
+    assert_eq!(
+        actual_fixture_paths, expected_paths,
+        "literal inventory must exactly cover every regular Phase-E fixture"
+    );
+    assert_eq!(expected_paths.len(), 67, "closed R2 fixture count");
+    let inventory: serde_json::Value = serde_json::from_slice(
+        &fs::read(fixture("expected/phase_e_fixture_inventory.schema1.json"))
+            .expect("closed fixture inventory"),
+    )
+    .expect("inventory JSON");
+    let mappings = inventory
+        .as_array()
+        .expect("inventory array")
+        .iter()
+        .flat_map(|row| row["mappings"].as_array().expect("mappings").iter());
+    let mut requirements = BTreeSet::new();
+    let mut acceptance_criteria = BTreeSet::new();
+    let mut tests = BTreeSet::new();
+    for mapping in mappings {
+        requirements.insert(
+            mapping["requirement_id"]
+                .as_str()
+                .expect("requirement")
+                .to_owned(),
+        );
+        acceptance_criteria.insert(
+            mapping["acceptance_criterion_id"]
+                .as_str()
+                .expect("acceptance criterion")
+                .to_owned(),
+        );
+        tests.insert(mapping["test_id"].as_str().expect("test ID").to_owned());
+    }
+    assert_eq!(
+        requirements,
+        (1..=18)
+            .map(|id| format!("E-R{id:02}"))
+            .collect::<BTreeSet<_>>()
+    );
+    assert_eq!(
+        acceptance_criteria,
+        (1..=18)
+            .map(|id| format!("E-AC{id:02}"))
+            .collect::<BTreeSet<_>>()
+    );
+    assert_eq!(
+        tests,
+        (1..=30)
+            .map(|id| format!("E-T{id:02}"))
+            .collect::<BTreeSet<_>>()
+    );
+
+    let author_evidence =
+        fs::read_to_string(fixture("expected/author_validation_evidence_ledger.md"))
+            .expect("author-side evidence");
+    for required in [
+        "ism-mechanism-health-v1-e-plan-approved",
+        "ism-mechanism-health-v1-e-plan-approved-r2",
+        "e6e5195c7f56904afb06dfe937433f3498465fef1df191b8fb6856ee1ac792b6",
+        "18 requirements",
+        "E-R18",
+        "E-AC18",
+        "E-T30",
+        "git diff --check",
+        "cargo test --locked --all",
+        "PENDING_POST_FREEZE",
+    ] {
+        assert!(
+            author_evidence.contains(required),
+            "author evidence {required}"
+        );
+    }
+    assert!(!author_evidence.contains("candidate commit SHA"));
+    assert!(!author_evidence.contains("REVIEW_SHA"));
+    assert!(!author_evidence.contains("IMPLEMENTATION_APPROVAL = GO"));
 
     let phase_e_sources = [
         root.join("src/mhi_validation"),
@@ -702,6 +952,17 @@ fn phase_e_source_guards_prohibit_reassessment_and_reverse_dependencies() {
     )
     .expect("source");
     assert!(!phase_d.contains("mhi_validation"));
+    let guards = fs::read_to_string(fixture("source_guards/forbidden_dependencies.txt"))
+        .expect("literal source-guard fixture");
+    for line in guards.lines() {
+        let (relative_path, forbidden) = line.split_once('\t').expect("guard mapping");
+        let source = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(relative_path))
+            .expect("guarded source");
+        assert!(
+            !source.contains(forbidden),
+            "forbidden Phase-E dependency {forbidden} in {relative_path}"
+        );
+    }
 }
 
 #[test]

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "states": [
+    {"case_id":"create_new_success","committed":true,"output":"new_generation","stage":"absent","backup":"absent"},
+    {"case_id":"replace_success","committed":true,"output":"new_generation","stage":"absent","backup":"absent"},
+    {"case_id":"precheck_old_changed","committed":false,"error":"PublicationConcurrentManagedOutputChanged","output":"competitor","stage":"absent"},
+    {"case_id":"exchange_old_changed","committed":true,"error":"PublicationCommittedForeignSwapDetected","output":"new_generation","stage":"foreign_competitor"},
+    {"case_id":"proof_new_changed","committed":true,"error":"PublicationCommittedVisibleOutputChanged","output":"competitor","stage":"old_generation"},
+    {"case_id":"cleanup_failed","committed":true,"error":"PublicationCommittedCleanupFailed","output":"new_generation","stage_or_backup":"old_generation_residue"}
+  ]
+}

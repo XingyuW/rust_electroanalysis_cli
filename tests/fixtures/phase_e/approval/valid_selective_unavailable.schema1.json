@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "approval_record_id": "sha256:75059e591a230e7d996a92180e7e52c1b4a393f2ec2de56cf6a2ca561436b40a",
+  "approval_status": "approved",
+  "approval_purpose": "pre_scoring_physical_validation_cohort_lock",
+  "trust_store_id": "mhi_physical_approval_trust_store_v1",
+  "trust_root_id": "test_only_known_answer_root",
+  "project_owner_authority_id": "test_vector_owner",
+  "registry_authority_id": "test_vector_registry",
+  "owner_authority_document": {
+    "immutable_reference_uri": "urn:mhi:test:owner-authority",
+    "document_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "registry_record": {
+    "immutable_reference_uri": "urn:mhi:test:registry-record",
+    "document_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "protocol_sha256": "74b871604ba3c85d21af243282e7fc9f8606984f8d31d3d9f37f139876544329",
+  "cohort_semantic_sha256": "05391640c01e3c70a953b5d53527c651172a9a7e3ba40827005d2db957b4da16",
+  "claim_ids": ["physical_claim"],
+  "endpoint_ids": ["health_endpoint", "mechanism_endpoint"],
+  "reference_authority_ids": ["reference_authority"],
+  "target_domain": {
+    "analyte": { "type": "any_declared" },
+    "matrix": { "type": "any_declared" },
+    "sensor_design": { "type": "any_declared" },
+    "sensor": { "type": "any_declared" },
+    "campaign": { "type": "any_declared" },
+    "temperature": { "type": "any_declared" }
+  },
+  "physical_origin_confirmed": true,
+  "limitations": [],
+  "owner_signature_ed25519_hex": "9346aed3df483f0b7dbfbf2764ec362045751335783574f2f7678514179d9a20f7a7222c4c9223b5acda8ca38994433948529158836a8e7bb1fa8bf9469a7f08",
+  "registry_signature_ed25519_hex": "7a167770043be43e1bcd34c3e56d7bc8dbce30cd4529b00cb5392248f9da347c69080c00ac9bd9fe154e17e73743a7f73e4319decb84d4b6ac94429ea1dd0d0e"
+}

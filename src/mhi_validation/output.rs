@@ -179,6 +179,7 @@ pub fn publish_bundle(
     };
 
     if output_exists {
+        publication_test_hook(PublicationTestPoint::BeforeManagedPrecheck, &stage, &output);
         let unchanged = managed_generation(&output)
             .ok()
             .is_some_and(|generation| old_generation.as_ref() == Some(&generation));
@@ -186,6 +187,7 @@ pub fn publish_bundle(
             cleanup_stage(&stage);
             return Err(MhiValidationError::PublicationConcurrentManagedOutputChanged(output));
         }
+        publication_test_hook(PublicationTestPoint::BeforeExchange, &stage, &output);
         if let Err(error) = atomic_exchange(&stage, &output) {
             cleanup_stage(&stage);
             return Err(error);
@@ -196,6 +198,7 @@ pub fn publish_bundle(
             return Err(error);
         }
     }
+    publication_test_hook(PublicationTestPoint::AfterExchange, &stage, &output);
     if sync_directory(&parent).is_err() {
         return Err(MhiValidationError::PublicationDurabilityUnconfirmed {
             output,
@@ -219,6 +222,11 @@ pub fn publish_bundle(
         // aside with a no-replace operation before deletion so any interrupted
         // cleanup leaves explicit operator-visible residue rather than an
         // ambiguous output namespace.
+        publication_test_hook(
+            PublicationTestPoint::BeforeOldGenerationCleanup,
+            &stage,
+            &output,
+        );
         if atomic_noreplace(&stage, &backup).is_err()
             || sync_directory(&parent).is_err()
             || remove_tree_reverse(&backup).is_err()
@@ -231,6 +239,110 @@ pub fn publish_bundle(
     }
     Ok(())
 }
+
+/// Test-only probes model a noncooperating writer at exactly the committed
+/// generation boundaries.  Production builds compile these calls to no-ops;
+/// the filesystem state machine itself remains the authority under test.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PublicationTestPoint {
+    BeforeManagedPrecheck,
+    BeforeExchange,
+    AfterExchange,
+    BeforeOldGenerationCleanup,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PublicationTestHook {
+    ReplaceOutputBeforePrecheck,
+    ReplaceOutputBeforeExchange,
+    MutateOutputBeforeExchange,
+    ReplaceVisibleOutputAfterExchange,
+    MutateVisibleOutputAfterExchange,
+    PrecreateBackupBeforeCleanup,
+}
+
+#[cfg(test)]
+static PUBLICATION_TEST_HOOK: std::sync::Mutex<Option<PublicationTestHook>> =
+    std::sync::Mutex::new(None);
+
+#[cfg(test)]
+fn set_publication_test_hook(hook: Option<PublicationTestHook>) {
+    *PUBLICATION_TEST_HOOK
+        .lock()
+        .expect("publication test hook lock") = hook;
+}
+
+#[cfg(test)]
+fn publication_test_hook(point: PublicationTestPoint, _stage: &Path, output: &Path) {
+    let hook = *PUBLICATION_TEST_HOOK
+        .lock()
+        .expect("publication test hook lock");
+    let Some(hook) = hook else {
+        return;
+    };
+    let matches_point = matches!(
+        (hook, point),
+        (
+            PublicationTestHook::ReplaceOutputBeforePrecheck,
+            PublicationTestPoint::BeforeManagedPrecheck
+        ) | (
+            PublicationTestHook::ReplaceOutputBeforeExchange,
+            PublicationTestPoint::BeforeExchange
+        ) | (
+            PublicationTestHook::MutateOutputBeforeExchange,
+            PublicationTestPoint::BeforeExchange
+        ) | (
+            PublicationTestHook::ReplaceVisibleOutputAfterExchange,
+            PublicationTestPoint::AfterExchange
+        ) | (
+            PublicationTestHook::MutateVisibleOutputAfterExchange,
+            PublicationTestPoint::AfterExchange
+        ) | (
+            PublicationTestHook::PrecreateBackupBeforeCleanup,
+            PublicationTestPoint::BeforeOldGenerationCleanup
+        )
+    );
+    if !matches_point {
+        return;
+    }
+    *PUBLICATION_TEST_HOOK
+        .lock()
+        .expect("publication test hook lock") = None;
+    match hook {
+        PublicationTestHook::ReplaceOutputBeforePrecheck
+        | PublicationTestHook::ReplaceOutputBeforeExchange
+        | PublicationTestHook::ReplaceVisibleOutputAfterExchange => {
+            let competitor = output.with_file_name(format!(
+                ".{}.phase-e-foreign-competitor",
+                output
+                    .file_name()
+                    .expect("output file name")
+                    .to_string_lossy()
+            ));
+            fs::rename(output, &competitor).expect("move generation to competitor");
+            fs::create_dir(output).expect("create foreign output");
+            fs::write(output.join("sentinel.txt"), b"foreign competitor")
+                .expect("write foreign output");
+        }
+        PublicationTestHook::MutateOutputBeforeExchange
+        | PublicationTestHook::MutateVisibleOutputAfterExchange => {
+            fs::write(output.join(REPORT_FILE), b"mutated generation")
+                .expect("mutate held output generation");
+        }
+        PublicationTestHook::PrecreateBackupBeforeCleanup => {
+            let name = output
+                .file_name()
+                .expect("output file name")
+                .to_string_lossy();
+            fs::create_dir(output.with_file_name(format!(".{name}.phase-e-backup")))
+                .expect("precreate backup residue");
+        }
+    }
+}
+
+#[cfg(not(test))]
+fn publication_test_hook(_point: PublicationTestPoint, _stage: &Path, _output: &Path) {}
 
 fn write_stage(
     stage: &Path,
@@ -643,9 +755,13 @@ fn normalize_json_file(path: &Path) -> Result<(), MhiValidationError> {
 }
 
 fn write_json_value(path: &Path, value: Value) -> Result<(), MhiValidationError> {
-    let bytes = serde_json::to_string_pretty(&sorted_json(value))
+    let mut bytes = serde_json::to_string_pretty(&sorted_json(value))
         .map_err(MhiValidationError::Json)?
         .into_bytes();
+    // Generated JSON artifacts are line-oriented UTF-8 documents.  A fixed
+    // trailing LF makes their byte boundary explicit while retaining the same
+    // sorted JSON value on every supported platform.
+    bytes.push(b'\n');
     write_bytes(path, &bytes)
 }
 
@@ -1260,7 +1376,11 @@ fn sibling_private_path(output: &Path, suffix: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mhi_validation::{
+        MhiValidationProtocolV1, ValidationInputs, evaluate_mhi_validation,
+    };
     use std::{
+        path::Path,
         sync::atomic::{AtomicU64, Ordering},
         time::{SystemTime, UNIX_EPOCH},
     };
@@ -1279,6 +1399,75 @@ mod tests {
         ));
         fs::create_dir(&root).expect("publication parent");
         root
+    }
+
+    fn software_fixture_report() -> crate::results::MhiValidationReportV1 {
+        let root = temporary_parent("report_input");
+        let dataset = root.join("dataset/input.schema1.json");
+        let lineage = root.join("dataset/lineage/complete.schema1.json");
+        fs::create_dir_all(lineage.parent().expect("lineage parent")).expect("input layout");
+        let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase_e");
+        fs::copy(
+            fixture_root.join("dataset/software_valid.schema1.json"),
+            &dataset,
+        )
+        .expect("dataset fixture");
+        fs::copy(fixture_root.join("lineage/complete.schema1.json"), &lineage)
+            .expect("lineage fixture");
+        let protocol_bytes =
+            fs::read(fixture_root.join("protocol/software_valid.toml")).expect("protocol fixture");
+        let protocol = MhiValidationProtocolV1::from_toml(
+            std::str::from_utf8(&protocol_bytes).expect("UTF-8"),
+        )
+        .expect("protocol");
+        let protocol_sha256 = MhiValidationProtocolV1::sha256_of_bytes(&protocol_bytes);
+        let inputs =
+            ValidationInputs::read(&protocol, &protocol_sha256, &dataset).expect("fixture inputs");
+        let report = evaluate_mhi_validation(&protocol, &inputs).expect("fixture report");
+        fs::remove_dir_all(root).expect("input cleanup");
+        report
+    }
+
+    fn assert_managed_generation(path: &Path) {
+        assert!(path.is_dir(), "managed generation remains a directory");
+        assert!(
+            path.join(REPORT_FILE).is_file(),
+            "managed report remains present"
+        );
+        assert!(
+            path.join(MANIFEST_FILE).is_file(),
+            "managed manifest remains present"
+        );
+        assert!(
+            path.join(SUMMARY_FILE).is_file(),
+            "managed summary remains present"
+        );
+        assert!(
+            path.join("tables").is_dir(),
+            "managed tables remain present"
+        );
+    }
+
+    fn error_targets_output(path: &Path, output: &Path) -> bool {
+        path.file_name() == output.file_name()
+            && path.parent().is_some_and(|parent| {
+                parent
+                    == fs::canonicalize(output.parent().expect("output parent"))
+                        .expect("canonical output parent")
+            })
+    }
+
+    fn publication_race_case(hook: PublicationTestHook) -> (PathBuf, PathBuf, MhiValidationError) {
+        let parent = temporary_parent("generation_race");
+        let output = parent.join("bundle");
+        let report = software_fixture_report();
+        publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect("initial managed generation");
+        set_publication_test_hook(Some(hook));
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", true)
+            .expect_err("injected publication race");
+        set_publication_test_hook(None);
+        (parent, output, error)
     }
 
     #[test]
@@ -1323,5 +1512,155 @@ mod tests {
             b"old"
         );
         fs::remove_dir_all(parent).expect("cleanup");
+
+        let report = software_fixture_report();
+        for residue in [".bundle.phase-e-stage", ".bundle.phase-e-backup"] {
+            let parent = temporary_parent("residue");
+            let output = parent.join("bundle");
+            fs::create_dir(parent.join(residue)).expect("pre-existing residue");
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect_err("residue blocks publication");
+            assert!(matches!(
+                error,
+                MhiValidationError::PublicationRecoveryResidue(ref path)
+                    if error_targets_output(path, &output)
+            ));
+            assert!(parent.join(residue).is_dir(), "residue remains intact");
+            assert!(!output.exists(), "uncommitted output remains absent");
+            fs::remove_dir_all(parent).expect("residue cleanup");
+        }
+
+        #[cfg(unix)]
+        for link in [".bundle.phase-e-stage", ".bundle.phase-e-backup", "bundle"] {
+            use std::os::unix::fs::symlink;
+
+            let parent = temporary_parent("symlink");
+            let output = parent.join("bundle");
+            let link_path = parent.join(link);
+            symlink("foreign-target", &link_path).expect("malicious symlink");
+            let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+                .expect_err("symlink blocks publication");
+            if link == "bundle" {
+                assert!(matches!(error, MhiValidationError::UnsafePath(_)));
+            } else {
+                assert!(matches!(
+                    error,
+                    MhiValidationError::PublicationRecoveryResidue(ref path)
+                        if error_targets_output(path, &output)
+                ));
+            }
+            assert!(
+                fs::symlink_metadata(&link_path)
+                    .expect("symlink remains")
+                    .file_type()
+                    .is_symlink(),
+                "publication never follows or removes a symlink"
+            );
+            fs::remove_dir_all(parent).expect("symlink cleanup");
+        }
+
+        let parent = temporary_parent("unmanaged");
+        let output = parent.join("bundle");
+        fs::create_dir(&output).expect("unmanaged output");
+        fs::write(output.join("sentinel.txt"), b"do not clobber").expect("sentinel");
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", true)
+            .expect_err("unmanaged output is not replaceable");
+        assert!(matches!(error, MhiValidationError::OutputNotManaged(_)));
+        assert_eq!(
+            fs::read(output.join("sentinel.txt")).expect("unmanaged sentinel"),
+            b"do not clobber"
+        );
+        assert!(!parent.join(".bundle.phase-e-stage").exists());
+        fs::remove_dir_all(parent).expect("unmanaged cleanup");
+
+        let (parent, output, error) =
+            publication_race_case(PublicationTestHook::ReplaceOutputBeforePrecheck);
+        assert!(
+            matches!(
+                error,
+                MhiValidationError::PublicationConcurrentManagedOutputChanged(ref path)
+                    if error_targets_output(path, &output)
+            ),
+            "unexpected precheck error: {error:?}"
+        );
+        assert_eq!(
+            fs::read(output.join("sentinel.txt")).expect("foreign output preserved"),
+            b"foreign competitor"
+        );
+        assert!(!parent.join(".bundle.phase-e-stage").exists());
+        assert_managed_generation(&parent.join(".bundle.phase-e-foreign-competitor"));
+        fs::remove_dir_all(parent).expect("precheck cleanup");
+
+        let (parent, output, error) =
+            publication_race_case(PublicationTestHook::ReplaceOutputBeforeExchange);
+        assert!(matches!(
+            error,
+            MhiValidationError::PublicationCommittedForeignSwapDetected(ref path)
+                if error_targets_output(path, &output)
+        ));
+        assert_managed_generation(&output);
+        assert_eq!(
+            fs::read(parent.join(".bundle.phase-e-stage/sentinel.txt"))
+                .expect("foreign generation retained at stage"),
+            b"foreign competitor"
+        );
+        assert_managed_generation(&parent.join(".bundle.phase-e-foreign-competitor"));
+        fs::remove_dir_all(parent).expect("pre-exchange cleanup");
+
+        let (parent, output, error) =
+            publication_race_case(PublicationTestHook::MutateOutputBeforeExchange);
+        assert!(matches!(
+            error,
+            MhiValidationError::PublicationCommittedForeignSwapDetected(ref path)
+                if error_targets_output(path, &output)
+        ));
+        assert_managed_generation(&output);
+        assert_eq!(
+            fs::read(parent.join(".bundle.phase-e-stage").join(REPORT_FILE))
+                .expect("mutated old generation retained"),
+            b"mutated generation"
+        );
+        fs::remove_dir_all(parent).expect("same-inode old cleanup");
+
+        let (parent, output, error) =
+            publication_race_case(PublicationTestHook::ReplaceVisibleOutputAfterExchange);
+        assert!(matches!(
+            error,
+            MhiValidationError::PublicationCommittedVisibleOutputChanged(ref path)
+                if error_targets_output(path, &output)
+        ));
+        assert_eq!(
+            fs::read(output.join("sentinel.txt")).expect("visible competitor preserved"),
+            b"foreign competitor"
+        );
+        assert_managed_generation(&parent.join(".bundle.phase-e-stage"));
+        assert_managed_generation(&parent.join(".bundle.phase-e-foreign-competitor"));
+        fs::remove_dir_all(parent).expect("post-exchange replacement cleanup");
+
+        let (parent, output, error) =
+            publication_race_case(PublicationTestHook::MutateVisibleOutputAfterExchange);
+        assert!(matches!(
+            error,
+            MhiValidationError::PublicationCommittedVisibleOutputChanged(ref path)
+                if error_targets_output(path, &output)
+        ));
+        assert_eq!(
+            fs::read(output.join(REPORT_FILE)).expect("mutated visible generation"),
+            b"mutated generation"
+        );
+        assert_managed_generation(&parent.join(".bundle.phase-e-stage"));
+        fs::remove_dir_all(parent).expect("post-exchange mutation cleanup");
+
+        let (parent, output, error) =
+            publication_race_case(PublicationTestHook::PrecreateBackupBeforeCleanup);
+        assert!(matches!(
+            error,
+            MhiValidationError::PublicationCommittedCleanupFailed(ref path)
+                if error_targets_output(path, &output)
+        ));
+        assert_managed_generation(&output);
+        assert_managed_generation(&parent.join(".bundle.phase-e-stage"));
+        assert!(parent.join(".bundle.phase-e-backup").is_dir());
+        fs::remove_dir_all(parent).expect("cleanup residue cleanup");
     }
 }

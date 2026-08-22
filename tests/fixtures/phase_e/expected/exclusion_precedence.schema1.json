@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "ordered_primary_reasons": [
+    "missing_endpoint_artifact_path",
+    "missing_reference_endpoint",
+    "known_overlap",
+    "unknown_separation",
+    "reference_authority_ineligible"
+  ],
+  "secondary_reason_order": "lexicographic_wire_token"
+}

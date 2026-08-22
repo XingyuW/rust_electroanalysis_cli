@@ -1,0 +1,2 @@
+endpoint_id,stratum_id,eligible_count,independent_family_count,support_count,critical_contradiction_count,declared_critical_falsification_count,not_assessed_or_other_count,support_fraction,support_lower,support_upper,contradiction_fraction,contradiction_lower,contradiction_upper,not_assessed_fraction,not_assessed_lower,not_assessed_upper,outcome
+mechanism_endpoint,overall,0,0,0,0,0,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,indeterminate
