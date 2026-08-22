@@ -1,1336 +1,4159 @@
 [
   {
-    "relative_path": "approval/invalid_identity_forgery.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R17",
         "acceptance_criterion_id": "E-AC17",
-        "test_id": "E-T29",
+        "expected_result_id": "weak_public_key_error",
         "mutation_case_ids": [
           "identity_forgery"
         ],
-        "expected_result_id": "weak_public_key_error"
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
       }
-    ]
+    ],
+    "relative_path": "approval/invalid_identity_forgery.schema1.json"
   },
   {
-    "relative_path": "approval/invalid_self_signed.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R17",
         "acceptance_criterion_id": "E-AC17",
-        "test_id": "E-T29",
+        "expected_result_id": "role_specific_signature_error",
         "mutation_case_ids": [
           "invalid_signature"
         ],
-        "expected_result_id": "role_specific_signature_error"
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
       }
-    ]
+    ],
+    "relative_path": "approval/invalid_self_signed.schema1.json"
   },
   {
-    "relative_path": "approval/none.txt",
     "mappings": [
       {
-        "requirement_id": "E-R17",
         "acceptance_criterion_id": "E-AC17",
-        "test_id": "E-T28",
+        "expected_result_id": "physical_outcome_impossible",
         "mutation_case_ids": [
           "missing_physical_approval"
         ],
-        "expected_result_id": "physical_outcome_impossible"
+        "requirement_id": "E-R17",
+        "test_id": "E-T28"
       }
-    ]
+    ],
+    "relative_path": "approval/none.txt"
   },
   {
-    "relative_path": "approval/valid.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R16",
         "acceptance_criterion_id": "E-AC16",
-        "test_id": "E-T26",
+        "expected_result_id": "strict_trust_and_approval_contract",
         "mutation_case_ids": [
           "schema1_approval_negative_matrix"
         ],
-        "expected_result_id": "strict_trust_and_approval_contract"
+        "requirement_id": "E-R16",
+        "test_id": "E-T26"
       },
       {
-        "requirement_id": "E-R17",
         "acceptance_criterion_id": "E-AC17",
-        "test_id": "E-T29",
+        "expected_result_id": "test_boundary_dual_signature_verified",
         "mutation_case_ids": [
           "strict_dual_signature_known_answer"
         ],
-        "expected_result_id": "test_boundary_dual_signature_verified"
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
       }
-    ]
+    ],
+    "relative_path": "approval/valid.schema1.json"
   },
   {
-    "relative_path": "approval/valid_selective_unavailable.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R17",
         "acceptance_criterion_id": "E-AC17",
-        "test_id": "E-T29",
+        "expected_result_id": "physical_reference_outcome_unavailable",
         "mutation_case_ids": [
           "selective_unavailable_binding"
         ],
-        "expected_result_id": "physical_reference_outcome_unavailable"
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
       }
-    ]
+    ],
+    "relative_path": "approval/valid_selective_unavailable.schema1.json"
   },
   {
-    "relative_path": "compatibility/existing_artifact_fixture_inventory.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R16",
         "acceptance_criterion_id": "E-AC16",
-        "test_id": "E-T27",
+        "expected_result_id": "historical_contract_preserved",
         "mutation_case_ids": [
           "historical_inventory_cell_mutation"
         ],
-        "expected_result_id": "historical_contract_preserved"
+        "requirement_id": "E-R16",
+        "test_id": "E-T27"
       }
-    ]
+    ],
+    "relative_path": "compatibility/existing_artifact_fixture_inventory.schema1.json"
   },
   {
-    "relative_path": "compatibility/existing_artifact_matrix.md",
     "mappings": [
       {
-        "requirement_id": "E-R16",
         "acceptance_criterion_id": "E-AC16",
-        "test_id": "E-T27",
+        "expected_result_id": "historical_contract_preserved",
         "mutation_case_ids": [
           "historical_matrix_comparison"
         ],
-        "expected_result_id": "historical_contract_preserved"
+        "requirement_id": "E-R16",
+        "test_id": "E-T27"
       }
-    ]
+    ],
+    "relative_path": "compatibility/existing_artifact_matrix.md"
   },
   {
-    "relative_path": "dataset/accounting.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R05",
         "acceptance_criterion_id": "E-AC05",
-        "test_id": "E-T09",
+        "expected_result_id": "one_decision_and_accounting_invariant",
         "mutation_case_ids": [
           "record_exclusion_matrix"
         ],
-        "expected_result_id": "one_decision_and_accounting_invariant"
+        "requirement_id": "E-R05",
+        "test_id": "E-T09"
       }
-    ]
+    ],
+    "relative_path": "dataset/accounting.schema1.json"
   },
   {
-    "relative_path": "dataset/health_confusion.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R09",
         "acceptance_criterion_id": "E-AC09",
-        "test_id": "E-T15",
+        "expected_result_id": "disjoint_health_id_sets",
         "mutation_case_ids": [
           "status_label_confusion_cross_product"
         ],
-        "expected_result_id": "disjoint_health_id_sets"
+        "requirement_id": "E-R09",
+        "test_id": "E-T15"
       }
-    ]
+    ],
+    "relative_path": "dataset/health_confusion.schema1.json"
   },
   {
-    "relative_path": "dataset/known_overlap.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R06",
         "acceptance_criterion_id": "E-AC06",
-        "test_id": "E-T10",
+        "expected_result_id": "holdout_does_not_meet_protocol",
         "mutation_case_ids": [
           "known_overlap_mutations"
         ],
-        "expected_result_id": "holdout_does_not_meet_protocol"
+        "requirement_id": "E-R06",
+        "test_id": "E-T10"
       }
-    ]
+    ],
+    "relative_path": "dataset/known_overlap.schema1.json"
   },
   {
-    "relative_path": "dataset/mechanism_reference_cross_product.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R08",
         "acceptance_criterion_id": "E-AC08",
-        "test_id": "E-T13",
+        "expected_result_id": "mechanism_mapping_oracle",
         "mutation_case_ids": [
           "phase_b_by_reference_cross_product"
         ],
-        "expected_result_id": "mechanism_mapping_oracle"
+        "requirement_id": "E-R08",
+        "test_id": "E-T13"
       }
-    ]
+    ],
+    "relative_path": "dataset/mechanism_reference_cross_product.schema1.json"
   },
   {
-    "relative_path": "dataset/physical_selective_unavailable.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R17",
         "acceptance_criterion_id": "E-AC17",
-        "test_id": "E-T29",
+        "expected_result_id": "physical_reference_outcome_unavailable",
         "mutation_case_ids": [
           "selective_unavailable_mechanism_outcomes"
         ],
-        "expected_result_id": "physical_reference_outcome_unavailable"
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
       }
-    ]
+    ],
+    "relative_path": "dataset/physical_selective_unavailable.schema1.json"
   },
   {
-    "relative_path": "dataset/physical_valid.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R17",
         "acceptance_criterion_id": "E-AC17",
-        "test_id": "E-T29",
+        "expected_result_id": "physical_trust_not_provisioned",
         "mutation_case_ids": [
           "physical_trust_and_power_matrix"
         ],
-        "expected_result_id": "physical_trust_not_provisioned"
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
       }
-    ]
+    ],
+    "relative_path": "dataset/physical_valid.schema1.json"
   },
   {
-    "relative_path": "dataset/reference_authority.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R07",
         "acceptance_criterion_id": "E-AC07",
-        "test_id": "E-T12",
+        "expected_result_id": "ordered_reference_authority_result",
         "mutation_case_ids": [
           "reference_authority_closure_matrix"
         ],
-        "expected_result_id": "ordered_reference_authority_result"
+        "requirement_id": "E-R07",
+        "test_id": "E-T12"
       }
-    ]
+    ],
+    "relative_path": "dataset/reference_authority.schema1.json"
   },
   {
-    "relative_path": "dataset/software_valid.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R03",
         "acceptance_criterion_id": "E-AC03",
-        "test_id": "E-T05",
+        "expected_result_id": "dataset_canonical_or_duplicate_error",
         "mutation_case_ids": [
           "canonical_order_and_duplicate_record"
         ],
-        "expected_result_id": "dataset_canonical_or_duplicate_error"
+        "requirement_id": "E-R03",
+        "test_id": "E-T05"
       },
       {
-        "requirement_id": "E-R16",
         "acceptance_criterion_id": "E-AC16",
-        "test_id": "E-T26",
+        "expected_result_id": "strict_dataset_contract",
         "mutation_case_ids": [
           "schema1_dataset_negative_matrix"
         ],
-        "expected_result_id": "strict_dataset_contract"
+        "requirement_id": "E-R16",
+        "test_id": "E-T26"
       }
-    ]
+    ],
+    "relative_path": "dataset/software_valid.schema1.json"
   },
   {
-    "relative_path": "dataset/strata.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R11",
         "acceptance_criterion_id": "E-AC11",
-        "test_id": "E-T18",
+        "expected_result_id": "closed_strata_oracle",
         "mutation_case_ids": [
           "stratum_membership_and_minima"
         ],
-        "expected_result_id": "closed_strata_oracle"
+        "requirement_id": "E-R11",
+        "test_id": "E-T18"
       }
-    ]
+    ],
+    "relative_path": "dataset/strata.schema1.json"
   },
   {
-    "relative_path": "dataset/synthetic_perfect.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R17",
         "acceptance_criterion_id": "E-AC17",
-        "test_id": "E-T28",
+        "expected_result_id": "software_validated_only",
         "mutation_case_ids": [
           "synthetic_relabel_attempt"
         ],
-        "expected_result_id": "software_validated_only"
+        "requirement_id": "E-R17",
+        "test_id": "E-T28"
       }
-    ]
+    ],
+    "relative_path": "dataset/synthetic_perfect.schema1.json"
   },
   {
-    "relative_path": "dataset/unknown_separation.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R06",
         "acceptance_criterion_id": "E-AC06",
-        "test_id": "E-T11",
+        "expected_result_id": "unknown_separation_indeterminate",
         "mutation_case_ids": [
           "unknown_and_cycle_mutations"
         ],
-        "expected_result_id": "unknown_separation_indeterminate"
+        "requirement_id": "E-R06",
+        "test_id": "E-T11"
       }
-    ]
+    ],
+    "relative_path": "dataset/unknown_separation.schema1.json"
   },
   {
-    "relative_path": "expected/acceptance_truth_table.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R12",
         "acceptance_criterion_id": "E-AC12",
-        "test_id": "E-T19",
+        "expected_result_id": "ordered_decision_oracle",
         "mutation_case_ids": [
           "acceptance_truth_table"
         ],
-        "expected_result_id": "ordered_decision_oracle"
+        "requirement_id": "E-R12",
+        "test_id": "E-T19"
       }
-    ]
+    ],
+    "relative_path": "expected/acceptance_truth_table.schema1.json"
   },
   {
-    "relative_path": "expected/accounting_ledger.md",
     "mappings": [
       {
-        "requirement_id": "E-R05",
         "acceptance_criterion_id": "E-AC05",
-        "test_id": "E-T09",
+        "expected_result_id": "literal_accounting_oracle",
         "mutation_case_ids": [
           "ledger_comparison"
         ],
-        "expected_result_id": "literal_accounting_oracle"
+        "requirement_id": "E-R05",
+        "test_id": "E-T09"
       }
-    ]
+    ],
+    "relative_path": "expected/accounting_ledger.md"
   },
   {
-    "relative_path": "expected/author_validation_evidence_ledger.md",
     "mappings": [
       {
-        "requirement_id": "E-R18",
         "acceptance_criterion_id": "E-AC18",
-        "test_id": "E-T30",
+        "expected_result_id": "fixture_and_evidence_gate",
         "mutation_case_ids": [
           "inventory_and_author_evidence_omission"
         ],
-        "expected_result_id": "fixture_and_evidence_gate"
+        "requirement_id": "E-R18",
+        "test_id": "E-T30"
       }
-    ]
+    ],
+    "relative_path": "expected/author_validation_evidence_ledger.md"
   },
   {
-    "relative_path": "expected/cross_platform_numeric_bytes.txt",
     "mappings": [
       {
-        "requirement_id": "E-R10",
         "acceptance_criterion_id": "E-AC10",
-        "test_id": "E-T17",
+        "expected_result_id": "exact_wilson_bits",
         "mutation_case_ids": [
           "cross_platform_bit_comparison"
         ],
-        "expected_result_id": "exact_wilson_bits"
+        "requirement_id": "E-R10",
+        "test_id": "E-T17"
       }
-    ]
+    ],
+    "relative_path": "expected/cross_platform_numeric_bytes.txt"
   },
   {
-    "relative_path": "expected/escaping_vectors.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "escaping_and_negative_zero_cells"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       }
-    ]
+    ],
+    "relative_path": "expected/escaping_vectors.schema1.json"
   },
   {
-    "relative_path": "expected/exclusion_precedence.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R12",
         "acceptance_criterion_id": "E-AC12",
-        "test_id": "E-T19",
+        "expected_result_id": "ordered_decision_oracle",
         "mutation_case_ids": [
           "single_pair_and_order_mutations"
         ],
-        "expected_result_id": "ordered_decision_oracle"
+        "requirement_id": "E-R12",
+        "test_id": "E-T19"
       }
-    ]
+    ],
+    "relative_path": "expected/exclusion_precedence.schema1.json"
   },
   {
-    "relative_path": "expected/fixed_metric_ledger.md",
     "mappings": [
       {
-        "requirement_id": "E-R08",
         "acceptance_criterion_id": "E-AC08",
-        "test_id": "E-T14",
+        "expected_result_id": "exact_rates_intervals_and_ids",
         "mutation_case_ids": [
           "rate_and_interval_edges"
         ],
-        "expected_result_id": "exact_rates_intervals_and_ids"
+        "requirement_id": "E-R08",
+        "test_id": "E-T14"
       }
-    ]
+    ],
+    "relative_path": "expected/fixed_metric_ledger.md"
   },
   {
-    "relative_path": "expected/golden_bundle/mhi_validation_report.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T01",
+        "expected_result_id": "golden_file_length_and_sha256",
         "mutation_case_ids": [
           "exact_certified_route"
         ],
-        "expected_result_id": "golden_file_length_and_sha256"
+        "requirement_id": "E-R01",
+        "test_id": "E-T01"
       },
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "authority_and_escaping_mutations"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T22",
+        "expected_result_id": "exact_nine_file_bundle",
         "mutation_case_ids": [
           "bundle_and_manifest_mutations"
         ],
-        "expected_result_id": "exact_nine_file_bundle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T22"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "publication_state_oracle",
         "mutation_case_ids": [
           "publication_failure_matrix"
         ],
-        "expected_result_id": "publication_state_oracle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "expected/golden_bundle/mhi_validation_report.schema1.json"
   },
   {
-    "relative_path": "expected/golden_bundle/tables/cohort_coverage.csv",
     "mappings": [
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T01",
+        "expected_result_id": "golden_file_length_and_sha256",
         "mutation_case_ids": [
           "exact_certified_route"
         ],
-        "expected_result_id": "golden_file_length_and_sha256"
+        "requirement_id": "E-R01",
+        "test_id": "E-T01"
       },
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "authority_and_escaping_mutations"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T22",
+        "expected_result_id": "exact_nine_file_bundle",
         "mutation_case_ids": [
           "bundle_and_manifest_mutations"
         ],
-        "expected_result_id": "exact_nine_file_bundle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T22"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "publication_state_oracle",
         "mutation_case_ids": [
           "publication_failure_matrix"
         ],
-        "expected_result_id": "publication_state_oracle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "expected/golden_bundle/tables/cohort_coverage.csv"
   },
   {
-    "relative_path": "expected/golden_bundle/tables/compatibility_matrix.csv",
     "mappings": [
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T01",
+        "expected_result_id": "golden_file_length_and_sha256",
         "mutation_case_ids": [
           "exact_certified_route"
         ],
-        "expected_result_id": "golden_file_length_and_sha256"
+        "requirement_id": "E-R01",
+        "test_id": "E-T01"
       },
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "authority_and_escaping_mutations"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T22",
+        "expected_result_id": "exact_nine_file_bundle",
         "mutation_case_ids": [
           "bundle_and_manifest_mutations"
         ],
-        "expected_result_id": "exact_nine_file_bundle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T22"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "publication_state_oracle",
         "mutation_case_ids": [
           "publication_failure_matrix"
         ],
-        "expected_result_id": "publication_state_oracle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "expected/golden_bundle/tables/compatibility_matrix.csv"
   },
   {
-    "relative_path": "expected/golden_bundle/tables/exclusion_ledger.csv",
     "mappings": [
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T01",
+        "expected_result_id": "golden_file_length_and_sha256",
         "mutation_case_ids": [
           "exact_certified_route"
         ],
-        "expected_result_id": "golden_file_length_and_sha256"
+        "requirement_id": "E-R01",
+        "test_id": "E-T01"
       },
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "authority_and_escaping_mutations"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T22",
+        "expected_result_id": "exact_nine_file_bundle",
         "mutation_case_ids": [
           "bundle_and_manifest_mutations"
         ],
-        "expected_result_id": "exact_nine_file_bundle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T22"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "publication_state_oracle",
         "mutation_case_ids": [
           "publication_failure_matrix"
         ],
-        "expected_result_id": "publication_state_oracle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "expected/golden_bundle/tables/exclusion_ledger.csv"
   },
   {
-    "relative_path": "expected/golden_bundle/tables/health_validation.csv",
     "mappings": [
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T01",
+        "expected_result_id": "golden_file_length_and_sha256",
         "mutation_case_ids": [
           "exact_certified_route"
         ],
-        "expected_result_id": "golden_file_length_and_sha256"
+        "requirement_id": "E-R01",
+        "test_id": "E-T01"
       },
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "authority_and_escaping_mutations"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T22",
+        "expected_result_id": "exact_nine_file_bundle",
         "mutation_case_ids": [
           "bundle_and_manifest_mutations"
         ],
-        "expected_result_id": "exact_nine_file_bundle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T22"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "publication_state_oracle",
         "mutation_case_ids": [
           "publication_failure_matrix"
         ],
-        "expected_result_id": "publication_state_oracle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "expected/golden_bundle/tables/health_validation.csv"
   },
   {
-    "relative_path": "expected/golden_bundle/tables/leakage_assessment.csv",
     "mappings": [
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T01",
+        "expected_result_id": "golden_file_length_and_sha256",
         "mutation_case_ids": [
           "exact_certified_route"
         ],
-        "expected_result_id": "golden_file_length_and_sha256"
+        "requirement_id": "E-R01",
+        "test_id": "E-T01"
       },
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "authority_and_escaping_mutations"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T22",
+        "expected_result_id": "exact_nine_file_bundle",
         "mutation_case_ids": [
           "bundle_and_manifest_mutations"
         ],
-        "expected_result_id": "exact_nine_file_bundle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T22"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "publication_state_oracle",
         "mutation_case_ids": [
           "publication_failure_matrix"
         ],
-        "expected_result_id": "publication_state_oracle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "expected/golden_bundle/tables/leakage_assessment.csv"
   },
   {
-    "relative_path": "expected/golden_bundle/tables/mechanism_validation.csv",
     "mappings": [
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T01",
+        "expected_result_id": "golden_file_length_and_sha256",
         "mutation_case_ids": [
           "exact_certified_route"
         ],
-        "expected_result_id": "golden_file_length_and_sha256"
+        "requirement_id": "E-R01",
+        "test_id": "E-T01"
       },
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "authority_and_escaping_mutations"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T22",
+        "expected_result_id": "exact_nine_file_bundle",
         "mutation_case_ids": [
           "bundle_and_manifest_mutations"
         ],
-        "expected_result_id": "exact_nine_file_bundle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T22"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "publication_state_oracle",
         "mutation_case_ids": [
           "publication_failure_matrix"
         ],
-        "expected_result_id": "publication_state_oracle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "expected/golden_bundle/tables/mechanism_validation.csv"
   },
   {
-    "relative_path": "expected/golden_bundle/validation_execution_manifest.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T01",
+        "expected_result_id": "golden_file_length_and_sha256",
         "mutation_case_ids": [
           "exact_certified_route"
         ],
-        "expected_result_id": "golden_file_length_and_sha256"
+        "requirement_id": "E-R01",
+        "test_id": "E-T01"
       },
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "authority_and_escaping_mutations"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T22",
+        "expected_result_id": "exact_nine_file_bundle",
         "mutation_case_ids": [
           "bundle_and_manifest_mutations"
         ],
-        "expected_result_id": "exact_nine_file_bundle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T22"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "publication_state_oracle",
         "mutation_case_ids": [
           "publication_failure_matrix"
         ],
-        "expected_result_id": "publication_state_oracle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "expected/golden_bundle/validation_execution_manifest.schema1.json"
   },
   {
-    "relative_path": "expected/golden_bundle/validation_summary.md",
     "mappings": [
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T01",
+        "expected_result_id": "golden_file_length_and_sha256",
         "mutation_case_ids": [
           "exact_certified_route"
         ],
-        "expected_result_id": "golden_file_length_and_sha256"
+        "requirement_id": "E-R01",
+        "test_id": "E-T01"
       },
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "authority_and_escaping_mutations"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T22",
+        "expected_result_id": "exact_nine_file_bundle",
         "mutation_case_ids": [
           "bundle_and_manifest_mutations"
         ],
-        "expected_result_id": "exact_nine_file_bundle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T22"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "publication_state_oracle",
         "mutation_case_ids": [
           "publication_failure_matrix"
         ],
-        "expected_result_id": "publication_state_oracle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "expected/golden_bundle/validation_summary.md"
   },
   {
-    "relative_path": "expected/golden_bundle_file_sha256s.txt",
     "mappings": [
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T01",
+        "expected_result_id": "golden_file_length_and_sha256",
         "mutation_case_ids": [
           "golden_hash_perturbation"
         ],
-        "expected_result_id": "golden_file_length_and_sha256"
+        "requirement_id": "E-R01",
+        "test_id": "E-T01"
       },
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "checksum_perturbation"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       }
-    ]
+    ],
+    "relative_path": "expected/golden_bundle_file_sha256s.txt"
   },
   {
-    "relative_path": "expected/golden_replace_execution_manifest.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T22",
+        "expected_result_id": "replace_manifest_required",
         "mutation_case_ids": [
           "replace_manifest_substitution"
         ],
-        "expected_result_id": "replace_manifest_required"
+        "requirement_id": "E-R14",
+        "test_id": "E-T22"
       },
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "replacement_preserves_output_namespace",
         "mutation_case_ids": [
           "managed_replacement"
         ],
-        "expected_result_id": "replacement_preserves_output_namespace"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "expected/golden_replace_execution_manifest.schema1.json"
   },
   {
-    "relative_path": "expected/health_mapping.md",
     "mappings": [
       {
-        "requirement_id": "E-R09",
         "acceptance_criterion_id": "E-AC09",
-        "test_id": "E-T15",
+        "expected_result_id": "health_mapping_oracle",
         "mutation_case_ids": [
           "health_mapping_ledger_comparison"
         ],
-        "expected_result_id": "health_mapping_oracle"
+        "requirement_id": "E-R09",
+        "test_id": "E-T15"
       }
-    ]
+    ],
+    "relative_path": "expected/health_mapping.md"
   },
   {
-    "relative_path": "expected/mechanism_mapping.md",
     "mappings": [
       {
-        "requirement_id": "E-R08",
         "acceptance_criterion_id": "E-AC08",
-        "test_id": "E-T13",
+        "expected_result_id": "mechanism_mapping_oracle",
         "mutation_case_ids": [
           "mapping_ledger_comparison"
         ],
-        "expected_result_id": "mechanism_mapping_oracle"
+        "requirement_id": "E-R08",
+        "test_id": "E-T13"
       }
-    ]
+    ],
+    "relative_path": "expected/mechanism_mapping.md"
   },
   {
-    "relative_path": "expected/phase_e_fixture_inventory.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R18",
         "acceptance_criterion_id": "E-AC18",
-        "test_id": "E-T30",
+        "expected_result_id": "fixture_and_evidence_gate",
         "mutation_case_ids": [
           "inventory_and_author_evidence_omission"
         ],
-        "expected_result_id": "fixture_and_evidence_gate"
+        "requirement_id": "E-R18",
+        "test_id": "E-T30"
       }
-    ]
+    ],
+    "relative_path": "expected/phase_e_fixture_inventory.schema1.json"
   },
   {
-    "relative_path": "expected/publication_state_table.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "publication_state_oracle",
         "mutation_case_ids": [
           "publication_failure_matrix"
         ],
-        "expected_result_id": "publication_state_oracle"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "expected/publication_state_table.schema1.json"
   },
   {
-    "relative_path": "expected/report_identity_preimage.jcs",
     "mappings": [
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "report_identity_replay",
         "mutation_case_ids": [
           "identity_preimage_mutation"
         ],
-        "expected_result_id": "report_identity_replay"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       }
-    ]
+    ],
+    "relative_path": "expected/report_identity_preimage.jcs"
   },
   {
-    "relative_path": "expected/strata_ledger.md",
     "mappings": [
       {
-        "requirement_id": "E-R11",
         "acceptance_criterion_id": "E-AC11",
-        "test_id": "E-T18",
+        "expected_result_id": "closed_strata_oracle",
         "mutation_case_ids": [
           "strata_ledger_comparison"
         ],
-        "expected_result_id": "closed_strata_oracle"
+        "requirement_id": "E-R11",
+        "test_id": "E-T18"
       }
-    ]
+    ],
+    "relative_path": "expected/strata_ledger.md"
   },
   {
-    "relative_path": "expected/wilson_vectors.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R10",
         "acceptance_criterion_id": "E-AC10",
-        "test_id": "E-T17",
+        "expected_result_id": "exact_wilson_bits",
         "mutation_case_ids": [
           "wilson_boundary_and_bit_mutations"
         ],
-        "expected_result_id": "exact_wilson_bits"
+        "requirement_id": "E-R10",
+        "test_id": "E-T17"
       }
-    ]
+    ],
+    "relative_path": "expected/wilson_vectors.schema1.json"
   },
   {
-    "relative_path": "health/alert.schema4.json",
     "mappings": [
       {
-        "requirement_id": "E-R04",
         "acceptance_criterion_id": "E-AC04",
-        "test_id": "E-T07",
+        "expected_result_id": "strict_reader_contract",
         "mutation_case_ids": [
           "strict_schema_kind_and_legacy_matrix"
         ],
-        "expected_result_id": "strict_reader_contract"
+        "requirement_id": "E-R04",
+        "test_id": "E-T07"
       }
-    ]
+    ],
+    "relative_path": "health/alert.schema4.json"
   },
   {
-    "relative_path": "health/all_status_reference_pairs.schema4.json",
     "mappings": [
       {
-        "requirement_id": "E-R09",
         "acceptance_criterion_id": "E-AC09",
-        "test_id": "E-T15",
+        "expected_result_id": "disjoint_health_id_sets",
         "mutation_case_ids": [
           "status_label_confusion_cross_product"
         ],
-        "expected_result_id": "disjoint_health_id_sets"
+        "requirement_id": "E-R09",
+        "test_id": "E-T15"
       },
       {
-        "requirement_id": "E-R09",
         "acceptance_criterion_id": "E-AC09",
-        "test_id": "E-T16",
+        "expected_result_id": "exact_health_rates_and_balanced_accuracy",
         "mutation_case_ids": [
           "metric_boundary_and_label_universe_matrix"
         ],
-        "expected_result_id": "exact_health_rates_and_balanced_accuracy"
+        "requirement_id": "E-R09",
+        "test_id": "E-T16"
       }
-    ]
+    ],
+    "relative_path": "health/all_status_reference_pairs.schema4.json"
   },
   {
-    "relative_path": "health/legacy.schema3.json",
     "mappings": [
       {
-        "requirement_id": "E-R04",
         "acceptance_criterion_id": "E-AC04",
-        "test_id": "E-T08",
+        "expected_result_id": "strict_reader_contract",
         "mutation_case_ids": [
           "strict_schema_kind_and_legacy_matrix"
         ],
-        "expected_result_id": "strict_reader_contract"
+        "requirement_id": "E-R04",
+        "test_id": "E-T08"
       }
-    ]
+    ],
+    "relative_path": "health/legacy.schema3.json"
   },
   {
-    "relative_path": "health/within_baseline.schema4.json",
     "mappings": [
       {
-        "requirement_id": "E-R04",
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_001"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_001.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_002"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_002.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_003"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_003.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_004"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_004.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_005"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_005.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_006"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_006.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_007"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_007.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_008"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_008.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_009"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_009.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_010"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_010.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_011"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_011.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_012"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_012.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_013"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_013.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_014"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_014.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_015"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_015.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_016"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_016.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_017"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_017.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_018"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_018.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_019"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_019.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_020"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_020.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_021"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_021.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_022"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_022.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_023"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_023.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_024"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_024.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_025"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_025.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_026"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_026.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_027"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_027.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_028"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_028.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_029"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_029.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_030"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_030.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_031"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_031.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_032"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_032.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_033"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_033.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_034"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_034.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_035"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_035.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_036"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_036.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_037"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_037.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_038"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_038.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_039"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_039.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_040"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_040.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_041"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_041.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_042"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_042.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_043"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_043.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_044"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_044.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_045"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_045.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_046"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_046.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_047"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_047.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_048"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_048.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_049"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_049.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_050"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_050.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_051"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_051.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_052"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_052.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_053"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_053.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_054"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_054.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_055"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_055.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_056"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_056.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_057"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_057.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_058"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_058.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_059"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_059.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_060"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_060.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_061"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_061.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_062"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_062.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_063"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_063.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_064"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_064.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_065"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_065.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_066"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_066.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_067"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_067.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_068"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_068.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_069"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_069.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_070"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_070.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_071"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_071.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_072"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_072.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_073"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_073.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_074"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_074.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_075"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_075.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_076"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_076.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_077"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_077.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_078"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_078.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_079"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_079.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_080"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_080.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_081"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_081.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_082"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_082.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_083"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_083.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_084"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_084.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_085"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_085.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_086"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_086.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_087"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_087.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_088"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_088.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_089"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_089.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_090"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_090.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_091"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_091.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_092"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_092.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_093"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_093.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_094"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_094.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_095"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_095.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_096"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_096.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_097"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_097.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_098"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_098.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_099"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_099.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_health_bound",
+        "mutation_case_ids": [
+          "current_physical_health_source_100"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "health/physical/physical_health_100.schema4.json"
+  },
+  {
+    "mappings": [
+      {
         "acceptance_criterion_id": "E-AC04",
-        "test_id": "E-T07",
+        "expected_result_id": "strict_reader_contract",
         "mutation_case_ids": [
           "strict_schema_kind_and_legacy_matrix"
         ],
-        "expected_result_id": "strict_reader_contract"
+        "requirement_id": "E-R04",
+        "test_id": "E-T07"
       }
-    ]
+    ],
+    "relative_path": "health/within_baseline.schema4.json"
   },
   {
-    "relative_path": "lineage/complete.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R03",
         "acceptance_criterion_id": "E-AC03",
-        "test_id": "E-T06",
+        "expected_result_id": "hard_boundary_error_before_scoring",
         "mutation_case_ids": [
           "source_identity_and_path_mutations"
         ],
-        "expected_result_id": "hard_boundary_error_before_scoring"
+        "requirement_id": "E-R03",
+        "test_id": "E-T06"
       }
-    ]
+    ],
+    "relative_path": "lineage/complete.schema1.json"
   },
   {
-    "relative_path": "lineage/cycle.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R06",
         "acceptance_criterion_id": "E-AC06",
-        "test_id": "E-T11",
+        "expected_result_id": "unknown_separation_reason",
         "mutation_case_ids": [
           "reachable_cycle"
         ],
-        "expected_result_id": "unknown_separation_reason"
+        "requirement_id": "E-R06",
+        "test_id": "E-T11"
       }
-    ]
+    ],
+    "relative_path": "lineage/cycle.schema1.json"
   },
   {
-    "relative_path": "lineage/missing_ancestor.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R06",
         "acceptance_criterion_id": "E-AC06",
-        "test_id": "E-T11",
+        "expected_result_id": "unknown_separation_reason",
         "mutation_case_ids": [
           "missing_ancestor"
         ],
-        "expected_result_id": "unknown_separation_reason"
+        "requirement_id": "E-R06",
+        "test_id": "E-T11"
       }
-    ]
+    ],
+    "relative_path": "lineage/missing_ancestor.schema1.json"
   },
   {
-    "relative_path": "lineage/reference_intermediate.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R07",
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_lineage_closed",
+        "mutation_case_ids": [
+          "current_physical_lineage_catalog"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "lineage/physical_complete.schema1.json"
+  },
+  {
+    "mappings": [
+      {
         "acceptance_criterion_id": "E-AC07",
-        "test_id": "E-T12",
+        "expected_result_id": "combined_closure_result",
         "mutation_case_ids": [
           "reference_intermediate_closure"
         ],
-        "expected_result_id": "combined_closure_result"
+        "requirement_id": "E-R07",
+        "test_id": "E-T12"
       }
-    ]
+    ],
+    "relative_path": "lineage/reference_intermediate.schema1.json"
   },
   {
-    "relative_path": "lineage/root_mismatch.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R06",
         "acceptance_criterion_id": "E-AC06",
-        "test_id": "E-T11",
+        "expected_result_id": "hard_boundary_error",
         "mutation_case_ids": [
           "root_identity_and_dependency_mutations"
         ],
-        "expected_result_id": "hard_boundary_error"
+        "requirement_id": "E-R06",
+        "test_id": "E-T11"
       }
-    ]
+    ],
+    "relative_path": "lineage/root_mismatch.schema1.json"
   },
   {
-    "relative_path": "lineage/shared_ancestor.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R06",
         "acceptance_criterion_id": "E-AC06",
-        "test_id": "E-T10",
+        "expected_result_id": "shared_identity_retained",
         "mutation_case_ids": [
           "shared_ancestor"
         ],
-        "expected_result_id": "shared_identity_retained"
+        "requirement_id": "E-R06",
+        "test_id": "E-T10"
       }
-    ]
+    ],
+    "relative_path": "lineage/shared_ancestor.schema1.json"
   },
   {
-    "relative_path": "mechanism/all_levels.schema4.json",
     "mappings": [
       {
-        "requirement_id": "E-R08",
         "acceptance_criterion_id": "E-AC08",
-        "test_id": "E-T13",
+        "expected_result_id": "mechanism_mapping_oracle",
         "mutation_case_ids": [
           "phase_b_by_reference_cross_product"
         ],
-        "expected_result_id": "mechanism_mapping_oracle"
+        "requirement_id": "E-R08",
+        "test_id": "E-T13"
       }
-    ]
+    ],
+    "relative_path": "mechanism/all_levels.schema4.json"
   },
   {
-    "relative_path": "mechanism/contradicted.schema4.json",
     "mappings": [
       {
-        "requirement_id": "E-R04",
         "acceptance_criterion_id": "E-AC04",
-        "test_id": "E-T07",
+        "expected_result_id": "strict_reader_contract",
         "mutation_case_ids": [
           "strict_schema_kind_and_legacy_matrix"
         ],
-        "expected_result_id": "strict_reader_contract"
+        "requirement_id": "E-R04",
+        "test_id": "E-T07"
       }
-    ]
+    ],
+    "relative_path": "mechanism/contradicted.schema4.json"
   },
   {
-    "relative_path": "mechanism/legacy.schema3.json",
     "mappings": [
       {
-        "requirement_id": "E-R04",
         "acceptance_criterion_id": "E-AC04",
-        "test_id": "E-T08",
+        "expected_result_id": "strict_reader_contract",
         "mutation_case_ids": [
           "strict_schema_kind_and_legacy_matrix"
         ],
-        "expected_result_id": "strict_reader_contract"
+        "requirement_id": "E-R04",
+        "test_id": "E-T08"
       }
-    ]
+    ],
+    "relative_path": "mechanism/legacy.schema3.json"
   },
   {
-    "relative_path": "mechanism/supported.schema4.json",
     "mappings": [
       {
-        "requirement_id": "E-R04",
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_001"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_001.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_002"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_002.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_003"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_003.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_004"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_004.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_005"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_005.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_006"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_006.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_007"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_007.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_008"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_008.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_009"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_009.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_010"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_010.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_011"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_011.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_012"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_012.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_013"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_013.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_014"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_014.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_015"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_015.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_016"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_016.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_017"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_017.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_018"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_018.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_019"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_019.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_020"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_020.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_021"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_021.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_022"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_022.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_023"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_023.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_024"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_024.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_025"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_025.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_026"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_026.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_027"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_027.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_028"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_028.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_029"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_029.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_030"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_030.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_031"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_031.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_032"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_032.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_033"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_033.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_034"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_034.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_035"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_035.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_036"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_036.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_037"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_037.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_038"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_038.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_039"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_039.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_040"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_040.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_041"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_041.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_042"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_042.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_043"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_043.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_044"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_044.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_045"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_045.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_046"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_046.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_047"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_047.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_048"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_048.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_049"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_049.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_050"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_050.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_051"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_051.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_052"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_052.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_053"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_053.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_054"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_054.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_055"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_055.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_056"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_056.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_057"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_057.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_058"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_058.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_059"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_059.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_060"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_060.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_061"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_061.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_062"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_062.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_063"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_063.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_064"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_064.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_065"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_065.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_066"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_066.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_067"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_067.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_068"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_068.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_069"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_069.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_070"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_070.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_071"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_071.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_072"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_072.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_073"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_073.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_074"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_074.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_075"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_075.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_076"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_076.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_077"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_077.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_078"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_078.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_079"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_079.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_080"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_080.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_081"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_081.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_082"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_082.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_083"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_083.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_084"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_084.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_085"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_085.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_086"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_086.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_087"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_087.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_088"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_088.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_089"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_089.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_090"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_090.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_091"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_091.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_092"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_092.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_093"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_093.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_094"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_094.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_095"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_095.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_096"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_096.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_097"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_097.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_098"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_098.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_099"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_099.schema4.json"
+  },
+  {
+    "mappings": [
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_mechanism_bound",
+        "mutation_case_ids": [
+          "current_physical_mechanism_source_100"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
+      }
+    ],
+    "relative_path": "mechanism/physical/physical_mechanism_100.schema4.json"
+  },
+  {
+    "mappings": [
+      {
         "acceptance_criterion_id": "E-AC04",
-        "test_id": "E-T07",
+        "expected_result_id": "strict_reader_contract",
         "mutation_case_ids": [
           "strict_schema_kind_and_legacy_matrix"
         ],
-        "expected_result_id": "strict_reader_contract"
+        "requirement_id": "E-R04",
+        "test_id": "E-T07"
       }
-    ]
+    ],
+    "relative_path": "mechanism/supported.schema4.json"
   },
   {
-    "relative_path": "phase_d_golden/file_sha256s.txt",
     "mappings": [
       {
-        "requirement_id": "E-R15",
         "acceptance_criterion_id": "E-AC15",
-        "test_id": "E-T25",
+        "expected_result_id": "historical_phase_d_bytes",
         "mutation_case_ids": [
           "expected_hash_mutation"
         ],
-        "expected_result_id": "historical_phase_d_bytes"
+        "requirement_id": "E-R15",
+        "test_id": "E-T25"
       }
-    ]
+    ],
+    "relative_path": "phase_d_golden/file_sha256s.txt"
   },
   {
-    "relative_path": "phase_d_golden/input_manifest.txt",
     "mappings": [
       {
-        "requirement_id": "E-R15",
         "acceptance_criterion_id": "E-AC15",
-        "test_id": "E-T25",
+        "expected_result_id": "historical_phase_d_bytes",
         "mutation_case_ids": [
           "phase_d_input_rerun"
         ],
-        "expected_result_id": "historical_phase_d_bytes"
+        "requirement_id": "E-R15",
+        "test_id": "E-T25"
       }
-    ]
+    ],
+    "relative_path": "phase_d_golden/input_manifest.txt"
   },
   {
-    "relative_path": "protocol/physical_valid.toml",
     "mappings": [
       {
-        "requirement_id": "E-R02",
         "acceptance_criterion_id": "E-AC02",
-        "test_id": "E-T03",
+        "expected_result_id": "typed_value_and_raw_hash_preserved",
         "mutation_case_ids": [
           "typed_roundtrip"
         ],
-        "expected_result_id": "typed_value_and_raw_hash_preserved"
+        "requirement_id": "E-R02",
+        "test_id": "E-T03"
       },
       {
-        "requirement_id": "E-R02",
         "acceptance_criterion_id": "E-AC02",
-        "test_id": "E-T04",
+        "expected_result_id": "precedence_selected_protocol_error",
         "mutation_case_ids": [
           "physical_authority_and_minimum_mutations"
         ],
-        "expected_result_id": "precedence_selected_protocol_error"
+        "requirement_id": "E-R02",
+        "test_id": "E-T04"
       },
       {
-        "requirement_id": "E-R11",
         "acceptance_criterion_id": "E-AC11",
-        "test_id": "E-T18",
+        "expected_result_id": "underpowered_view_indeterminate",
         "mutation_case_ids": [
           "physical_family_minimum"
         ],
-        "expected_result_id": "underpowered_view_indeterminate"
+        "requirement_id": "E-R11",
+        "test_id": "E-T18"
       },
       {
-        "requirement_id": "E-R17",
         "acceptance_criterion_id": "E-AC17",
-        "test_id": "E-T29",
+        "expected_result_id": "physical_trust_not_provisioned",
         "mutation_case_ids": [
           "embedded_unprovisioned_production_trust"
         ],
-        "expected_result_id": "physical_trust_not_provisioned"
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
       }
-    ]
+    ],
+    "relative_path": "protocol/physical_valid.toml"
   },
   {
-    "relative_path": "protocol/software_valid.toml",
     "mappings": [
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T01",
+        "expected_result_id": "nine_managed_paths_match_golden",
         "mutation_case_ids": [
           "exact_certified_route"
         ],
-        "expected_result_id": "nine_managed_paths_match_golden"
+        "requirement_id": "E-R01",
+        "test_id": "E-T01"
       },
       {
-        "requirement_id": "E-R01",
         "acceptance_criterion_id": "E-AC01",
-        "test_id": "E-T02",
+        "expected_result_id": "cli_or_path_error_before_reader",
         "mutation_case_ids": [
           "missing_unknown_raw_and_symlink_paths"
         ],
-        "expected_result_id": "cli_or_path_error_before_reader"
+        "requirement_id": "E-R01",
+        "test_id": "E-T02"
       },
       {
-        "requirement_id": "E-R02",
         "acceptance_criterion_id": "E-AC02",
-        "test_id": "E-T03",
+        "expected_result_id": "typed_value_and_raw_hash_preserved",
         "mutation_case_ids": [
           "typed_roundtrip"
         ],
-        "expected_result_id": "typed_value_and_raw_hash_preserved"
+        "requirement_id": "E-R02",
+        "test_id": "E-T03"
       },
       {
-        "requirement_id": "E-R02",
         "acceptance_criterion_id": "E-AC02",
-        "test_id": "E-T04",
+        "expected_result_id": "precedence_selected_protocol_error",
         "mutation_case_ids": [
           "closed_protocol_mutation_matrix"
         ],
-        "expected_result_id": "precedence_selected_protocol_error"
+        "requirement_id": "E-R02",
+        "test_id": "E-T04"
       },
       {
-        "requirement_id": "E-R11",
         "acceptance_criterion_id": "E-AC11",
-        "test_id": "E-T18",
+        "expected_result_id": "underpowered_view_indeterminate",
         "mutation_case_ids": [
           "closed_strata_minima"
         ],
-        "expected_result_id": "underpowered_view_indeterminate"
+        "requirement_id": "E-R11",
+        "test_id": "E-T18"
       },
       {
-        "requirement_id": "E-R12",
         "acceptance_criterion_id": "E-AC12",
-        "test_id": "E-T19",
+        "expected_result_id": "ordered_decision_oracle",
         "mutation_case_ids": [
           "ordered_acceptance_conditions"
         ],
-        "expected_result_id": "ordered_decision_oracle"
+        "requirement_id": "E-R12",
+        "test_id": "E-T19"
       },
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T21",
+        "expected_result_id": "scientific_bytes_exact",
         "mutation_case_ids": [
           "operational_value_and_escaping_mutations"
         ],
-        "expected_result_id": "scientific_bytes_exact"
+        "requirement_id": "E-R13",
+        "test_id": "E-T21"
       },
       {
-        "requirement_id": "E-R17",
         "acceptance_criterion_id": "E-AC17",
-        "test_id": "E-T28",
+        "expected_result_id": "software_validated_only",
         "mutation_case_ids": [
           "synthetic_perfect_input"
         ],
-        "expected_result_id": "software_validated_only"
+        "requirement_id": "E-R17",
+        "test_id": "E-T28"
       }
-    ]
+    ],
+    "relative_path": "protocol/software_valid.toml"
   },
   {
-    "relative_path": "publication/unmanaged_bundle/sentinel.txt",
     "mappings": [
       {
-        "requirement_id": "E-R14",
         "acceptance_criterion_id": "E-AC14",
-        "test_id": "E-T23",
+        "expected_result_id": "unmanaged_data_preserved",
         "mutation_case_ids": [
           "unmanaged_output_and_foreign_swap"
         ],
-        "expected_result_id": "unmanaged_data_preserved"
+        "requirement_id": "E-R14",
+        "test_id": "E-T23"
       }
-    ]
+    ],
+    "relative_path": "publication/unmanaged_bundle/sentinel.txt"
   },
   {
-    "relative_path": "reference/complete_sources.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R03",
         "acceptance_criterion_id": "E-AC03",
-        "test_id": "E-T05",
+        "expected_result_id": "dataset_canonical_or_duplicate_error",
         "mutation_case_ids": [
           "reference_source_roundtrip"
         ],
-        "expected_result_id": "dataset_canonical_or_duplicate_error"
+        "requirement_id": "E-R03",
+        "test_id": "E-T05"
+      },
+      {
+        "acceptance_criterion_id": "E-AC17",
+        "expected_result_id": "current_physical_reference_complete",
+        "mutation_case_ids": [
+          "current_physical_reference_authority"
+        ],
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
       }
-    ]
+    ],
+    "relative_path": "reference/complete_sources.schema1.json"
   },
   {
-    "relative_path": "report/valid.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R13",
         "acceptance_criterion_id": "E-AC13",
-        "test_id": "E-T20",
+        "expected_result_id": "report_reconstruction_rejects_mutation",
         "mutation_case_ids": [
           "report_field_mutation_matrix"
         ],
-        "expected_result_id": "report_reconstruction_rejects_mutation"
+        "requirement_id": "E-R13",
+        "test_id": "E-T20"
       },
       {
-        "requirement_id": "E-R16",
         "acceptance_criterion_id": "E-AC16",
-        "test_id": "E-T26",
+        "expected_result_id": "strict_report_contract",
         "mutation_case_ids": [
           "schema1_report_negative_matrix"
         ],
-        "expected_result_id": "strict_report_contract"
+        "requirement_id": "E-R16",
+        "test_id": "E-T26"
       }
-    ]
+    ],
+    "relative_path": "report/valid.schema1.json"
   },
   {
-    "relative_path": "source_guards/forbidden_dependencies.txt",
     "mappings": [
       {
-        "requirement_id": "E-R15",
         "acceptance_criterion_id": "E-AC15",
-        "test_id": "E-T24",
+        "expected_result_id": "source_guard_failure",
         "mutation_case_ids": [
           "forbidden_dependency_tokens"
         ],
-        "expected_result_id": "source_guard_failure"
+        "requirement_id": "E-R15",
+        "test_id": "E-T24"
       }
-    ]
+    ],
+    "relative_path": "source_guards/forbidden_dependencies.txt"
   },
   {
-    "relative_path": "trust/test_only_invalid_identity_weak_key.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R16",
         "acceptance_criterion_id": "E-AC16",
-        "test_id": "E-T26",
+        "expected_result_id": "strict_trust_schema_error",
         "mutation_case_ids": [
           "weak_and_noncanonical_key_matrix"
         ],
-        "expected_result_id": "strict_trust_schema_error"
+        "requirement_id": "E-R16",
+        "test_id": "E-T26"
       }
-    ]
+    ],
+    "relative_path": "trust/test_only_invalid_identity_weak_key.schema1.json"
   },
   {
-    "relative_path": "trust/test_only_known_answer_trust_store.schema1.json",
     "mappings": [
       {
-        "requirement_id": "E-R16",
         "acceptance_criterion_id": "E-AC16",
-        "test_id": "E-T26",
+        "expected_result_id": "strict_trust_schema_error",
         "mutation_case_ids": [
           "provisioning_state_and_key_schema_matrix"
         ],
-        "expected_result_id": "strict_trust_schema_error"
+        "requirement_id": "E-R16",
+        "test_id": "E-T26"
       },
       {
-        "requirement_id": "E-R17",
         "acceptance_criterion_id": "E-AC17",
-        "test_id": "E-T29",
+        "expected_result_id": "test_boundary_dual_signature_verified",
         "mutation_case_ids": [
           "test_only_trust_store"
         ],
-        "expected_result_id": "test_boundary_dual_signature_verified"
+        "requirement_id": "E-R17",
+        "test_id": "E-T29"
       }
-    ]
+    ],
+    "relative_path": "trust/test_only_known_answer_trust_store.schema1.json"
   }
 ]

@@ -1,14 +1,22 @@
 {
-  "schema_version": 1,
   "reference_sources": [
     {
-      "reference_source_id": "reference_1",
-      "source_file_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
-      "evidence_origin": "physical",
+      "acquisition_families": {
+        "Known": [
+          "physical-reference-family"
+        ]
+      },
       "dependency_completeness": "complete",
-      "experiment_scope": { "Single": { "experiment_id": "phase-e-reference" } },
-      "acquisition_families": { "Known": ["phase-e-reference-family"] },
-      "direct_dependencies": []
+      "direct_dependencies": [],
+      "evidence_origin": "physical",
+      "experiment_scope": {
+        "Single": {
+          "experiment_id": "physical-reference-experiment"
+        }
+      },
+      "reference_source_id": "reference_1",
+      "source_file_sha256": "671e3c578415af633f63324c0ac668c610be15e0e9d2d59fe6aec3ccfac348c9"
     }
-  ]
+  ],
+  "schema_version": 1
 }

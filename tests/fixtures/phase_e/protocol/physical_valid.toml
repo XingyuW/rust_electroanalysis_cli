@@ -12,17 +12,23 @@ type = "embedded_trust_root"
 trust_root_id = "test_only_known_answer_root"
 
 [target_domain.analyte]
-type = "any_declared"
+type = "allowed"
+ids = ["analyte"]
 [target_domain.matrix]
-type = "any_declared"
+type = "allowed"
+ids = ["matrix"]
 [target_domain.sensor_design]
-type = "any_declared"
+type = "allowed"
+ids = ["design"]
 [target_domain.sensor]
-type = "any_declared"
+type = "allowed"
+ids = ["sensor_a", "sensor_b"]
 [target_domain.campaign]
-type = "any_declared"
+type = "allowed"
+ids = ["campaign"]
 [target_domain.temperature]
-type = "any_declared"
+type = "bands"
+bands = [{ lower_kelvin_inclusive = 298.0, upper_kelvin_exclusive = 299.0 }]
 
 [statistics]
 interval_method = "wilson_95_v1"
@@ -33,10 +39,10 @@ rule_composition = "and"
 
 [[mechanism_endpoints]]
 endpoint_id = "mechanism_endpoint"
-hypothesis_id = "hypothesis_a"
+hypothesis_id = "b-hypothesis"
 cohort_role = "holdout"
 mechanism_artifact_required = true
-support_levels = ["hypothesized"]
+support_levels = ["validated_for_domain"]
 critical_policy = "any_contradicted_record_fails"
 minimum_eligible_records = 2
 minimum_independent_families = 2
@@ -44,17 +50,23 @@ required_strata = []
 acceptance_rules = [{ type = "rate", rule_id = "support", metric = "support_fraction", target = "point_estimate", comparator = "greater_than_or_equal", threshold = 0.5 }]
 
 [mechanism_endpoints.domain.analyte]
-type = "any_declared"
+type = "allowed"
+ids = ["analyte"]
 [mechanism_endpoints.domain.matrix]
-type = "any_declared"
+type = "allowed"
+ids = ["matrix"]
 [mechanism_endpoints.domain.sensor_design]
-type = "any_declared"
+type = "allowed"
+ids = ["design"]
 [mechanism_endpoints.domain.sensor]
-type = "any_declared"
+type = "allowed"
+ids = ["sensor_a", "sensor_b"]
 [mechanism_endpoints.domain.campaign]
-type = "any_declared"
+type = "allowed"
+ids = ["campaign"]
 [mechanism_endpoints.domain.temperature]
-type = "any_declared"
+type = "bands"
+bands = [{ lower_kelvin_inclusive = 298.0, upper_kelvin_exclusive = 299.0 }]
 [mechanism_endpoints.reference_rule]
 type = "mechanism"
 allowed_methods = [{ method_id = "reference_method", method_version = "1" }]
@@ -87,17 +99,23 @@ acceptance_rules = [
 [health_endpoints.target]
 type = "aggregate"
 [health_endpoints.domain.analyte]
-type = "any_declared"
+type = "allowed"
+ids = ["analyte"]
 [health_endpoints.domain.matrix]
-type = "any_declared"
+type = "allowed"
+ids = ["matrix"]
 [health_endpoints.domain.sensor_design]
-type = "any_declared"
+type = "allowed"
+ids = ["design"]
 [health_endpoints.domain.sensor]
-type = "any_declared"
+type = "allowed"
+ids = ["sensor_a", "sensor_b"]
 [health_endpoints.domain.campaign]
-type = "any_declared"
+type = "allowed"
+ids = ["campaign"]
 [health_endpoints.domain.temperature]
-type = "any_declared"
+type = "bands"
+bands = [{ lower_kelvin_inclusive = 298.0, upper_kelvin_exclusive = 299.0 }]
 [health_endpoints.reference_rule]
 type = "health"
 allowed_methods = [{ method_id = "reference_method", method_version = "1" }]
@@ -115,14 +133,20 @@ requested_level = "physical"
 statement = "Physical trust gate fixture"
 supporting_endpoint_ids = ["health_endpoint", "mechanism_endpoint"]
 [release_scope.domain.analyte]
-type = "any_declared"
+type = "allowed"
+ids = ["analyte"]
 [release_scope.domain.matrix]
-type = "any_declared"
+type = "allowed"
+ids = ["matrix"]
 [release_scope.domain.sensor_design]
-type = "any_declared"
+type = "allowed"
+ids = ["design"]
 [release_scope.domain.sensor]
-type = "any_declared"
+type = "allowed"
+ids = ["sensor_a", "sensor_b"]
 [release_scope.domain.campaign]
-type = "any_declared"
+type = "allowed"
+ids = ["campaign"]
 [release_scope.domain.temperature]
-type = "any_declared"
+type = "bands"
+bands = [{ lower_kelvin_inclusive = 298.0, upper_kelvin_exclusive = 299.0 }]

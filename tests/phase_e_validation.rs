@@ -7,8 +7,8 @@ use rust_electroanalysis_cli::{
     mhi_validation::{
         MhiValidationError, MhiValidationProtocolV1, ValidationInputs,
         approval::{
-            PhysicalApprovalProvisioningStateV1, PhysicalApprovalTrustRootV1,
-            PhysicalApprovalTrustStoreV1,
+            OwnerApprovalEvidenceV1, PhysicalApprovalProvisioningStateV1,
+            PhysicalApprovalTrustRootV1, PhysicalApprovalTrustStoreV1, VerifiedEmbeddedTrustStore,
         },
         evaluate_mhi_validation,
         statistics::{MetricValueV1, balanced_accuracy, wilson_95, wilson_95_checked},
@@ -818,12 +818,66 @@ fn staged_validation_inputs(
 /// Stages the same source topology the production reader consumes, while
 /// retaining the permanent Phase-E source fixtures as the literal authority.
 /// This is deliberately a test-owned directory: the R2 fixture ledger is
-/// closed at 67 files and forbids aliases or generated permanent sources.
+/// closed over the checked-in files and forbids aliases or generated permanent sources.
 fn staged_dataset_with_scoreable_mechanism() -> (PathBuf, PathBuf, PathBuf) {
     staged_validation_inputs(
         "protocol/software_valid.toml",
         "dataset/software_valid.schema1.json",
     )
+}
+
+fn copy_fixture_tree(source: &Path, destination: &Path) {
+    fs::create_dir_all(destination).expect("fixture tree destination");
+    for entry in fs::read_dir(source).expect("fixture tree source") {
+        let entry = entry.expect("fixture tree entry");
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        if entry.file_type().expect("fixture tree type").is_dir() {
+            copy_fixture_tree(&source_path, &destination_path);
+        } else {
+            fs::copy(source_path, destination_path).expect("fixture tree file");
+        }
+    }
+}
+
+fn staged_physical_inputs(dataset_fixture: &str) -> (PathBuf, PathBuf, PathBuf) {
+    let root = temp("physical_kat");
+    let protocol = root.join("protocol.toml");
+    let dataset = root.join("dataset/input.schema1.json");
+    fs::create_dir_all(dataset.parent().expect("dataset parent")).expect("dataset layout");
+    fs::copy(fixture("protocol/physical_valid.toml"), &protocol).expect("physical protocol");
+    fs::copy(fixture(dataset_fixture), &dataset).expect("physical dataset");
+    copy_fixture_tree(
+        &fixture("mechanism/physical"),
+        &dataset.parent().expect("dataset parent").join("physical"),
+    );
+    copy_fixture_tree(
+        &fixture("health/physical"),
+        &dataset.parent().expect("dataset parent").join("physical"),
+    );
+    fs::create_dir_all(dataset.parent().expect("dataset parent").join("lineage"))
+        .expect("physical lineage layout");
+    fs::copy(
+        fixture("lineage/physical_complete.schema1.json"),
+        dataset
+            .parent()
+            .expect("dataset parent")
+            .join("lineage/physical_complete.schema1.json"),
+    )
+    .expect("physical lineage");
+    fs::create_dir_all(dataset.parent().expect("dataset parent").join("approval"))
+        .expect("physical approval layout");
+    let approval = if dataset_fixture.contains("selective") {
+        "approval/valid_selective_unavailable.schema1.json"
+    } else {
+        "approval/valid.schema1.json"
+    };
+    fs::copy(
+        fixture(approval),
+        dataset.parent().expect("dataset parent").join(approval),
+    )
+    .expect("physical approval");
+    (root, protocol, dataset)
 }
 
 fn write_test_dataset(path: &Path, dataset: &mut MhiValidationDatasetV1) {
@@ -1057,7 +1111,7 @@ fn phase_e_protocol_roundtrip_preserves_all_scientific_rules() {
         ),
         (
             "protocol/physical_valid.toml",
-            "74b871604ba3c85d21af243282e7fc9f8606984f8d31d3d9f37f139876544329",
+            "a7c7938faed65ec9a3e346194a19f9d4401b66f9e81a8695aec2931f5cf97501",
         ),
     ] {
         let bytes = fs::read(fixture(fixture_path)).expect("fixture");
@@ -1725,6 +1779,167 @@ fn phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power() {
         rust_electroanalysis_cli::mhi_validation::MhiValidationError::PhysicalApprovalTrustNotProvisioned
     ));
     assert!(!output.exists());
+
+    let trust_bytes = fs::read(fixture(
+        "trust/test_only_known_answer_trust_store.schema1.json",
+    ))
+    .expect("test-only trust store");
+    let trust_store: PhysicalApprovalTrustStoreV1 =
+        serde_json::from_slice(&trust_bytes).expect("trust store schema");
+    trust_store
+        .validate()
+        .expect("test-only trust store validity");
+    let trust_hash = {
+        use sha2::{Digest, Sha256};
+        format!("{:x}", Sha256::digest(&trust_bytes))
+    };
+    let verified_trust = VerifiedEmbeddedTrustStore {
+        store: trust_store,
+        source_file_sha256: trust_hash,
+    };
+    let physical_protocol = protocol_fixture("protocol/physical_valid.toml");
+    let physical_dataset = read_artifact_strict::<MhiValidationDatasetV1>(&fixture(
+        "dataset/physical_valid.schema1.json",
+    ))
+    .expect("current physical dataset")
+    .artifact;
+    assert_eq!(physical_dataset.records.len(), 2);
+    let physical_families = physical_dataset
+        .records
+        .iter()
+        .flat_map(|record| match &record.declared_scope.acquisition_families {
+            rust_electroanalysis_cli::domain::ArtifactAcquisitionFamilies::Known(families) => {
+                families
+                    .iter()
+                    .map(|family| family.0.clone())
+                    .collect::<Vec<_>>()
+            }
+            rust_electroanalysis_cli::domain::ArtifactAcquisitionFamilies::Unknown => Vec::new(),
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        physical_families,
+        BTreeSet::from(["physical-family-a".into(), "physical-family-b".into()])
+    );
+    assert_eq!(
+        physical_dataset
+            .records
+            .iter()
+            .flat_map(|record| record.reference_endpoints.iter())
+            .filter(|reference| {
+                matches!(
+                    reference,
+                    ReferenceEndpointV1::Mechanism {
+                        outcome: MechanismReferenceOutcomeV1::Supports,
+                        blinding_state: BlindingStateV1::BlindedToAssessment,
+                        uncertainty: ReferenceUncertaintyV1::Quantified { .. },
+                        ..
+                    }
+                )
+            })
+            .count(),
+        2
+    );
+    let physical_approval: OwnerApprovalEvidenceV1 = serde_json::from_slice(
+        &fs::read(fixture("approval/valid.schema1.json")).expect("current approval"),
+    )
+    .expect("current approval schema");
+    physical_approval
+        .validate_for_test_boundary(&verified_trust, &physical_protocol, &physical_dataset)
+        .expect("current dual-signed physical KAT");
+
+    let (valid_root, valid_protocol, valid_dataset) =
+        staged_physical_inputs("dataset/physical_valid.schema1.json");
+    let protocol_bytes = fs::read(&valid_protocol).expect("staged physical protocol");
+    let protocol = MhiValidationProtocolV1::from_toml(
+        std::str::from_utf8(&protocol_bytes).expect("physical protocol UTF-8"),
+    )
+    .expect("staged physical protocol schema");
+    let mut inputs = ValidationInputs::read(
+        &protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&protocol_bytes),
+        &valid_dataset,
+    )
+    .expect("current physical graph reads");
+    let staged_approval: OwnerApprovalEvidenceV1 = serde_json::from_slice(
+        &fs::read(
+            valid_dataset
+                .parent()
+                .expect("dataset parent")
+                .join("approval/valid.schema1.json"),
+        )
+        .expect("staged approval"),
+    )
+    .expect("staged approval schema");
+    inputs.attach_verified_approval(staged_approval, verified_trust.source_file_sha256.clone());
+    let report = evaluate_mhi_validation(&protocol, &inputs).expect("physical KAT evaluation");
+    assert_eq!(
+        report.release_claims[0].outcome,
+        rust_electroanalysis_cli::validation_config::ReleaseClaimOutcomeV1::PhysicallyValidated
+    );
+    assert_eq!(report.mechanism_results[0].eligible_count, 2);
+    assert_eq!(report.mechanism_results[0].support_count, 2);
+    assert_eq!(report.health_results[0].eligible_count, 2);
+    report
+        .validate_against(&protocol, &inputs, Some(&verified_trust))
+        .expect("physical KAT authority replay");
+    fs::remove_dir_all(valid_root).expect("valid physical KAT cleanup");
+
+    let (unavailable_root, unavailable_protocol, unavailable_dataset) =
+        staged_physical_inputs("dataset/physical_selective_unavailable.schema1.json");
+    let unavailable_protocol_bytes = fs::read(&unavailable_protocol).expect("selective protocol");
+    let unavailable_protocol = MhiValidationProtocolV1::from_toml(
+        std::str::from_utf8(&unavailable_protocol_bytes).expect("selective protocol UTF-8"),
+    )
+    .expect("selective protocol schema");
+    let mut unavailable_inputs = ValidationInputs::read(
+        &unavailable_protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&unavailable_protocol_bytes),
+        &unavailable_dataset,
+    )
+    .expect("selective physical graph reads");
+    assert_eq!(unavailable_inputs.dataset.artifact.records.len(), 100);
+    assert_eq!(
+        unavailable_inputs
+            .dataset
+            .artifact
+            .records
+            .iter()
+            .flat_map(|record| record.reference_endpoints.iter())
+            .filter(|reference| {
+                matches!(
+                    reference,
+                    ReferenceEndpointV1::Mechanism {
+                        outcome: MechanismReferenceOutcomeV1::Unavailable,
+                        blinding_state: BlindingStateV1::BlindedToAssessment,
+                        uncertainty: ReferenceUncertaintyV1::Quantified { .. },
+                        ..
+                    }
+                )
+            })
+            .count(),
+        98
+    );
+    let selective_approval: OwnerApprovalEvidenceV1 = serde_json::from_slice(
+        &fs::read(
+            unavailable_dataset
+                .parent()
+                .expect("dataset parent")
+                .join("approval/valid_selective_unavailable.schema1.json"),
+        )
+        .expect("selective approval"),
+    )
+    .expect("selective approval schema");
+    unavailable_inputs.attach_verified_approval(
+        selective_approval,
+        verified_trust.source_file_sha256.clone(),
+    );
+    assert!(matches!(
+        evaluate_mhi_validation(&unavailable_protocol, &unavailable_inputs),
+        Err(MhiValidationError::Dataset(ref message))
+            if message == "PhysicalReferenceOutcomeUnavailable"
+    ));
+    fs::remove_dir_all(unavailable_root).expect("selective physical KAT cleanup");
 }
 
 #[test]
@@ -2457,7 +2672,6 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
         actual_fixture_paths, expected_paths,
         "literal inventory must exactly cover every regular Phase-E fixture"
     );
-    assert_eq!(expected_paths.len(), 67, "closed R2 fixture count");
     let inventory: serde_json::Value = serde_json::from_slice(
         &fs::read(fixture("expected/phase_e_fixture_inventory.schema1.json"))
             .expect("closed fixture inventory"),

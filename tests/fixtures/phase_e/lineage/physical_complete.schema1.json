@@ -1,0 +1,4471 @@
+{
+  "artifacts": {
+    "sha256:012f0496cd138db29582b9fc5d80dd63ce2103cb58a7129f4dd5eec21487afbc": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:012f0496cd138db29582b9fc5d80dd63ce2103cb58a7129f4dd5eec21487afbc",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-032"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "012f0496cd138db29582b9fc5d80dd63ce2103cb58a7129f4dd5eec21487afbc",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:016f820f1dd70a932fb2a51845eca745abe17c8816e4f20597fc494f5f1d1c4a": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:016f820f1dd70a932fb2a51845eca745abe17c8816e4f20597fc494f5f1d1c4a",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-053"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "016f820f1dd70a932fb2a51845eca745abe17c8816e4f20597fc494f5f1d1c4a",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:0186d0f55f6af33118ef39f8b91f8ecc9999dbba88a1b33e238d438c0d3aa42b": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:0186d0f55f6af33118ef39f8b91f8ecc9999dbba88a1b33e238d438c0d3aa42b",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-013"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "0186d0f55f6af33118ef39f8b91f8ecc9999dbba88a1b33e238d438c0d3aa42b",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:0191a09b55f8abb804e6f73689da12634cec849f23aad9c421c80d7cabf224f4": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:0191a09b55f8abb804e6f73689da12634cec849f23aad9c421c80d7cabf224f4",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-076"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "0191a09b55f8abb804e6f73689da12634cec849f23aad9c421c80d7cabf224f4",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:042179c2a48f831b873fab7b355c79d0fde0b9fc8272e5d5819552653d78a253": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:042179c2a48f831b873fab7b355c79d0fde0b9fc8272e5d5819552653d78a253",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-046"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "042179c2a48f831b873fab7b355c79d0fde0b9fc8272e5d5819552653d78a253",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:051e8584d3c352712fd09e656117e7aa0521e6b8112976999659049d6ecd5ceb": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:051e8584d3c352712fd09e656117e7aa0521e6b8112976999659049d6ecd5ceb",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-097"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "051e8584d3c352712fd09e656117e7aa0521e6b8112976999659049d6ecd5ceb",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:054039dbad488a582f687609417e40b88e4f31f14223f8f8c92a21f9c6f03514": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:054039dbad488a582f687609417e40b88e4f31f14223f8f8c92a21f9c6f03514",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-001"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "054039dbad488a582f687609417e40b88e4f31f14223f8f8c92a21f9c6f03514",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:062f77bcfbe745f21b1b2457f7c7346460363bab2c083f66ab76d2f515b8c524": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:062f77bcfbe745f21b1b2457f7c7346460363bab2c083f66ab76d2f515b8c524",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-060"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "062f77bcfbe745f21b1b2457f7c7346460363bab2c083f66ab76d2f515b8c524",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:077f09fb09742cbb6fd83569dea7225b385c85e913c108af44df3e1795ccaef3": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:077f09fb09742cbb6fd83569dea7225b385c85e913c108af44df3e1795ccaef3",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-058"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "077f09fb09742cbb6fd83569dea7225b385c85e913c108af44df3e1795ccaef3",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:0af14e5b2c43035bc55e26e9c59983949bf4e0c10242888d0272a861b3876b33": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:0af14e5b2c43035bc55e26e9c59983949bf4e0c10242888d0272a861b3876b33",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-077"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "0af14e5b2c43035bc55e26e9c59983949bf4e0c10242888d0272a861b3876b33",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:0b0eed1895c0157df1e6d63cc0cd62880d9fef3cd6a78723c8fb5fed71260013": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:0b0eed1895c0157df1e6d63cc0cd62880d9fef3cd6a78723c8fb5fed71260013",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-075"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "0b0eed1895c0157df1e6d63cc0cd62880d9fef3cd6a78723c8fb5fed71260013",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:0bc37d408241ec0ad5341fd50fa2ed5464a52c9cba4057bcd5ca66a645e62bac": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:0bc37d408241ec0ad5341fd50fa2ed5464a52c9cba4057bcd5ca66a645e62bac",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-088"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "0bc37d408241ec0ad5341fd50fa2ed5464a52c9cba4057bcd5ca66a645e62bac",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:0d439142715ee80e42a0dbc09bd4dc641d06cee67f3c1fd7e67e29b439b0ff7a": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:0d439142715ee80e42a0dbc09bd4dc641d06cee67f3c1fd7e67e29b439b0ff7a",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-038"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "0d439142715ee80e42a0dbc09bd4dc641d06cee67f3c1fd7e67e29b439b0ff7a",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:0d4c60feb5c6944e2b5e62360d5aa61a646301fe386839253d3244ff1048b357": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:0d4c60feb5c6944e2b5e62360d5aa61a646301fe386839253d3244ff1048b357",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-056"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "0d4c60feb5c6944e2b5e62360d5aa61a646301fe386839253d3244ff1048b357",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:0e0efaf6bbd8a00c02e43cf6999218c1ae9924caafc91da7d09be66f2ce88def": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:0e0efaf6bbd8a00c02e43cf6999218c1ae9924caafc91da7d09be66f2ce88def",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-068"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "0e0efaf6bbd8a00c02e43cf6999218c1ae9924caafc91da7d09be66f2ce88def",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:0e744ccb7019384c1ca95b73bdbd24fe544f38a564313b4a9bf1e7fbac35e0d3": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:0e744ccb7019384c1ca95b73bdbd24fe544f38a564313b4a9bf1e7fbac35e0d3",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-047"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "0e744ccb7019384c1ca95b73bdbd24fe544f38a564313b4a9bf1e7fbac35e0d3",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:0e8ce74fb59fa75fcea9db42fdf155dc4f8757698a1e6e37ad830629f18c04a1": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:0e8ce74fb59fa75fcea9db42fdf155dc4f8757698a1e6e37ad830629f18c04a1",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-015"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "0e8ce74fb59fa75fcea9db42fdf155dc4f8757698a1e6e37ad830629f18c04a1",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:0f75bde9fb6bd24593fe59d1563c60153db9125f871d3512637bfb8a1f767865": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:0f75bde9fb6bd24593fe59d1563c60153db9125f871d3512637bfb8a1f767865",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-002"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "0f75bde9fb6bd24593fe59d1563c60153db9125f871d3512637bfb8a1f767865",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:14e9a4b6acd1ab024e639594c34782c93d2a4be08e00334a93145fcc962eb24c": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:14e9a4b6acd1ab024e639594c34782c93d2a4be08e00334a93145fcc962eb24c",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-014"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "14e9a4b6acd1ab024e639594c34782c93d2a4be08e00334a93145fcc962eb24c",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:19bae1789d009269fae1f30f7d96e8ecc48f52aa4dde024ce3418178b3900d7f": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:19bae1789d009269fae1f30f7d96e8ecc48f52aa4dde024ce3418178b3900d7f",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-059"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "19bae1789d009269fae1f30f7d96e8ecc48f52aa4dde024ce3418178b3900d7f",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:1a061d621cc658a1f1ae5973955f1701141ffe58402a149843219c4d61a95cec": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:1a061d621cc658a1f1ae5973955f1701141ffe58402a149843219c4d61a95cec",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-049"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "1a061d621cc658a1f1ae5973955f1701141ffe58402a149843219c4d61a95cec",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:1a2c198769eb3f6f3a05faf9da0374777bf797b12d1364614a234e273da5e466": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:1a2c198769eb3f6f3a05faf9da0374777bf797b12d1364614a234e273da5e466",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-012"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "1a2c198769eb3f6f3a05faf9da0374777bf797b12d1364614a234e273da5e466",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:1a64b11fef1e634d573769eb7538b1febef21efe565863c54bbed7a238f71ac3": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:1a64b11fef1e634d573769eb7538b1febef21efe565863c54bbed7a238f71ac3",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-016"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "1a64b11fef1e634d573769eb7538b1febef21efe565863c54bbed7a238f71ac3",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:1b184e763274b0dc81605cc334637e00c31535710944b2836d780755051db552": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:1b184e763274b0dc81605cc334637e00c31535710944b2836d780755051db552",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-031"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "1b184e763274b0dc81605cc334637e00c31535710944b2836d780755051db552",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:1ba291200774d63c337c19e0a7587372733d33d5ad87d4e63a83c7930d7e38ff": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:1ba291200774d63c337c19e0a7587372733d33d5ad87d4e63a83c7930d7e38ff",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-050"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "1ba291200774d63c337c19e0a7587372733d33d5ad87d4e63a83c7930d7e38ff",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:1bf7eda829bd41d9390dd61908adc654d7552bd9d833d5eb9444de25bff328ea": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:1bf7eda829bd41d9390dd61908adc654d7552bd9d833d5eb9444de25bff328ea",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-034"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "1bf7eda829bd41d9390dd61908adc654d7552bd9d833d5eb9444de25bff328ea",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:1d14f5ae5dd5c06ff70efb0969cc5d18463d1464578c8eced44b0e6c59926ed6": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:1d14f5ae5dd5c06ff70efb0969cc5d18463d1464578c8eced44b0e6c59926ed6",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-039"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "1d14f5ae5dd5c06ff70efb0969cc5d18463d1464578c8eced44b0e6c59926ed6",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:1d41c7a8c2a5f2039e2705f62ec4bc806afd7a514917ea15ef920e85212b3ff4": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:1d41c7a8c2a5f2039e2705f62ec4bc806afd7a514917ea15ef920e85212b3ff4",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-062"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "1d41c7a8c2a5f2039e2705f62ec4bc806afd7a514917ea15ef920e85212b3ff4",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:1ddd90f16e772892be4a95b5cc7fedca6377f850f8eaa6309f4f1d9a4cdb5955": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:1ddd90f16e772892be4a95b5cc7fedca6377f850f8eaa6309f4f1d9a4cdb5955",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-050"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "1ddd90f16e772892be4a95b5cc7fedca6377f850f8eaa6309f4f1d9a4cdb5955",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:2051884e338819d370178ed8b9ade474b545871339c07a1c60e5b4e2a8ab9eb9": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:2051884e338819d370178ed8b9ade474b545871339c07a1c60e5b4e2a8ab9eb9",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-030"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "2051884e338819d370178ed8b9ade474b545871339c07a1c60e5b4e2a8ab9eb9",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:20a7a11ffe4393d09755364ae921a06adbbf2df57fc37993d5650dd0dcca46ab": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:20a7a11ffe4393d09755364ae921a06adbbf2df57fc37993d5650dd0dcca46ab",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-078"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "20a7a11ffe4393d09755364ae921a06adbbf2df57fc37993d5650dd0dcca46ab",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:219ab5c482d8da33ccf544936316ed62acd26c5eab839d6a36cc890985f210ce": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:219ab5c482d8da33ccf544936316ed62acd26c5eab839d6a36cc890985f210ce",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-055"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "219ab5c482d8da33ccf544936316ed62acd26c5eab839d6a36cc890985f210ce",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:24013ac6911ebc95e728ff63cb09bc261868c0f28280322907eafd562e687d47": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:24013ac6911ebc95e728ff63cb09bc261868c0f28280322907eafd562e687d47",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-045"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "24013ac6911ebc95e728ff63cb09bc261868c0f28280322907eafd562e687d47",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:24e8068c94c3a763c1aa38084cf5322c99196990247bae0294e7e05d9a17a57d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:24e8068c94c3a763c1aa38084cf5322c99196990247bae0294e7e05d9a17a57d",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-025"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "24e8068c94c3a763c1aa38084cf5322c99196990247bae0294e7e05d9a17a57d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:29ed5cf69d1ff2571d3c981f1959c2a11926e808dfcc9cef43bb111534f6b299": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:29ed5cf69d1ff2571d3c981f1959c2a11926e808dfcc9cef43bb111534f6b299",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-070"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "29ed5cf69d1ff2571d3c981f1959c2a11926e808dfcc9cef43bb111534f6b299",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:2a9fd925aa7f3bc77b0259e783fa2c2eae66bd82fc48010d58d8a3d851f43beb": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:2a9fd925aa7f3bc77b0259e783fa2c2eae66bd82fc48010d58d8a3d851f43beb",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-093"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "2a9fd925aa7f3bc77b0259e783fa2c2eae66bd82fc48010d58d8a3d851f43beb",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:2b55b5ce63505d99f95fec933cca1e1f1aeb388a1791ddd43f81a4a56167282b": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:2b55b5ce63505d99f95fec933cca1e1f1aeb388a1791ddd43f81a4a56167282b",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-040"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "2b55b5ce63505d99f95fec933cca1e1f1aeb388a1791ddd43f81a4a56167282b",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:2b76b2ab3efb567bcfecbd238218cf6a3ee401a151279089edc21fc5ed3bb543": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:2b76b2ab3efb567bcfecbd238218cf6a3ee401a151279089edc21fc5ed3bb543",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-045"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "2b76b2ab3efb567bcfecbd238218cf6a3ee401a151279089edc21fc5ed3bb543",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:2c62df9ceda918840e3bf6ecf2cce30f0491ca200812b636b2a4621fc6f55d48": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:2c62df9ceda918840e3bf6ecf2cce30f0491ca200812b636b2a4621fc6f55d48",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-092"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "2c62df9ceda918840e3bf6ecf2cce30f0491ca200812b636b2a4621fc6f55d48",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:2ca525a827195aec6e69b7a2df3f04a55bf349085189a85b43ca7899839731b1": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:2ca525a827195aec6e69b7a2df3f04a55bf349085189a85b43ca7899839731b1",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-051"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "2ca525a827195aec6e69b7a2df3f04a55bf349085189a85b43ca7899839731b1",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:2cb41ccf1373a5a243ee38292ba919eeba36fc36a83b732f3202eb9e2be17105": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:2cb41ccf1373a5a243ee38292ba919eeba36fc36a83b732f3202eb9e2be17105",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-026"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "2cb41ccf1373a5a243ee38292ba919eeba36fc36a83b732f3202eb9e2be17105",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:2deea548026424e4fd3ba5c751ff4f3c07bddc2f9b7ee82010e262e1b74af9cd": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:2deea548026424e4fd3ba5c751ff4f3c07bddc2f9b7ee82010e262e1b74af9cd",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-008"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "2deea548026424e4fd3ba5c751ff4f3c07bddc2f9b7ee82010e262e1b74af9cd",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:2e9be02f84c9b47e71d8310fbc15d49d9998750f411511122deee7f61e09d7c5": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:2e9be02f84c9b47e71d8310fbc15d49d9998750f411511122deee7f61e09d7c5",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-091"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "2e9be02f84c9b47e71d8310fbc15d49d9998750f411511122deee7f61e09d7c5",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:2eeed2327de2a941560dff3dfbe61a4a77639ffa18e7fba6ab15ddfee3e09bb2": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:2eeed2327de2a941560dff3dfbe61a4a77639ffa18e7fba6ab15ddfee3e09bb2",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-096"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "2eeed2327de2a941560dff3dfbe61a4a77639ffa18e7fba6ab15ddfee3e09bb2",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:2fa106f70b448be94da82bc0d76890501cd83a838e2cd13f35fdfb38a0622bce": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:2fa106f70b448be94da82bc0d76890501cd83a838e2cd13f35fdfb38a0622bce",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-046"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "2fa106f70b448be94da82bc0d76890501cd83a838e2cd13f35fdfb38a0622bce",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:3268a9bafd71d1f9297997c8dc9f90d714a00d7c7ac9f0faa758695a2171f7d7": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:3268a9bafd71d1f9297997c8dc9f90d714a00d7c7ac9f0faa758695a2171f7d7",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-003"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "3268a9bafd71d1f9297997c8dc9f90d714a00d7c7ac9f0faa758695a2171f7d7",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:341c1c349e41f4013a9115525271de0a58fb39c6b0dc2b8857a78552c97841cf": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:341c1c349e41f4013a9115525271de0a58fb39c6b0dc2b8857a78552c97841cf",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-069"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "341c1c349e41f4013a9115525271de0a58fb39c6b0dc2b8857a78552c97841cf",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:344f4d8359f0d1b58b3393e70e0e68379c3ed6f7cf39cb4e500d1d79b029e834": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:344f4d8359f0d1b58b3393e70e0e68379c3ed6f7cf39cb4e500d1d79b029e834",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-038"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "344f4d8359f0d1b58b3393e70e0e68379c3ed6f7cf39cb4e500d1d79b029e834",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:359a0438aef496adf573c1c6c6367e6fa77cd31fc17d2e8a5c26a5462beaeee1": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:359a0438aef496adf573c1c6c6367e6fa77cd31fc17d2e8a5c26a5462beaeee1",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-080"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "359a0438aef496adf573c1c6c6367e6fa77cd31fc17d2e8a5c26a5462beaeee1",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:38753d2a3f9e108ab6543367532e625c6e16aab1176d0831e4d65c00e051f43a": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:38753d2a3f9e108ab6543367532e625c6e16aab1176d0831e4d65c00e051f43a",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-099"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "38753d2a3f9e108ab6543367532e625c6e16aab1176d0831e4d65c00e051f43a",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:392f9ba4b2c56868cc95d25ae0a224e2a7ad8c1c7ead130a38dafdfd18ae422e": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:392f9ba4b2c56868cc95d25ae0a224e2a7ad8c1c7ead130a38dafdfd18ae422e",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-049"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "392f9ba4b2c56868cc95d25ae0a224e2a7ad8c1c7ead130a38dafdfd18ae422e",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:3b261d52f82cb3cf7e9ed4ed0154916d713896254a2bb0d3eed04c7568461b3f": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:3b261d52f82cb3cf7e9ed4ed0154916d713896254a2bb0d3eed04c7568461b3f",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-082"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "3b261d52f82cb3cf7e9ed4ed0154916d713896254a2bb0d3eed04c7568461b3f",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:3cdd28af653e8427814d02c863bf1d2cb599528fa3dc86102dc9e36cd80fbd1f": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:3cdd28af653e8427814d02c863bf1d2cb599528fa3dc86102dc9e36cd80fbd1f",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-028"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "3cdd28af653e8427814d02c863bf1d2cb599528fa3dc86102dc9e36cd80fbd1f",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:3d16bd802a35fbe6b213a1fc01da9e7acaa9438a928e0323389a9ba82e147fb4": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:3d16bd802a35fbe6b213a1fc01da9e7acaa9438a928e0323389a9ba82e147fb4",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-057"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "3d16bd802a35fbe6b213a1fc01da9e7acaa9438a928e0323389a9ba82e147fb4",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:3f9f71690315452215125725877f8420e1eeee52ded5585d16bbdf182d05b164": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:3f9f71690315452215125725877f8420e1eeee52ded5585d16bbdf182d05b164",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-073"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "3f9f71690315452215125725877f8420e1eeee52ded5585d16bbdf182d05b164",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:4174b273240415140302683403e6adb0dc45d196867a7d11173da35687fbdff3": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:4174b273240415140302683403e6adb0dc45d196867a7d11173da35687fbdff3",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-094"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "4174b273240415140302683403e6adb0dc45d196867a7d11173da35687fbdff3",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:41b812e2b9b3ef2cfa7fccf7a2cc89e8b49dddb86378e9e5380bbc595e9d135f": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:41b812e2b9b3ef2cfa7fccf7a2cc89e8b49dddb86378e9e5380bbc595e9d135f",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-020"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "41b812e2b9b3ef2cfa7fccf7a2cc89e8b49dddb86378e9e5380bbc595e9d135f",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:45bedcf4b81fd6dcc9210a0bcb01fbf3dd457ca8c06d37ca11515b6ff5c0224d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:45bedcf4b81fd6dcc9210a0bcb01fbf3dd457ca8c06d37ca11515b6ff5c0224d",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-019"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "45bedcf4b81fd6dcc9210a0bcb01fbf3dd457ca8c06d37ca11515b6ff5c0224d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:4608ab083fcf7d7042a12dfaafc19a08f9a207a3ba1750158eb0c267efcfccbf": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:4608ab083fcf7d7042a12dfaafc19a08f9a207a3ba1750158eb0c267efcfccbf",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-044"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "4608ab083fcf7d7042a12dfaafc19a08f9a207a3ba1750158eb0c267efcfccbf",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:4689fc2b045c048f4c3808ae8b355201487274276d8198c309dbeaf63f51be92": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:4689fc2b045c048f4c3808ae8b355201487274276d8198c309dbeaf63f51be92",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-065"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "4689fc2b045c048f4c3808ae8b355201487274276d8198c309dbeaf63f51be92",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:481e087ae3bdeb2b67c2f5f5acd26891ca19e3eff536eaff9b1b4fba2046a2f2": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:481e087ae3bdeb2b67c2f5f5acd26891ca19e3eff536eaff9b1b4fba2046a2f2",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-068"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "481e087ae3bdeb2b67c2f5f5acd26891ca19e3eff536eaff9b1b4fba2046a2f2",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:48fc18212ae2bed5dda0e9400ec088e5b76b1eeb21ff14b6fd821133f986613b": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:48fc18212ae2bed5dda0e9400ec088e5b76b1eeb21ff14b6fd821133f986613b",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-066"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "48fc18212ae2bed5dda0e9400ec088e5b76b1eeb21ff14b6fd821133f986613b",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:49434d4f3e9979ba60fff702156069b16aae6e7d2db51407bc84621f2838ab26": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:49434d4f3e9979ba60fff702156069b16aae6e7d2db51407bc84621f2838ab26",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-082"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "49434d4f3e9979ba60fff702156069b16aae6e7d2db51407bc84621f2838ab26",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:4a22baac82c31fac49bc7d2e27be10628f971fa1f3a8eb6eb75579a33676b5ca": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:4a22baac82c31fac49bc7d2e27be10628f971fa1f3a8eb6eb75579a33676b5ca",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-007"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "4a22baac82c31fac49bc7d2e27be10628f971fa1f3a8eb6eb75579a33676b5ca",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:4bd4ab2186fa7451bfec94ed5b2071f2cc8ecd7981c3d1641abefc0590777bfd": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:4bd4ab2186fa7451bfec94ed5b2071f2cc8ecd7981c3d1641abefc0590777bfd",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-084"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "4bd4ab2186fa7451bfec94ed5b2071f2cc8ecd7981c3d1641abefc0590777bfd",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:4dffcaf83ccd69c06c5f54a9213e968b46f045ff4b32f988cf1777fa3b8fd337": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:4dffcaf83ccd69c06c5f54a9213e968b46f045ff4b32f988cf1777fa3b8fd337",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-006"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "4dffcaf83ccd69c06c5f54a9213e968b46f045ff4b32f988cf1777fa3b8fd337",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:4e2b480e5ccca9f5ed7966521bc5e0fbee673bd1bf37808bff9e13b2dac15343": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:4e2b480e5ccca9f5ed7966521bc5e0fbee673bd1bf37808bff9e13b2dac15343",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-005"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "4e2b480e5ccca9f5ed7966521bc5e0fbee673bd1bf37808bff9e13b2dac15343",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:4f91f0560040b5f16d790f9f4c7ab920651f7977838268d40b6b622154a79466": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:4f91f0560040b5f16d790f9f4c7ab920651f7977838268d40b6b622154a79466",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-055"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "4f91f0560040b5f16d790f9f4c7ab920651f7977838268d40b6b622154a79466",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:50e469b5aef1eb524b0333b5ac3e8f20c72eb2973adca9ac29d614d1f8cd004d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:50e469b5aef1eb524b0333b5ac3e8f20c72eb2973adca9ac29d614d1f8cd004d",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-012"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "50e469b5aef1eb524b0333b5ac3e8f20c72eb2973adca9ac29d614d1f8cd004d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:53690e4bf080d51cd9d11dd9e6c81368949ccb9fdb5fec7fafe1b57a4253a802": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:53690e4bf080d51cd9d11dd9e6c81368949ccb9fdb5fec7fafe1b57a4253a802",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-094"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "53690e4bf080d51cd9d11dd9e6c81368949ccb9fdb5fec7fafe1b57a4253a802",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:53b8fac678aac3962647a758d839e285d4e8413ffa536f628903b357a5c0ede7": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:53b8fac678aac3962647a758d839e285d4e8413ffa536f628903b357a5c0ede7",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-033"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "53b8fac678aac3962647a758d839e285d4e8413ffa536f628903b357a5c0ede7",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:54b9203ad1cfe7baa0228ee5102ddc2ded8aea2024db7d9a7224880ba1d048ae": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:54b9203ad1cfe7baa0228ee5102ddc2ded8aea2024db7d9a7224880ba1d048ae",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-100"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "54b9203ad1cfe7baa0228ee5102ddc2ded8aea2024db7d9a7224880ba1d048ae",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:5500d2bcca3b0763406a9e3947e165ba22928e0dead31b614c91d059ab2396c2": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:5500d2bcca3b0763406a9e3947e165ba22928e0dead31b614c91d059ab2396c2",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-089"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "5500d2bcca3b0763406a9e3947e165ba22928e0dead31b614c91d059ab2396c2",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:550b417aa6a71a68308a0822249003c16597970a1625aac157938bd521bbb14c": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:550b417aa6a71a68308a0822249003c16597970a1625aac157938bd521bbb14c",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-030"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "550b417aa6a71a68308a0822249003c16597970a1625aac157938bd521bbb14c",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:59e080e3686d7199577f21ea3da13c35db3c502a6a50df83ab136506d5d0d49a": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:59e080e3686d7199577f21ea3da13c35db3c502a6a50df83ab136506d5d0d49a",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-063"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "59e080e3686d7199577f21ea3da13c35db3c502a6a50df83ab136506d5d0d49a",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:59fb317c8988206fee1f82c7c3a74550cf9c6b47b0b40fa295baef1207316e2b": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:59fb317c8988206fee1f82c7c3a74550cf9c6b47b0b40fa295baef1207316e2b",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-044"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "59fb317c8988206fee1f82c7c3a74550cf9c6b47b0b40fa295baef1207316e2b",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:5a5ef01ad945b37c5f2711972159c167b6224b0418146ba0d117d9a6074668d2": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:5a5ef01ad945b37c5f2711972159c167b6224b0418146ba0d117d9a6074668d2",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-070"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "5a5ef01ad945b37c5f2711972159c167b6224b0418146ba0d117d9a6074668d2",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:5b67816247a0caad8e90a08a619327fa344ca1e2e84959d6f8f3d929c3041c5b": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:5b67816247a0caad8e90a08a619327fa344ca1e2e84959d6f8f3d929c3041c5b",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-033"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "5b67816247a0caad8e90a08a619327fa344ca1e2e84959d6f8f3d929c3041c5b",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:5c02e972f172d3656f51557432a34a90705f59ab1590813a41ba9dc9fe7e3f23": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:5c02e972f172d3656f51557432a34a90705f59ab1590813a41ba9dc9fe7e3f23",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-091"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "5c02e972f172d3656f51557432a34a90705f59ab1590813a41ba9dc9fe7e3f23",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:5ca27c87c9eb75d19a78c195417078518c1c0957ea59d68263ed7fb09690846c": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:5ca27c87c9eb75d19a78c195417078518c1c0957ea59d68263ed7fb09690846c",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-074"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "5ca27c87c9eb75d19a78c195417078518c1c0957ea59d68263ed7fb09690846c",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:5cd6267652c43dfd37f3c63510f715843497412ec69227082d019bfe4c03844b": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:5cd6267652c43dfd37f3c63510f715843497412ec69227082d019bfe4c03844b",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-053"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "5cd6267652c43dfd37f3c63510f715843497412ec69227082d019bfe4c03844b",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:5e8c9b37b4c0f9ccc1fbc3cacda5458f120e96688f4508e716cfa77c3e7a1f04": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:5e8c9b37b4c0f9ccc1fbc3cacda5458f120e96688f4508e716cfa77c3e7a1f04",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-057"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "5e8c9b37b4c0f9ccc1fbc3cacda5458f120e96688f4508e716cfa77c3e7a1f04",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:5f445ab88855644e403f87e706353509d8b14815e7e264fc94769686f14fdc61": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:5f445ab88855644e403f87e706353509d8b14815e7e264fc94769686f14fdc61",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-058"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "5f445ab88855644e403f87e706353509d8b14815e7e264fc94769686f14fdc61",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:6074c2afa0cbe6a51898248c4c05441397a9a90ba5116c261cbf097583c68c69": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:6074c2afa0cbe6a51898248c4c05441397a9a90ba5116c261cbf097583c68c69",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-065"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "6074c2afa0cbe6a51898248c4c05441397a9a90ba5116c261cbf097583c68c69",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:61dced4261495b279a8aea5690de8b522482ef8e94038afeb5a0aff293ccfb6f": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:61dced4261495b279a8aea5690de8b522482ef8e94038afeb5a0aff293ccfb6f",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-086"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "61dced4261495b279a8aea5690de8b522482ef8e94038afeb5a0aff293ccfb6f",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:621dfc637a42960708c19178b0b0b6a5cfd093d7dbe64bc4b0136383c3051722": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:621dfc637a42960708c19178b0b0b6a5cfd093d7dbe64bc4b0136383c3051722",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-017"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "621dfc637a42960708c19178b0b0b6a5cfd093d7dbe64bc4b0136383c3051722",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:62346f11ad83b30917af3ada501facd1fe6e5eda5ff59a0b9720d58416811a7b": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:62346f11ad83b30917af3ada501facd1fe6e5eda5ff59a0b9720d58416811a7b",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-088"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "62346f11ad83b30917af3ada501facd1fe6e5eda5ff59a0b9720d58416811a7b",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:68eee9f114f7abadb6412c40cb0bc6af94f8b08ec8c39f393fe6f1222bfb6377": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:68eee9f114f7abadb6412c40cb0bc6af94f8b08ec8c39f393fe6f1222bfb6377",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-067"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "68eee9f114f7abadb6412c40cb0bc6af94f8b08ec8c39f393fe6f1222bfb6377",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:6abc62762192a3bcadb00675db1e2af27f9df0c7a3a3d742a3fa73afdb403dc4": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:6abc62762192a3bcadb00675db1e2af27f9df0c7a3a3d742a3fa73afdb403dc4",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-001"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "6abc62762192a3bcadb00675db1e2af27f9df0c7a3a3d742a3fa73afdb403dc4",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:6b010f58ba4bf52478c4c685169db64243f75b0dd3b5d0237d7477540b65969e": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:6b010f58ba4bf52478c4c685169db64243f75b0dd3b5d0237d7477540b65969e",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-015"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "6b010f58ba4bf52478c4c685169db64243f75b0dd3b5d0237d7477540b65969e",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:6b975bcd0a3802ab6161614253474d119b176701067538c5ccab0a647d9a82bc": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:6b975bcd0a3802ab6161614253474d119b176701067538c5ccab0a647d9a82bc",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-081"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "6b975bcd0a3802ab6161614253474d119b176701067538c5ccab0a647d9a82bc",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:6c5d6256a70bee6bbb751fbfd4b8c670d19db32c5f573e287ea083d90986c1f7": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:6c5d6256a70bee6bbb751fbfd4b8c670d19db32c5f573e287ea083d90986c1f7",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-004"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "6c5d6256a70bee6bbb751fbfd4b8c670d19db32c5f573e287ea083d90986c1f7",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:6d4c99e2cd097a5627c4d758806d637644bf3a0b7446f76025299019374d6b29": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:6d4c99e2cd097a5627c4d758806d637644bf3a0b7446f76025299019374d6b29",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-098"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "6d4c99e2cd097a5627c4d758806d637644bf3a0b7446f76025299019374d6b29",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:7035d626e32854f242a5f7912fc30461d1454651eb5225bfd3f42c34fe710cd3": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:7035d626e32854f242a5f7912fc30461d1454651eb5225bfd3f42c34fe710cd3",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-092"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "7035d626e32854f242a5f7912fc30461d1454651eb5225bfd3f42c34fe710cd3",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:71bbcd803249d12f0285aef5cd8eeadb8da724eb32acef255d94e472c4c61f9d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:71bbcd803249d12f0285aef5cd8eeadb8da724eb32acef255d94e472c4c61f9d",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-084"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "71bbcd803249d12f0285aef5cd8eeadb8da724eb32acef255d94e472c4c61f9d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:7267d3b1991e1eeefd6c1546678cdf94fb5604298e6fa634f2ae54d67b81f7ae": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:7267d3b1991e1eeefd6c1546678cdf94fb5604298e6fa634f2ae54d67b81f7ae",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-048"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "7267d3b1991e1eeefd6c1546678cdf94fb5604298e6fa634f2ae54d67b81f7ae",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:73f4412dcd51443ed0c54dc426bd1fd151cbf422d78ad8c75b54a7cde08836ea": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:73f4412dcd51443ed0c54dc426bd1fd151cbf422d78ad8c75b54a7cde08836ea",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-062"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "73f4412dcd51443ed0c54dc426bd1fd151cbf422d78ad8c75b54a7cde08836ea",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:75a170fe4baab9a045f2cddd56b3de2c1a8e459925b11ee19f0fe6e6ea1a9fc7": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:75a170fe4baab9a045f2cddd56b3de2c1a8e459925b11ee19f0fe6e6ea1a9fc7",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-035"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "75a170fe4baab9a045f2cddd56b3de2c1a8e459925b11ee19f0fe6e6ea1a9fc7",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:766107cea8c585b7be1b2aaf66e1d27572df1ff660476c07eb27bd0a40f743ce": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:766107cea8c585b7be1b2aaf66e1d27572df1ff660476c07eb27bd0a40f743ce",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-021"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "766107cea8c585b7be1b2aaf66e1d27572df1ff660476c07eb27bd0a40f743ce",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:77c2dfc925fac1841f991f4db427ef897df74e7839118aebe8242c110fc4ac64": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:77c2dfc925fac1841f991f4db427ef897df74e7839118aebe8242c110fc4ac64",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-035"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "77c2dfc925fac1841f991f4db427ef897df74e7839118aebe8242c110fc4ac64",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:7874a18e00c483b2ef7208f3aaa2150c473be1c62d62a724be3dfc90cf0d5b76": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:7874a18e00c483b2ef7208f3aaa2150c473be1c62d62a724be3dfc90cf0d5b76",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-027"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "7874a18e00c483b2ef7208f3aaa2150c473be1c62d62a724be3dfc90cf0d5b76",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:7931264e87760377e8558ba18034e8e58c7a73539a55b7fbe1ff615237daa9b2": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:7931264e87760377e8558ba18034e8e58c7a73539a55b7fbe1ff615237daa9b2",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-097"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "7931264e87760377e8558ba18034e8e58c7a73539a55b7fbe1ff615237daa9b2",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:794c85a27165f52be3b45c52cbe489a3b4418e3f9c2042ce51f963aa7274840c": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:794c85a27165f52be3b45c52cbe489a3b4418e3f9c2042ce51f963aa7274840c",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-052"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "794c85a27165f52be3b45c52cbe489a3b4418e3f9c2042ce51f963aa7274840c",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:7bff4efa8e922627386824c11322394109aa81f348d02bbc9fac07fd723ae7d3": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:7bff4efa8e922627386824c11322394109aa81f348d02bbc9fac07fd723ae7d3",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-005"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "7bff4efa8e922627386824c11322394109aa81f348d02bbc9fac07fd723ae7d3",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:7dcb910f72f6ff38419bf08b4f4011e16132f39ede44ee7491203cb9e5b87983": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:7dcb910f72f6ff38419bf08b4f4011e16132f39ede44ee7491203cb9e5b87983",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-054"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "7dcb910f72f6ff38419bf08b4f4011e16132f39ede44ee7491203cb9e5b87983",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:7e33d2966fd031df5c3b70a6ebc4572fdcc782e29a455714dee199d13f0ee59a": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:7e33d2966fd031df5c3b70a6ebc4572fdcc782e29a455714dee199d13f0ee59a",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-087"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "7e33d2966fd031df5c3b70a6ebc4572fdcc782e29a455714dee199d13f0ee59a",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:7fd68944401bf8c5a007d15a8249e1908ff4fed9d40e81808e611659a778ad24": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:7fd68944401bf8c5a007d15a8249e1908ff4fed9d40e81808e611659a778ad24",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-032"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "7fd68944401bf8c5a007d15a8249e1908ff4fed9d40e81808e611659a778ad24",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:80c44200d2aa8bdf0dc0d682d6e1ff8bc8bc0247970406f3ba33be6940a8772d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:80c44200d2aa8bdf0dc0d682d6e1ff8bc8bc0247970406f3ba33be6940a8772d",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-003"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "80c44200d2aa8bdf0dc0d682d6e1ff8bc8bc0247970406f3ba33be6940a8772d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:8111023543b9db15f26e7c952cfd2338e42f56c7bfd21c3b25e94f936ba7aaa7": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:8111023543b9db15f26e7c952cfd2338e42f56c7bfd21c3b25e94f936ba7aaa7",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-006"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "8111023543b9db15f26e7c952cfd2338e42f56c7bfd21c3b25e94f936ba7aaa7",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:81e98e50a6857b8c2c59eecebbda9b36c46370d3fbc48bbb9ed14c714012ed2f": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:81e98e50a6857b8c2c59eecebbda9b36c46370d3fbc48bbb9ed14c714012ed2f",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-067"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "81e98e50a6857b8c2c59eecebbda9b36c46370d3fbc48bbb9ed14c714012ed2f",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:821b6a815ae2b1232a3511654384194177bf270829ce13e9e28bcef64b0cb8b1": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:821b6a815ae2b1232a3511654384194177bf270829ce13e9e28bcef64b0cb8b1",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-024"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "821b6a815ae2b1232a3511654384194177bf270829ce13e9e28bcef64b0cb8b1",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:82501518ae5593512d25be5daca7b133b2c555f2c75e3be254d023868678792b": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:82501518ae5593512d25be5daca7b133b2c555f2c75e3be254d023868678792b",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-018"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "82501518ae5593512d25be5daca7b133b2c555f2c75e3be254d023868678792b",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:853c0a54326450ea92e2f6fd48225e025c651fbf2fa722f43190d48b9ac17df3": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:853c0a54326450ea92e2f6fd48225e025c651fbf2fa722f43190d48b9ac17df3",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-028"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "853c0a54326450ea92e2f6fd48225e025c651fbf2fa722f43190d48b9ac17df3",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:8659c4a3852b9eccd3e96a7b1a56787d72fdb3932d24dcd31bb50e4954f37e61": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:8659c4a3852b9eccd3e96a7b1a56787d72fdb3932d24dcd31bb50e4954f37e61",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-086"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "8659c4a3852b9eccd3e96a7b1a56787d72fdb3932d24dcd31bb50e4954f37e61",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:87aa8b7ccef96169d8b4cd19ae462cda54b6df71da3dcefbed82e5af234ff639": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:87aa8b7ccef96169d8b4cd19ae462cda54b6df71da3dcefbed82e5af234ff639",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-089"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "87aa8b7ccef96169d8b4cd19ae462cda54b6df71da3dcefbed82e5af234ff639",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:89b02afc947f1967b5c46445745d5d2c65ff0f7f706832630c51319fd8b86f85": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:89b02afc947f1967b5c46445745d5d2c65ff0f7f706832630c51319fd8b86f85",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-047"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "89b02afc947f1967b5c46445745d5d2c65ff0f7f706832630c51319fd8b86f85",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:8ac029270bf713d3b1a8769e3870549e7a826149e6261d6ff64c3710b0781a77": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:8ac029270bf713d3b1a8769e3870549e7a826149e6261d6ff64c3710b0781a77",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-041"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "8ac029270bf713d3b1a8769e3870549e7a826149e6261d6ff64c3710b0781a77",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:8cbdccf55333bde5fc553e3c476b3e957e69885461e21a95c391288ad285ea33": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:8cbdccf55333bde5fc553e3c476b3e957e69885461e21a95c391288ad285ea33",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-061"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "8cbdccf55333bde5fc553e3c476b3e957e69885461e21a95c391288ad285ea33",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:8d661dcbf9f249ae036c19f555111ba3ee084de997f240c3e73fba8b6429655d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:8d661dcbf9f249ae036c19f555111ba3ee084de997f240c3e73fba8b6429655d",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-002"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "8d661dcbf9f249ae036c19f555111ba3ee084de997f240c3e73fba8b6429655d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:8dc52f5f94ce17d5144988a562698655250b007f0ca4ecf89c72ba0136953266": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:8dc52f5f94ce17d5144988a562698655250b007f0ca4ecf89c72ba0136953266",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-026"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "8dc52f5f94ce17d5144988a562698655250b007f0ca4ecf89c72ba0136953266",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:91511d8235dac27a7fdaab1d99641e12285e6ef7e325bb6f1a8ff1bcac8256c2": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:91511d8235dac27a7fdaab1d99641e12285e6ef7e325bb6f1a8ff1bcac8256c2",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-095"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "91511d8235dac27a7fdaab1d99641e12285e6ef7e325bb6f1a8ff1bcac8256c2",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:91a79285b785d29d90ce5869662cc54045fc8b1036d08207f22d45758327c920": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:91a79285b785d29d90ce5869662cc54045fc8b1036d08207f22d45758327c920",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-090"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "91a79285b785d29d90ce5869662cc54045fc8b1036d08207f22d45758327c920",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:91dfeb04e9afb1eef09265afb18a42fca2f82cea13906357c5d4c531504f924b": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:91dfeb04e9afb1eef09265afb18a42fca2f82cea13906357c5d4c531504f924b",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-042"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "91dfeb04e9afb1eef09265afb18a42fca2f82cea13906357c5d4c531504f924b",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:935eb33450e9c3fd9263660890883442cf95409ff42d7acffb4944445b81deee": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:935eb33450e9c3fd9263660890883442cf95409ff42d7acffb4944445b81deee",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-072"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "935eb33450e9c3fd9263660890883442cf95409ff42d7acffb4944445b81deee",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:94651cfeecdfcbe10642ebeee6f5378a7fe052a376cd30be76cb34e5b0fbd61e": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:94651cfeecdfcbe10642ebeee6f5378a7fe052a376cd30be76cb34e5b0fbd61e",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-072"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "94651cfeecdfcbe10642ebeee6f5378a7fe052a376cd30be76cb34e5b0fbd61e",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:95c553af314abccaa9e01cd6f365428dbb51d48cd0e146c5abeb1436f9659186": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:95c553af314abccaa9e01cd6f365428dbb51d48cd0e146c5abeb1436f9659186",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-017"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "95c553af314abccaa9e01cd6f365428dbb51d48cd0e146c5abeb1436f9659186",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:966a6269eee1ae56846c799ccf6b31821ef4a9c4a9db9a942e8b41a122ac75db": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:966a6269eee1ae56846c799ccf6b31821ef4a9c4a9db9a942e8b41a122ac75db",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-027"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "966a6269eee1ae56846c799ccf6b31821ef4a9c4a9db9a942e8b41a122ac75db",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:97f7ae04324897320acd5377ba4390e1f28d729328ceb02881d2a3a4f988b715": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:97f7ae04324897320acd5377ba4390e1f28d729328ceb02881d2a3a4f988b715",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-009"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "97f7ae04324897320acd5377ba4390e1f28d729328ceb02881d2a3a4f988b715",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:98143e5f104342a0e506b4efeab664c273dc80467014ca99a832e97eabe3eec3": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:98143e5f104342a0e506b4efeab664c273dc80467014ca99a832e97eabe3eec3",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-083"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "98143e5f104342a0e506b4efeab664c273dc80467014ca99a832e97eabe3eec3",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:9816610719f22b814472d8ceb2d52639e88b239867e132aca9643af8fa5de628": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:9816610719f22b814472d8ceb2d52639e88b239867e132aca9643af8fa5de628",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-098"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "9816610719f22b814472d8ceb2d52639e88b239867e132aca9643af8fa5de628",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:987e104e816b5908c54b1baf5dbe684f42400215a694ec46ff387493b46cd840": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:987e104e816b5908c54b1baf5dbe684f42400215a694ec46ff387493b46cd840",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-022"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "987e104e816b5908c54b1baf5dbe684f42400215a694ec46ff387493b46cd840",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:99bfbfd4c2e8cd1f1790116c6ca8e8648a23b559ca856512d7274d4ba65ce7ec": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:99bfbfd4c2e8cd1f1790116c6ca8e8648a23b559ca856512d7274d4ba65ce7ec",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-079"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "99bfbfd4c2e8cd1f1790116c6ca8e8648a23b559ca856512d7274d4ba65ce7ec",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:99ff49c3eebb45499dab49db0efe011af73b2585e081e0a643c230d1d63ae75d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:99ff49c3eebb45499dab49db0efe011af73b2585e081e0a643c230d1d63ae75d",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-073"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "99ff49c3eebb45499dab49db0efe011af73b2585e081e0a643c230d1d63ae75d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:9c36ce421d2b04de37f2f8233e628bb7e6bf524c6c60b0386fbc13914d941a3c": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:9c36ce421d2b04de37f2f8233e628bb7e6bf524c6c60b0386fbc13914d941a3c",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-051"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "9c36ce421d2b04de37f2f8233e628bb7e6bf524c6c60b0386fbc13914d941a3c",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:a14a29e1163157ea2541efee15ca096efeef733035919009c625b486991ddf66": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:a14a29e1163157ea2541efee15ca096efeef733035919009c625b486991ddf66",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-083"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "a14a29e1163157ea2541efee15ca096efeef733035919009c625b486991ddf66",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:a19ef923220291276b2bf229b548eca905d0cb9a6899bcf0818efbe24daa0ac1": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:a19ef923220291276b2bf229b548eca905d0cb9a6899bcf0818efbe24daa0ac1",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-080"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "a19ef923220291276b2bf229b548eca905d0cb9a6899bcf0818efbe24daa0ac1",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:a26536fcdd4ab41c80708bbc4b727d6c8fd35ed15be4ba0c7fd3493a849d1ca6": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:a26536fcdd4ab41c80708bbc4b727d6c8fd35ed15be4ba0c7fd3493a849d1ca6",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-010"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "a26536fcdd4ab41c80708bbc4b727d6c8fd35ed15be4ba0c7fd3493a849d1ca6",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:a2c0974b5be1f629f374ed1a50cec6abb389c9af4d2349940fdf9117b7119f89": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:a2c0974b5be1f629f374ed1a50cec6abb389c9af4d2349940fdf9117b7119f89",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-056"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "a2c0974b5be1f629f374ed1a50cec6abb389c9af4d2349940fdf9117b7119f89",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:a33d748083a6acba7d8bf2bb3070c1d1210d0967a3153f65c9f9d0ff65aa3375": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:a33d748083a6acba7d8bf2bb3070c1d1210d0967a3153f65c9f9d0ff65aa3375",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-087"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "a33d748083a6acba7d8bf2bb3070c1d1210d0967a3153f65c9f9d0ff65aa3375",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:a3ec762be735abf77db0dc4f709d4307a03a7372c2db4b19df6ebd75b4e58567": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:a3ec762be735abf77db0dc4f709d4307a03a7372c2db4b19df6ebd75b4e58567",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-029"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "a3ec762be735abf77db0dc4f709d4307a03a7372c2db4b19df6ebd75b4e58567",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:a527b67d30c5e0d7ec5dbf0ea716b02575b00c42c4d05198d5b9a4d226acf8f7": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:a527b67d30c5e0d7ec5dbf0ea716b02575b00c42c4d05198d5b9a4d226acf8f7",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-074"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "a527b67d30c5e0d7ec5dbf0ea716b02575b00c42c4d05198d5b9a4d226acf8f7",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:a631d6f40f10729f95626c6aa7455bdfcb2fd5a89056fa47f8eca0a73679cee6": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:a631d6f40f10729f95626c6aa7455bdfcb2fd5a89056fa47f8eca0a73679cee6",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-025"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "a631d6f40f10729f95626c6aa7455bdfcb2fd5a89056fa47f8eca0a73679cee6",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:a84a69038a5e610b40bfd5988a1302d76c27f5c8fba54cb73299d479f75edfef": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:a84a69038a5e610b40bfd5988a1302d76c27f5c8fba54cb73299d479f75edfef",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-064"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "a84a69038a5e610b40bfd5988a1302d76c27f5c8fba54cb73299d479f75edfef",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:aac7db59ba3eaaef4c289ba66c77b8daa1992a5947d28eeacf67f1c20715ed37": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:aac7db59ba3eaaef4c289ba66c77b8daa1992a5947d28eeacf67f1c20715ed37",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-021"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "aac7db59ba3eaaef4c289ba66c77b8daa1992a5947d28eeacf67f1c20715ed37",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:aafc15f1b0ffa8695384d588eb41340fc7c04e1972b9c4eeebad37bfa901f815": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:aafc15f1b0ffa8695384d588eb41340fc7c04e1972b9c4eeebad37bfa901f815",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-036"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "aafc15f1b0ffa8695384d588eb41340fc7c04e1972b9c4eeebad37bfa901f815",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:ac2f66570f359fa2d67f07607256b1f1356afa3e60fc0afed4a7eaa26f6613af": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:ac2f66570f359fa2d67f07607256b1f1356afa3e60fc0afed4a7eaa26f6613af",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-078"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "ac2f66570f359fa2d67f07607256b1f1356afa3e60fc0afed4a7eaa26f6613af",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:ac345d5d76d76cb7de0cba8cc1477628efabc9ed241d3abed96e269a65efa6cf": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:ac345d5d76d76cb7de0cba8cc1477628efabc9ed241d3abed96e269a65efa6cf",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-076"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "ac345d5d76d76cb7de0cba8cc1477628efabc9ed241d3abed96e269a65efa6cf",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:ac9a3b06bf1356b04ba08db9996186ba3464bf164b3d1cb9e0a276f878519163": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:ac9a3b06bf1356b04ba08db9996186ba3464bf164b3d1cb9e0a276f878519163",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-064"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "ac9a3b06bf1356b04ba08db9996186ba3464bf164b3d1cb9e0a276f878519163",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:afc381184af2906e076e4073dcc3a831730980f4378f0c313e53f7cf71192ed3": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:afc381184af2906e076e4073dcc3a831730980f4378f0c313e53f7cf71192ed3",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-018"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "afc381184af2906e076e4073dcc3a831730980f4378f0c313e53f7cf71192ed3",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:afdd42f7cbeb09e3111ef2cb22ff2fc22749b8a13901eab3e46300730e885019": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:afdd42f7cbeb09e3111ef2cb22ff2fc22749b8a13901eab3e46300730e885019",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-016"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "afdd42f7cbeb09e3111ef2cb22ff2fc22749b8a13901eab3e46300730e885019",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:b009ba132a3d64f4ec33bd3bd25079bdb4a895a984d336c4fd613bef138027f4": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:b009ba132a3d64f4ec33bd3bd25079bdb4a895a984d336c4fd613bef138027f4",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-075"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "b009ba132a3d64f4ec33bd3bd25079bdb4a895a984d336c4fd613bef138027f4",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:b0375a447f28d439887d46a9200ddb1f4d7669d91a5430d6fd6912a67ff55541": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:b0375a447f28d439887d46a9200ddb1f4d7669d91a5430d6fd6912a67ff55541",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-085"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "b0375a447f28d439887d46a9200ddb1f4d7669d91a5430d6fd6912a67ff55541",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:b0e9d84a677c80bbe48569f94f8203e68a5beecd706355586b60d9131abf27a8": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:b0e9d84a677c80bbe48569f94f8203e68a5beecd706355586b60d9131abf27a8",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-039"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "b0e9d84a677c80bbe48569f94f8203e68a5beecd706355586b60d9131abf27a8",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:b1f3029fac9bb2ebc3dc66882633cf7c8fd92201182824a6d57de059d927d9ef": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:b1f3029fac9bb2ebc3dc66882633cf7c8fd92201182824a6d57de059d927d9ef",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-037"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "b1f3029fac9bb2ebc3dc66882633cf7c8fd92201182824a6d57de059d927d9ef",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:b699ded94b95ff83c80530052f4a1c3b3fa66548f5bb0e415d94443786ea866d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:b699ded94b95ff83c80530052f4a1c3b3fa66548f5bb0e415d94443786ea866d",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-100"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "b699ded94b95ff83c80530052f4a1c3b3fa66548f5bb0e415d94443786ea866d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:b6cc8d78094d67c5132234dd62832889810defd019a98758086f6b8d66febc25": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:b6cc8d78094d67c5132234dd62832889810defd019a98758086f6b8d66febc25",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-037"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "b6cc8d78094d67c5132234dd62832889810defd019a98758086f6b8d66febc25",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:b7bcbaf8253b82e5c625dfc280e44e0998a3d5f9c1b8a27f480d0d7f112ac417": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:b7bcbaf8253b82e5c625dfc280e44e0998a3d5f9c1b8a27f480d0d7f112ac417",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-095"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "b7bcbaf8253b82e5c625dfc280e44e0998a3d5f9c1b8a27f480d0d7f112ac417",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:b7e3f8536a0d2a1edf6a1aac46ab9e08aa4d0b6198d18cf2fd36acd62eee3d9c": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:b7e3f8536a0d2a1edf6a1aac46ab9e08aa4d0b6198d18cf2fd36acd62eee3d9c",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-079"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "b7e3f8536a0d2a1edf6a1aac46ab9e08aa4d0b6198d18cf2fd36acd62eee3d9c",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:b8b00fea5f62f5ec7ca688487e7d4c97f4f072981b42b3d518eb1c3f7d374e4a": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:b8b00fea5f62f5ec7ca688487e7d4c97f4f072981b42b3d518eb1c3f7d374e4a",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-042"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "b8b00fea5f62f5ec7ca688487e7d4c97f4f072981b42b3d518eb1c3f7d374e4a",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:ba0f400516670470ec0f43e0691f4e75702b603eacd4ae11d8582708b44c328d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:ba0f400516670470ec0f43e0691f4e75702b603eacd4ae11d8582708b44c328d",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-003"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "ba0f400516670470ec0f43e0691f4e75702b603eacd4ae11d8582708b44c328d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:ba4c2be476938965f68eea9a9ca5b20c6467cf58e52fe5ede80b1f0b81f2656a": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:ba4c2be476938965f68eea9a9ca5b20c6467cf58e52fe5ede80b1f0b81f2656a",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-048"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "ba4c2be476938965f68eea9a9ca5b20c6467cf58e52fe5ede80b1f0b81f2656a",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:bb194f85e33970a170d7877182fbab4e83def8cd9d0ef882a6338c1c0c8651a1": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:bb194f85e33970a170d7877182fbab4e83def8cd9d0ef882a6338c1c0c8651a1",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-020"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "bb194f85e33970a170d7877182fbab4e83def8cd9d0ef882a6338c1c0c8651a1",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:bcde405e6fbc7b79ae70fad1a5eee7c1c8f415827de10c4e63926b65c5cb932d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:bcde405e6fbc7b79ae70fad1a5eee7c1c8f415827de10c4e63926b65c5cb932d",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-041"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "bcde405e6fbc7b79ae70fad1a5eee7c1c8f415827de10c4e63926b65c5cb932d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:bee6247796c6ba89ccca50337f90d5f29c25c7297e8b654c2136431431b8d95b": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:bee6247796c6ba89ccca50337f90d5f29c25c7297e8b654c2136431431b8d95b",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-066"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "bee6247796c6ba89ccca50337f90d5f29c25c7297e8b654c2136431431b8d95b",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:bf579471f0a1bf80400951aa73d175e92a3edd89d4ed6443eee9d2ed93f894ac": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:bf579471f0a1bf80400951aa73d175e92a3edd89d4ed6443eee9d2ed93f894ac",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-090"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "bf579471f0a1bf80400951aa73d175e92a3edd89d4ed6443eee9d2ed93f894ac",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:c143c76fadc8cd5b11e20e0dbd0a9dc70926b27135d76602b8bbc10d0f5cd911": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:c143c76fadc8cd5b11e20e0dbd0a9dc70926b27135d76602b8bbc10d0f5cd911",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-063"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "c143c76fadc8cd5b11e20e0dbd0a9dc70926b27135d76602b8bbc10d0f5cd911",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:c16244551a8d99ec508a4b05a5ce8f2ad3f3901be1735554b37076d9515c04d0": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:c16244551a8d99ec508a4b05a5ce8f2ad3f3901be1735554b37076d9515c04d0",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-034"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "c16244551a8d99ec508a4b05a5ce8f2ad3f3901be1735554b37076d9515c04d0",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:c28cb52af718c1bc9ea4ccc10b0c921136ae32cdaf1e20cb66ce452f445f4834": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:c28cb52af718c1bc9ea4ccc10b0c921136ae32cdaf1e20cb66ce452f445f4834",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-069"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "c28cb52af718c1bc9ea4ccc10b0c921136ae32cdaf1e20cb66ce452f445f4834",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:c387676edcb141b32b17f61b16727781c4ac2655b25ee53c43b529860e9a8415": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:c387676edcb141b32b17f61b16727781c4ac2655b25ee53c43b529860e9a8415",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-019"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "c387676edcb141b32b17f61b16727781c4ac2655b25ee53c43b529860e9a8415",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:c4e431f262eaf8d168f4dd1c8ef358262100684c8cd53fe8ffbc5d5d9f7a1418": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:c4e431f262eaf8d168f4dd1c8ef358262100684c8cd53fe8ffbc5d5d9f7a1418",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-031"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "c4e431f262eaf8d168f4dd1c8ef358262100684c8cd53fe8ffbc5d5d9f7a1418",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:c5e595e8181a1a3c47d9562b7cf82d458e9fc439e34ad1c553b011b527f36199": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:c5e595e8181a1a3c47d9562b7cf82d458e9fc439e34ad1c553b011b527f36199",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-009"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "c5e595e8181a1a3c47d9562b7cf82d458e9fc439e34ad1c553b011b527f36199",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:c6af273e8d2fe1d0ee3930126f0eb88acbd2230a99652cb759e0a4ae73c18824": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:c6af273e8d2fe1d0ee3930126f0eb88acbd2230a99652cb759e0a4ae73c18824",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-007"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "c6af273e8d2fe1d0ee3930126f0eb88acbd2230a99652cb759e0a4ae73c18824",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:c94b0e90745fdd7872b63cd8d519ae4716221430c6e262f50af3bec3c9d30e32": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:c94b0e90745fdd7872b63cd8d519ae4716221430c6e262f50af3bec3c9d30e32",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-011"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "c94b0e90745fdd7872b63cd8d519ae4716221430c6e262f50af3bec3c9d30e32",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:cd44ef7a599038872f6683df94c5696d4dbfbfe310c3f3824183374689093685": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:cd44ef7a599038872f6683df94c5696d4dbfbfe310c3f3824183374689093685",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-071"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "cd44ef7a599038872f6683df94c5696d4dbfbfe310c3f3824183374689093685",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:d1f2c47e6d63c09579c1780260b01846d691f56dd5de228168f34142a995ca8d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:d1f2c47e6d63c09579c1780260b01846d691f56dd5de228168f34142a995ca8d",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-014"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "d1f2c47e6d63c09579c1780260b01846d691f56dd5de228168f34142a995ca8d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:d44f2d41cedd7110dadb5dfbaaabf7299210f26dd8d532e97810174ed86aa660": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:d44f2d41cedd7110dadb5dfbaaabf7299210f26dd8d532e97810174ed86aa660",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-023"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "d44f2d41cedd7110dadb5dfbaaabf7299210f26dd8d532e97810174ed86aa660",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:d6722b5c3f2f59c9e8a0a3ac12e819c083b0e65f7d8ed3a9f62b75f2a4a47f98": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:d6722b5c3f2f59c9e8a0a3ac12e819c083b0e65f7d8ed3a9f62b75f2a4a47f98",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-093"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "d6722b5c3f2f59c9e8a0a3ac12e819c083b0e65f7d8ed3a9f62b75f2a4a47f98",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:d93853c444e78efb9e579cbdbbb1c010ba46685893084485626484d70a40dedc": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:d93853c444e78efb9e579cbdbbb1c010ba46685893084485626484d70a40dedc",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-036"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "d93853c444e78efb9e579cbdbbb1c010ba46685893084485626484d70a40dedc",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:d9c362434d345043f4fcc5e3a871916919efeefb9d527c7ead2b116c60d1f751": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:d9c362434d345043f4fcc5e3a871916919efeefb9d527c7ead2b116c60d1f751",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-011"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "d9c362434d345043f4fcc5e3a871916919efeefb9d527c7ead2b116c60d1f751",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:ded50eabb4575e4e5b2709009dfcb41b4f4a6af26aeb63a3e1f9739f9473c684": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:ded50eabb4575e4e5b2709009dfcb41b4f4a6af26aeb63a3e1f9739f9473c684",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-008"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "ded50eabb4575e4e5b2709009dfcb41b4f4a6af26aeb63a3e1f9739f9473c684",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:df326940c56e96fb29b28dc596ff6599233298282c12147eb1f6f2793b1bbc05": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:df326940c56e96fb29b28dc596ff6599233298282c12147eb1f6f2793b1bbc05",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-052"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "df326940c56e96fb29b28dc596ff6599233298282c12147eb1f6f2793b1bbc05",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:e2ddf10348e069940fe70479ca3e6dc489edf394a8e0b29f144b49cb07c84359": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:e2ddf10348e069940fe70479ca3e6dc489edf394a8e0b29f144b49cb07c84359",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-040"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "e2ddf10348e069940fe70479ca3e6dc489edf394a8e0b29f144b49cb07c84359",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:e6129459bae60b3cb1a9bb193028226ff3f245cf065308fa77da15fe9252f5b9": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:e6129459bae60b3cb1a9bb193028226ff3f245cf065308fa77da15fe9252f5b9",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-061"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "e6129459bae60b3cb1a9bb193028226ff3f245cf065308fa77da15fe9252f5b9",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:e6eb05b463b86ee14b9ce0c095d02462dbeefa58e0818ee6604b0999b5fe2b26": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:e6eb05b463b86ee14b9ce0c095d02462dbeefa58e0818ee6604b0999b5fe2b26",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-096"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "e6eb05b463b86ee14b9ce0c095d02462dbeefa58e0818ee6604b0999b5fe2b26",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:e72aa433784a3e7981747dc4d23c9c8295c8e411162ed27c1cc1ea07baa81a6a": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:e72aa433784a3e7981747dc4d23c9c8295c8e411162ed27c1cc1ea07baa81a6a",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-010"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "e72aa433784a3e7981747dc4d23c9c8295c8e411162ed27c1cc1ea07baa81a6a",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:e74f3356254f6e6980476743a6289562fd55c2d271c54d79d617b500a3a5321d": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:e74f3356254f6e6980476743a6289562fd55c2d271c54d79d617b500a3a5321d",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-001"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "e74f3356254f6e6980476743a6289562fd55c2d271c54d79d617b500a3a5321d",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:e919d88a6e5cd26fd9e11fbedf80745a0dfaa45d98d963741a6b297d624bf7e2": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:e919d88a6e5cd26fd9e11fbedf80745a0dfaa45d98d963741a6b297d624bf7e2",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-024"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "e919d88a6e5cd26fd9e11fbedf80745a0dfaa45d98d963741a6b297d624bf7e2",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:ea3c45df20bc09f83e7cbf4404373b42ba907854b4fb615720f2a7ee5becf4c2": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:ea3c45df20bc09f83e7cbf4404373b42ba907854b4fb615720f2a7ee5becf4c2",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-077"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "ea3c45df20bc09f83e7cbf4404373b42ba907854b4fb615720f2a7ee5becf4c2",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:eb83960d3dd17b4e4f222c66cbc23988bc06629428d5b85996a0352c9d411921": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:eb83960d3dd17b4e4f222c66cbc23988bc06629428d5b85996a0352c9d411921",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-002"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "eb83960d3dd17b4e4f222c66cbc23988bc06629428d5b85996a0352c9d411921",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:eb8fcfd13e83e4f52d162353964765a915aab68ed6b9ca60db388a2a6013ed25": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:eb8fcfd13e83e4f52d162353964765a915aab68ed6b9ca60db388a2a6013ed25",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-060"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "eb8fcfd13e83e4f52d162353964765a915aab68ed6b9ca60db388a2a6013ed25",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:eca405f20c3e1a997693c2214018a0cdd46bd396a5786619e7d10bf6bd88c09f": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:eca405f20c3e1a997693c2214018a0cdd46bd396a5786619e7d10bf6bd88c09f",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-013"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "eca405f20c3e1a997693c2214018a0cdd46bd396a5786619e7d10bf6bd88c09f",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:eff3fab3305878653f758fe6cc76b7847b2773699f27b3b416effd8f503518f4": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:eff3fab3305878653f758fe6cc76b7847b2773699f27b3b416effd8f503518f4",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-054"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "eff3fab3305878653f758fe6cc76b7847b2773699f27b3b416effd8f503518f4",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:f05cb49ab9e1392b11c56ee7ca71b7a05672dd4085c1fc8004709aedffe8601c": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:f05cb49ab9e1392b11c56ee7ca71b7a05672dd4085c1fc8004709aedffe8601c",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-023"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "f05cb49ab9e1392b11c56ee7ca71b7a05672dd4085c1fc8004709aedffe8601c",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:f1fb503530d480188d3c512956ef557b80c4eb5ce2984b15912f0b883a11dc02": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:f1fb503530d480188d3c512956ef557b80c4eb5ce2984b15912f0b883a11dc02",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-043"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "f1fb503530d480188d3c512956ef557b80c4eb5ce2984b15912f0b883a11dc02",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:f24808d3cc608846bbfaf461e692387c57320c72b11783d80112c890e7e02812": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:f24808d3cc608846bbfaf461e692387c57320c72b11783d80112c890e7e02812",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-022"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "f24808d3cc608846bbfaf461e692387c57320c72b11783d80112c890e7e02812",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:f2711738ac27a7f8d238e8053a5634c213a012a1a0d186d84b334e49fde449d5": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:f2711738ac27a7f8d238e8053a5634c213a012a1a0d186d84b334e49fde449d5",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-085"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "f2711738ac27a7f8d238e8053a5634c213a012a1a0d186d84b334e49fde449d5",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:f2ce17a15bae1c3c9778929e4790f37d05e8b5514e5235a2b4cda6622a120530": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:f2ce17a15bae1c3c9778929e4790f37d05e8b5514e5235a2b4cda6622a120530",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-029"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "f2ce17a15bae1c3c9778929e4790f37d05e8b5514e5235a2b4cda6622a120530",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:f47ba31ded9770f3815ce27857d82bf27aab0866af197eaf3e2993a58cb331de": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:f47ba31ded9770f3815ce27857d82bf27aab0866af197eaf3e2993a58cb331de",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-099"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "f47ba31ded9770f3815ce27857d82bf27aab0866af197eaf3e2993a58cb331de",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:f7634bd75f016c8ce0b833605d07d836e01630615ef0ee24fb774cd8759e1beb": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:f7634bd75f016c8ce0b833605d07d836e01630615ef0ee24fb774cd8759e1beb",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-071"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "f7634bd75f016c8ce0b833605d07d836e01630615ef0ee24fb774cd8759e1beb",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:f7c1f4932c280d6d1499db3898eef3784a39c832048d250d6c831b4f5554da95": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:f7c1f4932c280d6d1499db3898eef3784a39c832048d250d6c831b4f5554da95",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-081"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "f7c1f4932c280d6d1499db3898eef3784a39c832048d250d6c831b4f5554da95",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:fae0b32eac750e7424796207c93913e11c947a881565a4be79c5b8c9896a1c45": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:fae0b32eac750e7424796207c93913e11c947a881565a4be79c5b8c9896a1c45",
+        "artifact_kind": "mechanism_analysis",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-059"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "fae0b32eac750e7424796207c93913e11c947a881565a4be79c5b8c9896a1c45",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:fe688dc7af25ef8a1d5dd915832f9f46176c08b6b8f8e644dea7c52fc0f1bd4c": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:fe688dc7af25ef8a1d5dd915832f9f46176c08b6b8f8e644dea7c52fc0f1bd4c",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-004"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "fe688dc7af25ef8a1d5dd915832f9f46176c08b6b8f8e644dea7c52fc0f1bd4c",
+        "sensor_scope": "Unspecified"
+      }
+    },
+    "sha256:fedd65d0bf2be9d2f59536b3e3fc7e57d5cf8b9c41eebdcd52c92e813ee5b7e1": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
+        "artifact_id": "sha256:fedd65d0bf2be9d2f59536b3e3fc7e57d5cf8b9c41eebdcd52c92e813ee5b7e1",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-043"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "fedd65d0bf2be9d2f59536b3e3fc7e57d5cf8b9c41eebdcd52c92e813ee5b7e1",
+        "sensor_scope": "Unspecified"
+      }
+    }
+  },
+  "schema_version": 1
+}

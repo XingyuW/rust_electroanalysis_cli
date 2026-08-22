@@ -1,35 +1,76 @@
 {
-  "schema_version": 1,
-  "approval_record_id": "sha256:75059e591a230e7d996a92180e7e52c1b4a393f2ec2de56cf6a2ca561436b40a",
-  "approval_status": "approved",
   "approval_purpose": "pre_scoring_physical_validation_cohort_lock",
-  "trust_store_id": "mhi_physical_approval_trust_store_v1",
-  "trust_root_id": "test_only_known_answer_root",
-  "project_owner_authority_id": "test_vector_owner",
-  "registry_authority_id": "test_vector_registry",
-  "owner_authority_document": {
-    "immutable_reference_uri": "urn:mhi:test:owner-authority",
-    "document_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-  },
-  "registry_record": {
-    "immutable_reference_uri": "urn:mhi:test:registry-record",
-    "document_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
-  },
-  "protocol_sha256": "74b871604ba3c85d21af243282e7fc9f8606984f8d31d3d9f37f139876544329",
-  "cohort_semantic_sha256": "05391640c01e3c70a953b5d53527c651172a9a7e3ba40827005d2db957b4da16",
-  "claim_ids": ["physical_claim"],
-  "endpoint_ids": ["health_endpoint", "mechanism_endpoint"],
-  "reference_authority_ids": ["reference_authority"],
-  "target_domain": {
-    "analyte": { "type": "any_declared" },
-    "matrix": { "type": "any_declared" },
-    "sensor_design": { "type": "any_declared" },
-    "sensor": { "type": "any_declared" },
-    "campaign": { "type": "any_declared" },
-    "temperature": { "type": "any_declared" }
-  },
-  "physical_origin_confirmed": true,
+  "approval_record_id": "sha256:db93d80329a6eea3bafeef8552c1f682436a00b06539b3ef771e872dd65d6f78",
+  "approval_status": "approved",
+  "claim_ids": [
+    "physical_claim"
+  ],
+  "cohort_semantic_sha256": "c4e63c4f041fa188b5a7f8db84e2f6685bcfc8655b20241f181b198b2a81b784",
+  "endpoint_ids": [
+    "health_endpoint",
+    "mechanism_endpoint"
+  ],
   "limitations": [],
-  "owner_signature_ed25519_hex": "9346aed3df483f0b7dbfbf2764ec362045751335783574f2f7678514179d9a20f7a7222c4c9223b5acda8ca38994433948529158836a8e7bb1fa8bf9469a7f08",
-  "registry_signature_ed25519_hex": "7a167770043be43e1bcd34c3e56d7bc8dbce30cd4529b00cb5392248f9da347c69080c00ac9bd9fe154e17e73743a7f73e4319decb84d4b6ac94429ea1dd0d0e"
+  "owner_authority_document": {
+    "document_sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+    "immutable_reference_uri": "urn:mhi:test:owner-authority"
+  },
+  "owner_signature_ed25519_hex": "bba48c2ef2450adee8891780dc8eede7a251c1106beb05e246f4a897a5a5b5fb8707d394e23683ad55fff2d38b1765a4940182a9eae6a0c11c1c6114c6c2e309",
+  "physical_origin_confirmed": true,
+  "project_owner_authority_id": "test_vector_owner",
+  "protocol_sha256": "a7c7938faed65ec9a3e346194a19f9d4401b66f9e81a8695aec2931f5cf97501",
+  "reference_authority_ids": [
+    "reference_authority"
+  ],
+  "registry_authority_id": "test_vector_registry",
+  "registry_record": {
+    "document_sha256": "0000000000000000000000000000000000000000000000000000000000000002",
+    "immutable_reference_uri": "urn:mhi:test:registry-record"
+  },
+  "registry_signature_ed25519_hex": "a53a270b223d6f57d73a15bf98b04222a4ec997e3d53ec9238c8f674df90bab0718ae01e104c36b9570c91a23a3df09c6d0eb67580a075c76463611e78259b0e",
+  "schema_version": 1,
+  "target_domain": {
+    "analyte": {
+      "ids": [
+        "analyte"
+      ],
+      "type": "allowed"
+    },
+    "campaign": {
+      "ids": [
+        "campaign"
+      ],
+      "type": "allowed"
+    },
+    "matrix": {
+      "ids": [
+        "matrix"
+      ],
+      "type": "allowed"
+    },
+    "sensor": {
+      "ids": [
+        "sensor_a",
+        "sensor_b"
+      ],
+      "type": "allowed"
+    },
+    "sensor_design": {
+      "ids": [
+        "design"
+      ],
+      "type": "allowed"
+    },
+    "temperature": {
+      "bands": [
+        {
+          "lower_kelvin_inclusive": 298.0,
+          "upper_kelvin_exclusive": 299.0
+        }
+      ],
+      "type": "bands"
+    }
+  },
+  "trust_root_id": "test_only_known_answer_root",
+  "trust_store_id": "mhi_physical_approval_trust_store_v1"
 }

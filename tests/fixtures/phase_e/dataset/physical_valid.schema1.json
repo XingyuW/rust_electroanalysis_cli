@@ -1,51 +1,232 @@
 {
-  "schema_version": 1,
   "artifact_kind": "mhi_validation_dataset",
+  "cohort_semantic_sha256": "6533309a5f34a62c508a3495f9dc07c66ee8d2275b8428e2140fd69a666d5b7b",
   "dataset_id": "phase_e_physical_dataset",
-  "protocol_sha256": "74b871604ba3c85d21af243282e7fc9f8606984f8d31d3d9f37f139876544329",
-  "cohort_semantic_sha256": "05391640c01e3c70a953b5d53527c651172a9a7e3ba40827005d2db957b4da16",
-  "lineage_catalog_source": {
-    "relative_path": "lineage/complete.schema1.json",
-    "schema_version": 1,
-    "source_file_sha256": "d905d50e370c260ed0ecef63fff8aabbdced821b56b9d34a2fb18a99bd8ceb82"
+  "lineage": {
+    "LegacyUnknown": {
+      "reason": "MigrationInformationUnavailable",
+      "source_schema_version": 1
+    }
   },
-  "reference_sources": [],
+  "lineage_catalog_source": {
+    "relative_path": "lineage/physical_complete.schema1.json",
+    "schema_version": 1,
+    "source_file_sha256": "78c81abe9a04c721fc92fb6ce2a6bcf607c9e73d6eefa53fc12ff99be93577bc"
+  },
+  "owner_approval_source": {
+    "expected_approval_record_id": "sha256:970fa2fd08ceb7bacb0775ec7835e4aa2a8ef7f7e602d7ab6d4296b9218a3cfc",
+    "relative_path": "approval/valid.schema1.json",
+    "schema_version": 1,
+    "source_file_sha256": "93a8c097f673685bf94072fe5923191b75b15d5122e924244f36095b5230f47f"
+  },
+  "protocol_sha256": "a7c7938faed65ec9a3e346194a19f9d4401b66f9e81a8695aec2931f5cf97501",
+  "provenance": {
+    "expected_release": "physical_test_boundary_only",
+    "phase_e_fixture_case": "phase_e_physical_dataset"
+  },
   "records": [
     {
-      "record_id": "physical_record_1",
       "cohort_role": "holdout",
-      "mechanism_source": null,
-      "health_source": null,
       "declared_scope": {
-        "experiment_scope": "Unknown",
-        "sensor_scope": "Unspecified",
+        "acquisition_families": {
+          "Known": [
+            "physical-family-a"
+          ]
+        },
         "channel_scope": "Unspecified",
-        "acquisition_families": "Unknown"
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-001"
+          }
+        },
+        "sensor_scope": "Unspecified"
       },
       "domain": {
         "analyte_id": "analyte",
+        "campaign_id": "campaign",
         "matrix_id": "matrix",
         "sensor_design_id": "design",
-        "sensor_id": "sensor",
-        "campaign_id": "campaign",
+        "sensor_id": "sensor_a",
         "temperature_kelvin": 298.15
       },
       "evidence_origin": "physical",
-      "reference_endpoints": []
+      "health_source": {
+        "expected_artifact_kind": "health_assessment",
+        "expected_lineage": {
+          "artifact_id": "sha256:6abc62762192a3bcadb00675db1e2af27f9df0c7a3a3d742a3fa73afdb403dc4",
+          "semantic_sha256": "6abc62762192a3bcadb00675db1e2af27f9df0c7a3a3d742a3fa73afdb403dc4",
+          "type": "known"
+        },
+        "expected_schema_version": 4,
+        "relative_path": "physical/physical_health_001.schema4.json",
+        "source_file_sha256": "0dcabb7ef552d52981dc6755eb92e5512a97c5e30084bcd4f50172f5bd694802"
+      },
+      "mechanism_source": {
+        "expected_artifact_kind": "mechanism_analysis",
+        "expected_lineage": {
+          "artifact_id": "sha256:e74f3356254f6e6980476743a6289562fd55c2d271c54d79d617b500a3a5321d",
+          "semantic_sha256": "e74f3356254f6e6980476743a6289562fd55c2d271c54d79d617b500a3a5321d",
+          "type": "known"
+        },
+        "expected_schema_version": 4,
+        "relative_path": "physical/physical_mechanism_001.schema4.json",
+        "source_file_sha256": "bb378ced1944c0c3383f8ccf9361fa6555020ee7d6845c6463f211f791de03b5"
+      },
+      "record_id": "physical_record_001",
+      "reference_endpoints": [
+        {
+          "authority_id": "reference_authority",
+          "blinding_state": "blinded_to_assessment",
+          "endpoint_id": "health_endpoint",
+          "label": "alert",
+          "limitations": [],
+          "method_id": "reference_method",
+          "method_version": "1",
+          "reference_endpoint_id": "health_reference_001",
+          "reference_source_id": "reference_1",
+          "target": {
+            "type": "aggregate"
+          },
+          "type": "health",
+          "uncertainty": {
+            "measure_id": "uncertainty",
+            "type": "quantified",
+            "unit": "1",
+            "value": 0.1
+          }
+        },
+        {
+          "authority_id": "reference_authority",
+          "blinding_state": "blinded_to_assessment",
+          "endpoint_id": "mechanism_endpoint",
+          "hypothesis_id": "b-hypothesis",
+          "limitations": [],
+          "method_id": "reference_method",
+          "method_version": "1",
+          "outcome": "supports",
+          "reference_endpoint_id": "mechanism_reference_001",
+          "reference_source_id": "reference_1",
+          "type": "mechanism",
+          "uncertainty": {
+            "measure_id": "uncertainty",
+            "type": "quantified",
+            "unit": "1",
+            "value": 0.1
+          }
+        }
+      ]
+    },
+    {
+      "cohort_role": "holdout",
+      "declared_scope": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-002"
+          }
+        },
+        "sensor_scope": "Unspecified"
+      },
+      "domain": {
+        "analyte_id": "analyte",
+        "campaign_id": "campaign",
+        "matrix_id": "matrix",
+        "sensor_design_id": "design",
+        "sensor_id": "sensor_b",
+        "temperature_kelvin": 298.15
+      },
+      "evidence_origin": "physical",
+      "health_source": {
+        "expected_artifact_kind": "health_assessment",
+        "expected_lineage": {
+          "artifact_id": "sha256:0f75bde9fb6bd24593fe59d1563c60153db9125f871d3512637bfb8a1f767865",
+          "semantic_sha256": "0f75bde9fb6bd24593fe59d1563c60153db9125f871d3512637bfb8a1f767865",
+          "type": "known"
+        },
+        "expected_schema_version": 4,
+        "relative_path": "physical/physical_health_002.schema4.json",
+        "source_file_sha256": "3d3f23a343cbe1ddbdfe9056bfea3ddbac798eb00a7f4f850d7bfbfc1da89605"
+      },
+      "mechanism_source": {
+        "expected_artifact_kind": "mechanism_analysis",
+        "expected_lineage": {
+          "artifact_id": "sha256:8d661dcbf9f249ae036c19f555111ba3ee084de997f240c3e73fba8b6429655d",
+          "semantic_sha256": "8d661dcbf9f249ae036c19f555111ba3ee084de997f240c3e73fba8b6429655d",
+          "type": "known"
+        },
+        "expected_schema_version": 4,
+        "relative_path": "physical/physical_mechanism_002.schema4.json",
+        "source_file_sha256": "b134af49ff926a4c5d769fce76b4e12e4ff9f9f4b82cc19ecd7634fad721f34e"
+      },
+      "record_id": "physical_record_002",
+      "reference_endpoints": [
+        {
+          "authority_id": "reference_authority",
+          "blinding_state": "blinded_to_assessment",
+          "endpoint_id": "health_endpoint",
+          "label": "normal",
+          "limitations": [],
+          "method_id": "reference_method",
+          "method_version": "1",
+          "reference_endpoint_id": "health_reference_002",
+          "reference_source_id": "reference_1",
+          "target": {
+            "type": "aggregate"
+          },
+          "type": "health",
+          "uncertainty": {
+            "measure_id": "uncertainty",
+            "type": "quantified",
+            "unit": "1",
+            "value": 0.1
+          }
+        },
+        {
+          "authority_id": "reference_authority",
+          "blinding_state": "blinded_to_assessment",
+          "endpoint_id": "mechanism_endpoint",
+          "hypothesis_id": "b-hypothesis",
+          "limitations": [],
+          "method_id": "reference_method",
+          "method_version": "1",
+          "outcome": "supports",
+          "reference_endpoint_id": "mechanism_reference_002",
+          "reference_source_id": "reference_1",
+          "type": "mechanism",
+          "uncertainty": {
+            "measure_id": "uncertainty",
+            "type": "quantified",
+            "unit": "1",
+            "value": 0.1
+          }
+        }
+      ]
     }
   ],
-  "owner_approval_source": {
-    "relative_path": "approval/valid.schema1.json",
-    "schema_version": 1,
-    "source_file_sha256": "75e87de755c481c7bfcc61185bba28e58f7f4299582270bd6e5454a1de1777b0",
-    "expected_approval_record_id": "sha256:75059e591a230e7d996a92180e7e52c1b4a393f2ec2de56cf6a2ca561436b40a"
-  },
-  "lineage": {
-    "LegacyUnknown": {
-      "source_schema_version": 1,
-      "reason": "MigrationInformationUnavailable"
+  "reference_sources": [
+    {
+      "acquisition_families": {
+        "Known": [
+          "physical-reference-family"
+        ]
+      },
+      "dependency_completeness": "complete",
+      "direct_dependencies": [],
+      "evidence_origin": "physical",
+      "experiment_scope": {
+        "Single": {
+          "experiment_id": "physical-reference-experiment"
+        }
+      },
+      "reference_source_id": "reference_1",
+      "source_file_sha256": "671e3c578415af633f63324c0ac668c610be15e0e9d2d59fe6aec3ccfac348c9"
     }
-  },
-  "provenance": {"phase_e_fixture_case":"dual_signed_physical_known_answer","expected_release":"physical_test_boundary_only"},
+  ],
+  "schema_version": 1,
   "warnings": []
 }

@@ -171,6 +171,19 @@ pub struct OwnerApprovalEvidenceV1 {
 }
 
 impl OwnerApprovalEvidenceV1 {
+    /// Pure verifier boundary used by the checked-in test-only KAT. This does
+    /// not select roots, read runtime configuration, or participate in the
+    /// production runner; callers must provide an already validated authority.
+    #[doc(hidden)]
+    pub fn validate_for_test_boundary(
+        &self,
+        embedded: &VerifiedEmbeddedTrustStore,
+        protocol: &MhiValidationProtocolV1,
+        dataset: &MhiValidationDatasetV1,
+    ) -> Result<(), MhiValidationError> {
+        self.validate(embedded, protocol, dataset)
+    }
+
     pub(crate) fn read_and_validate(
         path: &Path,
         expected_file_sha256: &str,
