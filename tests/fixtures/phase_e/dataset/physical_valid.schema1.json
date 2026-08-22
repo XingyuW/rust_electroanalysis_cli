@@ -46,6 +46,6 @@
       "reason": "MigrationInformationUnavailable"
     }
   },
-  "provenance": {},
+  "provenance": {"phase_e_fixture_case":"dual_signed_physical_known_answer","expected_release":"physical_test_boundary_only"},
   "warnings": []
 }

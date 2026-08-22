@@ -32,10 +32,10 @@ rule_composition = "and"
 
 [[mechanism_endpoints]]
 endpoint_id = "mechanism_endpoint"
-hypothesis_id = "hypothesis_a"
+hypothesis_id = "b-hypothesis"
 cohort_role = "validation"
 mechanism_artifact_required = true
-support_levels = ["hypothesized"]
+support_levels = ["validated_for_domain"]
 critical_policy = "any_contradicted_record_fails"
 minimum_eligible_records = 1
 minimum_independent_families = 1
@@ -84,7 +84,8 @@ acceptance_rules = [
 ]
 
 [health_endpoints.target]
-type = "aggregate"
+type = "dimension"
+dimension_id = "signal_integrity"
 [health_endpoints.domain.analyte]
 type = "any_declared"
 [health_endpoints.domain.matrix]

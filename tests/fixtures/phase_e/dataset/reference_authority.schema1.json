@@ -41,6 +41,6 @@
       "reason": "MigrationInformationUnavailable"
     }
   },
-  "provenance": {},
+  "provenance": {"phase_e_fixture_case":"reference_authority_closure","expected_authority":"complete_blinded_quantified"},
   "warnings": []
 }

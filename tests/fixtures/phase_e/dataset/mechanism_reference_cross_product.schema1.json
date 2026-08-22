@@ -41,6 +41,6 @@
       "reason": "MigrationInformationUnavailable"
     }
   },
-  "provenance": {},
+  "provenance": {"phase_e_fixture_case":"phase_b_reference_cross_product","expected_categories":"support_critical_not_assessed_excluded"},
   "warnings": []
 }

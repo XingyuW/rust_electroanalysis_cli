@@ -46,6 +46,6 @@
       "reason": "MigrationInformationUnavailable"
     }
   },
-  "provenance": {},
+  "provenance": {"phase_e_fixture_case":"physical_unavailable_reference_hard_failure","expected_error":"PhysicalReferenceOutcomeUnavailable"},
   "warnings": []
 }

@@ -1,12 +1,12 @@
 # Accounting oracle
 
-For the software fixture, each endpoint declares record `record_1`.
-The record lacks its required artifact and matching reference endpoint, so the
-primary exclusion is `missing_endpoint_artifact_path`, with the ordered
-secondary reason `missing_reference_endpoint`.  Thus, for both endpoints:
+For the software fixture, each endpoint declares records `record_1` and
+`record_2`; both are eligible and neither is excluded.
+Each record has a phase-B/Phase-C schema-4 source and an allowed blinded,
+quantified reference endpoint.  Thus, for both endpoints:
 
 | declared | eligible | excluded | not-applicable | outcome |
 | ---: | ---: | ---: | ---: | --- |
-| 1 | 0 | 1 | 0 | indeterminate |
+| 2 | 2 | 0 | 0 | meets_protocol |
 
 The identity `declared = eligible + excluded + not-applicable` holds exactly.

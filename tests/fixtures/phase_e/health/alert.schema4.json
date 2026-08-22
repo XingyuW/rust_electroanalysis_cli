@@ -1,6 +1,6 @@
 {
   "artifact_kind": "health_assessment",
-  "assessment_id": "health:signal:a0-test:E1",
+  "assessment_id": "health:phase-e:alert",
   "baseline_comparison": [
     {
       "absolute_difference": null,
@@ -450,18 +450,18 @@
     "Known": {
       "direct_dependencies": [],
       "identity": {
-        "acquisition_families": "Unknown",
-        "artifact_id": "sha256:4717ab60c11af2a14fb665ff07427530861d2eb52773b288a733b9e814562964",
+        "acquisition_families": { "Known": ["phase-e-family-c"] },
+        "artifact_id": "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
         "artifact_kind": "health_assessment",
         "channel_scope": "Unspecified",
         "experiment_scope": {
           "Single": {
-            "experiment_id": "b-e2e-1"
+            "experiment_id": "phase-e-mechanism-c"
           }
         },
-        "producer_version": "phase-d-fixture-v1",
+        "producer_version": "phase-e-r2-fixture-v1",
         "schema_version": 4,
-        "semantic_sha256": "4717ab60c11af2a14fb665ff07427530861d2eb52773b288a733b9e814562964",
+        "semantic_sha256": "56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
         "sensor_scope": "Unspecified"
       }
     }

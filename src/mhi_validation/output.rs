@@ -1414,6 +1414,26 @@ mod tests {
         .expect("dataset fixture");
         fs::copy(fixture_root.join("lineage/complete.schema1.json"), &lineage)
             .expect("lineage fixture");
+        let sources = root.join("dataset/sources");
+        fs::create_dir_all(&sources).expect("source input layout");
+        for (fixture_name, staged_name) in [
+            (
+                "mechanism/supported.schema4.json",
+                "mechanism_a.schema4.json",
+            ),
+            (
+                "mechanism/all_levels.schema4.json",
+                "mechanism_c.schema4.json",
+            ),
+            (
+                "health/within_baseline.schema4.json",
+                "health_a.schema4.json",
+            ),
+            ("health/alert.schema4.json", "health_c.schema4.json"),
+        ] {
+            fs::copy(fixture_root.join(fixture_name), sources.join(staged_name))
+                .expect("scientific source fixture");
+        }
         let protocol_bytes =
             fs::read(fixture_root.join("protocol/software_valid.toml")).expect("protocol fixture");
         let protocol = MhiValidationProtocolV1::from_toml(

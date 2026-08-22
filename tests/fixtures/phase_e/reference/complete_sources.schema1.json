@@ -1,4 +1,14 @@
 {
   "schema_version": 1,
-  "reference_sources": []
+  "reference_sources": [
+    {
+      "reference_source_id": "reference_1",
+      "source_file_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "evidence_origin": "physical",
+      "dependency_completeness": "complete",
+      "experiment_scope": { "Single": { "experiment_id": "phase-e-reference" } },
+      "acquisition_families": { "Known": ["phase-e-reference-family"] },
+      "direct_dependencies": []
+    }
+  ]
 }

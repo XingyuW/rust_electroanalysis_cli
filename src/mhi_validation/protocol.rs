@@ -193,9 +193,7 @@ impl MhiValidationProtocolV1 {
                     })
                     .expect("endpoint exists after membership check");
                 if endpoint_domain != &claim.domain {
-                    return Err(protocol(
-                        "supporting endpoint domain must exactly equal claim domain",
-                    ));
+                    return Err(MhiValidationError::SupportingEndpointClaimDomainMismatch);
                 }
                 if claim.requested_level == RequestedValidationLevelV1::Physical {
                     let mechanism = self
@@ -324,13 +322,21 @@ fn validate_health_endpoint(endpoint: &HealthEndpointV1) -> Result<(), MhiValida
         "predicted_negative_statuses",
         &endpoint.predicted_negative_statuses,
     )?;
-    let set = endpoint
+    let positive = endpoint
         .predicted_positive_statuses
         .iter()
-        .chain(&endpoint.predicted_negative_statuses)
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
-    if set.len() != all.len() || all.iter().any(|value| !set.contains(value)) {
+    let negative = endpoint
+        .predicted_negative_statuses
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let set = positive.union(&negative).copied().collect::<BTreeSet<_>>();
+    if !positive.is_disjoint(&negative)
+        || set.len() != all.len()
+        || all.iter().any(|value| !set.contains(value))
+    {
         return Err(protocol(
             "health status sets must be a disjoint exact partition",
         ));
@@ -347,13 +353,22 @@ fn validate_health_endpoint(endpoint: &HealthEndpointV1) -> Result<(), MhiValida
         "reference_negative_labels",
         &endpoint.reference_negative_labels,
     )?;
-    let labels = endpoint
+    let positive_labels = endpoint
         .reference_positive_labels
         .iter()
-        .chain(&endpoint.reference_negative_labels)
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
-    if labels.len() != endpoint.reference_label_universe.len()
+    let negative_labels = endpoint
+        .reference_negative_labels
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let labels = positive_labels
+        .union(&negative_labels)
+        .copied()
+        .collect::<BTreeSet<_>>();
+    if !positive_labels.is_disjoint(&negative_labels)
+        || labels.len() != endpoint.reference_label_universe.len()
         || endpoint
             .reference_label_universe
             .iter()

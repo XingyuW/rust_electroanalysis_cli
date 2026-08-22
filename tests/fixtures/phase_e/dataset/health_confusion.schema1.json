@@ -41,6 +41,6 @@
       "reason": "MigrationInformationUnavailable"
     }
   },
-  "provenance": {},
+  "provenance": {"phase_e_fixture_case":"health_confusion_six_way_partition","expected_sets":"tp_tn_fp_fn_indeterminate_dqi"},
   "warnings": []
 }

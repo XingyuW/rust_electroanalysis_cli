@@ -41,6 +41,6 @@
       "reason": "MigrationInformationUnavailable"
     }
   },
-  "provenance": {},
+  "provenance": {"phase_e_fixture_case":"closed_strata_minima","expected_result":"underpowered_indeterminate"},
   "warnings": []
 }

@@ -14,6 +14,8 @@ pub enum MhiValidationError {
     Approval(String),
     #[error("PhysicalApprovalTrustNotProvisioned")]
     PhysicalApprovalTrustNotProvisioned,
+    #[error("SupportingEndpointClaimDomainMismatch")]
+    SupportingEndpointClaimDomainMismatch,
     #[error("MHI validation input path is unsafe: {0}")]
     UnsafePath(PathBuf),
     #[error("MHI validation I/O error at {path}: {source}")]

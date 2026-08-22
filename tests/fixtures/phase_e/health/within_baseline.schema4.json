@@ -1,6 +1,6 @@
 {
   "artifact_kind": "health_assessment",
-  "assessment_id": "health:signal:a0-test:E1",
+  "assessment_id": "health:phase-e:within-baseline",
   "baseline_comparison": [
     {
       "absolute_difference": null,
@@ -450,18 +450,18 @@
     "Known": {
       "direct_dependencies": [],
       "identity": {
-        "acquisition_families": "Unknown",
-        "artifact_id": "sha256:4717ab60c11af2a14fb665ff07427530861d2eb52773b288a733b9e814562964",
+        "acquisition_families": { "Known": ["phase-e-family-a"] },
+        "artifact_id": "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
         "artifact_kind": "health_assessment",
         "channel_scope": "Unspecified",
         "experiment_scope": {
           "Single": {
-            "experiment_id": "b-e2e-1"
+            "experiment_id": "phase-e-mechanism-a"
           }
         },
-        "producer_version": "phase-d-fixture-v1",
+        "producer_version": "phase-e-r2-fixture-v1",
         "schema_version": 4,
-        "semantic_sha256": "4717ab60c11af2a14fb665ff07427530861d2eb52773b288a733b9e814562964",
+        "semantic_sha256": "2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
         "sensor_scope": "Unspecified"
       }
     }
@@ -471,7 +471,7 @@
     "calibration",
     "impedance"
   ],
-  "overall_status": "critical",
+  "overall_status": "data_quality_insufficient",
   "phase_c": {
     "config_schema_version": 1,
     "config_sha256": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
@@ -492,7 +492,7 @@
           "signal.drift.theil_sen.slope_v_per_s",
           "signal.spikes.flagged_fraction"
         ],
-        "status": "critical"
+        "status": "within_baseline"
       },
       {
         "causal_status": "indeterminate",
@@ -1019,11 +1019,9 @@
       "timescale_pair_uncertainties": [],
       "warnings": []
     },
-    "overall_causal_status": "observed",
-    "overall_interpretation_categories": [
-      "observed_behavior"
-    ],
-    "overall_status": "critical"
+    "overall_causal_status": "indeterminate",
+    "overall_interpretation_categories": [],
+    "overall_status": "data_quality_insufficient"
   },
   "provenance": {
     "configuration_path": null,

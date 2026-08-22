@@ -1,4 +1,61 @@
 {
   "schema_version": 1,
-  "artifacts": {}
+  "artifacts": {
+    "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0": {
+      "identity": {
+        "artifact_id": "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+        "artifact_kind": "mechanism_analysis",
+        "schema_version": 4,
+        "producer_version": "phase-e-r2-fixture-v1",
+        "experiment_scope": { "Single": { "experiment_id": "phase-e-mechanism-c" } },
+        "sensor_scope": "Unspecified",
+        "channel_scope": "Unspecified",
+        "acquisition_families": { "Known": ["phase-e-family-c"] },
+        "semantic_sha256": "2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0"
+      },
+      "direct_dependencies": []
+    },
+    "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413": {
+      "identity": {
+        "artifact_id": "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+        "artifact_kind": "health_assessment",
+        "schema_version": 4,
+        "producer_version": "phase-e-r2-fixture-v1",
+        "experiment_scope": { "Single": { "experiment_id": "phase-e-mechanism-a" } },
+        "sensor_scope": "Unspecified",
+        "channel_scope": "Unspecified",
+        "acquisition_families": { "Known": ["phase-e-family-a"] },
+        "semantic_sha256": "2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413"
+      },
+      "direct_dependencies": []
+    },
+    "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234": {
+      "identity": {
+        "artifact_id": "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+        "artifact_kind": "health_assessment",
+        "schema_version": 4,
+        "producer_version": "phase-e-r2-fixture-v1",
+        "experiment_scope": { "Single": { "experiment_id": "phase-e-mechanism-c" } },
+        "sensor_scope": "Unspecified",
+        "channel_scope": "Unspecified",
+        "acquisition_families": { "Known": ["phase-e-family-c"] },
+        "semantic_sha256": "56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234"
+      },
+      "direct_dependencies": []
+    },
+    "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9": {
+      "identity": {
+        "artifact_id": "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+        "artifact_kind": "mechanism_analysis",
+        "schema_version": 4,
+        "producer_version": "phase-e-r2-fixture-v1",
+        "experiment_scope": { "Single": { "experiment_id": "phase-e-mechanism-a" } },
+        "sensor_scope": "Unspecified",
+        "channel_scope": "Unspecified",
+        "acquisition_families": { "Known": ["phase-e-family-a"] },
+        "semantic_sha256": "b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9"
+      },
+      "direct_dependencies": []
+    }
+  }
 }

@@ -41,6 +41,6 @@
       "reason": "MigrationInformationUnavailable"
     }
   },
-  "provenance": {},
+  "provenance": {"phase_e_fixture_case":"endpoint_view_accounting_and_precedence","expected_decision":"each_declared_record_once"},
   "warnings": []
 }

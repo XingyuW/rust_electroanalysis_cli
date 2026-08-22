@@ -1,4 +1,21 @@
 {
   "schema_version": 1,
-  "artifacts": {}
+  "artifacts": {
+    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": {
+      "identity": {
+        "artifact_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_kind": "mechanism_analysis",
+        "schema_version": 4,
+        "producer_version": "phase-e-r2-lineage-fixture-v1",
+        "experiment_scope": { "Single": { "experiment_id": "phase-e-lineage-missing" } },
+        "sensor_scope": "Unspecified",
+        "channel_scope": "Unspecified",
+        "acquisition_families": { "Known": ["phase-e-lineage-family"] },
+        "semantic_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "direct_dependencies": [
+        { "artifact_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "artifact_kind": "mechanism_analysis", "role": "TransformationInput" }
+      ]
+    }
+  }
 }

@@ -41,6 +41,6 @@
       "reason": "MigrationInformationUnavailable"
     }
   },
-  "provenance": {},
+  "provenance": {"phase_e_fixture_case":"known_holdout_overlap","expected_separation":"known_overlap"},
   "warnings": []
 }
