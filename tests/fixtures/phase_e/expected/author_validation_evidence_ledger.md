@@ -50,15 +50,24 @@ mapping; there are zero fixture, mutation, or oracle gaps.
 ## Publication matrix evidence
 
 E-T22 is substantive executable coverage for the complete staging and byte
-validation matrix: all ten generated-file write ordinals, all ten generated
+validation matrix: all ten generated-file write ordinals, all nine generated
 file fsync ordinals, lock-file fsync, all four pre-publication directory-fsync
 ordinals, create and replacement commit-directory fsync durability outcomes,
-checksum mismatch, strict report reread failure, authority validation failure,
-manifest self-record, wrong create/replace mode, forbidden timestamp, unknown
-field, extra generated file, missing managed file, no-replace unsupported and
-failing primitives, exchange unsupported and failing primitives, exact nine
-managed files, and exactly eight non-self manifest records. Every negative
-case asserts the typed error and private/output state.
+checksum mismatch, strict report reread failure, manifest self-record, wrong
+create/replace mode, forbidden timestamp, unknown field, extra generated file,
+missing managed file, no-replace unsupported and failing primitives, exchange
+unsupported and failing primitives, exact nine managed files, and exactly
+eight non-self manifest records. Its authority case now evaluates a valid
+report, authorizes it through the real production `validate_against` boundary,
+and publishes it; it separately mutates a structure-valid report so replay
+validation fails before any staging. Every negative case asserts the typed
+error and private/output state. The physical-looking forgery and
+unprovisioned-production trust gates are covered by
+`phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power` and
+`phase_e_production_physical_store_is_embedded_and_unprovisioned`; the
+publication-unit regression `phase_e_physical_looking_report_cannot_authorize_publication`
+also proves that a structure-valid report claiming physical validation cannot
+obtain the publication capability.
 
 E-T23 is substantive executable coverage for persistent two-process lock
 contention, concurrent create after preflight, recovery residue and symlink or
@@ -67,7 +76,13 @@ same-inode mutation, stage-to-backup failure, backup collision, every reverse
 deletion ordinal, every replacement directory-fsync ordinal, and committed
 cleanup residue. It asserts preserved competitor bytes, identity/fingerprint
 tokens, commit classification, stage/backup snapshots, and deterministic lock
-release.
+release. The remediated cases additionally pin the parent directory and use
+descriptor-relative no-follow authority for parent namespace replacement,
+managed-file symlink substitution, exact entry enumeration, generation
+identity, fingerprinting, and commit operations; these are exercised by
+`phase_e_parent_symlink_is_rejected_without_touching_target`,
+`phase_e_parent_namespace_replacement_uses_pinned_descriptor`, and
+`phase_e_held_generation_rejects_managed_file_symlink_substitution`.
 
 Publication errors are closed and stateful: `PublicationConcurrentManagedOutputChanged`,
 `PublicationCommittedForeignSwapDetected`, and

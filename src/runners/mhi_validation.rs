@@ -5,7 +5,7 @@ use crate::{
         MhiValidationError, MhiValidationProtocolV1, ValidationInputs,
         approval::{OwnerApprovalEvidenceV1, PhysicalApprovalTrustStoreV1},
         evaluate_mhi_validation,
-        output::publish_bundle,
+        output::{authorize_publication, publish_authorized_bundle},
     },
     validation_config::RequestedValidationLevelV1,
 };
@@ -90,13 +90,8 @@ pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiVal
         inputs.attach_verified_approval(approval, trust.source_file_sha256.clone());
     }
     let report = evaluate_mhi_validation(&protocol, &inputs)?;
-    report.validate_against(&protocol, &inputs, trust.as_ref())?;
-    publish_bundle(
-        &options.output_dir,
-        &report,
-        &protocol.protocol_id,
-        options.overwrite,
-    )
+    let authorization = authorize_publication(&report, &protocol, &inputs, trust.as_ref())?;
+    publish_authorized_bundle(&options.output_dir, &authorization, options.overwrite)
 }
 
 fn validate_root_file(path: &Path) -> Result<(), MhiValidationError> {

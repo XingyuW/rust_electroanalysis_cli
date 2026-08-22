@@ -18,6 +18,7 @@ pub use artifact::{
     ArtifactError, ArtifactKind, CurrentArtifactKindPolicy, StrictArtifactRead, VersionedArtifact,
     read_artifact, read_artifact_strict, validate_serialized_finite, write_artifact,
 };
+pub(crate) use artifact::{read_artifact_strict_bytes, serialize_artifact};
 pub use diagnostics::{IngestionDiagnostic, MeasurementParseResult, ParseDiagnostics};
 pub use errors::{
     BatchFileFailure, ConfigurationError, DataParsingError, FittingError, PlottingError,

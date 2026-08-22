@@ -197,10 +197,17 @@ pub fn read_artifact_strict<T: VersionedArtifact>(
         path: path.into(),
         source,
     })?;
+    read_artifact_strict_bytes(path, &source_bytes)
+}
+
+pub(crate) fn read_artifact_strict_bytes<T: VersionedArtifact>(
+    path: &Path,
+    source_bytes: &[u8],
+) -> Result<StrictArtifactRead<T>, ArtifactError> {
     if source_bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
         return Err(ArtifactError::Utf8Bom { path: path.into() });
     }
-    let text = std::str::from_utf8(&source_bytes)
+    let text = std::str::from_utf8(source_bytes)
         .map_err(|_| ArtifactError::InvalidUtf8 { path: path.into() })?;
     reject_nonfinite_tokens(path, text)?;
     scan_duplicate_json_keys(text).map_err(|error| match error {
@@ -223,10 +230,10 @@ pub fn read_artifact_strict<T: VersionedArtifact>(
         source,
     })?;
     artifact.validate_after_read()?;
-    let source_file_sha256 = hex_sha256(&source_bytes);
+    let source_file_sha256 = hex_sha256(source_bytes);
     Ok(StrictArtifactRead {
         artifact,
-        source_bytes,
+        source_bytes: source_bytes.to_vec(),
         source_file_sha256,
     })
 }
@@ -370,6 +377,23 @@ pub fn write_artifact<T: VersionedArtifact>(
     path: &Path,
     artifact: &T,
 ) -> Result<(), ArtifactError> {
+    let bytes = serialize_artifact(path, artifact)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|source| ArtifactError::Io {
+            path: parent.into(),
+            source,
+        })?;
+    }
+    fs::write(path, bytes).map_err(|source| ArtifactError::Io {
+        path: path.into(),
+        source,
+    })
+}
+
+pub(crate) fn serialize_artifact<T: VersionedArtifact>(
+    path: &Path,
+    artifact: &T,
+) -> Result<Vec<u8>, ArtifactError> {
     if artifact.schema_version() != T::CURRENT_SCHEMA_VERSION
         && !T::LEGACY_SCHEMA_VERSIONS.contains(&artifact.schema_version())
     {
@@ -447,16 +471,7 @@ pub fn write_artifact<T: VersionedArtifact>(
         source,
     })?;
     reject_nonfinite_tokens(path, &text)?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|source| ArtifactError::Io {
-            path: parent.into(),
-            source,
-        })?;
-    }
-    fs::write(path, text).map_err(|source| ArtifactError::Io {
-        path: path.into(),
-        source,
-    })
+    Ok(text.into_bytes())
 }
 
 /// Writes the one frozen legacy health-assessment representation.  This is

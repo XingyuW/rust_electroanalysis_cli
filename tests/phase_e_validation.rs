@@ -3350,6 +3350,29 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
         );
     }
     assert!(!source_text.contains("SigningKey"));
+    assert!(source_text.contains("pub(crate) mod output;"));
+    assert!(source_text.contains("pub(crate) fn authorize_publication"));
+    assert!(source_text.contains("pub(crate) fn publish_authorized_bundle"));
+    assert!(!source_text.contains("pub fn publish_bundle"));
+    assert!(!source_text.contains("test_authority_validation"));
+    let output_source = fs::read_to_string(root.join("src/mhi_validation/output.rs"))
+        .expect("publication production source");
+    let production_output = output_source
+        .split("#[cfg(test)]\nmod tests")
+        .next()
+        .expect("publication test boundary");
+    let production_runner =
+        fs::read_to_string(root.join("src/runners/mhi_validation.rs")).expect("runner source");
+    assert_eq!(
+        production_output
+            .matches("publish_authorized_bundle(")
+            .count()
+            + production_runner
+                .matches("publish_authorized_bundle(")
+                .count(),
+        2,
+        "only the internal runner and the capability definition may name the raw publisher"
+    );
     let ignored_attribute = format!("#[{}]", "ignore");
     assert!(!source_text.contains(&ignored_attribute));
     assert!(!test_source.contains(&ignored_attribute));
