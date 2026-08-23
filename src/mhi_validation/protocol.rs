@@ -192,7 +192,7 @@ impl MhiValidationProtocolV1 {
                             .map(|endpoint| &endpoint.domain)
                     })
                     .expect("endpoint exists after membership check");
-                if endpoint_domain != &claim.domain {
+                if !domain_semantically_equal(endpoint_domain, &claim.domain) {
                     return Err(MhiValidationError::SupportingEndpointClaimDomainMismatch);
                 }
                 if claim.requested_level == RequestedValidationLevelV1::Physical {
@@ -225,7 +225,7 @@ impl MhiValidationProtocolV1 {
                     if role != CohortRoleV1::Holdout
                         || min_records < 2
                         || min_families < 2
-                        || domain != &claim.domain
+                        || !domain_semantically_equal(domain, &claim.domain)
                     {
                         return Err(protocol(
                             "physical claims require domain-equal holdout endpoints with minima of two",
@@ -731,7 +731,7 @@ fn validate_domain(name: &str, domain: &DomainSelectorV1) -> Result<(), MhiValid
                 band.lower_kelvin_inclusive,
                 band.upper_kelvin_exclusive,
             )?;
-            if previous_upper.is_some_and(|upper| upper >= band.lower_kelvin_inclusive) {
+            if previous_upper.is_some_and(|upper| upper > band.lower_kelvin_inclusive) {
                 return Err(protocol(format!(
                     "{name}.temperature bands must be ordered and non-overlapping"
                 )));
@@ -777,12 +777,27 @@ fn domain_is_subset(left: &DomainSelectorV1, right: &DomainSelectorV1) -> bool {
             (
                 TemperatureSelectorV1::Bands { bands: left },
                 TemperatureSelectorV1::Bands { bands: right },
-            ) => left.iter().all(|left_band| {
-                right.iter().any(|right_band| {
-                    left_band.lower_kelvin_inclusive >= right_band.lower_kelvin_inclusive
-                        && left_band.upper_kelvin_exclusive <= right_band.upper_kelvin_exclusive
-                })
-            }),
+            ) => {
+                let mut right_index = 0;
+                for left_band in left {
+                    let mut cursor = left_band.lower_kelvin_inclusive;
+                    while cursor < left_band.upper_kelvin_exclusive {
+                        while right_index < right.len()
+                            && right[right_index].upper_kelvin_exclusive <= cursor
+                        {
+                            right_index += 1;
+                        }
+                        let Some(right_band) = right.get(right_index) else {
+                            return false;
+                        };
+                        if right_band.lower_kelvin_inclusive > cursor {
+                            return false;
+                        }
+                        cursor = cursor.max(right_band.upper_kelvin_exclusive);
+                    }
+                }
+                true
+            }
         }
     }
     categorical(&left.analyte, &right.analyte)
@@ -791,6 +806,10 @@ fn domain_is_subset(left: &DomainSelectorV1, right: &DomainSelectorV1) -> bool {
         && categorical(&left.sensor, &right.sensor)
         && categorical(&left.campaign, &right.campaign)
         && temperature(&left.temperature, &right.temperature)
+}
+
+fn domain_semantically_equal(left: &DomainSelectorV1, right: &DomainSelectorV1) -> bool {
+    domain_is_subset(left, right) && domain_is_subset(right, left)
 }
 
 fn valid_id(name: &str, value: &str) -> Result<(), MhiValidationError> {

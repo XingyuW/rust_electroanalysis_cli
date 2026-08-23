@@ -150,10 +150,29 @@ Host: Darwin arm64.
 | production trust is UNPROVISIONED with zero roots | PASS |
 | production physical request fails before dataset/scoring | PASS: PhysicalApprovalTrustNotProvisioned |
 | deterministic software golden bundle | PASS |
+| SCI-P1-001 adjacency, union-containment, semantic-equality, target-domain, and overbroad-claim regressions | PASS |
 
 The publication suite includes the executable E-T22 and E-T23 matrices above.
 The nine-file golden authority is 9/9 managed files and 8/8 non-self manifest
 records; no oracle is regenerated from production output.
+
+## SCI-P1-001 remediation evidence
+
+SCI-P1-001 remediation is recorded as an implementation correction, not a plan
+amendment.  E-T04 now contains executable protocol tests for valid adjacent bands,
+exact lower-inclusive/upper-exclusive boundary behavior, union containment
+across two and three adjacent bands, multiple-left-interval
+coverage, irrelevant gaps, genuine interior gaps, semantic split/merged
+endpoint-claim equality in both directions, target-domain union subset, and
+overbroad-claim rejection.  The tests preserve declared band segmentation and
+do not introduce canonical merging, epsilon, or tolerance behavior.
+
+The remediation records E-R02/E-AC02 restored to passing for the Phase-E
+protocol domain authority.  The physical protocol path is covered through the
+test-only semantic validation route without changing signed KAT fixture bytes;
+the permanent fixture inventory remains 268/268 with no new Phase-E fixture.
+The canonical certified route remains deterministic with 9/9 managed files
+and 8/8 non-self manifest records.  External scientific review: PENDING_POST_FREEZE.
 
 ## Author-side dispositions
 

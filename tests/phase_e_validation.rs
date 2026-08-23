@@ -20,9 +20,9 @@ use rust_electroanalysis_cli::{
     runners::mhi_validation::{MhiValidationRunOptions, run_mhi_validation},
     validation_config::{
         AcceptanceRuleV1, BlindingStateV1, CategoricalSelectorV1, CohortRoleV1, ComparatorV1,
-        PhysicalApprovalAuthorityV1, RateMetricV1, RateTargetV1, ReferenceAuthorityRuleV1,
-        ReferenceDependencyCompletenessV1, RequiredStratumV1, StratumPredicateV1,
-        TemperatureBandV1, TemperatureSelectorV1,
+        DomainKeyV1, PhysicalApprovalAuthorityV1, RateMetricV1, RateTargetV1,
+        ReferenceAuthorityRuleV1, ReferenceDependencyCompletenessV1, RequiredStratumV1,
+        StratumPredicateV1, TemperatureBandV1, TemperatureSelectorV1,
     },
 };
 use sha2::{Digest, Sha256};
@@ -1734,6 +1734,302 @@ fn phase_e_protocol_rejects_incomplete_conflicting_untrusted_and_nondeterministi
         protocol.validate(),
         "physical claims require domain-equal holdout endpoints with minima of two",
     );
+
+    // SCI-P1-001: temperature bands are the exact lower-inclusive /
+    // upper-exclusive set union.  E-T04 owns the protocol/domain authority
+    // for adjacency, union containment, semantic equality, and gaps.
+    fn temperature_selector(bands: &[(f64, f64)]) -> TemperatureSelectorV1 {
+        TemperatureSelectorV1::Bands {
+            bands: bands
+                .iter()
+                .map(|(lower, upper)| TemperatureBandV1 {
+                    lower_kelvin_inclusive: *lower,
+                    upper_kelvin_exclusive: *upper,
+                })
+                .collect(),
+        }
+    }
+
+    fn set_temperature_domains(
+        protocol: &mut MhiValidationProtocolV1,
+        target: &[(f64, f64)],
+        endpoint_and_claim: &[(f64, f64)],
+    ) {
+        protocol.target_domain.temperature = temperature_selector(target);
+        let endpoint_temperature = temperature_selector(endpoint_and_claim);
+        for endpoint in &mut protocol.mechanism_endpoints {
+            endpoint.domain.temperature = endpoint_temperature.clone();
+        }
+        for endpoint in &mut protocol.health_endpoints {
+            endpoint.domain.temperature = endpoint_temperature.clone();
+        }
+        protocol.release_scope[0].domain.temperature = endpoint_temperature;
+    }
+
+    fn domain_key(temperature_kelvin: f64) -> DomainKeyV1 {
+        DomainKeyV1 {
+            analyte_id: "analyte".into(),
+            matrix_id: "matrix".into(),
+            sensor_design_id: "design".into(),
+            sensor_id: "sensor".into(),
+            campaign_id: "campaign".into(),
+            temperature_kelvin,
+        }
+    }
+
+    // Adjacent bands are valid, while actual overlap and unsorted bands keep
+    // the existing protocol error authority.
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(290.0, 300.0), (300.0, 310.0)],
+        &[(295.0, 305.0)],
+    );
+    protocol.validate().expect("adjacent bands are valid");
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(290.0, 301.0), (300.0, 310.0)],
+        &[(295.0, 305.0)],
+    );
+    protocol_error(
+        protocol.validate(),
+        "target_domain.temperature bands must be ordered and non-overlapping",
+    );
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(300.0, 310.0), (290.0, 300.0)],
+        &[(295.0, 305.0)],
+    );
+    protocol_error(
+        protocol.validate(),
+        "target_domain.temperature bands must be ordered and non-overlapping",
+    );
+
+    // Counterexample 1 and the general union sweep: one left interval can be
+    // covered by two or three adjacent right intervals, and multiple left
+    // intervals can be covered by different portions of that union.
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(290.0, 300.0), (300.0, 310.0)],
+        &[(295.0, 305.0)],
+    );
+    protocol
+        .validate()
+        .expect("[295,305) is covered by two adjacent bands");
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(290.0, 295.0), (295.0, 300.0), (300.0, 310.0)],
+        &[(292.0, 305.0)],
+    );
+    protocol
+        .validate()
+        .expect("one left band is covered by three adjacent bands");
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(290.0, 300.0), (300.0, 310.0), (310.0, 320.0)],
+        &[(292.0, 295.0), (305.0, 315.0)],
+    );
+    protocol
+        .validate()
+        .expect("multiple left bands are covered by the right union");
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(290.0, 295.0), (300.0, 310.0)],
+        &[(300.0, 305.0)],
+    );
+    protocol
+        .validate()
+        .expect("irrelevant gap before the left union is allowed");
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(290.0, 300.0), (305.0, 310.0)],
+        &[(292.0, 295.0)],
+    );
+    protocol
+        .validate()
+        .expect("irrelevant gap after the left union is allowed");
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(290.0, 300.0), (301.0, 310.0)],
+        &[(299.0, 302.0)],
+    );
+    protocol_error(
+        protocol.validate(),
+        "mechanism endpoint domain exceeds target_domain",
+    );
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(&mut protocol, &[(290.0, 310.0)], &[(290.0, 310.0)]);
+    protocol
+        .validate()
+        .expect("exact equal bands are contained");
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(&mut protocol, &[(290.0, 310.0)], &[(295.0, 305.0)]);
+    protocol
+        .validate()
+        .expect("a narrower single interval is contained");
+
+    // Counterexamples 2 and 5: endpoint/claim equality is semantic mutual
+    // subset, so split and merged adjacent representations are interchangeable
+    // without mutating either declared vector.
+    for (endpoint_bands, claim_bands) in [
+        (&[(290.0, 295.0), (295.0, 300.0)][..], &[(290.0, 300.0)][..]),
+        (&[(290.0, 300.0)][..], &[(290.0, 295.0), (295.0, 300.0)][..]),
+    ] {
+        let mut protocol = protocol_fixture("protocol/software_valid.toml");
+        let endpoint_temperature = temperature_selector(endpoint_bands);
+        let claim_temperature = temperature_selector(claim_bands);
+        for endpoint in &mut protocol.mechanism_endpoints {
+            endpoint.domain.temperature = endpoint_temperature.clone();
+        }
+        for endpoint in &mut protocol.health_endpoints {
+            endpoint.domain.temperature = endpoint_temperature.clone();
+        }
+        protocol.release_scope[0].domain.temperature = claim_temperature;
+        assert_ne!(
+            protocol.mechanism_endpoints[0].domain.temperature,
+            protocol.release_scope[0].domain.temperature,
+            "the regression uses distinct structural segmentations"
+        );
+        protocol
+            .validate()
+            .expect("semantically equal endpoint and claim domains validate");
+    }
+
+    // Boundary semantics remain exact: the first interval excludes 300, the
+    // adjacent second interval includes it, with no tolerance or epsilon.
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    protocol.target_domain.temperature = temperature_selector(&[(290.0, 300.0)]);
+    let just_below = f64::from_bits(300.0f64.to_bits() - 1);
+    assert!(protocol.target_domain.contains(&domain_key(just_below)));
+    assert!(!protocol.target_domain.contains(&domain_key(300.0)));
+    protocol.target_domain.temperature = temperature_selector(&[(290.0, 300.0), (300.0, 310.0)]);
+    assert!(protocol.target_domain.contains(&domain_key(300.0)));
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(290.0, 300.0), (300.0, 310.0)],
+        &[(300.0, 305.0)],
+    );
+    protocol
+        .validate()
+        .expect("[300,305) is covered by the interval beginning at 300");
+
+    // Counterexample 6: a claim that is broader than its supporting endpoint
+    // remains rejected even when the bands are adjacent.
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    let endpoint_temperature = temperature_selector(&[(290.0, 300.0)]);
+    let claim_temperature = temperature_selector(&[(290.0, 300.0), (300.0, 310.0)]);
+    for endpoint in &mut protocol.mechanism_endpoints {
+        endpoint.domain.temperature = endpoint_temperature.clone();
+    }
+    for endpoint in &mut protocol.health_endpoints {
+        endpoint.domain.temperature = endpoint_temperature.clone();
+    }
+    protocol.release_scope[0].domain.temperature = claim_temperature;
+    assert!(matches!(
+        protocol.validate(),
+        Err(MhiValidationError::SupportingEndpointClaimDomainMismatch)
+    ));
+
+    // Target-domain subset uses the same union operation.  A spanning claim
+    // is accepted, while a genuine target gap rejects the claim before source
+    // reading or scoring.
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(290.0, 300.0), (300.0, 310.0)],
+        &[(295.0, 305.0)],
+    );
+    protocol
+        .validate()
+        .expect("target union contains a spanning claim");
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    protocol.target_domain.temperature = temperature_selector(&[(290.0, 300.0), (301.0, 310.0)]);
+    let endpoint_temperature = temperature_selector(&[(299.0, 300.0)]);
+    let claim_temperature = temperature_selector(&[(299.0, 302.0)]);
+    for endpoint in &mut protocol.mechanism_endpoints {
+        endpoint.domain.temperature = endpoint_temperature.clone();
+    }
+    for endpoint in &mut protocol.health_endpoints {
+        endpoint.domain.temperature = endpoint_temperature.clone();
+    }
+    protocol.release_scope[0].domain.temperature = claim_temperature;
+    protocol_error(
+        protocol.validate(),
+        "release claim domain exceeds target_domain",
+    );
+
+    // Categorical mutual-subset behavior remains unchanged across every other
+    // domain axis, including AnyDeclared.
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    for endpoint in &mut protocol.mechanism_endpoints {
+        endpoint.domain.analyte = CategoricalSelectorV1::Allowed {
+            ids: vec!["A".into()],
+        };
+    }
+    for endpoint in &mut protocol.health_endpoints {
+        endpoint.domain.analyte = CategoricalSelectorV1::Allowed {
+            ids: vec!["A".into()],
+        };
+    }
+    protocol.release_scope[0].domain.analyte = CategoricalSelectorV1::Allowed {
+        ids: vec!["A".into()],
+    };
+    protocol.validate().expect("Allowed {A} equals Allowed {A}");
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    for endpoint in &mut protocol.mechanism_endpoints {
+        endpoint.domain.analyte = CategoricalSelectorV1::Allowed {
+            ids: vec!["A", "B"].into_iter().map(String::from).collect(),
+        };
+    }
+    for endpoint in &mut protocol.health_endpoints {
+        endpoint.domain.analyte = CategoricalSelectorV1::Allowed {
+            ids: vec!["A", "B"].into_iter().map(String::from).collect(),
+        };
+    }
+    protocol.release_scope[0].domain.analyte = CategoricalSelectorV1::Allowed {
+        ids: vec!["A".into()],
+    };
+    assert!(matches!(
+        protocol.validate(),
+        Err(MhiValidationError::SupportingEndpointClaimDomainMismatch)
+    ));
+    let mut protocol = protocol_fixture("protocol/software_valid.toml");
+    protocol.release_scope[0].domain.analyte = CategoricalSelectorV1::Allowed {
+        ids: vec!["A".into()],
+    };
+    assert!(matches!(
+        protocol.validate(),
+        Err(MhiValidationError::SupportingEndpointClaimDomainMismatch)
+    ));
+
+    // The physical protocol path uses the same semantic equality rule without
+    // changing the signed KAT fixtures or their serialized bytes.
+    let mut protocol = protocol_fixture("protocol/physical_valid.toml");
+    set_temperature_domains(
+        &mut protocol,
+        &[(298.0, 299.0)],
+        &[(298.0, 298.5), (298.5, 299.0)],
+    );
+    protocol.release_scope[0].domain.temperature = temperature_selector(&[(298.0, 299.0)]);
+    protocol
+        .validate()
+        .expect("physical split endpoint and merged claim domains validate");
+    let mut protocol = protocol_fixture("protocol/physical_valid.toml");
+    set_temperature_domains(&mut protocol, &[(298.0, 299.0)], &[(298.0, 299.0)]);
+    protocol.release_scope[0].domain.temperature =
+        temperature_selector(&[(298.0, 298.5), (298.5, 299.0)]);
+    protocol
+        .validate()
+        .expect("physical merged endpoint and split claim domains validate");
 }
 
 #[test]
@@ -3310,6 +3606,11 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
         "29/29",
         "E-T22 is substantive executable coverage",
         "E-T23 is substantive executable coverage",
+        "SCI-P1-001 remediation",
+        "valid adjacent bands",
+        "union containment",
+        "E-R02/E-AC02 restored to passing",
+        "External scientific review: PENDING_POST_FREEZE",
     ] {
         assert!(
             author_evidence.contains(required),
