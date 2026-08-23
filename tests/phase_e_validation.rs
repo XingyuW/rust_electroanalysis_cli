@@ -250,6 +250,85 @@ fn protocol_fixture(name: &str) -> MhiValidationProtocolV1 {
         .expect("valid protocol fixture")
 }
 
+const IDENTITY_KEY_HEX: &str = "0100000000000000000000000000000000000000000000000000000000000000";
+const NONDECOMPRESSIBLE_Y2_KEY_HEX: &str =
+    "0200000000000000000000000000000000000000000000000000000000000000";
+const ZERO_SCALAR_HEX: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+const NONCANONICAL_SCALAR_L_HEX: &str =
+    "edd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010";
+
+fn identity_r_zero_s_signature() -> String {
+    format!("{IDENTITY_KEY_HEX}{ZERO_SCALAR_HEX}")
+}
+
+fn signature_with_noncanonical_scalar(signature: &str) -> String {
+    assert_eq!(signature.len(), 128, "known-answer signature length");
+    format!("{}{}", &signature[..64], NONCANONICAL_SCALAR_L_HEX)
+}
+
+fn flip_one_signature_bit(signature: &str) -> String {
+    assert_eq!(signature.len(), 128, "known-answer signature length");
+    let first_byte = u8::from_str_radix(&signature[..2], 16).expect("known-answer signature hex");
+    format!("{:02x}{}", first_byte ^ 0x01, &signature[2..])
+}
+
+fn trust_with_role_key(
+    trusted: &VerifiedEmbeddedTrustStore,
+    owner_role: bool,
+    key_hex: &str,
+) -> VerifiedEmbeddedTrustStore {
+    let mut store = trusted.store.clone();
+    let root = store.trust_roots.first_mut().expect("test trust root");
+    if owner_role {
+        root.owner_ed25519_public_key_hex = key_hex.into();
+    } else {
+        root.registry_ed25519_public_key_hex = key_hex.into();
+    }
+    VerifiedEmbeddedTrustStore {
+        store,
+        source_file_sha256: trusted.source_file_sha256.clone(),
+    }
+}
+
+fn assert_valid_bound_approval_mutation(
+    label: &str,
+    original: &OwnerApprovalEvidenceV1,
+    candidate: &OwnerApprovalEvidenceV1,
+    trusted: &VerifiedEmbeddedTrustStore,
+    protocol: &MhiValidationProtocolV1,
+    dataset: &MhiValidationDatasetV1,
+    expected: &str,
+) {
+    let mut original_without_signatures = original.clone();
+    original_without_signatures
+        .owner_signature_ed25519_hex
+        .clear();
+    original_without_signatures
+        .registry_signature_ed25519_hex
+        .clear();
+    let mut candidate_without_signatures = candidate.clone();
+    candidate_without_signatures
+        .owner_signature_ed25519_hex
+        .clear();
+    candidate_without_signatures
+        .registry_signature_ed25519_hex
+        .clear();
+    assert_eq!(
+        candidate_without_signatures, original_without_signatures,
+        "{label}: only signature fields may change"
+    );
+    assert_eq!(
+        candidate.approval_record_id, original.approval_record_id,
+        "{label}: approval record identity must remain valid-bound"
+    );
+
+    match candidate.validate_for_test_boundary(trusted, protocol, dataset) {
+        Err(MhiValidationError::Approval(actual)) => assert_eq!(actual, expected, "{label}"),
+        Err(other) => panic!("{label}: expected approval error {expected:?}, received {other:?}"),
+        Ok(()) => panic!("{label}: expected approval error {expected:?}, received success"),
+    }
+}
+
 fn protocol_error(result: Result<(), MhiValidationError>, expected: &str) {
     match result {
         Err(MhiValidationError::Protocol(actual)) => assert_eq!(actual, expected),
@@ -2538,12 +2617,197 @@ fn phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power() {
     let mut invalid = physical_approval.clone();
     invalid.registry_authority_id = "attacker_registry".into();
     approval_error(invalid, "approval authority binding mismatch");
+
+    // Every signature mutation below starts from the exact valid dual-signed
+    // KAT.  The protocol, dataset, approval record identity, and every other
+    // approval field remain unchanged, so these cases reach the verifier.
     let mut invalid = physical_approval.clone();
     invalid.registry_signature_ed25519_hex = invalid.owner_signature_ed25519_hex.clone();
-    approval_error(invalid, "PhysicalApprovalRegistrySignatureInvalid");
+    assert_valid_bound_approval_mutation(
+        "copied owner signature into registry role",
+        &physical_approval,
+        &invalid,
+        &verified_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalRegistrySignatureInvalid",
+    );
     let mut invalid = physical_approval.clone();
     invalid.owner_signature_ed25519_hex = "00".into();
-    approval_error(invalid, "PhysicalApprovalOwnerSignatureInvalid");
+    assert_valid_bound_approval_mutation(
+        "malformed owner signature",
+        &physical_approval,
+        &invalid,
+        &verified_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalOwnerSignatureInvalid",
+    );
+    let mut invalid = physical_approval.clone();
+    invalid.owner_signature_ed25519_hex =
+        signature_with_noncanonical_scalar(&physical_approval.owner_signature_ed25519_hex);
+    assert_valid_bound_approval_mutation(
+        "noncanonical owner signature scalar",
+        &physical_approval,
+        &invalid,
+        &verified_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalOwnerSignatureInvalid",
+    );
+    let mut invalid = physical_approval.clone();
+    invalid.registry_signature_ed25519_hex =
+        signature_with_noncanonical_scalar(&physical_approval.registry_signature_ed25519_hex);
+    assert_valid_bound_approval_mutation(
+        "noncanonical registry signature scalar",
+        &physical_approval,
+        &invalid,
+        &verified_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalRegistrySignatureInvalid",
+    );
+    let mut invalid = physical_approval.clone();
+    invalid.owner_signature_ed25519_hex =
+        flip_one_signature_bit(&physical_approval.owner_signature_ed25519_hex);
+    assert_valid_bound_approval_mutation(
+        "strict-invalid owner signature",
+        &physical_approval,
+        &invalid,
+        &verified_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalOwnerSignatureInvalid",
+    );
+    let mut invalid = physical_approval.clone();
+    invalid.registry_signature_ed25519_hex =
+        flip_one_signature_bit(&physical_approval.registry_signature_ed25519_hex);
+    assert_valid_bound_approval_mutation(
+        "strict-invalid registry signature",
+        &physical_approval,
+        &invalid,
+        &verified_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalRegistrySignatureInvalid",
+    );
+    let mut invalid = physical_approval.clone();
+    invalid.owner_signature_ed25519_hex.clear();
+    assert_valid_bound_approval_mutation(
+        "owner signature missing",
+        &physical_approval,
+        &invalid,
+        &verified_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalOwnerSignatureInvalid",
+    );
+    let mut invalid = physical_approval.clone();
+    invalid.registry_signature_ed25519_hex.clear();
+    assert_valid_bound_approval_mutation(
+        "registry signature missing",
+        &physical_approval,
+        &invalid,
+        &verified_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalRegistrySignatureInvalid",
+    );
+    let mut invalid = physical_approval.clone();
+    invalid.owner_signature_ed25519_hex = physical_approval.registry_signature_ed25519_hex.clone();
+    assert_valid_bound_approval_mutation(
+        "copied registry signature into owner role",
+        &physical_approval,
+        &invalid,
+        &verified_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalOwnerSignatureInvalid",
+    );
+
+    // Identity-R/zero-S is paired with the selected weak public key so the
+    // weak-key rejection is observed before signature acceptance.
+    let identity_signature = identity_r_zero_s_signature();
+    let weak_owner_trust = trust_with_role_key(&verified_trust, true, IDENTITY_KEY_HEX);
+    let mut weak_owner = physical_approval.clone();
+    weak_owner.owner_signature_ed25519_hex = identity_signature.clone();
+    assert_valid_bound_approval_mutation(
+        "owner identity weak key",
+        &physical_approval,
+        &weak_owner,
+        &weak_owner_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalWeakPublicKey",
+    );
+    let weak_registry_trust = trust_with_role_key(&verified_trust, false, IDENTITY_KEY_HEX);
+    let mut weak_registry = physical_approval.clone();
+    weak_registry.registry_signature_ed25519_hex = identity_signature;
+    assert_valid_bound_approval_mutation(
+        "registry identity weak key",
+        &physical_approval,
+        &weak_registry,
+        &weak_registry_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalWeakPublicKey",
+    );
+
+    let y2_owner_trust = trust_with_role_key(&verified_trust, true, NONDECOMPRESSIBLE_Y2_KEY_HEX);
+    assert_valid_bound_approval_mutation(
+        "owner nondecompressible y=2 key",
+        &physical_approval,
+        &physical_approval,
+        &y2_owner_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalPublicKeyInvalid",
+    );
+    let y2_registry_trust =
+        trust_with_role_key(&verified_trust, false, NONDECOMPRESSIBLE_Y2_KEY_HEX);
+    assert_valid_bound_approval_mutation(
+        "registry nondecompressible y=2 key",
+        &physical_approval,
+        &physical_approval,
+        &y2_registry_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalPublicKeyInvalid",
+    );
+
+    // This is a valid canonical nonweak public key from the test corpus, but
+    // it does not correspond to either KAT signature and has no private
+    // material in the repository.
+    let wrong_role_key = "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c";
+    let wrong_owner_trust = trust_with_role_key(&verified_trust, true, wrong_role_key);
+    wrong_owner_trust
+        .store
+        .validate()
+        .expect("wrong owner test key remains canonical and nonweak");
+    assert_valid_bound_approval_mutation(
+        "wrong owner public key reaches verifier",
+        &physical_approval,
+        &physical_approval,
+        &wrong_owner_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalOwnerSignatureInvalid",
+    );
+    let wrong_registry_trust = trust_with_role_key(&verified_trust, false, wrong_role_key);
+    wrong_registry_trust
+        .store
+        .validate()
+        .expect("wrong registry test key remains canonical and nonweak");
+    assert_valid_bound_approval_mutation(
+        "wrong registry public key reaches verifier",
+        &physical_approval,
+        &physical_approval,
+        &wrong_registry_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalRegistrySignatureInvalid",
+    );
+
     let mut invalid = physical_approval.clone();
     invalid.approval_record_id =
         "sha256:0000000000000000000000000000000000000000000000000000000000000000".into();
@@ -3606,6 +3870,8 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
         "29/29",
         "E-T22 is substantive executable coverage",
         "E-T23 is substantive executable coverage",
+        "P1-SEC-001 remediation",
+        "E-T29 = substantive PASS",
         "SCI-P1-001 remediation",
         "valid adjacent bands",
         "union containment",

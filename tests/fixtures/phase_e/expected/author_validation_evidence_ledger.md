@@ -47,6 +47,59 @@ mapping; there are zero fixture, mutation, or oracle gaps.
 | E-R17 | E-AC17 | E-T28, E-T29 |
 | E-R18 | E-AC18 | E-T30 |
 
+## P1-SEC-001 remediation evidence
+
+P1-SEC-001 is remediated as a test-coverage correction.  Production approval
+validation remains unchanged: `VerifyingKey::from_bytes`, canonical
+recompression equality, `is_weak`, `Signature::try_from`, and `verify_strict`
+remain the executed order.  E-T29 now starts every signature mutation from the
+exact valid dual-signed `approval/valid.schema1.json` KAT and matching physical
+protocol/dataset.  A helper compares the candidate with the KAT after clearing
+only the two signature fields and preserves the original approval record ID.
+
+The valid-bound E-T29 cryptographic mutation matrix is substantive PASS, 16/16:
+
+| mutation | exact R2 result |
+| --- | --- |
+| malformed owner signature (`00`) | `PhysicalApprovalOwnerSignatureInvalid` |
+| malformed registry signature (`00`) | `PhysicalApprovalRegistrySignatureInvalid` |
+| owner signature with `S = L` | `PhysicalApprovalOwnerSignatureInvalid` |
+| registry signature with `S = L` | `PhysicalApprovalRegistrySignatureInvalid` |
+| one-bit strict-invalid owner signature | `PhysicalApprovalOwnerSignatureInvalid` |
+| one-bit strict-invalid registry signature | `PhysicalApprovalRegistrySignatureInvalid` |
+| owner signature missing | `PhysicalApprovalOwnerSignatureInvalid` |
+| registry signature missing | `PhysicalApprovalRegistrySignatureInvalid` |
+| copied owner signature into registry role | `PhysicalApprovalRegistrySignatureInvalid` |
+| copied registry signature into owner role | `PhysicalApprovalOwnerSignatureInvalid` |
+| owner identity-R/zero-S with weak identity key | `PhysicalApprovalWeakPublicKey` |
+| registry identity-R/zero-S with weak identity key | `PhysicalApprovalWeakPublicKey` |
+| owner `y=2` public key | `PhysicalApprovalPublicKeyInvalid` |
+| registry `y=2` public key | `PhysicalApprovalPublicKeyInvalid` |
+| wrong valid owner public key | `PhysicalApprovalOwnerSignatureInvalid` |
+| wrong valid registry public key | `PhysicalApprovalRegistrySignatureInvalid` |
+
+The complete E-T29 normative matrix is substantive PASS, 40/40.  It includes
+the production UNPROVISIONED physical route and no runtime test-root selection;
+missing approval, wrong purpose, unknown root, and attacker-authority cases;
+all 16 verifier mutations above; file, record, cohort, protocol, claim,
+endpoint, domain, origin, reference-authority, reference-method, blinding,
+uncertainty, incomplete-reference, physical-reference-unavailable, minimum,
+family, stratum, and valid dual-signed two-family KAT cases.  The existing
+binding/scientific rows retain their exact typed or semantic oracles; no row is
+counted PASS from an earlier unrelated rejection.
+
+Exact targeted command result:
+
+```text
+cargo test --locked --test phase_e_validation phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power -- --exact --nocapture
+PASS: 1 passed; 0 failed; 36 filtered out
+```
+
+No permanent fixture was added or regenerated.  The fixture inventory remains
+268/268, and the remediation contains no private key, seed, signer, or runtime
+signing capability.  E-T29 = substantive PASS.  External Security review:
+PENDING_POST_FREEZE.
+
 ## Publication matrix evidence
 
 E-T22 is substantive executable coverage for the complete staging and byte
