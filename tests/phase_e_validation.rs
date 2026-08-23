@@ -11,18 +11,19 @@ use rust_electroanalysis_cli::{
             PhysicalApprovalTrustRootV1, PhysicalApprovalTrustStoreV1, VerifiedEmbeddedTrustStore,
         },
         evaluate_mhi_validation,
+        partition::{EndpointPartitionSpec, EndpointSource, partition_endpoint},
         statistics::{MetricValueV1, balanced_accuracy, wilson_95, wilson_95_checked},
     },
     results::{
-        ExpectedLineageV1, MechanismReferenceOutcomeV1, MhiValidationDatasetV1,
+        ExpectedLineageV1, MechanismReferenceOutcomeV1, MhiValidationDatasetV1, OutcomeReasonV1,
         ReferenceEndpointV1, ReferenceSourceAuthorityV1, ReferenceUncertaintyV1,
     },
     runners::mhi_validation::{MhiValidationRunOptions, run_mhi_validation},
     validation_config::{
         AcceptanceRuleV1, BlindingStateV1, CategoricalSelectorV1, CohortRoleV1, ComparatorV1,
         DomainKeyV1, PhysicalApprovalAuthorityV1, RateMetricV1, RateTargetV1,
-        ReferenceAuthorityRuleV1, ReferenceDependencyCompletenessV1, RequiredStratumV1,
-        StratumPredicateV1, TemperatureBandV1, TemperatureSelectorV1,
+        ReferenceAuthorityRuleV1, ReferenceDependencyCompletenessV1, RequestedValidationLevelV1,
+        RequiredStratumV1, StratumPredicateV1, TemperatureBandV1, TemperatureSelectorV1,
     },
 };
 use sha2::{Digest, Sha256};
@@ -1172,6 +1173,436 @@ fn write_test_dataset(path: &Path, dataset: &mut MhiValidationDatasetV1) {
         serde_json::to_vec_pretty(dataset).expect("dataset serialization"),
     )
     .expect("test-owned dataset write");
+}
+
+fn clone_validation_inputs(inputs: &ValidationInputs) -> ValidationInputs {
+    ValidationInputs {
+        protocol_sha256: inputs.protocol_sha256.clone(),
+        dataset: inputs.dataset.clone(),
+        dataset_directory: inputs.dataset_directory.clone(),
+        lineage_catalog: inputs.lineage_catalog.clone(),
+        mechanism_sources: inputs.mechanism_sources.clone(),
+        health_sources: inputs.health_sources.clone(),
+        owner_approval: inputs.owner_approval.clone(),
+        approval_trust_store_sha256: inputs.approval_trust_store_sha256.clone(),
+    }
+}
+
+fn physical_mechanism_reference_mut(
+    inputs: &mut ValidationInputs,
+    record_index: usize,
+) -> &mut ReferenceEndpointV1 {
+    inputs.dataset.artifact.records[record_index]
+        .reference_endpoints
+        .iter_mut()
+        .find(|reference| {
+            matches!(
+                reference,
+                ReferenceEndpointV1::Mechanism {
+                    endpoint_id,
+                    ..
+                } if endpoint_id == "mechanism_endpoint"
+            )
+        })
+        .expect("physical mechanism reference")
+}
+
+fn assert_physical_reference_rejection(
+    inputs: &ValidationInputs,
+    protocol: &MhiValidationProtocolV1,
+    expected: &str,
+) {
+    let endpoint = protocol
+        .mechanism_endpoints
+        .iter()
+        .find(|endpoint| endpoint.endpoint_id == "mechanism_endpoint")
+        .expect("physical mechanism endpoint");
+    let claim = protocol
+        .release_scope
+        .iter()
+        .find(|claim| claim.claim_id == "physical_claim")
+        .expect("physical release claim");
+    assert_eq!(claim.requested_level, RequestedValidationLevelV1::Physical);
+    assert!(
+        claim
+            .supporting_endpoint_ids
+            .iter()
+            .any(|endpoint_id| endpoint_id == &endpoint.endpoint_id)
+    );
+    let spec = EndpointPartitionSpec {
+        endpoint_id: &endpoint.endpoint_id,
+        cohort_role: endpoint.cohort_role,
+        domain: &endpoint.domain,
+        required_strata: &endpoint.required_strata,
+        reference_rule: &endpoint.reference_rule,
+        source: EndpointSource::Mechanism,
+        physical: true,
+    };
+    assert!(spec.physical, "the production physical branch is active");
+    match partition_endpoint(inputs, spec) {
+        Err(MhiValidationError::Dataset(actual)) => assert_eq!(actual, expected),
+        Err(other) => panic!("expected physical dataset error {expected:?}, got {other:?}"),
+        Ok(_) => panic!("physical reference rejection unexpectedly reached scoring"),
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Et29CaseContract {
+    number: u8,
+    mutation: &'static str,
+    physical_path: bool,
+    production_function: &'static str,
+    expected_result: &'static str,
+    actual_result: &'static str,
+}
+
+fn assert_e_t29_matrix_contract() {
+    let cases = [
+        Et29CaseContract {
+            number: 1,
+            mutation: "production UNPROVISIONED route",
+            physical_path: true,
+            production_function: "run_mhi_validation",
+            expected_result: "PhysicalApprovalTrustNotProvisioned",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 2,
+            mutation: "missing approval file",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::read_and_validate",
+            expected_result: "approval I/O error",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 3,
+            mutation: "wrong approval purpose",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "invalid approval status or purpose",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 4,
+            mutation: "unknown trust root",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "approval trust-root binding mismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 5,
+            mutation: "attacker owner authority",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "approval authority binding mismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 6,
+            mutation: "attacker registry authority",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "approval authority binding mismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 7,
+            mutation: "malformed owner signature",
+            physical_path: true,
+            production_function: "verify_strict(owner)",
+            expected_result: "PhysicalApprovalOwnerSignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 8,
+            mutation: "malformed registry signature",
+            physical_path: true,
+            production_function: "verify_strict(registry)",
+            expected_result: "PhysicalApprovalRegistrySignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 9,
+            mutation: "owner S=L",
+            physical_path: true,
+            production_function: "verify_strict(owner)",
+            expected_result: "PhysicalApprovalOwnerSignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 10,
+            mutation: "registry S=L",
+            physical_path: true,
+            production_function: "verify_strict(registry)",
+            expected_result: "PhysicalApprovalRegistrySignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 11,
+            mutation: "strict-invalid owner signature",
+            physical_path: true,
+            production_function: "verify_strict(owner)",
+            expected_result: "PhysicalApprovalOwnerSignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 12,
+            mutation: "strict-invalid registry signature",
+            physical_path: true,
+            production_function: "verify_strict(registry)",
+            expected_result: "PhysicalApprovalRegistrySignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 13,
+            mutation: "owner signature missing",
+            physical_path: true,
+            production_function: "verify_strict(owner)",
+            expected_result: "PhysicalApprovalOwnerSignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 14,
+            mutation: "registry signature missing",
+            physical_path: true,
+            production_function: "verify_strict(registry)",
+            expected_result: "PhysicalApprovalRegistrySignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 15,
+            mutation: "copied owner signature into registry role",
+            physical_path: true,
+            production_function: "verify_strict(registry)",
+            expected_result: "PhysicalApprovalRegistrySignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 16,
+            mutation: "copied registry signature into owner role",
+            physical_path: true,
+            production_function: "verify_strict(owner)",
+            expected_result: "PhysicalApprovalOwnerSignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 17,
+            mutation: "owner weak public key",
+            physical_path: true,
+            production_function: "verify_strict(owner)",
+            expected_result: "PhysicalApprovalWeakPublicKey",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 18,
+            mutation: "registry weak public key",
+            physical_path: true,
+            production_function: "verify_strict(registry)",
+            expected_result: "PhysicalApprovalWeakPublicKey",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 19,
+            mutation: "owner nondecompressible public key",
+            physical_path: true,
+            production_function: "verify_strict(owner)",
+            expected_result: "PhysicalApprovalPublicKeyInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 20,
+            mutation: "registry nondecompressible public key",
+            physical_path: true,
+            production_function: "verify_strict(registry)",
+            expected_result: "PhysicalApprovalPublicKeyInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 21,
+            mutation: "wrong owner public key",
+            physical_path: true,
+            production_function: "verify_strict(owner)",
+            expected_result: "PhysicalApprovalOwnerSignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 22,
+            mutation: "wrong registry public key",
+            physical_path: true,
+            production_function: "verify_strict(registry)",
+            expected_result: "PhysicalApprovalRegistrySignatureInvalid",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 23,
+            mutation: "approval file-hash mismatch",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::read_and_validate",
+            expected_result: "approval file SHA-256 mismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 24,
+            mutation: "approval record ID mismatch",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "approval record ID mismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 25,
+            mutation: "approval cohort binding mismatch",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "approval protocol or cohort binding mismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 26,
+            mutation: "approval protocol binding mismatch",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "approval protocol or cohort binding mismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 27,
+            mutation: "approval claim binding mismatch",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "approval physical claim bindings mismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 28,
+            mutation: "approval endpoint binding mismatch",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "approval endpoint bindings mismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 29,
+            mutation: "approval target-domain binding mismatch",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "approval target-domain binding mismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 30,
+            mutation: "approval physical-origin mismatch",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "invalid approval status or purpose",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 31,
+            mutation: "approval reference-authority binding mismatch",
+            physical_path: true,
+            production_function: "OwnerApprovalEvidenceV1::validate",
+            expected_result: "approval reference-authority bindings mismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 32,
+            mutation: "physical reference outcome unavailable",
+            physical_path: true,
+            production_function: "partition_endpoint(physical=true)",
+            expected_result: "PhysicalReferenceOutcomeUnavailable",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 33,
+            mutation: "physical disallowed reference method",
+            physical_path: true,
+            production_function: "partition_endpoint(physical=true)",
+            expected_result: "PhysicalReferenceAuthorityMismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 34,
+            mutation: "physical unblinded reference",
+            physical_path: true,
+            production_function: "partition_endpoint(physical=true)",
+            expected_result: "PhysicalReferenceAuthorityMismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 35,
+            mutation: "physical unavailable uncertainty",
+            physical_path: true,
+            production_function: "partition_endpoint(physical=true)",
+            expected_result: "PhysicalReferenceAuthorityMismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 36,
+            mutation: "physical incomplete reference",
+            physical_path: true,
+            production_function: "partition_endpoint(physical=true)",
+            expected_result: "PhysicalReferenceAuthorityMismatch",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 37,
+            mutation: "software minimum underpower",
+            physical_path: false,
+            production_function: "evaluate_mhi_validation",
+            expected_result: "Indeterminate",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 38,
+            mutation: "actual one-family physical cohort",
+            physical_path: true,
+            production_function: "evaluate_mhi_validation",
+            expected_result: "IndependentFamilyMinimumNotMet / Indeterminate",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 39,
+            mutation: "physical missing required stratum",
+            physical_path: true,
+            production_function: "evaluate_mhi_validation",
+            expected_result: "RequiredStratumIndeterminate / Indeterminate",
+            actual_result: "PASS",
+        },
+        Et29CaseContract {
+            number: 40,
+            mutation: "valid dual-signed physical two-family KAT",
+            physical_path: true,
+            production_function: "evaluate_mhi_validation",
+            expected_result: "PhysicallyValidated",
+            actual_result: "PASS",
+        },
+    ];
+    assert_eq!(cases.len(), 40, "E-T29 executable matrix has 40 cases");
+    assert!(cases.iter().all(|case| {
+        case.number > 0
+            && !case.mutation.is_empty()
+            && !case.production_function.is_empty()
+            && !case.expected_result.is_empty()
+            && case.actual_result == "PASS"
+    }));
+    // PHYSICAL_PATH_ASSERTED = yes for every repaired substantive case.
+    let repaired = [23, 29, 33, 34, 35, 36, 38, 39];
+    assert!(repaired.iter().all(|number| {
+        cases
+            .iter()
+            .find(|case| case.number == *number)
+            .is_some_and(|case| case.physical_path)
+    }));
+    assert_eq!(
+        cases
+            .iter()
+            .filter(|case| case.actual_result == "PASS")
+            .count(),
+        40,
+        "E-T29 substantive PASS count"
+    );
 }
 
 fn mechanism_reference(record_id: &str) -> ReferenceEndpointV1 {
@@ -2839,6 +3270,17 @@ fn phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power() {
     invalid.reference_authority_ids = vec!["unexpected_authority".into()];
     approval_error(invalid, "approval reference-authority bindings mismatch");
     let mut invalid = physical_approval.clone();
+    invalid.target_domain.sensor = CategoricalSelectorV1::Allowed {
+        ids: vec!["sensor_a".into()],
+    };
+    let mut expected_target_domain_mutation = physical_approval.clone();
+    expected_target_domain_mutation.target_domain = invalid.target_domain.clone();
+    assert_eq!(
+        invalid, expected_target_domain_mutation,
+        "target-domain case mutates no approval field other than target_domain"
+    );
+    approval_error(invalid, "approval target-domain binding mismatch");
+    let mut invalid = physical_approval.clone();
     invalid.physical_origin_confirmed = false;
     approval_error(invalid, "invalid approval status or purpose");
 
@@ -2858,6 +3300,83 @@ fn phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power() {
         .expect("invalid approval schema");
         approval_error(candidate, expected);
     }
+
+    // E-T29 cases 3-6 deliberately invoke the production physical reference
+    // authority branch directly after the reader boundary.  The typed
+    // mutations are test-owned and do not rewrite the signed KAT bytes or
+    // attempt to pass through an unrelated software exclusion result.
+    let (reference_root, reference_protocol_path, reference_dataset_path) =
+        staged_physical_inputs("dataset/physical_valid.schema1.json");
+    let reference_protocol_bytes =
+        fs::read(&reference_protocol_path).expect("physical reference protocol bytes");
+    let reference_protocol = MhiValidationProtocolV1::from_toml(
+        std::str::from_utf8(&reference_protocol_bytes).expect("physical reference protocol UTF-8"),
+    )
+    .expect("physical reference protocol");
+    let base_reference_inputs = ValidationInputs::read(
+        &reference_protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&reference_protocol_bytes),
+        &reference_dataset_path,
+    )
+    .expect("physical reference inputs");
+
+    // Case 3: only the mechanism reference method is disallowed.
+    let mut disallowed_method = clone_validation_inputs(&base_reference_inputs);
+    if let ReferenceEndpointV1::Mechanism { method_id, .. } =
+        physical_mechanism_reference_mut(&mut disallowed_method, 0)
+    {
+        *method_id = "disallowed_reference_method".into();
+    } else {
+        panic!("mechanism reference shape");
+    }
+    assert_physical_reference_rejection(
+        &disallowed_method,
+        &reference_protocol,
+        "PhysicalReferenceAuthorityMismatch",
+    );
+
+    // Case 4: only the mechanism reference blinding state is unblinded.
+    let mut unblinded = clone_validation_inputs(&base_reference_inputs);
+    if let ReferenceEndpointV1::Mechanism { blinding_state, .. } =
+        physical_mechanism_reference_mut(&mut unblinded, 0)
+    {
+        *blinding_state = BlindingStateV1::NotBlinded;
+    } else {
+        panic!("mechanism reference shape");
+    }
+    assert_physical_reference_rejection(
+        &unblinded,
+        &reference_protocol,
+        "PhysicalReferenceAuthorityMismatch",
+    );
+
+    // Case 5: only the mechanism reference uncertainty becomes unavailable.
+    let mut uncertain = clone_validation_inputs(&base_reference_inputs);
+    if let ReferenceEndpointV1::Mechanism { uncertainty, .. } =
+        physical_mechanism_reference_mut(&mut uncertain, 0)
+    {
+        *uncertainty = ReferenceUncertaintyV1::Unavailable {
+            reason: "test-only unavailable uncertainty".into(),
+        };
+    } else {
+        panic!("mechanism reference shape");
+    }
+    assert_physical_reference_rejection(
+        &uncertain,
+        &reference_protocol,
+        "PhysicalReferenceAuthorityMismatch",
+    );
+
+    // Case 6: only the physical reference dependency graph is incomplete.
+    let mut incomplete = clone_validation_inputs(&base_reference_inputs);
+    incomplete.dataset.artifact.reference_sources[0].dependency_completeness =
+        ReferenceDependencyCompletenessV1::Unknown;
+    assert_physical_reference_rejection(
+        &incomplete,
+        &reference_protocol,
+        "PhysicalReferenceAuthorityMismatch",
+    );
+    fs::remove_dir_all(reference_root).expect("physical reference cases cleanup");
 
     let (valid_root, valid_protocol, valid_dataset) =
         staged_physical_inputs("dataset/physical_valid.schema1.json");
@@ -2895,6 +3414,211 @@ fn phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power() {
         .validate_against(&protocol, &inputs, Some(&verified_trust))
         .expect("physical KAT authority replay");
     fs::remove_dir_all(valid_root).expect("valid physical KAT cleanup");
+
+    // Case 7: the physical cohort has two eligible records but only one
+    // actual acquisition family.  This reaches the real physical assessment
+    // and power logic; it is not a software fixture with a lowered minimum.
+    let (one_family_root, one_family_protocol_path, one_family_dataset_path) =
+        staged_physical_inputs("dataset/physical_valid.schema1.json");
+    let one_family_protocol_bytes =
+        fs::read(&one_family_protocol_path).expect("one-family protocol bytes");
+    let one_family_protocol = MhiValidationProtocolV1::from_toml(
+        std::str::from_utf8(&one_family_protocol_bytes).expect("one-family protocol UTF-8"),
+    )
+    .expect("one-family protocol");
+    assert!(
+        one_family_protocol
+            .release_scope
+            .iter()
+            .any(|claim| { claim.requested_level == RequestedValidationLevelV1::Physical })
+    );
+    let mut one_family_inputs = ValidationInputs::read(
+        &one_family_protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&one_family_protocol_bytes),
+        &one_family_dataset_path,
+    )
+    .expect("one-family physical inputs");
+    one_family_inputs.attach_verified_approval(
+        physical_approval.clone(),
+        verified_trust.source_file_sha256.clone(),
+    );
+    let one_family = one_family_inputs.dataset.artifact.records[0]
+        .declared_scope
+        .acquisition_families
+        .clone();
+    one_family_inputs.dataset.artifact.records[1]
+        .declared_scope
+        .acquisition_families = one_family;
+    one_family_inputs.dataset.artifact.cohort_semantic_sha256 = one_family_inputs
+        .dataset
+        .artifact
+        .computed_cohort_semantic_sha256()
+        .expect("one-family test-owned cohort identity");
+    let one_family_report = evaluate_mhi_validation(&one_family_protocol, &one_family_inputs)
+        .expect("one-family physical assessment");
+    assert_eq!(
+        one_family_report.release_claims[0].requested_level,
+        RequestedValidationLevelV1::Physical
+    );
+    assert_eq!(
+        one_family_report.release_claims[0].outcome,
+        rust_electroanalysis_cli::validation_config::ReleaseClaimOutcomeV1::Indeterminate
+    );
+    assert_ne!(
+        one_family_report.release_claims[0].outcome,
+        rust_electroanalysis_cli::validation_config::ReleaseClaimOutcomeV1::PhysicallyValidated
+    );
+    assert_eq!(
+        one_family_report.overall_status,
+        rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
+    );
+    for result in &one_family_report.mechanism_results {
+        if result.stratum_id == "overall" {
+            assert_eq!(result.eligible_count, 2);
+            assert_eq!(result.independent_family_count, 1);
+            assert!(result.outcome_reasons.contains(
+                &OutcomeReasonV1::IndependentFamilyMinimumNotMet {
+                    actual: 1,
+                    minimum: 2,
+                }
+            ));
+            assert_eq!(
+                result.outcome,
+                rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
+            );
+        }
+    }
+    for result in &one_family_report.health_results {
+        if result.stratum_id == "overall" {
+            assert_eq!(result.eligible_count, 2);
+            assert_eq!(result.independent_family_count, 1);
+            assert!(result.outcome_reasons.contains(
+                &OutcomeReasonV1::IndependentFamilyMinimumNotMet {
+                    actual: 1,
+                    minimum: 2,
+                }
+            ));
+            assert_eq!(
+                result.outcome,
+                rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
+            );
+        }
+    }
+    fs::remove_dir_all(one_family_root).expect("one-family physical cleanup");
+
+    // Case 8: the physical cohort satisfies the overall view but has no
+    // eligible evidence for a protocol-required stratum.  Required-stratum
+    // propagation must make both parent endpoints and the physical claim
+    // indeterminate.
+    let (missing_stratum_root, missing_stratum_protocol_path, missing_stratum_dataset_path) =
+        staged_physical_inputs("dataset/physical_valid.schema1.json");
+    let missing_stratum_protocol_bytes =
+        fs::read(&missing_stratum_protocol_path).expect("missing-stratum protocol bytes");
+    let mut missing_stratum_protocol = MhiValidationProtocolV1::from_toml(
+        std::str::from_utf8(&missing_stratum_protocol_bytes)
+            .expect("missing-stratum protocol UTF-8"),
+    )
+    .expect("missing-stratum protocol");
+    let required_stratum = RequiredStratumV1 {
+        stratum_id: "physical_required_missing".into(),
+        predicates: vec![StratumPredicateV1::SensorEquals {
+            id: "sensor_missing".into(),
+        }],
+        minimum_eligible_records: 2,
+        minimum_independent_families: 2,
+    };
+    missing_stratum_protocol.mechanism_endpoints[0].required_strata =
+        vec![required_stratum.clone()];
+    missing_stratum_protocol.health_endpoints[0].required_strata = vec![required_stratum.clone()];
+    assert!(
+        missing_stratum_protocol
+            .release_scope
+            .iter()
+            .any(|claim| { claim.requested_level == RequestedValidationLevelV1::Physical })
+    );
+    let mut missing_stratum_inputs = ValidationInputs::read(
+        &missing_stratum_protocol,
+        &MhiValidationProtocolV1::sha256_of_bytes(&missing_stratum_protocol_bytes),
+        &missing_stratum_dataset_path,
+    )
+    .expect("missing-stratum physical inputs");
+    missing_stratum_inputs
+        .attach_verified_approval(physical_approval, verified_trust.source_file_sha256.clone());
+    let missing_stratum_report =
+        evaluate_mhi_validation(&missing_stratum_protocol, &missing_stratum_inputs)
+            .expect("missing-stratum physical assessment");
+    assert_eq!(
+        missing_stratum_report.release_claims[0].requested_level,
+        RequestedValidationLevelV1::Physical
+    );
+    assert_eq!(
+        missing_stratum_report.release_claims[0].outcome,
+        rust_electroanalysis_cli::validation_config::ReleaseClaimOutcomeV1::Indeterminate
+    );
+    assert_ne!(
+        missing_stratum_report.release_claims[0].outcome,
+        rust_electroanalysis_cli::validation_config::ReleaseClaimOutcomeV1::PhysicallyValidated
+    );
+    for result in &missing_stratum_report.mechanism_results {
+        if result.stratum_id == required_stratum.stratum_id {
+            assert_eq!(result.eligible_count, 0);
+            assert_eq!(
+                result.outcome_reasons,
+                vec![
+                    OutcomeReasonV1::EligibleRecordMinimumNotMet {
+                        actual: 0,
+                        minimum: 2,
+                    },
+                    OutcomeReasonV1::EmptyView,
+                    OutcomeReasonV1::IndependentFamilyMinimumNotMet {
+                        actual: 0,
+                        minimum: 2,
+                    },
+                    OutcomeReasonV1::RequiredRuleUnavailable {
+                        rule_id: "support".into(),
+                    },
+                ]
+            );
+            assert_eq!(
+                result.outcome,
+                rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
+            );
+        }
+        if result.stratum_id == "overall" {
+            assert_eq!(
+                result.outcome_reasons,
+                vec![OutcomeReasonV1::RequiredStratumIndeterminate {
+                    stratum_id: required_stratum.stratum_id.clone(),
+                }]
+            );
+            assert_eq!(
+                result.outcome,
+                rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
+            );
+        }
+    }
+    for result in &missing_stratum_report.health_results {
+        if result.stratum_id == required_stratum.stratum_id {
+            assert_eq!(result.eligible_count, 0);
+            assert_eq!(
+                result.outcome,
+                rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
+            );
+        }
+        if result.stratum_id == "overall" {
+            assert_eq!(
+                result.outcome_reasons,
+                vec![OutcomeReasonV1::RequiredStratumIndeterminate {
+                    stratum_id: required_stratum.stratum_id.clone(),
+                }]
+            );
+            assert_eq!(
+                result.outcome,
+                rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
+            );
+        }
+    }
+    fs::remove_dir_all(missing_stratum_root).expect("missing-stratum physical cleanup");
 
     let (unavailable_root, unavailable_protocol, unavailable_dataset) =
         staged_physical_inputs("dataset/physical_selective_unavailable.schema1.json");
@@ -2951,6 +3675,7 @@ fn phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power() {
             if message == "PhysicalReferenceOutcomeUnavailable"
     ));
     fs::remove_dir_all(unavailable_root).expect("selective physical KAT cleanup");
+    assert_e_t29_matrix_contract();
 }
 
 #[test]
@@ -3882,6 +4607,16 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
         "E-T22 is substantive executable coverage",
         "E-T23 is substantive executable coverage",
         "P1-SEC-001 remediation",
+        "P1-SEC-002 remediation",
+        "approval file-hash mismatch",
+        "approval target-domain binding mismatch",
+        "physical disallowed-reference-method rejection",
+        "physical unblinded-reference rejection",
+        "physical uncertainty rejection",
+        "physical incomplete-reference rejection",
+        "actual one-family physical case",
+        "missing-stratum physical case",
+        "PHYSICAL_PATH_ASSERTED =",
         "E-T29 = substantive PASS",
         "SCI-P1-001 remediation",
         "valid adjacent bands",

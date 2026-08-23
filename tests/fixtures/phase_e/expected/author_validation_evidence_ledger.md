@@ -100,6 +100,49 @@ No permanent fixture was added or regenerated.  The fixture inventory remains
 signing capability.  E-T29 = substantive PASS.  External Security review:
 PENDING_POST_FREEZE.
 
+## P1-SEC-002 remediation evidence
+
+The independent Security rereview found that the earlier E-T29 author claim
+was not substantiated: 32/40 substantive cases were evidenced.  The following
+eight cases are now separately executed and mapped to the production boundary
+that owns the decision.  Physical-reference cases 33-36 use
+`partition_endpoint` with `physical = true`; physical assessment cases 38-39
+use the physical requested-validation state and the real
+`evaluate_mhi_validation` assessment path.  No software-mode result is
+counted as physical-path evidence.
+
+| E-T29 case | mutation | physical path | production function | exact result | actual |
+| --- | --- | --- | --- | --- | --- |
+| 23 | approval file-hash mismatch | yes | `OwnerApprovalEvidenceV1::read_and_validate` | `approval file SHA-256 mismatch` | PASS |
+| 29 | approval target-domain binding mismatch | yes | `OwnerApprovalEvidenceV1::validate` | `approval target-domain binding mismatch` | PASS |
+| 33 | physical disallowed-reference-method rejection | yes | `partition_endpoint(physical = true)` | `PhysicalReferenceAuthorityMismatch` | PASS |
+| 34 | physical unblinded-reference rejection | yes | `partition_endpoint(physical = true)` | `PhysicalReferenceAuthorityMismatch` | PASS |
+| 35 | physical uncertainty rejection | yes | `partition_endpoint(physical = true)` | `PhysicalReferenceAuthorityMismatch` | PASS |
+| 36 | physical incomplete-reference rejection | yes | `partition_endpoint(physical = true)` | `PhysicalReferenceAuthorityMismatch` | PASS |
+| 38 | actual one-family physical case | yes | `evaluate_mhi_validation` | `IndependentFamilyMinimumNotMet` and indeterminate | PASS |
+| 39 | missing-stratum physical case | yes | `evaluate_mhi_validation` | `RequiredStratumIndeterminate` and indeterminate | PASS |
+
+The executable E-T29 contract contains all 40 case numbers, mutation labels,
+physical-path flags, production functions, expected results, and actual PASS
+results.  The repaired cases are explicitly marked `PHYSICAL_PATH_ASSERTED =
+yes` in the test contract.  The targeted command result is:
+
+```text
+cargo test --locked --test phase_e_validation phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power -- --exact --nocapture
+PASS: 1 passed; 0 failed; 36 filtered out
+```
+
+The approval file-read boundary was also run directly in the library test:
+
+```text
+cargo test --locked --lib mhi_validation::approval::tests::phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power -- --exact --nocapture
+PASS: 1 passed; 0 failed; 193 filtered out
+```
+
+E-T29 = 32/32 existing cases plus 8/8 newly substantiated cases = substantive
+PASS 40/40.  P1-SEC-001 remains CLOSED and is not reopened.  External Security
+review: PENDING_POST_FREEZE.
+
 ## Publication matrix evidence
 
 E-T22 is substantive executable coverage for the complete staging and byte

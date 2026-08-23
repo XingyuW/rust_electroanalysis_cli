@@ -504,6 +504,17 @@ mod tests {
         .expect("file hash and literal approval verify");
         assert!(matches!(
             OwnerApprovalEvidenceV1::read_and_validate(
+                &approval_file,
+                &"0".repeat(64),
+                &trust,
+                &protocol,
+                &dataset,
+            ),
+            Err(MhiValidationError::Approval(message))
+                if message == "approval file SHA-256 mismatch"
+        ));
+        assert!(matches!(
+            OwnerApprovalEvidenceV1::read_and_validate(
                 &fixture("approval/missing.schema1.json"),
                 &expected_file_sha256,
                 &trust,
