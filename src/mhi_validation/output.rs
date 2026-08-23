@@ -1124,7 +1124,7 @@ fn verify_bundle_with_mode(
         SUMMARY_FILE.to_string(),
         "tables".into(),
     ]);
-    let actual_root = read_child_names(descriptor)?;
+    let actual_root = read_child_names(descriptor, display_path)?;
     if actual_root != expected_root {
         return Err(MhiValidationError::Dataset(
             "managed bundle has an unexpected root entry".into(),
@@ -1142,7 +1142,7 @@ fn verify_bundle_with_mode(
         .iter()
         .map(|(name, _, _)| (*name).to_string())
         .collect::<BTreeSet<_>>();
-    if read_child_names(&tables)? != expected_tables {
+    if read_child_names(&tables, &tables_path)? != expected_tables {
         return Err(MhiValidationError::Dataset(
             "managed bundle has an unexpected table entry".into(),
         ));
@@ -1798,7 +1798,7 @@ fn remove_tree_reverse_at(
     if !metadata.is_dir() {
         return unlink_at(parent, name, 0, display_path);
     }
-    let child_names = read_child_names(&child)?;
+    let child_names = read_child_names(&child, display_path)?;
     for child_name in child_names {
         let child_path = display_path.join(&child_name);
         let child_open = open_child_nofollow(child.as_raw_fd(), &child_name, &child_path);
@@ -2078,7 +2078,10 @@ fn write_json_value_at(
 }
 
 #[cfg(unix)]
-fn read_child_names(directory: &fs::File) -> Result<BTreeSet<String>, MhiValidationError> {
+fn read_child_names(
+    directory: &fs::File,
+    display_path: &Path,
+) -> Result<BTreeSet<String>, MhiValidationError> {
     let duplicate = open_at_raw(
         directory.as_raw_fd(),
         ".",
@@ -2086,21 +2089,33 @@ fn read_child_names(directory: &fs::File) -> Result<BTreeSet<String>, MhiValidat
         0,
     )
     .map_err(|source| MhiValidationError::Io {
-        path: PathBuf::from("<held-directory>"),
+        path: display_path.into(),
         source,
     })?;
     let stream = unsafe { native_fdopendir(duplicate) };
     if stream.is_null() {
         drop(unsafe { fs::File::from_raw_fd(duplicate) });
         return Err(MhiValidationError::Io {
-            path: PathBuf::from("<held-directory>"),
+            path: display_path.into(),
             source: std::io::Error::last_os_error(),
         });
     }
     let mut names = BTreeSet::new();
     loop {
-        let entry = unsafe { native_readdir(stream) };
+        clear_errno();
+        let entry = next_dir_entry(stream);
         if entry.is_null() {
+            let errno = current_errno();
+            if errno != 0 {
+                // The stream must be closed on the error path, but this
+                // cleanup failure cannot change the original enumeration
+                // error or the exact-set proof that was not completed.
+                unsafe { native_closedir(stream) };
+                return Err(MhiValidationError::Io {
+                    path: display_path.into(),
+                    source: std::io::Error::from_raw_os_error(errno),
+                });
+            }
             break;
         }
         let name = unsafe { CStr::from_ptr((*entry).d_name.as_ptr()) }
@@ -2110,6 +2125,9 @@ fn read_child_names(directory: &fs::File) -> Result<BTreeSet<String>, MhiValidat
             names.insert(name.to_owned());
         }
     }
+    // `readdir` has returned normal EOF, so the exact names are complete.
+    // `closedir` only releases the stream resource at this point; R2 has no
+    // cleanup-success requirement whose failure could alter that proof.
     unsafe { native_closedir(stream) };
     Ok(names)
 }
@@ -2241,6 +2259,7 @@ struct NativeDir {
 
 #[cfg(target_os = "macos")]
 unsafe extern "C" {
+    fn __error() -> *mut i32;
     fn openat(fd: i32, path: *const std::ffi::c_char, flags: i32, ...) -> i32;
     fn mkdirat(fd: i32, path: *const std::ffi::c_char, mode: u16) -> i32;
     fn unlinkat(fd: i32, path: *const std::ffi::c_char, flags: i32) -> i32;
@@ -2261,6 +2280,7 @@ unsafe extern "C" {
 
 #[cfg(target_os = "linux")]
 unsafe extern "C" {
+    fn __errno_location() -> *mut i32;
     fn openat(fd: i32, path: *const std::ffi::c_char, flags: i32, ...) -> i32;
     fn mkdirat(fd: i32, path: *const std::ffi::c_char, mode: u32) -> i32;
     fn unlinkat(fd: i32, path: *const std::ffi::c_char, flags: i32) -> i32;
@@ -2360,6 +2380,61 @@ unsafe fn native_closedir(dir: *mut NativeDir) -> i32 {
     unsafe { closedir(dir) }
 }
 
+#[cfg(target_os = "macos")]
+fn native_errno_location() -> *mut i32 {
+    // SAFETY: macOS `__error` returns the address of the calling thread's
+    // errno slot, which remains valid for the duration of this access.
+    unsafe { __error() }
+}
+#[cfg(target_os = "linux")]
+fn native_errno_location() -> *mut i32 {
+    // SAFETY: Linux `__errno_location` returns the address of the calling
+    // thread's errno slot, which remains valid for the duration of this access.
+    unsafe { __errno_location() }
+}
+
+#[cfg(unix)]
+fn clear_errno() {
+    // SAFETY: `native_errno_location` identifies this thread's errno slot;
+    // writing zero immediately before `readdir` establishes the required
+    // clean EOF/error distinction without affecting another thread.
+    unsafe { *native_errno_location() = 0 };
+}
+
+#[cfg(unix)]
+fn current_errno() -> i32 {
+    // SAFETY: `native_errno_location` identifies this thread's errno slot;
+    // it is read only after `readdir` returned NULL, when errno is its error
+    // indicator. Successful `readdir` results never consult errno.
+    unsafe { *native_errno_location() }
+}
+
+#[cfg(test)]
+fn set_errno_for_test(errno: i32) {
+    // SAFETY: the test writes only the current thread's errno slot so the
+    // stale-errno and injected-readdir cases model the native contract.
+    unsafe { *native_errno_location() = errno };
+}
+
+#[cfg(not(test))]
+#[cfg(unix)]
+fn next_dir_entry(stream: *mut NativeDir) -> *mut NativeDirent {
+    // SAFETY: `stream` is the non-null stream returned by `fdopendir`, and
+    // ownership remains with this function's caller until `closedir`.
+    unsafe { native_readdir(stream) }
+}
+
+#[cfg(test)]
+fn next_dir_entry(stream: *mut NativeDir) -> *mut NativeDirent {
+    if test_readdir_fault() {
+        set_errno_for_test(TEST_READDIR_ERRNO);
+        return std::ptr::null_mut();
+    }
+    // SAFETY: `stream` is the non-null stream returned by `fdopendir`, and
+    // ownership remains with this function's caller until `closedir`.
+    unsafe { native_readdir(stream) }
+}
+
 fn sha256(bytes: &[u8]) -> String {
     let mut hash = Sha256::new();
     hash.update(bytes);
@@ -2375,6 +2450,10 @@ enum PublicationFaultOperation {
 }
 
 #[cfg(test)]
+// EIO is 5 on both exact Phase-E targets: macOS and Linux.
+const TEST_READDIR_ERRNO: i32 = 5;
+
+#[cfg(test)]
 #[derive(Debug, Clone, Copy)]
 enum PublicationFault {
     WriteAt(usize),
@@ -2385,6 +2464,7 @@ enum PublicationFault {
     ExchangeUnsupported,
     ExchangeFailure,
     DeleteAt(usize),
+    ReadDirAt(usize),
 }
 
 #[cfg(test)]
@@ -2395,6 +2475,7 @@ struct PublicationFaultState {
     sync_files: usize,
     sync_directories: usize,
     deletes: usize,
+    readdir_calls: usize,
 }
 
 #[cfg(test)]
@@ -2405,6 +2486,7 @@ static PUBLICATION_FAULT: std::sync::Mutex<PublicationFaultState> =
         sync_files: 0,
         sync_directories: 0,
         deletes: 0,
+        readdir_calls: 0,
     });
 
 #[cfg(test)]
@@ -2415,6 +2497,29 @@ fn set_publication_fault(fault: Option<PublicationFault>) {
     state.sync_files = 0;
     state.sync_directories = 0;
     state.deletes = 0;
+    state.readdir_calls = 0;
+}
+
+#[cfg(test)]
+fn test_readdir_fault() -> bool {
+    let mut state = PUBLICATION_FAULT.lock().expect("publication fault lock");
+    state.readdir_calls += 1;
+    let matches = matches!(
+        state.fault,
+        Some(PublicationFault::ReadDirAt(expected)) if state.readdir_calls == expected
+    );
+    if matches {
+        state.fault = None;
+    }
+    matches
+}
+
+#[cfg(test)]
+fn publication_read_dir_calls() -> usize {
+    PUBLICATION_FAULT
+        .lock()
+        .expect("publication fault lock")
+        .readdir_calls
 }
 
 fn test_fault(operation: PublicationFaultOperation, path: &Path) -> Result<(), MhiValidationError> {
@@ -2605,6 +2710,34 @@ mod tests {
         assert_eq!(protocol.protocol_id, protocol_id);
         let authorization = authorize_publication(report, &protocol, &inputs, None)?;
         publish_authorized_bundle(output, &authorization, overwrite)
+    }
+
+    fn published_bundle_for_readdir_test(label: &str) -> (PathBuf, PathBuf) {
+        let parent = temporary_parent(label);
+        let output = parent.join("bundle");
+        let report = software_fixture_report();
+        ensure_persistent_lock(&parent);
+        publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect("valid managed bundle");
+        (parent, output)
+    }
+
+    fn readdir_call_count(directory: &fs::File, display_path: &Path) -> usize {
+        set_publication_fault(Some(PublicationFault::ReadDirAt(usize::MAX)));
+        read_child_names(directory, display_path).expect("normal directory enumeration");
+        let calls = publication_read_dir_calls();
+        set_publication_fault(None);
+        calls
+    }
+
+    fn assert_readdir_io(error: MhiValidationError, expected_path: &Path) {
+        match error {
+            MhiValidationError::Io { path, source } => {
+                assert_eq!(path.as_path(), expected_path);
+                assert_eq!(source.raw_os_error(), Some(TEST_READDIR_ERRNO));
+            }
+            other => panic!("expected typed readdir I/O error, got {other:?}"),
+        }
     }
 
     fn assert_managed_generation(path: &Path) {
@@ -3048,6 +3181,73 @@ mod tests {
     }
 
     #[test]
+    fn phase_e_readdir_root_error_is_not_eof() {
+        let _serial = PUBLICATION_TEST_SERIAL
+            .lock()
+            .expect("publication test serialization");
+        let (parent, output) = published_bundle_for_readdir_test("readdir_root_error");
+        let descriptor = open_directory_at_fd(
+            AT_FDCWD,
+            output.to_str().expect("managed path UTF-8"),
+            &output,
+        )
+        .expect("managed root descriptor");
+        let root_calls = readdir_call_count(&descriptor, &output);
+
+        set_publication_fault(Some(PublicationFault::ReadDirAt(root_calls)));
+        let error = verify_bundle_with_mode(&descriptor, &output, None)
+            .expect_err("root readdir failure must reject exact verification");
+        set_publication_fault(None);
+        assert_readdir_io(error, &output);
+        fs::remove_dir_all(parent).expect("root readdir error cleanup");
+    }
+
+    #[test]
+    fn phase_e_readdir_tables_error_is_not_eof() {
+        let _serial = PUBLICATION_TEST_SERIAL
+            .lock()
+            .expect("publication test serialization");
+        let (parent, output) = published_bundle_for_readdir_test("readdir_tables_error");
+        let descriptor = open_directory_at_fd(
+            AT_FDCWD,
+            output.to_str().expect("managed path UTF-8"),
+            &output,
+        )
+        .expect("managed root descriptor");
+        let root_calls = readdir_call_count(&descriptor, &output);
+        let tables_path = output.join("tables");
+        let tables = open_directory_at_fd(descriptor.as_raw_fd(), "tables", &tables_path)
+            .expect("tables descriptor");
+        let tables_calls = readdir_call_count(&tables, &tables_path);
+
+        set_publication_fault(Some(PublicationFault::ReadDirAt(root_calls + tables_calls)));
+        let error = verify_bundle_with_mode(&descriptor, &output, None)
+            .expect_err("tables readdir failure must reject exact verification");
+        set_publication_fault(None);
+        assert_readdir_io(error, &tables_path);
+        fs::remove_dir_all(parent).expect("tables readdir error cleanup");
+    }
+
+    #[test]
+    fn phase_e_readdir_normal_eof_accepts_exact_bundle_and_ignores_stale_errno() {
+        let _serial = PUBLICATION_TEST_SERIAL
+            .lock()
+            .expect("publication test serialization");
+        let (parent, output) = published_bundle_for_readdir_test("readdir_normal_eof");
+        let descriptor = open_directory_at_fd(
+            AT_FDCWD,
+            output.to_str().expect("managed path UTF-8"),
+            &output,
+        )
+        .expect("managed root descriptor");
+
+        set_errno_for_test(TEST_READDIR_ERRNO);
+        verify_bundle_with_mode(&descriptor, &output, None)
+            .expect("normal EOF with stale errno must accept exact bundle");
+        fs::remove_dir_all(parent).expect("normal EOF cleanup");
+    }
+
+    #[test]
     fn phase_e_e_t22_complete_staging_and_byte_validation_matrix() {
         let _serial = PUBLICATION_TEST_SERIAL
             .lock()
@@ -3068,7 +3268,8 @@ mod tests {
             &output,
         )
         .expect("managed root descriptor");
-        let root_entries = read_child_names(&managed_descriptor).expect("managed root entries");
+        let root_entries =
+            read_child_names(&managed_descriptor, &output).expect("managed root entries");
         assert_eq!(root_entries.len(), 4);
         assert_eq!(
             read_child_names(
@@ -3078,6 +3279,7 @@ mod tests {
                     &output.join("tables"),
                 )
                 .expect("tables descriptor"),
+                &output.join("tables"),
             )
             .expect("table entries")
             .len(),

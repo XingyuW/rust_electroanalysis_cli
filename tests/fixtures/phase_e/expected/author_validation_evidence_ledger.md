@@ -84,6 +84,17 @@ identity, fingerprinting, and commit operations; these are exercised by
 `phase_e_parent_namespace_replacement_uses_pinned_descriptor`, and
 `phase_e_held_generation_rejects_managed_file_symlink_substitution`.
 
+The P1-ARCH-003 remediation keeps exact root and `tables/` enumeration on the
+held descriptors, clears thread-local errno before every `readdir`, and
+propagates NULL-plus-nonzero-errno as the existing typed I/O error. The
+publication-unit regressions `phase_e_readdir_root_error_is_not_eof` and
+`phase_e_readdir_tables_error_is_not_eof` inject a NULL/EIO result on the final
+enumeration call so the pre-remediation NULL-as-EOF behavior would have
+accepted the exact set; `phase_e_readdir_normal_eof_accepts_exact_bundle_and_ignores_stale_errno`
+proves ordinary errno-zero EOF and stale-errno clearing. These checks are
+additional author-side publication validation for E-T22/E-T23; the existing
+test identifiers and traceability totals remain unchanged.
+
 Publication errors are closed and stateful: `PublicationConcurrentManagedOutputChanged`,
 `PublicationCommittedForeignSwapDetected`, and
 `PublicationCommittedVisibleOutputChanged` carry path state, identity result,
@@ -130,6 +141,8 @@ Host: Darwin arm64.
 | cargo clippy --locked --all-targets --all-features -- -D warnings | PASS; zero diagnostics |
 | Phase-E integration, approval, reader, and publication suites | PASS |
 | Phase-D targeted and historical compatibility coverage | PASS |
+| P1-ARCH-003 root/tables NULL-plus-EIO regressions and stale-errno/EOF control | PASS |
+| Repeated certified validation: all nine successful output files byte-identical | PASS |
 | cargo test --locked --all, run 1 | PASS |
 | cargo test --locked --all, run 2 | PASS |
 | cargo test --doc --locked | PASS |

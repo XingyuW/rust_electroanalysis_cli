@@ -1176,6 +1176,53 @@ fn phase_e_cli_runs_exact_certified_route() {
 }
 
 #[test]
+fn phase_e_repeated_certified_validation_keeps_all_nine_bytes_identical() {
+    let (inputs, protocol, dataset) = staged_validation_inputs(
+        "protocol/software_valid.toml",
+        "dataset/software_valid.schema1.json",
+    );
+    let first = temp("deterministic_first");
+    let second = temp("deterministic_second");
+    run_mhi_validation(MhiValidationRunOptions {
+        protocol: protocol.clone(),
+        dataset: dataset.clone(),
+        output_dir: first.clone(),
+        overwrite: false,
+    })
+    .expect("first certified validation");
+    run_mhi_validation(MhiValidationRunOptions {
+        protocol,
+        dataset,
+        output_dir: second.clone(),
+        overwrite: false,
+    })
+    .expect("second certified validation");
+
+    assert_exact_golden_bundle(&first);
+    assert_exact_golden_bundle(&second);
+    for relative in [
+        "mhi_validation_report.schema1.json",
+        "validation_execution_manifest.schema1.json",
+        "validation_summary.md",
+        "tables/cohort_coverage.csv",
+        "tables/leakage_assessment.csv",
+        "tables/mechanism_validation.csv",
+        "tables/health_validation.csv",
+        "tables/exclusion_ledger.csv",
+        "tables/compatibility_matrix.csv",
+    ] {
+        assert_eq!(
+            fs::read(first.join(relative)).expect("first deterministic bytes"),
+            fs::read(second.join(relative)).expect("second deterministic bytes"),
+            "successful output bytes {relative}"
+        );
+    }
+    fs::remove_dir_all(first).expect("first deterministic output cleanup");
+    fs::remove_dir_all(second).expect("second deterministic output cleanup");
+    fs::remove_dir_all(inputs).expect("deterministic input cleanup");
+}
+
+#[test]
 fn phase_e_cli_rejects_missing_unknown_and_raw_input_routes() {
     use clap::error::ErrorKind;
 
