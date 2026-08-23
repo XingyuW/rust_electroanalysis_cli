@@ -2644,6 +2644,17 @@ fn phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power() {
         "PhysicalApprovalOwnerSignatureInvalid",
     );
     let mut invalid = physical_approval.clone();
+    invalid.registry_signature_ed25519_hex = "00".into();
+    assert_valid_bound_approval_mutation(
+        "malformed registry signature",
+        &physical_approval,
+        &invalid,
+        &verified_trust,
+        &physical_protocol,
+        &physical_dataset,
+        "PhysicalApprovalRegistrySignatureInvalid",
+    );
+    let mut invalid = physical_approval.clone();
     invalid.owner_signature_ed25519_hex =
         signature_with_noncanonical_scalar(&physical_approval.owner_signature_ed25519_hex);
     assert_valid_bound_approval_mutation(
