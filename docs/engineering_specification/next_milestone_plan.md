@@ -24,6 +24,169 @@ This document defines the next scientific/software milestone after Phase D. It
 does not authorize changes to Rust source, configuration, schemas, fixtures, or
 existing documentation other than this plan.
 
+## R3 amendment — macOS-only V1 support and deferred Linux support
+
+This is a narrow, documentation-only Phase-E R3 amendment. It changes the
+MHI V1 Phase-E supported-platform and approval contract only. It does not
+change the scientific mechanism mapping, health mapping, Wilson formula,
+domain semantics, `SCI-P1-001`, security verifier semantics, trust
+provisioning, the physical/software claim distinction, E-T29, the publication
+safety state machine, Phase B/C/D semantics, schemas, dependencies, fixtures,
+or implementation code.
+
+### R3 authority and history
+
+R2 remains the predecessor authority and is not rewritten or deleted:
+
+```text
+R2 plan commit: e65092088a28a2a9ed61364274dbd6ec46de5eb8
+R2 plan tag: ism-mechanism-health-v1-e-plan-approved-r2
+R2 plan SHA-256: e6e5195c7f56904afb06dfe937433f3498465fef1df191b8fb6856ee1ac792b6
+R2 plan Git blob: 45c1441ac4d6e20c5626b299fe5293b00ea444fb
+```
+
+The current pre-R3 implementation candidate remains
+`c848fb17cc925d8d21fca2eefd36accd9348dfff` on
+`codex/mhi-v1-e-independent-validation`. R3 is the newest plan authority
+only after a new independent review gives GO for the exact frozen R3 plan
+review SHA and the immutable `ism-mechanism-health-v1-e-plan-approved-r3`
+tag is created by that later approval process. This planning task does not
+create that tag, merge R3 into the implementation branch, or authorize
+implementation.
+
+### R3 normative platform decision
+
+The MHI V1 Phase-E supported platform is **macOS only**. Required V1 platform
+validation is macOS only. Linux is **DEFERRED / UNSUPPORTED FOR MHI V1 PHASE E**.
+
+Linux is not a V1 release platform, V1 approval prerequisite, V1 integration
+prerequisite, independent-review evidence requirement, E-T30 evidence
+requirement, review-attestation evidence requirement, exact numeric-byte
+requirement, or publication-state-machine evidence requirement. Linux failure,
+absence, CI failure, or an unavailable Linux environment must not block
+MHI V1 Phase-E approval or integration under R3.
+
+Release wording for MHI V1 Phase E must not say or imply `Linux-supported`,
+`cross-platform-supported`, `Linux-validated`, or `portable across
+Linux/macOS`. The only supported V1 wording is **macOS-supported V1
+implementation**. Existing Linux-specific code and compilation or generic CI
+execution on Linux do not establish support. Only a separately approved later
+milestone may restore a Linux release claim.
+
+R3 keeps the exact scientific contract: the Wilson formula, operation order,
+finite and zero behavior, independent decimal oracle, exact `to_bits()` and
+serialized-byte validation, exact nine-file output, manifest contract, golden
+comparison, byte determinism, and publication authority remain unchanged. The
+sole platform narrowing is that those V1 validation and approval gates are
+macOS-authoritative. Linux exact-bit matching and Linux publication evidence
+are no longer Phase-E V1 requirements.
+
+The independently accepted architecture P2 for the non-UTF-8 early-return
+`DIR*` leak remains relevant whenever the affected shared/macOS path is
+reachable; R3 does not dismiss it as Linux-only. The compatibility P2 for the
+E-T25 permanent regression-test coverage weakness also remains documented.
+Neither P2 is changed by this amendment; both require explicit attestation
+disposition and are non-blocking only under the existing P2 policy.
+
+### R3 Linux inventory and classification
+
+The following inventory was produced by read-only repository-wide searches of
+the exact implementation candidate
+`c848fb17cc925d8d21fca2eefd36accd9348dfff`, including `git grep -i linux`,
+`target_os = "linux"`, `renameat2`, `RENAME_NOREPLACE`,
+`RENAME_EXCHANGE`, `__errno_location`, `ubuntu`, and cross-platform terms.
+Line ranges below refer to that exact candidate, not to this amended plan.
+
+Every row marked **C** is a genuinely Linux-only Phase-E implementation or
+retained evidence block. After R3 approval, each such block must have exactly
+one nearby searchable
+`MHI_V1_DEFERRED_LINUX_SUPPORT` marker. The inventory count, marker count, and
+path/function mapping must match exactly in the implementation review.
+
+| Class | Exact candidate path and block | Linux-only surface | Marker required after R3 approval |
+|---|---|---|---|
+| C | `src/mhi_validation/output.rs:1731-1734` | `native_rename_noreplace_flag()` and Linux `RENAME_NOREPLACE` value | yes |
+| C | `src/mhi_validation/output.rs:1735-1738` | `native_rename_exchange_flag()` and Linux `RENAME_EXCHANGE` value | yes |
+| C | `src/mhi_validation/output.rs:1743-1746` | Linux `native_flock()` implementation | yes |
+| C | `src/mhi_validation/output.rs:2195-2232` | Linux variants of `O_WRONLY`, `O_RDWR`, `O_CREAT`, `O_EXCL`, `O_TRUNC`, `O_CLOEXEC`, `O_DIRECTORY`, `O_NOFOLLOW`, `AT_FDCWD`, and `AT_REMOVEDIR` | yes |
+| C | `src/mhi_validation/output.rs:2245-2253` | Linux `NativeDirent` layout | yes |
+| C | `src/mhi_validation/output.rs:2281-2293` | Linux extern-C declarations, including `__errno_location`, `openat`, `mkdirat`, `unlinkat`, `flock`, `fchmod`, `fdopendir`, `readdir`, `closedir`, and `syscall` | yes |
+| C | `src/mhi_validation/output.rs:2299-2301` | Linux `native_openat()` | yes |
+| C | `src/mhi_validation/output.rs:2307-2309` | Linux `native_mkdirat()` | yes |
+| C | `src/mhi_validation/output.rs:2315-2317` | Linux `native_unlinkat()` | yes |
+| C | `src/mhi_validation/output.rs:2329-2348` | Linux `native_rename_at()`, including `renameat2` syscall IDs for x86_64, aarch64, and arm | yes |
+| C | `src/mhi_validation/output.rs:2354-2356` | Linux `native_fchmod()` | yes |
+| C | `src/mhi_validation/output.rs:2362-2364` | Linux `native_fdopendir()` | yes |
+| C | `src/mhi_validation/output.rs:2370-2372` | Linux `native_readdir()` | yes |
+| C | `src/mhi_validation/output.rs:2378-2380` | Linux `native_closedir()` | yes |
+| C | `src/mhi_validation/output.rs:2389-2394` | Linux `native_errno_location()` using `__errno_location` | yes |
+| C | `src/mhi_validation/output.rs:2453` | Retained Linux-specific EIO test-evidence comment naming both historical targets | yes |
+
+The known minimum Linux implementation inventory is complete: all 15 required
+Linux-only implementation blocks are present above. The inventory also includes
+one retained Linux-specific Phase-E evidence comment, for 16 total marker
+targets. The repository-wide search found no additional Linux-only Phase-E
+implementation or retained evidence path outside this file.
+
+Classification boundaries are explicit:
+
+- **A — V1 MACOS AUTHORITY:** the macOS `cfg` branches and `renameatx_np`
+  implementation in `src/mhi_validation/output.rs`; these remain authoritative
+  and must not be marked deferred.
+- **B — SHARED UNIX:** common `#[cfg(unix)]` publication, locking, fsync,
+  descriptor, path, and wrapper code, plus `O_RDONLY` and the opaque
+  `NativeDir`; macOS uses these exact implementations, so they are not
+  deferred.
+- **C — DEFERRED LINUX IMPLEMENTATION/EVIDENCE:** the 15 implementation rows
+  and one evidence-comment row above; retain them, mark them after R3 approval,
+  and exclude them from the V1 support surface.
+- **D — HISTORICAL / DOCUMENTARY:** the R2 Linux/macOS contract, prior Linux
+  attempts, the retained `cross_platform_numeric_bytes.txt` fixture identifier,
+  and the EIO evidence comment; preserve factual history but remove normative
+  V1 requirements.
+- **E — GENERIC PROJECT-WIDE LINUX SUPPORT OUTSIDE PHASE E:** the Ubuntu leg
+  in `.github/workflows/ci.yml`, `Cargo.lock`'s `linux-raw-sys` dependency,
+  the project README, general engineering specifications, and non-Phase-E
+  plotting/path portability references. These remain outside the Phase-E
+  contract. The Ubuntu CI leg is retained as **GENERAL PROJECT CI — RETAIN
+  NON-GATING**, unless a later review proves it exists solely as a Phase-E gate.
+
+The Phase-E fixture inventory and golden byte files are not deleted or renamed
+merely because a historical filename contains `cross_platform`; their exact
+scientific bytes remain authoritative and the R3 expectation is macOS V1
+validation. General project documentation and CI are not silently changed by
+this narrow plan amendment.
+
+### R3 deferred-code marking and future reactivation contract
+
+The future implementation step must place exactly one nearby marker on every
+row C block and use this exact explanatory text:
+
+```text
+MHI_V1_DEFERRED_LINUX_SUPPORT
+```
+
+```rust
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
+```
+
+The post-implementation audit must run
+`git grep -n "MHI_V1_DEFERRED_LINUX_SUPPORT"`, compare its marker count to the
+16 C-row marker targets (15 implementation blocks plus one evidence path), and
+verify exact path/function mapping. Any unmarked
+Linux-only Phase-E code is a P1 documentation/scope defect. Any shared Unix or
+macOS-authoritative code that is falsely marked is also a P1 scope defect.
+
+Linux support may return only through a separately approved future plan. That
+milestone must remove the deferred markers, define supported Linux
+distributions/architectures/filesystems, rerun Linux publication tests,
+validate `renameat2`, errno and readdir behavior, validate numeric/golden
+determinism, complete independent review, and explicitly restore Linux release
+wording. Until then, retained Linux implementation is unsupported.
+
 ## 1. Milestone decision and scientific motivation
 
 ### 1.1 Limitation remaining after Phase D
@@ -177,8 +340,11 @@ ancestor and byte/semantic compatibility authority.
 
 ### 2.5 Reproducibility
 
-- Rust is pinned to `1.97.0`; CI uses `Cargo.lock` and runs formatting, clippy,
-  all tests, and a release build on Linux and macOS.
+- Rust is pinned to `1.97.0`; generic repository CI uses `Cargo.lock` and may
+  run formatting, clippy, all tests, and a release build on Linux and macOS.
+  Any Linux/Ubuntu result from that generic CI is informational and
+  non-gating for MHI V1 Phase E; macOS is the only V1 release-validation
+  platform.
 - Scientific collections use stable ordering, typed units, finite-value
   validation, canonical semantic hashes, and explicit residual sign contracts.
 - Stochastic workflows expose deterministic seeds where applicable.
@@ -204,7 +370,7 @@ protocol inputs; implementation defaults are forbidden.
 | E-SCI-05 | Expose domain generalization rather than pooling it away. | Every endpoint emits overall and each closed section 3.6 required-stratum view. Empty or below either declared record/family minimum is indeterminate and forces the parent endpoint indeterminate regardless of aggregate success. |
 | E-SCI-06 | Preserve reference-outcome authority and uncertainty. | Every reference endpoint and combined reference/catalog closure satisfies section 3.5. Structurally invalid authority is a hard error; a complete but protocol-ineligible reference is excluded with one precedence-selected typed reason only for software-exclusive support. Reference contradictions are falsifying evidence, derived or unknown-dependent references cannot pass holdout separation, and a physical mechanism outcome cannot be `unavailable` or selectively excluded. |
 | E-SCI-07 | Separate software validation from physical scientific validation. | Software requests can never emit `physically_validated`. A physical request against an `UNPROVISIONED` production trust store hard-fails `PhysicalApprovalTrustNotProvisioned` before scoring; a `PROVISIONED` request additionally requires globally distinct real owner/registry authority IDs and keys, dual signatures accepted by the frozen weak-key-rejecting strict verifier against the binary's embedded production store, exact physical/blinded/domain-equal holdout bindings, and usable semantic outcome for every mechanism reference. Test-only known-answer roots certify verifier behavior only. Actual post-partition family underpowering is indeterminate, never silently excluded. Absence of a physical cohort or production provisioning never blocks software implementation or E-SW. |
-| E-SCI-08 | Make every result reconstructible and byte-reproducible. | Authority-assisted report validation rereads the exact hashed protocol, dataset, trust store, and consumed sources and reconstructs every set, count, metric, exclusion, separation decision, endpoint/claim outcome, lineage/provenance reference, and report ID. Section 4.4 freezes every JSON field, CSV/Markdown cell, manifest token, and cross-platform numerical bit vector. |
+| E-SCI-08 | Make every result reconstructible and byte-reproducible. | Authority-assisted report validation rereads the exact hashed protocol, dataset, trust store, and consumed sources and reconstructs every set, count, metric, exclusion, separation decision, endpoint/claim outcome, lineage/provenance reference, and report ID. Section 4.4 freezes every JSON field, CSV/Markdown cell, manifest token, and macOS V1 numerical bit vector. |
 
 The protocol may demand stronger sampling, replication, confidence, or domain
 requirements. It may not weaken the independence, lineage, missing-data, or
@@ -703,11 +869,11 @@ upper       = min(1.0, center + half_width)
 ```
 
 Rust V1 uses IEEE-754 binary64, the operation order above, no reassociation,
-no fused multiply-add, and `f64::sqrt`. Fixed vectors are checked both within
-`1e-12` of independently derived decimal references and for exact `to_bits()`
-parity on Linux and macOS. Any platform failing exact vectors is unsupported
-until separately reviewed; tolerance alone does not authorize different
-serialized bytes.
+no fused multiply-add, and `f64::sqrt`. Fixed vectors are checked on macOS
+within `1e-12` of independently derived decimal references and for exact
+`to_bits()` and serialized-byte equality. The independent decimal oracle and
+the exact macOS bit contract remain mandatory; Linux exact-bit matching is not
+a Phase-E V1 approval requirement.
 
 `AcceptanceRuleV1` is a tagged union:
 
@@ -2234,21 +2400,25 @@ and the absence of timestamps/host/output paths.
 For output directory basename `B` in canonical parent `P`, the fixed private
 paths are `P/.B.phase-e-stage`, `P/.B.phase-e-backup`, and
 `P/.B.phase-e-publish.lock`. No output, parent, private path, or managed-tree
-component may be a symlink. Linux and macOS are supported only when the exact
-atomic operations below are available on the output filesystem; otherwise the
-run hard-fails `UnsupportedAtomicPublicationFilesystem` before any publication
-rename/exchange and applies pre-commit stage cleanup.
+component may be a symlink. macOS is the only supported and release-validated
+V1 publication platform when the exact atomic operations below are available
+on the output filesystem; otherwise the run hard-fails
+`UnsupportedAtomicPublicationFilesystem` before any publication
+rename/exchange and applies pre-commit stage cleanup. The Linux `renameat2`
+path is retained as deferred future-support code and is not authoritative for
+MHI V1 Phase E.
 `P` must already exist as a canonical directory; `B` must be a nonempty
 single filename component other than `.`/`..`, with no `/`, NUL, or platform
 prefix, and output/private names must be pairwise distinct.
 
 Atomic primitives are:
 
-- `rename_noreplace(a,b)`: Linux `renameat2(RENAME_NOREPLACE)` or macOS
-  `renamex_np(RENAME_EXCL)`; destination existence must fail without change.
-- `rename_exchange(a,b)`: Linux `renameat2(RENAME_EXCHANGE)` or macOS
-  `renamex_np(RENAME_SWAP)`; both directory names change in one atomic metadata
-  operation.
+- `rename_noreplace(a,b)`: macOS `renameatx_np(RENAME_EXCL)`; destination
+  existence must fail without change. The retained Linux
+  `renameat2(RENAME_NOREPLACE)` implementation is deferred and non-authoritative.
+- `rename_exchange(a,b)`: macOS `renameatx_np(RENAME_SWAP)`; both directory
+  names change in one atomic metadata operation. The retained Linux
+  `renameat2(RENAME_EXCHANGE)` implementation is deferred and non-authoritative.
 - `fsync_dir(path)`: open the directory itself and require successful `fsync`;
   an unsupported/error result is not ignored.
 
@@ -2596,9 +2766,9 @@ returns to the exact Phase D behavior; no existing artifact needs rewriting.
   directory fsync, partial backup deletion, and stage cleanup; exact commit,
   preserved foreign bytes, and private filesystem state are asserted.
 - Repeated runs from the same protocol and artifacts produce identical
-  scientific JSON/CSV/Markdown bytes. Linux/macOS compare exact Wilson bits and
-  sealed report/table hashes. Operational timestamps are absent from every
-  managed file and their presence is a rejecting mutation.
+  scientific JSON/CSV/Markdown bytes. macOS V1 validation compares exact Wilson
+  bits and sealed report/table hashes. Operational timestamps are absent from
+  every managed file and their presence is a rejecting mutation.
 - Source guard tests prove Phase E does not call Phase B/Phase C assessors and
   Phase D reporting does not import Phase E.
 
@@ -2629,11 +2799,11 @@ temporary copy; production code never generates an oracle.
 | E-R08 | E-AC08 | E-T14 | `mechanism/all_levels.schema4.json`; `dataset/mechanism_reference_cross_product.schema1.json`; `expected/mechanism_mapping.md`; `expected/fixed_metric_ledger.md` | zero eligible; one Phase-B contradiction with missing/ineligible reference; one independent-reference contradiction among high support; repeated renamed source | exact fractions/intervals or unavailable; Phase-B contradiction remains in declared falsification set despite exclusion; eligible reference contradiction fails; duplicate rejected |
 | E-R09 | E-AC09 | E-T15 | `health/all_status_reference_pairs.schema4.json`; `dataset/health_confusion.schema1.json`; `expected/health_mapping.md` | enumerate four evaluable statuses × two reference classes plus Indeterminate/DQI | exact six disjoint ID sets and eligible/evaluable invariants |
 | E-R09 | E-AC09 | E-T16 | `health/all_status_reference_pairs.schema4.json`; `dataset/health_confusion.schema1.json`; `expected/health_mapping.md`; `expected/fixed_metric_ledger.md` | zero positives; zero negatives; all Indeterminate; all DQI; threshold equality; label outside universe | exact unavailable/defined metrics, missing-state rates, balanced accuracy, and IDs; outside-universe hard binding error |
-| E-R10 | E-AC10 | E-T17 | `expected/wilson_vectors.schema1.json`; `expected/cross_platform_numeric_bytes.txt` | x=0; x=n; n=1; 5/10; 50/100; n=2^53; n=2^53+1; x>n; input/computed negative zero; perturb expected bit/decimal/string | exact decimal <=1e-12 and exact `to_bits`/serialized tokens through 2^53; larger/x>n/negative-zero input hard-fail; computed zero is +0; perturbation fails |
+| E-R10 | E-AC10 | E-T17 | `expected/wilson_vectors.schema1.json`; `expected/cross_platform_numeric_bytes.txt` | x=0; x=n; n=1; 5/10; 50/100; n=2^53; n=2^53+1; x>n; input/computed negative zero; perturb expected bit/decimal/string | macOS V1 exact decimal <=1e-12 and exact `to_bits`/serialized tokens through 2^53; larger/x>n/negative-zero input hard-fail; computed zero is +0; perturbation fails |
 | E-R11 | E-AC11 | E-T18 | `dataset/strata.schema1.json`; `protocol/software_valid.toml`; `protocol/physical_valid.toml`; `expected/strata_ledger.md` | each of six predicate variants; repeated/conflicting axis; invalid/overlapping temperature band; zero minimum; empty overall/stratum; record-underpowered; family-underpowered; actual one-family physical view; overlapping strata; aggregate pass | invalid protocol cases hard-fail; each membership literal matches; every overall/stratum underpowering including one-family physical is indeterminate and forces parent; no pooling/rescue |
 | E-R12 | E-AC12 | E-T19 | `expected/acceptance_truth_table.schema1.json`; `expected/exclusion_precedence.schema1.json`; `protocol/software_valid.toml` | each exclusion condition alone and every pair; not-applicable; holdout overlap/unknown; equal threshold; false only; unavailable only; false+unavailable in both rule orders; critical contradiction | exact primary/secondary reason ordinals, decision transition, endpoint result, and sorted reasons independent of input/rule order |
 | E-R13 | E-AC13 | E-T20 | `report/valid.schema1.json`; `expected/accounting_ledger.md`; `expected/fixed_metric_ledger.md` | change each count, ID set, exclusion, family count, rule result, claim, or overall status separately | report validation rejects every inconsistent mutation |
-| E-R13 | E-AC13 | E-T21 | `report/valid.schema1.json`; `protocol/software_valid.toml`; `dataset/software_valid.schema1.json`; `expected/report_identity_preimage.jcs`; `expected/golden_bundle_file_sha256s.txt`; `expected/escaping_vectors.schema1.json` | change clock/path/output/staging; reorder source; change normalized protocol/hash/source/trust authority; perturb numeric bit; exercise comma/quote/LF/backslash/pipe/non-ASCII/empty/null/NA/negative-zero cells; mechanism cohort row in health columns; not-applicable leakage; domain JSON | operational values absent; authority/numeric changes alter identity or fail validation; exact JSON/CSV/Markdown bytes/escaping/NA projections on Linux/macOS |
+| E-R13 | E-AC13 | E-T21 | `report/valid.schema1.json`; `protocol/software_valid.toml`; `dataset/software_valid.schema1.json`; `expected/report_identity_preimage.jcs`; `expected/golden_bundle_file_sha256s.txt`; `expected/escaping_vectors.schema1.json` | change clock/path/output/staging; reorder source; change normalized protocol/hash/source/trust authority; perturb numeric bit; exercise comma/quote/LF/backslash/pipe/non-ASCII/empty/null/NA/negative-zero cells; mechanism cohort row in health columns; not-applicable leakage; domain JSON | operational values absent; authority/numeric changes alter identity or fail validation; exact JSON/CSV/Markdown bytes/escaping/NA projections on macOS V1 |
 | E-R14 | E-AC14 | E-T22 | `expected/golden_bundle/mhi_validation_report.schema1.json`; `expected/golden_bundle/validation_execution_manifest.schema1.json`; `expected/golden_replace_execution_manifest.schema1.json`; `expected/golden_bundle/validation_summary.md`; `expected/golden_bundle/tables/cohort_coverage.csv`; `expected/golden_bundle/tables/leakage_assessment.csv`; `expected/golden_bundle/tables/mechanism_validation.csv`; `expected/golden_bundle/tables/health_validation.csv`; `expected/golden_bundle/tables/exclusion_ledger.csv`; `expected/golden_bundle/tables/compatibility_matrix.csv`; `expected/golden_bundle_file_sha256s.txt` | fail each staging write/fsync/checksum/reread/authority validation; add manifest self-record; substitute wrong `create_new`/`replace_managed_bundle` golden; add timestamp/extra field/file | no final partial output; exact create-new or replace manifest plus the same eight scientific files; every mutation rejected; manifest records exactly eight non-self files |
 | E-R14 | E-AC14 | E-T23 | `expected/golden_bundle/mhi_validation_report.schema1.json`; `expected/golden_bundle/validation_execution_manifest.schema1.json`; `expected/golden_replace_execution_manifest.schema1.json`; `expected/golden_bundle/validation_summary.md`; `expected/golden_bundle/tables/cohort_coverage.csv`; `expected/golden_bundle/tables/leakage_assessment.csv`; `expected/golden_bundle/tables/mechanism_validation.csv`; `expected/golden_bundle/tables/health_validation.csv`; `expected/golden_bundle/tables/exclusion_ledger.csv`; `expected/golden_bundle/tables/compatibility_matrix.csv`; `publication/unmanaged_bundle/sentinel.txt`; `expected/publication_state_table.schema1.json` | copy the nine create-new goldens to the test-owned managed output, then force lock contention; existing stage/backup/symlink; unmanaged output; concurrent create after preflight; no-replace unsupported/failure; exchange unsupported/failure; replace the managed output namespace before the final precheck; after that precheck but before exchange, atomically replace it with the unmanaged sentinel tree; separately mutate a managed old-generation file through the held identity in that interval; after exchange and before the ordered proof, separately replace then same-inode-mutate the newly visible output; crash before/after every parent fsync and each generation proof; stage→backup failure; each reverse-order deletion failure including partial backup | precheck replacement hard-fails uncommitted `PublicationConcurrentManagedOutputChanged` and leaves the competitor at output; precheck-to-exchange old-generation replacement/mutation returns `PublicationCommittedForeignSwapDetected` and preserves it whole at stage; post-exchange new-generation replacement/mutation returns `PublicationCommittedVisibleOutputChanged` and preserves the entire old stage without cleanup; each returns exact identity/fingerprint tokens and no success; every other case matches the section 4.5 error/commit/residue table; successful overwrite uses the replacement manifest; exchange never leaves output absent; every metadata transition is directory-fsynced |
 | E-R15 | E-AC15 | E-T24 | `source_guards/forbidden_dependencies.txt` | add each forbidden assessor/reverse import token to temporary source sample | guard fails for Phase-B assessor, Phase-C assessor, and Phase-D→E dependency |
@@ -2642,7 +2812,7 @@ temporary copy; production code never generates an oracle.
 | E-R16 | E-AC16 | E-T27 | `compatibility/existing_artifact_fixture_inventory.schema1.json`; `compatibility/existing_artifact_matrix.md` | inventory must equal the literal historical set below; flip one expected kind/schema/acceptance/byte-hash cell at a time | every historical fixture retains exact baseline result/bytes; any expectation mutation fails |
 | E-R17 | E-AC17 | E-T28 | `protocol/software_valid.toml`; `dataset/synthetic_perfect.schema1.json`; `approval/none.txt` | perfect metrics; relabel filename/method as physical | only `software_validated_only`; origin is never inferred; physical outcome impossible |
 | E-R17 | E-AC17 | E-T29 | `protocol/physical_valid.toml`; `dataset/physical_valid.schema1.json`; `dataset/physical_selective_unavailable.schema1.json`; `approval/valid.schema1.json`; `approval/valid_selective_unavailable.schema1.json`; `approval/invalid_self_signed.schema1.json`; `approval/invalid_identity_forgery.schema1.json`; `trust/test_only_known_answer_trust_store.schema1.json`; `trust/test_only_invalid_identity_weak_key.schema1.json`; `reference/complete_sources.schema1.json` | invoke the production CLI physical route while its embedded production store is `UNPROVISIONED`; then, only through the approved test-only pure-verifier boundary, use the literal known-answer store and mutate: missing approval; wrong purpose; unknown root; dataset/protocol-supplied attacker key; wrong owner/registry key; copy the owner signature into the registry field; malformed/noncanonical-scalar/one-signature payload; set the selected owner key to identity encoding `0100000000000000000000000000000000000000000000000000000000000000` and its signature to identity-R/zero-S `01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000` over an arbitrary altered payload, then apply the same identity-key mutation separately to the registry role; replace either selected role separately with nondecompressible y=2 key `0200000000000000000000000000000000000000000000000000000000000000`; wrong file/record/cohort/protocol/claim/endpoint/domain/origin/authority binding; missing/legacy assessed source or reference; synthetic/unknown origin; disallowed reference method/authority; unblinded/unquantified/over-limit reference; incomplete reference node; use the precommitted mutually hash-bound dataset/approval pair containing 100 fully authoritative/physical/blinded/quantified/complete mechanism records, 98 semantic outcomes `unavailable`, and only two supporting records/families; declared minimum <2; actual one family/missing stratum; valid dual-signed two-family case; attempt every CLI/config/environment/protocol test-root-selection route | the production CLI always hard-fails a physical request with `PhysicalApprovalTrustNotProvisioned` before dataset/scoring and cannot select test roots; only the exact no-feature `ed25519-dalek 2.2.0` `from_bytes`/recompression/`is_weak`/`Signature::try_from`/`verify_strict` sequence is accepted by the test-only pure verifier; each literal identity forgery hard-fails `PhysicalApprovalWeakPublicKey` before signature verification, each y=2 key hard-fails `PhysicalApprovalPublicKeyInvalid`, copied/malformed/strict-invalid role signatures hard-fail their role-specific error, and all test-store/schema/binding/origin/physical-reference-authority failures hard-fail before exclusion or scoring; the independently valid dual-signed 98-outcome fixture hard-fails `PhysicalReferenceOutcomeUnavailable` with no report, proving the result is not merely an approval-hash mismatch; actual family/record underpowering is indeterminate; only the exact test-boundary dual-verified named passing case emits `physically_validated`, and it is software conformance evidence only |
-| E-R18 | E-AC18 | E-T30 | `expected/phase_e_fixture_inventory.schema1.json`; `expected/author_validation_evidence_ledger.md` | compare inventory to every regular file under `tests/fixtures/phase_e`; require each inventory row's E-R/E-AC/E-T/mutation/oracle to equal this section; omit/stale one committed author command/result, fixture row, mapping, dependency/lock audit, or P0/P1 author disposition; add a candidate commit SHA or an independent GO to the committed author ledger; change the direct Dalek declaration/features, any of the six section-4.6 new lock versions/checksums/edges, or any pre-existing lock entry; after freeze, omit/retarget/unsign one required external review attestation or change its `REVIEW_SHA`, plan tags, platform result, required command result, reviewer GO/NO-GO, or P0/P1 disposition | any missing/extra/duplicate/unmapped fixture, stale committed author evidence, self-approval, forbidden feature, dependency drift, old-lock drift, or incomplete/mismatched external attestation fails its applicable gate; the candidate is ready for independent review only with complete committed author evidence, while approval/integration requires the protected same-`REVIEW_SHA` independent-GO attestation set plus the exact six-package lock delta |
+| E-R18 | E-AC18 | E-T30 | `expected/phase_e_fixture_inventory.schema1.json`; `expected/author_validation_evidence_ledger.md` | compare inventory to every regular file under `tests/fixtures/phase_e`; require each inventory row's E-R/E-AC/E-T/mutation/oracle to equal this section; omit/stale one committed author command/result, fixture row, mapping, dependency/lock audit, or P0/P1 author disposition; add a candidate commit SHA or an independent GO to the committed author ledger; change the direct Dalek declaration/features, any of the six section-4.6 new lock versions/checksums/edges, or any pre-existing lock entry; after freeze, omit/retarget/unsign one required external review attestation or change its `REVIEW_SHA`, approved plan tags, macOS validation result, required command result, reviewer GO/NO-GO, or P0/P1 disposition | any missing/extra/duplicate/unmapped fixture, stale committed author evidence, self-approval, forbidden feature, dependency drift, old-lock drift, or incomplete/mismatched external attestation fails its applicable gate; the candidate is ready for independent review only with complete committed author evidence, while approval/integration requires the protected same-`REVIEW_SHA` independent-GO attestation set plus the exact six-package lock delta |
 
 For E-T29, “the same identity-key mutation separately to the registry role”
 means replacing both that role's key and that role's signature with the same
@@ -2690,9 +2860,15 @@ update and deletion; integration verifies the target object, tag signature,
 authorized signer, and immutable remote ref. Each signed tag body is a
 canonical UTF-8 `PhaseEReviewAttestationV1` record containing exactly its
 format version, `REVIEW_SHA`, sorted applicable approved plan tags (including
-the latest R2 tag and predecessors), reviewer role and identity, that role's
-GO/NO-GO decision, the complete P0/P1/P2 disposition, Linux validation result,
-macOS validation result, and the required command/result set. The four tags
+the approved R3 tag, the R2 tag, and all predecessors), reviewer role and
+identity, that role's GO/NO-GO decision, the complete P0/P1/P2 disposition,
+macOS validation result, and the required command/result set. The macOS result
+is the only mandatory platform evidence. No Linux validation field is part of
+the R3 attestation contract; any voluntarily recorded Linux result is
+informational and cannot override the macOS gate. Scientific and security
+attestations require `GO`; architecture and compatibility may be `GO` or `GO
+WITH DOCUMENTED NON-BLOCKING DEBT`, with zero unresolved P0/P1 across the set.
+The four tags
 together are the complete independent review-attestation component. They may
 name no candidate other than their target `REVIEW_SHA`; a missing, unsigned,
 retargeted, unauthorized, NO-GO, or incomplete tag blocks approval and
@@ -2837,7 +3013,9 @@ Also require:
 - existing CLI help/parse snapshots and legacy commands remain compatible;
 - the two new artifact-kind variants do not alter serialization of any existing
   `ArtifactKind`; and
-- Linux and macOS CI both pass with the locked dependency graph.
+- macOS exact-SHA validation and the locked regression suite pass. Generic
+  repository Linux/Ubuntu CI may remain, but its result is informational and
+  non-gating for Phase-E approval.
 
 Any baseline test modification requires a written compatibility justification
 and independent approval. Deleting, weakening, renaming, or replacing a
@@ -3006,21 +3184,23 @@ Two non-interchangeable gates apply to this frozen candidate.
 - the committed E-T30 author-side evidence is complete and contains zero
   self-approval.
 
-This review-candidate gate does not require any independent GO, an external
-attestation, or Linux validation that the author cannot execute on a macOS-only
-workstation. The author must not fabricate a Linux result. The author completes
-available local/macOS validation and pushes the exact candidate; CI and
-independent validation then execute the required Linux and macOS commands on
-that same `REVIEW_SHA` and record their results in the post-freeze signed-tag
-attestations.
+This review-candidate gate does not require any independent GO or external
+attestation. The author completes available macOS validation and pushes the
+exact candidate; CI and independent validation then execute the required macOS
+commands on that same `REVIEW_SHA` and record the macOS result in the
+post-freeze signed-tag attestations. The author must not fabricate or imply a
+Linux V1 result. Generic Linux/Ubuntu CI, if it remains, is informational and
+non-gating for Phase-E.
 
 `READY_FOR_PHASE_E_IMPLEMENTATION_APPROVAL_AND_INTEGRATION=YES` is permitted
 only after all of the following hold for the same exact `REVIEW_SHA`:
 
 - the four section 7.3 protected signed review-attestation tags are complete,
-  valid, and GO for scientific, architecture, security, and compatibility;
-- required Linux and macOS validation and every required command pass as
-  recorded in those attestations;
+  valid, and R3-compatible, with scientific and security `GO`, and with
+  architecture and compatibility `GO` or `GO WITH DOCUMENTED NON-BLOCKING
+  DEBT`; each has complete P0/P1/P2 disposition;
+- macOS exact-SHA validation and every required macOS command pass as recorded
+  in those attestations;
 - for every requested physical claim, E-SCI passes with a real dual-signed
   section 3.8 `PROVISIONED` production-root approval; an all-software release
   has no physical claim and is explicitly limited to E-SW wording;
@@ -3030,8 +3210,9 @@ only after all of the following hold for the same exact `REVIEW_SHA`:
 - the validated commit has an explicit rollback target at the pre-merge
   `main` commit.
 
-Linux failure is a blocker for approval/integration, not necessarily for
-freezing and submitting the candidate for independent review.
+Linux absence, failure, CI failure, or an unavailable Linux environment is not
+an R3 blocker for approval or integration. Any voluntarily supplied Linux
+result is informational and cannot override the macOS gate.
 
 ### 8.6 Integration and cleanup
 
@@ -3077,12 +3258,16 @@ Phase E is complete only when all of these statements are true:
    dataset, trust store, and consumed sources.
 4. Phase B/C/D artifacts remain immutable and their scientific semantics are
    unchanged.
-5. All baseline and Phase E test/CI gates pass.
+5. All baseline and Phase E locked regression gates pass, with macOS exact-SHA
+   validation as the only required V1 platform evidence. Generic Linux/Ubuntu
+   CI, if retained, is informational and non-gating.
 6. Independent scientific, architecture, security, and compatibility reviews
    record GO for the exact reviewed SHA through the section 7.3 attestation
    mechanism.
-7. Release language distinguishes software validation from physical validation
-   and names the exact validated domain.
+7. Release language distinguishes software validation from physical validation,
+   names the exact validated domain, and identifies the result as a
+   macOS-supported V1 implementation without implying Linux or cross-platform
+   support.
 
 Until then, the correct milestone status is `planning`, `software-only`, or
 `indeterminate` as applicable—never implied scientific validation.
@@ -3104,7 +3289,7 @@ into one helper-only test is not sufficient.
 | E-R07 | Reference outcomes use exact method/authority/blinding/uncertainty rules, complete combined dependency closure, and non-selective mechanism outcome admission. | `reader.rs`, `partition.rs` | E-AC07: direct/cross-graph self-derivation cannot pass; unknown remains unknown; each protocol-ineligible authority receives its exact exclusion ordinal. | E-T12 | An inferred/unbound/unblinded/excessive/derived label enters a holdout numerator or a contradiction is selected away. |
 | E-R08 | Mechanism validation applies the total Phase-B × independent-reference section 3.3 mapping without inspecting/recomputing Phase-B gates. | `mechanism.rs`, `statistics.rs` | E-AC08: all five states × four outcomes, ID binding/dedup, eligible category sets, declared falsification set, n=s+c+u, rates, absence, and both contradiction sources match literals. | E-T13, E-T14 | Assessor logic is called, definition/current IDs diverge, a Phase-B contradiction is selected away, reference contradiction passes, or unavailable becomes pass/zero. |
 | E-R09 | Health validation applies exhaustive predicted/reference partitions and six-category section 3.4 accounting. | `health.rs`, `statistics.rs` | E-AC09: exact ID sets prove eligible=evaluable+Indeterminate+DQI; metrics/zero-class boundaries match hand vectors. | E-T15, E-T16 | Any status/label disappears, enters two categories, changes sign/class by inference, or undefined balanced accuracy is invented. |
-| E-R10 | Wilson 95% is the sole V1 interval method and exact operation/bit/serialization contract in section 3.7. | `statistics.rs` | E-AC10: vectors agree within `1e-12` with independent decimals and exactly in `to_bits`/serialized bytes on Linux/macOS. | E-T17 | Another interval/correction/order appears, exact platform bits differ, or output is nonfinite/unclamped. |
+| E-R10 | Wilson 95% is the sole V1 interval method and exact operation/bit/serialization contract in section 3.7. | `statistics.rs` | E-AC10: macOS V1 vectors agree within `1e-12` with independent decimals and exactly in `to_bits`/serialized bytes; the scientific formula and order are unchanged. | E-T17 | Another interval/correction/order appears, exact macOS V1 bits differ, or output is nonfinite/unclamped. |
 | E-R11 | Closed six-variant strata and per-overall/stratum positive record/family minima remain visible and cannot be rescued by pooling. | `partition.rs`, `assessment.rs` | E-AC11: predicates/minima validate exactly; empty/below either minimum on overall or stratum makes endpoint indeterminate, including actual one-family physical evidence. | E-T18 | Duplicate/conflicting predicates pass or aggregate success hides empty/record/family underpowering. |
 | E-R12 | Record exclusions and endpoint acceptance each use their complete ordered condition tables independent of rule/input order. | `partition.rs`, `assessment.rs` | E-AC12: every exclusion alone/pair, equality, unavailable+false, overlap, contradiction, endpoint/claim/overall composition returns exact primary/secondary reasons and status. | E-T19 | Short-circuit/order, omitted reason, rounding/tolerance, OR/default, or mixed-state ambiguity changes a decision. |
 | E-R13 | Validation report is closed, finite, lineage/provenance-complete, byte-deterministic, and reconstructible through the explicit authority-assisted API. | `results/mhi_validation.rs` | E-AC13: structure plus exact hashed protocol/input/trust replay validates every set/count/metric/reason/outcome/source and JCS/golden bytes or rejects a one-field mutation. | E-T20, E-T21 | Standalone structure validation is mistaken for scientific approval, authority is absent, or clock/path/platform changes scientific bytes. |
@@ -3112,7 +3297,7 @@ into one helper-only test is not sufficient.
 | E-R15 | Phase B/C assessors and Phase D projection/output remain unchanged and independent of Phase E. | source dependency guards; full baseline suite | E-AC15: source guards and baseline/golden tests prove no reverse dependency or output drift. | E-T24, E-T25 | Phase E reassesses/mutates sources or identical Phase D input produces changed public output. |
 | E-R16 | New artifact kinds are additive and schema-1-only; existing serialization/migration remains exact. | `artifact.rs`, `artifact_contracts.rs` | E-AC16: new round trips and negative matrices pass while all existing fixture matrices retain prior results. | E-T26, E-T27 | Existing token/schema behavior changes or a Phase E future/legacy schema is silently accepted. |
 | E-R17 | Software and physical requests are distinct. The production trust store is explicitly `UNPROVISIONED` or `PROVISIONED`; production roots are real independently controlled authority only, while literal test roots are accessible solely through the test-only pure verifier. A provisioned physical claim requires exact origin/blinding/quantification, usable mechanism semantic outcomes, domain-equal endpoints, globally separate owner/registry IDs and keys, and immutable dual signatures accepted only by the frozen strict verifier before scoring. | protocol/report/trust/approval schemas, assessment | E-AC17: an unprovisioned production request hard-fails before scoring; self-signed/synthetic/constructed/unknown/unapproved, weak-key-forged, same-key-dual-role, domain-overbroad, or semantic-outcome-unavailable input cannot emit `physically_validated`; test-only signatures cannot satisfy a release gate; actual underpowering is indeterminate; only a real provisioned strict dual-verified named passing claim can. | E-T28, E-T29 | A production test-vector root, dataset/protocol self-authentication, test-root selection route, weak/same key, one signature, approval/domain downgrade, or synthetic/unblinded/outcome-unavailable/underpowered evidence obtains a physical claim. |
-| E-R18 | Full same-`REVIEW_SHA` CI and independent review attestation, exact Phase-E fixture inventory, committed author-side evidence, historical literal set, frozen dependency delta, and exhaustive mutation/oracle ledger gate approval/integration. | CI, committed author evidence, and protected signed review tags | E-AC18: all 18 requirements, 18 ACs, 30 tests, every literal fixture/mutation/oracle and required command are mapped; committed author evidence has no candidate SHA or approval; and the four external signed attestations bind their GO/NO-GO, platform results, plan tags, P0/P1/P2 disposition, and required command results to one exact `REVIEW_SHA`, with zero unresolved P0/P1 and the exact six-package lock delta. | E-T30 | Any filesystem fixture is absent/extra/aliased/unmapped, dependency drifts, author evidence self-approves or names its candidate SHA, or any command/review/tag/SHA is stale, missing, unsigned, retargeted, unauthorized, or NO-GO. |
+| E-R18 | Full same-`REVIEW_SHA` CI and independent review attestation, exact Phase-E fixture inventory, committed author-side evidence, historical literal set, frozen dependency delta, and exhaustive mutation/oracle ledger gate approval/integration. | CI, committed author evidence, and protected signed review tags | E-AC18: all 18 requirements, 18 ACs, 30 tests, every literal fixture/mutation/oracle and required command are mapped; committed author evidence has no candidate SHA or approval; and the four external signed attestations bind their GO/NO-GO, macOS validation result, approved plan tags, P0/P1/P2 disposition, and required command results to one exact `REVIEW_SHA`, with zero unresolved P0/P1 and the exact six-package lock delta. | E-T30 | Any filesystem fixture is absent/extra/aliased/unmapped, dependency drifts, author evidence self-approves or names its candidate SHA, or any command/review/tag/SHA is stale, missing, unsigned, retargeted, unauthorized, or NO-GO. |
 
 ### 10.1 Exact required test registry
 
@@ -3134,20 +3319,20 @@ into one helper-only test is not sufficient.
 | E-T14 | `phase_e_mechanism_rates_intervals_and_ids_are_exact` |
 | E-T15 | `phase_e_health_confusion_and_missing_state_counts_are_exact` |
 | E-T16 | `phase_e_health_rates_boundaries_and_balanced_accuracy_are_exact` |
-| E-T17 | `phase_e_wilson_95_decimal_bits_and_serialized_vectors_are_exact` |
+| E-T17 | `phase_e_wilson_95_decimal_bits_and_serialized_vectors_are_exact` — macOS V1 exact numeric authority plus independent decimal oracle |
 | E-T18 | `phase_e_overall_and_closed_strata_apply_exact_record_and_family_minima` |
 | E-T19 | `phase_e_exclusions_and_acceptance_use_complete_ordered_precedence` |
 | E-T20 | `phase_e_report_reconstructs_every_count_from_source_ids` |
-| E-T21 | `phase_e_authority_assisted_report_and_all_scientific_bytes_are_exact` |
-| E-T22 | `phase_e_publication_is_atomic_and_checksum_verified` |
-| E-T23 | `phase_e_publication_is_locked_no_clobber_crash_durable_and_residue_exact` |
+| E-T21 | `phase_e_authority_assisted_report_and_all_scientific_bytes_are_exact` — macOS V1 deterministic scientific-byte authority |
+| E-T22 | `phase_e_publication_is_atomic_and_checksum_verified` — macOS V1 publication-state-machine authority |
+| E-T23 | `phase_e_publication_is_locked_no_clobber_crash_durable_and_residue_exact` — macOS V1 publication-state-machine authority |
 | E-T24 | `phase_e_source_guards_prohibit_reassessment_and_reverse_dependencies` |
 | E-T25 | `phase_e_preserves_phase_d_golden_outputs_byte_for_byte` |
 | E-T26 | `phase_e_artifact_contracts_accept_exact_schema1_and_reject_invalid_variants` |
 | E-T27 | `phase_e_preserves_all_existing_artifact_migration_contracts` |
 | E-T28 | `phase_e_synthetic_only_run_is_software_validated_only` |
 | E-T29 | `phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power` |
-| E-T30 | committed exact-fixture inventory plus author-validation evidence; post-freeze protected signed review attestations tying independent GO and platform/command results to exact `REVIEW_SHA` |
+| E-T30 | committed exact-fixture inventory plus author-validation evidence; post-freeze protected signed review attestations tying independent GO and macOS platform/command results to exact `REVIEW_SHA` |
 
 Planning traceability totals are 18 requirements, 18 acceptance criteria, and
 30 required tests/evidence records. Unmapped requirements = 0; acceptance
@@ -3174,9 +3359,9 @@ P0/P1 findings.
 | P1-E-008 | Sections 3.7–3.8 and the section 4.3 matrix freeze exclusion ordinals, secondary reasons, visible-leakage precedence, endpoint/outcome reason mappings, hard-boundary order, physical pre-scoring checks including mechanism semantic-outcome availability, and post-partition underpower treatment. |
 | P1-E-009 | Sections 3.7 and 4.3 require additive raw-byte duplicate-aware artifact and nested-strict catalog readers, producer-owned semantic identity recomputation, exact count range, Wilson operation order, exact bits, and negative-zero rejection; structure-only validation cannot authorize publication. |
 | P1-E-010 | Section 4.4 defines the complete report/manifest nested records, exact nine-file set, JSON/CSV/Markdown byte rules, every row/cell/null mapping, Markdown projection/escaping, and literal golden authority. |
-| P1-E-011 | Section 4.5 defines a persistent exclusive lock, Linux/macOS no-replace and exchange primitives, file/directory fsync points, commit boundaries, both-generation identity/fingerprint binding, foreign-swap/old-stage preservation, exact no-clobber behavior, and typed deterministic residue/cleanup states. |
+| P1-E-011 | Section 4.5 defines a persistent exclusive lock, macOS V1 no-replace and exchange primitives, file/directory fsync points, commit boundaries, both-generation identity/fingerprint binding, foreign-swap/old-stage preservation, exact no-clobber behavior, and typed deterministic residue/cleanup states; the retained Linux `renameat2` path is explicitly deferred and non-authoritative. |
 | P1-E-012 | Sections 3.8 and 7.4 separate software and physical gates: synthetic perfection and selectively excluded unavailable mechanism outcomes cannot produce a physical claim; only exact dual-verified, semantic-outcome-available physical holdout authority plus passing powered views can. |
-| P1-E-013 | Section 8 preserves main-only durable workflow, forward-only plan changes on `main`, immutable review SHAs/tags, one post-approval temporary implementation branch, the distinct review-candidate versus approval/integration gates, and no stale-SHA loop; this R2 planning task creates only its prescribed forward documentation commit, not an implementation branch, approval tag, or merge. |
+| P1-E-013 | Section 8 preserves main-only durable workflow, forward-only plan changes on `main`, immutable review SHAs/tags, one post-approval temporary implementation branch, the distinct review-candidate versus approval/integration gates, and no stale-SHA loop; this R3 planning task creates only its prescribed forward documentation commit, not an implementation branch, approval tag, or merge. |
 | P1-E-014 | Sections 7.3 and 10 map 18 requirements, 18 criteria, and 30 tests to literal fixture paths, mutation/oracle rows including selective physical outcome exclusion, nested catalog fields, strict-key forgeries/aliases/role reuse, both domain-containment directions, and overwrite replacement/mutation races, a filesystem-exact fixture inventory, the literal historical compatibility set, committed non-self-approving author evidence, and a protected same-`REVIEW_SHA` external independent-attestation set with aliases/globs forbidden. |
 | P0-R2-001 | Sections 3.3, 3.5, and 3.8 hard-fail any physical supporting mechanism reference whose semantic outcome is `unavailable` before partitioning; E-T29's exact 98-of-100 mutation proves such records cannot be selected out to manufacture a 2/2 physical pass. |
 | P1-R2-001 | Section 3.8 names the closed root array field exactly `trust_roots`, forbids aliases, and freezes canonical root/ID/key validation for every selected and unused key; the third-round strict-verifier remediation below supersedes the rejected `ring` assumption. |
