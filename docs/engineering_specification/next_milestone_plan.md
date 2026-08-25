@@ -2812,7 +2812,7 @@ temporary copy; production code never generates an oracle.
 | E-R16 | E-AC16 | E-T27 | `compatibility/existing_artifact_fixture_inventory.schema1.json`; `compatibility/existing_artifact_matrix.md` | inventory must equal the literal historical set below; flip one expected kind/schema/acceptance/byte-hash cell at a time | every historical fixture retains exact baseline result/bytes; any expectation mutation fails |
 | E-R17 | E-AC17 | E-T28 | `protocol/software_valid.toml`; `dataset/synthetic_perfect.schema1.json`; `approval/none.txt` | perfect metrics; relabel filename/method as physical | only `software_validated_only`; origin is never inferred; physical outcome impossible |
 | E-R17 | E-AC17 | E-T29 | `protocol/physical_valid.toml`; `dataset/physical_valid.schema1.json`; `dataset/physical_selective_unavailable.schema1.json`; `approval/valid.schema1.json`; `approval/valid_selective_unavailable.schema1.json`; `approval/invalid_self_signed.schema1.json`; `approval/invalid_identity_forgery.schema1.json`; `trust/test_only_known_answer_trust_store.schema1.json`; `trust/test_only_invalid_identity_weak_key.schema1.json`; `reference/complete_sources.schema1.json` | invoke the production CLI physical route while its embedded production store is `UNPROVISIONED`; then, only through the approved test-only pure-verifier boundary, use the literal known-answer store and mutate: missing approval; wrong purpose; unknown root; dataset/protocol-supplied attacker key; wrong owner/registry key; copy the owner signature into the registry field; malformed/noncanonical-scalar/one-signature payload; set the selected owner key to identity encoding `0100000000000000000000000000000000000000000000000000000000000000` and its signature to identity-R/zero-S `01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000` over an arbitrary altered payload, then apply the same identity-key mutation separately to the registry role; replace either selected role separately with nondecompressible y=2 key `0200000000000000000000000000000000000000000000000000000000000000`; wrong file/record/cohort/protocol/claim/endpoint/domain/origin/authority binding; missing/legacy assessed source or reference; synthetic/unknown origin; disallowed reference method/authority; unblinded/unquantified/over-limit reference; incomplete reference node; use the precommitted mutually hash-bound dataset/approval pair containing 100 fully authoritative/physical/blinded/quantified/complete mechanism records, 98 semantic outcomes `unavailable`, and only two supporting records/families; declared minimum <2; actual one family/missing stratum; valid dual-signed two-family case; attempt every CLI/config/environment/protocol test-root-selection route | the production CLI always hard-fails a physical request with `PhysicalApprovalTrustNotProvisioned` before dataset/scoring and cannot select test roots; only the exact no-feature `ed25519-dalek 2.2.0` `from_bytes`/recompression/`is_weak`/`Signature::try_from`/`verify_strict` sequence is accepted by the test-only pure verifier; each literal identity forgery hard-fails `PhysicalApprovalWeakPublicKey` before signature verification, each y=2 key hard-fails `PhysicalApprovalPublicKeyInvalid`, copied/malformed/strict-invalid role signatures hard-fail their role-specific error, and all test-store/schema/binding/origin/physical-reference-authority failures hard-fail before exclusion or scoring; the independently valid dual-signed 98-outcome fixture hard-fails `PhysicalReferenceOutcomeUnavailable` with no report, proving the result is not merely an approval-hash mismatch; actual family/record underpowering is indeterminate; only the exact test-boundary dual-verified named passing case emits `physically_validated`, and it is software conformance evidence only |
-| E-R18 | E-AC18 | E-T30 | `expected/phase_e_fixture_inventory.schema1.json`; `expected/author_validation_evidence_ledger.md` | compare inventory to every regular file under `tests/fixtures/phase_e`; require each inventory row's E-R/E-AC/E-T/mutation/oracle to equal this section; omit/stale one committed author command/result, fixture row, mapping, dependency/lock audit, or P0/P1 author disposition; add a candidate commit SHA or an independent GO to the committed author ledger; change the direct Dalek declaration/features, any of the six section-4.6 new lock versions/checksums/edges, or any pre-existing lock entry; after freeze, omit/retarget/unsign one required external review attestation or change its `REVIEW_SHA`, approved plan tags, macOS validation result, required command result, reviewer GO/NO-GO, or P0/P1 disposition | any missing/extra/duplicate/unmapped fixture, stale committed author evidence, self-approval, forbidden feature, dependency drift, old-lock drift, or incomplete/mismatched external attestation fails its applicable gate; the candidate is ready for independent review only with complete committed author evidence, while approval/integration requires the protected same-`REVIEW_SHA` independent-GO attestation set plus the exact six-package lock delta |
+| E-R18 | E-AC18 | E-T30 | `expected/phase_e_fixture_inventory.schema1.json`; `expected/author_validation_evidence_ledger.md` | compare inventory to every regular file under `tests/fixtures/phase_e`; require each inventory row's E-R/E-AC/E-T/mutation/oracle to equal this section; omit/stale one committed author command/result, fixture row, mapping, dependency/lock audit, or P0/P1 author disposition; add a candidate commit SHA or an independent GO to the committed author ledger; change the direct Dalek declaration/features, any of the six section-4.6 new lock versions/checksums/edges, or any pre-existing lock entry; after freeze, omit/retarget/unsign one required external review attestation or change its `REVIEW_SHA`, approved plan tags, macOS validation result, required command result, reviewer `decision`, or P0/P1/P2 disposition; mutate `decision=GO` to `NO-GO`, omit `decision`, use an unknown or third token such as `GO WITH DOCUMENTED NON-BLOCKING DEBT`, leave P2 incomplete, retain an explicitly accepted P2 with `decision=GO`, or pair `decision=GO` with an unresolved P0/P1 | any missing/extra/duplicate/unmapped fixture, stale committed author evidence, self-approval, forbidden feature, dependency drift, old-lock drift, or incomplete/mismatched external attestation fails its applicable gate; the canonical decision domain is exactly `GO | NO-GO`; `GO` with a complete P2 disposition and zero unresolved P0/P1 is valid, while `NO-GO`, a missing/unknown/third decision token, incomplete P2 disposition, or unresolved P0/P1 blocks; approval/integration requires all four protected same-`REVIEW_SHA` attestations to have `decision=GO` plus the exact six-package lock delta |
 
 For E-T29, “the same identity-key mutation separately to the registry role”
 means replacing both that role's key and that role's signature with the same
@@ -2858,16 +2858,23 @@ Each tag must be SSH- or OpenPGP-signed by the independently authorized
 reviewer for its named role. The remote must protect these tag names against
 update and deletion; integration verifies the target object, tag signature,
 authorized signer, and immutable remote ref. Each signed tag body is a
-canonical UTF-8 `PhaseEReviewAttestationV1` record containing exactly its
-format version, `REVIEW_SHA`, sorted applicable approved plan tags (including
-the approved R3 tag, the R2 tag, and all predecessors), reviewer role and
-identity, that role's GO/NO-GO decision, the complete P0/P1/P2 disposition,
-macOS validation result, and the required command/result set. The macOS result
-is the only mandatory platform evidence. No Linux validation field is part of
-the R3 attestation contract; any voluntarily recorded Linux result is
-informational and cannot override the macOS gate. Scientific and security
-attestations require `GO`; architecture and compatibility may be `GO` or `GO
-WITH DOCUMENTED NON-BLOCKING DEBT`, with zero unresolved P0/P1 across the set.
+canonical UTF-8 `PhaseEReviewAttestationV1` record containing exactly these
+fields: format version, `REVIEW_SHA`, sorted applicable approved plan tags
+(including the approved R3 tag, the R2 tag, and all predecessors), reviewer role
+and identity, `decision` (`GO` or `NO-GO`), the complete P0/P1/P2 disposition,
+macOS validation result, and the required command/result set. The canonical
+decision domain is closed to exactly `GO | NO-GO`; no third machine-readable
+verdict is permitted. The attestation decision is `NO-GO` when that role has
+any unresolved P0 or P1. It may be `GO` only when the role review is complete,
+P0 and P1 are zero, every P2 has an explicit complete disposition, required
+role commands/evidence pass, and the required macOS evidence passes. Accepted
+non-blocking debt is represented only in the P2 disposition, so a nonempty
+fully dispositioned P2 list may coexist with `decision=GO`. The macOS result is
+the only mandatory platform evidence. No Linux validation field is part of the
+R3 attestation contract; any voluntarily recorded Linux result is informational
+and cannot override the macOS gate. Approval and integration require all four
+protected attestations to have `decision=GO`, zero unresolved P0/P1, and
+complete P2 dispositions.
 The four tags
 together are the complete independent review-attestation component. They may
 name no candidate other than their target `REVIEW_SHA`; a missing, unsigned,
@@ -2875,6 +2882,15 @@ retargeted, unauthorized, NO-GO, or incomplete tag blocks approval and
 integration. Because tags annotate rather than alter the reviewed commit, this
 records same-SHA independent review without requiring that review to appear in
 the commit being reviewed.
+
+E-T30 applies the same binary rule to every protected attestation: mutating
+`decision=GO` to `NO-GO` fails approval/integration; omitting `decision`, using
+an unknown token, or using any third token fails canonical attestation
+validation; an incomplete P2 disposition fails; and `decision=GO` with an
+unresolved P0 or P1 fails. A complete accepted non-blocking P2 disposition
+with `decision=GO` is valid when all other gates pass. Thus all four approval
+attestations must serialize `decision=GO`; P2 debt remains visible only in the
+P2 dispositions.
 
 `trust/test_only_known_answer_trust_store.schema1.json` is a literal test-only
 `PROVISIONED` store passed directly to the pure verifier by E-T26/E-T29. It is
@@ -3196,9 +3212,8 @@ non-gating for Phase-E.
 only after all of the following hold for the same exact `REVIEW_SHA`:
 
 - the four section 7.3 protected signed review-attestation tags are complete,
-  valid, and R3-compatible, with scientific and security `GO`, and with
-  architecture and compatibility `GO` or `GO WITH DOCUMENTED NON-BLOCKING
-  DEBT`; each has complete P0/P1/P2 disposition;
+  valid, and R3-compatible, with all four canonical `decision=GO`; each has
+  zero unresolved P0/P1 and a complete P0/P1/P2 disposition;
 - macOS exact-SHA validation and every required macOS command pass as recorded
   in those attestations;
 - for every requested physical claim, E-SCI passes with a real dual-signed
@@ -3262,8 +3277,9 @@ Phase E is complete only when all of these statements are true:
    validation as the only required V1 platform evidence. Generic Linux/Ubuntu
    CI, if retained, is informational and non-gating.
 6. Independent scientific, architecture, security, and compatibility reviews
-   record GO for the exact reviewed SHA through the section 7.3 attestation
-   mechanism.
+   record `decision=GO` for the exact reviewed SHA through the section 7.3
+   attestation mechanism. Accepted non-blocking P2 debt, if any, remains
+   visible only in the complete P2 dispositions.
 7. Release language distinguishes software validation from physical validation,
    names the exact validated domain, and identifies the result as a
    macOS-supported V1 implementation without implying Linux or cross-platform
@@ -3297,7 +3313,7 @@ into one helper-only test is not sufficient.
 | E-R15 | Phase B/C assessors and Phase D projection/output remain unchanged and independent of Phase E. | source dependency guards; full baseline suite | E-AC15: source guards and baseline/golden tests prove no reverse dependency or output drift. | E-T24, E-T25 | Phase E reassesses/mutates sources or identical Phase D input produces changed public output. |
 | E-R16 | New artifact kinds are additive and schema-1-only; existing serialization/migration remains exact. | `artifact.rs`, `artifact_contracts.rs` | E-AC16: new round trips and negative matrices pass while all existing fixture matrices retain prior results. | E-T26, E-T27 | Existing token/schema behavior changes or a Phase E future/legacy schema is silently accepted. |
 | E-R17 | Software and physical requests are distinct. The production trust store is explicitly `UNPROVISIONED` or `PROVISIONED`; production roots are real independently controlled authority only, while literal test roots are accessible solely through the test-only pure verifier. A provisioned physical claim requires exact origin/blinding/quantification, usable mechanism semantic outcomes, domain-equal endpoints, globally separate owner/registry IDs and keys, and immutable dual signatures accepted only by the frozen strict verifier before scoring. | protocol/report/trust/approval schemas, assessment | E-AC17: an unprovisioned production request hard-fails before scoring; self-signed/synthetic/constructed/unknown/unapproved, weak-key-forged, same-key-dual-role, domain-overbroad, or semantic-outcome-unavailable input cannot emit `physically_validated`; test-only signatures cannot satisfy a release gate; actual underpowering is indeterminate; only a real provisioned strict dual-verified named passing claim can. | E-T28, E-T29 | A production test-vector root, dataset/protocol self-authentication, test-root selection route, weak/same key, one signature, approval/domain downgrade, or synthetic/unblinded/outcome-unavailable/underpowered evidence obtains a physical claim. |
-| E-R18 | Full same-`REVIEW_SHA` CI and independent review attestation, exact Phase-E fixture inventory, committed author-side evidence, historical literal set, frozen dependency delta, and exhaustive mutation/oracle ledger gate approval/integration. | CI, committed author evidence, and protected signed review tags | E-AC18: all 18 requirements, 18 ACs, 30 tests, every literal fixture/mutation/oracle and required command are mapped; committed author evidence has no candidate SHA or approval; and the four external signed attestations bind their GO/NO-GO, macOS validation result, approved plan tags, P0/P1/P2 disposition, and required command results to one exact `REVIEW_SHA`, with zero unresolved P0/P1 and the exact six-package lock delta. | E-T30 | Any filesystem fixture is absent/extra/aliased/unmapped, dependency drifts, author evidence self-approves or names its candidate SHA, or any command/review/tag/SHA is stale, missing, unsigned, retargeted, unauthorized, or NO-GO. |
+| E-R18 | Full same-`REVIEW_SHA` CI and independent review attestation, exact Phase-E fixture inventory, committed author-side evidence, historical literal set, frozen dependency delta, and exhaustive mutation/oracle ledger gate approval/integration. | CI, committed author evidence, and protected signed review tags | E-AC18: all 18 requirements, 18 ACs, 30 tests, every literal fixture/mutation/oracle and required command are mapped; committed author evidence has no candidate SHA or approval; and the four external signed attestations bind `decision=GO | NO-GO`, macOS validation result, approved plan tags, complete P0/P1/P2 disposition, and required command results to one exact `REVIEW_SHA`; approval/integration requires all four `decision=GO`, zero unresolved P0/P1, complete P2 disposition, and the exact six-package lock delta. | E-T30 | Any filesystem fixture is absent/extra/aliased/unmapped, dependency drifts, author evidence self-approves or names its candidate SHA, or any command/review/tag/SHA is stale, missing, unsigned, retargeted, unauthorized, `NO-GO`, missing/unknown/third decision token, incomplete P2 disposition, or unresolved P0/P1. |
 
 ### 10.1 Exact required test registry
 
