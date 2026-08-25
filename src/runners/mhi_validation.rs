@@ -47,7 +47,7 @@ pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiVal
         // This gate is intentionally before dataset opening, approval parsing,
         // evaluation, or report creation.  Production never falls back to a
         // software claim and cannot accept a runtime-supplied test root.
-        if !trust.store.is_provisioned() {
+        if !trust.is_provisioned() {
             return Err(MhiValidationError::PhysicalApprovalTrustNotProvisioned);
         }
         Some(trust)
@@ -82,15 +82,15 @@ pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiVal
             &protocol,
             &inputs.dataset.artifact,
         )?;
-        if approval.approval_record_id != source.expected_approval_record_id {
+        if approval.approval_record_id() != source.expected_approval_record_id {
             return Err(MhiValidationError::Approval(
                 "approval expected record ID mismatch".into(),
             ));
         }
-        inputs.attach_verified_approval(approval, trust.source_file_sha256.clone());
+        inputs.attach_verified_approval(approval);
     }
     let report = evaluate_mhi_validation(&protocol, &inputs)?;
-    let authorization = authorize_publication(&report, &protocol, &inputs, trust.as_ref())?;
+    let authorization = authorize_publication(&report, &protocol, &inputs)?;
     publish_authorized_bundle(&options.output_dir, &authorization, options.overwrite)
 }
 

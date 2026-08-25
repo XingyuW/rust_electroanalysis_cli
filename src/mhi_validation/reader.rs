@@ -17,7 +17,24 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-#[derive(Debug)]
+/// Reader-owned validation state.  Approval authority is private and can only
+/// be attached by the crate after strict embedded-authority verification.
+///
+/// ```compile_fail
+/// use rust_electroanalysis_cli::mhi_validation::ValidationInputs;
+///
+/// let _forged = ValidationInputs {
+///     protocol_sha256: String::new(),
+///     ..todo!()
+/// };
+/// ```
+///
+/// ```compile_fail
+/// use rust_electroanalysis_cli::mhi_validation::ValidationInputs;
+///
+/// let _attach = ValidationInputs::attach_verified_approval;
+/// ```
+#[derive(Debug, Clone)]
 pub struct ValidationInputs {
     pub protocol_sha256: String,
     pub dataset: StrictArtifactRead<MhiValidationDatasetV1>,
@@ -25,8 +42,7 @@ pub struct ValidationInputs {
     pub lineage_catalog: StrictLineageCatalogRead,
     pub mechanism_sources: Vec<(String, StrictArtifactRead<MechanismAnalysisReport>)>,
     pub health_sources: Vec<(String, StrictArtifactRead<SensorHealthAssessment>)>,
-    pub owner_approval: Option<crate::mhi_validation::approval::OwnerApprovalEvidenceV1>,
-    pub approval_trust_store_sha256: Option<String>,
+    pub(crate) owner_approval: Option<crate::mhi_validation::approval::VerifiedOwnerApproval>,
 }
 
 impl ValidationInputs {
@@ -125,17 +141,14 @@ impl ValidationInputs {
             mechanism_sources,
             health_sources,
             owner_approval: None,
-            approval_trust_store_sha256: None,
         })
     }
 
-    pub fn attach_verified_approval(
+    pub(crate) fn attach_verified_approval(
         &mut self,
-        approval: crate::mhi_validation::approval::OwnerApprovalEvidenceV1,
-        trust_store_sha256: String,
+        approval: crate::mhi_validation::approval::VerifiedOwnerApproval,
     ) {
         self.owner_approval = Some(approval);
-        self.approval_trust_store_sha256 = Some(trust_store_sha256);
     }
 }
 

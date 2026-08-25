@@ -99,14 +99,19 @@ counted PASS from an earlier unrelated rejection.
 Exact targeted command result:
 
 ```text
-cargo test --locked --test phase_e_validation phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power -- --exact --nocapture
-PASS: 1 passed; 0 failed; 36 filtered out
+cargo test --locked --lib mhi_validation::approval::approval_kat::phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power -- --exact --nocapture
+PASS: 1 passed; 0 failed; 194 filtered out
 ```
 
 No permanent fixture was added or regenerated.  The fixture inventory remains
 268/268, and the remediation contains no private key, seed, signer, or runtime
 signing capability.  E-T29 = substantive PASS.  External Security review:
 PENDING_POST_FREEZE.
+
+The substantive pure-verifier KAT is now a crate-internal unit test.  Its
+test-root data and opaque capability construction are unavailable to a
+downstream library consumer; the integration test retains the production
+UNPROVISIONED route.
 
 ## P1-SEC-002 remediation evidence
 
@@ -137,7 +142,7 @@ yes` in the test contract.  The targeted command result is:
 
 ```text
 cargo test --locked --test phase_e_validation phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power -- --exact --nocapture
-PASS: 1 passed; 0 failed; 36 filtered out
+PASS: 1 passed; 0 failed; 37 filtered out
 ```
 
 The approval file-read boundary was also run directly in the library test:
@@ -150,6 +155,31 @@ PASS: 1 passed; 0 failed; 193 filtered out
 E-T29 = 32/32 existing cases plus 8/8 newly substantiated cases = substantive
 PASS 40/40.  P1-SEC-001 remains CLOSED and is not reopened.  External Security
 review: PENDING_POST_FREEZE.
+
+## SEC-P0-001 remediation evidence
+
+The previously reproducible public authority bypass is closed.  The production
+trust capability has private authority fields and can only originate from the
+embedded trust bytes; approval evidence and approval hash state are held in an
+opaque crate-private capability.  Approval attachment and the strict verifier
+are no longer downstream-callable, and report replay derives its authority from
+the verified capability retained in `ValidationInputs` rather than accepting a
+caller-supplied trust object.
+
+Compile-time sealing is exercised by four compile-fail doctests covering forged
+verified trust construction, forged `ValidationInputs` authority state, direct
+approval attachment, and the former test verifier boundary.  Runtime public API
+failure is exercised by:
+
+```text
+cargo test --locked --test phase_e_validation phase_e_public_evaluator_fails_closed_without_verified_approval -- --exact --nocapture
+PASS: 1 passed; 0 failed; 37 filtered out
+```
+
+The production runner remains ordered to return
+`PhysicalApprovalTrustNotProvisioned` before dataset opening, and the internal
+KAT remains a substantive 40/40 strict-verification and physical-evaluation
+exercise.  SEC-P0-001 = CLOSED.  PUBLIC_AUTHORITY_BYPASS_PATHS = 0.
 
 ## Publication matrix evidence
 
@@ -250,6 +280,8 @@ Host: Darwin arm64.
 | Repeated certified validation: all nine successful output files byte-identical | PASS |
 | cargo test --locked --all, run 1 | PASS |
 | cargo test --locked --all, run 2 | PASS |
+| crate-internal E-T29 authority KAT, 40/40 | PASS |
+| public evaluator without verified approval fails closed | PASS |
 | cargo test --doc --locked | PASS |
 | cargo doc --locked --workspace --no-deps | PASS |
 | cargo build --locked --release | PASS |
@@ -290,12 +322,12 @@ and 8/8 non-self manifest records.  External scientific review: PENDING_POST_FRE
 
 ## Post-freeze external fields
 
-Independent scientific review: PENDING_POST_FREEZE  
-Independent architecture review: PENDING_POST_FREEZE  
-Independent security review: PENDING_POST_FREEZE  
-Independent compatibility review: PENDING_POST_FREEZE  
+Independent scientific review: PENDING_POST_FREEZE
+Independent architecture review: PENDING_POST_FREEZE
+Independent security review: PENDING_POST_FREEZE
+Independent compatibility review: PENDING_POST_FREEZE
 macOS exact-commit validation: PENDING_POST_FREEZE
-Implementation approval: PENDING_POST_FREEZE  
+Implementation approval: PENDING_POST_FREEZE
 Integration approval: PENDING_POST_FREEZE
 
 No self-approval, candidate SHA, review SHA, merge, implementation approval

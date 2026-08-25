@@ -172,7 +172,6 @@ impl MhiValidationReportV1 {
         &self,
         protocol: &MhiValidationProtocolV1,
         inputs: &ValidationInputs,
-        embedded_trust_store: Option<&super::approval::VerifiedEmbeddedTrustStore>,
     ) -> Result<(), MhiValidationError> {
         self.validate_structure()?;
         protocol.validate()?;
@@ -189,13 +188,13 @@ impl MhiValidationReportV1 {
             .release_scope
             .iter()
             .any(|claim| claim.requested_level == RequestedValidationLevelV1::Physical);
-        if physical && (embedded_trust_store.is_none() || self.approval.is_none()) {
+        if physical && (inputs.owner_approval.is_none() || self.approval.is_none()) {
             return Err(MhiValidationError::Approval(
                 "physical report replay requires verified approval authority".into(),
             ));
         }
-        if let (Some(approval), Some(trust)) = (&self.approval, embedded_trust_store)
-            && approval.trust_store_sha256 != trust.source_file_sha256
+        if let (Some(approval), Some(verified)) = (&self.approval, &inputs.owner_approval)
+            && approval.trust_store_sha256 != verified.trust_store_sha256()
         {
             return Err(MhiValidationError::Approval(
                 "report approval trust-store hash differs from the replay authority".into(),
@@ -1371,9 +1370,6 @@ fn approval_authority(
             "physical evaluation requires a verified owner approval".into(),
         )
     })?;
-    let trust_store_sha256 = inputs.approval_trust_store_sha256.clone().ok_or_else(|| {
-        MhiValidationError::Approval("physical evaluation requires a verified trust store".into())
-    })?;
     let source = inputs
         .dataset
         .artifact
@@ -1386,28 +1382,37 @@ fn approval_authority(
         })?;
     Ok(Some(ApprovalAuthorityV1 {
         approval_source_file_sha256: source.source_file_sha256.clone(),
-        approval_record_id: approval.approval_record_id.clone(),
-        trust_store_id: approval.trust_store_id.clone(),
-        approval_purpose: approval.approval_purpose.clone(),
-        trust_store_sha256,
-        trust_root_id: approval.trust_root_id.clone(),
-        project_owner_authority_id: approval.project_owner_authority_id.clone(),
-        registry_authority_id: approval.registry_authority_id.clone(),
+        approval_record_id: approval.approval_record_id().into(),
+        trust_store_id: approval.evidence().trust_store_id.clone(),
+        approval_purpose: approval.evidence().approval_purpose.clone(),
+        trust_store_sha256: approval.trust_store_sha256().into(),
+        trust_root_id: approval.evidence().trust_root_id.clone(),
+        project_owner_authority_id: approval.evidence().project_owner_authority_id.clone(),
+        registry_authority_id: approval.evidence().registry_authority_id.clone(),
         owner_authority_document: ImmutableDocumentReferenceV1 {
             immutable_reference_uri: approval
+                .evidence()
                 .owner_authority_document
                 .immutable_reference_uri
                 .clone(),
-            document_sha256: approval.owner_authority_document.document_sha256.clone(),
+            document_sha256: approval
+                .evidence()
+                .owner_authority_document
+                .document_sha256
+                .clone(),
         },
         registry_record: ImmutableDocumentReferenceV1 {
-            immutable_reference_uri: approval.registry_record.immutable_reference_uri.clone(),
-            document_sha256: approval.registry_record.document_sha256.clone(),
+            immutable_reference_uri: approval
+                .evidence()
+                .registry_record
+                .immutable_reference_uri
+                .clone(),
+            document_sha256: approval.evidence().registry_record.document_sha256.clone(),
         },
         owner_signature_verified: true,
         registry_signature_verified: true,
         binding_status: "verified".into(),
-        limitations: approval.limitations.clone(),
+        limitations: approval.evidence().limitations.clone(),
     }))
 }
 fn compatibility(inputs: &ValidationInputs) -> Vec<CompatibilityRowV1> {
@@ -1528,19 +1533,18 @@ fn consumed_sources(inputs: &ValidationInputs) -> Vec<SourceReferenceV1> {
                 origin: source.evidence_origin,
             }),
     );
-    if let (Some(approval), Some(trust_store_sha256), Some(source)) = (
+    if let (Some(approval), Some(source)) = (
         &inputs.owner_approval,
-        &inputs.approval_trust_store_sha256,
         &inputs.dataset.artifact.owner_approval_source,
     ) {
         values.push(SourceReferenceV1::ApprovalTrustStore {
-            trust_store_id: approval.trust_store_id.clone(),
-            source_file_sha256: trust_store_sha256.clone(),
+            trust_store_id: approval.evidence().trust_store_id.clone(),
+            source_file_sha256: approval.trust_store_sha256().into(),
         });
         values.push(SourceReferenceV1::OwnerApproval {
-            approval_record_id: approval.approval_record_id.clone(),
+            approval_record_id: approval.approval_record_id().into(),
             source_file_sha256: source.source_file_sha256.clone(),
-            registry_record_sha256: approval.registry_record.document_sha256.clone(),
+            registry_record_sha256: approval.evidence().registry_record.document_sha256.clone(),
         });
     }
     for (record_id, _source) in &inputs.mechanism_sources {

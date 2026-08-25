@@ -103,9 +103,8 @@ pub(crate) fn authorize_publication<'a>(
     report: &'a MhiValidationReportV1,
     protocol: &MhiValidationProtocolV1,
     inputs: &ValidationInputs,
-    embedded_trust_store: Option<&super::approval::VerifiedEmbeddedTrustStore>,
 ) -> Result<AuthorizedMhiPublication<'a>, MhiValidationError> {
-    report.validate_against(protocol, inputs, embedded_trust_store)?;
+    report.validate_against(protocol, inputs)?;
     Ok(AuthorizedMhiPublication { report })
 }
 
@@ -2774,7 +2773,7 @@ mod tests {
     ) -> Result<(), MhiValidationError> {
         let (protocol, inputs) = software_fixture_authority();
         assert_eq!(protocol.protocol_id, protocol_id);
-        let authorization = authorize_publication(report, &protocol, &inputs, None)?;
+        let authorization = authorize_publication(report, &protocol, &inputs)?;
         publish_authorized_bundle(output, &authorization, overwrite)
     }
 
@@ -3136,7 +3135,7 @@ mod tests {
 
         let parent = temporary_parent("replay_invalid");
         let output = parent.join("bundle");
-        let error = authorize_publication(&forged, &protocol, &inputs, None)
+        let error = authorize_publication(&forged, &protocol, &inputs)
             .expect_err("structural validity cannot authorize publication");
         assert!(
             matches!(error, MhiValidationError::Dataset(ref message) if message.contains("replay"))
@@ -3160,7 +3159,7 @@ mod tests {
 
         let parent = temporary_parent("physical-looking-forgery");
         let output = parent.join("bundle");
-        let error = authorize_publication(&forged, &protocol, &inputs, None)
+        let error = authorize_publication(&forged, &protocol, &inputs)
             .expect_err("physical-looking report lacks production authority");
         assert!(matches!(error, MhiValidationError::Dataset(_)));
         assert!(!output.exists());

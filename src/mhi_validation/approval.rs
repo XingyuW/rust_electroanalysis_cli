@@ -11,6 +11,10 @@ use std::{collections::BTreeSet, fs, path::Path};
 const EMBEDDED_TRUST_STORE: &[u8] =
     include_bytes!("../../config/mhi_physical_approval_trust_store.schema1.json");
 
+#[cfg(test)]
+#[path = "approval_kat.rs"]
+mod approval_kat;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PhysicalApprovalTrustRootV1 {
@@ -42,9 +46,27 @@ pub enum PhysicalApprovalProvisioningStateV1 {
 }
 
 #[derive(Debug, Clone)]
+/// Verified production authority is opaque.  It can only be obtained by
+/// validating the bytes embedded in this crate.
+///
+/// ```compile_fail
+/// use rust_electroanalysis_cli::mhi_validation::approval::{
+///     PhysicalApprovalTrustStoreV1, VerifiedEmbeddedTrustStore,
+/// };
+///
+/// let _forged = VerifiedEmbeddedTrustStore {
+///     store: PhysicalApprovalTrustStoreV1 {
+///         schema_version: 1,
+///         trust_store_id: String::new(),
+///         provisioning_state: todo!(),
+///         trust_roots: Vec::new(),
+///     },
+///     source_file_sha256: String::new(),
+/// };
+/// ```
 pub struct VerifiedEmbeddedTrustStore {
-    pub store: PhysicalApprovalTrustStoreV1,
-    pub source_file_sha256: String,
+    store: PhysicalApprovalTrustStoreV1,
+    source_file_sha256: String,
 }
 
 impl PhysicalApprovalTrustStoreV1 {
@@ -138,6 +160,27 @@ impl PhysicalApprovalTrustStoreV1 {
     }
 }
 
+impl VerifiedEmbeddedTrustStore {
+    pub fn provisioning_state(&self) -> PhysicalApprovalProvisioningStateV1 {
+        self.store.provisioning_state
+    }
+
+    pub fn source_file_sha256(&self) -> &str {
+        &self.source_file_sha256
+    }
+
+    pub const fn is_provisioned(&self) -> bool {
+        self.store.is_provisioned()
+    }
+
+    pub(crate) fn root(
+        &self,
+        id: &str,
+    ) -> Result<&PhysicalApprovalTrustRootV1, MhiValidationError> {
+        self.store.root(id)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ImmutableDocumentV1 {
@@ -147,6 +190,14 @@ pub struct ImmutableDocumentV1 {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// Approval evidence is wire data, not verified authority.  The verifier is
+/// crate-private and is never exposed as a downstream test escape hatch.
+///
+/// ```compile_fail
+/// use rust_electroanalysis_cli::mhi_validation::approval::OwnerApprovalEvidenceV1;
+///
+/// let _ = OwnerApprovalEvidenceV1::validate_for_test_boundary;
+/// ```
 pub struct OwnerApprovalEvidenceV1 {
     pub schema_version: u32,
     pub approval_record_id: String,
@@ -171,26 +222,16 @@ pub struct OwnerApprovalEvidenceV1 {
 }
 
 impl OwnerApprovalEvidenceV1 {
-    /// Pure verifier boundary used by the checked-in test-only KAT. This does
-    /// not select roots, read runtime configuration, or participate in the
-    /// production runner; callers must provide an already validated authority.
-    #[doc(hidden)]
-    pub fn validate_for_test_boundary(
-        &self,
-        embedded: &VerifiedEmbeddedTrustStore,
-        protocol: &MhiValidationProtocolV1,
-        dataset: &MhiValidationDatasetV1,
-    ) -> Result<(), MhiValidationError> {
-        self.validate(embedded, protocol, dataset)
-    }
-
+    /// Production reader boundary: the approval bytes are verified against
+    /// the embedded trust capability before an opaque approval capability is
+    /// returned.
     pub(crate) fn read_and_validate(
         path: &Path,
         expected_file_sha256: &str,
         embedded: &VerifiedEmbeddedTrustStore,
         protocol: &MhiValidationProtocolV1,
         dataset: &MhiValidationDatasetV1,
-    ) -> Result<Self, MhiValidationError> {
+    ) -> Result<VerifiedOwnerApproval, MhiValidationError> {
         let bytes = fs::read(path).map_err(|source| MhiValidationError::Io {
             path: path.into(),
             source,
@@ -203,10 +244,13 @@ impl OwnerApprovalEvidenceV1 {
         let approval: Self = serde_json::from_slice(&bytes)
             .map_err(|error| approval(format!("approval JSON: {error}")))?;
         approval.validate(embedded, protocol, dataset)?;
-        Ok(approval)
+        Ok(VerifiedOwnerApproval {
+            evidence: approval,
+            trust_store_sha256: embedded.source_file_sha256.clone(),
+        })
     }
 
-    pub(crate) fn validate(
+    fn validate(
         &self,
         embedded: &VerifiedEmbeddedTrustStore,
         protocol: &MhiValidationProtocolV1,
@@ -236,7 +280,7 @@ impl OwnerApprovalEvidenceV1 {
         if declared_root != &self.trust_root_id {
             return Err(approval("approval trust-root binding mismatch"));
         }
-        let root = embedded.store.root(&self.trust_root_id)?;
+        let root = embedded.root(&self.trust_root_id)?;
         if self.project_owner_authority_id != root.project_owner_authority_id
             || self.registry_authority_id != root.registry_authority_id
         {
@@ -341,6 +385,28 @@ impl OwnerApprovalEvidenceV1 {
         let mut bytes = b"mhi_owner_approval_signature_v1\0".to_vec();
         bytes.extend(canonical);
         Ok(bytes)
+    }
+}
+
+/// An approval becomes an authority capability only after complete approval
+/// file and signature validation succeeds against embedded production trust.
+#[derive(Debug, Clone)]
+pub(crate) struct VerifiedOwnerApproval {
+    evidence: OwnerApprovalEvidenceV1,
+    trust_store_sha256: String,
+}
+
+impl VerifiedOwnerApproval {
+    pub(crate) fn approval_record_id(&self) -> &str {
+        &self.evidence.approval_record_id
+    }
+
+    pub(crate) fn evidence(&self) -> &OwnerApprovalEvidenceV1 {
+        &self.evidence
+    }
+
+    pub(crate) fn trust_store_sha256(&self) -> &str {
+        &self.trust_store_sha256
     }
 }
 
