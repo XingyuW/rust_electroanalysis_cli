@@ -1,4 +1,4 @@
-# Phase E R2 author-side validation evidence
+# Phase E R3 author-side validation evidence
 
 ## Authority
 
@@ -6,11 +6,19 @@
 | --- | --- |
 | original approved plan tag | ism-mechanism-health-v1-e-plan-approved |
 | R2 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r2 |
+| R3 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r3 |
 | R2 plan commit | e65092088a28a2a9ed61364274dbd6ec46de5eb8 |
 | R2 plan SHA-256 | e6e5195c7f56904afb06dfe937433f3498465fef1df191b8fb6856ee1ac792b6 |
 | R2 plan Git blob | 45c1441ac4d6e20c5626b299fe5293b00ea444fb |
+| R3 plan commit | 54a070edf1e2e7bc73731d1b5166816e37b0a8ae |
+| R3 plan SHA-256 | 131dc77dc656952469c77a816a36c847d4f38a018f922577441884396009ed4a |
+| R3 plan Git blob | a4d32891bab8374bd9d20f80c38ff76e034212fc |
 | implementation branch | codex/mhi-v1-e-independent-validation |
 | fixture ledger | expected/phase_e_fixture_inventory.schema1.json |
+
+R3 makes macOS the sole supported, release-validated, and approval-gating MHI
+V1 Phase-E platform. Retained Linux implementation and generic Linux CI are
+not Linux V1 support or approval evidence.
 
 ## Traceability
 
@@ -218,6 +226,7 @@ cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --test phase_e_validation
 cargo test --locked --all
 cargo test --doc --locked
+cargo doc --locked --workspace --no-deps
 cargo build --locked --release
 ```
 
@@ -242,6 +251,7 @@ Host: Darwin arm64.
 | cargo test --locked --all, run 1 | PASS |
 | cargo test --locked --all, run 2 | PASS |
 | cargo test --doc --locked | PASS |
+| cargo doc --locked --workspace --no-deps | PASS |
 | cargo build --locked --release | PASS |
 | production trust is UNPROVISIONED with zero roots | PASS |
 | production physical request fails before dataset/scoring | PASS: PhysicalApprovalTrustNotProvisioned |
@@ -276,7 +286,7 @@ and 8/8 non-self manifest records.  External scientific review: PENDING_POST_FRE
 | --- | --- |
 | P0 | no unresolved author-side issue |
 | P1 | no unresolved author-side issue |
-| P2 | no unresolved author-side issue |
+| P2 | retained non-blocking architecture debt: non-UTF-8 early-return `DIR*` resource leak; retained non-blocking compatibility debt: permanent E-T25 coverage remains weaker than an independent 14/14 reproduction |
 
 ## Post-freeze external fields
 
@@ -284,7 +294,7 @@ Independent scientific review: PENDING_POST_FREEZE
 Independent architecture review: PENDING_POST_FREEZE  
 Independent security review: PENDING_POST_FREEZE  
 Independent compatibility review: PENDING_POST_FREEZE  
-Other-platform exact-commit validation: PENDING_POST_FREEZE  
+macOS exact-commit validation: PENDING_POST_FREEZE
 Implementation approval: PENDING_POST_FREEZE  
 Integration approval: PENDING_POST_FREEZE
 

@@ -4506,10 +4506,10 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
 
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let plan = fs::read(root.join("docs/engineering_specification/next_milestone_plan.md"))
-        .expect("approved R2 plan");
+        .expect("approved R3 plan");
     assert_eq!(
         format!("{:x}", Sha256::digest(plan)),
-        "e6e5195c7f56904afb06dfe937433f3498465fef1df191b8fb6856ee1ac792b6"
+        "131dc77dc656952469c77a816a36c847d4f38a018f922577441884396009ed4a"
     );
     let cargo = fs::read_to_string(root.join("Cargo.toml")).expect("Cargo manifest");
     assert!(cargo.contains("ed25519-dalek = { version = \"=2.2.0\", default-features = false }"));
@@ -4594,13 +4594,19 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
     for required in [
         "ism-mechanism-health-v1-e-plan-approved",
         "ism-mechanism-health-v1-e-plan-approved-r2",
+        "ism-mechanism-health-v1-e-plan-approved-r3",
+        "macOS the sole supported",
+        "non-UTF-8 early-return `DIR*` resource leak",
+        "permanent E-T25 coverage remains weaker",
         "e6e5195c7f56904afb06dfe937433f3498465fef1df191b8fb6856ee1ac792b6",
+        "131dc77dc656952469c77a816a36c847d4f38a018f922577441884396009ed4a",
         "18 requirements",
         "E-R18",
         "E-AC18",
         "E-T30",
         "git diff --check",
         "cargo test --locked --all",
+        "cargo doc --locked --workspace --no-deps",
         "PENDING_POST_FREEZE",
         "268/268",
         "29/29",

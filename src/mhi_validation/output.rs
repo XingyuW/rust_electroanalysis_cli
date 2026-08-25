@@ -1728,10 +1728,18 @@ const fn native_rename_noreplace_flag() -> u32 {
 const fn native_rename_exchange_flag() -> u32 {
     0x0000_0002 // RENAME_SWAP
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 const fn native_rename_noreplace_flag() -> u32 {
     0x0000_0001 // RENAME_NOREPLACE
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 const fn native_rename_exchange_flag() -> u32 {
     0x0000_0002 // RENAME_EXCHANGE
@@ -1740,6 +1748,10 @@ const fn native_rename_exchange_flag() -> u32 {
 unsafe fn native_flock(fd: i32, operation: i32) -> i32 {
     unsafe { flock(fd, operation) }
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 unsafe fn native_flock(fd: i32, operation: i32) -> i32 {
     unsafe { flock(fd, operation) }
@@ -2192,6 +2204,11 @@ fn is_symlink_error(error: &std::io::Error) -> bool {
 const O_RDONLY: i32 = 0;
 #[cfg(target_os = "macos")]
 const O_WRONLY: i32 = 0x0001;
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this marker as applying to the paired macOS constants.
+// Do not treat these Linux variants as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 const O_WRONLY: i32 = 0x0001;
 #[cfg(target_os = "macos")]
@@ -2242,6 +2259,10 @@ struct NativeDirent {
     d_name: [std::ffi::c_char; 1024],
 }
 
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 #[repr(C)]
 struct NativeDirent {
@@ -2278,6 +2299,10 @@ unsafe extern "C" {
     fn closedir(dirp: *mut NativeDir) -> i32;
 }
 
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 unsafe extern "C" {
     fn __errno_location() -> *mut i32;
@@ -2296,6 +2321,10 @@ unsafe extern "C" {
 unsafe fn native_openat(fd: i32, path: *const std::ffi::c_char, flags: i32, mode: i32) -> i32 {
     unsafe { openat(fd, path, flags, mode) }
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 unsafe fn native_openat(fd: i32, path: *const std::ffi::c_char, flags: i32, mode: i32) -> i32 {
     unsafe { openat(fd, path, flags, mode) }
@@ -2304,6 +2333,10 @@ unsafe fn native_openat(fd: i32, path: *const std::ffi::c_char, flags: i32, mode
 unsafe fn native_mkdirat(fd: i32, path: *const std::ffi::c_char, mode: i32) -> i32 {
     unsafe { mkdirat(fd, path, mode as u16) }
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 unsafe fn native_mkdirat(fd: i32, path: *const std::ffi::c_char, mode: i32) -> i32 {
     unsafe { mkdirat(fd, path, mode as u32) }
@@ -2312,6 +2345,10 @@ unsafe fn native_mkdirat(fd: i32, path: *const std::ffi::c_char, mode: i32) -> i
 unsafe fn native_unlinkat(fd: i32, path: *const std::ffi::c_char, flags: i32) -> i32 {
     unsafe { unlinkat(fd, path, flags) }
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 unsafe fn native_unlinkat(fd: i32, path: *const std::ffi::c_char, flags: i32) -> i32 {
     unsafe { unlinkat(fd, path, flags) }
@@ -2326,6 +2363,10 @@ unsafe fn native_rename_at(
 ) -> i32 {
     unsafe { renameatx_np(fromfd, from, tofd, to, flags) }
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 unsafe fn native_rename_at(
     fromfd: i32,
@@ -2351,6 +2392,10 @@ unsafe fn native_rename_at(
 unsafe fn native_fchmod(fd: i32, mode: i32) -> i32 {
     unsafe { fchmod(fd, mode as u16) }
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 unsafe fn native_fchmod(fd: i32, mode: i32) -> i32 {
     unsafe { fchmod(fd, mode as u32) }
@@ -2359,6 +2404,10 @@ unsafe fn native_fchmod(fd: i32, mode: i32) -> i32 {
 unsafe fn native_fdopendir(fd: i32) -> *mut NativeDir {
     unsafe { fdopendir(fd) }
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 unsafe fn native_fdopendir(fd: i32) -> *mut NativeDir {
     unsafe { fdopendir(fd) }
@@ -2367,6 +2416,10 @@ unsafe fn native_fdopendir(fd: i32) -> *mut NativeDir {
 unsafe fn native_readdir(dir: *mut NativeDir) -> *mut NativeDirent {
     unsafe { readdir(dir) }
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 unsafe fn native_readdir(dir: *mut NativeDir) -> *mut NativeDirent {
     unsafe { readdir(dir) }
@@ -2375,6 +2428,10 @@ unsafe fn native_readdir(dir: *mut NativeDir) -> *mut NativeDirent {
 unsafe fn native_closedir(dir: *mut NativeDir) -> i32 {
     unsafe { closedir(dir) }
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 unsafe fn native_closedir(dir: *mut NativeDir) -> i32 {
     unsafe { closedir(dir) }
@@ -2386,6 +2443,10 @@ fn native_errno_location() -> *mut i32 {
     // errno slot, which remains valid for the duration of this access.
     unsafe { __error() }
 }
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat this path as part of the MHI V1 supported platform surface.
 #[cfg(target_os = "linux")]
 fn native_errno_location() -> *mut i32 {
     // SAFETY: Linux `__errno_location` returns the address of the calling
@@ -2450,7 +2511,12 @@ enum PublicationFaultOperation {
 }
 
 #[cfg(test)]
-// EIO is 5 on both exact Phase-E targets: macOS and Linux.
+// MHI_V1_DEFERRED_LINUX_SUPPORT:
+// Retained for possible future Linux support. Linux is not a supported,
+// release-validated, or approval-gating platform for MHI V1 Phase E under R3.
+// Do not treat the Linux portion of this historical evidence as part of the
+// MHI V1 supported platform surface.
+// EIO is 5 on both exact historical Phase-E targets: macOS and Linux.
 const TEST_READDIR_ERRNO: i32 = 5;
 
 #[cfg(test)]
