@@ -1,6 +1,6 @@
 # MHI V1 Phase E — Independent Scientific Validation and Compatibility Certification
 
-**Status:** R4 planning-only amendment; implementation is not authorized by this
+**Status:** R5 planning-only amendment; implementation is not authorized by this
 document.
 
 **Repository:** `/Users/xingyuwang/ProjectOngoing/rust_electroanalysis_cli`
@@ -24,6 +24,346 @@ planning or review branch exists.
 This document defines the next scientific/software milestone after Phase D. It
 does not authorize changes to Rust source, configuration, schemas, fixtures, or
 existing documentation other than this plan.
+
+## R5 amendment — correct R4 post-freeze E-T30 integration inconsistency
+
+This section is the current Phase-E plan authority. It is a narrow,
+documentation-only R5 plan amendment. It supersedes any conflicting R4
+normative instruction retained below as historical record. R4 history,
+commits, review evidence, and immutable tags are not rewritten.
+
+### R5 defect classification and failed-integration evidence
+
+R5 corrects the R4 post-freeze exception after actual integration validation
+disproved its premise. R4 assumed that the frozen implementation SHA did not
+need to absorb the R4 plan bytes, that its implementation reviews could carry
+forward unchanged, and that integrated `main` would pass the complete locked
+suite. The frozen E-T30 implementation test instead contains a literal
+assertion that the plan file has the R3 SHA-256
+`131dc77dc656952469c77a816a36c847d4f38a018f922577441884396009ed4a`. With R4
+plan bytes on integrated `main`, the plan hashes to
+`f737233661fd53189d121d53fdea1394f63f227eaa7b584d911ac1024dbaf4e0`, and
+E-T30 fails. The observed integration result was 37/38 Phase-E tests and
+779 passed / 1 failed in each full-suite run; only E-T30 failed.
+
+Classify this as `P1-R5-001`: the R4 post-freeze exception is incompatible
+with locked E-T30 plan-byte authority. This is a plan/test-authority
+synchronization defect, not a scientific, security-authority,
+publication-state-machine, compatibility-behavior, or Linux-platform defect.
+R5 corrects the workflow and does not weaken, skip, or make E-T30
+revision-agnostic.
+
+The failed local integration commit is diagnostic history only:
+
+```text
+b9f1987b392645f59e4adf5962adcac2578bac04
+```
+
+It was never pushed, never integrated remotely, never tagged as integrated,
+failed mandatory E-T30, and is not release authority. The original working
+copy containing it is failed-integration evidence and must remain untouched:
+do not push, amend, reset, rebase, revert, force-move `main`, or create an
+integrated tag for that commit. R5 recovery starts from a fresh clone of live
+remote authority and does not import that local merge.
+
+### R5 remote authority and immutable R4 history
+
+Before recovery, live remote authority must be checked with `git ls-remote`.
+The expected authority is:
+
+```text
+refs/heads/main = b43c96baca14b1618ce3106fe88c1a09f7d49e0c
+refs/heads/codex/mhi-v1-e-independent-validation = 3076b102ed72b46b6c7c5b75f0360ff6f957968b
+```
+
+The existing immutable tags must remain unchanged:
+
+```text
+ism-mechanism-health-v1-e-plan-approved-r4
+ism-mechanism-health-v1-e-implementation-approved
+```
+
+The existing implementation-approval tag has annotated tag object
+`ee3ac21330d53f8d056cab0db6f9ebcf5e2789ff` and peeled target
+`3076b102ed72b46b6c7c5b75f0360ff6f957968b`. It remains an immutable
+historical approval-evidence record for that `REVIEW_SHA` under the attempted
+R4 workflow. Because mandatory integrated E-T30 failed, it did not lead to a
+valid integrated release. It is superseded for final integration authority,
+not mutated: it must never be deleted, replaced, or retargeted.
+
+The R4 plan tag and all predecessor plan tags are likewise immutable historical
+authority. This supersession does not rewrite the R4 review record or claim
+that the failed local merge was remotely integrated.
+
+### R5 plan/test authority synchronization
+
+The exact latest independently approved Phase-E plan bytes are authoritative
+over locked E-T30. The final implementation candidate must contain those exact
+bytes whenever E-T30 validates the plan file. After R5 plan approval,
+`tests/phase_e_validation.rs` must be updated from the stale R3 plan SHA-256
+to the exact SHA-256 of the approved R5 plan, and wording such as `approved
+R3 plan` must identify the exact current R5 plan. This is a test-authority
+synchronization change; it does not weaken E-T30.
+
+E-T30 must continue to assert one exact independently approved plan byte
+sequence. It must not accept R3/R4/R5 alternatives, any plan hash, a prefix,
+existence-only evidence, arbitrary dynamically trusted bytes, or a disabled
+assertion. The test adaptation is implementation work authorized only after
+this R5 plan is independently approved; this R5 authoring phase modifies no
+test.
+
+### R5 supersession of the R4 post-freeze exception
+
+The R4 rule that
+`3076b102ed72b46b6c7c5b75f0360ff6f957968b` need not absorb the latest plan
+documentation is explicitly superseded. No post-freeze carry-forward
+exception applies in R5. The required authority chain is:
+
+```text
+latest approved R5 main
+    -> normal --no-ff merge into existing implementation branch
+    -> exact E-T30 plan-authority adaptation
+    -> new frozen implementation SHA
+    -> fresh four-role reviews
+```
+
+The prior R4 result
+`REVIEW_EVIDENCE_CARRY_FORWARD_VALID = yes` was valid only under the
+then-reviewed assumption that no implementation/test synchronization was
+required. Empirical E-T30 failure falsified that premise. For final R5
+implementation approval the result is
+`REVIEW_EVIDENCE_CARRY_FORWARD_VALID = no`. The earlier 3076b102 reviews
+remain useful historical evidence, but cannot be reused as final approval
+evidence after the R5 implementation/test synchronization because the
+committed tree changes.
+
+### R5 plan approval and tag contract
+
+After this plan is independently reviewed and receives `P0=0` and `P1=0`,
+create the new immutable tag
+`ism-mechanism-health-v1-e-plan-approved-r5` at the exact reviewed
+`R5_PLAN_REVIEW_SHA`. The existing tags
+`ism-mechanism-health-v1-e-plan-approved`,
+`ism-mechanism-health-v1-e-plan-approved-r2`,
+`ism-mechanism-health-v1-e-plan-approved-r3`, and
+`ism-mechanism-health-v1-e-plan-approved-r4` remain unchanged. The exact
+ASCII-sorted R5 plan-tag chain is:
+
+```text
+ism-mechanism-health-v1-e-plan-approved,ism-mechanism-health-v1-e-plan-approved-r2,ism-mechanism-health-v1-e-plan-approved-r3,ism-mechanism-health-v1-e-plan-approved-r4,ism-mechanism-health-v1-e-plan-approved-r5
+```
+
+No R5 plan tag is created before independent plan-review GO.
+
+### R5 implementation and integration sequence
+
+After R5 plan approval, the exact required forward-only sequence is:
+
+1. Commit and push the R5 plan on `main`.
+2. Perform a fresh independent R5 plan review.
+3. If `P0=0` and `P1=0`, create
+   `ism-mechanism-health-v1-e-plan-approved-r5` at the exact reviewed plan
+   SHA.
+4. Switch to the existing remote implementation branch
+   `codex/mhi-v1-e-independent-validation` at
+   `3076b102ed72b46b6c7c5b75f0360ff6f957968b`.
+5. Merge the exact approved R5 `main` commit into that branch with
+   `git merge --no-ff <R5_PLAN_SHA>`.
+6. Update E-T30 to the exact approved R5 plan SHA-256.
+7. Refresh only the author-evidence and fixture authority fields mechanically
+   required by the plan/test synchronization; do not fabricate independent
+   GO, integration success, physical validation, or Linux PASS.
+8. Run the complete locked validation.
+9. Commit forward.
+10. Push the implementation branch normally.
+11. Freeze a new exact implementation `REVIEW_SHA`.
+12. Obtain fresh independent scientific, architecture, security, and
+    compatibility reviews on that exact new SHA.
+13. Perform fresh independent macOS exact-SHA validation on that same SHA.
+14. Create the new immutable
+    `ism-mechanism-health-v1-e-implementation-approved-r5` tag.
+15. Merge that exact newly reviewed SHA into `main` with normal `--no-ff`
+    history.
+16. Require integrated E-T30 and the complete locked suite to pass 100%.
+17. Push `main` normally.
+18. Create `ism-mechanism-health-v1-e-implementation-integrated` only after
+    all required integrated checks pass.
+19. Verify the remote state, then clean up the temporary implementation
+    branch.
+
+The existing `ism-mechanism-health-v1-e-implementation-approved` tag never
+moves. The new `-r5` implementation-approval tag is required for R5
+integration; the old R4 tag cannot authorize it. The integrated tag name was
+never created and remains reserved for the first successful R5 integrated
+`main`.
+
+### PhaseEImplementationApprovalV2 canonical record
+
+For the final R5 implementation approval tag only, define
+`PhaseEImplementationApprovalV2`, replacing V1 as the final approval-record
+format. The record is UTF-8 in the ASCII subset, uses LF line endings, has
+exactly one final LF, no blank lines, no trailing whitespace, no quoting, no
+escaping, fixed field order, no optional fields, no duplicate fields, and no
+additional fields. No cryptographic reviewer signatures are introduced.
+
+The following is the complete field order. Angle-bracket values are
+parameters filled only from the exact reviewed implementation and validation
+results; their lexical forms are closed by the rules that follow.
+
+```text
+PhaseEImplementationApprovalV2
+format_version=2
+review_sha=<40 lowercase hexadecimal characters>
+plan_review_sha=<40 lowercase hexadecimal characters>
+plan_sha256=<64 lowercase hexadecimal characters>
+plan_git_blob=<40 lowercase hexadecimal characters>
+plan_tags=ism-mechanism-health-v1-e-plan-approved,ism-mechanism-health-v1-e-plan-approved-r2,ism-mechanism-health-v1-e-plan-approved-r3,ism-mechanism-health-v1-e-plan-approved-r4,ism-mechanism-health-v1-e-plan-approved-r5
+supersedes_approval_tag=ism-mechanism-health-v1-e-implementation-approved
+supersession_reason=R4_INTEGRATION_ET30_PLAN_HASH_MISMATCH
+scientific_decision=GO
+architecture_decision=GO
+security_decision=GO
+compatibility_decision=GO
+p0_count=<nonnegative decimal integer>
+p1_count=<nonnegative decimal integer>
+p2_arch=P2-ARCH-001:accepted_non_blocking
+p2_compat=P2-COMPAT-E-T25:accepted_non_blocking
+macos_result=PASS
+macos_uname=Darwin
+macos_arch=<ASCII architecture token>
+macos_version=<ASCII version token>
+rustc=<ASCII version token>
+cargo=<ASCII version token>
+diff_worktree=PASS
+diff_approved_main=PASS
+diff_security_remediation=PASS
+fmt=PASS
+check=PASS
+clippy=PASS
+clippy_diagnostics=<nonnegative decimal integer>
+full_suite_run1_passed=<nonnegative decimal integer>
+full_suite_run1_failed=0
+full_suite_run2_passed=<nonnegative decimal integer>
+full_suite_run2_failed=0
+phase_e=<nonnegative decimal integer>/<positive decimal integer>
+approval_unit=<nonnegative decimal integer>/<positive decimal integer>
+internal_et29_kat=<nonnegative decimal integer>/<positive decimal integer>
+compile_fail_authority=<nonnegative decimal integer>/<positive decimal integer>
+et04=PASS
+et22=PASS
+et23=PASS
+et29=PASS
+et30=PASS
+et29_crypto=16/16
+et29_substantive=40/40
+public_authority_bypass_paths=0
+production_trust=UNPROVISIONED
+phase_d=<nonnegative decimal integer>/<positive decimal integer>
+determinism_files=<nonnegative decimal integer>/<positive decimal integer>
+determinism_manifest_records=<nonnegative decimal integer>/<positive decimal integer>
+determinism_two_runs=PASS
+determinism_golden=PASS
+linux_phase_e_gate=NOT_REQUIRED_R5
+approval_decision=GO
+```
+
+The first two lines are literal. SHA fields are exactly lowercase hexadecimal
+of the stated length. Fixed tokens are exactly the values shown. Decimal
+fields contain only ASCII digits with no sign, leading `+`, or whitespace;
+ratio fields contain two such decimal integers separated by one `/`. The
+architecture and version tokens contain one or more ASCII letters, digits,
+periods, hyphens, or underscores. These grammar rules are closed: no other
+field or value is valid. The exact R5 plan SHA, plan blob, review SHA, command
+results, and validation counts are unknown until their respective stages and
+must not be fabricated.
+
+### R5 author-evidence synchronization
+
+After R5 approval and the normal merge into the implementation branch, inspect
+`tests/fixtures/phase_e/expected/author_validation_evidence_ledger.md` and
+update only fields required to reflect the latest approved plan tag chain
+through R5, latest plan authority, exact required command results, and corrected
+E-T30 plan-byte authority. If the ledger change mechanically requires fixture
+inventory or hash updates, update only those exact authority values. The
+ledger must remain author-side evidence: no candidate SHA, independent review,
+approval, or fabricated GO may be added.
+
+### Preserved scientific, security, compatibility, and platform contracts
+
+R5 changes no runtime scientific, security, publication, or public
+compatibility behavior. Preserve `SCI-P1-001`, `P0-ARCH-001`, `P1-ARCH-002`,
+`P1-ARCH-003`, `P1-SEC-001`, `P1-SEC-002`, `SEC-P0-001`, and `COMP-P1-001`
+closures; `PUBLIC_AUTHORITY_BYPASS_PATHS=0`; `UNPROVISIONED` production
+trust; E-T29 crypto `16/16`; E-T29 substantive `40/40`; the publication state
+machine; Wilson mathematics; domain semantics; Phase B/C/D behavior; schemas;
+and dependencies.
+
+The R3/R4 macOS-only contract remains in force. macOS is the only
+MHI V1 Phase-E supported and release-validated platform. Linux is
+`DEFERRED / UNSUPPORTED`, non-gating, and has zero mandatory Linux
+requirements. Retain the 15 deferred Linux implementation markers and one
+historical/evidence marker. Do not fix either retained non-blocking P2 in this
+narrow recovery unless independently required:
+
+```text
+P2-ARCH-001: non-UTF-8 early-return DIR* leak; accepted_non_blocking
+P2-COMPAT-E-T25: permanent E-T25 coverage weakness; accepted_non_blocking
+```
+
+### R5 plan-only scope and consistency audit
+
+This R5 authoring task modifies only
+`docs/engineering_specification/next_milestone_plan.md`. It must not yet
+modify `src/`, `tests/`, fixtures, `Cargo.toml`, `Cargo.lock`, `.github/`, or
+the implementation branch. Implementation adaptation starts only after R5
+plan approval.
+
+The final R5 plan is internally audited to require:
+
+```text
+LATEST_PLAN_REQUIRED_IN_FINAL_IMPLEMENTATION=YES
+ET30_EXACT_LATEST_PLAN_HASH_REQUIRED=YES
+R4_POST_FREEZE_EXCEPTION=SUPERSEDED
+R4_CARRY_FORWARD_FOR_FINAL_APPROVAL=NO
+FRESH_IMPLEMENTATION_SHA_REQUIRED=YES
+FRESH_FOUR_ROLE_REVIEWS_REQUIRED=YES
+FRESH_MACOS_VALIDATION_REQUIRED=YES
+OLD_IMPLEMENTATION_APPROVED_TAG_MOVED=NO
+NEW_R5_PLAN_TAG_REQUIRED=YES
+NEW_R5_IMPLEMENTATION_APPROVED_TAG_REQUIRED=YES
+INTEGRATED_TAG_REMAINS_UNUSED_UNTIL_SUCCESS=YES
+PHASE_E_IMPLEMENTATION_APPROVAL_V2_DEFINED=YES
+WIRE_GRAMMAR_AMBIGUITY_COUNT=0
+SCIENTIFIC_BEHAVIOR_CHANGED=NO
+SECURITY_BEHAVIOR_CHANGED=NO
+PUBLICATION_BEHAVIOR_CHANGED=NO
+COMPATIBILITY_BEHAVIOR_CHANGED=NO
+ET30_PLAN_AUTHORITY_SYNCHRONIZATION=YES
+MANDATORY_LINUX_REQUIREMENTS=0
+```
+
+There are zero normative contradictions in the current R5 authority. Any
+contrary R4 sentence retained below is historical R4 record and is superseded
+by this section for all current approval and integration decisions.
+
+### R5 commit, push, and review handoff
+
+Before committing, run `git diff --check`. Create one forward plan commit with
+subject `docs(plan): synchronize Phase E plan authority with E-T30` and push
+`main` normally; no force-push is permitted. After the push, record:
+
+```text
+R5_PLAN_REVIEW_SHA=<exact pushed plan commit SHA>
+R5_PLAN_SHA256=<SHA-256 of the exact plan file bytes>
+R5_PLAN_GIT_BLOB=<Git blob ID of the exact plan file>
+```
+
+Verify local `main`, remote `main`, and `R5_PLAN_REVIEW_SHA` are identical;
+verify the remote implementation branch remains at
+`3076b102ed72b46b6c7c5b75f0360ff6f957968b`; verify the working tree is clean;
+and verify no R5 plan tag exists before independent plan-review GO. This
+handoff creates no R5 approval tag, modifies no implementation, and does not
+claim approval or integration success.
 
 ## R4 amendment — simplified post-freeze review evidence
 
