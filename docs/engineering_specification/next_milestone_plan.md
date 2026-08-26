@@ -53,6 +53,9 @@ publication-state-machine, compatibility-behavior, or Linux-platform defect.
 R5 corrects the workflow and does not weaken, skip, or make E-T30
 revision-agnostic.
 
+`P1-R5-001 = CLOSED`. It is retained as completed historical defect evidence;
+this remediation addresses only the six remaining R5 plan-specification P1s.
+
 The failed local integration commit is diagnostic history only:
 
 ```text
@@ -83,7 +86,7 @@ ism-mechanism-health-v1-e-plan-approved-r4
 ism-mechanism-health-v1-e-implementation-approved
 ```
 
-The existing implementation-approval tag has annotated tag object
+The existing historical R4 implementation-approval tag has annotated tag object
 `ee3ac21330d53f8d056cab0db6f9ebcf5e2789ff` and peeled target
 `3076b102ed72b46b6c7c5b75f0360ff6f957968b`. It remains an immutable
 historical approval-evidence record for that `REVIEW_SHA` under the attempted
@@ -127,15 +130,14 @@ latest approved R5 main
     -> fresh four-role reviews
 ```
 
-The prior R4 result
-`REVIEW_EVIDENCE_CARRY_FORWARD_VALID = yes` was valid only under the
-then-reviewed assumption that no implementation/test synchronization was
-required. Empirical E-T30 failure falsified that premise. For final R5
-implementation approval the result is
-`REVIEW_EVIDENCE_CARRY_FORWARD_VALID = no`. The earlier 3076b102 reviews
-remain useful historical evidence, but cannot be reused as final approval
-evidence after the R5 implementation/test synchronization because the
-committed tree changes.
+**HISTORICAL R4 EVIDENCE — SUPERSEDED UNDER R5:** the prior R4 review marked
+carry-forward as permitted only under the then-reviewed assumption that no
+implementation/test synchronization was required. Empirical E-T30 failure
+falsified that premise. Under current R5, carry-forward is not a decision
+value and the four implementation reviews are fresh. The earlier 3076b102
+reviews remain useful historical evidence, but cannot be reused as final
+approval evidence after the R5 implementation/test synchronization because
+the committed tree changes.
 
 ### R5 plan approval and tag contract
 
@@ -157,42 +159,42 @@ No R5 plan tag is created before independent plan-review GO.
 
 ### R5 implementation and integration sequence
 
-After R5 plan approval, the exact required forward-only sequence is:
+The complete current R5 lifecycle is one chronology. It is the only normative
+workflow in this plan:
 
-1. Commit and push the R5 plan on `main`.
-2. Perform a fresh independent R5 plan review.
-3. If `P0=0` and `P1=0`, create
+1. Author one R5 plan-only forward commit on `main`.
+2. Push `main` normally.
+3. Freeze the exact remote R5 plan commit and exact plan bytes.
+4. Perform the independent R5 plan review.
+5. If and only if `P0=0` and `P1=0`, create
    `ism-mechanism-health-v1-e-plan-approved-r5` at the exact reviewed plan
    SHA.
-4. Switch to the existing remote implementation branch
-   `codex/mhi-v1-e-independent-validation` at
-   `3076b102ed72b46b6c7c5b75f0360ff6f957968b`.
-5. Merge the exact approved R5 `main` commit into that branch with
-   `git merge --no-ff <R5_PLAN_SHA>`.
-6. Update E-T30 to the exact approved R5 plan SHA-256.
-7. Refresh only the author-evidence and fixture authority fields mechanically
-   required by the plan/test synchronization; do not fabricate independent
-   GO, integration success, physical validation, or Linux PASS.
-8. Run the complete locked validation.
-9. Commit forward.
-10. Push the implementation branch normally.
-11. Freeze a new exact implementation `REVIEW_SHA`.
+6. Merge that exact approved R5 plan SHA into the existing
+   `codex/mhi-v1-e-independent-validation` branch with `--no-ff`.
+7. Synchronize E-T30 to the exact approved R5 plan SHA-256.
+8. Refresh only mechanically required author evidence and fixture authority.
+9. Validate the implementation candidate.
+10. Commit and push the implementation branch normally.
+11. Freeze the new exact remote implementation `REVIEW_SHA`.
 12. Obtain fresh independent scientific, architecture, security, and
-    compatibility reviews on that exact new SHA.
-13. Perform fresh independent macOS exact-SHA validation on that same SHA.
-14. Create the new immutable
-    `ism-mechanism-health-v1-e-implementation-approved-r5` tag.
-15. Merge that exact newly reviewed SHA into `main` with normal `--no-ff`
-    history.
-16. Require integrated E-T30 and the complete locked suite to pass 100%.
+    compatibility reviews for that exact SHA.
+13. Perform fresh macOS exact-SHA validation on that same SHA.
+14. Create the exact `ism-mechanism-health-v1-e-implementation-approved-r5`
+    tag with the exact V2 body.
+15. Merge that exact newly reviewed implementation SHA into `main` with
+    normal `--no-ff` history.
+16. Require integrated validation, including E-T30, to pass completely.
 17. Push `main` normally.
 18. Create `ism-mechanism-health-v1-e-implementation-integrated` only after
-    all required integrated checks pass.
-19. Verify the remote state, then clean up the temporary implementation
-    branch.
+    integrated validation passes.
+19. Verify the remote state and clean up the implementation branch.
 
-The existing `ism-mechanism-health-v1-e-implementation-approved` tag never
-moves. The new `-r5` implementation-approval tag is required for R5
+No step permits R4 review-evidence carry-forward or skipping the approved R5
+plan merge. The old R4 implementation-approval tag remains immutable history;
+it never authorizes R5 integration.
+
+The existing historical R4 `ism-mechanism-health-v1-e-implementation-approved`
+tag never moves. The new `-r5` implementation-approval tag is required for R5
 integration; the old R4 tag cannot authorize it. The integrated tag name was
 never created and remains reserved for the first successful R5 integrated
 `main`.
@@ -208,7 +210,9 @@ additional fields. No cryptographic reviewer signatures are introduced.
 
 The following is the complete field order. Angle-bracket values are
 parameters filled only from the exact reviewed implementation and validation
-results; their lexical forms are closed by the rules that follow.
+results; their lexical forms are closed by the rules that follow. The R5 plan
+does not contain its own final SHA-256: E-T30 computes that value over the
+final independently approved plan bytes.
 
 ```text
 PhaseEImplementationApprovalV2
@@ -224,27 +228,26 @@ scientific_decision=GO
 architecture_decision=GO
 security_decision=GO
 compatibility_decision=GO
-p0_count=<nonnegative decimal integer>
-p1_count=<nonnegative decimal integer>
+p0_count=0
+p1_count=0
 p2_arch=P2-ARCH-001:accepted_non_blocking
 p2_compat=P2-COMPAT-E-T25:accepted_non_blocking
 macos_result=PASS
 macos_uname=Darwin
 macos_arch=<ASCII architecture token>
-macos_version=<ASCII version token>
-rustc=<ASCII version token>
-cargo=<ASCII version token>
+macos_product_version=<PRODUCT_VERSION>
+macos_build_version=<BUILD_VERSION>
+rustc_version=<SEMVER_CORE>
+cargo_version=<SEMVER_CORE>
 diff_worktree=PASS
 diff_approved_main=PASS
-diff_security_remediation=PASS
+diff_r5_delta=PASS
 fmt=PASS
 check=PASS
 clippy=PASS
-clippy_diagnostics=<nonnegative decimal integer>
-full_suite_run1_passed=<nonnegative decimal integer>
-full_suite_run1_failed=0
-full_suite_run2_passed=<nonnegative decimal integer>
-full_suite_run2_failed=0
+clippy_diagnostics=0
+full_suite_run1=PASS
+full_suite_run2=PASS
 phase_e=<nonnegative decimal integer>/<positive decimal integer>
 approval_unit=<nonnegative decimal integer>/<positive decimal integer>
 internal_et29_kat=<nonnegative decimal integer>/<positive decimal integer>
@@ -268,14 +271,121 @@ approval_decision=GO
 ```
 
 The first two lines are literal. SHA fields are exactly lowercase hexadecimal
-of the stated length. Fixed tokens are exactly the values shown. Decimal
-fields contain only ASCII digits with no sign, leading `+`, or whitespace;
-ratio fields contain two such decimal integers separated by one `/`. The
-architecture and version tokens contain one or more ASCII letters, digits,
-periods, hyphens, or underscores. These grammar rules are closed: no other
-field or value is valid. The exact R5 plan SHA, plan blob, review SHA, command
-results, and validation counts are unknown until their respective stages and
-must not be fabricated.
+of the stated length. Fixed tokens are exactly the values shown. The record
+has no optional or extra fields. Every valid approval record has literal
+`p0_count=0` and `p1_count=0`.
+
+Every numeric field uses `CANONICAL_DECIMAL` unless it is a SHA field or a
+ratio field governed by `CANONICAL_RATIO`.
+
+The closed numeric grammars are:
+
+```text
+CANONICAL_DECIMAL = "0" | [1-9][0-9]*
+CANONICAL_RATIO = N "/" D
+```
+
+For `CANONICAL_RATIO`, `N` and `D` are canonical decimals, `D > 0`, and
+`0 <= N <= D`. A required all-pass test-set ratio must additionally have
+`N = D`. Thus `00`, `01`, `00038`, `+1`, `-0`, `1 `, and ` 1` are invalid.
+
+The exact platform and compiler field sources are:
+
+| Field | Exact source and normalization | Closed grammar or required value |
+|---|---|---|
+| `macos_uname` | `uname -s`; remove exactly one trailing LF | literal `Darwin` |
+| `macos_arch` | `uname -m`; remove exactly one trailing LF | `[A-Za-z0-9._-]+`; current value `arm64` |
+| `macos_product_version` | `sw_vers -productVersion`; remove exactly one trailing LF | `PRODUCT_VERSION = VERSION_COMPONENT ("." VERSION_COMPONENT)*` |
+| `macos_build_version` | `sw_vers -buildVersion`; remove exactly one trailing LF | `[A-Za-z0-9._-]+`; current example `25G83` |
+| `rustc_version` | `rustc --version`; parse ASCII whitespace, require first token `rustc`, reject fewer than two tokens, and use the second token exactly | `SEMVER_CORE = VERSION_COMPONENT "." VERSION_COMPONENT "." VERSION_COMPONENT`; current value `1.97.0` |
+| `cargo_version` | `cargo --version`; parse ASCII whitespace, require first token `cargo`, reject fewer than two tokens, and use the second token exactly | same `SEMVER_CORE`; current value `1.97.0` |
+
+`VERSION_COMPONENT` is `0` or `[1-9][0-9]*`. The macOS product and build
+values are separate fields; no parentheses, underscore conversion, or other
+normalization is permitted. Compiler commit/date text is not recorded in the
+two compiler fields.
+
+The exact diff-field semantics are:
+
+| Field | Exact command | PASS condition |
+|---|---|---|
+| `diff_worktree` | `git diff --check` in the final frozen implementation candidate worktree | exit status `0` |
+| `diff_approved_main` | `git diff --check <R5_PLAN_REVIEW_SHA>..<REVIEW_SHA>` | exit status `0`; the left SHA is the peeled target of `ism-mechanism-health-v1-e-plan-approved-r5` |
+| `diff_r5_delta` | `git diff --check 3076b102ed72b46b6c7c5b75f0360ff6f957968b..<REVIEW_SHA>` | exit status `0`; the left SHA is the pre-R5 implementation authority |
+
+`diff_security_remediation` is obsolete and is not a V2 field.
+
+The full-suite fields are exact command-result fields, not aggregate test
+counts. `full_suite_run1` and `full_suite_run2` are each `PASS` if and only if
+the corresponding command exits `0`:
+
+```text
+cargo test --locked --all
+cargo test --locked --all
+```
+
+Detailed counts remain in the independent validation report.
+
+The exact approval-unit and internal-KAT commands are frozen as:
+
+```text
+cargo test --locked --lib phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power
+cargo test --locked --lib mhi_validation::approval_kat::phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power
+```
+
+The first filter must select exactly `2/2`; the second must select exactly
+`1/1`. These filters are derived from `cargo test --locked --lib -- --list`
+on the implementation authority and are not replaced by “run approval tests”.
+
+`approval_decision=GO` is valid if and only if all of the following hold:
+
+- `scientific_decision=GO`, `architecture_decision=GO`,
+  `security_decision=GO`, and `compatibility_decision=GO`;
+- `p0_count=0` and `p1_count=0`;
+- both P2 fields are complete and equal their accepted dispositions;
+- `macos_result=PASS` and every required static, diff, test, security,
+  compatibility, and determinism field is `PASS` or its exact all-pass ratio;
+- E-T30 is `PASS`, production trust/state wording is accurate, and the exact
+  R5 plan authority fields match the approved R5 tag; and
+- no self-approval or third review verdict exists.
+
+Any nonzero P0 or P1 makes the V2 record invalid for approval, regardless of
+the other fields.
+
+The complete dynamic-field source table is:
+
+| Field | Authoritative source |
+|---|---|
+| `review_sha` | `git ls-remote --heads origin refs/heads/codex/mhi-v1-e-independent-validation`; exact live remote 40-lowercase-hex SHA after freeze |
+| `plan_review_sha` | peeled target of `ism-mechanism-health-v1-e-plan-approved-r5` |
+| `plan_sha256` | SHA-256 of the exact bytes of `docs/engineering_specification/next_milestone_plan.md` at `plan_review_sha` |
+| `plan_git_blob` | Git blob object ID of that exact plan file at `plan_review_sha` |
+| `plan_tags` | fixed ASCII-sorted R5 chain shown in the record |
+| `scientific_decision` | fresh independent scientific review of the exact `REVIEW_SHA`; required `GO` |
+| `architecture_decision` | fresh independent architecture review of the exact `REVIEW_SHA`; required `GO` |
+| `security_decision` | fresh independent security review of the exact `REVIEW_SHA`; required `GO` |
+| `compatibility_decision` | fresh independent compatibility review of the exact `REVIEW_SHA`; required `GO` |
+| `p0_count`, `p1_count` | findings from those four exact-SHA reviews; valid R5 approval records require literal `0` for both |
+| `p2_arch`, `p2_compat` | the two retained accepted dispositions; no other P2 value is valid |
+| `macos_result` | fresh independent macOS validation on the exact `REVIEW_SHA`; required `PASS` |
+| `fmt` | `cargo fmt --all --check` exits `0` |
+| `check` | `cargo check --locked` exits `0` |
+| `clippy` | `cargo clippy --locked --all-targets --all-features -- -D warnings` exits `0` |
+| `clippy_diagnostics` | literal `0` for approval |
+| `phase_e` | `cargo test --locked --test phase_e_validation`; required `38/38` |
+| `approval_unit` | exact first filter above; required `2/2` |
+| `internal_et29_kat` | exact second filter above; required `1/1` |
+| `compile_fail_authority` | `cargo test --doc --locked` and its exact mapped compile-fail authority set; required `4/4` |
+| `et04`, `et22`, `et23`, `et29`, `et30` | named/mapped tests in the Phase-E validation registry; each required `PASS` |
+| `et29_crypto` | fixed required result `16/16` |
+| `et29_substantive` | fixed required result `40/40` |
+| `public_authority_bypass_paths` | exact security scan result; required `0` |
+| `production_trust` | embedded production trust state; required literal `UNPROVISIONED` |
+| `phase_d` | exact Phase-D regression command/filter; required `73/73` |
+| determinism fields | canonical two-run Phase-E deterministic route; required values are `9/9`, `8/8`, `PASS`, `PASS` |
+
+No V2 parameter may be filled by human guesswork. The tag body must be
+byte-equal to the instantiated canonical V2 record.
 
 ### R5 author-evidence synchronization
 
@@ -349,8 +459,11 @@ by this section for all current approval and integration decisions.
 ### R5 commit, push, and review handoff
 
 Before committing, run `git diff --check`. Create one forward plan commit with
-subject `docs(plan): synchronize Phase E plan authority with E-T30` and push
-`main` normally; no force-push is permitted. After the push, record:
+subject `docs(plan): close R5 approval-record and workflow gaps` and push
+`main` normally; no force-push is permitted. The chronology is AUTHOR PLAN →
+PUSH PLAN → FREEZE PLAN → INDEPENDENT PLAN REVIEW → PLAN-APPROVED-R5 TAG →
+IMPLEMENTATION. Do not describe review as preceding the plan commit or push.
+After the push, record:
 
 ```text
 R5_PLAN_REVIEW_SHA=<exact pushed plan commit SHA>
@@ -363,7 +476,15 @@ verify the remote implementation branch remains at
 `3076b102ed72b46b6c7c5b75f0360ff6f957968b`; verify the working tree is clean;
 and verify no R5 plan tag exists before independent plan-review GO. This
 handoff creates no R5 approval tag, modifies no implementation, and does not
-claim approval or integration success.
+claim approval or integration success. The plan SHA-256 is computed externally
+after the final reviewed plan is frozen; it is never inserted into this plan
+as a required literal self-reference.
+
+> **HISTORICAL / SUPERSEDED UNDER R5 — R4 evidence only.** The following
+> section is retained as immutable historical record. Its V1 record, old
+> implementation-approval tag, carry-forward predicate, and no-plan-merge
+> exception are not current R5 requirements and cannot authorize R5 approval
+> or integration.
 
 ## R4 amendment — simplified post-freeze review evidence
 
@@ -558,6 +679,11 @@ Cargo dependencies, goldens, Wilson mathematics, domain semantics,
 does not change the R3 macOS-only V1 contract: Linux remains deferred and
 unsupported, Linux remains non-gating, the 15 deferred Linux code blocks and
 one Linux evidence marker remain, and mandatory Linux requirements remain 0.
+
+> **HISTORICAL / SUPERSEDED UNDER R5 — R3/R4 predecessor context.** The
+> following platform and evidence text is retained for provenance only. The
+> current R5 authority is defined above and is the sole active approval and
+> integration workflow.
 
 ## R3 amendment — macOS-only V1 support and deferred Linux support
 
@@ -3349,7 +3475,7 @@ temporary copy; production code never generates an oracle.
 | E-R16 | E-AC16 | E-T27 | `compatibility/existing_artifact_fixture_inventory.schema1.json`; `compatibility/existing_artifact_matrix.md` | inventory must equal the literal historical set below; flip one expected kind/schema/acceptance/byte-hash cell at a time | every historical fixture retains exact baseline result/bytes; any expectation mutation fails |
 | E-R17 | E-AC17 | E-T28 | `protocol/software_valid.toml`; `dataset/synthetic_perfect.schema1.json`; `approval/none.txt` | perfect metrics; relabel filename/method as physical | only `software_validated_only`; origin is never inferred; physical outcome impossible |
 | E-R17 | E-AC17 | E-T29 | `protocol/physical_valid.toml`; `dataset/physical_valid.schema1.json`; `dataset/physical_selective_unavailable.schema1.json`; `approval/valid.schema1.json`; `approval/valid_selective_unavailable.schema1.json`; `approval/invalid_self_signed.schema1.json`; `approval/invalid_identity_forgery.schema1.json`; `trust/test_only_known_answer_trust_store.schema1.json`; `trust/test_only_invalid_identity_weak_key.schema1.json`; `reference/complete_sources.schema1.json` | invoke the production CLI physical route while its embedded production store is `UNPROVISIONED`; then, only through the approved test-only pure-verifier boundary, use the literal known-answer store and mutate: missing approval; wrong purpose; unknown root; dataset/protocol-supplied attacker key; wrong owner/registry key; copy the owner signature into the registry field; malformed/noncanonical-scalar/one-signature payload; set the selected owner key to identity encoding `0100000000000000000000000000000000000000000000000000000000000000` and its signature to identity-R/zero-S `01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000` over an arbitrary altered payload, then apply the same identity-key mutation separately to the registry role; replace either selected role separately with nondecompressible y=2 key `0200000000000000000000000000000000000000000000000000000000000000`; wrong file/record/cohort/protocol/claim/endpoint/domain/origin/authority binding; missing/legacy assessed source or reference; synthetic/unknown origin; disallowed reference method/authority; unblinded/unquantified/over-limit reference; incomplete reference node; use the precommitted mutually hash-bound dataset/approval pair containing 100 fully authoritative/physical/blinded/quantified/complete mechanism records, 98 semantic outcomes `unavailable`, and only two supporting records/families; declared minimum <2; actual one family/missing stratum; valid dual-signed two-family case; attempt every CLI/config/environment/protocol test-root-selection route | the production CLI always hard-fails a physical request with `PhysicalApprovalTrustNotProvisioned` before dataset/scoring and cannot select test roots; only the exact no-feature `ed25519-dalek 2.2.0` `from_bytes`/recompression/`is_weak`/`Signature::try_from`/`verify_strict` sequence is accepted by the test-only pure verifier; each literal identity forgery hard-fails `PhysicalApprovalWeakPublicKey` before signature verification, each y=2 key hard-fails `PhysicalApprovalPublicKeyInvalid`, copied/malformed/strict-invalid role signatures hard-fail their role-specific error, and all test-store/schema/binding/origin/physical-reference-authority failures hard-fail before exclusion or scoring; the independently valid dual-signed 98-outcome fixture hard-fails `PhysicalReferenceOutcomeUnavailable` with no report, proving the result is not merely an approval-hash mismatch; actual family/record underpowering is indeterminate; only the exact test-boundary dual-verified named passing case emits `physically_validated`, and it is software conformance evidence only |
-| E-R18 | E-AC18 | E-T30 | `expected/phase_e_fixture_inventory.schema1.json`; `expected/author_validation_evidence_ledger.md` | compare inventory to every regular file under `tests/fixtures/phase_e`; require each inventory row's E-R/E-AC/E-T/mutation/oracle to equal this section; omit/stale one committed author command/result, fixture row, mapping, dependency/lock audit, or P0/P1 author disposition; add a candidate commit SHA or an independent GO to the committed author ledger; change the direct Dalek declaration/features, any of the six section-4.6 new lock versions/checksums/edges, or any pre-existing lock entry; after freeze, make the canonical approval record stale, incomplete, mismatched, self-approving, or unrelated to the exact `REVIEW_SHA`; mutate any required role decision, P0/P1 count, P2 disposition, macOS result, command result, tag target, tag absence-before-creation check, or remote-tag verification | any missing/extra/duplicate/unmapped fixture, stale committed author evidence, self-approval, forbidden feature, dependency drift, old-lock drift, or incomplete/mismatched approval evidence fails its applicable gate; each role decision is exactly `GO` or `NO-GO`, all four must be `GO`, zero unresolved P0/P1 and complete P2 disposition are required, the canonical `PhaseEImplementationApprovalV1` body must match byte-for-byte, the tag must target the exact `REVIEW_SHA`, the tag must be absent before creation, the remote tag must be verified after creation, and any stale SHA or target/body mismatch blocks |
+| E-R18 | E-AC18 | E-T30 | `expected/phase_e_fixture_inventory.schema1.json`; `expected/author_validation_evidence_ledger.md` | compare inventory to every regular file under `tests/fixtures/phase_e`; require each inventory row's E-R/E-AC/E-T/mutation/oracle to equal this section; omit/stale one committed author command/result, fixture row, mapping, dependency/lock audit, or P0/P1 author disposition; add a candidate commit SHA or an independent GO to the committed author ledger; change the direct Dalek declaration/features, any of the six section-4.6 new lock versions/checksums/edges, or any pre-existing lock entry; after freeze, make the canonical approval record stale, incomplete, mismatched, self-approving, or unrelated to the exact `REVIEW_SHA`; mutate any required role decision, P0/P1 count, P2 disposition, macOS result, command result, tag target, tag absence-before-creation check, or remote-tag verification | any missing/extra/duplicate/unmapped fixture, stale committed author evidence, self-approval, forbidden feature, dependency drift, old-lock drift, or incomplete/mismatched approval evidence fails its applicable gate; each role decision is exactly `GO` or `NO-GO`, all four must be `GO`, zero P0/P1 and complete P2 disposition are required, the canonical `PhaseEImplementationApprovalV2` body must match byte-for-byte, the `ism-mechanism-health-v1-e-implementation-approved-r5` tag must target the exact `REVIEW_SHA`, the tag must be absent before creation, the remote tag must be verified after creation, and any stale SHA or target/body mismatch blocks |
 
 For E-T29, “the same identity-key mutation separately to the registry role”
 means replacing both that role's key and that role's signature with the same
@@ -3380,12 +3506,12 @@ approval. It is evidence frozen with the candidate, not self-approval.
 
 The required post-freeze E-T30 record is one external, non-self-referential,
 annotated Git tag on `origin`:
-`ism-mechanism-health-v1-e-implementation-approved`. It is never committed
+`ism-mechanism-health-v1-e-implementation-approved-r5`. It is never committed
 back into `REVIEW_SHA`. The tag is created by the project owner/release
-coordinator and is both the implementation-approval marker and the canonical
-external review-evidence record. It is not represented as four reviewer
-signatures, and it does not claim cryptographic reviewer identity or
-server-enforced tag protection.
+coordinator and is both the R5 implementation-approval marker and the
+canonical external review-evidence record. It is not represented as four
+reviewer signatures, and it does not claim cryptographic reviewer identity or
+server-enforced tag protection. The old R4 tag is historical only.
 
 E-T30 requires all of the following for the exact same `REVIEW_SHA`:
 
@@ -3394,8 +3520,11 @@ E-T30 requires all of the following for the exact same `REVIEW_SHA`:
 - zero unresolved P0/P1 findings and complete disposition of both retained P2
   findings;
 - final macOS exact-SHA validation with result `PASS`;
-- the exact canonical `PhaseEImplementationApprovalV1` body frozen in the R4
-  section above, including its exact sorted `plan_tags` value;
+- the exact canonical `PhaseEImplementationApprovalV2` body, including its
+  exact sorted R5 `plan_tags` value, exact latest-plan SHA-256, and exact
+  implementation SHA;
+- the exact latest approved R5 plan bytes merged into the implementation
+  branch with `--no-ff`;
 - the approval tag targeting exactly `REVIEW_SHA`;
 - proof that the approval tag was absent locally and remotely before creation;
 - normal push followed by immediate remote target/body verification;
@@ -3403,9 +3532,9 @@ E-T30 requires all of the following for the exact same `REVIEW_SHA`:
 - no stale review SHA, tag target, tag body, plan-tag list, role decision, or
   validation result.
 
-The former R3 four-role cryptographic tag mechanism is historical context only
-and is not an R4 requirement. Under R4, a missing, stale, retargeted,
-mismatched, self-approving, or non-`GO` approval record blocks approval and
+The former R3 four-role cryptographic tag mechanism and the R4 V1 record are
+historical context only. Under current R5, a missing, stale, retargeted,
+mismatched, self-approving, or non-`GO` V2 approval record blocks approval and
 integration. A complete accepted non-blocking P2 disposition remains visible in
 the exact P2 fields while all four role decisions remain `GO`. Linux remains
 deferred and non-gating under the preserved R3 macOS-only contract.
@@ -3589,8 +3718,8 @@ remediation branch. The Phase-E plan is one coherent documentation-only commit
 on `main`; it must not modify `src/`, `config/`, `tests/`, `Cargo.toml`,
 `Cargo.lock`, CI, or existing artifacts/fixtures.
 
-After that plan commit is pushed normally, freeze the exact review target from
-the actual remote state:
+The R5 plan-only commit is authored and pushed before any independent review.
+After that push, freeze the exact review target from the actual remote state:
 
 ```bash
 git fetch origin --prune
@@ -3620,18 +3749,19 @@ all of the following as GO:
   requirements, criteria, fixtures, or tests; and
 - zero open P0/P1 findings and explicit disposition of all P2 findings.
 
-For this R4 amendment, the independent plan review must record
-`REVIEW_EVIDENCE_CARRY_FORWARD_VALID = yes` only after confirming every
-condition in the R4 carry-forward predicate above. `yes` permits the completed
-four-role exact-SHA evidence to carry forward; `no` requires four fresh
-independent role reviews for the exact implementation SHA. A documentation
-self-review is not sufficient for this gate.
+The current R5 plan review must record `P0=0` and `P1=0`, complete both P2
+dispositions, and independently review the exact frozen plan bytes. R4
+review-evidence carry-forward is not a current option: the R5 implementation
+requires four fresh role reviews after the implementation branch absorbs the
+approved R5 plan. A documentation self-review is not sufficient for either
+gate.
 
-After independent GO, create the immutable
-`ism-mechanism-health-v1-e-plan-approved-r4` tag at exactly the independently
-reviewed `PLAN_REVIEW_SHA`. No plan-integration merge is needed because the
-approved R4 plan is already committed to `main`. The earlier base, R2, and R3
-plan tags remain immutable predecessor authorities.
+After independent R5 GO, create the immutable
+`ism-mechanism-health-v1-e-plan-approved-r5` tag at exactly the independently
+reviewed `PLAN_REVIEW_SHA`. The approved R5 plan SHA must then be merged into
+the existing implementation branch with normal `git merge --no-ff`; no current
+R5 workflow skips that plan merge. The earlier base, R2, R3, and R4 plan tags
+remain immutable historical predecessor authorities.
 
 At the end of plan review, fetch `origin` again. If `origin/main` advanced,
 record the later commits as unreviewed; the frozen review remains valid only
@@ -3677,16 +3807,19 @@ change, this exact forward-only procedure is mandatory:
 3. Switch to synchronized `main`, make the smallest forward documentation-only
    plan commit, push normally, freeze its exact `origin/main` SHA, and run a new
    independent plan review. No implementation code is committed to main.
-4. The original immutable `ism-mechanism-health-v1-e-plan-approved` tag never
-   moves. After GO, create the next immutable revision tag
-   `ism-mechanism-health-v1-e-plan-approved-r<N>` at the new reviewed plan SHA,
-   where `N` starts at 2 and increases by one without gaps. The implementation
-   review ledger names the latest applicable plan tag and every predecessor.
+4. The immutable `ism-mechanism-health-v1-e-plan-approved-r5` tag is the
+   current R5 plan authority and never moves. Any later approved revision must
+   receive a new explicitly numbered immutable plan tag at its reviewed SHA;
+   the implementation review ledger names that latest tag and every
+   predecessor. Every such revision is merged into the implementation branch
+   with normal `--no-ff` history before implementation resumes.
 5. Fetch the existing implementation branch, merge the newly approved `main`
    into it with a normal non-fast-forward merge, and push. Do not rebase.
 6. Verify the merge contains the exact newly approved plan SHA and no
    unreviewed main commits. If main also contained unrelated later commits,
-   each must have separate recorded acceptance before this merge.
+   each must have separate recorded acceptance before this merge. A
+   no-plan-merge or carry-forward exception is invalid under the current R5
+   workflow.
 7. Resume implementation on the same branch. Its eventual review freezes a new
    exact remote implementation SHA and validates the entire cumulative diff
    against the pre-implementation main baseline under the latest plan tag.
@@ -3735,18 +3868,21 @@ informational and non-gating for Phase-E.
 `READY_FOR_PHASE_E_IMPLEMENTATION_APPROVAL_AND_INTEGRATION=YES` is permitted
 only after all of the following hold for the same exact `REVIEW_SHA`:
 
-- four independent scientific, architecture, security, and compatibility role
-  reviews target the exact same `REVIEW_SHA`; the R4 carry-forward result may
-  permit the already completed reviews, otherwise four fresh reviews are
-  required; all four canonical decisions are `GO`, with zero unresolved P0/P1
+- four fresh independent scientific, architecture, security, and compatibility
+  role reviews target the exact same `REVIEW_SHA`; R4 carry-forward is not
+  permitted; all four canonical decisions are `GO`, with zero unresolved P0/P1
   and complete P2 disposition;
 - macOS exact-SHA validation and every required macOS command pass, and the
-  exact results are recorded in `PhaseEImplementationApprovalV1`;
-- the single annotated `ism-mechanism-health-v1-e-implementation-approved` tag
-  is absent locally and remotely before creation, is created by the project
-  owner/release coordinator exactly once, targets the exact `REVIEW_SHA`, is
-  pushed normally, and is immediately re-fetched and verified for exact target
-  and body;
+  exact results are recorded in the closed `PhaseEImplementationApprovalV2`
+  body;
+- `ism-mechanism-health-v1-e-plan-approved-r5` targets the exact approved R5
+  plan, and the implementation branch contains that exact plan SHA through a
+  normal `--no-ff` merge;
+- the single annotated `ism-mechanism-health-v1-e-implementation-approved-r5`
+  tag is absent locally and remotely before creation, is created by the
+  project owner/release coordinator exactly once, targets the exact
+  `REVIEW_SHA`, is pushed normally, and is immediately re-fetched and verified
+  for exact target and byte-equal body;
 - no reviewer signature, reviewer key, or server-enforced tag protection is
   required or claimed;
 - for every requested physical claim, E-SCI passes with a real dual-signed
@@ -3759,20 +3895,18 @@ only after all of the following hold for the same exact `REVIEW_SHA`:
   `main` commit.
 
 Linux absence, failure, CI failure, or an unavailable Linux environment is not
-an R3 blocker for approval or integration. Any voluntarily supplied Linux
+an R5 blocker for approval or integration. Any voluntarily supplied Linux
 result is informational and cannot override the macOS gate.
 
 ### 8.6 Integration and cleanup
 
-After the four role reviews and all other gates give GO, create exactly once the
-annotated
-`ism-mechanism-health-v1-e-implementation-approved` tag at the exact reviewed
-implementation SHA, using the exact `PhaseEImplementationApprovalV1` body and
-the procedural immutability invariant above. Re-fetch and verify the remote tag
-immediately before merge. For this R4 evidence-only amendment, do not merge the
-R4 documentation commit into the already frozen implementation branch; the
-implementation SHA remains exactly `3076b102ed72b46b6c7c5b75f0360ff6f957968b`.
-When the normal implementation integration occurs, merge that exact reviewed
+After the four fresh role reviews and all other R5 gates give GO, create exactly
+once the annotated
+`ism-mechanism-health-v1-e-implementation-approved-r5` tag at the exact
+reviewed implementation SHA, using the exact V2 body and the procedural
+immutability invariant above. Re-fetch and verify the remote tag immediately
+before merge. The old R4 implementation-approval tag remains untouched and
+historical; it cannot authorize this merge. Merge that exact reviewed
 implementation SHA into `main` using:
 
 ```bash
@@ -3817,10 +3951,11 @@ Phase E is complete only when all of these statements are true:
    validation as the only required V1 platform evidence. Generic Linux/Ubuntu
    CI, if retained, is informational and non-gating.
 6. Independent scientific, architecture, security, and compatibility reviews
-   record `GO` for the exact reviewed SHA in the canonical
-   `PhaseEImplementationApprovalV1` body and the single implementation-approval
-   tag. Accepted non-blocking P2 debt, if any, remains visible only in the
-   complete P2 fields.
+   freshly record `GO` for the exact reviewed SHA in the canonical
+   `PhaseEImplementationApprovalV2` body and the
+   `ism-mechanism-health-v1-e-implementation-approved-r5` tag. Accepted
+   non-blocking P2 debt, if any, remains visible only in the complete P2
+   fields.
 7. Release language distinguishes software validation from physical validation,
    names the exact validated domain, and identifies the result as a
    macOS-supported V1 implementation without implying Linux or cross-platform
@@ -3854,7 +3989,7 @@ into one helper-only test is not sufficient.
 | E-R15 | Phase B/C assessors and Phase D projection/output remain unchanged and independent of Phase E. | source dependency guards; full baseline suite | E-AC15: source guards and baseline/golden tests prove no reverse dependency or output drift. | E-T24, E-T25 | Phase E reassesses/mutates sources or identical Phase D input produces changed public output. |
 | E-R16 | New artifact kinds are additive and schema-1-only; existing serialization/migration remains exact. | `artifact.rs`, `artifact_contracts.rs` | E-AC16: new round trips and negative matrices pass while all existing fixture matrices retain prior results. | E-T26, E-T27 | Existing token/schema behavior changes or a Phase E future/legacy schema is silently accepted. |
 | E-R17 | Software and physical requests are distinct. The production trust store is explicitly `UNPROVISIONED` or `PROVISIONED`; production roots are real independently controlled authority only, while literal test roots are accessible solely through the test-only pure verifier. A provisioned physical claim requires exact origin/blinding/quantification, usable mechanism semantic outcomes, domain-equal endpoints, globally separate owner/registry IDs and keys, and immutable dual signatures accepted only by the frozen strict verifier before scoring. | protocol/report/trust/approval schemas, assessment | E-AC17: an unprovisioned production request hard-fails before scoring; self-signed/synthetic/constructed/unknown/unapproved, weak-key-forged, same-key-dual-role, domain-overbroad, or semantic-outcome-unavailable input cannot emit `physically_validated`; test-only signatures cannot satisfy a release gate; actual underpowering is indeterminate; only a real provisioned strict dual-verified named passing claim can. | E-T28, E-T29 | A production test-vector root, dataset/protocol self-authentication, test-root selection route, weak/same key, one signature, approval/domain downgrade, or synthetic/unblinded/outcome-unavailable/underpowered evidence obtains a physical claim. |
-| E-R18 | Full same-`REVIEW_SHA` CI and independent review evidence, exact Phase-E fixture inventory, committed author-side evidence, historical literal set, frozen dependency delta, and exhaustive mutation/oracle ledger gate approval/integration. | CI, committed author evidence, and the single canonical implementation-approval tag | E-AC18: all 18 requirements, 18 ACs, 30 tests, every literal fixture/mutation/oracle and required command are mapped; committed author evidence has no candidate SHA or approval; and the canonical `PhaseEImplementationApprovalV1` record binds four independent `GO` role decisions, macOS validation result, approved plan tags, complete P0/P1/P2 disposition, and required command results to one exact `REVIEW_SHA`; approval/integration requires all four `GO`, zero unresolved P0/P1, complete P2 disposition, exact tag target/body, absent-before-creation proof, and remote verification. | E-T30 | Any filesystem fixture is absent/extra/aliased/unmapped, dependency drifts, author evidence self-approves or names its candidate SHA, or any command/review/tag/SHA is stale, mismatched, retargeted, self-approving, `NO-GO`, missing/unknown/third decision token, incomplete P2 disposition, unresolved P0/P1, or missing remote verification. |
+| E-R18 | Full same-`REVIEW_SHA` CI and independent review evidence, exact Phase-E fixture inventory, committed author-side evidence, historical literal set, frozen dependency delta, and exhaustive mutation/oracle ledger gate approval/integration. | CI, committed author evidence, and the single canonical R5 implementation-approval tag | E-AC18: all 18 requirements, 18 ACs, 30 tests, every literal fixture/mutation/oracle and required command are mapped; committed author evidence has no candidate SHA or approval; and the canonical `PhaseEImplementationApprovalV2` record binds four fresh independent `GO` role decisions, macOS validation result, exact approved R5 plan authority, complete P0/P1/P2 disposition, and required command results to one exact `REVIEW_SHA`; approval/integration requires all four `GO`, zero P0/P1, complete P2 disposition, exact tag target/body, absent-before-creation proof, and remote verification. | E-T30 | Any filesystem fixture is absent/extra/aliased/unmapped, dependency drifts, author evidence self-approves or names its candidate SHA, or any command/review/tag/SHA is stale, mismatched, retargeted, self-approving, `NO-GO`, missing/unknown/third decision token, incomplete P2 disposition, nonzero P0/P1, or missing remote verification. |
 
 ### 10.1 Exact required test registry
 
@@ -3889,7 +4024,7 @@ into one helper-only test is not sufficient.
 | E-T27 | `phase_e_preserves_all_existing_artifact_migration_contracts` |
 | E-T28 | `phase_e_synthetic_only_run_is_software_validated_only` |
 | E-T29 | `phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power` |
-| E-T30 | committed exact-fixture inventory plus author-validation evidence; one exact `PhaseEImplementationApprovalV1` body in the annotated implementation-approval tag tying four independent GO role reviews and macOS platform/command results to exact `REVIEW_SHA` |
+| E-T30 | committed exact-fixture inventory plus author-validation evidence; one exact `PhaseEImplementationApprovalV2` body in the annotated `ism-mechanism-health-v1-e-implementation-approved-r5` tag tying four fresh independent GO role reviews, exact R5 plan authority, and macOS platform/command results to exact `REVIEW_SHA` |
 
 Planning traceability totals are 18 requirements, 18 acceptance criteria, and
 30 required tests/evidence records. Unmapped requirements = 0; acceptance
@@ -3918,8 +4053,8 @@ P0/P1 findings.
 | P1-E-010 | Section 4.4 defines the complete report/manifest nested records, exact nine-file set, JSON/CSV/Markdown byte rules, every row/cell/null mapping, Markdown projection/escaping, and literal golden authority. |
 | P1-E-011 | Section 4.5 defines a persistent exclusive lock, macOS V1 no-replace and exchange primitives, file/directory fsync points, commit boundaries, both-generation identity/fingerprint binding, foreign-swap/old-stage preservation, exact no-clobber behavior, and typed deterministic residue/cleanup states; the retained Linux `renameat2` path is explicitly deferred and non-authoritative. |
 | P1-E-012 | Sections 3.8 and 7.4 separate software and physical gates: synthetic perfection and selectively excluded unavailable mechanism outcomes cannot produce a physical claim; only exact dual-verified, semantic-outcome-available physical holdout authority plus passing powered views can. |
-| P1-E-013 | Section 8 preserves main-only durable workflow, forward-only plan changes on `main`, immutable review SHAs/tags, one post-approval temporary implementation branch, the distinct review-candidate versus approval/integration gates, and no stale-SHA loop; this R4 planning task creates only its prescribed forward documentation commit, not an implementation branch, approval tag, or merge. |
-| P1-E-014 | Sections 7.3 and 10 map 18 requirements, 18 criteria, and 30 tests to literal fixture paths, mutation/oracle rows including selective physical outcome exclusion, nested catalog fields, strict-key forgeries/aliases/role reuse, both domain-containment directions, and overwrite replacement/mutation races, a filesystem-exact fixture inventory, the literal historical compatibility set, committed non-self-approving author evidence, and the single exact `PhaseEImplementationApprovalV1` record/tag with aliases/globs forbidden. |
+| P1-E-013 | Section 8 preserves main-only durable workflow, forward-only plan changes on `main`, immutable review SHAs/tags, one post-approval temporary implementation branch, the distinct review-candidate versus approval/integration gates, and no stale-SHA loop; this R5 planning task creates only its prescribed forward documentation commit, not an implementation branch, approval tag, or merge. |
+| P1-E-014 | Sections 7.3 and 10 map 18 requirements, 18 criteria, and 30 tests to literal fixture paths, mutation/oracle rows including selective physical outcome exclusion, nested catalog fields, strict-key forgeries/aliases/role reuse, both domain-containment directions, and overwrite replacement/mutation races, a filesystem-exact fixture inventory, the literal historical compatibility set, committed non-self-approving author evidence, and the single exact `PhaseEImplementationApprovalV2` record/tag with aliases/globs forbidden. |
 | P0-R2-001 | Sections 3.3, 3.5, and 3.8 hard-fail any physical supporting mechanism reference whose semantic outcome is `unavailable` before partitioning; E-T29's exact 98-of-100 mutation proves such records cannot be selected out to manufacture a 2/2 physical pass. |
 | P1-R2-001 | Section 3.8 names the closed root array field exactly `trust_roots`, forbids aliases, and freezes canonical root/ID/key validation for every selected and unused key; the third-round strict-verifier remediation below supersedes the rejected `ring` assumption. |
 | P1-R2-002 | Sections 3.6 and 4.3 authorize the additive domain-owned `read_artifact_lineage_catalog_strict`, enumerate every permitted nested existing-wire key/tag, reuse one internal canonical text parser over the unchanged exact bytes, preserve the existing reader's result, and add same-byte strict-vs-existing mutations in E-T11. |
