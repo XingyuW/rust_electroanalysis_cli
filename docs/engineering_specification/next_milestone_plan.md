@@ -5,9 +5,11 @@ document.
 
 **Repository:** `/Users/xingyuwang/ProjectOngoing/rust_electroanalysis_cli`
 
-**Phase-E initialization baseline:** current synchronized `main`
+**Phase-E initialization baseline:** historical synchronized `main` snapshot;
+not current remote authority
 
-**`PHASE_E_BASELINE_MAIN_SHA`:** `6b76258ff2e8ff71a1b8a68248b47cf224141d73`
+**Historical `PHASE_E_BASELINE_MAIN_SHA`:**
+`6b76258ff2e8ff71a1b8a68248b47cf224141d73`
 
 **Phase-D provenance release tag:** `ism-mechanism-health-v1-d-complete`
 
@@ -56,6 +58,15 @@ revision-agnostic.
 `P1-R5-001 = CLOSED`. It is retained as completed historical defect evidence;
 this remediation addresses only the six remaining R5 plan-specification P1s.
 
+`P1-R5-002` is remediated by reclassifying the old main value as a historical
+pre-R5 snapshot and defining current plan authority only through the frozen
+post-push `R5_PLAN_REVIEW_SHA` derivation below. It remains open pending fresh
+independent R5 plan rereview.
+
+`P1-R5-003` is remediated by the complete deterministic `PhaseEImplementationApprovalV2`
+source table and current-R5 provenance addendum below. It remains open pending
+fresh independent R5 plan rereview.
+
 The failed local integration commit is diagnostic history only:
 
 ```text
@@ -71,13 +82,52 @@ remote authority and does not import that local merge.
 
 ### R5 remote authority and immutable R4 history
 
-Before recovery, live remote authority must be checked with `git ls-remote`.
-The expected authority is:
+**HISTORICAL PRE-R5 RECOVERY SNAPSHOT.** At the instant R5 recovery began,
+before any R5 planning commits were made, the live remote authority snapshot
+was:
 
 ```text
-refs/heads/main = b43c96baca14b1618ce3106fe88c1a09f7d49e0c
-refs/heads/codex/mhi-v1-e-independent-validation = 3076b102ed72b46b6c7c5b75f0360ff6f957968b
+main = b43c96baca14b1618ce3106fe88c1a09f7d49e0c
+implementation = 3076b102ed72b46b6c7c5b75f0360ff6f957968b
 ```
+
+**THIS BLOCK IS HISTORICAL AND IS NOT A CURRENT REMOTE-AUTHORITY
+ASSERTION.**
+
+The current R5 plan authority is not a literal main-branch SHA. After the
+final R5 plan remediation is pushed and before independent plan rereview,
+freeze `R5_PLAN_REVIEW_SHA` as the exact live remote `main` SHA:
+
+```sh
+R5_PLAN_REVIEW_SHA="$(
+  git ls-remote --heads origin refs/heads/main |
+    awk 'NF == 2 && $2 == "refs/heads/main" {print $1}'
+)"
+```
+
+The freeze validation must prove that the extraction produced exactly one
+matching ref, that `R5_PLAN_REVIEW_SHA` is exactly 40 lowercase hexadecimal
+characters, that the local reviewed `HEAD` equals `R5_PLAN_REVIEW_SHA`, and
+that no later `main` commit is included in the frozen review. The exact
+validation is:
+
+```sh
+test "$(printf '%s\n' "$R5_PLAN_REVIEW_SHA" | awk 'NF {n += 1} END {print n + 0}')" -eq 1
+printf '%s\n' "$R5_PLAN_REVIEW_SHA" | grep -Eq '^[0-9a-f]{40}$'
+test "$(git rev-parse HEAD)" = "$R5_PLAN_REVIEW_SHA"
+test "$(git rev-list --count "$R5_PLAN_REVIEW_SHA"..origin/main)" -eq 0
+```
+
+The implementation predecessor remains fixed historical authority:
+
+```text
+PRE_R5_IMPLEMENTATION_SHA = 3076b102ed72b46b6c7c5b75f0360ff6f957968b
+```
+
+Therefore the current authority is `plan authority = externally frozen
+R5_PLAN_REVIEW_SHA` and `implementation predecessor =
+PRE_R5_IMPLEMENTATION_SHA`. No current normative paragraph may claim that a
+historical main SHA remains the live current main.
 
 The existing immutable tags must remain unchanged:
 
@@ -372,20 +422,33 @@ The complete dynamic-field source table is:
 | `check` | `cargo check --locked` exits `0` |
 | `clippy` | `cargo clippy --locked --all-targets --all-features -- -D warnings` exits `0` |
 | `clippy_diagnostics` | literal `0` for approval |
-| `phase_e` | `cargo test --locked --test phase_e_validation`; required `38/38` |
+| `phase_e` | exact Phase-E integration command `cargo test --locked --test phase_e_validation`; required exit status `0` and the exact test inventory/result contract below |
 | `approval_unit` | exact first filter above; required `2/2` |
 | `internal_et29_kat` | exact second filter above; required `1/1` |
-| `compile_fail_authority` | `cargo test --doc --locked` and its exact mapped compile-fail authority set; required `4/4` |
-| `et04`, `et22`, `et23`, `et29`, `et30` | named/mapped tests in the Phase-E validation registry; each required `PASS` |
+| `compile_fail_authority` | the Part-F static inventory check and, only after it reports `COMPILE_FAIL_AUTHORITY_INVENTORY=4/4`, `cargo test --doc --locked` exits `0`; required `4/4` |
+| `et04` | exact mapped test `cargo test --locked --test phase_e_validation phase_e_protocol_rejects_incomplete_conflicting_untrusted_and_nondeterministic_authority -- --exact`; required exit status `0` |
+| `et22` | exact mapped test `cargo test --locked --test phase_e_validation phase_e_publication_is_atomic_and_checksum_verified -- --exact`; required exit status `0` |
+| `et23` | exact mapped test `cargo test --locked --test phase_e_validation phase_e_publication_is_locked_no_clobber_crash_durable_and_residue_exact -- --exact`; required exit status `0` |
+| `et29` | exact mapped test `cargo test --locked --test phase_e_validation phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power -- --exact`; required exit status `0` |
+| `et30` | exact mapped test `cargo test --locked --test phase_e_validation phase_e_author_side_traceability_evidence_is_non_self_approving -- --exact`, plus the current R5 E-T30 source-contract gates below; all required exact conditions must pass |
 | `et29_crypto` | fixed required result `16/16` |
 | `et29_substantive` | fixed required result `40/40` |
-| `public_authority_bypass_paths` | exact security scan result; required `0` |
-| `production_trust` | embedded production trust state; required literal `UNPROVISIONED` |
-| `phase_d` | exact Phase-D regression command/filter; required `73/73` |
-| determinism fields | canonical two-run Phase-E deterministic route; required values are `9/9`, `8/8`, `PASS`, `PASS` |
+| `public_authority_bypass_paths` | exactly one `PUBLIC_AUTHORITY_BYPASS_PATHS=0` line emitted by the fresh independent R5 Security review after its adversarial public-API audit; required literal `0` |
+| `production_trust` | exact embedded-production inspection of `config/mhi_physical_approval_trust_store.schema1.json` and `src/mhi_validation/approval.rs` at `REVIEW_SHA`; required `provisioning_state=UNPROVISIONED`, `trust_roots=[]`, and the `include_bytes!` binding |
+| `phase_d` | Part-H exact `--list` inventory and exact `cargo test --locked --test phase_d_reporting_public_output` execution; required `73/73` |
+| `determinism_files` | Part-I exact `phase_e_cli_runs_exact_certified_route` test; required `9/9` |
+| `determinism_manifest_records` | Part-J exact `phase_e_cli_runs_exact_certified_route` test; required `8/8` |
+| `determinism_two_runs` | Part-L exact `phase_e_repeated_certified_validation_keeps_all_nine_bytes_identical` test; required `PASS` |
+| `determinism_golden` | Part-K exact `phase_e_cli_runs_exact_certified_route` test; required `PASS` |
 
 No V2 parameter may be filled by human guesswork. The tag body must be
 byte-equal to the instantiated canonical V2 record.
+
+### R5 V2 evidence provenance contracts
+
+Every dynamic field has exactly one deterministic authoritative source. The
+complete executable contracts are included in the current-R5 provenance
+addendum at the end of this plan and are part of the current R5 authority.
 
 ### R5 author-evidence synchronization
 
@@ -459,7 +522,7 @@ by this section for all current approval and integration decisions.
 ### R5 commit, push, and review handoff
 
 Before committing, run `git diff --check`. Create one forward plan commit with
-subject `docs(plan): close R5 approval-record and workflow gaps` and push
+subject `docs(plan): close final R5 authority provenance gaps` and push
 `main` normally; no force-push is permitted. The chronology is AUTHOR PLAN →
 PUSH PLAN → FREEZE PLAN → INDEPENDENT PLAN REVIEW → PLAN-APPROVED-R5 TAG →
 IMPLEMENTATION. Do not describe review as preceding the plan commit or push.
@@ -922,7 +985,7 @@ current assessment and rendering paths untouched.
 
 ## 2. Current capability baseline
 
-All statements in this section describe the current Phase-E baseline at
+All statements in this section describe the historical Phase-E baseline at
 `6b76258ff2e8ff71a1b8a68248b47cf224141d73`. The Phase-D release at
 `2316fb1d076d47ac14d3b3c10c55654feb1ffb54` remains its required provenance
 ancestor and byte/semantic compatibility authority.
@@ -3513,6 +3576,27 @@ canonical external review-evidence record. It is not represented as four
 reviewer signatures, and it does not claim cryptographic reviewer identity or
 server-enforced tag protection. The old R4 tag is historical only.
 
+Current R5 E-T30 contract is `E-T30 CURRENT R5 CONTRACT = PASS` only when
+the complete V2 source table and the exact current-R5 provenance addendum are
+satisfied. E-T30 must reject all of the following:
+
+- missing provenance for any V2 field;
+- manually guessed numeric values or values without canonical normalization;
+- a `phase_d` value not produced by the exact `--list` inventory count `73`
+  together with the exact Phase-D test command exiting `0`;
+- `compile_fail_authority` without both the exact four-block inventory output
+  and `cargo test --doc --locked` exiting `0`;
+- `public_authority_bypass_paths` not copied/parsed from exactly one fresh
+  Security-review `PUBLIC_AUTHORITY_BYPASS_PATHS=0` line;
+- any determinism value not sourced from its exact named certified-route or
+  repeated-route test; and
+- any source-table omission, stale SHA, undefined normalization, or mismatch
+  between the V2 body and its exact authority source.
+
+The release coordinator may instantiate V2 only by copying exact command
+outputs, exact review tokens, or fixed literals permitted above. E-T30 does
+not accept a human-computed substitute for any dynamic field.
+
 E-T30 requires all of the following for the exact same `REVIEW_SHA`:
 
 - four independent scientific, architecture, security, and compatibility
@@ -3688,11 +3772,11 @@ baseline scientific test is a release blocker.
 
 ### 8.1 Phase-E baseline and durable branch policy
 
-Phase E is based on the current synchronized `main` at Phase-E
-initialization:
+Phase E was based on the historical synchronized `main` snapshot at Phase-E
+initialization; this is not current remote authority:
 
 ```text
-PHASE_E_BASELINE_MAIN_SHA=6b76258ff2e8ff71a1b8a68248b47cf224141d73
+HISTORICAL_PHASE_E_BASELINE_MAIN_SHA=6b76258ff2e8ff71a1b8a68248b47cf224141d73
 ```
 
 The historical Phase-D release tag
@@ -4062,3 +4146,268 @@ P0/P1 findings.
 | P1-R3-002 (`P1-NEW-002`) | Section 3.8 requires owner and registry authority IDs and canonically recompressed public-key bytes to be globally unique across every role/root; noncanonical aliases fail before uniqueness, E-T26 mutates intra-root/cross-root reuse and a noncanonical point encoding, and E-T29 proves a copied role signature cannot satisfy the other distinct key. |
 | P1-R3-003 (`P1-NEW-003`) | Section 4.3 requires mutual subset proof—exact equality—between every supporting endpoint domain and its claim domain; E-T04 rejects both one-sided directions, including a `{Pb}` endpoint supporting a `{Pb,Cd}` claim, so untested or pooled domains cannot inherit validation. |
 | P1-R3-004 (`P1-NEW-004`) | Section 4.5 binds both staged-new and preflight-old generations to held directory identities and exact nine-file fingerprints, rechecks old immediately before exchange, validates newly visible output then swapped-old stage before cleanup, preserves old stage on either mismatch, freezes all three typed race errors, states the per-path post-proof writer threat boundary, and makes E-T23 force namespace-replacement and same-inode mutation races against both generations. |
+
+### Current R5 provenance addendum
+
+#### Compile-fail authority: two jointly required checks
+
+`compile_fail_authority=4/4` is valid only when both the exact static
+inventory check and the rustdoc execution check pass. The static authority
+inventory is exactly these four blocks:
+
+| File | API boundary | Required block anchor |
+|---|---|---|
+| `src/mhi_validation/approval.rs` | `VerifiedEmbeddedTrustStore` | `VerifiedEmbeddedTrustStore {` |
+| `src/mhi_validation/approval.rs` | `OwnerApprovalEvidenceV1` | `OwnerApprovalEvidenceV1::validate_for_test_boundary` |
+| `src/mhi_validation/reader.rs` | ValidationInputs construction | `let _forged = ValidationInputs {` |
+| `src/mhi_validation/reader.rs` | unchecked approval attachment | `let _attach = ValidationInputs::attach_verified_approval;` |
+
+The exact static inventory command is:
+
+````python
+from pathlib import Path
+import re
+
+paths = [
+    Path("src/mhi_validation/approval.rs"),
+    Path("src/mhi_validation/reader.rs"),
+]
+
+blocks = []
+
+for path in paths:
+    text = path.read_text(encoding="utf-8")
+    for match in re.finditer(
+        r"/// ```compile_fail\n(?P<body>(?:///.*\n)+?)/// ```",
+        text,
+    ):
+        blocks.append((str(path), match.group("body")))
+
+required = [
+    "VerifiedEmbeddedTrustStore {",
+    "OwnerApprovalEvidenceV1::validate_for_test_boundary",
+    "let _forged = ValidationInputs {",
+    "let _attach = ValidationInputs::attach_verified_approval;",
+]
+
+assert len(blocks) == 4, f"expected exactly 4 authority compile-fail blocks, got {len(blocks)}"
+
+for anchor in required:
+    matches = [
+        (path, body)
+        for path, body in blocks
+        if anchor in body
+    ]
+    assert len(matches) == 1, f"compile-fail anchor {anchor!r}: {len(matches)}"
+
+print("COMPILE_FAIL_AUTHORITY_INVENTORY=4/4")
+````
+
+The static command must emit exactly:
+
+```text
+COMPILE_FAIL_AUTHORITY_INVENTORY=4/4
+```
+
+Only after that exact output is observed, run exactly:
+
+```sh
+cargo test --doc --locked
+```
+
+The command must exit `0`. Overall rustdoc success without the exact static
+inventory output does not establish `compile_fail_authority=4/4`.
+
+#### Public authority bypass paths: independent Security source
+
+`public_authority_bypass_paths=0` is review-derived. The fresh independent R5
+Security review prompt must require an adversarial audit of every public API
+that can construct, attach, select, or influence approval/trust authority,
+including production and test-only boundaries, before it emits its one and
+only machine-readable report line:
+
+```text
+PUBLIC_AUTHORITY_BYPASS_PATHS=0
+```
+
+The Security reviewer must use `security_decision=GO` only after that audit.
+The final approval record must contain exactly one such line in the final
+Security review result; its value must match `CANONICAL_DECIMAL`, equal literal
+`0`, and be copied/parsed by the release coordinator from that exact reviewer
+output. No implementation author self-review may supply or recompute the
+value.
+
+These exact supporting regressions must also exit `0`:
+
+```sh
+cargo test --doc --locked
+
+cargo test --locked --test phase_e_validation \
+  phase_e_public_evaluator_fails_closed_without_verified_approval \
+  -- --exact
+
+cargo test --locked --test phase_e_validation \
+  phase_e_production_physical_store_is_embedded_and_unprovisioned \
+  -- --exact
+```
+
+The supporting regressions do not replace the adversarial review source; the
+field remains the exact reviewer-derived `public_authority_bypass_paths=0`.
+
+#### Phase-D provenance: exact inventory and execution
+
+The exact Phase-D test binary is:
+
+```text
+tests/phase_d_reporting_public_output.rs
+```
+
+First run the exact inventory command and count only lines ending exactly in
+`: test`:
+
+```sh
+cargo test --locked \
+  --test phase_d_reporting_public_output \
+  -- --list 2>/dev/null |
+awk '/: test$/ { n += 1 } END { print n + 0 }'
+```
+
+The extracted inventory count must be exactly `73`. Then run exactly:
+
+```sh
+cargo test --locked \
+  --test phase_d_reporting_public_output
+```
+
+That command must exit `0`. Only the conjunction of inventory count `73` and
+execution exit status `0` permits `phase_d=73/73`; a manually reported count
+is not authoritative.
+
+#### Determinism provenance: exact named tests
+
+The certified-route test is exactly:
+
+```sh
+cargo test --locked \
+  --test phase_e_validation \
+  phase_e_cli_runs_exact_certified_route \
+  -- --exact
+```
+
+It invokes the committed `assert_exact_golden_bundle(...)` authority. That
+authority requires exactly nine managed files, exact paths, exact file count,
+exact byte lengths, exact SHA-256 values, and exact byte equality to the
+committed independent golden-file list. The same test's
+`assert_scientific_bundle(...)` authority requires exactly eight non-self
+manifest records and proves that the manifest excludes itself. Its exit status
+must be `0` before all of the following values are recorded:
+
+```text
+determinism_files=9/9
+determinism_manifest_records=8/8
+determinism_golden=PASS
+```
+
+The repeated-route test is exactly:
+
+```sh
+cargo test --locked \
+  --test phase_e_validation \
+  phase_e_repeated_certified_validation_keeps_all_nine_bytes_identical \
+  -- --exact
+```
+
+It runs the certified validator twice and byte-compares all nine managed
+outputs. Its exit status must be `0` before `determinism_two_runs=PASS` is
+recorded.
+
+The exact V2 mapping is frozen as follows:
+
+```text
+determinism_files
+source = phase_e_cli_runs_exact_certified_route
+required = 9/9
+
+determinism_manifest_records
+source = phase_e_cli_runs_exact_certified_route
+required = 8/8
+
+determinism_golden
+source = phase_e_cli_runs_exact_certified_route
+required = PASS
+
+determinism_two_runs
+source = phase_e_repeated_certified_validation_keeps_all_nine_bytes_identical
+required = PASS
+```
+
+No generic phrase such as `canonical deterministic route` may remain the sole
+provenance for any determinism field.
+
+#### Complete source-table audit
+
+The remaining V2 fields are closed by the following exact sources and
+normalizations. `review_sha` is the exact 40-lowercase-hex SHA extracted from
+`git ls-remote --heads origin refs/heads/codex/mhi-v1-e-independent-validation`
+after implementation freeze. `plan_review_sha` is the peeled target of the
+R5 plan-approved tag; `plan_sha256` is `shasum -a 256` over the exact plan
+bytes at that target; and `plan_git_blob` is `git hash-object` for that exact
+plan path. `plan_tags` is the fixed ASCII-sorted chain in the V2 record.
+Fresh exact-SHA scientific, architecture, Security, and compatibility review
+outputs are the sole sources of the four decision tokens and their P0/P1
+findings; a valid body has literal `p0_count=0` and `p1_count=0`. The two P2
+values are the fixed retained dispositions.
+
+The exact platform sources are `uname -s`, `uname -m`, `sw_vers -productVersion`,
+and `sw_vers -buildVersion`, each removing exactly one trailing LF. The exact
+compiler sources are `rustc --version` and `cargo --version`, each requiring
+the named first token and extracting exactly the second token. `fmt`, `check`,
+and `clippy` use the exact Cargo commands in the platform/compiler and source
+tables. The three diff fields use the exact commands and ranges in the diff
+table. `full_suite_run1` and `full_suite_run2` each require exit status `0`
+from one separately executed `cargo test --locked --all` invocation.
+`approval_unit` and `internal_et29_kat` use their exact frozen filters and
+required `2/2` and `1/1` results. `et29_crypto=16/16` and
+`et29_substantive=40/40` are fixed required results of the approved plan.
+
+For `phase_e`, first extract the exact test inventory with:
+
+```sh
+cargo test --locked --test phase_e_validation -- --list 2>/dev/null |
+awk '/: test$/ { n += 1 } END { print n + 0 }'
+```
+
+The count must be `38`; then run exactly:
+
+```sh
+cargo test --locked --test phase_e_validation
+```
+
+and require exit status `0` before recording `phase_e=38/38`.
+
+For `production_trust`, run the exact Git inspection at `REVIEW_SHA`:
+
+```sh
+git show "$REVIEW_SHA:config/mhi_physical_approval_trust_store.schema1.json" |
+python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["provisioning_state"] == "UNPROVISIONED"; assert d["trust_roots"] == []; print("PRODUCTION_TRUST=UNPROVISIONED")'
+git grep -n -F 'include_bytes!("../../config/mhi_physical_approval_trust_store.schema1.json")' "$REVIEW_SHA" -- src/mhi_validation/approval.rs
+```
+
+The JSON extraction must emit exactly `PRODUCTION_TRUST=UNPROVISIONED`, and
+the `git grep` extraction must identify exactly the embedded binding shown.
+Any production trust root, alternate source, runtime selection path, or
+missing binding fails the field.
+
+The exact fixed fields are `format_version=2`, the V2 fixed tokens, the two
+accepted P2 dispositions, `clippy_diagnostics=0`, `et29_crypto=16/16`,
+`et29_substantive=40/40`, `production_trust=UNPROVISIONED`, and
+`linux_phase_e_gate=NOT_REQUIRED_R5`. `approval_decision=GO` is derived only
+from the complete conjunction in this current R5 section, including every
+exact source and gate.
+
+The completeness audit is frozen at:
+
+```text
+FIELDS WITHOUT DETERMINISTIC SOURCE = 0
+FIELDS WITH UNDEFINED NORMALIZATION = 0
+```
