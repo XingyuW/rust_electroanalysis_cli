@@ -1,4 +1,4 @@
-# Phase E R3 author-side validation evidence
+# Phase E R6 author-side validation evidence
 
 ## Authority
 
@@ -7,12 +7,24 @@
 | original approved plan tag | ism-mechanism-health-v1-e-plan-approved |
 | R2 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r2 |
 | R3 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r3 |
+| R4 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r4 |
+| R5 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r5 |
+| R6 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r6 |
 | R2 plan commit | e65092088a28a2a9ed61364274dbd6ec46de5eb8 |
 | R2 plan SHA-256 | e6e5195c7f56904afb06dfe937433f3498465fef1df191b8fb6856ee1ac792b6 |
 | R2 plan Git blob | 45c1441ac4d6e20c5626b299fe5293b00ea444fb |
 | R3 plan commit | 54a070edf1e2e7bc73731d1b5166816e37b0a8ae |
 | R3 plan SHA-256 | 131dc77dc656952469c77a816a36c847d4f38a018f922577441884396009ed4a |
 | R3 plan Git blob | a4d32891bab8374bd9d20f80c38ff76e034212fc |
+| R4 plan commit | b43c96baca14b1618ce3106fe88c1a09f7d49e0c |
+| R4 plan SHA-256 | f737233661fd53189d121d53fdea1394f63f227eaa7b584d911ac1024dbaf4e0 |
+| R4 plan Git blob | 09e50a6378ba0d4b9805ae7a74258ffbceba64de |
+| R5 plan commit | f76df120fc5a3f8d2d0d33392f40c37ba2d3927c |
+| R5 plan SHA-256 | ebff7a8d3f04b503cf4eb7b8ae5314f893a61f971c019975c898c1a563773344 |
+| R5 plan Git blob | db081770f4267ebfd385ffa7b2a85b6c4a30acd9 |
+| R6 plan commit | 0dc7dfe5e3b704b201bda4a906ef4cb336df7cfa |
+| R6 plan SHA-256 | 0b68359f362434ef9f42df21ca553692ae6e3bb3c096881009ab5e9473cc2c33 |
+| R6 plan Git blob | 6fce9d13a42a09027e0e730874a8d80e03e6a7da |
 | implementation branch | codex/mhi-v1-e-independent-validation |
 | fixture ledger | expected/phase_e_fixture_inventory.schema1.json |
 

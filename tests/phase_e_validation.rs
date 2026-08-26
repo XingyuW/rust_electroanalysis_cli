@@ -3268,10 +3268,10 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
 
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let plan = fs::read(root.join("docs/engineering_specification/next_milestone_plan.md"))
-        .expect("approved R3 plan");
+        .expect("approved R6 plan");
     assert_eq!(
         format!("{:x}", Sha256::digest(plan)),
-        "131dc77dc656952469c77a816a36c847d4f38a018f922577441884396009ed4a"
+        "0b68359f362434ef9f42df21ca553692ae6e3bb3c096881009ab5e9473cc2c33"
     );
     let cargo = fs::read_to_string(root.join("Cargo.toml")).expect("Cargo manifest");
     assert!(cargo.contains("ed25519-dalek = { version = \"=2.2.0\", default-features = false }"));
@@ -3357,11 +3357,15 @@ fn phase_e_author_side_traceability_evidence_is_non_self_approving() {
         "ism-mechanism-health-v1-e-plan-approved",
         "ism-mechanism-health-v1-e-plan-approved-r2",
         "ism-mechanism-health-v1-e-plan-approved-r3",
+        "ism-mechanism-health-v1-e-plan-approved-r4",
+        "ism-mechanism-health-v1-e-plan-approved-r5",
+        "ism-mechanism-health-v1-e-plan-approved-r6",
         "macOS the sole supported",
         "non-UTF-8 early-return `DIR*` resource leak",
         "permanent E-T25 coverage remains weaker",
         "e6e5195c7f56904afb06dfe937433f3498465fef1df191b8fb6856ee1ac792b6",
         "131dc77dc656952469c77a816a36c847d4f38a018f922577441884396009ed4a",
+        "0b68359f362434ef9f42df21ca553692ae6e3bb3c096881009ab5e9473cc2c33",
         "18 requirements",
         "E-R18",
         "E-AC18",
