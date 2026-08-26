@@ -3176,6 +3176,131 @@ fn phase_e_mechanism_phase_b_reference_cross_product_matches_hand_oracle() {
         fs::remove_dir_all(fixture_root).expect("matrix cleanup");
     }
 
+    let (fixture_root, _, legacy_dataset) = staged_validation_inputs(
+        "protocol/software_valid.toml",
+        "dataset/software_valid.schema1.json",
+    );
+    let legacy_source_path = legacy_dataset
+        .parent()
+        .expect("dataset parent")
+        .join("sources/mechanism_c.schema4.json");
+    let mut legacy_source_wire: serde_json::Value =
+        serde_json::from_slice(&fs::read(&legacy_source_path).expect("legacy source bytes"))
+            .expect("legacy source JSON");
+    assert_eq!(legacy_source_wire["schema_version"], serde_json::json!(4));
+    assert_eq!(
+        legacy_source_wire["artifact_kind"],
+        serde_json::json!("mechanism_analysis")
+    );
+    legacy_source_wire["lineage"] = serde_json::json!({
+        "LegacyUnknown": {
+            "source_schema_version": 4,
+            "reason": "MigrationInformationUnavailable"
+        }
+    });
+    legacy_source_wire["hypothesis_assessments"][0]["current"]["evidence_level"] =
+        serde_json::Value::String("contradicted".into());
+    fs::write(
+        &legacy_source_path,
+        serde_json::to_vec_pretty(&legacy_source_wire).expect("legacy source JSON write"),
+    )
+    .expect("legacy source write");
+    let legacy_source_hash = format!(
+        "{:x}",
+        Sha256::digest(fs::read(&legacy_source_path).expect("legacy source bytes"))
+    );
+    let mut legacy = read_artifact_strict::<MhiValidationDatasetV1>(&legacy_dataset)
+        .expect("legacy dataset")
+        .artifact;
+    legacy
+        .records
+        .retain(|record| record.record_id == "record_2");
+    let record = legacy.records.first_mut().expect("legacy mechanism record");
+    record.health_source = None;
+    record.declared_scope.experiment_scope =
+        rust_electroanalysis_cli::domain::ArtifactExperimentScope::Unknown;
+    record.declared_scope.sensor_scope = rust_electroanalysis_cli::domain::ScopeKey::Unspecified;
+    record.declared_scope.channel_scope = rust_electroanalysis_cli::domain::ScopeKey::Unspecified;
+    record.declared_scope.acquisition_families =
+        rust_electroanalysis_cli::domain::ArtifactAcquisitionFamilies::Unknown;
+    let mechanism_source = record
+        .mechanism_source
+        .as_mut()
+        .expect("legacy mechanism source");
+    mechanism_source.source_file_sha256 = legacy_source_hash.clone();
+    mechanism_source.expected_lineage = ExpectedLineageV1::LegacyUnknown {
+        schema_version: 4,
+        legacy_source_fingerprint: legacy_source_hash,
+        reason: rust_electroanalysis_cli::results::LegacyLineageReasonV1::MigrationInformationUnavailable,
+    };
+    write_test_dataset(&legacy_dataset, &mut legacy);
+    let legacy_inputs = ValidationInputs::read(&protocol, &protocol_hash, &legacy_dataset)
+        .expect("LegacyUnknown mechanism inputs");
+    let endpoint = &protocol.mechanism_endpoints[0];
+    let partition = rust_electroanalysis_cli::mhi_validation::partition::partition_endpoint(
+        &legacy_inputs,
+        rust_electroanalysis_cli::mhi_validation::partition::EndpointPartitionSpec {
+            endpoint_id: &endpoint.endpoint_id,
+            cohort_role: endpoint.cohort_role,
+            domain: &endpoint.domain,
+            required_strata: &endpoint.required_strata,
+            reference_rule: &endpoint.reference_rule,
+            source: rust_electroanalysis_cli::mhi_validation::partition::EndpointSource::Mechanism,
+            physical: false,
+        },
+    )
+    .expect("LegacyUnknown partition");
+    let partition_row = partition
+        .rows
+        .iter()
+        .find(|row| row.stratum_id == "overall" && row.record_id == "record_2")
+        .expect("LegacyUnknown partition row");
+    assert_eq!(
+        partition_row.decision,
+        rust_electroanalysis_cli::validation_config::RecordDecisionV1::Excluded
+    );
+    let mut exclusion_reasons = partition_row.secondary_reasons.clone();
+    if let Some(primary_reason) = partition_row.primary_reason {
+        exclusion_reasons.push(primary_reason);
+    }
+    assert!(exclusion_reasons.contains(
+        &rust_electroanalysis_cli::validation_config::ExclusionReasonV1::SourceNotPhaseBOrCScoreable
+    ));
+    let legacy_report =
+        evaluate_mhi_validation(&protocol, &legacy_inputs).expect("LegacyUnknown mechanism report");
+    let mechanism = legacy_report
+        .mechanism_results
+        .iter()
+        .find(|result| result.stratum_id == "overall")
+        .expect("LegacyUnknown overall mechanism result");
+    assert_eq!(mechanism.eligible_count, 0);
+    assert!(
+        mechanism
+            .declared_critical_falsification_record_ids
+            .is_empty()
+    );
+    assert_eq!(mechanism.declared_critical_falsification_count, 0);
+    assert!(mechanism.critical_contradiction_record_ids.is_empty());
+    assert!(mechanism.support_record_ids.is_empty());
+    assert!(mechanism.not_assessed_or_other_record_ids.is_empty());
+    assert_eq!(
+        mechanism.outcome,
+        rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
+    );
+    assert_eq!(
+        legacy_report.release_claims[0].outcome,
+        rust_electroanalysis_cli::validation_config::ReleaseClaimOutcomeV1::Indeterminate
+    );
+    assert_eq!(
+        legacy_report.overall_status,
+        rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::Indeterminate
+    );
+    assert!(!matches!(
+        mechanism.outcome,
+        rust_electroanalysis_cli::validation_config::ValidationOutcomeV1::DoesNotMeetProtocol
+    ));
+    fs::remove_dir_all(fixture_root).expect("LegacyUnknown cleanup");
+
     let (fixture_root, _, duplicate_dataset) = staged_validation_inputs(
         "protocol/software_valid.toml",
         "dataset/software_valid.schema1.json",

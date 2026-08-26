@@ -140,7 +140,7 @@ pub fn partition_endpoint(
                 continue;
             }
             if record.evidence_origin != crate::validation_config::EvidenceOriginV1::Physical
-                || record_source(record, spec.source).is_none_or(is_not_scoreable)
+                || record_source(record, spec.source).is_none_or(|source| !is_scoreable(source))
             {
                 return Err(MhiValidationError::Dataset(
                     "PhysicalReferenceAuthorityMismatch".into(),
@@ -286,7 +286,7 @@ fn partition_record(
     if source.is_none() {
         reasons.push(ExclusionReasonV1::MissingEndpointArtifactPath);
     }
-    if source.is_some_and(is_not_scoreable) {
+    if source.is_some_and(|source| !is_scoreable(source)) {
         reasons.push(ExclusionReasonV1::SourceNotPhaseBOrCScoreable);
     }
     if reference.is_none() {
@@ -755,9 +755,9 @@ fn scientific_source_key(source: &ArtifactSourceExpectationV1) -> ScientificSour
     }
 }
 
-fn is_not_scoreable(source: &ArtifactSourceExpectationV1) -> bool {
-    !matches!(source.expected_lineage, ExpectedLineageV1::Known { .. })
-        || source.expected_schema_version != 4
+pub(crate) fn is_scoreable(source: &ArtifactSourceExpectationV1) -> bool {
+    matches!(source.expected_lineage, ExpectedLineageV1::Known { .. })
+        && source.expected_schema_version == 4
 }
 
 pub fn matching_reference<'a>(

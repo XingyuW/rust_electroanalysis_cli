@@ -266,6 +266,9 @@ fn evaluate_mechanism(
                     .mechanism_sources
                     .iter()
                     .find(|(id, _)| id == &row.record_id)
+                && record(&inputs.dataset.artifact.records, &row.record_id)
+                    .and_then(|record| record.mechanism_source.as_ref())
+                    .is_some_and(partition::is_scoreable)
             {
                 let level = phase_b_level(source, &endpoint.hypothesis_id)?;
                 let reference =
