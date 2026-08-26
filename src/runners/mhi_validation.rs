@@ -9,10 +9,7 @@ use crate::{
     },
     validation_config::RequestedValidationLevelV1,
 };
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct MhiValidationRunOptions {
@@ -23,17 +20,14 @@ pub struct MhiValidationRunOptions {
 }
 
 pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiValidationError> {
-    validate_root_file(&options.protocol)?;
     if options.protocol == options.dataset
         || options.output_dir == options.protocol
         || options.output_dir == options.dataset
     {
         return Err(MhiValidationError::UnsafePath(options.output_dir));
     }
-    let protocol_bytes = fs::read(&options.protocol).map_err(|source| MhiValidationError::Io {
-        path: options.protocol.clone(),
-        source,
-    })?;
+    let protocol_bytes = crate::domain::read_strict_file_bytes(&options.protocol)
+        .map_err(crate::mhi_validation::reader::map_reader_artifact_error)?;
     let protocol_text = std::str::from_utf8(&protocol_bytes)
         .map_err(|_| MhiValidationError::Protocol("protocol must be UTF-8".into()))?;
     let protocol = MhiValidationProtocolV1::from_toml(protocol_text)?;
@@ -58,7 +52,6 @@ pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiVal
     // above this line.  In particular, an attacker cannot obtain a different
     // error (or make the reader inspect a supplied path) by choosing a missing
     // or malformed dataset.
-    validate_root_file(&options.dataset)?;
     let mut inputs = ValidationInputs::read(&protocol, &protocol_sha256, &options.dataset)?;
     if let Some(trust) = &trust {
         let source = inputs
@@ -75,7 +68,9 @@ pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiVal
             &inputs.dataset_directory,
             &source.relative_path,
         )?;
-        let approval = OwnerApprovalEvidenceV1::read_and_validate(
+        let approval = OwnerApprovalEvidenceV1::read_and_validate_at(
+            &inputs.dataset_directory_authority,
+            &source.relative_path,
             &path,
             &source.source_file_sha256,
             trust,
@@ -92,15 +87,4 @@ pub fn run_mhi_validation(options: MhiValidationRunOptions) -> Result<(), MhiVal
     let report = evaluate_mhi_validation(&protocol, &inputs)?;
     let authorization = authorize_publication(&report, &protocol, &inputs)?;
     publish_authorized_bundle(&options.output_dir, &authorization, options.overwrite)
-}
-
-fn validate_root_file(path: &Path) -> Result<(), MhiValidationError> {
-    let metadata = fs::symlink_metadata(path).map_err(|source| MhiValidationError::Io {
-        path: path.into(),
-        source,
-    })?;
-    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
-        return Err(MhiValidationError::UnsafePath(path.into()));
-    }
-    Ok(())
 }

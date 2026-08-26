@@ -4,7 +4,8 @@ use super::{MhiValidationError, MhiValidationProtocolV1};
 use crate::{
     domain::{
         ArtifactLineageState, StrictArtifactRead, StrictLineageCatalogRead,
-        known_lineage_from_artifact, read_artifact_lineage_catalog_strict, read_artifact_strict,
+        known_lineage_from_artifact, open_strict_directory,
+        read_artifact_lineage_catalog_strict_at, read_artifact_strict_at,
     },
     results::{
         ArtifactSourceExpectationV1, MechanismAnalysisReport, MhiValidationDatasetV1,
@@ -13,8 +14,10 @@ use crate::{
 };
 use serde::Serialize;
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Component, Path, PathBuf},
+    sync::Arc,
 };
 
 /// Reader-owned validation state.  Approval authority is private and can only
@@ -39,6 +42,7 @@ pub struct ValidationInputs {
     pub protocol_sha256: String,
     pub dataset: StrictArtifactRead<MhiValidationDatasetV1>,
     pub dataset_directory: PathBuf,
+    pub(crate) dataset_directory_authority: Arc<fs::File>,
     pub lineage_catalog: StrictLineageCatalogRead,
     pub mechanism_sources: Vec<(String, StrictArtifactRead<MechanismAnalysisReport>)>,
     pub health_sources: Vec<(String, StrictArtifactRead<SensorHealthAssessment>)>,
@@ -51,22 +55,34 @@ impl ValidationInputs {
         protocol_sha256: &str,
         dataset_path: &Path,
     ) -> Result<Self, MhiValidationError> {
-        let dataset = read_artifact_strict::<MhiValidationDatasetV1>(dataset_path)?;
+        let dataset_directory = dataset_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .to_path_buf();
+        let dataset_directory_authority =
+            Arc::new(open_strict_directory(&dataset_directory).map_err(map_reader_artifact_error)?);
+        let dataset_name = dataset_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| MhiValidationError::UnsafePath(dataset_path.into()))?;
+        let dataset: StrictArtifactRead<MhiValidationDatasetV1> =
+            read_artifact_strict_at(&dataset_directory_authority, dataset_name, dataset_path)
+                .map_err(map_reader_artifact_error)?;
         dataset
             .artifact
             .validate_against_protocol(protocol, protocol_sha256)?;
-        let dataset_directory = canonical_regular_file(dataset_path)?
-            .parent()
-            .expect("canonical file has parent")
-            .to_path_buf();
         let lineage_path = safe_dataset_relative_path(
             &dataset_directory,
             &dataset.artifact.lineage_catalog_source.relative_path,
         )?;
-        let lineage_catalog =
-            read_artifact_lineage_catalog_strict(&lineage_path).map_err(|error| {
-                MhiValidationError::Dataset(format!("lineage catalog is invalid: {error}"))
-            })?;
+        let lineage_catalog = read_artifact_lineage_catalog_strict_at(
+            &dataset_directory_authority,
+            &dataset.artifact.lineage_catalog_source.relative_path,
+            &lineage_path,
+        )
+        .map_err(|error| {
+            MhiValidationError::Dataset(format!("lineage catalog is invalid: {error}"))
+        })?;
         if lineage_catalog.source_file_sha256
             != dataset.artifact.lineage_catalog_source.source_file_sha256
         {
@@ -86,7 +102,11 @@ impl ValidationInputs {
                     ));
                 }
                 let path = safe_dataset_relative_path(&dataset_directory, &source.relative_path)?;
-                let artifact = read_phase_e_mechanism_source(&path)?;
+                let artifact = read_phase_e_mechanism_source(
+                    &dataset_directory_authority,
+                    &source.relative_path,
+                    &path,
+                )?;
                 if artifact.source_file_sha256 != source.source_file_sha256
                     || artifact.artifact.schema_version != 4
                 {
@@ -112,7 +132,11 @@ impl ValidationInputs {
                     ));
                 }
                 let path = safe_dataset_relative_path(&dataset_directory, &source.relative_path)?;
-                let artifact = read_phase_e_health_source(&path)?;
+                let artifact = read_phase_e_health_source(
+                    &dataset_directory_authority,
+                    &source.relative_path,
+                    &path,
+                )?;
                 if artifact.source_file_sha256 != source.source_file_sha256
                     || artifact.artifact.schema_version != 4
                 {
@@ -137,6 +161,7 @@ impl ValidationInputs {
             protocol_sha256: protocol_sha256.into(),
             dataset,
             dataset_directory,
+            dataset_directory_authority,
             lineage_catalog,
             mechanism_sources,
             health_sources,
@@ -153,21 +178,28 @@ impl ValidationInputs {
 }
 
 fn read_phase_e_mechanism_source(
+    directory: &fs::File,
+    relative: &str,
     path: &Path,
 ) -> Result<StrictArtifactRead<MechanismAnalysisReport>, MhiValidationError> {
-    let artifact = read_artifact_strict::<MechanismAnalysisReport>(path)?;
+    let artifact = read_artifact_strict_at::<MechanismAnalysisReport>(directory, relative, path)
+        .map_err(map_reader_artifact_error)?;
     if artifact.artifact.schema_version != 4 {
         return Err(MhiValidationError::Dataset(
             "mechanism scientific sources must be schema-4 mechanism_analysis".into(),
         ));
     }
+    validate_phase_b_assessment_integrity(&artifact.artifact)?;
     Ok(artifact)
 }
 
 fn read_phase_e_health_source(
+    directory: &fs::File,
+    relative: &str,
     path: &Path,
 ) -> Result<StrictArtifactRead<SensorHealthAssessment>, MhiValidationError> {
-    let artifact = read_artifact_strict::<SensorHealthAssessment>(path)?;
+    let artifact = read_artifact_strict_at::<SensorHealthAssessment>(directory, relative, path)
+        .map_err(map_reader_artifact_error)?;
     if artifact.artifact.schema_version != 4 {
         return Err(MhiValidationError::Dataset(
             "health scientific sources must be schema-4 health_assessment".into(),
@@ -218,6 +250,11 @@ fn validate_source_authority<T: Serialize>(
         direct_dependencies,
     } = lineage
     else {
+        if !declared_scope_is_unknown(&record.declared_scope) {
+            return Err(MhiValidationError::Dataset(
+                "LegacyUnknown source requires unknown declared scope".into(),
+            ));
+        }
         return Ok(());
     };
     let recomputed = known_lineage_from_artifact(
@@ -295,37 +332,49 @@ pub fn safe_dataset_relative_path(
     {
         return Err(MhiValidationError::UnsafePath(path.into()));
     }
-    let candidate = dataset_directory.join(path);
-    let mut cursor = dataset_directory.to_path_buf();
-    for component in path.components() {
-        cursor.push(component.as_os_str());
-        let metadata = fs::symlink_metadata(&cursor).map_err(|source| MhiValidationError::Io {
-            path: cursor.clone(),
-            source,
-        })?;
-        if metadata.file_type().is_symlink() {
-            return Err(MhiValidationError::UnsafePath(cursor));
-        }
-    }
-    let canonical = canonical_regular_file(&candidate)?;
-    if !canonical.starts_with(dataset_directory) {
-        return Err(MhiValidationError::UnsafePath(canonical));
-    }
-    Ok(canonical)
+    Ok(dataset_directory.join(path))
 }
 
-fn canonical_regular_file(path: &Path) -> Result<PathBuf, MhiValidationError> {
-    let metadata = fs::symlink_metadata(path).map_err(|source| MhiValidationError::Io {
-        path: path.into(),
-        source,
-    })?;
-    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
-        return Err(MhiValidationError::UnsafePath(path.into()));
+pub(crate) fn validate_phase_b_assessment_integrity(
+    report: &MechanismAnalysisReport,
+) -> Result<(), MhiValidationError> {
+    let mut definition_ids = BTreeSet::new();
+    let mut current_ids = BTreeSet::new();
+    for row in &report.hypothesis_assessments {
+        if row.definition.hypothesis_id != row.current.hypothesis_id
+            || !definition_ids.insert(row.definition.hypothesis_id.clone())
+            || !current_ids.insert(row.current.hypothesis_id.clone())
+        {
+            return Err(MhiValidationError::Dataset(
+                "Phase-B hypothesis ID mismatch or duplicate".into(),
+            ));
+        }
     }
-    fs::canonicalize(path).map_err(|source| MhiValidationError::Io {
-        path: path.into(),
-        source,
-    })
+    Ok(())
+}
+
+fn declared_scope_is_unknown(scope: &crate::results::DeclaredScopeV1) -> bool {
+    matches!(
+        (
+            &scope.experiment_scope,
+            &scope.sensor_scope,
+            &scope.channel_scope,
+            &scope.acquisition_families,
+        ),
+        (
+            crate::domain::ArtifactExperimentScope::Unknown,
+            crate::domain::ScopeKey::Unspecified,
+            crate::domain::ScopeKey::Unspecified,
+            crate::domain::ArtifactAcquisitionFamilies::Unknown,
+        )
+    )
+}
+
+pub(crate) fn map_reader_artifact_error(error: crate::domain::ArtifactError) -> MhiValidationError {
+    match error {
+        crate::domain::ArtifactError::UnsafeFile { path } => MhiValidationError::UnsafePath(path),
+        other => MhiValidationError::Artifact(other),
+    }
 }
 
 #[cfg(test)]
@@ -338,7 +387,33 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let legacy_mechanism = root.join("tests/fixtures/phase_d/legacy/mechanism_v1.json");
         let legacy_health = root.join("tests/fixtures/phase_d/legacy/health_v3.json");
-        assert!(read_phase_e_mechanism_source(&legacy_mechanism).is_err());
-        assert!(read_phase_e_health_source(&legacy_health).is_err());
+        let mechanism_directory = open_strict_directory(legacy_mechanism.parent().expect("parent"))
+            .expect("mechanism parent");
+        let health_directory =
+            open_strict_directory(legacy_health.parent().expect("parent")).expect("health parent");
+        assert!(
+            read_phase_e_mechanism_source(
+                &mechanism_directory,
+                legacy_mechanism
+                    .file_name()
+                    .expect("file")
+                    .to_str()
+                    .expect("UTF-8"),
+                &legacy_mechanism,
+            )
+            .is_err()
+        );
+        assert!(
+            read_phase_e_health_source(
+                &health_directory,
+                legacy_health
+                    .file_name()
+                    .expect("file")
+                    .to_str()
+                    .expect("UTF-8"),
+                &legacy_health,
+            )
+            .is_err()
+        );
     }
 }

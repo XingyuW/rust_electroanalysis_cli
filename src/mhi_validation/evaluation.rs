@@ -31,6 +31,9 @@ pub fn evaluate_mhi_validation(
     protocol: &MhiValidationProtocolV1,
     inputs: &ValidationInputs,
 ) -> Result<MhiValidationReportV1, MhiValidationError> {
+    for (_, source) in &inputs.mechanism_sources {
+        super::reader::validate_phase_b_assessment_integrity(&source.artifact)?;
+    }
     let physical_endpoints = protocol
         .release_scope
         .iter()
@@ -296,7 +299,7 @@ fn evaluate_mechanism(
                 })?
                 .1;
             let level = phase_b_level(source, &endpoint.hypothesis_id)?;
-            let reference = partition::matching_reference(record, &endpoint.endpoint_id)
+            let reference = partition::matching_reference_exact(record, &endpoint.endpoint_id)?
                 .ok_or_else(|| {
                     MhiValidationError::Dataset("eligible mechanism row lacks reference".into())
                 })?;
@@ -505,7 +508,7 @@ fn evaluate_health(
                 })?
                 .1;
             let status = phase_c_status(source, &endpoint.target)?;
-            let reference = partition::matching_reference(record, &endpoint.endpoint_id)
+            let reference = partition::matching_reference_exact(record, &endpoint.endpoint_id)?
                 .ok_or_else(|| {
                     MhiValidationError::Dataset("eligible health row lacks reference".into())
                 })?;
@@ -1420,7 +1423,7 @@ fn compatibility(inputs: &ValidationInputs) -> Vec<CompatibilityRowV1> {
         CompatibilityRowV1 {
             record_id: None,
             source_role: CompatibilitySourceRoleV1::Protocol,
-            relative_path: String::new(),
+            relative_path: "@protocol".into(),
             expected_kind: None,
             actual_kind: None,
             expected_schema: 1,
@@ -1436,7 +1439,7 @@ fn compatibility(inputs: &ValidationInputs) -> Vec<CompatibilityRowV1> {
         CompatibilityRowV1 {
             record_id: None,
             source_role: CompatibilitySourceRoleV1::Dataset,
-            relative_path: String::new(),
+            relative_path: "@dataset".into(),
             expected_kind: Some(crate::domain::ArtifactKind::MhiValidationDataset),
             actual_kind: Some(crate::domain::ArtifactKind::MhiValidationDataset),
             expected_schema: 1,

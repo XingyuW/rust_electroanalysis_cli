@@ -146,9 +146,10 @@ pub fn partition_endpoint(
                     "PhysicalReferenceAuthorityMismatch".into(),
                 ));
             }
-            let reference = matching_reference(record, spec.endpoint_id).ok_or_else(|| {
-                MhiValidationError::Dataset("PhysicalReferenceAuthorityMismatch".into())
-            })?;
+            let reference =
+                matching_reference_exact(record, spec.endpoint_id)?.ok_or_else(|| {
+                    MhiValidationError::Dataset("PhysicalReferenceAuthorityMismatch".into())
+                })?;
             ensure_physical_reference(
                 reference_source_id(reference),
                 &reference_sources,
@@ -174,7 +175,7 @@ pub fn partition_endpoint(
             if let Some(source) = record_source(record, spec.source) {
                 comparator.union(&source_closure(source, catalog, ClosureRole::Development)?);
             }
-            if let Some(reference) = matching_reference(record, spec.endpoint_id) {
+            if let Some(reference) = matching_reference_exact(record, spec.endpoint_id)? {
                 comparator.union(&reference_closure(
                     reference,
                     &reference_sources,
@@ -271,7 +272,7 @@ fn partition_record(
         });
     }
     let source = record_source(record, spec.source);
-    let reference = matching_reference(record, spec.endpoint_id);
+    let reference = matching_reference_exact(record, spec.endpoint_id)?;
     let source_key = source.map(scientific_source_key);
     let reference_id = reference.map(reference_endpoint_id);
     let assessed = source
@@ -763,10 +764,26 @@ pub fn matching_reference<'a>(
     record: &'a ValidationRecordV1,
     endpoint_id: &str,
 ) -> Option<&'a ReferenceEndpointV1> {
-    record
-        .reference_endpoints
-        .iter()
-        .find(|reference| reference_endpoint_binding_id(reference) == endpoint_id)
+    matching_reference_exact(record, endpoint_id).ok().flatten()
+}
+
+pub fn matching_reference_exact<'a>(
+    record: &'a ValidationRecordV1,
+    endpoint_id: &str,
+) -> Result<Option<&'a ReferenceEndpointV1>, MhiValidationError> {
+    let mut matching = None;
+    for reference in &record.reference_endpoints {
+        if reference_endpoint_binding_id(reference) != endpoint_id {
+            continue;
+        }
+        if matching.is_some() {
+            return Err(MhiValidationError::Dataset(
+                "ReferenceEndpointBindingMismatch".into(),
+            ));
+        }
+        matching = Some(reference);
+    }
+    Ok(matching)
 }
 fn reference_endpoint_binding_id(reference: &ReferenceEndpointV1) -> &str {
     match reference {

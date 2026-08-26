@@ -745,22 +745,25 @@ pub fn read_artifact_lineage_catalog(
 pub fn read_artifact_lineage_catalog_strict(
     path: &Path,
 ) -> Result<StrictLineageCatalogRead, LineageCatalogReadError> {
-    let metadata = fs::symlink_metadata(path).map_err(|source| LineageCatalogReadError::Io {
-        path: path.to_path_buf(),
-        source,
-    })?;
-    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
-        return Err(LineageCatalogReadError::Validation {
-            path: path.to_path_buf(),
-            source: LineageError::Serialization(
-                "strict catalog input must be a regular non-symlink file".into(),
-            ),
-        });
-    }
-    let source_bytes = fs::read(path).map_err(|source| LineageCatalogReadError::Io {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let source_bytes = crate::domain::read_strict_file_bytes(path)
+        .map_err(|error| map_strict_file_error(path, error))?;
+    parse_strict_lineage_catalog_bytes(path, source_bytes)
+}
+
+pub(crate) fn read_artifact_lineage_catalog_strict_at(
+    directory: &fs::File,
+    relative: &str,
+    display_path: &Path,
+) -> Result<StrictLineageCatalogRead, LineageCatalogReadError> {
+    let source_bytes = crate::domain::read_strict_file_at(directory, relative, display_path)
+        .map_err(|error| map_strict_file_error(display_path, error))?;
+    parse_strict_lineage_catalog_bytes(display_path, source_bytes)
+}
+
+fn parse_strict_lineage_catalog_bytes(
+    path: &Path,
+    source_bytes: Vec<u8>,
+) -> Result<StrictLineageCatalogRead, LineageCatalogReadError> {
     if source_bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
         return Err(LineageCatalogReadError::Validation {
             path: path.to_path_buf(),
@@ -794,6 +797,28 @@ pub fn read_artifact_lineage_catalog_strict(
         source_bytes,
         source_file_sha256: format!("{:x}", hash.finalize()),
     })
+}
+
+fn map_strict_file_error(
+    path: &Path,
+    error: crate::domain::ArtifactError,
+) -> LineageCatalogReadError {
+    match error {
+        crate::domain::ArtifactError::Io { source, .. } => LineageCatalogReadError::Io {
+            path: path.to_path_buf(),
+            source,
+        },
+        crate::domain::ArtifactError::UnsafeFile { .. } => LineageCatalogReadError::Validation {
+            path: path.to_path_buf(),
+            source: LineageError::Serialization(
+                "strict catalog input must be a regular non-symlink file".into(),
+            ),
+        },
+        other => LineageCatalogReadError::Validation {
+            path: path.to_path_buf(),
+            source: LineageError::Serialization(other.to_string()),
+        },
+    }
 }
 
 /// Phase-E needs the catalog's historic semantics plus a genuinely closed

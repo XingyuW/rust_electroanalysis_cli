@@ -180,6 +180,29 @@ pub struct OwnerApprovalSourceV1 {
     pub expected_approval_record_id: String,
 }
 
+/// Closed dataset-construction provenance used by the approved Phase-E
+/// dataset fixtures. Arbitrary JSON is deliberately not admitted here.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DatasetProvenanceV1 {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase_e_fixture_case: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_authority: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_categories: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_decision: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_release: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_result: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_separation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_sets: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MhiValidationDatasetV1 {
@@ -193,8 +216,8 @@ pub struct MhiValidationDatasetV1 {
     pub records: Vec<ValidationRecordV1>,
     pub owner_approval_source: Option<OwnerApprovalSourceV1>,
     pub lineage: crate::domain::ArtifactLineageState,
-    pub provenance: serde_json::Value,
-    pub warnings: Vec<serde_json::Value>,
+    pub provenance: DatasetProvenanceV1,
+    pub warnings: Vec<ValidationWarningV1>,
 }
 
 impl MhiValidationDatasetV1 {
@@ -237,6 +260,18 @@ impl MhiValidationDatasetV1 {
         sha(
             "lineage catalog source_file_sha256",
             &self.lineage_catalog_source.source_file_sha256,
+        )?;
+        validate_dataset_provenance(&self.provenance)?;
+        canonical_rows(
+            &self.warnings,
+            |warning| {
+                (
+                    warning.code.clone(),
+                    warning.related_id.clone(),
+                    warning.detail.clone(),
+                )
+            },
+            "dataset warnings",
         )?;
         let mut reference_source_ids = BTreeSet::new();
         let mut previous_reference_source = None;
@@ -287,6 +322,15 @@ impl MhiValidationDatasetV1 {
                 || record.domain.temperature_kelvin.to_bits() == (-0.0f64).to_bits()
             {
                 return invalid("dataset temperatures must be finite and positive");
+            }
+            for (name, value) in [
+                ("analyte_id", record.domain.analyte_id.as_str()),
+                ("matrix_id", record.domain.matrix_id.as_str()),
+                ("sensor_design_id", record.domain.sensor_design_id.as_str()),
+                ("sensor_id", record.domain.sensor_id.as_str()),
+                ("campaign_id", record.domain.campaign_id.as_str()),
+            ] {
+                valid_id(name, value)?;
             }
             for source in [
                 record.mechanism_source.as_ref(),
@@ -339,6 +383,7 @@ impl MhiValidationDatasetV1 {
                 "dataset protocol_sha256 does not bind the exact protocol bytes".into(),
             ));
         }
+        validate_reference_bindings(self, protocol)?;
         let ensure_unique = |endpoint_id: &str,
                              mechanism: bool,
                              role: CohortRoleV1,
@@ -402,6 +447,88 @@ impl MhiValidationDatasetV1 {
         }
         Ok(())
     }
+}
+
+fn validate_dataset_provenance(value: &DatasetProvenanceV1) -> Result<(), ArtifactError> {
+    let fields = [
+        (
+            "phase_e_fixture_case",
+            value.phase_e_fixture_case.as_deref(),
+        ),
+        ("expected_authority", value.expected_authority.as_deref()),
+        ("expected_categories", value.expected_categories.as_deref()),
+        ("expected_decision", value.expected_decision.as_deref()),
+        ("expected_release", value.expected_release.as_deref()),
+        ("expected_result", value.expected_result.as_deref()),
+        ("expected_separation", value.expected_separation.as_deref()),
+        ("expected_sets", value.expected_sets.as_deref()),
+    ];
+    if fields
+        .iter()
+        .any(|(_, value)| value.is_some_and(str::is_empty))
+    {
+        return invalid("dataset provenance values must be nonempty");
+    }
+    if value.phase_e_fixture_case.is_none() && fields.iter().any(|(_, value)| value.is_some()) {
+        return invalid("dataset provenance expectations require a fixture case");
+    }
+    Ok(())
+}
+
+fn validate_reference_bindings(
+    dataset: &MhiValidationDatasetV1,
+    protocol: &crate::mhi_validation::MhiValidationProtocolV1,
+) -> Result<(), crate::mhi_validation::MhiValidationError> {
+    for record in &dataset.records {
+        for reference in &record.reference_endpoints {
+            match reference {
+                ReferenceEndpointV1::Mechanism {
+                    endpoint_id,
+                    hypothesis_id,
+                    ..
+                } => {
+                    let Some(endpoint) = protocol
+                        .mechanism_endpoints
+                        .iter()
+                        .find(|endpoint| endpoint.endpoint_id == *endpoint_id)
+                    else {
+                        return Err(crate::mhi_validation::MhiValidationError::Dataset(
+                            "ReferenceEndpointBindingMismatch".into(),
+                        ));
+                    };
+                    if endpoint.hypothesis_id != *hypothesis_id {
+                        return Err(crate::mhi_validation::MhiValidationError::Dataset(
+                            "ReferenceEndpointBindingMismatch".into(),
+                        ));
+                    }
+                }
+                ReferenceEndpointV1::Health {
+                    endpoint_id,
+                    target,
+                    label,
+                    ..
+                } => {
+                    let Some(endpoint) = protocol
+                        .health_endpoints
+                        .iter()
+                        .find(|endpoint| endpoint.endpoint_id == *endpoint_id)
+                    else {
+                        return Err(crate::mhi_validation::MhiValidationError::Dataset(
+                            "ReferenceEndpointBindingMismatch".into(),
+                        ));
+                    };
+                    if endpoint.target != *target
+                        || !endpoint.reference_label_universe.contains(label)
+                    {
+                        return Err(crate::mhi_validation::MhiValidationError::Dataset(
+                            "ReferenceEndpointBindingMismatch".into(),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn validate_expected_lineage(value: &ExpectedLineageV1) -> Result<(), ArtifactError> {
@@ -486,6 +613,7 @@ fn validate_record_references(
     reference_source_ids: &BTreeSet<String>,
 ) -> Result<(), ArtifactError> {
     let mut previous = None;
+    let mut endpoint_ids = BTreeSet::new();
     let mut ids = BTreeSet::new();
     for reference in &record.reference_endpoints {
         let (endpoint_id, reference_endpoint_id, reference_source_id, key) = match reference {
@@ -553,6 +681,7 @@ fn validate_record_references(
             return invalid("reference endpoint names an unknown reference source");
         }
         if previous.as_ref().is_some_and(|last: &String| last >= &key)
+            || !endpoint_ids.insert(endpoint_id.clone())
             || !ids.insert(reference_endpoint_id.clone())
         {
             return invalid("record reference endpoints must be canonical and unique");

@@ -18,7 +18,10 @@ pub use artifact::{
     ArtifactError, ArtifactKind, CurrentArtifactKindPolicy, StrictArtifactRead, VersionedArtifact,
     read_artifact, read_artifact_strict, validate_serialized_finite, write_artifact,
 };
-pub(crate) use artifact::{read_artifact_strict_bytes, serialize_artifact};
+pub(crate) use artifact::{
+    ensure_duplicate_free_json, open_strict_directory, read_artifact_strict_at,
+    read_artifact_strict_bytes, read_strict_file_at, read_strict_file_bytes, serialize_artifact,
+};
 pub use diagnostics::{IngestionDiagnostic, MeasurementParseResult, ParseDiagnostics};
 pub use errors::{
     BatchFileFailure, ConfigurationError, DataParsingError, FittingError, PlottingError,
@@ -28,6 +31,7 @@ pub use experiment::{
     ElectrochemicalExperiment, EnvironmentalSeries, ExperimentEvent, ExperimentEventKind,
     ReferenceMetadata, SensorMetadata,
 };
+pub(crate) use lineage::read_artifact_lineage_catalog_strict_at;
 pub use lineage::{
     AcquisitionFamilyId, AggregateExperimentScopeId, ArtifactAcquisitionFamilies,
     ArtifactDependency, ArtifactDependencyRole, ArtifactExperimentScope, ArtifactId,

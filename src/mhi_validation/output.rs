@@ -619,6 +619,10 @@ enum PublicationTestHook {
     MutateStagedChecksum,
     MutateStagedReportBeforeReread,
     AddManifestSelfRecord,
+    DuplicateManifestKey,
+    DuplicateGeneratedFileKey,
+    WrongManifestOutputKind,
+    AddManifestFinalNewline,
     WrongCreateManifestMode,
     WrongReplaceManifestMode,
     AddManifestTimestamp,
@@ -679,6 +683,18 @@ fn publication_test_hook(point: PublicationTestPoint, _stage: &Path, output: &Pa
             PublicationTestPoint::BeforeStageVerification
         ) | (
             PublicationTestHook::AddManifestSelfRecord,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::DuplicateManifestKey,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::DuplicateGeneratedFileKey,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::WrongManifestOutputKind,
+            PublicationTestPoint::BeforeStageVerification
+        ) | (
+            PublicationTestHook::AddManifestFinalNewline,
             PublicationTestPoint::BeforeStageVerification
         ) | (
             PublicationTestHook::WrongCreateManifestMode,
@@ -769,6 +785,37 @@ fn publication_test_hook(point: PublicationTestPoint, _stage: &Path, output: &Pa
                     .expect("generated files")
                     .push(record);
             });
+        }
+        PublicationTestHook::DuplicateManifestKey => {
+            let path = _stage.join(MANIFEST_FILE);
+            let text = fs::read_to_string(&path).expect("manifest");
+            let duplicated = text.replacen(
+                "  \"schema_version\": 1,",
+                "  \"schema_version\": 1,\n  \"schema_version\": 1,",
+                1,
+            );
+            fs::write(path, duplicated).expect("duplicate manifest key");
+        }
+        PublicationTestHook::DuplicateGeneratedFileKey => {
+            let path = _stage.join(MANIFEST_FILE);
+            let text = fs::read_to_string(&path).expect("manifest");
+            let duplicated = text.replacen(
+                "      \"relative_path\": \"mhi_validation_report.schema1.json\",",
+                "      \"relative_path\": \"mhi_validation_report.schema1.json\",\n      \"relative_path\": \"mhi_validation_report.schema1.json\",",
+                1,
+            );
+            fs::write(path, duplicated).expect("duplicate generated-file key");
+        }
+        PublicationTestHook::WrongManifestOutputKind => {
+            mutate_manifest(_stage, |manifest| {
+                manifest["generated_files"][0]["output_kind"] = Value::String("wrong".into());
+            });
+        }
+        PublicationTestHook::AddManifestFinalNewline => {
+            let path = _stage.join(MANIFEST_FILE);
+            let mut bytes = fs::read(&path).expect("manifest");
+            bytes.push(b'\n');
+            fs::write(path, bytes).expect("manifest final newline");
         }
         PublicationTestHook::WrongCreateManifestMode => {
             mutate_manifest(_stage, |manifest| {
@@ -1089,21 +1136,13 @@ fn generated_file_records(
     stage: &fs::File,
     display_stage: &Path,
 ) -> Result<Vec<GeneratedFileRecordV1>, MhiValidationError> {
-    let mut entries = vec![
-        (REPORT_FILE.to_string(), "mhi_validation_report"),
-        (SUMMARY_FILE.to_string(), "validation_summary_markdown"),
-    ];
-    for (name, kind, _) in TABLES {
-        entries.push((format!("tables/{name}"), kind));
-    }
-    entries.sort_by(|left, right| left.0.cmp(&right.0));
-    entries
+    generated_file_specs()
         .into_iter()
         .map(|(relative_path, output_kind)| {
             let bytes = read_relative_bundle_file(stage, &relative_path, display_stage)?;
             Ok(GeneratedFileRecordV1 {
                 relative_path,
-                output_kind: output_kind.into(),
+                output_kind,
                 byte_length: bytes.len() as u64,
                 sha256: sha256(&bytes),
             })
@@ -1152,9 +1191,9 @@ fn verify_bundle_with_mode(
         let child = display_path.join(&relative);
         let _ = open_relative_regular_file(descriptor, &relative, &child)?;
     }
-    let manifest: ValidationExecutionManifestV1 = serde_json::from_slice(
-        &read_relative_bundle_file(descriptor, MANIFEST_FILE, display_path)?,
-    )?;
+    let manifest_bytes = read_relative_bundle_file(descriptor, MANIFEST_FILE, display_path)?;
+    validate_governed_json_bytes(&display_path.join(MANIFEST_FILE), &manifest_bytes)?;
+    let manifest: ValidationExecutionManifestV1 = serde_json::from_slice(&manifest_bytes)?;
     if manifest.schema_version != 1
         || manifest.output_kind != "mhi_validation_execution_manifest"
         || !matches!(
@@ -1172,11 +1211,11 @@ fn verify_bundle_with_mode(
             "managed bundle publication mode does not match the requested operation".into(),
         ));
     }
-    let expected = generated_paths();
+    let expected = generated_file_specs();
     let actual = manifest
         .generated_files
         .iter()
-        .map(|record| record.relative_path.clone())
+        .map(|record| (record.relative_path.clone(), record.output_kind.clone()))
         .collect::<Vec<_>>();
     if actual != expected {
         return Err(MhiValidationError::Dataset(
@@ -1191,11 +1230,10 @@ fn verify_bundle_with_mode(
             ));
         }
     }
-    let strict = read_artifact_at::<MhiValidationReportV1>(
-        descriptor,
-        REPORT_FILE,
-        &display_path.join(REPORT_FILE),
-    )?;
+    let report_path = display_path.join(REPORT_FILE);
+    let report_bytes = read_relative_bundle_file(descriptor, REPORT_FILE, display_path)?;
+    validate_governed_json_bytes(&report_path, &report_bytes)?;
+    let strict = read_artifact_strict_bytes::<MhiValidationReportV1>(&report_path, &report_bytes)?;
     if strict.artifact.report_id != manifest.report_id
         || strict.artifact.protocol.source_file_sha256 != manifest.protocol_sha256
         || strict.artifact.dataset.source != manifest.dataset_source
@@ -1210,10 +1248,24 @@ fn verify_bundle_with_mode(
 }
 
 fn generated_paths() -> Vec<String> {
-    let mut paths = vec![REPORT_FILE.into(), SUMMARY_FILE.into()];
-    paths.extend(TABLES.iter().map(|(name, _, _)| format!("tables/{name}")));
-    paths.sort();
-    paths
+    generated_file_specs()
+        .into_iter()
+        .map(|(path, _)| path)
+        .collect()
+}
+
+fn generated_file_specs() -> Vec<(String, String)> {
+    let mut specs = vec![
+        (REPORT_FILE.into(), "mhi_validation_report".into()),
+        (SUMMARY_FILE.into(), "validation_summary_markdown".into()),
+    ];
+    specs.extend(
+        TABLES
+            .iter()
+            .map(|(name, kind, _)| (format!("tables/{name}"), (*kind).into())),
+    );
+    specs.sort();
+    specs
 }
 
 #[cfg(unix)]
@@ -1844,8 +1896,17 @@ fn remove_tree_reverse_at(
 #[cfg(unix)]
 fn open_parent_authority(path: &Path) -> Result<DirectoryAuthority, MhiValidationError> {
     let mut current: Option<fs::File> = None;
-    let components = path.components().collect::<Vec<_>>();
-    for (index, component) in components.into_iter().enumerate() {
+    #[cfg(target_os = "macos")]
+    let traversal_path = if let Ok(suffix) = path.strip_prefix("/var") {
+        Path::new("/private/var").join(suffix)
+    } else if let Ok(suffix) = path.strip_prefix("/tmp") {
+        Path::new("/private/tmp").join(suffix)
+    } else {
+        path.to_path_buf()
+    };
+    #[cfg(target_os = "linux")]
+    let traversal_path = path.to_path_buf();
+    for component in traversal_path.components() {
         match component {
             std::path::Component::RootDir => {
                 current = Some(open_directory_at_fd(AT_FDCWD, "/", path).map_err(|source| {
@@ -1863,16 +1924,6 @@ fn open_parent_authority(path: &Path) -> Result<DirectoryAuthority, MhiValidatio
                 let parent_fd = current.as_ref().map_or(AT_FDCWD, AsRawFd::as_raw_fd);
                 current = Some(match open_directory_at_fd(parent_fd, name, path) {
                     Ok(descriptor) => descriptor,
-                    Err(source)
-                        if index + 1 < path.components().count() && is_symlink_error(&source) =>
-                    {
-                        open_directory_at_follow(parent_fd, name, path).map_err(|follow_error| {
-                            MhiValidationError::Io {
-                                path: path.into(),
-                                source: follow_error,
-                            }
-                        })?
-                    }
                     Err(source) if is_symlink_error(&source) => {
                         return Err(MhiValidationError::UnsafePath(path.into()));
                     }
@@ -1932,23 +1983,6 @@ fn open_directory_at_fd(
         Err(error) => return Err(error),
     };
     Ok(unsafe { fs::File::from_raw_fd(descriptor) })
-}
-
-#[cfg(unix)]
-fn open_directory_at_follow(
-    parent: RawFd,
-    name: &str,
-    display_path: &Path,
-) -> std::io::Result<fs::File> {
-    let descriptor = open_at_raw(parent, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0)?;
-    let file = unsafe { fs::File::from_raw_fd(descriptor) };
-    if !file.metadata()?.is_dir() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::NotADirectory,
-            display_path.display().to_string(),
-        ));
-    }
-    Ok(file)
 }
 
 #[cfg(unix)]
@@ -2039,8 +2073,7 @@ fn read_artifact_at<T: crate::domain::VersionedArtifact>(
 #[cfg(unix)]
 fn normalize_json_bytes(path: &Path, bytes: &[u8]) -> Result<Vec<u8>, MhiValidationError> {
     let value: Value = serde_json::from_slice(bytes)?;
-    let mut normalized = serde_json::to_string_pretty(&sorted_json(value))?.into_bytes();
-    normalized.push(b'\n');
+    let normalized = serde_json::to_string_pretty(&sorted_json(value))?.into_bytes();
     let _ = path;
     Ok(normalized)
 }
@@ -2083,9 +2116,23 @@ fn write_json_value_at(
     display_path: &Path,
     value: Value,
 ) -> Result<(), MhiValidationError> {
-    let mut bytes = serde_json::to_string_pretty(&sorted_json(value))?.into_bytes();
-    bytes.push(b'\n');
+    let bytes = serde_json::to_string_pretty(&sorted_json(value))?.into_bytes();
     write_bytes_at(directory, name, display_path, &bytes)
+}
+
+#[cfg(unix)]
+fn validate_governed_json_bytes(path: &Path, bytes: &[u8]) -> Result<(), MhiValidationError> {
+    if bytes.last() == Some(&b'\n') || bytes.contains(&b'\r') {
+        return Err(MhiValidationError::Dataset(format!(
+            "governed JSON must use LF-only bytes without a final newline: {path:?}"
+        )));
+    }
+    let text = std::str::from_utf8(bytes).map_err(|_| {
+        MhiValidationError::Dataset(format!("governed JSON must be UTF-8: {path:?}"))
+    })?;
+    crate::domain::ensure_duplicate_free_json(text).map_err(|error| {
+        MhiValidationError::Dataset(format!("governed JSON has duplicate keys: {error}"))
+    })
 }
 
 #[cfg(unix)]
@@ -2196,7 +2243,14 @@ fn open_at_raw(parent: RawFd, name: &str, flags: i32, mode: i32) -> std::io::Res
 
 #[cfg(unix)]
 fn is_symlink_error(error: &std::io::Error) -> bool {
-    matches!(error.raw_os_error(), Some(40) | Some(62))
+    #[cfg(target_os = "macos")]
+    {
+        matches!(error.raw_os_error(), Some(20) | Some(62))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        matches!(error.raw_os_error(), Some(40))
+    }
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -2865,6 +2919,30 @@ mod tests {
                 && record["relative_path"].is_string()
                 && record["sha256"].as_str().is_some()
         }));
+        for record in records {
+            let path = record["relative_path"].as_str().expect("manifest path");
+            let expected_kind = match path {
+                REPORT_FILE => "mhi_validation_report",
+                SUMMARY_FILE => "validation_summary_markdown",
+                "tables/cohort_coverage.csv" => "cohort_coverage_csv",
+                "tables/leakage_assessment.csv" => "leakage_assessment_csv",
+                "tables/mechanism_validation.csv" => "mechanism_validation_csv",
+                "tables/health_validation.csv" => "health_validation_csv",
+                "tables/exclusion_ledger.csv" => "exclusion_ledger_csv",
+                "tables/compatibility_matrix.csv" => "compatibility_matrix_csv",
+                other => panic!("unexpected generated path {other}"),
+            };
+            assert_eq!(record["output_kind"], expected_kind);
+            assert!(record["byte_length"].as_u64().is_some());
+        }
+        assert_ne!(
+            fs::read(path.join(REPORT_FILE)).expect("report").last(),
+            Some(&b'\n')
+        );
+        assert_ne!(
+            fs::read(path.join(MANIFEST_FILE)).expect("manifest").last(),
+            Some(&b'\n')
+        );
     }
 
     fn assert_bundle_matches_golden(path: &Path) {
@@ -3187,6 +3265,21 @@ mod tests {
         assert!(!real.join(".output.phase-e-backup").exists());
         fs::remove_dir_all(holder).expect("symlink holder cleanup");
         fs::remove_dir_all(real).expect("real target cleanup");
+
+        let intermediate_real = temporary_parent("intermediate_real_directory");
+        fs::create_dir(intermediate_real.join("nested")).expect("nested real directory");
+        let intermediate_holder = temporary_parent("intermediate_symlink_holder");
+        let intermediate_link = intermediate_holder.join("intermediate_link");
+        symlink(&intermediate_real, &intermediate_link).expect("intermediate symlink");
+        let output = intermediate_link.join("nested/output");
+        let error = publish_bundle(&output, &report, "phase_e_software_protocol", false)
+            .expect_err("intermediate symlink is not publication authority");
+        assert!(
+            matches!(error, MhiValidationError::UnsafePath(path) if path == intermediate_link.join("nested"))
+        );
+        assert!(!intermediate_real.join("nested/output").exists());
+        fs::remove_dir_all(intermediate_holder).expect("intermediate holder cleanup");
+        fs::remove_dir_all(intermediate_real).expect("intermediate real cleanup");
     }
 
     #[cfg(unix)]
@@ -3431,6 +3524,10 @@ mod tests {
             PublicationTestHook::MutateStagedChecksum,
             PublicationTestHook::MutateStagedReportBeforeReread,
             PublicationTestHook::AddManifestSelfRecord,
+            PublicationTestHook::DuplicateManifestKey,
+            PublicationTestHook::DuplicateGeneratedFileKey,
+            PublicationTestHook::WrongManifestOutputKind,
+            PublicationTestHook::AddManifestFinalNewline,
             PublicationTestHook::WrongCreateManifestMode,
             PublicationTestHook::AddManifestTimestamp,
             PublicationTestHook::AddManifestUnknownField,

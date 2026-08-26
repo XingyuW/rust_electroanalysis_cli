@@ -285,6 +285,38 @@ fn phase_e_dataset_recomputes_semantic_identity_and_rejects_root_or_path_mismatc
         .expect("complete source authority is readable");
     let valid_dataset_bytes = fs::read(&dataset_path).expect("valid dataset bytes");
 
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+        let source_alias = dataset_path
+            .parent()
+            .expect("dataset parent")
+            .join("source-alias");
+        symlink(
+            dataset_path
+                .parent()
+                .expect("dataset parent")
+                .join("sources"),
+            &source_alias,
+        )
+        .expect("source intermediate symlink");
+        let mut symlinked = read_artifact_strict::<MhiValidationDatasetV1>(&dataset_path)
+            .expect("test dataset")
+            .artifact;
+        symlinked.records[0]
+            .mechanism_source
+            .as_mut()
+            .expect("mechanism source")
+            .relative_path = "source-alias/mechanism_a.schema4.json".into();
+        write_test_dataset(&dataset_path, &mut symlinked);
+        assert!(matches!(
+            ValidationInputs::read(&protocol, &protocol_hash, &dataset_path),
+            Err(MhiValidationError::UnsafePath(_))
+        ));
+        fs::write(&dataset_path, &valid_dataset_bytes).expect("restore dataset fixture");
+        fs::remove_file(source_alias).expect("remove source intermediate symlink");
+    }
+
     for unsafe_path in [
         "/absolute/lineage.json",
         "../lineage/complete.schema1.json",
@@ -964,6 +996,101 @@ fn phase_e_reader_hard_fails_wrong_future_and_explicitly_excludes_legacy() {
     ));
     fs::remove_dir_all(source_root).expect("legacy source cleanup");
 
+    for mutation in [
+        "accepted_unknown_scope",
+        "known_experiment_scope",
+        "known_family_scope",
+    ] {
+        let (source_root, protocol_path, dataset_path) = staged_dataset_with_scoreable_mechanism();
+        let source_path = dataset_path
+            .parent()
+            .expect("dataset parent")
+            .join("sources/mechanism_a.schema4.json");
+        let mut source_wire: serde_json::Value =
+            serde_json::from_slice(&fs::read(&source_path).expect("current source bytes"))
+                .expect("current source JSON");
+        source_wire["lineage"] = serde_json::json!({
+            "LegacyUnknown": {
+                "source_schema_version": 4,
+                "reason": "MigrationInformationUnavailable"
+            }
+        });
+        fs::write(
+            &source_path,
+            serde_json::to_vec_pretty(&source_wire).expect("legacy-unknown source JSON"),
+        )
+        .expect("legacy-unknown source");
+        let source_hash = format!(
+            "{:x}",
+            Sha256::digest(fs::read(&source_path).expect("legacy-unknown source bytes"))
+        );
+        let mut dataset = read_artifact_strict::<MhiValidationDatasetV1>(&dataset_path)
+            .expect("legacy-unknown dataset")
+            .artifact;
+        let record = &mut dataset.records[0];
+        record.health_source = None;
+        record
+            .mechanism_source
+            .as_mut()
+            .expect("mechanism source")
+            .source_file_sha256 = source_hash.clone();
+        record.mechanism_source.as_mut().expect("mechanism source").expected_lineage =
+            ExpectedLineageV1::LegacyUnknown {
+                schema_version: 4,
+                legacy_source_fingerprint: source_hash,
+                reason: rust_electroanalysis_cli::results::LegacyLineageReasonV1::MigrationInformationUnavailable,
+            };
+        record.declared_scope.experiment_scope =
+            rust_electroanalysis_cli::domain::ArtifactExperimentScope::Unknown;
+        record.declared_scope.sensor_scope =
+            rust_electroanalysis_cli::domain::ScopeKey::Unspecified;
+        record.declared_scope.channel_scope =
+            rust_electroanalysis_cli::domain::ScopeKey::Unspecified;
+        record.declared_scope.acquisition_families =
+            rust_electroanalysis_cli::domain::ArtifactAcquisitionFamilies::Unknown;
+        match mutation {
+            "accepted_unknown_scope" => {}
+            "known_experiment_scope" => {
+                record.declared_scope.experiment_scope =
+                    rust_electroanalysis_cli::domain::ArtifactExperimentScope::Single {
+                        experiment_id: rust_electroanalysis_cli::domain::ExperimentId(
+                            "forged-experiment".into(),
+                        ),
+                    };
+            }
+            "known_family_scope" => {
+                record.declared_scope.acquisition_families =
+                    rust_electroanalysis_cli::domain::ArtifactAcquisitionFamilies::Known(vec![
+                        rust_electroanalysis_cli::domain::AcquisitionFamilyId(
+                            "forged-family".into(),
+                        ),
+                    ]);
+            }
+            _ => unreachable!(),
+        }
+        write_test_dataset(&dataset_path, &mut dataset);
+        let protocol_bytes = fs::read(&protocol_path).expect("protocol bytes");
+        let protocol = MhiValidationProtocolV1::from_toml(
+            std::str::from_utf8(&protocol_bytes).expect("protocol UTF-8"),
+        )
+        .expect("protocol");
+        let result = ValidationInputs::read(
+            &protocol,
+            &MhiValidationProtocolV1::sha256_of_bytes(&protocol_bytes),
+            &dataset_path,
+        );
+        if mutation == "accepted_unknown_scope" {
+            result.expect("LegacyUnknown with exact unknown scope is accepted");
+        } else {
+            assert!(matches!(
+                result,
+                Err(MhiValidationError::Dataset(ref message))
+                    if message == "LegacyUnknown source requires unknown declared scope"
+            ));
+        }
+        fs::remove_dir_all(source_root).expect("legacy-unknown scope cleanup");
+    }
+
     fs::remove_dir_all(root).expect("cleanup");
 }
 
@@ -1088,7 +1215,7 @@ fn mechanism_reference(record_id: &str) -> ReferenceEndpointV1 {
         endpoint_id: "mechanism_endpoint".into(),
         reference_endpoint_id: format!("mechanism_reference_{record_id}"),
         reference_source_id: "reference_1".into(),
-        hypothesis_id: "hypothesis_a".into(),
+        hypothesis_id: "b-hypothesis".into(),
         outcome: MechanismReferenceOutcomeV1::Supports,
         method_id: "reference_method".into(),
         method_version: "1".into(),
@@ -2070,6 +2197,44 @@ fn phase_e_dataset_schema1_roundtrip_is_closed_and_canonical() {
         Err(ArtifactError::Validation { ref message })
             if message == "dataset records must be canonical and unique"
     ));
+
+    let mut arbitrary_domain = read_artifact_strict::<MhiValidationDatasetV1>(&path)
+        .expect("canonical dataset")
+        .artifact;
+    arbitrary_domain.records[0].domain.analyte_id = "unlisted-but-valid".into();
+    let arbitrary_domain_path = directory.join("arbitrary_domain.schema1.json");
+    write_test_dataset(&arbitrary_domain_path, &mut arbitrary_domain);
+    read_artifact_strict::<MhiValidationDatasetV1>(&arbitrary_domain_path)
+        .expect("AnyDeclared-compatible categorical ID remains structurally valid");
+
+    let mut invalid_domain = arbitrary_domain.clone();
+    invalid_domain.records[0].domain.analyte_id = "not a stable id".into();
+    let invalid_domain_path = directory.join("invalid_domain.schema1.json");
+    write_test_dataset(&invalid_domain_path, &mut invalid_domain);
+    assert!(matches!(
+        read_artifact_strict::<MhiValidationDatasetV1>(&invalid_domain_path),
+        Err(ArtifactError::Validation { ref message }) if message.contains("analyte_id")
+    ));
+
+    let mut unknown_provenance: serde_json::Value = serde_json::from_str(&source).expect("JSON");
+    unknown_provenance["provenance"]["unexpected"] = serde_json::Value::Bool(true);
+    let unknown_provenance_path = directory.join("unknown_provenance.schema1.json");
+    fs::write(
+        &unknown_provenance_path,
+        serde_json::to_vec_pretty(&unknown_provenance).expect("provenance mutation"),
+    )
+    .expect("unknown provenance");
+    assert!(read_artifact_strict::<MhiValidationDatasetV1>(&unknown_provenance_path).is_err());
+
+    let mut malformed_warning: serde_json::Value = serde_json::from_str(&source).expect("JSON");
+    malformed_warning["warnings"] = serde_json::json!([{"unexpected": true}]);
+    let malformed_warning_path = directory.join("malformed_warning.schema1.json");
+    fs::write(
+        &malformed_warning_path,
+        serde_json::to_vec_pretty(&malformed_warning).expect("warning mutation"),
+    )
+    .expect("malformed warning");
+    assert!(read_artifact_strict::<MhiValidationDatasetV1>(&malformed_warning_path).is_err());
     fs::remove_dir_all(directory).expect("dataset-mutation cleanup");
 }
 
@@ -3010,6 +3175,84 @@ fn phase_e_mechanism_phase_b_reference_cross_product_matches_hand_oracle() {
         );
         fs::remove_dir_all(fixture_root).expect("matrix cleanup");
     }
+
+    let (fixture_root, _, duplicate_dataset) = staged_validation_inputs(
+        "protocol/software_valid.toml",
+        "dataset/software_valid.schema1.json",
+    );
+    let mut duplicate = read_artifact_strict::<MhiValidationDatasetV1>(&duplicate_dataset)
+        .expect("duplicate-reference dataset")
+        .artifact;
+    let reference = duplicate.records[0].reference_endpoints[0].clone();
+    duplicate.records[0].reference_endpoints.push(reference);
+    write_test_dataset(&duplicate_dataset, &mut duplicate);
+    let duplicate_result = ValidationInputs::read(&protocol, &protocol_hash, &duplicate_dataset);
+    assert!(matches!(
+        duplicate_result,
+        Err(MhiValidationError::Artifact(ArtifactError::Validation { ref message }))
+            if message == "record reference endpoints must be canonical and unique"
+    ));
+    fs::remove_dir_all(fixture_root).expect("duplicate-reference cleanup");
+
+    let (fixture_root, _, mismatched_dataset) = staged_validation_inputs(
+        "protocol/software_valid.toml",
+        "dataset/software_valid.schema1.json",
+    );
+    let mut mismatched = read_artifact_strict::<MhiValidationDatasetV1>(&mismatched_dataset)
+        .expect("mismatched-reference dataset")
+        .artifact;
+    if let Some(ReferenceEndpointV1::Mechanism { hypothesis_id, .. }) = mismatched.records[0]
+        .reference_endpoints
+        .iter_mut()
+        .find(|reference| matches!(reference, ReferenceEndpointV1::Mechanism { .. }))
+    {
+        *hypothesis_id = "wrong-hypothesis".into();
+    }
+    write_test_dataset(&mismatched_dataset, &mut mismatched);
+    assert!(matches!(
+        ValidationInputs::read(&protocol, &protocol_hash, &mismatched_dataset),
+        Err(MhiValidationError::Dataset(ref message))
+            if message == "ReferenceEndpointBindingMismatch"
+    ));
+    fs::remove_dir_all(fixture_root).expect("mismatched-reference cleanup");
+
+    let (fixture_root, _, phase_b_dataset) = staged_validation_inputs(
+        "protocol/software_valid.toml",
+        "dataset/software_valid.schema1.json",
+    );
+    let phase_b_source = phase_b_dataset
+        .parent()
+        .expect("dataset parent")
+        .join("sources/mechanism_a.schema4.json");
+    let mut phase_b_wire: serde_json::Value =
+        serde_json::from_slice(&fs::read(&phase_b_source).expect("Phase-B source bytes"))
+            .expect("Phase-B source JSON");
+    let first_assessment = phase_b_wire["hypothesis_assessments"][0].clone();
+    phase_b_wire["hypothesis_assessments"] =
+        serde_json::json!([first_assessment.clone(), first_assessment]);
+    fs::write(
+        &phase_b_source,
+        serde_json::to_vec_pretty(&phase_b_wire).expect("duplicate Phase-B JSON"),
+    )
+    .expect("duplicate Phase-B source");
+    let mut phase_b = read_artifact_strict::<MhiValidationDatasetV1>(&phase_b_dataset)
+        .expect("Phase-B mutation dataset")
+        .artifact;
+    phase_b.records[0]
+        .mechanism_source
+        .as_mut()
+        .expect("Phase-B mechanism source")
+        .source_file_sha256 = format!(
+        "{:x}",
+        Sha256::digest(fs::read(&phase_b_source).expect("mutated Phase-B bytes"))
+    );
+    write_test_dataset(&phase_b_dataset, &mut phase_b);
+    assert!(matches!(
+        ValidationInputs::read(&protocol, &protocol_hash, &phase_b_dataset),
+        Err(MhiValidationError::Dataset(ref message))
+            if message == "Phase-B hypothesis ID mismatch or duplicate"
+    ));
+    fs::remove_dir_all(fixture_root).expect("Phase-B integrity cleanup");
 }
 
 #[test]

@@ -10,7 +10,13 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
     fmt, fs,
+    io::Read,
     path::{Path, PathBuf},
+};
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use std::{
+    ffi::CString,
+    os::fd::{AsRawFd, FromRawFd, RawFd},
 };
 use thiserror::Error;
 
@@ -186,18 +192,270 @@ pub fn read_artifact<T: VersionedArtifact>(path: &Path) -> Result<T, ArtifactErr
 pub fn read_artifact_strict<T: VersionedArtifact>(
     path: &Path,
 ) -> Result<StrictArtifactRead<T>, ArtifactError> {
-    let metadata = fs::symlink_metadata(path).map_err(|source| ArtifactError::Io {
-        path: path.into(),
-        source,
-    })?;
-    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
-        return Err(ArtifactError::UnsafeFile { path: path.into() });
-    }
-    let source_bytes = fs::read(path).map_err(|source| ArtifactError::Io {
-        path: path.into(),
-        source,
-    })?;
+    let source_bytes = read_strict_file_bytes(path)?;
     read_artifact_strict_bytes(path, &source_bytes)
+}
+
+/// Opens a trusted directory authority without following any path component.
+/// The descriptor is retained by Phase-E callers so dataset-relative reads
+/// remain relative to the same directory even if its pathname is replaced.
+pub(crate) fn open_strict_directory(path: &Path) -> Result<fs::File, ArtifactError> {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        open_strict_directory_unix(path).map_err(|source| {
+            if is_symlink_error(&source) {
+                ArtifactError::UnsafeFile { path: path.into() }
+            } else {
+                ArtifactError::Io {
+                    path: path.into(),
+                    source,
+                }
+            }
+        })
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let metadata = fs::symlink_metadata(path).map_err(|source| ArtifactError::Io {
+            path: path.into(),
+            source,
+        })?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err(ArtifactError::UnsafeFile { path: path.into() });
+        }
+        fs::File::open(path).map_err(|source| ArtifactError::Io {
+            path: path.into(),
+            source,
+        })
+    }
+}
+
+/// Reads one regular file relative to a pinned directory descriptor. The
+/// final bytes are read from the descriptor that was opened with no-follow
+/// semantics, so validation never checks one pathname and rereads another.
+pub(crate) fn read_strict_file_at(
+    directory: &fs::File,
+    relative: &str,
+    display_path: &Path,
+) -> Result<Vec<u8>, ArtifactError> {
+    if relative.is_empty() || relative.contains('\0') || relative.contains('\\') {
+        return Err(ArtifactError::UnsafeFile {
+            path: display_path.into(),
+        });
+    }
+    let path = Path::new(relative);
+    if path.is_absolute()
+        || path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(ArtifactError::UnsafeFile {
+            path: display_path.into(),
+        });
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        let mut current = directory.try_clone().map_err(|source| ArtifactError::Io {
+            path: display_path.into(),
+            source,
+        })?;
+        let components = path.components().collect::<Vec<_>>();
+        let (last, parents) = components
+            .split_last()
+            .ok_or_else(|| ArtifactError::UnsafeFile {
+                path: display_path.into(),
+            })?;
+        for component in parents {
+            let name = component
+                .as_os_str()
+                .to_str()
+                .ok_or_else(|| ArtifactError::UnsafeFile {
+                    path: display_path.into(),
+                })?;
+            current = open_child_unix(current.as_raw_fd(), name, true, display_path)
+                .map_err(|source| strict_io_error(display_path, source))?;
+        }
+        let name = last
+            .as_os_str()
+            .to_str()
+            .ok_or_else(|| ArtifactError::UnsafeFile {
+                path: display_path.into(),
+            })?;
+        let mut file = open_child_unix(current.as_raw_fd(), name, false, display_path)
+            .map_err(|source| strict_io_error(display_path, source))?;
+        let metadata = file.metadata().map_err(|source| ArtifactError::Io {
+            path: display_path.into(),
+            source,
+        })?;
+        if !metadata.is_file() {
+            return Err(ArtifactError::UnsafeFile {
+                path: display_path.into(),
+            });
+        }
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes)
+            .map_err(|source| ArtifactError::Io {
+                path: display_path.into(),
+                source,
+            })?;
+        Ok(bytes)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let _ = (directory, path);
+        Err(ArtifactError::Io {
+            path: display_path.into(),
+            source: std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "descriptor-relative Phase-E reads require macOS or Linux",
+            ),
+        })
+    }
+}
+
+pub(crate) fn read_strict_file_bytes(path: &Path) -> Result<Vec<u8>, ArtifactError> {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        let parent = path.parent().unwrap_or_else(|| Path::new("."));
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| ArtifactError::UnsafeFile { path: path.into() })?;
+        let directory = open_strict_directory(parent)?;
+        read_strict_file_at(&directory, name, path)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let metadata = fs::symlink_metadata(path).map_err(|source| ArtifactError::Io {
+            path: path.into(),
+            source,
+        })?;
+        if !metadata.is_file() || metadata.file_type().is_symlink() {
+            return Err(ArtifactError::UnsafeFile { path: path.into() });
+        }
+        fs::read(path).map_err(|source| ArtifactError::Io {
+            path: path.into(),
+            source,
+        })
+    }
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn open_strict_directory_unix(path: &Path) -> std::io::Result<fs::File> {
+    // macOS exposes the system temporary tree through the stable `/var`
+    // alias. Traverse its real system spelling so the descriptor walk still
+    // uses O_NOFOLLOW for every component instead of following that alias.
+    #[cfg(target_os = "macos")]
+    let traversal_path = if let Ok(suffix) = path.strip_prefix("/var") {
+        Path::new("/private/var").join(suffix)
+    } else if let Ok(suffix) = path.strip_prefix("/tmp") {
+        Path::new("/private/tmp").join(suffix)
+    } else {
+        path.to_path_buf()
+    };
+    #[cfg(target_os = "linux")]
+    let traversal_path = path.to_path_buf();
+    let mut current = if traversal_path.is_absolute() {
+        open_child_unix(AT_FDCWD, "/", true, path)?
+    } else {
+        open_child_unix(AT_FDCWD, ".", true, path)?
+    };
+    for component in traversal_path.components() {
+        match component {
+            std::path::Component::RootDir | std::path::Component::CurDir => {}
+            std::path::Component::Normal(name) => {
+                let name = name.to_str().ok_or_else(|| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidInput, "non-UTF-8 path")
+                })?;
+                current = open_child_unix(current.as_raw_fd(), name, true, path)?;
+            }
+            std::path::Component::ParentDir | std::path::Component::Prefix(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "parent path component is forbidden",
+                ));
+            }
+        }
+    }
+    Ok(current)
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn open_child_unix(
+    parent: RawFd,
+    name: &str,
+    directory: bool,
+    _display_path: &Path,
+) -> std::io::Result<fs::File> {
+    let flags = O_RDONLY | O_CLOEXEC | O_NOFOLLOW | if directory { O_DIRECTORY } else { 0 };
+    let name = CString::new(name.as_bytes())
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "NUL in path"))?;
+    let descriptor = unsafe { native_openat(parent, name.as_ptr(), flags, 0) };
+    if descriptor < 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(unsafe { fs::File::from_raw_fd(descriptor) })
+    }
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn strict_io_error(path: &Path, source: std::io::Error) -> ArtifactError {
+    if is_symlink_error(&source) {
+        ArtifactError::UnsafeFile { path: path.into() }
+    } else {
+        ArtifactError::Io {
+            path: path.into(),
+            source,
+        }
+    }
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn is_symlink_error(error: &std::io::Error) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        matches!(error.raw_os_error(), Some(20) | Some(62))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        matches!(error.raw_os_error(), Some(40))
+    }
+}
+
+#[cfg(target_os = "macos")]
+const O_RDONLY: i32 = 0;
+#[cfg(target_os = "linux")]
+const O_RDONLY: i32 = 0;
+#[cfg(target_os = "macos")]
+const O_CLOEXEC: i32 = 0x0100_0000;
+#[cfg(target_os = "linux")]
+const O_CLOEXEC: i32 = 0x0008_0000;
+#[cfg(target_os = "macos")]
+const O_DIRECTORY: i32 = 0x0010_0000;
+#[cfg(target_os = "linux")]
+const O_DIRECTORY: i32 = 0x0001_0000;
+#[cfg(target_os = "macos")]
+const O_NOFOLLOW: i32 = 0x0000_0100;
+#[cfg(target_os = "linux")]
+const O_NOFOLLOW: i32 = 0x0002_0000;
+#[cfg(target_os = "macos")]
+const AT_FDCWD: RawFd = -2;
+#[cfg(target_os = "linux")]
+const AT_FDCWD: RawFd = -100;
+
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    fn openat(fd: RawFd, path: *const std::ffi::c_char, flags: i32, ...) -> RawFd;
+}
+
+#[cfg(target_os = "linux")]
+unsafe extern "C" {
+    fn openat(fd: RawFd, path: *const std::ffi::c_char, flags: i32, ...) -> RawFd;
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+unsafe fn native_openat(fd: RawFd, path: *const std::ffi::c_char, flags: i32, mode: i32) -> RawFd {
+    unsafe { openat(fd, path, flags, mode) }
 }
 
 pub(crate) fn read_artifact_strict_bytes<T: VersionedArtifact>(
@@ -236,6 +494,15 @@ pub(crate) fn read_artifact_strict_bytes<T: VersionedArtifact>(
         source_bytes: source_bytes.to_vec(),
         source_file_sha256,
     })
+}
+
+pub(crate) fn read_artifact_strict_at<T: VersionedArtifact>(
+    directory: &fs::File,
+    relative: &str,
+    display_path: &Path,
+) -> Result<StrictArtifactRead<T>, ArtifactError> {
+    let source_bytes = read_strict_file_at(directory, relative, display_path)?;
+    read_artifact_strict_bytes(display_path, &source_bytes)
 }
 
 fn hex_sha256(bytes: &[u8]) -> String {

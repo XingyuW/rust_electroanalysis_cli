@@ -9,10 +9,10 @@
   },
   "generated_files": [
     {
-      "byte_length": 30885,
+      "byte_length": 30901,
       "output_kind": "mhi_validation_report",
       "relative_path": "mhi_validation_report.schema1.json",
-      "sha256": "80ad9dae3b65c2009d496ebb3d40eb33af014658b65ac8b9d1658f98baed887b"
+      "sha256": "d72d6b0baef4b6ba59b3b7c62e8eb5ff4639212538c5f72ab425e83d28e000cb"
     },
     {
       "byte_length": 755,
@@ -21,10 +21,10 @@
       "sha256": "29ae4b0020ad0d38049e69950d5d97396de1951ffd9d8dfa3f5413463bef0c77"
     },
     {
-      "byte_length": 2878,
+      "byte_length": 2895,
       "output_kind": "compatibility_matrix_csv",
       "relative_path": "tables/compatibility_matrix.csv",
-      "sha256": "4debe1a46ca1107bf4e439388b9961927b0e4b67f3446a8a073333551a14081f"
+      "sha256": "3c8e7a8dea761145c203930e21771293e9fad15be1b75b1ebb603e4bcc7ac2d6"
     },
     {
       "byte_length": 108,

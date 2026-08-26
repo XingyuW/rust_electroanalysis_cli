@@ -119,7 +119,7 @@
       "expected_schema": 1,
       "expected_semantic_sha256": null,
       "record_id": null,
-      "relative_path": "",
+      "relative_path": "@protocol",
       "result": "compatible",
       "source_role": "protocol"
     },
@@ -135,7 +135,7 @@
       "expected_schema": 1,
       "expected_semantic_sha256": null,
       "record_id": null,
-      "relative_path": "",
+      "relative_path": "@dataset",
       "result": "compatible",
       "source_role": "dataset"
     },

@@ -71,6 +71,10 @@ pub struct VerifiedEmbeddedTrustStore {
 
 impl PhysicalApprovalTrustStoreV1 {
     pub fn from_embedded_bytes() -> Result<VerifiedEmbeddedTrustStore, MhiValidationError> {
+        let text = std::str::from_utf8(EMBEDDED_TRUST_STORE)
+            .map_err(|_| approval("embedded trust store must be UTF-8"))?;
+        crate::domain::ensure_duplicate_free_json(text)
+            .map_err(|error| approval(format!("embedded trust store JSON: {error}")))?;
         let store: Self = serde_json::from_slice(EMBEDDED_TRUST_STORE).map_err(|error| {
             MhiValidationError::Approval(format!("embedded trust store JSON: {error}"))
         })?;
@@ -225,6 +229,7 @@ impl OwnerApprovalEvidenceV1 {
     /// Production reader boundary: the approval bytes are verified against
     /// the embedded trust capability before an opaque approval capability is
     /// returned.
+    #[cfg(test)]
     pub(crate) fn read_and_validate(
         path: &Path,
         expected_file_sha256: &str,
@@ -232,20 +237,67 @@ impl OwnerApprovalEvidenceV1 {
         protocol: &MhiValidationProtocolV1,
         dataset: &MhiValidationDatasetV1,
     ) -> Result<VerifiedOwnerApproval, MhiValidationError> {
-        let bytes = fs::read(path).map_err(|source| MhiValidationError::Io {
-            path: path.into(),
-            source,
+        let bytes = crate::domain::read_strict_file_bytes(path).map_err(|error| match error {
+            crate::domain::ArtifactError::Io { path, source } => {
+                MhiValidationError::Io { path, source }
+            }
+            crate::domain::ArtifactError::UnsafeFile { path } => {
+                MhiValidationError::UnsafePath(path)
+            }
+            other => MhiValidationError::Artifact(other),
         })?;
+        Self::validate_bytes(
+            &bytes,
+            path,
+            expected_file_sha256,
+            embedded,
+            protocol,
+            dataset,
+        )
+    }
+
+    pub(crate) fn read_and_validate_at(
+        directory: &fs::File,
+        relative: &str,
+        display_path: &Path,
+        expected_file_sha256: &str,
+        embedded: &VerifiedEmbeddedTrustStore,
+        protocol: &MhiValidationProtocolV1,
+        dataset: &MhiValidationDatasetV1,
+    ) -> Result<VerifiedOwnerApproval, MhiValidationError> {
+        let bytes = crate::domain::read_strict_file_at(directory, relative, display_path)?;
+        Self::validate_bytes(
+            &bytes,
+            display_path,
+            expected_file_sha256,
+            embedded,
+            protocol,
+            dataset,
+        )
+    }
+
+    fn validate_bytes(
+        bytes: &[u8],
+        path: &Path,
+        expected_file_sha256: &str,
+        embedded: &VerifiedEmbeddedTrustStore,
+        protocol: &MhiValidationProtocolV1,
+        dataset: &MhiValidationDatasetV1,
+    ) -> Result<VerifiedOwnerApproval, MhiValidationError> {
+        let text = std::str::from_utf8(bytes)
+            .map_err(|_| approval(format!("approval JSON for {path:?} must be UTF-8")))?;
+        crate::domain::ensure_duplicate_free_json(text)
+            .map_err(|error| approval(format!("approval JSON: {error}")))?;
+        let approval_evidence: Self = serde_json::from_slice(bytes)
+            .map_err(|error| approval(format!("approval JSON: {error}")))?;
         let mut hash = Sha256::new();
-        hash.update(&bytes);
+        hash.update(bytes);
         if format!("{:x}", hash.finalize()) != expected_file_sha256 {
             return Err(approval("approval file SHA-256 mismatch"));
         }
-        let approval: Self = serde_json::from_slice(&bytes)
-            .map_err(|error| approval(format!("approval JSON: {error}")))?;
-        approval.validate(embedded, protocol, dataset)?;
+        approval_evidence.validate(embedded, protocol, dataset)?;
         Ok(VerifiedOwnerApproval {
-            evidence: approval,
+            evidence: approval_evidence,
             trust_store_sha256: embedded.source_file_sha256.clone(),
         })
     }
@@ -568,6 +620,58 @@ mod tests {
             &dataset,
         )
         .expect("file hash and literal approval verify");
+
+        let duplicate_dir = std::env::temp_dir().join(format!(
+            "phase_e_approval_duplicate_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir(&duplicate_dir).expect("duplicate approval directory");
+        let approval_text = fs::read_to_string(&approval_file).expect("approval text");
+        let duplicate_top_level = duplicate_dir.join("duplicate_top_level.schema1.json");
+        fs::write(
+            &duplicate_top_level,
+            approval_text.replacen(
+                "  \"approval_record_id\": \"sha256:970fa2fd08ceb7bacb0775ec7835e4aa2a8ef7f7e602d7ab6d4296b9218a3cfc\",",
+                "  \"approval_record_id\": \"sha256:970fa2fd08ceb7bacb0775ec7835e4aa2a8ef7f7e602d7ab6d4296b9218a3cfc\",\n  \"approval_record_id\": \"sha256:970fa2fd08ceb7bacb0775ec7835e4aa2a8ef7f7e602d7ab6d4296b9218a3cfc\",",
+                1,
+            ),
+        )
+        .expect("duplicate top-level approval");
+        assert!(matches!(
+            OwnerApprovalEvidenceV1::read_and_validate(
+                &duplicate_top_level,
+                &expected_file_sha256,
+                &trust,
+                &protocol,
+                &dataset,
+            ),
+            Err(MhiValidationError::Approval(message)) if message.contains("duplicate")
+        ));
+        let duplicate_nested = duplicate_dir.join("duplicate_nested.schema1.json");
+        fs::write(
+            &duplicate_nested,
+            approval_text.replacen(
+                "    \"document_sha256\": \"0000000000000000000000000000000000000000000000000000000000000001\",",
+                "    \"document_sha256\": \"0000000000000000000000000000000000000000000000000000000000000001\",\n    \"document_sha256\": \"0000000000000000000000000000000000000000000000000000000000000001\",",
+                1,
+            ),
+        )
+        .expect("duplicate nested approval");
+        assert!(matches!(
+            OwnerApprovalEvidenceV1::read_and_validate(
+                &duplicate_nested,
+                &expected_file_sha256,
+                &trust,
+                &protocol,
+                &dataset,
+            ),
+            Err(MhiValidationError::Approval(message)) if message.contains("duplicate")
+        ));
+        fs::remove_dir_all(duplicate_dir).expect("duplicate approval cleanup");
         assert!(matches!(
             OwnerApprovalEvidenceV1::read_and_validate(
                 &approval_file,
