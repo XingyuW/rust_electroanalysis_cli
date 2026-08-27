@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "vectors": [
+    {"label": "comma", "value": "a,b", "csv": "\"a,b\""},
+    {"label": "quote", "value": "a\"b", "csv": "\"a\"\"b\""},
+    {"label": "line_feed", "value": "a\nb", "csv": "\"a\nb\""},
+    {"label": "backslash", "value": "a\\b", "csv": "a\\b"},
+    {"label": "non_ascii", "value": "µ", "csv": "µ"},
+    {"label": "empty", "value": "", "csv": "\"\""},
+    {"label": "not_available", "value": null, "csv": "NA"},
+    {"label": "negative_zero", "value": 0, "csv": "0.0"}
+  ]
+}

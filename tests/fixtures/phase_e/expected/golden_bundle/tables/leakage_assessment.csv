@@ -1,0 +1,5 @@
+endpoint_id,stratum_id,record_id,separation_status,not_evaluated_reason,compared_development_record_ids,shared_artifact_ids,shared_source_sha256s,shared_experiment_ids,shared_family_ids,unknown_reasons,decision
+health_endpoint,overall,record_1,known_separated,NA,[],[],[],[],[],[],eligible
+health_endpoint,overall,record_2,known_separated,NA,[],[],[],[],[],[],eligible
+mechanism_endpoint,overall,record_1,known_separated,NA,[],[],[],[],[],[],eligible
+mechanism_endpoint,overall,record_2,known_separated,NA,[],[],[],[],[],[],eligible

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "artifacts": {
+    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+      "identity": {
+        "artifact_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "artifact_kind": "health_assessment",
+        "schema_version": 4,
+        "producer_version": "phase-e-r2-lineage-fixture-v1",
+        "experiment_scope": { "Single": { "experiment_id": "phase-e-lineage-reference" } },
+        "sensor_scope": "Unspecified",
+        "channel_scope": "Unspecified",
+        "acquisition_families": { "Known": ["phase-e-lineage-reference-family"] },
+        "semantic_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "direct_dependencies": []
+    },
+    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": {
+      "identity": {
+        "artifact_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_kind": "mechanism_analysis",
+        "schema_version": 4,
+        "producer_version": "phase-e-r2-lineage-fixture-v1",
+        "experiment_scope": { "Single": { "experiment_id": "phase-e-lineage-reference" } },
+        "sensor_scope": "Unspecified",
+        "channel_scope": "Unspecified",
+        "acquisition_families": { "Known": ["phase-e-lineage-reference-family"] },
+        "semantic_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "direct_dependencies": [
+        { "artifact_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "artifact_kind": "health_assessment", "role": "TransformationInput" }
+      ]
+    },
+    "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc": {
+      "identity": {
+        "artifact_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifact_kind": "mechanism_analysis",
+        "schema_version": 4,
+        "producer_version": "phase-e-r2-lineage-fixture-v1",
+        "experiment_scope": { "Single": { "experiment_id": "phase-e-lineage-reference" } },
+        "sensor_scope": "Unspecified",
+        "channel_scope": "Unspecified",
+        "acquisition_families": { "Known": ["phase-e-lineage-reference-family"] },
+        "semantic_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "direct_dependencies": [
+        { "artifact_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "artifact_kind": "mechanism_analysis", "role": "DerivedFrom" }
+      ]
+    }
+  }
+}

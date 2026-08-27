@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/eis_fit_schema2_correct_kind.json",
+      "sha256": "7c7bc97b0a83040077bfb11bab3caaa0a2176f2e85b3580d4d75388a7e36478f"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/eis_fit_schema2_wrong_kind.json",
+      "sha256": "e66762f2eb6828a8ac79f1f41857d30e66e77b8819387f11b0d1b36761950097"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/health_baseline_schema2_correct_kind.json",
+      "sha256": "98cd645a66c17eb28ea95eaa4000e2da9ffb5222ab3e47917cb1b0c881073f3c"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/health_baseline_schema2_wrong_kind.json",
+      "sha256": "a435c05a1420d69c6be4bc4d581a4e970337cee952629f584c292c7fd18bbe75"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema1/calibration_analysis.schema1.json",
+      "sha256": "a3648941985e8566124f640f4bf1f7354d7bfa235de96a5aa6392bcffeb8e286"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema1/calibration_model.schema1.json",
+      "sha256": "c90bae3105bfeb13fb832d62c2f78d35e3c294d8fa9e03a965e86237736aeb9f"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema1/calibration_observations.schema1.json",
+      "sha256": "9c0818e0b7ed63775c347c0c74381f62125a18add8fc61d405d09535837dc28f"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema1/health_assessment.schema1.json",
+      "sha256": "ee47c78e1adfb25946dda135e5cee5ab5971a962363ab6ff29e5cad682f22d87"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema1/health_trend.schema1.json",
+      "sha256": "8dbcf7c6818002d76efab50cdf10243f8d7fdd4d1aeff9dfd89a699e427d63af"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema1/mechanism_analysis.schema1.json",
+      "sha256": "1f306be35576f813347ad4906ead8296bf6d7a391547b2dfcdb9aef74d9d30e0"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema1/signal_analysis.schema1.json",
+      "sha256": "91af947caf9de80f875327eaf18f6bb40c0c02e34ad44fedf3f0ea14ff9981a8"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema1/transient_analysis.schema1.json",
+      "sha256": "9346e80a62e622ff28c064fdde2a361eb7da5bf5d472ea20a118a7136d4affd7"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema2/calibration_analysis.schema2.json",
+      "sha256": "b1251450e98a7c8cd44f91e5afceb8cd9c87ca9848d4115cc41d2fc8f64af1dd"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema2/calibration_model.schema2.json",
+      "sha256": "3e38cfbfe3fb5f80f4fa4925dab79831b2fa2ef03cf35cce9b4bb462ecf7dc4f"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema2/calibration_observations.schema2.json",
+      "sha256": "54b5006940724c796e6fee532e91a78e34d759442774f22438336374657564e3"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema2/health_assessment.schema2.json",
+      "sha256": "834badbe30335c22602acce9aa51655e0008d87292c4fa7b6acbc13636625b77"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema2/health_trend.schema2.json",
+      "sha256": "4d81d458e45742c4f291f1f75810c457f0ed1b0dca6e9e34a293d2a179294940"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema2/mechanism_analysis.schema2.json",
+      "sha256": "f0123d83c732bab8b4e38da9923444c5d78630f9cd98fdd6a673601fb9176527"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema2/signal_analysis.schema2.json",
+      "sha256": "0cffecf07d6b456dc3fb7cea88a4908406f9fff6311fcb167d5517e68643ccca"
+    },
+    {
+      "relative_path": "tests/fixtures/a0_artifact_contracts/schema2/transient_analysis.schema2.json",
+      "sha256": "fbf7070990835f8931cfcadb79a34dbaa1c5723345b61c0c58ade902caa74d89"
+    },
+    {
+      "relative_path": "tests/fixtures/a1/current_known_lineage_state.json",
+      "sha256": "2e5286bbd66b55fb1cbd03332ce266142af8c55f8a05579612af58b20df728c6"
+    },
+    {
+      "relative_path": "tests/fixtures/a1/legacy_lineage_state.json",
+      "sha256": "984f602dcc5a03c0f9a1318fb394a1ebbda9ef8c177220ea4a53a419d018167c"
+    },
+    {
+      "relative_path": "tests/fixtures/artifact_contracts/eis_fit_schema2_missing_kind.json",
+      "sha256": "120372440773faa6016d8da6a10933c659ae8f9ed6d30c6bb1edb961ce9392b0"
+    },
+    {
+      "relative_path": "tests/fixtures/artifact_contracts/health_baseline_schema2_missing_kind.json",
+      "sha256": "ec79e6a60e141d740edc6ba5f112f1b5facd947b8754a8ab33a2cf751f81bcf0"
+    },
+    {
+      "relative_path": "tests/fixtures/estimation_migration/legacy_simulation_truth_v2.json",
+      "sha256": "7a083e2b1c39ac6bedd2bb8a9f67fd23c7fceeb8a05261972017783237dc7f20"
+    },
+    {
+      "relative_path": "tests/fixtures/estimation_migration/legacy_state_estimation_report_v1.json",
+      "sha256": "07c01f510fd3cd7aa034efe07bbb4870a4c04a862d463cf21ac56742b18143ce"
+    },
+    {
+      "relative_path": "tests/fixtures/estimation_migration/legacy_state_filter_comparison_v2.json",
+      "sha256": "6a76b0a81d55eaebf66ef35b31d3cbbea4f795156bc558b7372a855f78eb6a14"
+    },
+    {
+      "relative_path": "tests/fixtures/estimation_migration/legacy_state_validation_v1.json",
+      "sha256": "f5d78dc4adddf6f468930b8c5db59f6e962a0921f2e87071ae4055569c9589a4"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_c/writer_boundary/legacy_health_assessment_v3.json",
+      "sha256": "47aecec55b6a35d352ec349c8d6c7c35485a4b86b063a6be33920887c550cb7c"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/base/calibration_observations.json",
+      "sha256": "d743434c21a19ba77a98247c29c2f2cc9d2b1617ecd046e426895ae5a7d1ff5b"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/base/calibration.json",
+      "sha256": "7232a587edba2942aa8845fa44b4c9bee2383fda0e41e880f9bc89b5f06ce37e"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/base/eis.json",
+      "sha256": "352dbbd578437a2260d066f7b59795a036f37be89ce1bf4edae55cd00d5e0e8c"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/base/estimation.json",
+      "sha256": "3d843cdae227db31ddfcbe97b05c4f035e9b72e29aef86168782f34e41d942e2"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/base/health.json",
+      "sha256": "4265b48a0a70ff6ec89eb214a2cc8c2194cbd43bb7b7098482a7686e2eee73b3"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/base/lineage_catalog.json",
+      "sha256": "6b06d3a7a8b530d1acd4471d7bfc28de95e592a6726a9e72a81015c1ac0db320"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/base/mechanism.json",
+      "sha256": "b24422b8e1ec3f99fcea4a9f7c7f225dfe6f77550b0365b6cda80447fd306b8b"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/base/model.json",
+      "sha256": "f01a0360afb6a36e1d3c3649e01f56602f7ba9e7ab105eea4d75c76fcd595b0a"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/base/signal.json",
+      "sha256": "e354b35e6a61f8fe6a041e07a06deec7e5f7df191190efe7cf4a418e28f5f65a"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/base/transient.json",
+      "sha256": "cb79b7ddccacf91fb27a44f2e7a791a096e2c7b068dc0f310b426fab5792bc75"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/failure/catalog_duplicate_root_key.json",
+      "sha256": "2989e7f1c3b87e294c817e046496cbd8a3feb600ef988f32ddaeb938a1128cc2"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/failure/catalog_invalid_structure.json",
+      "sha256": "57f5cbaed52a8c21c66141f3622ab30c833b9f0e5cc15abe857fcc2e37003e69"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/failure/catalog_key_identity_mismatch.json",
+      "sha256": "9c232464a1f31263e476812bd9caa9167782e9faed07358bd5b2ad3566534bb7"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/failure/catalog_malformed.json",
+      "sha256": "8c69fc307fed3936d6a8ac679c0079c9bfd11f9de2a43e20ae25ff2a899d9776"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/failure/catalog_schema2.json",
+      "sha256": "6fb4379a5a30eb3e959dbb873dab858ee583ae782acf2b9d8160653141eda3d4"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/failure/eis_schema2.json",
+      "sha256": "7c7bc97b0a83040077bfb11bab3caaa0a2176f2e85b3580d4d75388a7e36478f"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/failure/wrong_kind.json",
+      "sha256": "e66762f2eb6828a8ac79f1f41857d30e66e77b8819387f11b0d1b36761950097"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/legacy/health_v3.json",
+      "sha256": "47aecec55b6a35d352ec349c8d6c7c35485a4b86b063a6be33920887c550cb7c"
+    },
+    {
+      "relative_path": "tests/fixtures/phase_d/legacy/mechanism_v1.json",
+      "sha256": "1f306be35576f813347ad4906ead8296bf6d7a391547b2dfcdb9aef74d9d30e0"
+    }
+  ]
+}

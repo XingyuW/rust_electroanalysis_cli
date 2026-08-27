@@ -1,0 +1,346 @@
+# Phase E R6 author-side validation evidence
+
+## Authority
+
+| item | immutable identity |
+| --- | --- |
+| original approved plan tag | ism-mechanism-health-v1-e-plan-approved |
+| R2 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r2 |
+| R3 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r3 |
+| R4 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r4 |
+| R5 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r5 |
+| R6 approved plan tag | ism-mechanism-health-v1-e-plan-approved-r6 |
+| R2 plan commit | e65092088a28a2a9ed61364274dbd6ec46de5eb8 |
+| R2 plan SHA-256 | e6e5195c7f56904afb06dfe937433f3498465fef1df191b8fb6856ee1ac792b6 |
+| R2 plan Git blob | 45c1441ac4d6e20c5626b299fe5293b00ea444fb |
+| R3 plan commit | 54a070edf1e2e7bc73731d1b5166816e37b0a8ae |
+| R3 plan SHA-256 | 131dc77dc656952469c77a816a36c847d4f38a018f922577441884396009ed4a |
+| R3 plan Git blob | a4d32891bab8374bd9d20f80c38ff76e034212fc |
+| R4 plan commit | b43c96baca14b1618ce3106fe88c1a09f7d49e0c |
+| R4 plan SHA-256 | f737233661fd53189d121d53fdea1394f63f227eaa7b584d911ac1024dbaf4e0 |
+| R4 plan Git blob | 09e50a6378ba0d4b9805ae7a74258ffbceba64de |
+| R5 plan commit | f76df120fc5a3f8d2d0d33392f40c37ba2d3927c |
+| R5 plan SHA-256 | ebff7a8d3f04b503cf4eb7b8ae5314f893a61f971c019975c898c1a563773344 |
+| R5 plan Git blob | db081770f4267ebfd385ffa7b2a85b6c4a30acd9 |
+| R6 plan commit | 0dc7dfe5e3b704b201bda4a906ef4cb336df7cfa |
+| R6 plan SHA-256 | 0b68359f362434ef9f42df21ca553692ae6e3bb3c096881009ab5e9473cc2c33 |
+| R6 plan Git blob | 6fce9d13a42a09027e0e730874a8d80e03e6a7da |
+| implementation branch | codex/mhi-v1-e-independent-validation |
+| fixture ledger | expected/phase_e_fixture_inventory.schema1.json |
+
+R3 makes macOS the sole supported, release-validated, and approval-gating MHI
+V1 Phase-E platform. Retained Linux implementation and generic Linux CI are
+not Linux V1 support or approval evidence.
+
+## Traceability
+
+The required registry is complete: E-R01 through E-R18, E-AC01 through
+E-AC18, and E-T01 through E-T30.  The closed fixture inventory supplies every
+fixture-to-test mapping and its mutation case and expected oracle identifier.
+Traceability totals are 18/18 requirements, 18/18 acceptance criteria, and
+30/30 test/evidence records. The executable author registry is 29/29 for
+E-T01 through E-T29; E-T30 is the author-evidence gate whose independent
+post-freeze component remains external.
+
+The literal fixture inventory contains exactly 268/268 regular files. Every
+fixture has a unique complete requirement/acceptance/test/mutation/oracle
+mapping; there are zero fixture, mutation, or oracle gaps.
+
+| requirement group | acceptance criterion | tests |
+| --- | --- | --- |
+| E-R01 | E-AC01 | E-T01, E-T02 |
+| E-R02 | E-AC02 | E-T03, E-T04 |
+| E-R03 | E-AC03 | E-T05, E-T06 |
+| E-R04 | E-AC04 | E-T07, E-T08 |
+| E-R05 | E-AC05 | E-T09 |
+| E-R06 | E-AC06 | E-T10, E-T11 |
+| E-R07 | E-AC07 | E-T12 |
+| E-R08 | E-AC08 | E-T13, E-T14 |
+| E-R09 | E-AC09 | E-T15, E-T16 |
+| E-R10 | E-AC10 | E-T17 |
+| E-R11 | E-AC11 | E-T18 |
+| E-R12 | E-AC12 | E-T19 |
+| E-R13 | E-AC13 | E-T20, E-T21 |
+| E-R14 | E-AC14 | E-T22, E-T23 |
+| E-R15 | E-AC15 | E-T24, E-T25 |
+| E-R16 | E-AC16 | E-T26, E-T27 |
+| E-R17 | E-AC17 | E-T28, E-T29 |
+| E-R18 | E-AC18 | E-T30 |
+
+## P1-SEC-001 remediation evidence
+
+P1-SEC-001 is remediated as a test-coverage correction.  Production approval
+validation remains unchanged: `VerifyingKey::from_bytes`, canonical
+recompression equality, `is_weak`, `Signature::try_from`, and `verify_strict`
+remain the executed order.  E-T29 now starts every signature mutation from the
+exact valid dual-signed `approval/valid.schema1.json` KAT and matching physical
+protocol/dataset.  A helper compares the candidate with the KAT after clearing
+only the two signature fields and preserves the original approval record ID.
+
+The valid-bound E-T29 cryptographic mutation matrix is substantive PASS, 16/16:
+
+| mutation | exact R2 result |
+| --- | --- |
+| malformed owner signature (`00`) | `PhysicalApprovalOwnerSignatureInvalid` |
+| malformed registry signature (`00`) | `PhysicalApprovalRegistrySignatureInvalid` |
+| owner signature with `S = L` | `PhysicalApprovalOwnerSignatureInvalid` |
+| registry signature with `S = L` | `PhysicalApprovalRegistrySignatureInvalid` |
+| one-bit strict-invalid owner signature | `PhysicalApprovalOwnerSignatureInvalid` |
+| one-bit strict-invalid registry signature | `PhysicalApprovalRegistrySignatureInvalid` |
+| owner signature missing | `PhysicalApprovalOwnerSignatureInvalid` |
+| registry signature missing | `PhysicalApprovalRegistrySignatureInvalid` |
+| copied owner signature into registry role | `PhysicalApprovalRegistrySignatureInvalid` |
+| copied registry signature into owner role | `PhysicalApprovalOwnerSignatureInvalid` |
+| owner identity-R/zero-S with weak identity key | `PhysicalApprovalWeakPublicKey` |
+| registry identity-R/zero-S with weak identity key | `PhysicalApprovalWeakPublicKey` |
+| owner `y=2` public key | `PhysicalApprovalPublicKeyInvalid` |
+| registry `y=2` public key | `PhysicalApprovalPublicKeyInvalid` |
+| wrong valid owner public key | `PhysicalApprovalOwnerSignatureInvalid` |
+| wrong valid registry public key | `PhysicalApprovalRegistrySignatureInvalid` |
+
+The complete E-T29 normative matrix is substantive PASS, 40/40.  It includes
+the production UNPROVISIONED physical route and no runtime test-root selection;
+missing approval, wrong purpose, unknown root, and attacker-authority cases;
+all 16 verifier mutations above; file, record, cohort, protocol, claim,
+endpoint, domain, origin, reference-authority, reference-method, blinding,
+uncertainty, incomplete-reference, physical-reference-unavailable, minimum,
+family, stratum, and valid dual-signed two-family KAT cases.  The existing
+binding/scientific rows retain their exact typed or semantic oracles; no row is
+counted PASS from an earlier unrelated rejection.
+
+Exact targeted command result:
+
+```text
+cargo test --locked --lib mhi_validation::approval::approval_kat::phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power -- --exact --nocapture
+PASS: 1 passed; 0 failed; 194 filtered out
+```
+
+No permanent fixture was added or regenerated.  The fixture inventory remains
+268/268, and the remediation contains no private key, seed, signer, or runtime
+signing capability.  E-T29 = substantive PASS.  External Security review:
+PENDING_POST_FREEZE.
+
+The substantive pure-verifier KAT is now a crate-internal unit test.  Its
+test-root data and opaque capability construction are unavailable to a
+downstream library consumer; the integration test retains the production
+UNPROVISIONED route.
+
+## P1-SEC-002 remediation evidence
+
+The independent Security rereview found that the earlier E-T29 author claim
+was not substantiated: 32/40 substantive cases were evidenced.  The following
+eight cases are now separately executed and mapped to the production boundary
+that owns the decision.  Physical-reference cases 33-36 use
+`partition_endpoint` with `physical = true`; physical assessment cases 38-39
+use the physical requested-validation state and the real
+`evaluate_mhi_validation` assessment path.  No software-mode result is
+counted as physical-path evidence.
+
+| E-T29 case | mutation | physical path | production function | exact result | actual |
+| --- | --- | --- | --- | --- | --- |
+| 23 | approval file-hash mismatch | yes | `OwnerApprovalEvidenceV1::read_and_validate` | `approval file SHA-256 mismatch` | PASS |
+| 29 | approval target-domain binding mismatch | yes | `OwnerApprovalEvidenceV1::validate` | `approval target-domain binding mismatch` | PASS |
+| 33 | physical disallowed-reference-method rejection | yes | `partition_endpoint(physical = true)` | `PhysicalReferenceAuthorityMismatch` | PASS |
+| 34 | physical unblinded-reference rejection | yes | `partition_endpoint(physical = true)` | `PhysicalReferenceAuthorityMismatch` | PASS |
+| 35 | physical uncertainty rejection | yes | `partition_endpoint(physical = true)` | `PhysicalReferenceAuthorityMismatch` | PASS |
+| 36 | physical incomplete-reference rejection | yes | `partition_endpoint(physical = true)` | `PhysicalReferenceAuthorityMismatch` | PASS |
+| 38 | actual one-family physical case | yes | `evaluate_mhi_validation` | `IndependentFamilyMinimumNotMet` and indeterminate | PASS |
+| 39 | missing-stratum physical case | yes | `evaluate_mhi_validation` | `RequiredStratumIndeterminate` and indeterminate | PASS |
+
+The executable E-T29 contract contains all 40 case numbers, mutation labels,
+physical-path flags, production functions, expected results, and actual PASS
+results.  The repaired cases are explicitly marked `PHYSICAL_PATH_ASSERTED =
+yes` in the test contract.  The targeted command result is:
+
+```text
+cargo test --locked --test phase_e_validation phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power -- --exact --nocapture
+PASS: 1 passed; 0 failed; 37 filtered out
+```
+
+The approval file-read boundary was also run directly in the library test:
+
+```text
+cargo test --locked --lib mhi_validation::approval::tests::phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power -- --exact --nocapture
+PASS: 1 passed; 0 failed; 193 filtered out
+```
+
+E-T29 = 32/32 existing cases plus 8/8 newly substantiated cases = substantive
+PASS 40/40.  P1-SEC-001 remains CLOSED and is not reopened.  External Security
+review: PENDING_POST_FREEZE.
+
+## SEC-P0-001 remediation evidence
+
+The previously reproducible public authority bypass is closed.  The production
+trust capability has private authority fields and can only originate from the
+embedded trust bytes; approval evidence and approval hash state are held in an
+opaque crate-private capability.  Approval attachment and the strict verifier
+are no longer downstream-callable, and report replay derives its authority from
+the verified capability retained in `ValidationInputs` rather than accepting a
+caller-supplied trust object.
+
+Compile-time sealing is exercised by four compile-fail doctests covering forged
+verified trust construction, forged `ValidationInputs` authority state, direct
+approval attachment, and the former test verifier boundary.  Runtime public API
+failure is exercised by:
+
+```text
+cargo test --locked --test phase_e_validation phase_e_public_evaluator_fails_closed_without_verified_approval -- --exact --nocapture
+PASS: 1 passed; 0 failed; 37 filtered out
+```
+
+The production runner remains ordered to return
+`PhysicalApprovalTrustNotProvisioned` before dataset opening, and the internal
+KAT remains a substantive 40/40 strict-verification and physical-evaluation
+exercise.  SEC-P0-001 = CLOSED.  PUBLIC_AUTHORITY_BYPASS_PATHS = 0.
+
+## Publication matrix evidence
+
+E-T22 is substantive executable coverage for the complete staging and byte
+validation matrix: all ten generated-file write ordinals, all nine generated
+file fsync ordinals, lock-file fsync, all four pre-publication directory-fsync
+ordinals, create and replacement commit-directory fsync durability outcomes,
+checksum mismatch, strict report reread failure, manifest self-record, wrong
+create/replace mode, forbidden timestamp, unknown field, extra generated file,
+missing managed file, no-replace unsupported and failing primitives, exchange
+unsupported and failing primitives, exact nine managed files, and exactly
+eight non-self manifest records. Its authority case now evaluates a valid
+report, authorizes it through the real production `validate_against` boundary,
+and publishes it; it separately mutates a structure-valid report so replay
+validation fails before any staging. Every negative case asserts the typed
+error and private/output state. The physical-looking forgery and
+unprovisioned-production trust gates are covered by
+`phase_e_physical_claim_requires_dual_signature_embedded_trust_and_power` and
+`phase_e_production_physical_store_is_embedded_and_unprovisioned`; the
+publication-unit regression `phase_e_physical_looking_report_cannot_authorize_publication`
+also proves that a structure-valid report claiming physical validation cannot
+obtain the publication capability.
+
+E-T23 is substantive executable coverage for persistent two-process lock
+contention, concurrent create after preflight, recovery residue and symlink or
+unmanaged protections, precheck/exchange/new-generation/old-generation races,
+same-inode mutation, stage-to-backup failure, backup collision, every reverse
+deletion ordinal, every replacement directory-fsync ordinal, and committed
+cleanup residue. It asserts preserved competitor bytes, identity/fingerprint
+tokens, commit classification, stage/backup snapshots, and deterministic lock
+release. The remediated cases additionally pin the parent directory and use
+descriptor-relative no-follow authority for parent namespace replacement,
+managed-file symlink substitution, exact entry enumeration, generation
+identity, fingerprinting, and commit operations; these are exercised by
+`phase_e_parent_symlink_is_rejected_without_touching_target`,
+`phase_e_parent_namespace_replacement_uses_pinned_descriptor`, and
+`phase_e_held_generation_rejects_managed_file_symlink_substitution`.
+
+The P1-ARCH-003 remediation keeps exact root and `tables/` enumeration on the
+held descriptors, clears thread-local errno before every `readdir`, and
+propagates NULL-plus-nonzero-errno as the existing typed I/O error. The
+publication-unit regressions `phase_e_readdir_root_error_is_not_eof` and
+`phase_e_readdir_tables_error_is_not_eof` inject a NULL/EIO result on the final
+enumeration call so the pre-remediation NULL-as-EOF behavior would have
+accepted the exact set; `phase_e_readdir_normal_eof_accepts_exact_bundle_and_ignores_stale_errno`
+proves ordinary errno-zero EOF and stale-errno clearing. These checks are
+additional author-side publication validation for E-T22/E-T23; the existing
+test identifiers and traceability totals remain unchanged.
+
+Publication errors are closed and stateful: `PublicationConcurrentManagedOutputChanged`,
+`PublicationCommittedForeignSwapDetected`, and
+`PublicationCommittedVisibleOutputChanged` carry path state, identity result,
+fingerprint result, and sorted residue paths. Staging and committed-cleanup
+failures retain their primary error and exact remaining paths. Failure seams
+are compiled only under `cfg(test)`; no production fault API, environment
+switch, CLI option, signer, private key, or test root is present.
+
+## Dependency and lock audit
+
+The only new direct cryptographic dependency is
+`ed25519-dalek = { version = "=2.2.0", default-features = false }`.
+The lock delta is limited to six new packages:
+`curve25519-dalek 4.1.3`, `curve25519-dalek-derive 0.1.1`,
+`ed25519 2.2.3`, `ed25519-dalek 2.2.0`, `fiat-crypto 0.2.9`, and
+`signature 2.2.0`.  Existing locked package entries are unchanged.
+
+## Required author-side command registry
+
+```text
+git diff --check
+cargo fmt --all --check
+cargo check --locked
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --test phase_e_validation
+cargo test --locked --all
+cargo test --doc --locked
+cargo doc --locked --workspace --no-deps
+cargo build --locked --release
+```
+
+The exact command results, platform, and cumulative-diff audit are recorded at
+candidate freeze by the author workflow; this document contains no candidate
+commit identity and no approval decision.
+
+## Local author command results
+
+Host: Darwin arm64.
+
+| command or evidence group | result |
+| --- | --- |
+| git diff --check | PASS |
+| cargo fmt --all --check | PASS |
+| cargo check --locked | PASS |
+| cargo clippy --locked --all-targets --all-features -- -D warnings | PASS; zero diagnostics |
+| Phase-E integration, approval, reader, and publication suites | PASS |
+| Phase-D targeted and historical compatibility coverage | PASS |
+| P1-ARCH-003 root/tables NULL-plus-EIO regressions and stale-errno/EOF control | PASS |
+| Repeated certified validation: all nine successful output files byte-identical | PASS |
+| cargo test --locked --all, run 1 | PASS |
+| cargo test --locked --all, run 2 | PASS |
+| crate-internal E-T29 authority KAT, 40/40 | PASS |
+| public evaluator without verified approval fails closed | PASS |
+| cargo test --doc --locked | PASS |
+| cargo doc --locked --workspace --no-deps | PASS |
+| cargo build --locked --release | PASS |
+| production trust is UNPROVISIONED with zero roots | PASS |
+| production physical request fails before dataset/scoring | PASS: PhysicalApprovalTrustNotProvisioned |
+| deterministic software golden bundle | PASS |
+| SCI-P1-001 adjacency, union-containment, semantic-equality, target-domain, and overbroad-claim regressions | PASS |
+
+The publication suite includes the executable E-T22 and E-T23 matrices above.
+The nine-file golden authority is 9/9 managed files and 8/8 non-self manifest
+records; no oracle is regenerated from production output.
+
+## SCI-P1-001 remediation evidence
+
+SCI-P1-001 remediation is recorded as an implementation correction, not a plan
+amendment.  E-T04 now contains executable protocol tests for valid adjacent bands,
+exact lower-inclusive/upper-exclusive boundary behavior, union containment
+across two and three adjacent bands, multiple-left-interval
+coverage, irrelevant gaps, genuine interior gaps, semantic split/merged
+endpoint-claim equality in both directions, target-domain union subset, and
+overbroad-claim rejection.  The tests preserve declared band segmentation and
+do not introduce canonical merging, epsilon, or tolerance behavior.
+
+The remediation records E-R02/E-AC02 restored to passing for the Phase-E
+protocol domain authority.  The physical protocol path is covered through the
+test-only semantic validation route without changing signed KAT fixture bytes;
+the permanent fixture inventory remains 268/268 with no new Phase-E fixture.
+The canonical certified route remains deterministic with 9/9 managed files
+and 8/8 non-self manifest records.  External scientific review: PENDING_POST_FREEZE.
+
+## Author-side dispositions
+
+| severity | disposition |
+| --- | --- |
+| P0 | no unresolved author-side issue |
+| P1 | no unresolved author-side issue |
+| P2 | retained non-blocking architecture debt: non-UTF-8 early-return `DIR*` resource leak; retained non-blocking compatibility debt: permanent E-T25 coverage remains weaker than an independent 14/14 reproduction |
+
+## Post-freeze external fields
+
+Independent scientific review: PENDING_POST_FREEZE
+Independent architecture review: PENDING_POST_FREEZE
+Independent security review: PENDING_POST_FREEZE
+Independent compatibility review: PENDING_POST_FREEZE
+macOS exact-commit validation: PENDING_POST_FREEZE
+Implementation approval: PENDING_POST_FREEZE
+Integration approval: PENDING_POST_FREEZE
+
+No self-approval, candidate SHA, review SHA, merge, implementation approval
+tag, or integration approval is recorded in this author-side artifact.

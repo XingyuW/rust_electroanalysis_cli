@@ -1,0 +1,76 @@
+{
+  "approval_purpose": "pre_scoring_physical_validation_cohort_lock",
+  "approval_record_id": "sha256:970fa2fd08ceb7bacb0775ec7835e4aa2a8ef7f7e602d7ab6d4296b9218a3cfc",
+  "approval_status": "approved",
+  "claim_ids": [
+    "physical_claim"
+  ],
+  "cohort_semantic_sha256": "6533309a5f34a62c508a3495f9dc07c66ee8d2275b8428e2140fd69a666d5b7b",
+  "endpoint_ids": [
+    "health_endpoint",
+    "mechanism_endpoint"
+  ],
+  "limitations": [],
+  "owner_authority_document": {
+    "document_sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+    "immutable_reference_uri": "urn:mhi:test:owner-authority"
+  },
+  "owner_signature_ed25519_hex": "f675a0e94c19476477bd1ef51b8676f8b7dfc1df0c1a0b6b14de5a2e00e01f3c73b2df97c9a4fa0261f7114765cd0250a82d1e015d8dec936d7474e94882ec06",
+  "physical_origin_confirmed": true,
+  "project_owner_authority_id": "test_vector_owner",
+  "protocol_sha256": "a7c7938faed65ec9a3e346194a19f9d4401b66f9e81a8695aec2931f5cf97501",
+  "reference_authority_ids": [
+    "reference_authority"
+  ],
+  "registry_authority_id": "test_vector_registry",
+  "registry_record": {
+    "document_sha256": "0000000000000000000000000000000000000000000000000000000000000002",
+    "immutable_reference_uri": "urn:mhi:test:registry-record"
+  },
+  "registry_signature_ed25519_hex": "b566c34d4c222960dcdd9652105e12f3f0298533704096fd45eb470b5f2c92bf07c56b8827d37ca02155401c9809d36d03803de59d1ae5b9f99efede3bd3a208",
+  "schema_version": 1,
+  "target_domain": {
+    "analyte": {
+      "ids": [
+        "analyte"
+      ],
+      "type": "allowed"
+    },
+    "campaign": {
+      "ids": [
+        "campaign"
+      ],
+      "type": "allowed"
+    },
+    "matrix": {
+      "ids": [
+        "matrix"
+      ],
+      "type": "allowed"
+    },
+    "sensor": {
+      "ids": [
+        "sensor_a",
+        "sensor_b"
+      ],
+      "type": "allowed"
+    },
+    "sensor_design": {
+      "ids": [
+        "design"
+      ],
+      "type": "allowed"
+    },
+    "temperature": {
+      "bands": [
+        {
+          "lower_kelvin_inclusive": 298.0,
+          "upper_kelvin_exclusive": 299.0
+        }
+      ],
+      "type": "bands"
+    }
+  },
+  "trust_root_id": "test_only_known_answer_root",
+  "trust_store_id": "mhi_physical_approval_trust_store_v1"
+}

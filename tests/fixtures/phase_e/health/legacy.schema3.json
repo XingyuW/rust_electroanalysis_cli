@@ -1,0 +1,22 @@
+{
+  "artifact_kind": "health_assessment",
+  "schema_version": 3,
+  "assessment_id": "phase-c-legacy-schema3-fixture",
+  "sensor_id": null,
+  "experiment_id": "phase-c-legacy-experiment",
+  "overall_status": "data_quality_insufficient",
+  "domain_assessments": [{"domain":"signal_noise","status":"within_baseline","confidence":"moderate","feature_count":1,"available_features":1,"warning_count":0}],
+  "features": [{"name":"signal.mean","value":0.2,"unit":"V","domain":"signal_noise","source":"signal","warning":null}],
+  "findings": [], "rule_evaluations": [], "baseline_comparison": [], "missing_domains": [],
+  "configuration": {
+    "schema_version": 1,
+    "baseline": {"minimum_required_records": 3, "robust_statistics": true},
+    "comparability": {"require_same_sensor_design": true, "require_same_analyte": true, "require_same_sample_matrix": true, "maximum_temperature_difference_k": 2.0},
+    "normalization": {"use_relative_difference": true, "use_robust_z_score": true, "minimum_baseline_records_for_z_score": 5},
+    "assessment": {"minimum_domains_for_assessment": 2, "minimum_domains_for_mechanistic_finding": 2, "allow_warning_artifacts": true},
+    "rules": [], "plotting": {"enabled": true},
+    "export": {"baseline_filename":"health_baseline.json","assessment_filename":"health_assessment.json","features_filename":"health_features.csv","findings_filename":"health_findings.csv","trends_filename":"health_trends.csv","report_filename":"health_report.txt"}
+  },
+  "provenance": {"software_version":"phase-c-fixture","input_path":"phase-c-legacy-input.json","input_sha256":"phase-c-legacy-input-sha256","configuration_path":null,"configuration_sha256":null,"generation_timestamp":1,"git_commit":null},
+  "warnings": []
+}

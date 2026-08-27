@@ -6,7 +6,7 @@
 
 use super::artifact::ArtifactKind;
 use serde::{Deserialize, Serialize, de};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -709,6 +709,16 @@ pub enum LineageCatalogReadError {
     },
 }
 
+/// Strict catalog read result used by Phase E.  The historic reader continues
+/// to own its legacy I/O and error compatibility while this reader retains the
+/// exact verified source bytes for validation lineage.
+#[derive(Debug, Clone)]
+pub struct StrictLineageCatalogRead {
+    pub catalog: ArtifactLineageCatalog,
+    pub source_bytes: Vec<u8>,
+    pub source_file_sha256: String,
+}
+
 const CATALOG_INVALID_ROOT: &str = "__phase_d_catalog_invalid_root";
 const CATALOG_UNKNOWN_FIELD: &str = "__phase_d_catalog_unknown_field:";
 const CATALOG_DUPLICATE_FIELD: &str = "__phase_d_catalog_duplicate_field:";
@@ -726,7 +736,243 @@ pub fn read_artifact_lineage_catalog(
         path: path.to_path_buf(),
         source,
     })?;
-    let mut deserializer = serde_json::Deserializer::from_str(&text);
+    parse_artifact_lineage_catalog_text(path, &text)
+}
+
+/// Additive strict reader for scientific validation.  It rejects symlinked
+/// inputs and duplicate keys recursively before using the canonical catalog
+/// parser.  It does not alter the public reader's established behavior.
+pub fn read_artifact_lineage_catalog_strict(
+    path: &Path,
+) -> Result<StrictLineageCatalogRead, LineageCatalogReadError> {
+    let source_bytes = crate::domain::read_strict_file_bytes(path)
+        .map_err(|error| map_strict_file_error(path, error))?;
+    parse_strict_lineage_catalog_bytes(path, source_bytes)
+}
+
+pub(crate) fn read_artifact_lineage_catalog_strict_at(
+    directory: &fs::File,
+    relative: &str,
+    display_path: &Path,
+) -> Result<StrictLineageCatalogRead, LineageCatalogReadError> {
+    let source_bytes = crate::domain::read_strict_file_at(directory, relative, display_path)
+        .map_err(|error| map_strict_file_error(display_path, error))?;
+    parse_strict_lineage_catalog_bytes(display_path, source_bytes)
+}
+
+fn parse_strict_lineage_catalog_bytes(
+    path: &Path,
+    source_bytes: Vec<u8>,
+) -> Result<StrictLineageCatalogRead, LineageCatalogReadError> {
+    if source_bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
+        return Err(LineageCatalogReadError::Validation {
+            path: path.to_path_buf(),
+            source: LineageError::Serialization(
+                "strict catalog input must not contain a UTF-8 BOM".into(),
+            ),
+        });
+    }
+    let text = std::str::from_utf8(&source_bytes).map_err(|_| LineageCatalogReadError::Io {
+        path: path.to_path_buf(),
+        source: std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "catalog is not valid UTF-8",
+        ),
+    })?;
+    crate::domain::artifact::ensure_duplicate_free_json(text).map_err(|message| {
+        LineageCatalogReadError::Validation {
+            path: path.to_path_buf(),
+            source: LineageError::Serialization(message),
+        }
+    })?;
+    ensure_strict_catalog_grammar(text).map_err(|message| LineageCatalogReadError::Validation {
+        path: path.to_path_buf(),
+        source: LineageError::Serialization(message),
+    })?;
+    let catalog = parse_artifact_lineage_catalog_text(path, text)?;
+    let mut hash = Sha256::new();
+    hash.update(&source_bytes);
+    Ok(StrictLineageCatalogRead {
+        catalog,
+        source_bytes,
+        source_file_sha256: format!("{:x}", hash.finalize()),
+    })
+}
+
+fn map_strict_file_error(
+    path: &Path,
+    error: crate::domain::ArtifactError,
+) -> LineageCatalogReadError {
+    match error {
+        crate::domain::ArtifactError::Io { source, .. } => LineageCatalogReadError::Io {
+            path: path.to_path_buf(),
+            source,
+        },
+        crate::domain::ArtifactError::UnsafeFile { .. } => LineageCatalogReadError::Validation {
+            path: path.to_path_buf(),
+            source: LineageError::Serialization(
+                "strict catalog input must be a regular non-symlink file".into(),
+            ),
+        },
+        other => LineageCatalogReadError::Validation {
+            path: path.to_path_buf(),
+            source: LineageError::Serialization(other.to_string()),
+        },
+    }
+}
+
+/// Phase-E needs the catalog's historic semantics plus a genuinely closed
+/// nested grammar.  The normal reader deliberately remains permissive in a
+/// few serde-derived nested structures for compatibility, so this additive
+/// check runs only after duplicate detection on the same source bytes.
+fn ensure_strict_catalog_grammar(text: &str) -> Result<(), String> {
+    let value: Value = serde_json::from_str(text).map_err(|error| error.to_string())?;
+    let root = object(&value, "catalog root")?;
+    keys(root, &["schema_version", "artifacts"], "catalog root")?;
+    let artifacts = root
+        .get("artifacts")
+        .ok_or_else(|| "catalog root missing artifacts".to_string())?;
+    let artifacts = object(artifacts, "catalog artifacts")?;
+    for (artifact_id, node) in artifacts {
+        let node = object(node, &format!("catalog artifact {artifact_id}"))?;
+        keys(
+            node,
+            &["identity", "direct_dependencies"],
+            "catalog artifact node",
+        )?;
+        let identity = node
+            .get("identity")
+            .ok_or_else(|| "catalog artifact node missing identity".to_string())?;
+        strict_identity(identity)?;
+        let dependencies = node
+            .get("direct_dependencies")
+            .ok_or_else(|| "catalog artifact node missing direct_dependencies".to_string())?;
+        let dependencies = dependencies
+            .as_array()
+            .ok_or_else(|| "direct_dependencies must be an array".to_string())?;
+        for dependency in dependencies {
+            let dependency = object(dependency, "artifact dependency")?;
+            keys(
+                dependency,
+                &["artifact_id", "artifact_kind", "role"],
+                "artifact dependency",
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn strict_identity(value: &Value) -> Result<(), String> {
+    let identity = object(value, "artifact identity")?;
+    keys(
+        identity,
+        &[
+            "artifact_id",
+            "artifact_kind",
+            "schema_version",
+            "producer_version",
+            "experiment_scope",
+            "sensor_scope",
+            "channel_scope",
+            "acquisition_families",
+            "semantic_sha256",
+        ],
+        "artifact identity",
+    )?;
+    strict_experiment_scope(
+        identity
+            .get("experiment_scope")
+            .ok_or_else(|| "artifact identity missing experiment_scope".to_string())?,
+    )?;
+    strict_scope_key(
+        identity
+            .get("sensor_scope")
+            .ok_or_else(|| "artifact identity missing sensor_scope".to_string())?,
+        "sensor_scope",
+    )?;
+    strict_scope_key(
+        identity
+            .get("channel_scope")
+            .ok_or_else(|| "artifact identity missing channel_scope".to_string())?,
+        "channel_scope",
+    )?;
+    strict_acquisition_families(
+        identity
+            .get("acquisition_families")
+            .ok_or_else(|| "artifact identity missing acquisition_families".to_string())?,
+    )
+}
+
+fn strict_experiment_scope(value: &Value) -> Result<(), String> {
+    if value.as_str() == Some("Unknown") {
+        return Ok(());
+    }
+    let tagged = object(value, "experiment_scope")?;
+    match tagged.iter().next() {
+        Some((tag, payload)) if tagged.len() == 1 && tag == "Single" => {
+            let payload = object(payload, "experiment_scope.Single")?;
+            keys(payload, &["experiment_id"], "experiment_scope.Single")
+        }
+        Some((tag, payload)) if tagged.len() == 1 && tag == "Aggregate" => {
+            let payload = object(payload, "experiment_scope.Aggregate")?;
+            keys(
+                payload,
+                &["aggregate_scope_id", "member_experiment_ids"],
+                "experiment_scope.Aggregate",
+            )
+        }
+        _ => Err("experiment_scope must be Unknown, Single, or Aggregate".into()),
+    }
+}
+
+fn strict_scope_key(value: &Value, name: &str) -> Result<(), String> {
+    if matches!(value.as_str(), Some("All" | "Unspecified")) {
+        return Ok(());
+    }
+    let tagged = object(value, name)?;
+    if tagged.len() == 1 && tagged.contains_key("Specific") && tagged["Specific"].is_string() {
+        Ok(())
+    } else {
+        Err(format!("{name} must be All, Unspecified, or Specific"))
+    }
+}
+
+fn strict_acquisition_families(value: &Value) -> Result<(), String> {
+    if value.as_str() == Some("Unknown") {
+        return Ok(());
+    }
+    let tagged = object(value, "acquisition_families")?;
+    if tagged.len() == 1 && tagged.get("Known").is_some_and(serde_json::Value::is_array) {
+        Ok(())
+    } else {
+        Err("acquisition_families must be Unknown or Known".into())
+    }
+}
+
+fn object<'a>(value: &'a Value, name: &str) -> Result<&'a Map<String, Value>, String> {
+    value
+        .as_object()
+        .ok_or_else(|| format!("{name} must be an object"))
+}
+
+fn keys(object: &Map<String, Value>, allowed: &[&str], context: &str) -> Result<(), String> {
+    if let Some(field) = object
+        .keys()
+        .find(|field| !allowed.contains(&field.as_str()))
+    {
+        return Err(format!("{context} contains unknown field {field}"));
+    }
+    if let Some(field) = allowed.iter().find(|field| !object.contains_key(**field)) {
+        return Err(format!("{context} is missing field {field}"));
+    }
+    Ok(())
+}
+
+fn parse_artifact_lineage_catalog_text(
+    path: &Path,
+    text: &str,
+) -> Result<ArtifactLineageCatalog, LineageCatalogReadError> {
+    let mut deserializer = serde_json::Deserializer::from_str(text);
     let wire = CatalogWire::deserialize(&mut deserializer)
         .map_err(|source| map_catalog_deserialize_error(path, source))?;
     deserializer

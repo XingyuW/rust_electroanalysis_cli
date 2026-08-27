@@ -1,0 +1,22 @@
+{
+  "reference_sources": [
+    {
+      "acquisition_families": {
+        "Known": [
+          "physical-reference-family"
+        ]
+      },
+      "dependency_completeness": "complete",
+      "direct_dependencies": [],
+      "evidence_origin": "physical",
+      "experiment_scope": {
+        "Single": {
+          "experiment_id": "physical-reference-experiment"
+        }
+      },
+      "reference_source_id": "reference_1",
+      "source_file_sha256": "671e3c578415af633f63324c0ac668c610be15e0e9d2d59fe6aec3ccfac348c9"
+    }
+  ],
+  "schema_version": 1
+}

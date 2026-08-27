@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "interval_method": "wilson_95_v1",
+  "vectors": [
+    {
+      "numerator": "0",
+      "denominator": "0",
+      "kind": "unavailable",
+      "reason": "denominator_zero"
+    },
+    {
+      "numerator": "0",
+      "denominator": "1",
+      "kind": "available",
+      "point_estimate": 0,
+      "lower_confidence_bound": 0,
+      "upper_confidence_bound": 0.7934506856227626,
+      "point_estimate_bits": "0",
+      "lower_confidence_bound_bits": "0",
+      "upper_confidence_bound_bits": "4605321987969491492"
+    },
+    {
+      "numerator": "1",
+      "denominator": "1",
+      "kind": "available",
+      "point_estimate": 1,
+      "lower_confidence_bound": 0.20654931437723745,
+      "upper_confidence_bound": 1,
+      "point_estimate_bits": "4607182418800017408",
+      "lower_confidence_bound_bits": "4596609743612639088",
+      "upper_confidence_bound_bits": "4607182418800017408"
+    },
+    {
+      "numerator": "5",
+      "denominator": "10",
+      "kind": "available",
+      "point_estimate": 0.5,
+      "lower_confidence_bound": 0.236593090512564,
+      "upper_confidence_bound": 0.7634069094874361,
+      "point_estimate_bits": "4602678819172646912",
+      "lower_confidence_bound_bits": "4597692184724701962",
+      "upper_confidence_bound_bits": "4605051377691475774"
+    },
+    {
+      "numerator": "50",
+      "denominator": "100",
+      "kind": "available",
+      "point_estimate": 0.5,
+      "lower_confidence_bound": 0.4038315303659956,
+      "upper_confidence_bound": 0.5961684696340044,
+      "point_estimate_bits": "4602678819172646912",
+      "lower_confidence_bound_bits": "4600946402036612940",
+      "upper_confidence_bound_bits": "4603545027740663898"
+    },
+    {
+      "numerator": "4503599627370496",
+      "denominator": "9007199254740992",
+      "kind": "available",
+      "point_estimate": 0.5,
+      "lower_confidence_bound": 0.49999998967421183,
+      "upper_confidence_bound": 0.5000000103257881,
+      "point_estimate_bits": "4602678819172646912",
+      "lower_confidence_bound_bits": "4602678818986634049",
+      "upper_confidence_bound_bits": "4602678819265653343"
+    },
+    {
+      "numerator": "4503599627370496",
+      "denominator": "9007199254740993",
+      "kind": "hard_error",
+      "reason": "CountExceedsExactF64Range"
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+tests/fixtures/phase_d/base/mechanism.json
+tests/fixtures/phase_d/base/health.json
+tests/fixtures/phase_d/base/lineage_catalog.json

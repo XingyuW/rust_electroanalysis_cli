@@ -1,0 +1,128 @@
+schema_version = 1
+protocol_id = "phase_e_software_protocol"
+title = "Phase E software-only validation fixture"
+
+[registration]
+registration_id = "phase_e_registration"
+immutable_reference_uri = "urn:mhi:phase-e:software-fixture"
+document_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+
+[physical_approval_authority]
+type = "not_requested"
+
+[target_domain.analyte]
+type = "any_declared"
+[target_domain.matrix]
+type = "any_declared"
+[target_domain.sensor_design]
+type = "any_declared"
+[target_domain.sensor]
+type = "any_declared"
+[target_domain.campaign]
+type = "any_declared"
+[target_domain.temperature]
+type = "any_declared"
+
+[statistics]
+interval_method = "wilson_95_v1"
+confidence_level = "0.95"
+undefined_metric = "unavailable"
+required_rule_unavailable = "indeterminate"
+rule_composition = "and"
+
+[[mechanism_endpoints]]
+endpoint_id = "mechanism_endpoint"
+hypothesis_id = "b-hypothesis"
+cohort_role = "validation"
+mechanism_artifact_required = true
+support_levels = ["validated_for_domain"]
+critical_policy = "any_contradicted_record_fails"
+minimum_eligible_records = 1
+minimum_independent_families = 1
+required_strata = []
+acceptance_rules = [{ type = "rate", rule_id = "support", metric = "support_fraction", target = "point_estimate", comparator = "greater_than_or_equal", threshold = 0.5 }]
+
+[mechanism_endpoints.domain.analyte]
+type = "any_declared"
+[mechanism_endpoints.domain.matrix]
+type = "any_declared"
+[mechanism_endpoints.domain.sensor_design]
+type = "any_declared"
+[mechanism_endpoints.domain.sensor]
+type = "any_declared"
+[mechanism_endpoints.domain.campaign]
+type = "any_declared"
+[mechanism_endpoints.domain.temperature]
+type = "any_declared"
+[mechanism_endpoints.reference_rule]
+type = "mechanism"
+allowed_methods = [{ method_id = "reference_method", method_version = "1" }]
+allowed_authority_ids = ["reference_authority"]
+blinding_rule = "require_blinded"
+[mechanism_endpoints.reference_rule.uncertainty_rule]
+type = "require_quantified"
+measure_id = "uncertainty"
+unit = "1"
+maximum_inclusive = 1.0
+
+[[health_endpoints]]
+endpoint_id = "health_endpoint"
+cohort_role = "validation"
+health_artifact_required = true
+predicted_positive_statuses = ["critical", "degraded"]
+predicted_negative_statuses = ["watch", "within_baseline"]
+reference_label_universe = ["alert", "normal"]
+reference_positive_labels = ["alert"]
+reference_negative_labels = ["normal"]
+minimum_eligible_records = 1
+minimum_independent_families = 1
+required_strata = []
+acceptance_rules = [
+  { type = "rate", rule_id = "coverage", metric = "coverage", target = "point_estimate", comparator = "greater_than_or_equal", threshold = 0.5 },
+  { type = "rate", rule_id = "sensitivity", metric = "sensitivity", target = "point_estimate", comparator = "greater_than_or_equal", threshold = 0.5 },
+  { type = "rate", rule_id = "specificity", metric = "specificity", target = "point_estimate", comparator = "greater_than_or_equal", threshold = 0.5 },
+]
+
+[health_endpoints.target]
+type = "dimension"
+dimension_id = "signal_integrity"
+[health_endpoints.domain.analyte]
+type = "any_declared"
+[health_endpoints.domain.matrix]
+type = "any_declared"
+[health_endpoints.domain.sensor_design]
+type = "any_declared"
+[health_endpoints.domain.sensor]
+type = "any_declared"
+[health_endpoints.domain.campaign]
+type = "any_declared"
+[health_endpoints.domain.temperature]
+type = "any_declared"
+[health_endpoints.reference_rule]
+type = "health"
+allowed_methods = [{ method_id = "reference_method", method_version = "1" }]
+allowed_authority_ids = ["reference_authority"]
+blinding_rule = "require_blinded"
+[health_endpoints.reference_rule.uncertainty_rule]
+type = "require_quantified"
+measure_id = "uncertainty"
+unit = "1"
+maximum_inclusive = 1.0
+
+[[release_scope]]
+claim_id = "software_claim"
+requested_level = "software"
+statement = "Software-only fixture"
+supporting_endpoint_ids = ["health_endpoint", "mechanism_endpoint"]
+[release_scope.domain.analyte]
+type = "any_declared"
+[release_scope.domain.matrix]
+type = "any_declared"
+[release_scope.domain.sensor_design]
+type = "any_declared"
+[release_scope.domain.sensor]
+type = "any_declared"
+[release_scope.domain.campaign]
+type = "any_declared"
+[release_scope.domain.temperature]
+type = "any_declared"

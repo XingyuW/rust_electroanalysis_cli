@@ -1,0 +1,1078 @@
+{
+  "artifact_kind": "health_assessment",
+  "assessment_id": "physical-health-094",
+  "baseline_comparison": [
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": 0.21472615802499273,
+      "empirical_percentile": null,
+      "feature": "signal.rms_noise",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": 1.8513624480238964e-6,
+      "empirical_percentile": null,
+      "feature": "signal.robust_noise_standard_deviation",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": 0.09999999999861116,
+      "empirical_percentile": null,
+      "feature": "signal.peak_to_peak",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": null,
+      "empirical_percentile": null,
+      "feature": "signal.allan_minimum",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": null,
+      "empirical_percentile": null,
+      "feature": "signal.allan_minimum_averaging_time",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": -3.3748856111274917e-6,
+      "empirical_percentile": null,
+      "feature": "signal.robust_drift_rate",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": 0.0,
+      "empirical_percentile": null,
+      "feature": "signal.spike_fraction",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": 0.0,
+      "empirical_percentile": null,
+      "feature": "signal.missing_fraction",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": 0.05496471862793072,
+      "empirical_percentile": null,
+      "feature": "signal.sampling_irregularity",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": null,
+      "empirical_percentile": null,
+      "feature": "signal.common_mode_fraction",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": null,
+      "empirical_percentile": null,
+      "feature": "mechanism.timescale_ratio",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": 0.0,
+      "empirical_percentile": null,
+      "feature": "mechanism.strong_comparisons",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    },
+    {
+      "absolute_difference": null,
+      "baseline_sample_count": 0,
+      "baseline_value": null,
+      "comparability": "unknown",
+      "current_value": 0.0,
+      "empirical_percentile": null,
+      "feature": "mechanism.contradictory_comparisons",
+      "log_ratio": null,
+      "override_reason": "baseline unavailable",
+      "range_position_percent": null,
+      "relative_difference": null,
+      "robust_z_score": null,
+      "z_score": null
+    }
+  ],
+  "configuration": {
+    "assessment": {
+      "allow_warning_artifacts": true,
+      "minimum_domains_for_assessment": 2,
+      "minimum_domains_for_mechanistic_finding": 2
+    },
+    "baseline": {
+      "minimum_required_records": 3,
+      "robust_statistics": true
+    },
+    "comparability": {
+      "maximum_temperature_difference_k": 2.0,
+      "require_same_analyte": true,
+      "require_same_sample_matrix": true,
+      "require_same_sensor_design": true
+    },
+    "export": {
+      "assessment_filename": "health_assessment.json",
+      "baseline_filename": "health_baseline.json",
+      "features_filename": "health_features.csv",
+      "findings_filename": "health_findings.csv",
+      "report_filename": "health_report.txt",
+      "trends_filename": "health_trends.csv"
+    },
+    "normalization": {
+      "minimum_baseline_records_for_z_score": 5,
+      "use_relative_difference": true,
+      "use_robust_z_score": true
+    },
+    "plotting": {
+      "enabled": true
+    },
+    "rules": [
+      {
+        "all_of": [
+          {
+            "feature": "signal.robust_noise_standard_deviation",
+            "operator": "robust_z_greater_than",
+            "value": 3.0
+          }
+        ],
+        "alternative_explanations": [],
+        "any_of": [],
+        "finding": "elevated_noise",
+        "minimum_baseline_records": 0,
+        "minimum_evidence_domains": 1,
+        "rule_id": "elevated-noise",
+        "severity": "moderate"
+      },
+      {
+        "all_of": [
+          {
+            "feature": "transient.tau_slow",
+            "operator": "relative_increase_greater_than",
+            "value": 1.0
+          }
+        ],
+        "alternative_explanations": [
+          "environmental mismatch",
+          "incomplete baseline context"
+        ],
+        "any_of": [
+          {
+            "feature": "calibration.slope_efficiency",
+            "operator": "relative_decrease_greater_than",
+            "value": 0.2
+          },
+          {
+            "feature": "eis.role.transport.relaxation_timescale",
+            "operator": "relative_increase_greater_than",
+            "value": 1.0
+          }
+        ],
+        "finding": "probable_fouling",
+        "minimum_baseline_records": 0,
+        "minimum_evidence_domains": 2,
+        "rule_id": "probable-fouling",
+        "severity": "major"
+      }
+    ],
+    "schema_version": 1
+  },
+  "domain_assessments": [
+    {
+      "available_features": 2,
+      "confidence": "moderate",
+      "domain": "data_quality",
+      "feature_count": 2,
+      "status": "within_baseline",
+      "warning_count": 0
+    },
+    {
+      "available_features": 4,
+      "confidence": "moderate",
+      "domain": "signal_noise",
+      "feature_count": 7,
+      "status": "within_baseline",
+      "warning_count": 0
+    },
+    {
+      "available_features": 1,
+      "confidence": "moderate",
+      "domain": "drift",
+      "feature_count": 1,
+      "status": "within_baseline",
+      "warning_count": 0
+    },
+    {
+      "available_features": 0,
+      "confidence": "insufficient",
+      "domain": "dynamic_response",
+      "feature_count": 0,
+      "status": "within_baseline",
+      "warning_count": 0
+    },
+    {
+      "available_features": 0,
+      "confidence": "insufficient",
+      "domain": "calibration",
+      "feature_count": 0,
+      "status": "within_baseline",
+      "warning_count": 0
+    },
+    {
+      "available_features": 0,
+      "confidence": "insufficient",
+      "domain": "impedance",
+      "feature_count": 0,
+      "status": "within_baseline",
+      "warning_count": 0
+    },
+    {
+      "available_features": 2,
+      "confidence": "moderate",
+      "domain": "mechanism_evidence",
+      "feature_count": 3,
+      "status": "within_baseline",
+      "warning_count": 0
+    }
+  ],
+  "experiment_id": "physical-experiment-094",
+  "features": [
+    {
+      "domain": "signal_noise",
+      "name": "signal.rms_noise",
+      "source": "signal",
+      "unit": "V",
+      "value": 0.21472615802499273,
+      "warning": null
+    },
+    {
+      "domain": "signal_noise",
+      "name": "signal.robust_noise_standard_deviation",
+      "source": "signal",
+      "unit": "V",
+      "value": 1.8513624480238964e-6,
+      "warning": null
+    },
+    {
+      "domain": "signal_noise",
+      "name": "signal.peak_to_peak",
+      "source": "signal",
+      "unit": "V",
+      "value": 0.09999999999861116,
+      "warning": null
+    },
+    {
+      "domain": "signal_noise",
+      "name": "signal.allan_minimum",
+      "source": "signal",
+      "unit": "V",
+      "value": null,
+      "warning": null
+    },
+    {
+      "domain": "signal_noise",
+      "name": "signal.allan_minimum_averaging_time",
+      "source": "signal",
+      "unit": "s",
+      "value": null,
+      "warning": null
+    },
+    {
+      "domain": "drift",
+      "name": "signal.robust_drift_rate",
+      "source": "signal",
+      "unit": "V/s",
+      "value": -3.3748856111274917e-6,
+      "warning": null
+    },
+    {
+      "domain": "signal_noise",
+      "name": "signal.spike_fraction",
+      "source": "signal",
+      "unit": "fraction",
+      "value": 0.0,
+      "warning": null
+    },
+    {
+      "domain": "data_quality",
+      "name": "signal.missing_fraction",
+      "source": "signal",
+      "unit": "fraction",
+      "value": 0.0,
+      "warning": null
+    },
+    {
+      "domain": "data_quality",
+      "name": "signal.sampling_irregularity",
+      "source": "signal",
+      "unit": "fraction",
+      "value": 0.05496471862793072,
+      "warning": null
+    },
+    {
+      "domain": "signal_noise",
+      "name": "signal.common_mode_fraction",
+      "source": "signal",
+      "unit": "fraction",
+      "value": null,
+      "warning": null
+    },
+    {
+      "domain": "mechanism_evidence",
+      "name": "mechanism.timescale_ratio",
+      "source": "mechanism",
+      "unit": "fraction",
+      "value": null,
+      "warning": null
+    },
+    {
+      "domain": "mechanism_evidence",
+      "name": "mechanism.strong_comparisons",
+      "source": "mechanism",
+      "unit": "fraction",
+      "value": 0.0,
+      "warning": null
+    },
+    {
+      "domain": "mechanism_evidence",
+      "name": "mechanism.contradictory_comparisons",
+      "source": "mechanism",
+      "unit": "fraction",
+      "value": 0.0,
+      "warning": null
+    }
+  ],
+  "findings": [],
+  "lineage": {
+    "Known": {
+      "direct_dependencies": [],
+      "identity": {
+        "acquisition_families": {
+          "Known": [
+            "physical-family-b"
+          ]
+        },
+        "artifact_id": "sha256:4174b273240415140302683403e6adb0dc45d196867a7d11173da35687fbdff3",
+        "artifact_kind": "health_assessment",
+        "channel_scope": "Unspecified",
+        "experiment_scope": {
+          "Single": {
+            "experiment_id": "physical-experiment-094"
+          }
+        },
+        "producer_version": "phase-e-r2-physical-kat-v1",
+        "schema_version": 4,
+        "semantic_sha256": "4174b273240415140302683403e6adb0dc45d196867a7d11173da35687fbdff3",
+        "sensor_scope": "Unspecified"
+      }
+    }
+  },
+  "missing_domains": [
+    "dynamic_response",
+    "calibration",
+    "impedance"
+  ],
+  "overall_status": "within_baseline",
+  "phase_c": {
+    "config_schema_version": 1,
+    "config_sha256": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+    "dimension_assessments": [
+      {
+        "causal_status": "observed",
+        "dimension": "signal_integrity",
+        "evidence_state": "adequate_evidence",
+        "excluded_evidence_ids": [],
+        "interpretation_category": "observed_behavior",
+        "reason_codes": [
+          "threshold_critical"
+        ],
+        "source_artifact_ids": [],
+        "source_evidence_ids": [
+          "signal.descriptive.rms",
+          "signal.descriptive.robust_standard_deviation",
+          "signal.drift.theil_sen.slope_v_per_s",
+          "signal.spikes.flagged_fraction"
+        ],
+        "status": "within_baseline"
+      },
+      {
+        "causal_status": "indeterminate",
+        "dimension": "calibration_health",
+        "evidence_state": "adequate_evidence",
+        "excluded_evidence_ids": [],
+        "interpretation_category": "calibration_issue",
+        "reason_codes": [
+          "optional_source_absent"
+        ],
+        "source_artifact_ids": [],
+        "source_evidence_ids": [],
+        "status": "within_baseline"
+      },
+      {
+        "causal_status": "indeterminate",
+        "dimension": "dynamic_response_health",
+        "evidence_state": "adequate_evidence",
+        "excluded_evidence_ids": [],
+        "interpretation_category": "observed_behavior",
+        "reason_codes": [
+          "optional_source_absent"
+        ],
+        "source_artifact_ids": [],
+        "source_evidence_ids": [],
+        "status": "within_baseline"
+      },
+      {
+        "causal_status": "indeterminate",
+        "dimension": "reference_stability",
+        "evidence_state": "adequate_evidence",
+        "excluded_evidence_ids": [],
+        "interpretation_category": "observed_behavior",
+        "reason_codes": [
+          "reference_anchor_unavailable"
+        ],
+        "source_artifact_ids": [],
+        "source_evidence_ids": [],
+        "status": "within_baseline"
+      },
+      {
+        "causal_status": "indeterminate",
+        "dimension": "environmental_robustness",
+        "evidence_state": "adequate_evidence",
+        "excluded_evidence_ids": [],
+        "interpretation_category": "environmental_effect",
+        "reason_codes": [
+          "optional_source_absent"
+        ],
+        "source_artifact_ids": [],
+        "source_evidence_ids": [],
+        "status": "within_baseline"
+      },
+      {
+        "causal_status": "indeterminate",
+        "dimension": "model_consistency",
+        "evidence_state": "adequate_evidence",
+        "excluded_evidence_ids": [],
+        "interpretation_category": "model_inconsistency",
+        "reason_codes": [
+          "optional_source_absent"
+        ],
+        "source_artifact_ids": [],
+        "source_evidence_ids": [],
+        "status": "within_baseline"
+      },
+      {
+        "causal_status": "indeterminate",
+        "dimension": "observability",
+        "evidence_state": "adequate_evidence",
+        "excluded_evidence_ids": [],
+        "interpretation_category": "model_inconsistency",
+        "reason_codes": [
+          "optional_source_absent"
+        ],
+        "source_artifact_ids": [],
+        "source_evidence_ids": [],
+        "status": "within_baseline"
+      },
+      {
+        "causal_status": "indeterminate",
+        "dimension": "uncertainty_health",
+        "evidence_state": "adequate_evidence",
+        "excluded_evidence_ids": [],
+        "interpretation_category": "model_inconsistency",
+        "reason_codes": [
+          "optional_source_absent"
+        ],
+        "source_artifact_ids": [],
+        "source_evidence_ids": [],
+        "status": "within_baseline"
+      },
+      {
+        "causal_status": "indeterminate",
+        "dimension": "data_quality",
+        "evidence_state": "adequate_evidence",
+        "excluded_evidence_ids": [],
+        "interpretation_category": "observed_behavior",
+        "reason_codes": [
+          "quality_gate_failed"
+        ],
+        "source_artifact_ids": [],
+        "source_evidence_ids": [
+          "signal.sampling.duplicate_timestamps",
+          "signal.sampling.finite_sample_count",
+          "signal.sampling.interpolation_gap_exceeded",
+          "signal.sampling.interval_cv",
+          "signal.sampling.missing_fraction",
+          "signal.sampling.non_monotonic_timestamps"
+        ],
+        "status": "within_baseline"
+      }
+    ],
+    "evidence_bundle": {
+      "channel_scope": "Unspecified",
+      "experiment_scope": "Unknown",
+      "independence_assessments": [],
+      "lineage_catalog": {
+        "artifacts": {},
+        "schema_version": 1
+      },
+      "records": [
+        {
+          "availability": "Available",
+          "direction": "Neutral",
+          "evidence_id": "signal.sampling.duplicate_timestamps",
+          "experiment_scope": "Unknown",
+          "lineage_artifact_ids": [],
+          "quantity": {
+            "uncertainty": null,
+            "unit": "1",
+            "value": 0.0
+          },
+          "source": {
+            "artifact": {
+              "LegacyUnknown": {
+                "artifact_kind": "signal_analysis",
+                "source_fingerprint": "7419b699ad27a7f6465818dc2c790e8909ebcd365b269de10751182c567241fe"
+              }
+            },
+            "field_path": "$.sampling.duplicate_timestamps"
+          },
+          "source_class": "Observed",
+          "strength": "NotAssessed",
+          "strength_derivation": null,
+          "strength_source": "NotAssessed",
+          "target": {
+            "HealthDimension": "data_quality"
+          },
+          "threshold_provenance": [],
+          "validity": "Valid",
+          "warnings": []
+        },
+        {
+          "availability": "Available",
+          "direction": "Neutral",
+          "evidence_id": "signal.sampling.finite_sample_count",
+          "experiment_scope": "Unknown",
+          "lineage_artifact_ids": [],
+          "quantity": {
+            "uncertainty": null,
+            "unit": "1",
+            "value": 330.0
+          },
+          "source": {
+            "artifact": {
+              "LegacyUnknown": {
+                "artifact_kind": "signal_analysis",
+                "source_fingerprint": "7419b699ad27a7f6465818dc2c790e8909ebcd365b269de10751182c567241fe"
+              }
+            },
+            "field_path": "$.sampling.finite_sample_count"
+          },
+          "source_class": "Observed",
+          "strength": "NotAssessed",
+          "strength_derivation": null,
+          "strength_source": "NotAssessed",
+          "target": {
+            "HealthDimension": "data_quality"
+          },
+          "threshold_provenance": [],
+          "validity": "Valid",
+          "warnings": []
+        },
+        {
+          "availability": "Available",
+          "direction": "Neutral",
+          "evidence_id": "signal.sampling.interpolation_gap_exceeded",
+          "experiment_scope": "Unknown",
+          "lineage_artifact_ids": [],
+          "quantity": {
+            "uncertainty": null,
+            "unit": "1",
+            "value": 0.0
+          },
+          "source": {
+            "artifact": {
+              "LegacyUnknown": {
+                "artifact_kind": "signal_analysis",
+                "source_fingerprint": "7419b699ad27a7f6465818dc2c790e8909ebcd365b269de10751182c567241fe"
+              }
+            },
+            "field_path": "$.sampling.interpolation_gap_exceeded"
+          },
+          "source_class": "Observed",
+          "strength": "NotAssessed",
+          "strength_derivation": null,
+          "strength_source": "NotAssessed",
+          "target": {
+            "HealthDimension": "data_quality"
+          },
+          "threshold_provenance": [],
+          "validity": "Valid",
+          "warnings": []
+        },
+        {
+          "availability": "Available",
+          "direction": "Neutral",
+          "evidence_id": "signal.sampling.interval_cv",
+          "experiment_scope": "Unknown",
+          "lineage_artifact_ids": [],
+          "quantity": {
+            "uncertainty": null,
+            "unit": "1",
+            "value": 0.05496471862793072
+          },
+          "source": {
+            "artifact": {
+              "LegacyUnknown": {
+                "artifact_kind": "signal_analysis",
+                "source_fingerprint": "7419b699ad27a7f6465818dc2c790e8909ebcd365b269de10751182c567241fe"
+              }
+            },
+            "field_path": "$.sampling.interval_cv"
+          },
+          "source_class": "Observed",
+          "strength": "NotAssessed",
+          "strength_derivation": null,
+          "strength_source": "NotAssessed",
+          "target": {
+            "HealthDimension": "data_quality"
+          },
+          "threshold_provenance": [],
+          "validity": "Valid",
+          "warnings": []
+        },
+        {
+          "availability": "Available",
+          "direction": "Neutral",
+          "evidence_id": "signal.sampling.missing_fraction",
+          "experiment_scope": "Unknown",
+          "lineage_artifact_ids": [],
+          "quantity": {
+            "uncertainty": null,
+            "unit": "1",
+            "value": 0.0
+          },
+          "source": {
+            "artifact": {
+              "LegacyUnknown": {
+                "artifact_kind": "signal_analysis",
+                "source_fingerprint": "7419b699ad27a7f6465818dc2c790e8909ebcd365b269de10751182c567241fe"
+              }
+            },
+            "field_path": "$.sampling.missing_fraction"
+          },
+          "source_class": "Observed",
+          "strength": "NotAssessed",
+          "strength_derivation": null,
+          "strength_source": "NotAssessed",
+          "target": {
+            "HealthDimension": "data_quality"
+          },
+          "threshold_provenance": [],
+          "validity": "Valid",
+          "warnings": []
+        },
+        {
+          "availability": "Available",
+          "direction": "Neutral",
+          "evidence_id": "signal.sampling.non_monotonic_timestamps",
+          "experiment_scope": "Unknown",
+          "lineage_artifact_ids": [],
+          "quantity": {
+            "uncertainty": null,
+            "unit": "1",
+            "value": 0.0
+          },
+          "source": {
+            "artifact": {
+              "LegacyUnknown": {
+                "artifact_kind": "signal_analysis",
+                "source_fingerprint": "7419b699ad27a7f6465818dc2c790e8909ebcd365b269de10751182c567241fe"
+              }
+            },
+            "field_path": "$.sampling.non_monotonic_timestamps"
+          },
+          "source_class": "Observed",
+          "strength": "NotAssessed",
+          "strength_derivation": null,
+          "strength_source": "NotAssessed",
+          "target": {
+            "HealthDimension": "data_quality"
+          },
+          "threshold_provenance": [],
+          "validity": "Valid",
+          "warnings": []
+        },
+        {
+          "availability": "Available",
+          "direction": "Neutral",
+          "evidence_id": "signal.descriptive.rms",
+          "experiment_scope": "Unknown",
+          "lineage_artifact_ids": [],
+          "quantity": {
+            "uncertainty": null,
+            "unit": "V",
+            "value": 0.21472615802499273
+          },
+          "source": {
+            "artifact": {
+              "LegacyUnknown": {
+                "artifact_kind": "signal_analysis",
+                "source_fingerprint": "7419b699ad27a7f6465818dc2c790e8909ebcd365b269de10751182c567241fe"
+              }
+            },
+            "field_path": "$.descriptive.rms"
+          },
+          "source_class": "Observed",
+          "strength": "NotAssessed",
+          "strength_derivation": null,
+          "strength_source": "NotAssessed",
+          "target": {
+            "HealthDimension": "signal_integrity"
+          },
+          "threshold_provenance": [
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.descriptive.rms.threshold.critical",
+              "unit": "V",
+              "value": 0.005
+            },
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.descriptive.rms.threshold.degraded",
+              "unit": "V",
+              "value": 0.002
+            },
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.descriptive.rms.threshold.watch",
+              "unit": "V",
+              "value": 0.001
+            }
+          ],
+          "validity": "Valid",
+          "warnings": []
+        },
+        {
+          "availability": "Available",
+          "direction": "Neutral",
+          "evidence_id": "signal.descriptive.robust_standard_deviation",
+          "experiment_scope": "Unknown",
+          "lineage_artifact_ids": [],
+          "quantity": {
+            "uncertainty": null,
+            "unit": "V",
+            "value": 1.8513624480238964e-6
+          },
+          "source": {
+            "artifact": {
+              "LegacyUnknown": {
+                "artifact_kind": "signal_analysis",
+                "source_fingerprint": "7419b699ad27a7f6465818dc2c790e8909ebcd365b269de10751182c567241fe"
+              }
+            },
+            "field_path": "$.descriptive.robust_standard_deviation"
+          },
+          "source_class": "Observed",
+          "strength": "NotAssessed",
+          "strength_derivation": null,
+          "strength_source": "NotAssessed",
+          "target": {
+            "HealthDimension": "signal_integrity"
+          },
+          "threshold_provenance": [
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.descriptive.robust_standard_deviation.threshold.critical",
+              "unit": "V",
+              "value": 0.005
+            },
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.descriptive.robust_standard_deviation.threshold.degraded",
+              "unit": "V",
+              "value": 0.002
+            },
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.descriptive.robust_standard_deviation.threshold.watch",
+              "unit": "V",
+              "value": 0.001
+            }
+          ],
+          "validity": "Valid",
+          "warnings": []
+        },
+        {
+          "availability": "Available",
+          "direction": "Neutral",
+          "evidence_id": "signal.drift.theil_sen.slope_v_per_s",
+          "experiment_scope": "Unknown",
+          "lineage_artifact_ids": [],
+          "quantity": {
+            "uncertainty": null,
+            "unit": "V/s",
+            "value": -3.3748856111274917e-6
+          },
+          "source": {
+            "artifact": {
+              "LegacyUnknown": {
+                "artifact_kind": "signal_analysis",
+                "source_fingerprint": "7419b699ad27a7f6465818dc2c790e8909ebcd365b269de10751182c567241fe"
+              }
+            },
+            "field_path": "$.drift[theil_sen].slope_v_per_s"
+          },
+          "source_class": "Observed",
+          "strength": "NotAssessed",
+          "strength_derivation": null,
+          "strength_source": "NotAssessed",
+          "target": {
+            "HealthDimension": "signal_integrity"
+          },
+          "threshold_provenance": [
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.drift.theil_sen.slope_v_per_s.threshold.critical",
+              "unit": "V/s",
+              "value": 0.01
+            },
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.drift.theil_sen.slope_v_per_s.threshold.degraded",
+              "unit": "V/s",
+              "value": 0.001
+            },
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.drift.theil_sen.slope_v_per_s.threshold.watch",
+              "unit": "V/s",
+              "value": 0.0001
+            }
+          ],
+          "validity": "Valid",
+          "warnings": []
+        },
+        {
+          "availability": "Available",
+          "direction": "Neutral",
+          "evidence_id": "signal.spikes.flagged_fraction",
+          "experiment_scope": "Unknown",
+          "lineage_artifact_ids": [],
+          "quantity": {
+            "uncertainty": null,
+            "unit": "1",
+            "value": 0.0
+          },
+          "source": {
+            "artifact": {
+              "LegacyUnknown": {
+                "artifact_kind": "signal_analysis",
+                "source_fingerprint": "7419b699ad27a7f6465818dc2c790e8909ebcd365b269de10751182c567241fe"
+              }
+            },
+            "field_path": "$.spikes.flagged_fraction"
+          },
+          "source_class": "Observed",
+          "strength": "NotAssessed",
+          "strength_derivation": null,
+          "strength_source": "NotAssessed",
+          "target": {
+            "HealthDimension": "signal_integrity"
+          },
+          "threshold_provenance": [
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.spikes.flagged_fraction.threshold.critical",
+              "unit": "1",
+              "value": 0.1
+            },
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.spikes.flagged_fraction.threshold.degraded",
+              "unit": "1",
+              "value": 0.05
+            },
+            {
+              "configuration_hash": "946901d36fc742952c6e03f068b08c3547d1b328f031fb606cfa74093e0be8a4",
+              "source": "UserConfiguration",
+              "threshold_id": "signal.spikes.flagged_fraction.threshold.watch",
+              "unit": "1",
+              "value": 0.01
+            }
+          ],
+          "validity": "Valid",
+          "warnings": []
+        }
+      ],
+      "schema_version": 1,
+      "sensor_scope": "Unspecified",
+      "timescale_pair_uncertainties": [],
+      "warnings": []
+    },
+    "overall_causal_status": "indeterminate",
+    "overall_interpretation_categories": [],
+    "overall_status": "within_baseline"
+  },
+  "provenance": {
+    "configuration_path": null,
+    "configuration_sha256": null,
+    "generation_timestamp": 1,
+    "git_commit": null,
+    "input_path": "fixture-input.json",
+    "input_sha256": "a0-test",
+    "software_version": "a0-test"
+  },
+  "rule_evaluations": [
+    {
+      "conditions_not_satisfied": [],
+      "conditions_satisfied": [],
+      "conditions_unavailable": [
+        "signal.robust_noise_standard_deviation"
+      ],
+      "confidence": "insufficient",
+      "contradictory_evidence": [],
+      "evidence_domains": [],
+      "rule_id": "elevated-noise",
+      "severity": "moderate",
+      "supporting_evidence": [],
+      "triggered": false
+    },
+    {
+      "conditions_not_satisfied": [],
+      "conditions_satisfied": [],
+      "conditions_unavailable": [
+        "transient.tau_slow",
+        "calibration.slope_efficiency",
+        "eis.role.transport.relaxation_timescale"
+      ],
+      "confidence": "insufficient",
+      "contradictory_evidence": [],
+      "evidence_domains": [],
+      "rule_id": "probable-fouling",
+      "severity": "major",
+      "supporting_evidence": [],
+      "triggered": false
+    }
+  ],
+  "schema_version": 4,
+  "sensor_id": "sensor_b",
+  "warnings": [
+    "AssessmentBasedOnWarningBearingFits",
+    "MissingBaseline",
+    "InsufficientEvidenceDomains"
+  ]
+}

@@ -1,0 +1,947 @@
+{
+  "approval": null,
+  "artifact_kind": "mhi_validation_report",
+  "cohorts": [
+    {
+      "cohort_role": "validation",
+      "coverage": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.34238022750665303,
+        "numerator": 2,
+        "point_estimate": 1.0,
+        "type": "available",
+        "upper_confidence_bound": 1.0
+      },
+      "data_quality_insufficient_count": 0,
+      "data_quality_insufficient_rate": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
+      },
+      "declared_count": 2,
+      "declared_record_ids": [
+        "record_1",
+        "record_2"
+      ],
+      "development_record_ids": [],
+      "eligible_count": 2,
+      "eligible_record_ids": [
+        "record_1",
+        "record_2"
+      ],
+      "endpoint_id": "health_endpoint",
+      "endpoint_kind": "health_dimension",
+      "evaluable_count": 2,
+      "excluded_count": 0,
+      "excluded_record_ids": [],
+      "exclusion_rate": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
+      },
+      "holdout_record_ids": [],
+      "indeterminate_count": 0,
+      "indeterminate_rate": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
+      },
+      "not_applicable_count": 0,
+      "not_applicable_record_ids": [],
+      "outcome": "meets_protocol",
+      "stratum_id": "overall",
+      "validation_record_ids": [
+        "record_1",
+        "record_2"
+      ]
+    },
+    {
+      "cohort_role": "validation",
+      "coverage": null,
+      "data_quality_insufficient_count": null,
+      "data_quality_insufficient_rate": null,
+      "declared_count": 2,
+      "declared_record_ids": [
+        "record_1",
+        "record_2"
+      ],
+      "development_record_ids": [],
+      "eligible_count": 2,
+      "eligible_record_ids": [
+        "record_1",
+        "record_2"
+      ],
+      "endpoint_id": "mechanism_endpoint",
+      "endpoint_kind": "mechanism",
+      "evaluable_count": null,
+      "excluded_count": 0,
+      "excluded_record_ids": [],
+      "exclusion_rate": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
+      },
+      "holdout_record_ids": [],
+      "indeterminate_count": null,
+      "indeterminate_rate": null,
+      "not_applicable_count": 0,
+      "not_applicable_record_ids": [],
+      "outcome": "meets_protocol",
+      "stratum_id": "overall",
+      "validation_record_ids": [
+        "record_1",
+        "record_2"
+      ]
+    }
+  ],
+  "compatibility": [
+    {
+      "actual_artifact_id": null,
+      "actual_file_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17",
+      "actual_kind": null,
+      "actual_schema": 1,
+      "actual_semantic_sha256": null,
+      "expected_artifact_id": null,
+      "expected_file_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17",
+      "expected_kind": null,
+      "expected_schema": 1,
+      "expected_semantic_sha256": null,
+      "record_id": null,
+      "relative_path": "@protocol",
+      "result": "compatible",
+      "source_role": "protocol"
+    },
+    {
+      "actual_artifact_id": null,
+      "actual_file_sha256": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
+      "actual_kind": "mhi_validation_dataset",
+      "actual_schema": 1,
+      "actual_semantic_sha256": null,
+      "expected_artifact_id": null,
+      "expected_file_sha256": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
+      "expected_kind": "mhi_validation_dataset",
+      "expected_schema": 1,
+      "expected_semantic_sha256": null,
+      "record_id": null,
+      "relative_path": "@dataset",
+      "result": "compatible",
+      "source_role": "dataset"
+    },
+    {
+      "actual_artifact_id": null,
+      "actual_file_sha256": "42b10b9b5b039ad98cbd7ae9103941daa1cb9a00b5865142fa52346566181fe3",
+      "actual_kind": null,
+      "actual_schema": 1,
+      "actual_semantic_sha256": null,
+      "expected_artifact_id": null,
+      "expected_file_sha256": "42b10b9b5b039ad98cbd7ae9103941daa1cb9a00b5865142fa52346566181fe3",
+      "expected_kind": null,
+      "expected_schema": 1,
+      "expected_semantic_sha256": null,
+      "record_id": null,
+      "relative_path": "lineage/complete.schema1.json",
+      "result": "compatible",
+      "source_role": "lineage_catalog"
+    },
+    {
+      "actual_artifact_id": "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+      "actual_file_sha256": "02ddec85b1cb29db8458091a08bf1b007f894c1a5433802759a9c01197aab102",
+      "actual_kind": "mechanism_analysis",
+      "actual_schema": 4,
+      "actual_semantic_sha256": "b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+      "expected_artifact_id": "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+      "expected_file_sha256": "02ddec85b1cb29db8458091a08bf1b007f894c1a5433802759a9c01197aab102",
+      "expected_kind": "mechanism_analysis",
+      "expected_schema": 4,
+      "expected_semantic_sha256": "b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+      "record_id": "record_1",
+      "relative_path": "sources/mechanism_a.schema4.json",
+      "result": "compatible",
+      "source_role": "mechanism_source"
+    },
+    {
+      "actual_artifact_id": "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+      "actual_file_sha256": "8e127aa5d85bddf73ec494951bf5c88c8adf1ec35ee92ead89f896079dfeee4f",
+      "actual_kind": "mechanism_analysis",
+      "actual_schema": 4,
+      "actual_semantic_sha256": "2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+      "expected_artifact_id": "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+      "expected_file_sha256": "8e127aa5d85bddf73ec494951bf5c88c8adf1ec35ee92ead89f896079dfeee4f",
+      "expected_kind": "mechanism_analysis",
+      "expected_schema": 4,
+      "expected_semantic_sha256": "2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+      "record_id": "record_2",
+      "relative_path": "sources/mechanism_c.schema4.json",
+      "result": "compatible",
+      "source_role": "mechanism_source"
+    },
+    {
+      "actual_artifact_id": "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+      "actual_file_sha256": "ce4d3cbaf383578ac0d96fadb6ab107034e1cc2f425ae3abe04893178c93e8fe",
+      "actual_kind": "health_assessment",
+      "actual_schema": 4,
+      "actual_semantic_sha256": "2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+      "expected_artifact_id": "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+      "expected_file_sha256": "ce4d3cbaf383578ac0d96fadb6ab107034e1cc2f425ae3abe04893178c93e8fe",
+      "expected_kind": "health_assessment",
+      "expected_schema": 4,
+      "expected_semantic_sha256": "2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+      "record_id": "record_1",
+      "relative_path": "sources/health_a.schema4.json",
+      "result": "compatible",
+      "source_role": "health_source"
+    },
+    {
+      "actual_artifact_id": "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+      "actual_file_sha256": "bda104e5807209380b667dfd3473f736b1ade6525bcfad006845238d0d6457f0",
+      "actual_kind": "health_assessment",
+      "actual_schema": 4,
+      "actual_semantic_sha256": "56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+      "expected_artifact_id": "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+      "expected_file_sha256": "bda104e5807209380b667dfd3473f736b1ade6525bcfad006845238d0d6457f0",
+      "expected_kind": "health_assessment",
+      "expected_schema": 4,
+      "expected_semantic_sha256": "56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+      "record_id": "record_2",
+      "relative_path": "sources/health_c.schema4.json",
+      "result": "compatible",
+      "source_role": "health_source"
+    }
+  ],
+  "dataset": {
+    "cohort_semantic_sha256": "72e048e6c5e4d13e25fcdcc7b611839256b72651a3e800cd59d119d1897e7b8b",
+    "dataset_id": "phase_e_software_dataset",
+    "protocol_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17",
+    "schema_version": 1,
+    "source": {
+      "dataset_id": "phase_e_software_dataset",
+      "legacy_fingerprint": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
+      "reason": "migration_information_unavailable",
+      "schema": 1,
+      "source_file_sha256": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
+      "type": "legacy_unknown"
+    }
+  },
+  "exclusions": [],
+  "health_results": [
+    {
+      "balanced_accuracy": {
+        "point_estimate": 1.0,
+        "sensitivity_metric_id": "sensitivity",
+        "specificity_metric_id": "specificity",
+        "type": "available"
+      },
+      "coverage": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.34238022750665303,
+        "numerator": 2,
+        "point_estimate": 1.0,
+        "type": "available",
+        "upper_confidence_bound": 1.0
+      },
+      "data_quality_insufficient": 0,
+      "data_quality_insufficient_rate": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
+      },
+      "data_quality_insufficient_record_ids": [],
+      "eligible_count": 2,
+      "eligible_family_ids": [
+        "phase-e-family-a",
+        "phase-e-family-c"
+      ],
+      "eligible_record_ids": [
+        "record_1",
+        "record_2"
+      ],
+      "endpoint_id": "health_endpoint",
+      "evaluable": 2,
+      "false_negative_rate": {
+        "denominator": 1,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.7934506856227626
+      },
+      "false_positive_rate": {
+        "denominator": 1,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.7934506856227626
+      },
+      "fn": 0,
+      "fn_record_ids": [],
+      "fp": 0,
+      "fp_record_ids": [],
+      "independent_family_count": 2,
+      "indeterminate": 0,
+      "indeterminate_rate": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
+      },
+      "indeterminate_record_ids": [],
+      "limitations": [],
+      "outcome": "meets_protocol",
+      "outcome_reasons": [],
+      "rule_evaluations": [
+        {
+          "actual": {
+            "type": "binomial_rate",
+            "value": {
+              "denominator": 2,
+              "lower_confidence_bound": 0.34238022750665303,
+              "numerator": 2,
+              "point_estimate": 1.0,
+              "type": "available",
+              "upper_confidence_bound": 1.0
+            }
+          },
+          "result": "true",
+          "rule": {
+            "comparator": "greater_than_or_equal",
+            "metric": "coverage",
+            "rule_id": "coverage",
+            "target": "point_estimate",
+            "threshold": 0.5,
+            "type": "rate"
+          }
+        },
+        {
+          "actual": {
+            "type": "binomial_rate",
+            "value": {
+              "denominator": 1,
+              "lower_confidence_bound": 0.20654931437723745,
+              "numerator": 1,
+              "point_estimate": 1.0,
+              "type": "available",
+              "upper_confidence_bound": 1.0
+            }
+          },
+          "result": "true",
+          "rule": {
+            "comparator": "greater_than_or_equal",
+            "metric": "sensitivity",
+            "rule_id": "sensitivity",
+            "target": "point_estimate",
+            "threshold": 0.5,
+            "type": "rate"
+          }
+        },
+        {
+          "actual": {
+            "type": "binomial_rate",
+            "value": {
+              "denominator": 1,
+              "lower_confidence_bound": 0.20654931437723745,
+              "numerator": 1,
+              "point_estimate": 1.0,
+              "type": "available",
+              "upper_confidence_bound": 1.0
+            }
+          },
+          "result": "true",
+          "rule": {
+            "comparator": "greater_than_or_equal",
+            "metric": "specificity",
+            "rule_id": "specificity",
+            "target": "point_estimate",
+            "threshold": 0.5,
+            "type": "rate"
+          }
+        }
+      ],
+      "sensitivity": {
+        "denominator": 1,
+        "lower_confidence_bound": 0.20654931437723745,
+        "numerator": 1,
+        "point_estimate": 1.0,
+        "type": "available",
+        "upper_confidence_bound": 1.0
+      },
+      "specificity": {
+        "denominator": 1,
+        "lower_confidence_bound": 0.20654931437723745,
+        "numerator": 1,
+        "point_estimate": 1.0,
+        "type": "available",
+        "upper_confidence_bound": 1.0
+      },
+      "stratum_id": "overall",
+      "tn": 1,
+      "tn_record_ids": [
+        "record_1"
+      ],
+      "tp": 1,
+      "tp_record_ids": [
+        "record_2"
+      ]
+    }
+  ],
+  "leakage_assessment": [
+    {
+      "compared_development_record_ids": [],
+      "decision": "eligible",
+      "endpoint_id": "health_endpoint",
+      "not_evaluated_reason": null,
+      "record_id": "record_1",
+      "separation_status": "known_separated",
+      "shared_artifact_ids": [],
+      "shared_experiment_ids": [],
+      "shared_family_ids": [],
+      "shared_source_sha256s": [],
+      "stratum_id": "overall",
+      "unknown_reasons": []
+    },
+    {
+      "compared_development_record_ids": [],
+      "decision": "eligible",
+      "endpoint_id": "health_endpoint",
+      "not_evaluated_reason": null,
+      "record_id": "record_2",
+      "separation_status": "known_separated",
+      "shared_artifact_ids": [],
+      "shared_experiment_ids": [],
+      "shared_family_ids": [],
+      "shared_source_sha256s": [],
+      "stratum_id": "overall",
+      "unknown_reasons": []
+    },
+    {
+      "compared_development_record_ids": [],
+      "decision": "eligible",
+      "endpoint_id": "mechanism_endpoint",
+      "not_evaluated_reason": null,
+      "record_id": "record_1",
+      "separation_status": "known_separated",
+      "shared_artifact_ids": [],
+      "shared_experiment_ids": [],
+      "shared_family_ids": [],
+      "shared_source_sha256s": [],
+      "stratum_id": "overall",
+      "unknown_reasons": []
+    },
+    {
+      "compared_development_record_ids": [],
+      "decision": "eligible",
+      "endpoint_id": "mechanism_endpoint",
+      "not_evaluated_reason": null,
+      "record_id": "record_2",
+      "separation_status": "known_separated",
+      "shared_artifact_ids": [],
+      "shared_experiment_ids": [],
+      "shared_family_ids": [],
+      "shared_source_sha256s": [],
+      "stratum_id": "overall",
+      "unknown_reasons": []
+    }
+  ],
+  "lineage": {
+    "LegacyUnknown": {
+      "reason": "MigrationInformationUnavailable",
+      "source_schema_version": 1
+    }
+  },
+  "mechanism_results": [
+    {
+      "contradiction_fraction": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
+      },
+      "critical_contradiction_count": 0,
+      "critical_contradiction_record_ids": [],
+      "declared_critical_falsification_count": 0,
+      "declared_critical_falsification_record_ids": [],
+      "eligible_count": 2,
+      "eligible_family_ids": [
+        "phase-e-family-a",
+        "phase-e-family-c"
+      ],
+      "eligible_record_ids": [
+        "record_1",
+        "record_2"
+      ],
+      "endpoint_id": "mechanism_endpoint",
+      "independent_family_count": 2,
+      "limitations": [],
+      "not_assessed_fraction": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.0,
+        "numerator": 0,
+        "point_estimate": 0.0,
+        "type": "available",
+        "upper_confidence_bound": 0.6576197724933469
+      },
+      "not_assessed_or_other_count": 0,
+      "not_assessed_or_other_record_ids": [],
+      "outcome": "meets_protocol",
+      "outcome_reasons": [],
+      "rule_evaluations": [
+        {
+          "actual": {
+            "type": "binomial_rate",
+            "value": {
+              "denominator": 2,
+              "lower_confidence_bound": 0.34238022750665303,
+              "numerator": 2,
+              "point_estimate": 1.0,
+              "type": "available",
+              "upper_confidence_bound": 1.0
+            }
+          },
+          "result": "true",
+          "rule": {
+            "comparator": "greater_than_or_equal",
+            "metric": "support_fraction",
+            "rule_id": "support",
+            "target": "point_estimate",
+            "threshold": 0.5,
+            "type": "rate"
+          }
+        }
+      ],
+      "stratum_id": "overall",
+      "support_count": 2,
+      "support_fraction": {
+        "denominator": 2,
+        "lower_confidence_bound": 0.34238022750665303,
+        "numerator": 2,
+        "point_estimate": 1.0,
+        "type": "available",
+        "upper_confidence_bound": 1.0
+      },
+      "support_record_ids": [
+        "record_1",
+        "record_2"
+      ]
+    }
+  ],
+  "overall_status": "meets_protocol",
+  "protocol": {
+    "normalized_protocol": {
+      "health_endpoints": [
+        {
+          "acceptance_rules": [
+            {
+              "comparator": "greater_than_or_equal",
+              "metric": "coverage",
+              "rule_id": "coverage",
+              "target": "point_estimate",
+              "threshold": 0.5,
+              "type": "rate"
+            },
+            {
+              "comparator": "greater_than_or_equal",
+              "metric": "sensitivity",
+              "rule_id": "sensitivity",
+              "target": "point_estimate",
+              "threshold": 0.5,
+              "type": "rate"
+            },
+            {
+              "comparator": "greater_than_or_equal",
+              "metric": "specificity",
+              "rule_id": "specificity",
+              "target": "point_estimate",
+              "threshold": 0.5,
+              "type": "rate"
+            }
+          ],
+          "cohort_role": "validation",
+          "domain": {
+            "analyte": {
+              "type": "any_declared"
+            },
+            "campaign": {
+              "type": "any_declared"
+            },
+            "matrix": {
+              "type": "any_declared"
+            },
+            "sensor": {
+              "type": "any_declared"
+            },
+            "sensor_design": {
+              "type": "any_declared"
+            },
+            "temperature": {
+              "type": "any_declared"
+            }
+          },
+          "endpoint_id": "health_endpoint",
+          "health_artifact_required": true,
+          "minimum_eligible_records": 1,
+          "minimum_independent_families": 1,
+          "predicted_negative_statuses": [
+            "watch",
+            "within_baseline"
+          ],
+          "predicted_positive_statuses": [
+            "critical",
+            "degraded"
+          ],
+          "reference_label_universe": [
+            "alert",
+            "normal"
+          ],
+          "reference_negative_labels": [
+            "normal"
+          ],
+          "reference_positive_labels": [
+            "alert"
+          ],
+          "reference_rule": {
+            "allowed_authority_ids": [
+              "reference_authority"
+            ],
+            "allowed_methods": [
+              {
+                "method_id": "reference_method",
+                "method_version": "1"
+              }
+            ],
+            "blinding_rule": "require_blinded",
+            "type": "health",
+            "uncertainty_rule": {
+              "maximum_inclusive": 1.0,
+              "measure_id": "uncertainty",
+              "type": "require_quantified",
+              "unit": "1"
+            }
+          },
+          "required_strata": [],
+          "target": {
+            "dimension_id": "signal_integrity",
+            "type": "dimension"
+          }
+        }
+      ],
+      "mechanism_endpoints": [
+        {
+          "acceptance_rules": [
+            {
+              "comparator": "greater_than_or_equal",
+              "metric": "support_fraction",
+              "rule_id": "support",
+              "target": "point_estimate",
+              "threshold": 0.5,
+              "type": "rate"
+            }
+          ],
+          "cohort_role": "validation",
+          "critical_policy": "any_contradicted_record_fails",
+          "domain": {
+            "analyte": {
+              "type": "any_declared"
+            },
+            "campaign": {
+              "type": "any_declared"
+            },
+            "matrix": {
+              "type": "any_declared"
+            },
+            "sensor": {
+              "type": "any_declared"
+            },
+            "sensor_design": {
+              "type": "any_declared"
+            },
+            "temperature": {
+              "type": "any_declared"
+            }
+          },
+          "endpoint_id": "mechanism_endpoint",
+          "hypothesis_id": "b-hypothesis",
+          "mechanism_artifact_required": true,
+          "minimum_eligible_records": 1,
+          "minimum_independent_families": 1,
+          "reference_rule": {
+            "allowed_authority_ids": [
+              "reference_authority"
+            ],
+            "allowed_methods": [
+              {
+                "method_id": "reference_method",
+                "method_version": "1"
+              }
+            ],
+            "blinding_rule": "require_blinded",
+            "type": "mechanism",
+            "uncertainty_rule": {
+              "maximum_inclusive": 1.0,
+              "measure_id": "uncertainty",
+              "type": "require_quantified",
+              "unit": "1"
+            }
+          },
+          "required_strata": [],
+          "support_levels": [
+            "validated_for_domain"
+          ]
+        }
+      ],
+      "physical_approval_authority": {
+        "type": "not_requested"
+      },
+      "protocol_id": "phase_e_software_protocol",
+      "registration": {
+        "document_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "immutable_reference_uri": "urn:mhi:phase-e:software-fixture",
+        "registration_id": "phase_e_registration"
+      },
+      "release_scope": [
+        {
+          "claim_id": "software_claim",
+          "domain": {
+            "analyte": {
+              "type": "any_declared"
+            },
+            "campaign": {
+              "type": "any_declared"
+            },
+            "matrix": {
+              "type": "any_declared"
+            },
+            "sensor": {
+              "type": "any_declared"
+            },
+            "sensor_design": {
+              "type": "any_declared"
+            },
+            "temperature": {
+              "type": "any_declared"
+            }
+          },
+          "requested_level": "software",
+          "statement": "Software-only fixture",
+          "supporting_endpoint_ids": [
+            "health_endpoint",
+            "mechanism_endpoint"
+          ]
+        }
+      ],
+      "schema_version": 1,
+      "statistics": {
+        "confidence_level": "0.95",
+        "interval_method": "wilson_95_v1",
+        "required_rule_unavailable": "indeterminate",
+        "rule_composition": "and",
+        "undefined_metric": "unavailable"
+      },
+      "target_domain": {
+        "analyte": {
+          "type": "any_declared"
+        },
+        "campaign": {
+          "type": "any_declared"
+        },
+        "matrix": {
+          "type": "any_declared"
+        },
+        "sensor": {
+          "type": "any_declared"
+        },
+        "sensor_design": {
+          "type": "any_declared"
+        },
+        "temperature": {
+          "type": "any_declared"
+        }
+      },
+      "title": "Phase E software-only validation fixture"
+    },
+    "physical_approval_authority": {
+      "type": "not_requested"
+    },
+    "protocol_id": "phase_e_software_protocol",
+    "registration": {
+      "document_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "immutable_reference_uri": "urn:mhi:phase-e:software-fixture",
+      "registration_id": "phase_e_registration"
+    },
+    "schema_version": 1,
+    "source_file_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17"
+  },
+  "provenance": {
+    "consumed_sources": [
+      {
+        "artifact_id": "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+        "kind": "health_assessment",
+        "schema": 4,
+        "semantic_sha256": "2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+        "source_file_sha256": "ce4d3cbaf383578ac0d96fadb6ab107034e1cc2f425ae3abe04893178c93e8fe",
+        "type": "known_artifact"
+      },
+      {
+        "artifact_id": "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+        "kind": "health_assessment",
+        "schema": 4,
+        "semantic_sha256": "56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+        "source_file_sha256": "bda104e5807209380b667dfd3473f736b1ade6525bcfad006845238d0d6457f0",
+        "type": "known_artifact"
+      },
+      {
+        "artifact_id": "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+        "kind": "mechanism_analysis",
+        "schema": 4,
+        "semantic_sha256": "2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+        "source_file_sha256": "8e127aa5d85bddf73ec494951bf5c88c8adf1ec35ee92ead89f896079dfeee4f",
+        "type": "known_artifact"
+      },
+      {
+        "artifact_id": "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+        "kind": "mechanism_analysis",
+        "schema": 4,
+        "semantic_sha256": "b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+        "source_file_sha256": "02ddec85b1cb29db8458091a08bf1b007f894c1a5433802759a9c01197aab102",
+        "type": "known_artifact"
+      },
+      {
+        "schema": 1,
+        "source_file_sha256": "42b10b9b5b039ad98cbd7ae9103941daa1cb9a00b5865142fa52346566181fe3",
+        "type": "lineage_catalog"
+      },
+      {
+        "origin": "physical",
+        "reference_source_id": "reference_1",
+        "source_file_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "type": "reference_authority"
+      }
+    ],
+    "dataset_source": {
+      "dataset_id": "phase_e_software_dataset",
+      "legacy_fingerprint": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
+      "reason": "migration_information_unavailable",
+      "schema": 1,
+      "source_file_sha256": "59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657",
+      "type": "legacy_unknown"
+    },
+    "git_commit": null,
+    "protocol_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17",
+    "software_version": "0.1.0"
+  },
+  "record_accounting": [
+    {
+      "assessed_source_key": {
+        "artifact_id": "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+        "artifact_kind": "health_assessment",
+        "semantic_sha256": "2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413",
+        "type": "known"
+      },
+      "decision": "eligible",
+      "endpoint_id": "health_endpoint",
+      "primary_reason": null,
+      "record_id": "record_1",
+      "reference_endpoint_id": "health_reference_1",
+      "secondary_reasons": [],
+      "stratum_id": "overall"
+    },
+    {
+      "assessed_source_key": {
+        "artifact_id": "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+        "artifact_kind": "health_assessment",
+        "semantic_sha256": "56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234",
+        "type": "known"
+      },
+      "decision": "eligible",
+      "endpoint_id": "health_endpoint",
+      "primary_reason": null,
+      "record_id": "record_2",
+      "reference_endpoint_id": "health_reference_2",
+      "secondary_reasons": [],
+      "stratum_id": "overall"
+    },
+    {
+      "assessed_source_key": {
+        "artifact_id": "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+        "artifact_kind": "mechanism_analysis",
+        "semantic_sha256": "b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9",
+        "type": "known"
+      },
+      "decision": "eligible",
+      "endpoint_id": "mechanism_endpoint",
+      "primary_reason": null,
+      "record_id": "record_1",
+      "reference_endpoint_id": "mechanism_reference_1",
+      "secondary_reasons": [],
+      "stratum_id": "overall"
+    },
+    {
+      "assessed_source_key": {
+        "artifact_id": "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+        "artifact_kind": "mechanism_analysis",
+        "semantic_sha256": "2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0",
+        "type": "known"
+      },
+      "decision": "eligible",
+      "endpoint_id": "mechanism_endpoint",
+      "primary_reason": null,
+      "record_id": "record_2",
+      "reference_endpoint_id": "mechanism_reference_2",
+      "secondary_reasons": [],
+      "stratum_id": "overall"
+    }
+  ],
+  "release_claims": [
+    {
+      "claim_id": "software_claim",
+      "domain": {
+        "analyte": {
+          "type": "any_declared"
+        },
+        "campaign": {
+          "type": "any_declared"
+        },
+        "matrix": {
+          "type": "any_declared"
+        },
+        "sensor": {
+          "type": "any_declared"
+        },
+        "sensor_design": {
+          "type": "any_declared"
+        },
+        "temperature": {
+          "type": "any_declared"
+        }
+      },
+      "outcome": "software_validated_only",
+      "requested_level": "software",
+      "statement": "Software-only fixture",
+      "supporting_endpoint_ids": [
+        "health_endpoint",
+        "mechanism_endpoint"
+      ]
+    }
+  ],
+  "report_id": "sha256:4960a05cd3e8b228dde475408101a9a161ebe2990d6746011aada14d371d0f3e",
+  "schema_version": 1,
+  "warnings": []
+}

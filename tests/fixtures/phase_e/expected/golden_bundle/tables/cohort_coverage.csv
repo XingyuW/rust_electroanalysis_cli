@@ -1,0 +1,3 @@
+endpoint_id,stratum_id,endpoint_kind,cohort_role,declared_count,eligible_count,excluded_count,not_applicable_count,exclusion_rate,exclusion_lower,exclusion_upper,evaluable_count,indeterminate_count,data_quality_insufficient_count,coverage,coverage_lower,coverage_upper,indeterminate_rate,indeterminate_lower,indeterminate_upper,data_quality_insufficient_rate,data_quality_insufficient_lower,data_quality_insufficient_upper,outcome
+health_endpoint,overall,health_dimension,validation,2,2,0,0,0.0,0.0,0.6576197724933469,2,0,0,1.0,0.34238022750665303,1.0,0.0,0.0,0.6576197724933469,0.0,0.0,0.6576197724933469,meets_protocol
+mechanism_endpoint,overall,mechanism,validation,2,2,0,0,0.0,0.0,0.6576197724933469,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,meets_protocol

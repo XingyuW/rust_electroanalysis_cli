@@ -1,10 +1,22 @@
 //! Stable, validated JSON boundaries between analysis workflows.
 
-use serde::{Deserialize, Serialize, de::DeserializeOwned, ser};
+use serde::{
+    Deserialize, Serialize,
+    de::{DeserializeOwned, DeserializeSeed, Visitor},
+    ser,
+};
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeSet,
     fmt, fs,
+    io::Read,
     path::{Path, PathBuf},
+};
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use std::{
+    ffi::CString,
+    os::fd::{AsRawFd, FromRawFd, RawFd},
 };
 use thiserror::Error;
 
@@ -28,6 +40,10 @@ pub enum ArtifactKind {
     ModelAnalysis,
     #[serde(rename = "ism_model_validation")]
     ModelValidation,
+    #[serde(rename = "mhi_validation_dataset")]
+    MhiValidationDataset,
+    #[serde(rename = "mhi_validation_report")]
+    MhiValidationReport,
 }
 
 impl ArtifactKind {
@@ -47,6 +63,8 @@ impl ArtifactKind {
             Self::ModelCompilation => "ism_model_compilation",
             Self::ModelAnalysis => "ism_model_analysis",
             Self::ModelValidation => "ism_model_validation",
+            Self::MhiValidationDataset => "mhi_validation_dataset",
+            Self::MhiValidationReport => "mhi_validation_report",
         }
     }
 }
@@ -120,6 +138,24 @@ pub enum ArtifactError {
     NonFiniteValue { path: PathBuf, field_path: String },
     #[error("artifact schema validation failed: {message}")]
     Validation { message: String },
+    #[error("artifact {path} must be a regular non-symlink file")]
+    UnsafeFile { path: PathBuf },
+    #[error("artifact {path} contains a duplicate JSON key {key}")]
+    DuplicateJsonKey { path: PathBuf, key: String },
+    #[error("artifact {path} is not valid UTF-8")]
+    InvalidUtf8 { path: PathBuf },
+    #[error("artifact {path} contains a UTF-8 byte-order mark")]
+    Utf8Bom { path: PathBuf },
+}
+
+/// A strict read deliberately keeps both the parsed value and the exact bytes
+/// that were validated.  Validation workflows must never reread a pathname
+/// after checking its checksum.
+#[derive(Debug, Clone)]
+pub struct StrictArtifactRead<T> {
+    pub artifact: T,
+    pub source_bytes: Vec<u8>,
+    pub source_file_sha256: String,
 }
 
 pub fn read_artifact<T: VersionedArtifact>(path: &Path) -> Result<T, ArtifactError> {
@@ -149,10 +185,482 @@ pub fn read_artifact<T: VersionedArtifact>(path: &Path) -> Result<T, ArtifactErr
     Ok(artifact)
 }
 
+/// Reads an artifact at the Phase-E boundary.  Unlike the historic public
+/// reader this rejects duplicate object keys at every nesting level and
+/// returns the exact checked bytes and their file hash.  `read_artifact`
+/// intentionally remains unchanged for stored-artifact compatibility.
+pub fn read_artifact_strict<T: VersionedArtifact>(
+    path: &Path,
+) -> Result<StrictArtifactRead<T>, ArtifactError> {
+    let source_bytes = read_strict_file_bytes(path)?;
+    read_artifact_strict_bytes(path, &source_bytes)
+}
+
+/// Opens a trusted directory authority without following any path component.
+/// The descriptor is retained by Phase-E callers so dataset-relative reads
+/// remain relative to the same directory even if its pathname is replaced.
+pub(crate) fn open_strict_directory(path: &Path) -> Result<fs::File, ArtifactError> {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        open_strict_directory_unix(path).map_err(|source| {
+            if is_symlink_error(&source) {
+                ArtifactError::UnsafeFile { path: path.into() }
+            } else {
+                ArtifactError::Io {
+                    path: path.into(),
+                    source,
+                }
+            }
+        })
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let metadata = fs::symlink_metadata(path).map_err(|source| ArtifactError::Io {
+            path: path.into(),
+            source,
+        })?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err(ArtifactError::UnsafeFile { path: path.into() });
+        }
+        fs::File::open(path).map_err(|source| ArtifactError::Io {
+            path: path.into(),
+            source,
+        })
+    }
+}
+
+/// Reads one regular file relative to a pinned directory descriptor. The
+/// final bytes are read from the descriptor that was opened with no-follow
+/// semantics, so validation never checks one pathname and rereads another.
+pub(crate) fn read_strict_file_at(
+    directory: &fs::File,
+    relative: &str,
+    display_path: &Path,
+) -> Result<Vec<u8>, ArtifactError> {
+    if relative.is_empty() || relative.contains('\0') || relative.contains('\\') {
+        return Err(ArtifactError::UnsafeFile {
+            path: display_path.into(),
+        });
+    }
+    let path = Path::new(relative);
+    if path.is_absolute()
+        || path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(ArtifactError::UnsafeFile {
+            path: display_path.into(),
+        });
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        let mut current = directory.try_clone().map_err(|source| ArtifactError::Io {
+            path: display_path.into(),
+            source,
+        })?;
+        let components = path.components().collect::<Vec<_>>();
+        let (last, parents) = components
+            .split_last()
+            .ok_or_else(|| ArtifactError::UnsafeFile {
+                path: display_path.into(),
+            })?;
+        for component in parents {
+            let name = component
+                .as_os_str()
+                .to_str()
+                .ok_or_else(|| ArtifactError::UnsafeFile {
+                    path: display_path.into(),
+                })?;
+            current = open_child_unix(current.as_raw_fd(), name, true, display_path)
+                .map_err(|source| strict_io_error(display_path, source))?;
+        }
+        let name = last
+            .as_os_str()
+            .to_str()
+            .ok_or_else(|| ArtifactError::UnsafeFile {
+                path: display_path.into(),
+            })?;
+        let mut file = open_child_unix(current.as_raw_fd(), name, false, display_path)
+            .map_err(|source| strict_io_error(display_path, source))?;
+        let metadata = file.metadata().map_err(|source| ArtifactError::Io {
+            path: display_path.into(),
+            source,
+        })?;
+        if !metadata.is_file() {
+            return Err(ArtifactError::UnsafeFile {
+                path: display_path.into(),
+            });
+        }
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes)
+            .map_err(|source| ArtifactError::Io {
+                path: display_path.into(),
+                source,
+            })?;
+        Ok(bytes)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let _ = (directory, path);
+        Err(ArtifactError::Io {
+            path: display_path.into(),
+            source: std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "descriptor-relative Phase-E reads require macOS or Linux",
+            ),
+        })
+    }
+}
+
+pub(crate) fn read_strict_file_bytes(path: &Path) -> Result<Vec<u8>, ArtifactError> {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        let parent = path.parent().unwrap_or_else(|| Path::new("."));
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| ArtifactError::UnsafeFile { path: path.into() })?;
+        let directory = open_strict_directory(parent)?;
+        read_strict_file_at(&directory, name, path)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let metadata = fs::symlink_metadata(path).map_err(|source| ArtifactError::Io {
+            path: path.into(),
+            source,
+        })?;
+        if !metadata.is_file() || metadata.file_type().is_symlink() {
+            return Err(ArtifactError::UnsafeFile { path: path.into() });
+        }
+        fs::read(path).map_err(|source| ArtifactError::Io {
+            path: path.into(),
+            source,
+        })
+    }
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn open_strict_directory_unix(path: &Path) -> std::io::Result<fs::File> {
+    // macOS exposes the system temporary tree through the stable `/var`
+    // alias. Traverse its real system spelling so the descriptor walk still
+    // uses O_NOFOLLOW for every component instead of following that alias.
+    #[cfg(target_os = "macos")]
+    let traversal_path = if let Ok(suffix) = path.strip_prefix("/var") {
+        Path::new("/private/var").join(suffix)
+    } else if let Ok(suffix) = path.strip_prefix("/tmp") {
+        Path::new("/private/tmp").join(suffix)
+    } else {
+        path.to_path_buf()
+    };
+    #[cfg(target_os = "linux")]
+    let traversal_path = path.to_path_buf();
+    let mut current = if traversal_path.is_absolute() {
+        open_child_unix(AT_FDCWD, "/", true, path)?
+    } else {
+        open_child_unix(AT_FDCWD, ".", true, path)?
+    };
+    for component in traversal_path.components() {
+        match component {
+            std::path::Component::RootDir | std::path::Component::CurDir => {}
+            std::path::Component::Normal(name) => {
+                let name = name.to_str().ok_or_else(|| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidInput, "non-UTF-8 path")
+                })?;
+                current = open_child_unix(current.as_raw_fd(), name, true, path)?;
+            }
+            std::path::Component::ParentDir | std::path::Component::Prefix(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "parent path component is forbidden",
+                ));
+            }
+        }
+    }
+    Ok(current)
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn open_child_unix(
+    parent: RawFd,
+    name: &str,
+    directory: bool,
+    _display_path: &Path,
+) -> std::io::Result<fs::File> {
+    let flags = O_RDONLY | O_CLOEXEC | O_NOFOLLOW | if directory { O_DIRECTORY } else { 0 };
+    let name = CString::new(name.as_bytes())
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "NUL in path"))?;
+    let descriptor = unsafe { native_openat(parent, name.as_ptr(), flags, 0) };
+    if descriptor < 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(unsafe { fs::File::from_raw_fd(descriptor) })
+    }
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn strict_io_error(path: &Path, source: std::io::Error) -> ArtifactError {
+    if is_symlink_error(&source) {
+        ArtifactError::UnsafeFile { path: path.into() }
+    } else {
+        ArtifactError::Io {
+            path: path.into(),
+            source,
+        }
+    }
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn is_symlink_error(error: &std::io::Error) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        matches!(error.raw_os_error(), Some(20) | Some(62))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        matches!(error.raw_os_error(), Some(40))
+    }
+}
+
+#[cfg(target_os = "macos")]
+const O_RDONLY: i32 = 0;
+#[cfg(target_os = "linux")]
+const O_RDONLY: i32 = 0;
+#[cfg(target_os = "macos")]
+const O_CLOEXEC: i32 = 0x0100_0000;
+#[cfg(target_os = "linux")]
+const O_CLOEXEC: i32 = 0x0008_0000;
+#[cfg(target_os = "macos")]
+const O_DIRECTORY: i32 = 0x0010_0000;
+#[cfg(target_os = "linux")]
+const O_DIRECTORY: i32 = 0x0001_0000;
+#[cfg(target_os = "macos")]
+const O_NOFOLLOW: i32 = 0x0000_0100;
+#[cfg(target_os = "linux")]
+const O_NOFOLLOW: i32 = 0x0002_0000;
+#[cfg(target_os = "macos")]
+const AT_FDCWD: RawFd = -2;
+#[cfg(target_os = "linux")]
+const AT_FDCWD: RawFd = -100;
+
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    fn openat(fd: RawFd, path: *const std::ffi::c_char, flags: i32, ...) -> RawFd;
+}
+
+#[cfg(target_os = "linux")]
+unsafe extern "C" {
+    fn openat(fd: RawFd, path: *const std::ffi::c_char, flags: i32, ...) -> RawFd;
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+unsafe fn native_openat(fd: RawFd, path: *const std::ffi::c_char, flags: i32, mode: i32) -> RawFd {
+    unsafe { openat(fd, path, flags, mode) }
+}
+
+pub(crate) fn read_artifact_strict_bytes<T: VersionedArtifact>(
+    path: &Path,
+    source_bytes: &[u8],
+) -> Result<StrictArtifactRead<T>, ArtifactError> {
+    if source_bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
+        return Err(ArtifactError::Utf8Bom { path: path.into() });
+    }
+    let text = std::str::from_utf8(source_bytes)
+        .map_err(|_| ArtifactError::InvalidUtf8 { path: path.into() })?;
+    reject_nonfinite_tokens(path, text)?;
+    scan_duplicate_json_keys(text).map_err(|error| match error {
+        DuplicateScanError::Json(source) => ArtifactError::Json {
+            path: path.into(),
+            source,
+        },
+        DuplicateScanError::Duplicate(key) => ArtifactError::DuplicateJsonKey {
+            path: path.into(),
+            key,
+        },
+    })?;
+    let value: Value = serde_json::from_str(text).map_err(|source| ArtifactError::Json {
+        path: path.into(),
+        source,
+    })?;
+    validate_value::<T>(path, &value)?;
+    let artifact: T = serde_json::from_value(value).map_err(|source| ArtifactError::Json {
+        path: path.into(),
+        source,
+    })?;
+    artifact.validate_after_read()?;
+    let source_file_sha256 = hex_sha256(source_bytes);
+    Ok(StrictArtifactRead {
+        artifact,
+        source_bytes: source_bytes.to_vec(),
+        source_file_sha256,
+    })
+}
+
+pub(crate) fn read_artifact_strict_at<T: VersionedArtifact>(
+    directory: &fs::File,
+    relative: &str,
+    display_path: &Path,
+) -> Result<StrictArtifactRead<T>, ArtifactError> {
+    let source_bytes = read_strict_file_at(directory, relative, display_path)?;
+    read_artifact_strict_bytes(display_path, &source_bytes)
+}
+
+fn hex_sha256(bytes: &[u8]) -> String {
+    let mut hash = Sha256::new();
+    hash.update(bytes);
+    format!("{:x}", hash.finalize())
+}
+
+#[derive(Debug)]
+enum DuplicateScanError {
+    Json(serde_json::Error),
+    Duplicate(String),
+}
+
+struct DuplicateScanSeed;
+
+impl<'de> DeserializeSeed<'de> for DuplicateScanSeed {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(DuplicateScanVisitor)
+    }
+}
+
+struct DuplicateScanVisitor;
+
+impl<'de> Visitor<'de> for DuplicateScanVisitor {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a JSON value")
+    }
+
+    fn visit_bool<E>(self, _: bool) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_i64<E>(self, _: i64) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_u64<E>(self, _: u64) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_f64<E>(self, _: f64) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_str<E>(self, _: &str) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_string<E>(self, _: String) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_none<E>(self) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+    fn visit_unit<E>(self) -> Result<(), E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+
+    fn visit_seq<A>(self, mut sequence: A) -> Result<(), A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        while sequence.next_element_seed(DuplicateScanSeed)?.is_some() {}
+        Ok(())
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        let mut keys = BTreeSet::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if !keys.insert(key.clone()) {
+                return Err(serde::de::Error::custom(format!(
+                    "__duplicate_json_key__{key}"
+                )));
+            }
+            map.next_value_seed(DuplicateScanSeed)?;
+        }
+        Ok(())
+    }
+}
+
+fn scan_duplicate_json_keys(text: &str) -> Result<(), DuplicateScanError> {
+    let mut deserializer = serde_json::Deserializer::from_str(text);
+    let result = DuplicateScanSeed.deserialize(&mut deserializer);
+    match result {
+        Ok(()) => deserializer.end().map_err(DuplicateScanError::Json),
+        Err(error) => {
+            let message = error.to_string();
+            let marker = message.split(" at line ").next().unwrap_or(&message);
+            if let Some(key) = marker.strip_prefix("__duplicate_json_key__") {
+                Err(DuplicateScanError::Duplicate(key.to_string()))
+            } else {
+                Err(DuplicateScanError::Json(error))
+            }
+        }
+    }
+}
+
+/// Shared by the strict lineage-catalog reader.  It deliberately exposes no
+/// `serde_json::Value`, because callers must perform their own closed grammar
+/// validation after duplicate detection.
+pub(crate) fn ensure_duplicate_free_json(text: &str) -> Result<(), String> {
+    scan_duplicate_json_keys(text).map_err(|error| match error {
+        DuplicateScanError::Json(error) => error.to_string(),
+        DuplicateScanError::Duplicate(key) => format!("duplicate JSON key {key}"),
+    })
+}
+
 pub fn write_artifact<T: VersionedArtifact>(
     path: &Path,
     artifact: &T,
 ) -> Result<(), ArtifactError> {
+    let bytes = serialize_artifact(path, artifact)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|source| ArtifactError::Io {
+            path: parent.into(),
+            source,
+        })?;
+    }
+    fs::write(path, bytes).map_err(|source| ArtifactError::Io {
+        path: path.into(),
+        source,
+    })
+}
+
+pub(crate) fn serialize_artifact<T: VersionedArtifact>(
+    path: &Path,
+    artifact: &T,
+) -> Result<Vec<u8>, ArtifactError> {
     if artifact.schema_version() != T::CURRENT_SCHEMA_VERSION
         && !T::LEGACY_SCHEMA_VERSIONS.contains(&artifact.schema_version())
     {
@@ -230,16 +738,7 @@ pub fn write_artifact<T: VersionedArtifact>(
         source,
     })?;
     reject_nonfinite_tokens(path, &text)?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|source| ArtifactError::Io {
-            path: parent.into(),
-            source,
-        })?;
-    }
-    fs::write(path, text).map_err(|source| ArtifactError::Io {
-        path: path.into(),
-        source,
-    })
+    Ok(text.into_bytes())
 }
 
 /// Writes the one frozen legacy health-assessment representation.  This is

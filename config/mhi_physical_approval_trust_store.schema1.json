@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "trust_store_id": "mhi_physical_approval_trust_store_v1",
+  "provisioning_state": "UNPROVISIONED",
+  "trust_roots": []
+}

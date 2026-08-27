@@ -30,6 +30,7 @@ pub mod fitting;
 pub mod health;
 pub mod health_config;
 pub mod mechanism_config;
+pub mod mhi_validation;
 pub mod model_validation;
 pub mod plot_config;
 pub mod plot_runner;
@@ -44,6 +45,7 @@ pub mod search_runner;
 pub mod signal;
 pub mod signal_config;
 pub mod transient_config;
+pub mod validation_config;
 pub mod workspace;
 
 pub use domain::VersionedArtifact;

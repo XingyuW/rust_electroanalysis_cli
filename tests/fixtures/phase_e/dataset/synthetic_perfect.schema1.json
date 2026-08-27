@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "mhi_validation_dataset",
+  "dataset_id": "phase_e_synthetic_perfect_dataset",
+  "protocol_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17",
+  "cohort_semantic_sha256": "0120769981492ccab848a1cb934e6f6fa2e66e17aaa0fda6d6c925de47d5fab4",
+  "lineage_catalog_source": {
+    "relative_path": "lineage/complete.schema1.json",
+    "schema_version": 1,
+    "source_file_sha256": "42b10b9b5b039ad98cbd7ae9103941daa1cb9a00b5865142fa52346566181fe3"
+  },
+  "reference_sources": [
+    {
+      "reference_source_id": "reference_1",
+      "source_file_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "evidence_origin": "physical",
+      "dependency_completeness": "complete",
+      "experiment_scope": { "Single": { "experiment_id": "phase-e-reference" } },
+      "acquisition_families": { "Known": ["phase-e-reference-family"] },
+      "direct_dependencies": []
+    }
+  ],
+  "records": [
+    {
+      "record_id": "record_1",
+      "cohort_role": "validation",
+      "mechanism_source": {
+        "relative_path": "sources/mechanism_a.schema4.json",
+        "expected_artifact_kind": "mechanism_analysis",
+        "expected_schema_version": 4,
+        "source_file_sha256": "02ddec85b1cb29db8458091a08bf1b007f894c1a5433802759a9c01197aab102",
+        "expected_lineage": { "type": "known", "artifact_id": "sha256:b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9", "semantic_sha256": "b115a28466c07508499d80d42cbf563ee6245b1e103ce4b5ece5122f36220fc9" }
+      },
+      "health_source": {
+        "relative_path": "sources/health_a.schema4.json",
+        "expected_artifact_kind": "health_assessment",
+        "expected_schema_version": 4,
+        "source_file_sha256": "ce4d3cbaf383578ac0d96fadb6ab107034e1cc2f425ae3abe04893178c93e8fe",
+        "expected_lineage": { "type": "known", "artifact_id": "sha256:2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413", "semantic_sha256": "2a90f8661e834a85da3b49e7aa18e8cd2c6630730573f10939022382a119b413" }
+      },
+      "declared_scope": {
+        "experiment_scope": { "Single": { "experiment_id": "phase-e-mechanism-a" } },
+        "sensor_scope": "Unspecified",
+        "channel_scope": "Unspecified",
+        "acquisition_families": { "Known": ["phase-e-family-a"] }
+      },
+      "domain": {
+        "analyte_id": "analyte",
+        "matrix_id": "matrix",
+        "sensor_design_id": "design",
+        "sensor_id": "sensor",
+        "campaign_id": "campaign",
+        "temperature_kelvin": 298.15
+      },
+      "evidence_origin": "synthetic",
+      "reference_endpoints": [
+        { "type": "health", "endpoint_id": "health_endpoint", "reference_endpoint_id": "health_reference_1", "reference_source_id": "reference_1", "target": { "type": "dimension", "dimension_id": "signal_integrity" }, "label": "normal", "method_id": "reference_method", "method_version": "1", "authority_id": "reference_authority", "blinding_state": "blinded_to_assessment", "uncertainty": { "type": "quantified", "measure_id": "uncertainty", "value": 0.1, "unit": "1" }, "limitations": [] },
+        { "type": "mechanism", "endpoint_id": "mechanism_endpoint", "reference_endpoint_id": "mechanism_reference_1", "reference_source_id": "reference_1", "hypothesis_id": "b-hypothesis", "outcome": "supports", "method_id": "reference_method", "method_version": "1", "authority_id": "reference_authority", "blinding_state": "blinded_to_assessment", "uncertainty": { "type": "quantified", "measure_id": "uncertainty", "value": 0.1, "unit": "1" }, "limitations": [] }
+      ]
+    },
+    {
+      "record_id": "record_2",
+      "cohort_role": "validation",
+      "mechanism_source": {
+        "relative_path": "sources/mechanism_c.schema4.json",
+        "expected_artifact_kind": "mechanism_analysis",
+        "expected_schema_version": 4,
+        "source_file_sha256": "8e127aa5d85bddf73ec494951bf5c88c8adf1ec35ee92ead89f896079dfeee4f",
+        "expected_lineage": { "type": "known", "artifact_id": "sha256:2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0", "semantic_sha256": "2494b9fcc5799b014e18d32cacbb2c32cf5c2c84d55e4abbb6f2179a6b90fdf0" }
+      },
+      "health_source": {
+        "relative_path": "sources/health_c.schema4.json",
+        "expected_artifact_kind": "health_assessment",
+        "expected_schema_version": 4,
+        "source_file_sha256": "bda104e5807209380b667dfd3473f736b1ade6525bcfad006845238d0d6457f0",
+        "expected_lineage": { "type": "known", "artifact_id": "sha256:56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234", "semantic_sha256": "56f277ab229e29d98f35b5160f851af904aab72ded1103d0621889540642c234" }
+      },
+      "declared_scope": {
+        "experiment_scope": { "Single": { "experiment_id": "phase-e-mechanism-c" } },
+        "sensor_scope": "Unspecified",
+        "channel_scope": "Unspecified",
+        "acquisition_families": { "Known": ["phase-e-family-c"] }
+      },
+      "domain": {
+        "analyte_id": "analyte",
+        "matrix_id": "matrix",
+        "sensor_design_id": "design",
+        "sensor_id": "sensor",
+        "campaign_id": "campaign",
+        "temperature_kelvin": 298.15
+      },
+      "evidence_origin": "synthetic",
+      "reference_endpoints": [
+        { "type": "health", "endpoint_id": "health_endpoint", "reference_endpoint_id": "health_reference_2", "reference_source_id": "reference_1", "target": { "type": "dimension", "dimension_id": "signal_integrity" }, "label": "alert", "method_id": "reference_method", "method_version": "1", "authority_id": "reference_authority", "blinding_state": "blinded_to_assessment", "uncertainty": { "type": "quantified", "measure_id": "uncertainty", "value": 0.1, "unit": "1" }, "limitations": [] },
+        { "type": "mechanism", "endpoint_id": "mechanism_endpoint", "reference_endpoint_id": "mechanism_reference_2", "reference_source_id": "reference_1", "hypothesis_id": "b-hypothesis", "outcome": "supports", "method_id": "reference_method", "method_version": "1", "authority_id": "reference_authority", "blinding_state": "blinded_to_assessment", "uncertainty": { "type": "quantified", "measure_id": "uncertainty", "value": 0.1, "unit": "1" }, "limitations": [] }
+      ]
+    }
+  ],
+  "owner_approval_source": null,
+  "lineage": {
+    "LegacyUnknown": {
+      "source_schema_version": 1,
+      "reason": "MigrationInformationUnavailable"
+    }
+  },
+  "provenance": {},
+  "warnings": []
+}
