@@ -1,24 +1,27 @@
-# MHI V1 Phase F — R6 planning-only DAG and positive-path closure
+# MHI V1 Phase F — R7 planning-only surgical positive-path closure
 
 ## 1. Authority, status, scope, and chronology
 
-This document is the Phase-F R6 planning remediation of the independently
-rereviewed R5 plan. It changes only this plan document. It does not create a
+This document is the Phase-F R7 planning remediation of the independently
+rereviewed R6 plan. It changes only this plan document. It does not create a
 schema file, checker, tag, branch, key, signature, trust root, registry record,
 physical evidence, monitoring record, claim, production implementation, new
 scientific model, or new scientific scope.
+
+This is planning only: no architecture expansion, no self-Git identity, and no
+future-file authority in F0.
 
 The starting authority is exact:
 
 | Authority | Value |
 |---|---|
-| R5 plan-review SHA | `49b0f92ac3a8c14f84572d6603fd97b7d223f4a0` |
-| R5 plan SHA-256 | `507bca050a6c046f536f5244c9e0a0483d4a6fa04b22a004f6886d89685ddc04` |
-| R5 plan Git blob | `51f19b6814e0f7ffb42bad647dabe6f804f743d4` |
-| R5 independent rereview | `P0=0`, `P1=11`, `P2=0`, `P3=0`, `PLAN_DECISION=NO-GO`, `PLAN_AUTHORITY=FAIL` |
-| R6 status | forward remediation; independent R6 rereview `PENDING` |
-| plan approval tag | absent; must remain absent in R6 |
-| implementation branch | absent; must remain absent in R6 |
+| R6 plan-review SHA | `b70a068afc0c2a2458dfee61281a455fd657400f` |
+| R6 plan SHA-256 | `776880c916366fd7cda6a5075ee8fc7df5ba70d5c5f4a8dd431a27b382862bde` |
+| R6 plan Git blob | `558c11260f5fcec1e711b90931481cbd012db643` |
+| R6 independent rereview | `P0=0`, `P1=13`, `P2=0`, `P3=0`, `PLAN_DECISION=NO-GO`, `PLAN_AUTHORITY=FAIL` |
+| R7 status | forward remediation; independent R7 rereview `PENDING` |
+| plan approval tag | absent; must remain absent in R7 |
+| implementation branch | absent; must remain absent in R7 |
 
 The immutable Phase-E authority is not changed: integrated baseline
 `14942a30928b88f16914bf0bb103cc0c2a5bfa76`, reviewed implementation
@@ -27,24 +30,30 @@ The immutable Phase-E authority is not changed: integrated baseline
 frozen plan blob `6fce9d13a42a09027e0e730874a8d80e03e6a7da`.
 
 R1 was `NO-GO/P1=13`; R2 was `NO-GO/P1=10`; R3 was `NO-GO/P1=19`; R4 was
-`NO-GO/P1=14`; R5 was `NO-GO/P1=11`. No rejected version is described as
-approved. The exact future order remains: fresh R6 rereview, plan approval, F0, F-IMPL-1 checker and permanent
-F-MAINT-01/02 closure, readiness, enrollment, genesis, F1, F2, F3, F4, and F5.
+`NO-GO/P1=14`; R5 was `NO-GO/P1=11`; R6 was `NO-GO/P1=13`. No rejected
+version is described as approved. The exact future order remains: fresh R7
+rereview, plan approval, F0, F-IMPL-1 checker and permanent F-MAINT-01/02
+closure, readiness, enrollment, genesis, F1, F2, F3, F4, and F5.
 F1-F5 remain blocked until the applicable approved tags and authority objects
 exist.
 
 `F_IMPL_1_BEFORE_F0_EXIT`, `F_IMPL_2_BEFORE_F0_EXIT`,
 `F_IMPL_3_BEFORE_F0_EXIT`, and `F_IMPL_4_BEFORE_F0_EXIT` are forbidden.
-R5 and R6 author audits are not independent approval. No R6 approval tag,
+R5, R6, and R7 author audits are not independent approval. No R6 or R7 approval tag,
 implementation branch, F0 activity, key, signature, trust, registry, evidence,
 claim, or monitoring object exists as a result of this plan edit.
 
-R6 foundational rule: `SEMANTIC OBJECT -> COMPLETE IMMUTABLE FILE BYTES ->
-COMPLETE FILE SHA-256 -> PhaseFRegistryRecordV1 ATTESTATION -> REGISTRY RECORD
-SHA-256 -> OPTIONAL LATER OBJECT`. Registry membership is proven by the signed
-registry record, never by a back-pointer inside the subject. Required author
-invariants are `REGISTRY_BACK_POINTER_PATHS=0`, `WIRE_IDENTITY_CYCLES=0`, and
-`POSITIVE_PATH_HASH_CYCLES=0`.
+R7 foundational rule: `SUBJECT CONTENT -> COMPLETE SUBJECT FILE -> SUBJECT
+FILE SHA-256 -> LATER REGISTRY ATTESTATION`. Release, claim-state, monitoring,
+and emergency files never contain their own registry-record hashes. Git
+publication is an outer attestation: `OBJECT FILE -> REVIEW -> LATER GIT
+COMMIT CONTAINING THE ALREADY-COMPLETE FILE`. Required author invariants are
+`REGISTRY_BACK_POINTER_PATHS=0`, `WIRE_IDENTITY_CYCLES=0`,
+`SELF_GIT_IDENTITY_CYCLES=0`, `POSITIVE_PATH_HASH_CYCLES=0`,
+`RELEASE_RECORD_SELF_REFERENCE_CYCLES=0`,
+`CLAIM_STATE_SELF_REFERENCE_CYCLES=0`,
+`MONITORING_RECORD_SELF_REFERENCE_CYCLES=0`, and
+`DEVIATION_IDENTITY_CYCLES=0`.
 
 ## 2. Closed primitive and type registry
 
@@ -91,7 +100,8 @@ that existing Rust type, not a look-alike JSON type.
 
 ```text
 PHASE_F_DECISION_V1 = GO | NO-GO
-PHASE_F_REVIEW_TARGET_KIND_V1 = git_commit_review | external_object_review
+PHASE_F_REVIEW_TARGET_V1 = {type:"git_commit",git_sha:GIT_SHA_V1}
+  | {type:"external_object",object_kind:PHASE_F_OBJECT_KIND_V1,object_sha256:SHA256_V1}
 PHASE_F_OBJECT_KIND_V1 = decision_bundle | git_tag_message | authority_enrollment
   | registry_record | registry_head | registration_document | protocol
   | power_method_interface | power_analysis | package_manifest | dependency_audit
@@ -110,6 +120,7 @@ PHASE_F_INCIDENT_STATUS_V1 = open | contained | resolved | superseded
 PHASE_F_INCIDENT_TYPE_V1 = key_compromise | key_revocation | registry_equivocation
   | data_integrity | custody_break | undeclared_dependency | monitoring_breach
   | reference_qc_breach | domain_breach | retention_failure | campaign_abandonment
+  | manual_withdrawal
   | other_registered_incident
 PHASE_F_INCIDENT_ACTION_V1 = suspend | withdraw | new_release_required | campaign_no_go
 PHASE_F_DEVIATION_ACTION_V1 = exclude_before_lock | resolved_no_effect | campaign_no_go
@@ -210,20 +221,27 @@ is exactly `{object_kind:PHASE_F_OBJECT_KIND_V1,object_sha256:SHA256_V1}`.
 input:PATH_V1,context_dir:PATH_V1,report:PATH_V1}` or
 `{name:"claim-status",release:PATH_V1,context_dir:PATH_V1,
 registry_head_uri:LIVE_REGISTRY_HEAD_URI_V1,now:UTC_SECOND_TIMESTAMP_V1,
-report:PATH_V1,prior_head:PATH_V1|null,registry_compromised:PATH_V1|null}`. `PATH_V1` is a valid UTF-8
+report:PATH_V1,prior_head:PATH_V1|null,
+registry_compromised_emergency:PATH_V1|null,
+registry_compromised_review:PATH_V1|null,
+registry_compromised_commit:GIT_SHA_V1|null}`. `PATH_V1` is a valid UTF-8
 path string with no NUL, CR, or LF and the §7 path resolution rules; it is not
 an untyped string. `PATH_V1` may be absolute only when the command argument
 explicitly permits an absolute path; relative paths have no process-CWD meaning.
-`prior_head` is the explicit prior-head input and `registry_compromised` is the
-explicit fail-closed emergency input. `PhaseFArgvV1` is the exact ordered JSON
+`prior_head` and the three `registry_compromised_*` members are the four nullable
+fields. Either all three emergency members are null or all three are non-null;
+partial emergency triples are invalid. `PhaseFArgvV1` is the exact ordered JSON
 array generated from the object. For `verify` it is:
 `["phase-f-authority-check","verify","--kind",kind,"--input",input,
 "--context-dir",context_dir,"--report",report]`. For `claim-status` it is:
 `["phase-f-authority-check","claim-status","--release",release,
 "--context-dir",context_dir,"--registry-head-uri",registry_head_uri,
 "--now",now,"--report",report]`, followed by exactly
-`["--prior-head",prior_head]` when non-null and exactly
-`["--registry-compromised",registry_compromised]` when non-null, in that order.
+`["--prior-head",prior_head]` when non-null and, when the emergency triple is
+non-null, exactly
+`["--registry-compromised-emergency",emergency,
+"--registry-compromised-review",review,
+"--registry-compromised-commit",commit]`. No legacy emergency flag exists.
 No other pair or ordering is valid. `PhaseFEnvironmentEntryV1` is exactly
 `{name:RUNTIME_STABLE_ID_V1,value:RUNTIME_CANONICAL_TEXT_V1}` and its array is
 sorted by raw bytes. `PhaseFCheckerStdoutV1` is one exact literal line:
@@ -343,7 +361,7 @@ security, scientific, approval, tag, registry, or claim authority.
 | 09 | `{split_unit:RUNTIME_STABLE_ID_V1,allocations:{development:CANONICAL_DECIMAL_V1,validation:CANONICAL_DECIMAL_V1,holdout:CANONICAL_DECIMAL_V1},stratification_keys:[RUNTIME_STABLE_ID_V1],randomization_algorithm_id:RUNTIME_STABLE_ID_V1,seed_authority:RUNTIME_STABLE_ID_V1,split_execution_authority_id:RUNTIME_STABLE_ID_V1,lock_point:"before_outcome_access",post_hoc_movement:"forbidden"}` |
 | 10 | `{unit_kinds:[RUNTIME_STABLE_ID_V1],independent_kind_by_endpoint:[{endpoint_id:RUNTIME_STABLE_ID_V1,unit_kind:RUNTIME_STABLE_ID_V1}],identity_issuance_procedure_sha256:SHA256_V1,parent_child_rules:[{parent_kind:RUNTIME_STABLE_ID_V1,child_kind:RUNTIME_STABLE_ID_V1,procedure_document_sha256:SHA256_V1}],repeat_handling:"same_family_no_increment"}` |
 | 11 | complete `PhaseFMetrologyPolicyV1` from §13 |
-| 12 | `{power_method_id:RUNTIME_STABLE_ID_V1,power_method_version:RUNTIME_CANONICAL_TEXT_V1,power_method_interface:PhaseFObjectReferenceV1}`; no future `power_analysis_id` is permitted |
+| 12 | `{power_method_id:RUNTIME_STABLE_ID_V1,power_method_version:RUNTIME_CANONICAL_TEXT_V1}`; no power-interface identity, URI, or byte length exists during F0 |
 | 13 | `{authority_id:RUNTIME_STABLE_ID_V1,authority_role:"production_owner",authority_document:PhaseFObjectReferenceV1}` |
 | 14 | `{authority_id:RUNTIME_STABLE_ID_V1,authority_role:"production_registry",registry_namespace_id:RUNTIME_STABLE_ID_V1,registry_head_resolver_uri:LIVE_REGISTRY_HEAD_URI_V1,registry_head_max_validity_seconds:DURATION_SECONDS_V1}` |
 | 15 | `{custody_method_id:RUNTIME_STABLE_ID_V1,custody_procedure_document:PhaseFObjectReferenceV1,owner_custodian_role:RUNTIME_STABLE_ID_V1,registry_custodian_role:RUNTIME_STABLE_ID_V1,required_quorum:CANONICAL_POSITIVE_INTEGER_V1,key_input_channel_id:RUNTIME_STABLE_ID_V1,network_mode:"offline"|"hsm_isolated",key_persistence_allowed:false,production_cli_access_allowed:false}` |
@@ -379,7 +397,7 @@ to `CategoricalSelectorV1::Allowed` and `TemperatureSelectorV1::Bands`; 04
 maps to `PhysicalApprovalAuthorityV1::EmbeddedTrustRoot`; 05/06 copy endpoint
 fields and invariants; 07 copies claims with `requested_level=Physical`.
 Statistics are the fixed `wilson_95_v1,0.95,unavailable,indeterminate,and`.
-F-OD-08..21 have no runtime override. Missing, extra, defaulted, normalized,
+F-OD-08..20 have no runtime override. Missing, extra, defaulted, normalized,
 transformed, or unrepresentable values are F0/F1 NO-GO.
 
 The plan-only `PhaseFProtocolProjectionV1` value is exactly
@@ -387,6 +405,15 @@ The plan-only `PhaseFProtocolProjectionV1` value is exactly
 runtime_protocol:MhiValidationProtocolV1,projection_result:PHASE_F_RESULT_V1}`.
 It is not a runtime schema, does not create a production route, and exists only
 to make the F0-to-runtime comparison auditable.
+
+F-OD-12 is exactly `{power_method_id:RUNTIME_STABLE_ID_V1,
+power_method_version:RUNTIME_CANONICAL_TEXT_V1}` and nothing else. F0 selects
+the method ID/version only. During F1, construct
+`PhaseFPowerMethodInterfaceV1`, require exact equality of its method ID/version
+to F-OD-12, then construct and review the power analysis. No interface hash,
+URI, byte length, analysis ID, or other future-object reference is permitted in
+F0. Therefore `F0_F1_FUTURE_OBJECT_DEPENDENCY_PATHS=0` and
+`F0_FUTURE_OBJECT_REFERENCE_PATHS=0`.
 
 ## 5. Cryptographic primitives and review evidence
 
@@ -402,18 +429,19 @@ to 64 bytes. All verification uses the same strict `ed25519-dalek`
 signature algorithm exists.
 
 `PhaseFIndependentReviewBundleV1` is exactly
-`schema_version,review_bundle_id,review_target_kind,review_target_sha256,
-review_target_git_sha,reviews,aggregate_p0_count,aggregate_p1_count,
-aggregate_decision`. Types are respectively JSON integer, external digest ID,
-`PHASE_F_REVIEW_TARGET_KIND_V1`, `SHA256_V1|null`, `GIT_SHA_V1`, exactly five review rows, canonical
-unsigned counts, and `GO|NO-GO`. Each row is exactly
-`{role:PHASE_F_REVIEW_ROLE_V1,review_instance_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,
-decision:PHASE_F_DECISION_V1,p0_count:CANONICAL_UNSIGNED_INTEGER_V1,
+`schema_version,review_bundle_id,target,reviews,aggregate_p0_count,
+aggregate_p1_count,aggregate_decision`. `target` is exactly
+`PhaseFReviewTargetV1`: either `{type:"git_commit",git_sha:GIT_SHA_V1}` or
+`{type:"external_object",object_kind:PHASE_F_OBJECT_KIND_V1,
+object_sha256:SHA256_V1}`. There are no nullable target SHA fields and no
+review-instance ID. Each row is exactly
+`{role:PHASE_F_REVIEW_ROLE_V1,decision:PHASE_F_DECISION_V1,
+p0_count:CANONICAL_UNSIGNED_INTEGER_V1,
 p1_count:CANONICAL_UNSIGNED_INTEGER_V1,finding_ids:[RUNTIME_STABLE_ID_V1],
-review_artifact_reference:PhaseFObjectReferenceV1}`. Rows are one per role in
-enum order; finding IDs are sorted unique. `review_target_sha256=null` is legal
-only when `review_target_kind=git_commit_review` and the target has no
-independent file bytes. The aggregate is not a reviewer opinion:
+review_artifact_reference:PhaseFObjectReferenceV1}`. Rows are exactly one per
+role in enum order; finding IDs are sorted unique. The immutable review
+artifact reference identifies the actual review evidence, so a second row ID
+is neither needed nor permitted. The aggregate is not a reviewer opinion:
 `aggregate_p0_count` is the exact arithmetic sum of the five row `p0_count`
 values and `aggregate_p1_count` is the exact arithmetic sum of the five row
 `p1_count` values. The exact bidirectional rule is:
@@ -443,9 +471,18 @@ Five independent roles review that exact candidate file hash in one
 `PhaseFIndependentReviewBundleV1`. The bundle must have five GO rows, summed
 P0/P1 equal to zero, and aggregate GO. The candidate review bundle hash is the
 only activation authority needed to construct the initial ACTIVE state.
-The F5 review bundle sets `review_target_kind=external_object_review` and
-`review_target_sha256` to the complete F5 candidate file hash; its five rows
-therefore review one exact candidate, not a moving release or tag.
+The F5 review bundle sets `target={type:"external_object",
+object_kind:"f5_release_candidate",object_sha256:<complete candidate SHA>}`;
+its five rows therefore review one exact candidate, not a moving release or
+tag. The same target form is used for F0 decisions, readiness, enrollment,
+power analysis, and emergency objects. A plan review may use the Git-commit
+variant, for example `{type:"git_commit",git_sha:<R7 plan review SHA>}`.
+The normative external-object examples are:
+`{type:"external_object",object_kind:"decision_bundle",object_sha256:<decision SHA>}`;
+`{type:"external_object",object_kind:"checker_readiness_evidence",object_sha256:<readiness SHA>}`;
+`{type:"external_object",object_kind:"authority_enrollment",object_sha256:<enrollment SHA>}`;
+`{type:"external_object",object_kind:"power_analysis",object_sha256:<analysis SHA>}`;
+and `{type:"external_object",object_kind:"f5_release_candidate",object_sha256:<candidate SHA>}`.
 Because this exact candidate includes `initial_claim_state_sha256`, R6 uses the
 following fixed two-stage rule: that field is the complete-file SHA-256 of a
 proposed initial-state template with no activation bundle and the template is
@@ -492,7 +529,7 @@ body has `review_bundle_sha256=<SHA256_V1>`.
 
 | Tag / body schema | Target | Required ordered fields after `format_version=1` |
 |---|---|---|
-| `ism-mechanism-health-v1-f-plan-approved` / `PhaseFPlanApprovalV1` | reviewed R6 main | `plan_review_sha:GIT_SHA_V1,plan_sha256:SHA256_V1,plan_git_blob:GIT_BLOB_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
+| `ism-mechanism-health-v1-f-plan-approved` / `PhaseFPlanApprovalV1` | reviewed R7 main | `plan_review_sha:GIT_SHA_V1,plan_sha256:SHA256_V1,plan_git_blob:GIT_BLOB_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
 | `ism-mechanism-health-v1-f-f0-decisions-approved` / `PhaseFDecisionApprovalV1` | reviewed F0 main | `phase_f_plan_tag:PHASE_F_TAG_NAME_V1,plan_review_sha:GIT_SHA_V1,decision_review_sha:GIT_SHA_V1,decision_bundle_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,decision_file_sha256:SHA256_V1,decision_git_blob:GIT_BLOB_V1,decision_count:CANONICAL_UNSIGNED_INTEGER_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
 | `ism-mechanism-health-v1-f-readiness-approved` / `PhaseFReadinessApprovalV1` | integrated F-IMPL-1 | `phase_f_plan_tag:PHASE_F_TAG_NAME_V1,f0_decisions_tag:PHASE_F_TAG_NAME_V1,readiness_review_sha:GIT_SHA_V1,readiness_evidence_sha256:SHA256_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
 | `ism-mechanism-health-v1-f-authority-enrollment-approved` / `PhaseFAuthorityEnrollmentApprovalV1` | readiness main | `phase_f_plan_tag:PHASE_F_TAG_NAME_V1,f0_decisions_tag:PHASE_F_TAG_NAME_V1,readiness_tag:PHASE_F_TAG_NAME_V1,readiness_main_sha:GIT_SHA_V1,enrollment_sha256:SHA256_V1,owner_authority_id:RUNTIME_STABLE_ID_V1,registry_authority_id:RUNTIME_STABLE_ID_V1,owner_public_key_fingerprint:SHA256_V1,registry_public_key_fingerprint:SHA256_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
@@ -579,15 +616,21 @@ phase-f-authority-check verify --kind <OBJECT_KIND> --input <PATH> \
   --context-dir <PATH> --report <PATH>
 phase-f-authority-check claim-status --release <PATH> --context-dir <PATH> \
   --registry-head-uri <LIVE_REGISTRY_HEAD_URI_V1> --now <UTC_SECOND_TIMESTAMP_V1> \
-  --report <PATH> [--prior-head <PATH>] [--registry-compromised <PATH>]
+  --report <PATH> [--prior-head <PATH>] \
+  [--registry-compromised-emergency <PATH> \
+   --registry-compromised-review <PATH> \
+   --registry-compromised-commit <GIT_SHA>]
 ```
 
 `--kind` is exactly one `PHASE_F_OBJECT_KIND_V1`; `verify` takes exactly one
 input, one context directory, and one report path. `claim-status` takes exactly
 one release, context directory, live URI, UTC timestamp, and report path. Each
 optional argument is one exact pair, serialized only when its corresponding
-object member is non-null; `--registry-compromised` is permitted only for §15's
-exact emergency schema.
+object member is non-null. The three emergency members are nullable as one
+all-null or all-non-null triple; a partial triple is a usage error. When
+non-null, argv appends the emergency path, review path, and commit SHA in
+exactly that order. The emergency path accepts only §15's exact emergency
+schema and its separately supplied review and commit.
 Paths are UTF-8, relative paths resolve only from the named context directory,
 absolute paths are permitted only when explicitly passed, and symlinks,
 directories in file position, traversal, and unsafe files reject. The checker
@@ -739,16 +782,16 @@ No semantic digest is ever substituted for a complete-file subject hash.
 |---|---|---|---|
 | `authority_enrolled` | `enrollment_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `authority_enrollment` | `authorized_by+decision_bundle`; `references+git_tag_message` for plan/F0/readiness/enrollment tags | none |
 | `protocol_registered` | `protocol_id:RUNTIME_STABLE_ID_V1` / `protocol` | `authorized_by+decision_bundle`; `depends_on+registration_document` | none |
-| `power_registered` | `power_analysis_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `power_analysis` | `authorized_by+decision_bundle`; `depends_on+power_method_interface`; `depends_on+protocol` | none |
+| `power_registered` | `power_analysis_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `power_analysis` | `authorized_by+decision_bundle`; `authorized_by+independent_review_bundle`; `depends_on+power_method_interface`; `depends_on+protocol` | the independent-review-bundle relation names the five-role bundle whose `target={type:"external_object",object_kind:"power_analysis",object_sha256:<exact subject_sha256>}` |
 | `package_registered` | `manifest_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `package_manifest` | exactly once each: `depends_on+dependency_audit`, `depends_on+physical_unit_ledger`, `depends_on+identity_audit`, `depends_on+location_ledger`, `depends_on+chain_of_custody`, `depends_on+deviation_ledger`, `depends_on+metrology_policy`, `depends_on+scientific_admissibility_audit`; at least once each: `references+reference_result`, `references+reference_source_descriptor` | none; `locks`, `releases`, and untyped relations forbidden |
 | `cohort_locked` | `cohort_lock_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `cohort_lock` | `locks+package_manifest`; `depends_on+protocol`; `depends_on+power_analysis`; `depends_on+deviation_ledger`; `depends_on+scientific_admissibility_audit` | none |
 | `owner_approval_registered` | `approval_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `owner_approval` | `approves+cohort_lock`; `authorized_by+authority_enrollment` | none |
 | `execution_registered` | `execution_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `execution_record` | `executes+cohort_lock`; `authorized_by+owner_approval`; `depends_on+deviation_ledger`; `depends_on+protocol` | none |
 | `release_registered` | `release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `release_record` | `releases+execution_record`; `authorized_by+owner_approval`; `depends_on+monitoring_policy`; `depends_on+metrology_policy` | none |
-| `claim_state_changed` | `claim_state_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `claim_state` | `changes_state_of+release_record` | one prior-state `registered_after+claim_state`; one reinstatement dependency; one superseding-release relation only when applicable |
+| `claim_state_changed` | `claim_state_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `claim_state` | `changes_state_of+release_record` | initial ACTIVE also requires `authorized_by+independent_review_bundle` naming the exact F5 activation bundle; every noninitial state requires exactly one `registered_after+claim_state`; incident-driven reasons require exactly one `depends_on+incident_record` whose hash equals `cause_incident_sha256`; approved reinstatement requires exactly one `depends_on+reinstatement_approval`; superseded state requires exactly one `supersedes+release_record`; periodic expiry has none of those |
 | `monitoring_recorded` | `monitoring_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `monitoring_record` | `references+release_record`; `depends_on+monitoring_policy` | one prior `registered_after+monitoring_record` after first |
 | `incident_recorded` | `incident_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `incident_record` | for release scope exactly `incident_recorded+release_record`; for campaign or registry-namespace scope no release relation is permitted | references only to listed affected evidence; campaign closure is authorized by its independently reviewed incident |
-| `retention_audit_recorded` | `retention_audit_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `retention_audit` | exactly once: `references+release_record`; exactly once: `authorized_by+decision_bundle` | exactly one `registered_after+retention_audit` for every audit after the first; no per-checked-object `references+package_manifest` relation |
+| `retention_audit_recorded` | `retention_audit_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `retention_audit` | exactly once: `authorized_by+decision_bundle`; release scope exactly once `references+release_record`; campaign scope exactly once `references+package_manifest` | exactly one `registered_after+retention_audit` for every later audit of the same scope; no release relation for campaign scope and no package-manifest relation for release scope |
 
 Genesis is sequence `0` with null predecessor. Later records are prior sequence
 plus one and prior complete-file hash. No gap, fork, or rollback is legal.
@@ -921,13 +964,27 @@ parameter IDs, no duplicate override, base type/unit/range, all required
 unchanged base parameters, unchanged method ID/version/output semantics, and
 unchanged power target unless explicitly declared. Checker constructs base plus
 overrides and validates again. Scientific reviewer decides adequacy. Construction
-is ordered: retrieve/verify the interface; choose exact approved parameters;
+is ordered: F0 selects only method ID/version; F1 retrieves/verifies and
+constructs the interface; the interface method ID/version must equal F-OD-12;
+then choose exact approved parameters;
 validate required, unknown, type, unit, and range; execute exact method/software;
 create outputs; validate output IDs/types/units/ranges; evaluate every required
 sensitivity case; construct the complete analysis object; calculate its
-content-derived `power_analysis_id`; obtain independent scientific review; then
-create the `power_registered` registry attestation. `analysis_id` is not a
-second wire field and means `power_analysis_id` only in legacy prose.
+content-derived `power_analysis_id`; create a normal five-role independent
+review bundle whose single target is `{type:"external_object",
+object_kind:"power_analysis",object_sha256:<complete analysis file SHA>}`;
+require aggregate GO/P0=0/P1=0; then create the `power_registered` registry
+attestation. That record requires `authorized_by+decision_bundle`,
+`authorized_by+independent_review_bundle`, `depends_on+power_method_interface`,
+and `depends_on+protocol`; the review relation must name the bundle targeting
+the exact analysis subject file hash. No review hash is embedded in the
+analysis file. `analysis_id` is not a second wire field and means
+`power_analysis_id` only in historical prose.
+
+The scientific/metrology role must substantively assess power adequacy, the
+analysis file, and the exact referenced interface identified by
+`power_method_interface_sha256`. No separate interface review bundle is
+required unless another independent requirement demands it.
 
 ## 13. Metrology and reference result projection
 
@@ -946,7 +1003,8 @@ nonempty and exactly equal the corresponding runtime `ReferenceAuthorityRuleV1`
 allowed lists; semantics are Cartesian.
 
 `PhaseFMetrologyCheckSpecV1` is exactly
-`{check_id:RUNTIME_STABLE_ID_V1,check_kind:PHASE_F_CHECK_KIND_V1,
+`{endpoint_id:RUNTIME_STABLE_ID_V1,check_id:RUNTIME_STABLE_ID_V1,
+check_kind:PHASE_F_CHECK_KIND_V1,
 method_id:RUNTIME_STABLE_ID_V1,method_version:RUNTIME_CANONICAL_TEXT_V1,
 authority_id:RUNTIME_STABLE_ID_V1,procedure_document:PhaseFObjectReferenceV1,
 measurand_id:RUNTIME_STABLE_ID_V1,result_unit:UNIT_TEXT_V1,
@@ -955,13 +1013,25 @@ failure_action:exclude_before_lock|campaign_no_go}`. Policy endpoints contain
 sorted check-spec arrays.
 
 `PhaseFMetrologyCheckResultV1` is exactly
-`{schema_version:JSON_INTEGER_ONE,check_result_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,check_id:RUNTIME_STABLE_ID_V1,
-reference_source_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,performed_at:UTC_SECOND_TIMESTAMP_V1,
+`{schema_version:JSON_INTEGER_ONE,check_result_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,
+endpoint_id:RUNTIME_STABLE_ID_V1,metrology_policy_sha256:SHA256_V1,
+check_id:RUNTIME_STABLE_ID_V1,reference_source_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,
+performed_at:UTC_SECOND_TIMESTAMP_V1,
 method_id:RUNTIME_STABLE_ID_V1,method_version:RUNTIME_CANONICAL_TEXT_V1,
 authority_id:RUNTIME_STABLE_ID_V1,measurand_id:RUNTIME_STABLE_ID_V1,
 value:RUNTIME_F64_V1,unit:UNIT_TEXT_V1,result:PHASE_F_CHECK_RESULT_V1}`. Checker recomputes
 the comparator; manually inconsistent result rejects. Every required calibration
 and QC result must pass.
+
+Check IDs need not be globally unique. The exact specification lookup is
+`(metrology_policy_sha256,endpoint_id,check_id)`: load the policy named by the
+result, select exactly one endpoint policy, then exactly one check specification
+within that endpoint. The checker recomputes comparator, threshold, method,
+authority, measurand, and unit from that specification. Duplicate `check_id`
+values under different endpoints are therefore deterministic; an endpoint
+mutation that selects no spec or the wrong spec is NO-GO. The check-result ID
+uses `mhi_phase_f_metrology_check_result_v1\0` and excludes only
+`check_result_id`.
 
 `PhaseFLODLOQPolicyV1` is `{type:"not_applicable"}` or
 `{type:"required",lod_value:RUNTIME_F64_V1,lod_unit:UNIT_TEXT_V1,
@@ -1039,31 +1109,52 @@ field is present in the release file.
 
 `PhaseFClaimStateRecordV1` is exactly
 `schema_version,claim_state_record_id,claim_id,release_record_id,
-previous_claim_state_record_id,state,reason_code,effective_at,
+previous_claim_state_record_id,state,reason_code,cause_incident_sha256,effective_at,
 superseding_release_record_id,activation_review_bundle_sha256,
 reinstatement_approval_sha256,limitations`. `previous_claim_state_record_id`
 is nullable only for the initial state; `superseding_release_record_id` is
 non-null only for superseded; `activation_review_bundle_sha256` is non-null
 only for initial ACTIVE; `reinstatement_approval_sha256` is non-null only for a
 suspended-to-active reinstatement. State is
-`PHASE_F_CLAIM_STATE_V1`; `reason_code:PHASE_F_CLAIM_REASON_V1` is the exact table:
+`PHASE_F_CLAIM_STATE_V1`; `reason_code:PHASE_F_CLAIM_REASON_V1` and the exact
+cause rule are:
 
 | Reason | Legal prior → next | Extra authority |
 |---|---|---|
-| `initial_release` | none → active | release record and exact F5 review bundle |
-| `monitoring_breach` | active → suspended | valid monitoring incident |
-| `reference_qc_breach` | active → suspended | failed required QC |
-| `domain_breach` | active → suspended | domain evidence |
-| `key_compromise` | active → suspended or withdrawn per F0 row | un-compromised path |
-| `key_revocation` | active → suspended or withdrawn per F0 row | un-compromised path |
-| `periodic_expiry` | active or suspended → expired | no shortcut |
-| `manual_withdrawal` | active or suspended → withdrawn | governance record |
-| `superseded_by_new_release` | active or suspended → superseded | new release |
-| `approved_reinstatement` | suspended → active | valid five-role approval and same-release mode |
+| `initial_release` | none → active | `cause_incident_sha256=null`; release record and exact F5 review bundle |
+| `monitoring_breach` | active → suspended | non-null exact incident SHA; valid monitoring incident |
+| `reference_qc_breach` | active → suspended | non-null exact incident SHA; failed required QC |
+| `domain_breach` | active → suspended | non-null exact incident SHA; domain evidence |
+| `key_compromise` | active → suspended or withdrawn per F0 row | non-null exact incident SHA; un-compromised registry/governance path |
+| `key_revocation` | active → suspended or withdrawn per F0 row | non-null exact incident SHA; un-compromised registry/governance path |
+| `periodic_expiry` | active or suspended → expired | `cause_incident_sha256=null`; no shortcut |
+| `manual_withdrawal` | active or suspended → withdrawn | non-null exact incident SHA; governance incident |
+| `superseded_by_new_release` | active or suspended → superseded | `cause_incident_sha256=null`; new release |
+| `approved_reinstatement` | suspended → active | `cause_incident_sha256=null`; valid five-role approval and same-release mode |
+
+For every non-null cause, the referenced incident file is complete and its
+scope matches the claim/release or applicable campaign/registry authority. The
+incident SHA is the exact complete-file SHA, never a semantic ID or a registry
+record hash.
 
 No other transition is legal. `new_release_required` forbids old-release
 reinstatement; `withdraw_only` forbids reinstatement. If an incident or breach
 exists without its required state record, claim-status returns NOT_ACTIVE.
+
+The claim-state registry relation contract is exact. Every state has
+`changes_state_of+release_record`. Initial ACTIVE additionally has exactly
+`authorized_by+independent_review_bundle` naming the F5 activation bundle and
+has no prior-state, incident, reinstatement, or supersession relation. Every
+noninitial state has exactly one `registered_after+claim_state`. The six
+incident-driven reasons (`monitoring_breach`, `reference_qc_breach`,
+`domain_breach`, `key_compromise`, `key_revocation`, and `manual_withdrawal`)
+have exactly one `depends_on+incident_record`, whose object hash equals
+`cause_incident_sha256`. `approved_reinstatement` has exactly one
+`depends_on+reinstatement_approval`; `superseded_by_new_release` has exactly
+one `supersedes+release_record` identifying `superseding_release_record_id`;
+`periodic_expiry` has none of those extra relations. All inapplicable tuples
+are forbidden. `CLAIM_STATE_CAUSE_BINDING_AMBIGUITIES=0` and
+`CLAIM_STATE_RELATION_AMBIGUITIES=0`.
 
 An initial ACTIVE state is constructed only after the release file and exact
 F5 candidate are complete and the five-role F5 review bundle is aggregate GO.
@@ -1117,21 +1208,23 @@ accepted.
 `schema_version,monitoring_record_id,release_record_id,claim_id,window_start,
 window_end,policy_sha256,measurements,breaches,result`.
 Every required metric appears once in policy order. Measurement is
-`{metric_id:PHASE_F_MONITORING_METRIC_V1,value:PhaseFMonitoringValueV1}`; status uses the
-metric vocabulary, numeric uses `RUNTIME_F64_V1`, and bindings use named ID/hash
-types. Breach is
-`{metric_id:PHASE_F_MONITORING_METRIC_V1,breach_code:PHASE_F_BREACH_CODE_V1,
-evidence_sha256:SHA256_V1}` sorted by metric ID. All required metrics exist
+exactly `{metric_id:PHASE_F_MONITORING_METRIC_V1,value:PhaseFMonitoringValueV1,
+evidence_sha256:SHA256_V1}`; status uses the metric vocabulary, numeric uses
+`RUNTIME_F64_V1`, and bindings use named ID/hash types. The evidence SHA
+resolves in context to one present, canonical evidence object and is validated
+for the metric. Breach is exactly
+`{metric_id:PHASE_F_MONITORING_METRIC_V1,breach_code:PHASE_F_BREACH_CODE_V1}`
+sorted by metric ID; evidence is never repeated in a breach row. All required metrics exist
 exactly once, with exact value types, healthy statuses, release bindings,
 passing thresholds, and evidence. `breaches` must equal the exact recomputed failed-metric set: one row
 for every failed required metric and zero rows for every passing metric. The
 only breach codes are `missing_metric`, `unhealthy_status`, `threshold_failed`,
 `binding_mismatch`, and `missing_evidence`; no duplicate, extra, or missing
 metric is valid. The code is derived from the first applicable failed reason in
-this fixed order: absent metric -> `missing_metric`; unhealthy status ->
+this fixed order: absent metric -> `missing_metric`; invalid/unavailable evidence
+-> `missing_evidence`; unhealthy status ->
 `unhealthy_status`; failed numeric comparison -> `threshold_failed`; wrong
-release/policy binding -> `binding_mismatch`; absent evidence ->
-`missing_evidence`. Declared result is pass iff `breaches` is empty, otherwise
+release/policy binding -> `binding_mismatch`. Declared result is pass iff `breaches` is empty, otherwise
 suspend, and must equal recomputation. Before any accepted PASS
 window, `initial_due = initial_active_effective_at +
 monitoring_interval_seconds`; `now<initial_due` is CURRENT and `now>=initial_due`
@@ -1147,6 +1240,21 @@ ACTIVE `effective_at`; each later PASS starts at the prior accepted PASS
 `window_end`; and `window_end <= due` for the period satisfied. A late PASS can
 provide corrective evidence but cannot retroactively make an overdue interval
 ACTIVE; reinstatement is required. A suspend record is never accepted.
+
+For `missing_metric`, no measurement row exists. For `missing_evidence`, the
+measurement row exists but its evidence object is unavailable or invalid. The
+breach array contains the exact recomputed failed metric set in either case and
+never carries a second evidence hash.
+
+The PASS predicate is exact: every required metric appears once; no unrequired
+metric appears; every measurement type is correct; every measurement has a
+verifiable `evidence_sha256`; every required evidence object verifies; all four
+status metrics are healthy; all five numeric thresholds pass; all five
+release/build/trust binding metrics equal release authority; the recomputed
+breach set is empty; and `result=pass`. SUSPEND is required for one or more
+recomputed failures, and the declared result must equal recomputation.
+`MONITORING_RESULT_DERIVATION_AMBIGUITIES=0` and
+`MONITORING_EVIDENCE_AMBIGUITIES=0`.
 
 ## 15. Retention, incidents, and compromise
 
@@ -1165,15 +1273,24 @@ Campaign-abandonment closure requires an independent five-role review bundle
 in `evidence_references`; it is not inferred from the operator that records the
 incident.
 
-`PhaseFRetentionAuditV1` is exactly
-`schema_version,retention_audit_id,release_record_id,policy_sha256,audited_at,
-object_checks,result`. Each check is exactly
+`PhaseFRetentionScopeV1` is exactly the tagged union
+`{type:"release",release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1}` or
+`{type:"campaign",campaign_id:RUNTIME_STABLE_ID_V1,
+package_manifest_sha256:SHA256_V1}`. `PhaseFRetentionAuditV1` is exactly
+`schema_version,retention_audit_id,scope,policy_sha256,audited_at,object_checks,
+result`. There is no top-level release ID. Each check is exactly
 `{object_sha256:PhaseFObjectDigestV1,
 primary_available:BOOLEAN_V1,primary_verified:BOOLEAN_V1,
 verified_backup_count:CANONICAL_UNSIGNED_INTEGER_V1,
 last_backup_verification_at:UTC_SECOND_TIMESTAMP_V1,result:PHASE_F_RESULT_V1}`.
 Pass requires primary available and exact, backup count at least F0, and backup
-age below F0 interval. A `retention_audited` record binds every current audit.
+age below F0 interval. A `retention_audited` record is authorized by the
+decision bundle and has exactly one scope-specific relation: release scope
+uses `references+release_record`; campaign scope uses
+`references+package_manifest`. Every later audit of the same scope has exactly
+one `registered_after+retention_audit`. A campaign audit never requires a
+release relation, and a release audit never requires a package-manifest
+relation merely because its objects came from a package.
 
 Retention starts when an authority object is first referenced by valid registry
 record. After terminal state, deadline is terminal `effective_at` plus F0
@@ -1181,8 +1298,9 @@ retention seconds; retrieval is required while `now<deadline`, unless another
  nonterminal release references it. Pre-release campaigns end retention only by
 an independently reviewed `campaign_abandonment` incident with campaign scope;
 the deadline is `incident.detected_at + retention_seconds`, and all campaign
-authority objects are retained until that deadline. Deletion is never
-silent. Replacement is an additional copy with identical bytes, SHA, and length
+authority objects are retained until that deadline. Campaign-scoped audits
+continue until that deadline without a release ID. Deletion is never silent.
+Replacement is an additional copy with identical bytes, SHA, and length
 recorded in the next audit; different bytes are a new object. If every copy
 disappears before deadline, retention failure is required and claim-status is
 NOT_ACTIVE.
@@ -1195,24 +1313,42 @@ not change state; missing transition is NOT_ACTIVE.
 
 Registry-key compromise uses one exact independent path.
 `PhaseFRegistryCompromiseEmergencyV1` is exactly
-`schema_version,emergency_id,registry_namespace_id,incident_id,declared_at,
-affected_claim_ids,incident_record_sha256,review_bundle_sha256,
-repository_commit_sha,repository_blob,action`, where action is the literal
-`suspend_all_active_claims`. `repository_blob:GIT_BLOB_V1` is the Git blob of
-the emergency file at `repository_commit_sha:GIT_SHA_V1`; the commit must be
-reachable from the live remote `main` used as repository governance authority.
-If either Git fact cannot be verified, the emergency object is invalid.
-IDs/hashes use named types and ID follows §3. One full five-role review bundle,
-using the same aggregate rule as every other bundle, is required; the registry
-key is not used. `--registry-compromised` accepts only this object, its exact
-Git commit/blob, and aggregate-GO bundle and immediately returns NOT_ACTIVE for
-affected claims. No unsigned flag or revoked-root bypass exists.
+`schema_version,emergency_id,registry_namespace_id,incident_record_sha256,
+declared_at,affected_claim_ids,action`, where action is the literal
+`suspend_all_active_claims`. It contains no review hash, repository commit,
+repository blob, or repository blob hash. Its ID uses
+`mhi_phase_f_registry_compromise_emergency_v1\0`, excluding only its own ID;
+its complete file is therefore constructible immediately after the incident
+file is complete.
 
-To keep the emergency path acyclic, the emergency review bundle targets the
-exact incident file hash plus the repository commit/blob tuple and affected
-claim set; it does not target the completed emergency object that contains the
-bundle hash. The emergency object is complete only after that bundle hash is
-inserted.
+After the emergency file is complete, create a normal five-role
+`PhaseFIndependentReviewBundleV1` with exactly
+`target={type:"external_object",object_kind:"emergency_registry_compromise",
+object_sha256:<complete emergency file SHA>}` and aggregate GO/P0=0/P1=0.
+The complete emergency file already contains the registry namespace, incident
+hash, affected claims, declaration time, and action, so no composite review
+target is permitted.
+
+The completed emergency and review files are then published together in a
+later repository commit at deterministic paths
+`phase_f_governance/emergencies/<DIGEST>/emergency.json` and
+`phase_f_governance/emergencies/<DIGEST>/review.json`, where `<DIGEST>` is the
+64 lowercase hexadecimal body of `emergency_id` after `sha256:`. Neither file
+contains that commit SHA. Claim-status accepts the emergency path, review path,
+and commit SHA as three paired inputs and verifies canonical/semantic hashes,
+review target/aggregate, commit existence and reachability from live remote
+`main`, deterministic tree paths, and byte equality with the local files. The
+sequence is incident -> emergency file -> emergency review -> later Git commit
+-> NOT_ACTIVE; `REGISTRY_COMPROMISE_GIT_FIXED_POINT_CYCLES=0`.
+
+The emergency checker order is exact: (1) canonical emergency and semantic ID;
+(2) canonical five-role review bundle; (3) review target equals the exact
+emergency file SHA; (4) aggregate GO/P0=0/P1=0; (5) supplied commit exists; (6)
+commit is reachable from live remote `main`; (7) the commit tree contains the
+emergency bytes at `emergencies/<DIGEST>/emergency.json`; (8) it contains the
+review bytes at `emergencies/<DIGEST>/review.json`; and (9) both tree byte
+sequences equal the supplied local materializations. Any failure rejects the
+triple or returns the specified fail-closed non-active result.
 
 Owner-key compromise uses the un-compromised registry/governance path to append
 the exact suspend/withdraw state; owner signature is not required for that
@@ -1222,21 +1358,23 @@ key never revokes itself.
 
 ## 16. Master schema catalog
 
-This is the one catalog for every external R6 schema. Each row includes exact
+This is the one catalog for every external R7 schema. Each row includes exact
 fields, identity, complete-file hash, producer, validator, stage, requirement,
 AC, test, evidence, and registry relation. The canonical substantive
-requirement/AC/test/evidence procedures are §19.1; legacy R5 identifiers in the
-final column are historical cross-references only and are not current R6
+requirement/AC/test/evidence procedures are §19.2; legacy R5/R6 identifiers in
+the final column are historical cross-references only and are not current R7
 acceptance authority.
 
 | Schema | Field closure / identity | Producer; validator; stage | Registry relation | Requirement / AC / test / evidence |
 |---|---|---|---|---|
 | `PhaseFDecisionBundleV1` | §4; §3 ID; complete hash; unsigned | F0; checker; F0 | protocol authority | R5-01 / AC5-01 / T5-01 / EV5-01 |
-| `PhaseFIndependentReviewBundleV1` | §5 exact five rows; §3 ID; complete hash | independent roles; checker; approvals | tag evidence | R5-02 / AC5-02 / T5-02 / EV5-02 |
+| `PhaseFIndependentReviewBundleV1` | §5 exact tagged target and five rows; §3 ID; complete hash | independent roles; checker; approvals | tag evidence | R7-02/R7-05 / AC7-02/05 / T7-02/05 / EV7-02/05 |
+| `PhaseFReviewTargetV1` | §2 exact `git_commit` or `external_object` tagged union | reviewer; target validator; all review gates | nested in review bundle | R7-02 / AC7-02 / T7-02 / EV7-02 |
+| `PhaseFIndependentReviewV1` | §5 exact five role fields with no row ID | independent reviewer; review validator; all gates | nested in review bundle | R7-05 / AC7-05 / T7-05 / EV7-05 |
 | `PhaseFProtocolProjectionV1` | §4 exact plan contract; no wire ID | checker; projection; F1 | protocol | R5-03 / AC5-03 / T5-03 / EV5-03 |
 | `PhaseFAuthorityEnrollmentV1` | §5.1 unsigned; §3 ID/file hash | governance; enrollment; readiness | authority_enrolled | R5-04 / AC5-04 / T5-04 / EV5-04 |
 | `PhaseFCheckerBuildEvidenceV1` | §7 exact fields; §3 ID; complete hash | checker builder; independent verifier; readiness | readiness evidence | R6-03 / AC6-03 / T6-03 / EV6-03 |
-| `PhaseFCheckerReadinessEvidenceV1` | §7 exact fields; §3 ID; complete hash | checker readiness; independent verifier; readiness | readiness tag evidence | R6-03 / AC6-03 / T6-03 / EV6-03 |
+| `PhaseFCheckerReadinessEvidenceV1` | §7 exact fields; §3 ID in body; complete hash | checker readiness; independent verifier; readiness | readiness tag evidence | R7-06 / AC7-06 / T7-06 / EV7-06 |
 | `PhaseFCheckerReportV1` | §7 exact fields including semantic command and argv; complete hash | checker; report validator; all | none | R6-03 / AC6-03 / T6-03 / EV6-03 |
 | `PhaseFF5ReleaseCandidateV1` | §5.1 exact fields; §3 ID; complete hash | F5 release; independent reviewers; F5 | F5 review evidence | R6-08 / AC6-08 / T6-08 / EV6-08 |
 | `PhaseFRegistryRelationV1` | §9 typed tuple | registry; chain; F1-F5 | record-contained | R5-06 / AC5-06 / T5-06 / EV5-06 |
@@ -1252,25 +1390,47 @@ acceptance authority.
 | `PhaseFChainOfCustodyV1` | §11 exact event matrix; §3 ID/hash | custodians; custody; F2-F4 | package dependency | R5-16 / AC5-16 / T5-16 / EV5-16 |
 | `PhaseFDeviationLedgerRevisionV1` | §11 stable-ledger/revision construction; §3 revision ID/hash | campaign; deviation; F2-F4 | package/execution | R6-01 / AC6-01 / T6-01 / EV6-01 |
 | `PhaseFPowerMethodInterfaceV1` | §12 unit/range/output rows; §3 ID/hash | statistician; power; F1 | power dependency | R5-18 / AC5-18 / T5-18 / EV5-18 |
-| `PhaseFPowerAnalysisRecordV1` | §12 params/cases; §3 ID/hash | statistician; power; F1 | power subject | R5-19 / AC5-19 / T5-19 / EV5-19 |
+| `PhaseFPowerAnalysisRecordV1` | §12 params/cases; §3 ID/hash; complete before review | statistician; power; F1 | power subject | R7-03/R7-10 / AC7-03/10 / T7-03/10 / EV7-03/10 |
 | `PhaseFMetrologyPolicyV1` | §13 Cartesian methods/checks; §3 ID/hash | metrology; policy; F0/F2 | package/release | R5-20 / AC5-20 / T5-20 / EV5-20 |
-| `PhaseFMetrologyCheckSpecV1` | §13 exact fields | metrology; policy; F2 | nested policy | R5-21 / AC5-21 / T5-21 / EV5-21 |
-| `PhaseFMetrologyCheckResultV1` | §13 exact fields/math; complete hash | laboratory; result; F2 | package evidence | R5-22 / AC5-22 / T5-22 / EV5-22 |
+| `PhaseFMetrologyCheckSpecV1` | §13 endpoint-qualified exact fields | metrology; policy; F2 | nested policy | R7-09 / AC7-09 / T7-09 / EV7-09 |
+| `PhaseFMetrologyCheckResultV1` | §13 endpoint/policy-qualified fields/math; complete hash | laboratory; result; F2 | package evidence | R7-09 / AC7-09 / T7-09 / EV7-09 |
 | `PhaseFReferenceSourceDescriptorV1` | §13 runtime types; §3 ID/hash | laboratory/data; source; F2 | package dependency | R5-23 / AC5-23 / T5-23 / EV5-23 |
 | `PhaseFReferenceResultV1` | §13 adjudicated fields and exact runtime projection; §3 ID/hash | laboratory; reference; F2 | package dependency | R6-07 / AC6-07 / T6-07 / EV6-07 |
 | `PhaseFScientificAdmissibilityAuditV1` | exact fields below; §3 ID/hash | scientific reviewer/checker; F2 | scientific_admissibility | R5-25 / AC5-25 / T5-25 / EV5-25 |
 | `PhaseFCohortLockRecordV1` | §14 exact hashes; §3 ID/hash | campaign; cohort; F2 | cohort_locked | R5-26 / AC5-26 / T5-26 / EV5-26 |
 | `PhaseFExecutionRecordV1` | §14 exact time/result; §3 ID/hash | release; execution; F4 | execution_registered | R5-27 / AC5-27 / T5-27 / EV5-27 |
 | `PhaseFReleaseRecordV1` | §14 semantic-only fields; §3 ID; complete hash | release; release; F5 | release_registered external attestation | R6-01/R6-08 / AC6-01/08 / T6-01/08 / EV6-01/08 |
-| `PhaseFClaimStateRecordV1` | §14 exact nullable fields and transition; §3 ID; complete hash | governance; state; F5+ | claim_state_changed external attestation | R6-01/R6-08 / AC6-01/08 / T6-01/08 / EV6-01/08 |
+| `PhaseFClaimStateRecordV1` | §14 exact nullable fields, cause binding, and transition; §3 ID; complete hash | governance; state; F5+ | claim_state_changed external attestation | R7-07/R7-11 / AC7-07/11 / T7-07/11 / EV7-07/11 |
 | `PhaseFReinstatementApprovalV1` | §14 review-bundle reference and trigger; §3 ID/hash | governance; reinstatement; F5+ | state dependency | R6-08 / AC6-08 / T6-08 / EV6-08 |
 | `PhaseFMonitoringPolicyV1` | §14 metric vocabulary; §3 ID/hash | F0; monitoring; F5+ | release dependency | R5-31 / AC5-31 / T5-31 / EV5-31 |
-| `PhaseFMonitoringRecordV1` | §14 derived result/window; §3 ID; complete hash | operations; monitoring; F5+ | monitoring_recorded external attestation | R6-09 / AC6-09 / T6-09 / EV6-09 |
-| `PhaseFIncidentScopeV1` | §15 exact tagged union | governance; incident; all | nested in incident | R6-10 / AC6-10 / T6-10 / EV6-10 |
+| `PhaseFMonitoringRecordV1` | §14 derived result/window; §3 ID; complete hash | operations; monitoring; F5+ | monitoring_recorded external attestation | R7-04 / AC7-04 / T7-04 / EV7-04 |
+| `PhaseFMonitoringMeasurementV1` | §14 exactly metric, typed value, and evidence SHA | operations; measurement validator; F5+ | nested in monitoring record | R7-04 / AC7-04 / T7-04 / EV7-04 |
+| `PhaseFMonitoringBreachV1` | §14 exactly metric and derived breach code; no evidence field | monitoring checker; breach derivation; F5+ | nested in monitoring record | R7-04 / AC7-04 / T7-04 / EV7-04 |
+| `PhaseFIncidentScopeV1` | §15 incident tagged union | governance; incident; all | nested in incident | R7-07/R7-08/R7-11 / AC7-07/08/11 / T7-07/08/11 / EV7-07/08/11 |
 | `PhaseFIncidentRecordV1` | §15 exact scoped fields/enums; §3 ID/hash | operations/governance; incident; all | incident_recorded | R6-10 / AC6-10 / T6-10 / EV6-10 |
-| `PhaseFRetentionAuditV1` | §15 exact checks/result and typed relations; §3 ID/hash | operations; retention; all | retention_audit_recorded | R6-10 / AC6-10 / T6-10 / EV6-10 |
-| `PhaseFRegistryCompromiseEmergencyV1` | §15 independent Git/blob path; §3 ID/hash | security/operations; emergency; claim-status | emergency input | R6-10 / AC6-10 / T6-10 / EV6-10 |
-| six `PhaseF*ApprovalV1` bodies | §6 exact ordered ASCII | five roles; tag validator; gates | tag message hash | R5-36 / AC5-36 / T5-36 / EV5-36 |
+| `PhaseFRetentionScopeV1` | §15 exact release/campaign tagged union | retention auditor; scope validator; all | nested in retention audit | R7-08 / AC7-08 / T7-08 / EV7-08 |
+| `PhaseFRetentionAuditV1` | §15 exact scope/check/result and typed relations; §3 ID/hash | operations; retention; all | retention_audit_recorded | R7-08 / AC7-08 / T7-08 / EV7-08 |
+| `PhaseFRegistryCompromiseEmergencyV1` | §15 exact acyclic fields; §3 ID/hash; no Git self-fields | security/operations; emergency; claim-status | emergency input | R7-01 / AC7-01 / T7-01 / EV7-01 |
+| `PhaseFPlanApprovalV1` | §6 exact ordered ASCII body fields | five roles; tag validator; plan gate | tag message hash | R7-12 / AC7-12 / T7-12 / EV7-12 |
+| `PhaseFDecisionApprovalV1` | §6 exact ordered ASCII body fields | five roles; tag validator; F0 gate | tag message hash | R7-12 / AC7-12 / T7-12 / EV7-12 |
+| `PhaseFReadinessApprovalV1` | §6 exact ordered ASCII body fields | five roles; tag validator; readiness gate | tag message hash | R7-12 / AC7-12 / T7-12 / EV7-12 |
+| `PhaseFAuthorityEnrollmentApprovalV1` | §6 exact ordered ASCII body fields | five roles; tag validator; enrollment gate | tag message hash | R7-12 / AC7-12 / T7-12 / EV7-12 |
+| `PhaseFTrustProvisioningApprovalV1` | §6 exact ordered ASCII body fields | five roles; tag validator; trust gate | tag message hash | R7-12 / AC7-12 / T7-12 / EV7-12 |
+| `PhaseFPhysicalReleaseApprovalV1` | §6 exact ordered ASCII body fields | five roles; tag validator; physical-release gate | tag message hash | R7-12 / AC7-12 / T7-12 / EV7-12 |
+
+The six approval schemas are individually closed in the catalog below; the
+wire is the exact ordered ASCII `format_version=1` body in §6. Each target is
+the named gate target and each review bundle is a five-role aggregate-GO bundle
+whose hash is the body field `review_bundle_sha256`.
+
+| approval schema | exact field closure / wire encoding | producer / validator / stage | tag name / target | review bundle / requirement / AC / test / evidence |
+|---|---|---|---|---|
+| `PhaseFPlanApprovalV1` | §6 plan body fields, fixed order, ASCII plus final LF | independent reviewer / tag validator / plan gate | `ism-mechanism-health-v1-f-plan-approved` / reviewed R7 main | five-role plan review / R7-12 / AC7-12 / T7-12 / EV7-12 |
+| `PhaseFDecisionApprovalV1` | §6 F0 body fields, fixed order, ASCII plus final LF | independent reviewer / tag validator / F0 gate | `ism-mechanism-health-v1-f-f0-decisions-approved` / reviewed F0 main | five-role F0 review / R7-12 / AC7-12 / T7-12 / EV7-12 |
+| `PhaseFReadinessApprovalV1` | §6 readiness body fields, fixed order, ASCII plus final LF | independent reviewer / tag validator / readiness gate | `ism-mechanism-health-v1-f-readiness-approved` / integrated checker | five-role readiness review / R7-12 / AC7-12 / T7-12 / EV7-12 |
+| `PhaseFAuthorityEnrollmentApprovalV1` | §6 enrollment body fields, fixed order, ASCII plus final LF | independent reviewer / tag validator / enrollment gate | `ism-mechanism-health-v1-f-authority-enrollment-approved` / readiness main | five-role enrollment review / R7-12 / AC7-12 / T7-12 / EV7-12 |
+| `PhaseFTrustProvisioningApprovalV1` | §6 trust body fields, fixed order, ASCII plus final LF | independent reviewer / tag validator / trust gate | `ism-mechanism-health-v1-f-trust-provisioning-approved` / integrated F3 main | five-role trust review / R7-12 / AC7-12 / T7-12 / EV7-12 |
+| `PhaseFPhysicalReleaseApprovalV1` | §6 physical-release body fields, fixed order, ASCII plus final LF | independent reviewer / tag validator / physical-release gate | `ism-mechanism-health-v1-f-physical-validation-released` / final F4/F5 main | five-role release review / R7-12 / AC7-12 / T7-12 / EV7-12 |
 
 `PhaseFScientificAdmissibilityAuditV1` is exactly
 `schema_version,scientific_admissibility_audit_id,protocol_sha256,
@@ -1301,12 +1461,15 @@ object is listed here or in the exact nested-row definition beside it.
 | `PhaseFDecisionBundleV1` | `schema_version:JSON_INTEGER_ONE`; `decision_bundle_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `decisions:NONEMPTY_SORTED_UNIQUE<PhaseFDecisionRowV1>` |
 | `PhaseFProtocolProjectionV1` | plan-only `decision_bundle_sha256:SHA256_V1`; `protocol_toml_sha256:SHA256_V1`; `runtime_protocol:MhiValidationProtocolV1`; `projection_result:PHASE_F_RESULT_V1` |
 | `PhaseFDecisionRowV1` | `decision_id:RUNTIME_STABLE_ID_V1`; `value:PhaseFDecisionValueV1`; `decision_owner_role:PHASE_F_REVIEW_ROLE_V1`; `rationale_document_sha256:SHA256_V1` |
-| `PhaseFIndependentReviewBundleV1` | `schema_version:JSON_INTEGER_ONE`; `review_bundle_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `review_target_kind:PHASE_F_REVIEW_TARGET_KIND_V1`; `review_target_sha256:SHA256_V1|null`; `review_target_git_sha:GIT_SHA_V1`; `reviews:NONEMPTY_SORTED_UNIQUE<PhaseFIndependentReviewV1>`; `aggregate_p0_count:CANONICAL_UNSIGNED_INTEGER_V1`; `aggregate_p1_count:CANONICAL_UNSIGNED_INTEGER_V1`; `aggregate_decision:PHASE_F_DECISION_V1` |
-| `PhaseFIndependentReviewV1` | `role:PHASE_F_REVIEW_ROLE_V1`; `review_instance_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `decision:PHASE_F_DECISION_V1`; `p0_count:CANONICAL_UNSIGNED_INTEGER_V1`; `p1_count:CANONICAL_UNSIGNED_INTEGER_V1`; `finding_ids:SORTED_UNIQUE<RUNTIME_STABLE_ID_V1>`; `review_artifact_reference:PhaseFObjectReferenceV1` |
+| `PhaseFReviewTargetV1` | tagged union: `{type:"git_commit",git_sha:GIT_SHA_V1}` or `{type:"external_object",object_kind:PHASE_F_OBJECT_KIND_V1,object_sha256:SHA256_V1}` |
+| `PhaseFIndependentReviewBundleV1` | `schema_version:JSON_INTEGER_ONE`; `review_bundle_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `target:PhaseFReviewTargetV1`; `reviews:NONEMPTY_SORTED_UNIQUE<PhaseFIndependentReviewV1>`; `aggregate_p0_count:CANONICAL_UNSIGNED_INTEGER_V1`; `aggregate_p1_count:CANONICAL_UNSIGNED_INTEGER_V1`; `aggregate_decision:PHASE_F_DECISION_V1` |
+| `PhaseFIndependentReviewV1` | `role:PHASE_F_REVIEW_ROLE_V1`; `decision:PHASE_F_DECISION_V1`; `p0_count:CANONICAL_UNSIGNED_INTEGER_V1`; `p1_count:CANONICAL_UNSIGNED_INTEGER_V1`; `finding_ids:SORTED_UNIQUE<RUNTIME_STABLE_ID_V1>`; `review_artifact_reference:PhaseFObjectReferenceV1` |
 | `PhaseFAuthorityEnrollmentV1` | `schema_version:JSON_INTEGER_ONE`; `enrollment_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `phase_f_plan_tag:PHASE_F_TAG_NAME_V1`; `f0_decisions_tag:PHASE_F_TAG_NAME_V1`; `readiness_tag:PHASE_F_TAG_NAME_V1`; `owner_authority_id:RUNTIME_STABLE_ID_V1`; `registry_authority_id:RUNTIME_STABLE_ID_V1`; `owner_public_key:ED25519_PUBLIC_KEY_V1`; `registry_public_key:ED25519_PUBLIC_KEY_V1`; `owner_public_key_fingerprint:SHA256_V1`; `registry_public_key_fingerprint:SHA256_V1`; `owner_authority_document:PhaseFObjectReferenceV1`; `registry_authority_document:PhaseFObjectReferenceV1`; `custody_policy_sha256:SHA256_V1`; `created_at:UTC_SECOND_TIMESTAMP_V1` |
 | `PhaseFCheckerBuildEvidenceV1` | `schema_version:JSON_INTEGER_ONE`; `build_evidence_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `build_ordinal:PHASE_F_CHECKER_BUILD_ORDINAL_V1`; `checker_source_review_sha:GIT_SHA_V1`; `checker_source_tree:GIT_TREE_V1`; `checker_dependency_lock_sha256:SHA256_V1`; `rustc_version:RUNTIME_CANONICAL_TEXT_V1`; `cargo_version:RUNTIME_CANONICAL_TEXT_V1`; `macos_uname:RUNTIME_CANONICAL_TEXT_V1`; `macos_arch:RUNTIME_CANONICAL_TEXT_V1`; `macos_product_version:RUNTIME_CANONICAL_TEXT_V1`; `macos_build_version:RUNTIME_CANONICAL_TEXT_V1`; `environment:SORTED_UNIQUE<PhaseFEnvironmentEntryV1>`; `build_command:RUNTIME_CANONICAL_TEXT_V1`; `build_transcript_sha256:SHA256_V1`; `checker_binary_sha256:SHA256_V1`; `fresh_source_directory:BOOLEAN_V1`; `fresh_target_directory:BOOLEAN_V1`; `fresh_home:BOOLEAN_V1`; `fresh_cargo_home:BOOLEAN_V1`; `cargo_home_config_absent:BOOLEAN_V1`; `result:PHASE_F_BUILD_RESULT_V1` |
 | `PhaseFCheckerReadinessEvidenceV1` | `schema_version:JSON_INTEGER_ONE`; `readiness_evidence_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `build1_sha256:SHA256_V1`; `build2_sha256:SHA256_V1`; `checker_source_review_sha:GIT_SHA_V1`; `checker_source_tree:GIT_TREE_V1`; `checker_dependency_lock_sha256:SHA256_V1`; `checker_binary_sha256:SHA256_V1`; `f_maint_01_status:PHASE_F_MAINTENANCE_STATUS_V1`; `f_maint_02_status:PHASE_F_MAINTENANCE_STATUS_V1`; `result:PHASE_F_BUILD_RESULT_V1` |
 | `PhaseFCheckerReportV1` | `schema_version:JSON_INTEGER_ONE`; `checker_binary_sha256:SHA256_V1`; `command:PhaseFCommandV1`; `argv:PhaseFArgvV1`; `input_sha256s:SORTED_UNIQUE<PhaseFNamedDigestV1>`; `decision:PHASE_F_CHECKER_DECISION_V1`; `diagnostic_codes:SORTED_UNIQUE<DIAGNOSTIC_CODE_V1>`; `stdout:PhaseFCheckerStdoutV1`; `exit_code:PhaseFCheckerExitCodeV1` |
+| `PhaseFCommandV1` | verify: `{name:"verify",kind:PHASE_F_OBJECT_KIND_V1,input:PATH_V1,context_dir:PATH_V1,report:PATH_V1}`; claim-status: `{name:"claim-status",release:PATH_V1,context_dir:PATH_V1,registry_head_uri:LIVE_REGISTRY_HEAD_URI_V1,now:UTC_SECOND_TIMESTAMP_V1,report:PATH_V1,prior_head:PATH_V1|null,registry_compromised_emergency:PATH_V1|null,registry_compromised_review:PATH_V1|null,registry_compromised_commit:GIT_SHA_V1|null}`; emergency fields all null or all non-null |
+| `PhaseFArgvV1` | exact ordered array derived from `PhaseFCommandV1`; prior-head pair precedes the emergency path/review/commit triples |
 | `PhaseFRegistryRelationV1` | `relation_type:PHASE_F_RELATION_TYPE_V1`; `object_kind:PHASE_F_OBJECT_KIND_V1`; `object_sha256:SHA256_V1` |
 | `PhaseFRegistryRecordV1` | `schema_version:JSON_INTEGER_ONE`; `registry_namespace_id:RUNTIME_STABLE_ID_V1`; `registry_authority_id:RUNTIME_STABLE_ID_V1`; `sequence:CANONICAL_UNSIGNED_INTEGER_V1`; `predecessor_record_sha256:SHA256_V1|null`; `record_kind:PHASE_F_REGISTRY_RECORD_KIND_V1`; `subject_id:PHASE_F_SUBJECT_ID_V1`; `subject_sha256:SHA256_V1`; `relations:SORTED_UNIQUE<PhaseFRegistryRelationV1>`; `created_at:UTC_SECOND_TIMESTAMP_V1`; `registry_key_fingerprint:SHA256_V1`; `signature:ED25519_SIGNATURE_V1` |
 | `PhaseFRegistryHeadV1` | `schema_version:JSON_INTEGER_ONE`; `registry_namespace_id:RUNTIME_STABLE_ID_V1`; `registry_authority_id:RUNTIME_STABLE_ID_V1`; `sequence:CANONICAL_UNSIGNED_INTEGER_V1`; `registry_record_sha256:SHA256_V1`; `issued_at:UTC_SECOND_TIMESTAMP_V1`; `valid_until:UTC_SECOND_TIMESTAMP_V1`; `registry_key_fingerprint:SHA256_V1`; `signature:ED25519_SIGNATURE_V1` |
@@ -1330,7 +1493,7 @@ object is listed here or in the exact nested-row definition beside it.
 | `PhaseFPowerMethodInterfaceV1` | `schema_version:JSON_INTEGER_ONE`; `power_method_interface_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `power_method_id:RUNTIME_STABLE_ID_V1`; `power_method_version:RUNTIME_CANONICAL_TEXT_V1`; `method_document_sha256:SHA256_V1`; `primary_metric_ids:SORTED_UNIQUE<RUNTIME_STABLE_ID_V1>`; `parameter_specs:NONEMPTY_SORTED_UNIQUE<PhaseFParameterSpecV1>`; `required_sensitivity_case_ids:SORTED_UNIQUE<RUNTIME_STABLE_ID_V1>`; `output_spec:NONEMPTY_SORTED_UNIQUE<PhaseFOutputSpecV1>` |
 | `PhaseFParameterSpecV1` | `parameter_id:RUNTIME_STABLE_ID_V1`; `value_type:PHASE_F_VALUE_TYPE_V1`; `unit_rule:PhaseFUnitRuleV1`; `required:BOOLEAN_V1`; `range_rule:PhaseFRangeRuleV1` |
 | `PhaseFOutputSpecV1` | `output_id:RUNTIME_STABLE_ID_V1`; `value_type:PHASE_F_VALUE_TYPE_V1`; `unit_rule:PhaseFUnitRuleV1`; `range_rule:PhaseFRangeRuleV1` |
-| `PhaseFPowerAnalysisRecordV1` | `schema_version:JSON_INTEGER_ONE`; `power_analysis_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `power_method_id:RUNTIME_STABLE_ID_V1`; `power_method_version:RUNTIME_CANONICAL_TEXT_V1`; `power_method_interface_sha256:SHA256_V1`; `software_source_sha:GIT_SHA_V1`; `software_binary_sha256:SHA256_V1`; `parameters:NONEMPTY_SORTED_UNIQUE<PhaseFParameterValueRowV1>`; `sensitivity_cases:SORTED_UNIQUE<PhaseFSensitivityCaseV1>`; `outputs:NONEMPTY_SORTED_UNIQUE<PhaseFPowerOutputValueV1>`; `created_at:UTC_SECOND_TIMESTAMP_V1` |
+| `PhaseFPowerAnalysisRecordV1` | `schema_version:JSON_INTEGER_ONE`; `power_analysis_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `power_method_id:RUNTIME_STABLE_ID_V1`; `power_method_version:RUNTIME_CANONICAL_TEXT_V1`; `power_method_interface_sha256:SHA256_V1`; `software_source_sha:GIT_SHA_V1`; `software_binary_sha256:SHA256_V1`; `parameters:NONEMPTY_SORTED_UNIQUE<PhaseFParameterValueRowV1>`; `sensitivity_cases:SORTED_UNIQUE<PhaseFSensitivityCaseV1>`; `outputs:NONEMPTY_SORTED_UNIQUE<PhaseFPowerOutputValueV1>`; `created_at:UTC_SECOND_TIMESTAMP_V1`; complete file reviewed before registration |
 | `PhaseFParameterValueRowV1` | `parameter_id:RUNTIME_STABLE_ID_V1`; `value:PHASE_F_PARAMETER_VALUE_V1` |
 | `PhaseFSensitivityCaseV1` | `case_id:RUNTIME_STABLE_ID_V1`; `parameter_overrides:NONEMPTY_SORTED_UNIQUE<PhaseFSensitivityOverrideV1>`; `outputs:NONEMPTY_SORTED_UNIQUE<PhaseFPowerOutputValueV1>` |
 | `PhaseFSensitivityOverrideV1` | `parameter_id:RUNTIME_STABLE_ID_V1`; `value:PHASE_F_PARAMETER_VALUE_V1` |
@@ -1338,8 +1501,8 @@ object is listed here or in the exact nested-row definition beside it.
 | `PhaseFMetrologyPolicyV1` | `schema_version:JSON_INTEGER_ONE`; `metrology_policy_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `endpoint_policies:NONEMPTY_SORTED_UNIQUE<PhaseFEndpointMetrologyPolicyV1>` |
 | `PhaseFEndpointMetrologyPolicyV1` | `endpoint_id:RUNTIME_STABLE_ID_V1`; `reference_type:PHASE_F_REFERENCE_TYPE_V1`; `allowed_methods:NONEMPTY_SORTED_UNIQUE<PhaseFMethodVersionV1>`; `allowed_authority_ids:NONEMPTY_SORTED_UNIQUE<RUNTIME_STABLE_ID_V1>`; `measurand_id:RUNTIME_STABLE_ID_V1`; `result_unit:UNIT_TEXT_V1`; `blinding_requirement:blinded_to_assessment`; `uncertainty_policy:PhaseFUncertaintyPolicyV1`; `lod_loq_policy:PhaseFLODLOQPolicyV1`; `calibration_policy:PhaseFCheckListV1`; `qc_policy:PhaseFCheckListV1`; `chain_of_custody_required:true`; `traceability_document_required:true`; `limitations_document_required:true` |
 | `PhaseFMethodVersionV1` | `method_id:RUNTIME_STABLE_ID_V1`; `method_version:RUNTIME_CANONICAL_TEXT_V1` |
-| `PhaseFMetrologyCheckSpecV1` | `check_id:RUNTIME_STABLE_ID_V1`; `check_kind:PHASE_F_CHECK_KIND_V1`; `method_id:RUNTIME_STABLE_ID_V1`; `method_version:RUNTIME_CANONICAL_TEXT_V1`; `authority_id:RUNTIME_STABLE_ID_V1`; `procedure_document:PhaseFObjectReferenceV1`; `measurand_id:RUNTIME_STABLE_ID_V1`; `result_unit:UNIT_TEXT_V1`; `comparator:greater_than_or_equal|less_than_or_equal`; `threshold:RUNTIME_F64_V1`; `failure_action:PHASE_F_DEVIATION_ACTION_V1` |
-| `PhaseFMetrologyCheckResultV1` | `schema_version:JSON_INTEGER_ONE`; `check_result_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `check_id:RUNTIME_STABLE_ID_V1`; `reference_source_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `performed_at:UTC_SECOND_TIMESTAMP_V1`; `method_id:RUNTIME_STABLE_ID_V1`; `method_version:RUNTIME_CANONICAL_TEXT_V1`; `authority_id:RUNTIME_STABLE_ID_V1`; `measurand_id:RUNTIME_STABLE_ID_V1`; `value:RUNTIME_F64_V1`; `unit:UNIT_TEXT_V1`; `result:PHASE_F_CHECK_RESULT_V1` |
+| `PhaseFMetrologyCheckSpecV1` | `endpoint_id:RUNTIME_STABLE_ID_V1`; `check_id:RUNTIME_STABLE_ID_V1`; `check_kind:PHASE_F_CHECK_KIND_V1`; `method_id:RUNTIME_STABLE_ID_V1`; `method_version:RUNTIME_CANONICAL_TEXT_V1`; `authority_id:RUNTIME_STABLE_ID_V1`; `procedure_document:PhaseFObjectReferenceV1`; `measurand_id:RUNTIME_STABLE_ID_V1`; `result_unit:UNIT_TEXT_V1`; `comparator:greater_than_or_equal|less_than_or_equal`; `threshold:RUNTIME_F64_V1`; `failure_action:PHASE_F_DEVIATION_ACTION_V1` |
+| `PhaseFMetrologyCheckResultV1` | `schema_version:JSON_INTEGER_ONE`; `check_result_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `endpoint_id:RUNTIME_STABLE_ID_V1`; `metrology_policy_sha256:SHA256_V1`; `check_id:RUNTIME_STABLE_ID_V1`; `reference_source_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `performed_at:UTC_SECOND_TIMESTAMP_V1`; `method_id:RUNTIME_STABLE_ID_V1`; `method_version:RUNTIME_CANONICAL_TEXT_V1`; `authority_id:RUNTIME_STABLE_ID_V1`; `measurand_id:RUNTIME_STABLE_ID_V1`; `value:RUNTIME_F64_V1`; `unit:UNIT_TEXT_V1`; `result:PHASE_F_CHECK_RESULT_V1` |
 | `PhaseFReferenceSourceDescriptorV1` | `schema_version:JSON_INTEGER_ONE`; `reference_source_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `source_file_sha256:SHA256_V1`; `evidence_origin:EvidenceOriginV1`; `dependency_completeness:ReferenceDependencyCompletenessV1`; `experiment_scope:ArtifactExperimentScope`; `acquisition_families:ArtifactAcquisitionFamilies`; `direct_dependencies:SORTED_UNIQUE<ReferenceDependencyV1>` |
 | `PhaseFReferenceResultV1` | `schema_version:JSON_INTEGER_ONE`; `reference_result_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `endpoint_id:RUNTIME_STABLE_ID_V1`; `reference_endpoint_id:RUNTIME_STABLE_ID_V1`; `reference_source_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `reference_source_descriptor_sha256:SHA256_V1`; `reference_type:PHASE_F_REFERENCE_TYPE_V1`; `method_id:RUNTIME_STABLE_ID_V1`; `method_version:RUNTIME_CANONICAL_TEXT_V1`; `authority_id:RUNTIME_STABLE_ID_V1`; `blinding_state:BlindingStateV1`; `uncertainty:PhaseFQuantifiedUncertaintyV1`; `limitations:SORTED_UNIQUE<RUNTIME_CANONICAL_TEXT_V1>`; `limitations_document_sha256:SHA256_V1`; `traceability_document_sha256:SHA256_V1`; `chain_of_custody_sha256:SHA256_V1`; mechanism branch adds `hypothesis_id:RUNTIME_STABLE_ID_V1,outcome:supports|contradicts|not_assessed|unavailable`; health branch adds `target:HealthTargetV1,label:RUNTIME_CANONICAL_TEXT_V1` |
 | `PhaseFScientificAdmissibilityAuditV1` | `schema_version:JSON_INTEGER_ONE`; `scientific_admissibility_audit_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `protocol_sha256:SHA256_V1`; `package_manifest_sha256:SHA256_V1`; `dependency_audit_sha256:SHA256_V1`; `identity_audit_sha256:SHA256_V1`; `reference_assessments:NONEMPTY_SORTED_UNIQUE<PhaseFReferenceAssessmentV1>`; `reviewer_role:scientific_metrology`; `result:PHASE_F_RESULT_V1` |
@@ -1347,24 +1510,34 @@ object is listed here or in the exact nested-row definition beside it.
 | `PhaseFCohortLockRecordV1` | `schema_version:JSON_INTEGER_ONE`; `cohort_lock_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `protocol_sha256:SHA256_V1`; `package_manifest_sha256:SHA256_V1`; `power_analysis_sha256:SHA256_V1`; `dependency_audit_sha256:SHA256_V1`; `physical_unit_ledger_sha256:SHA256_V1`; `identity_audit_sha256:SHA256_V1`; `location_ledger_sha256:SHA256_V1`; `chain_of_custody_sha256:SHA256_V1`; `deviation_ledger_sha256:SHA256_V1`; `metrology_policy_sha256:SHA256_V1`; `scientific_admissibility_audit_sha256:SHA256_V1`; `reference_result_sha256s:SORTED_UNIQUE<SHA256_V1>`; `reference_source_descriptor_sha256s:SORTED_UNIQUE<SHA256_V1>`; `locked_at:UTC_SECOND_TIMESTAMP_V1` |
 | `PhaseFExecutionRecordV1` | `schema_version:JSON_INTEGER_ONE`; `execution_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `cohort_lock_record_sha256:SHA256_V1`; `owner_approval_file_sha256:SHA256_V1`; `protocol_sha256:SHA256_V1`; `deviation_ledger_sha256:SHA256_V1`; `release_code_sha:GIT_SHA_V1`; `checker_binary_sha256:SHA256_V1`; `validation_manifest_sha256:SHA256_V1`; `started_at:UTC_SECOND_TIMESTAMP_V1`; `completed_at:UTC_SECOND_TIMESTAMP_V1`; `result:PHASE_F_RESULT_V1` |
 | `PhaseFReleaseRecordV1` | `schema_version:JSON_INTEGER_ONE`; `release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `claim_id:RUNTIME_STABLE_ID_V1`; `claim_statement:RUNTIME_CANONICAL_TEXT_V1`; `release_code_sha:GIT_SHA_V1`; `protocol_sha256:SHA256_V1`; `cohort_lock_record_sha256:SHA256_V1`; `owner_approval_file_sha256:SHA256_V1`; `execution_record_sha256:SHA256_V1`; `validation_manifest_sha256:SHA256_V1`; `monitoring_policy_sha256:SHA256_V1`; `metrology_policy_sha256:SHA256_V1`; `valid_from:UTC_SECOND_TIMESTAMP_V1`; `valid_until:UTC_SECOND_TIMESTAMP_V1`; `limitations:SORTED_UNIQUE<RUNTIME_CANONICAL_TEXT_V1>` |
-| `PhaseFClaimStateRecordV1` | `schema_version:JSON_INTEGER_ONE`; `claim_state_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `claim_id:RUNTIME_STABLE_ID_V1`; `release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `previous_claim_state_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1|null`; `state:PHASE_F_CLAIM_STATE_V1`; `reason_code:PHASE_F_CLAIM_REASON_V1`; `effective_at:UTC_SECOND_TIMESTAMP_V1`; `superseding_release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1|null`; `activation_review_bundle_sha256:SHA256_V1|null`; `reinstatement_approval_sha256:SHA256_V1|null`; `limitations:SORTED_UNIQUE<RUNTIME_CANONICAL_TEXT_V1>` |
+| `PhaseFClaimStateRecordV1` | `schema_version:JSON_INTEGER_ONE`; `claim_state_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `claim_id:RUNTIME_STABLE_ID_V1`; `release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `previous_claim_state_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1|null`; `state:PHASE_F_CLAIM_STATE_V1`; `reason_code:PHASE_F_CLAIM_REASON_V1`; `cause_incident_sha256:SHA256_V1|null`; `effective_at:UTC_SECOND_TIMESTAMP_V1`; `superseding_release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1|null`; `activation_review_bundle_sha256:SHA256_V1|null`; `reinstatement_approval_sha256:SHA256_V1|null`; `limitations:SORTED_UNIQUE<RUNTIME_CANONICAL_TEXT_V1>` |
 | `PhaseFReinstatementApprovalV1` | `schema_version:JSON_INTEGER_ONE`; `reinstatement_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `claim_id:RUNTIME_STABLE_ID_V1`; `suspended_state_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `suspension_reason:PHASE_F_CLAIM_REASON_V1`; `required_corrective_action:RUNTIME_CANONICAL_TEXT_V1`; `corrective_evidence_sha256s:SORTED_UNIQUE<SHA256_V1>`; `execution_record_sha256:SHA256_V1`; `review_bundle_sha256:SHA256_V1` |
 | `PhaseFMonitoringPolicyV1` | `schema_version:JSON_INTEGER_ONE`; `monitoring_policy_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `monitoring_interval_seconds:DURATION_SECONDS_V1`; `required_metrics:FIXED_ORDER<PHASE_F_MONITORING_METRIC_V1>`; `metric_thresholds:SORTED_UNIQUE<PhaseFMetricThresholdV1>`; `missing_monitoring_action:suspend`; `domain_breach_action:suspend`; `reference_qc_breach_action:suspend` |
 | `PhaseFMetricThresholdV1` | `metric_id:PHASE_F_MONITORING_NUMERIC_METRIC_V1`; `comparator:greater_than_or_equal|less_than_or_equal`; `value:RUNTIME_F64_V1`; `unit:UNIT_TEXT_V1|null` |
 | `PhaseFMonitoringRecordV1` | `schema_version:JSON_INTEGER_ONE`; `monitoring_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `claim_id:RUNTIME_STABLE_ID_V1`; `window_start:UTC_SECOND_TIMESTAMP_V1`; `window_end:UTC_SECOND_TIMESTAMP_V1`; `policy_sha256:SHA256_V1`; `measurements:NONEMPTY_SORTED_UNIQUE<PhaseFMonitoringMeasurementV1>`; `breaches:SORTED_UNIQUE<PhaseFMonitoringBreachV1>`; `result:PHASE_F_MONITORING_RESULT_V1` |
-| `PhaseFMonitoringMeasurementV1` | `metric_id:PHASE_F_MONITORING_METRIC_V1`; `value:PhaseFMonitoringValueV1` |
-| `PhaseFMonitoringBreachV1` | `metric_id:PHASE_F_MONITORING_METRIC_V1`; `breach_code:PHASE_F_BREACH_CODE_V1`; `evidence_sha256:SHA256_V1` |
+| `PhaseFMonitoringMeasurementV1` | `metric_id:PHASE_F_MONITORING_METRIC_V1`; `value:PhaseFMonitoringValueV1`; `evidence_sha256:SHA256_V1` |
+| `PhaseFMonitoringBreachV1` | `metric_id:PHASE_F_MONITORING_METRIC_V1`; `breach_code:PHASE_F_BREACH_CODE_V1` |
 | `PhaseFIncidentScopeV1` | tagged union: `{type:"release",release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1}` or `{type:"campaign",campaign_id:RUNTIME_STABLE_ID_V1}` or `{type:"registry_namespace",registry_namespace_id:RUNTIME_STABLE_ID_V1}` |
 | `PhaseFIncidentRecordV1` | `schema_version:JSON_INTEGER_ONE`; `incident_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `scope:PhaseFIncidentScopeV1`; `incident_type:PHASE_F_INCIDENT_TYPE_V1`; `detected_at:UTC_SECOND_TIMESTAMP_V1`; `affected_object_sha256s:SORTED_UNIQUE<PhaseFObjectDigestV1>`; `affected_unit_ids:SORTED_UNIQUE<RUNTIME_STABLE_ID_V1>`; `evidence_references:SORTED_UNIQUE<PhaseFObjectReferenceV1>`; `required_action:PHASE_F_INCIDENT_ACTION_V1`; `incident_status:PHASE_F_INCIDENT_STATUS_V1` |
-| `PhaseFRetentionAuditV1` | `schema_version:JSON_INTEGER_ONE`; `retention_audit_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `policy_sha256:SHA256_V1`; `audited_at:UTC_SECOND_TIMESTAMP_V1`; `object_checks:NONEMPTY_SORTED_UNIQUE<PhaseFRetentionObjectCheckV1>`; `result:PHASE_F_RESULT_V1` |
+| `PhaseFRetentionScopeV1` | tagged union: `{type:"release",release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1}` or `{type:"campaign",campaign_id:RUNTIME_STABLE_ID_V1,package_manifest_sha256:SHA256_V1}` |
+| `PhaseFRetentionAuditV1` | `schema_version:JSON_INTEGER_ONE`; `retention_audit_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `scope:PhaseFRetentionScopeV1`; `policy_sha256:SHA256_V1`; `audited_at:UTC_SECOND_TIMESTAMP_V1`; `object_checks:NONEMPTY_SORTED_UNIQUE<PhaseFRetentionObjectCheckV1>`; `result:PHASE_F_RESULT_V1` |
 | `PhaseFRetentionObjectCheckV1` | `object_sha256:PhaseFObjectDigestV1`; `primary_available:BOOLEAN_V1`; `primary_verified:BOOLEAN_V1`; `verified_backup_count:CANONICAL_UNSIGNED_INTEGER_V1`; `last_backup_verification_at:UTC_SECOND_TIMESTAMP_V1`; `result:PHASE_F_RESULT_V1` |
 | `PhaseFF5ReleaseCandidateV1` | `schema_version:JSON_INTEGER_ONE`; `f5_candidate_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `release_record_sha256:SHA256_V1`; `initial_claim_state_sha256:SHA256_V1`; `execution_record_sha256:SHA256_V1`; `cohort_lock_record_sha256:SHA256_V1`; `owner_approval_file_sha256:SHA256_V1`; `validation_manifest_sha256:SHA256_V1`; `trust_store_sha256:SHA256_V1`; `release_code_sha:GIT_SHA_V1`; `package_manifest_sha256:SHA256_V1`; `monitoring_policy_sha256:SHA256_V1`; `metrology_policy_sha256:SHA256_V1` |
-| `PhaseFRegistryCompromiseEmergencyV1` | `schema_version:JSON_INTEGER_ONE`; `emergency_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `registry_namespace_id:RUNTIME_STABLE_ID_V1`; `incident_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `declared_at:UTC_SECOND_TIMESTAMP_V1`; `affected_claim_ids:NONEMPTY_SORTED_UNIQUE<RUNTIME_STABLE_ID_V1>`; `incident_record_sha256:SHA256_V1`; `review_bundle_sha256:SHA256_V1`; `repository_commit_sha:GIT_SHA_V1`; `repository_blob:GIT_BLOB_V1`; `action:suspend_all_active_claims` |
+| `PhaseFRegistryCompromiseEmergencyV1` | `schema_version:JSON_INTEGER_ONE`; `emergency_id:PHASE_F_EXTERNAL_DIGEST_ID_V1`; `registry_namespace_id:RUNTIME_STABLE_ID_V1`; `incident_record_sha256:SHA256_V1`; `declared_at:UTC_SECOND_TIMESTAMP_V1`; `affected_claim_ids:NONEMPTY_SORTED_UNIQUE<RUNTIME_STABLE_ID_V1>`; `action:suspend_all_active_claims` |
 
 The aliases used by this audit are defined exactly in §§2, 3, 5, 7, 9-15;
 there is no free-form `string`, `integer`, `hash`, `value`, `status`, `policy`,
 `record`, `document`, `object`, `relation`, or `role` field. The audit result is
 `UNTYPED_NORMATIVE_FIELDS=0`.
+
+For the readiness object, the field closure includes
+`readiness_evidence_id`; the construction is semantic payload -> derived ID ->
+complete file -> file SHA. For claim state, `cause_incident_sha256` is
+`SHA256_V1|null` with the reason-specific nullability in §14. For monitoring,
+the measurement closure includes `evidence_sha256` and the breach closure does
+not. For retention, the audit closure includes `scope:PhaseFRetentionScopeV1`
+and never a top-level release ID. These are normative catalog entries, not
+prose-only obligations.
 
 ## 17. Valid object construction order
 
@@ -1373,11 +1546,11 @@ there is no free-form `string`, `integer`, `hash`, `value`, `status`, `policy`,
 | F0 decision bundle | F0 values, JCS, exact 20 IDs | §3; unsigned | hash; review/tag; protocol |
 | review bundle | target bytes/commit, five rows, JCS | §3; unsigned | hash; tag `review_bundle_sha256`; approval tag |
 | approval tag | exact annotated message/peeled target | no ID/signature | `git_tag_message` hash; preceding refs; next gate |
-| checker readiness | two fresh builds/closed env/transcript | no ID in body | binary hash; readiness review/tag; enrollment |
+| checker readiness | two fresh builds/closed env/transcript; construct semantic payload first | semantic payload -> `readiness_evidence_id` using `mhi_phase_f_checker_readiness_evidence_v1\0` | complete readiness-evidence file hash; readiness review/tag; enrollment |
 | authority enrollment | F0 IDs, readiness, key bytes, JCS | §3; intentionally unsigned | hash; enrollment tag; genesis |
 | registry genesis | enrollment/F0 authority, sequence 0 | §8 signing bytes | signed hash; authority_enrolled; protocol |
 | protocol registration | exact TOML/registration document | runtime protocol ID | hash; protocol_registered; power |
-| power method/analysis | reviewed interface then typed values | §3 IDs | hashes; power_registered; package |
+| power method/analysis | F0 method ID/version only; F1 interface; typed values; complete analysis before review | §3 IDs | interface hash; analysis hash; five-role review target equals analysis hash; `power_registered` with review relation; package |
 | package/physical/custody/metrology | retrieved objects, role matrix, audits | §3 IDs | hashes; package relations; cohort |
 | scientific audit | package/dependency/identity/ref assessments | §3 audit ID | hash; scientific_admissibility; cohort |
 | cohort lock | exact prior hashes/lock time | §3 cohort ID | hash; cohort_locked; owner approval |
@@ -1387,8 +1560,10 @@ there is no free-form `string`, `integer`, `hash`, `value`, `status`, `policy`,
 | release record | semantic release payload excluding only `release_record_id` | §3 release ID | complete release-file hash; later `release_registered` subject is release ID/file hash; state |
 | F5 candidate | frozen release/evidence hashes and exact candidate fields | §5.1 candidate ID | complete candidate-file hash; five-role F5 review bundle |
 | initial active state | release/no prior/initial_release plus exact F5 `activation_review_bundle_sha256` | §3 claim-state ID | complete state-file hash; later `claim_state_changed` subject is state ID/file hash |
-| monitoring pass | correct window/all metrics/recomputed pass | §3 monitoring ID | complete monitoring-file hash; later `monitoring_recorded` subject is monitoring ID/file hash |
+| monitoring pass | exact 15 metrics, typed values, evidence SHA for every measurement, evidence verification, recomputed pass | §3 monitoring ID | complete monitoring-file hash; later `monitoring_recorded` subject is monitoring ID/file hash |
 | incident | verified evidence/exact consequence | §3 incident ID | hash; incident_recorded; suspension |
+| registry-compromise emergency | incident file complete -> emergency file with incident SHA -> five-role review targeting emergency file SHA -> later commit at deterministic paths | emergency ID excludes only own ID; no Git identity in file | local emergency/review bytes and later commit SHA are supplied separately; claim-status verifies tree and bytes -> NOT_ACTIVE |
+| campaign retention | campaign package/manifest exists before release -> campaign-scoped audit -> reviewed abandonment incident -> deadline | §3 audit/incident IDs | campaign retention audit uses package-manifest relation and no release ID |
 | suspension | incident/monitoring evidence/legal transition | §3 state ID | pointer then hash; state; remediation |
 | reinstatement | permitted trigger/five GO/corrective evidence | §3 reinstatement ID | hash; state dependency; active state |
 | retention audit | object hashes/primary-backup verification/policy | §3 audit ID | hash; retention_audited; next audit |
@@ -1410,7 +1585,7 @@ the final review bundle is complete. It binds independently:
 `initial_claim_state_record_id`, `initial_claim_state_file_sha256`,
 `initial_claim_state_registry_record_sha256`, and `review_bundle_sha256`.
 
-## 18. R6 positive controls and complete DAG construction audit
+## 18. R7 positive controls and complete DAG construction audit
 
 The foundational external-authority DAG is frozen as:
 
@@ -1445,12 +1620,35 @@ registry record -> state registry record -> final release tag; monitoring PASS
 -> monitoring registry record -> live fresh head -> ACTIVE. No step requires a
 future object hash, future tag, future registry record, or undefined decision.
 
-The ten mandatory positive-path probes are constructible before counterexample
-review: release, state, and monitoring files each complete before their own
-registry record; deviation revision ID is one-way from stable ledger ID;
-F5 review precedes initial-state registration; initial ACTIVE precedes first
-monitoring due; and a reference result projects exactly to the current runtime
-endpoint. Failure of any probe is P1.
+The complete R7 audit sequence is also explicit for exceptional paths:
+
+```text
+PLAN -> plan review -> plan tag
+F0 -> decision bundle -> review -> F0 tag
+READINESS -> build evidence -> readiness evidence -> review -> readiness tag
+ENROLLMENT -> review -> enrollment tag -> genesis
+F1 -> protocol -> power interface -> power analysis -> power review -> registry
+F2 -> package/scientific/metrology authority -> cohort lock
+F3 -> owner approval -> trust
+F4 -> execution
+F5 -> release -> candidate -> review -> initial ACTIVE state -> registries -> tag
+OPERATIONS -> monitoring PASS -> registry -> live head -> ACTIVE
+EMERGENCY -> incident -> emergency file -> review -> later Git commit -> NOT_ACTIVE
+PRE-RELEASE RETENTION -> campaign audit -> abandonment incident -> deadline
+```
+
+No edge in this sequence requires a future object hash, self Git identity,
+untyped review target, missing monitoring evidence, or a release ID before a
+release exists. Therefore `COMPLETE_VALID_DAG_CONSTRUCTIBLE=yes` and
+`POSITIVE_PATH_CONSTRUCTION_AMBIGUITIES=0`.
+
+The R7 positive-path probes are constructible before counterexample review:
+release, state, monitoring, emergency, and retention files each complete before
+their later attestations; deviation revision ID is one-way from stable ledger
+ID; F5 review precedes initial-state registration; initial ACTIVE precedes first
+monitoring due; power analysis review precedes `power_registered`; and a
+reference result projects exactly to the current runtime endpoint. Failure of
+any probe is P1.
 
 Monitoring KAT: for initial ACTIVE at `T0` with interval `3600`, no record at
 `T0+100`, `T0+1800`, and `T0+3599` is CURRENT; no accepted PASS at `T0+3600` is OVERDUE
@@ -1473,6 +1671,86 @@ abandonment incident uses campaign scope and needs no release ID. A post-release
 monitoring breach uses release scope; until its suspension state is present,
 claim-status is NOT_ACTIVE even if the latest ACTIVE state remains in the
 registry.
+
+### 18.1 R7 positive controls
+
+Monitoring PASS control: use `release_001`, policy `policy_001`,
+`window_start=2026-01-01T00:00:00Z`, `window_end=2026-01-01T00:30:00Z`, and a
+due boundary after the window. Construct exactly these 15 measurement rows,
+each with the named typed value and a present, immutable evidence object:
+In this fixture, every `<...>` denotes a concrete value already materialized
+in the named context (not an omitted member); all five thresholds are exact
+`less_than_or_equal` comparisons to binary64 `1` and all five numeric values
+are binary64 `0` (`decimal:"0",binary64_bits_hex:"0000000000000000"`).
+
+| metric | typed passing value | evidence object |
+|---|---|---|
+| `domain_compliance` | `{type:"status",value:"compliant"}` | domain QC result |
+| `reference_qc_status` | `{type:"status",value:"pass"}` | reference QC result |
+| `calibration_status` | `{type:"status",value:"pass"}` | calibration result |
+| `sensor_drift` | `{type:"quantity",value:{decimal:"0",binary64_bits_hex:"0000000000000000"},unit:<policy unit>}` | drift calculation |
+| `invalid_input_rate` | `{type:"rate",value:<RUNTIME_F64_V1>}` | input-quality calculation |
+| `indeterminate_rate` | `{type:"rate",value:<RUNTIME_F64_V1>}` | indeterminate-rate calculation |
+| `data_quality_insufficient_rate` | `{type:"rate",value:<RUNTIME_F64_V1>}` | data-quality calculation |
+| `exclusion_rate` | `{type:"rate",value:<RUNTIME_F64_V1>}` | exclusion calculation |
+| `reference_uncertainty_status` | `{type:"status",value:"within_limit"}` | uncertainty assessment |
+| `software_git_sha` | `{type:"git_sha",value:<GIT_SHA_V1>}` | release build record |
+| `checker_binary_sha256` | `{type:"sha256",value:<SHA256_V1>}` | checker build evidence |
+| `trust_store_sha256` | `{type:"sha256",value:<SHA256_V1>}` | trust-store bytes |
+| `trust_root_id` | `{type:"stable_id",value:<RUNTIME_STABLE_ID_V1>}` | approved trust object |
+| `owner_approval_id` | `{type:"external_digest_id",value:<approval ID>}` | owner approval object |
+| `release_record_id` | `{type:"external_digest_id",value:<release ID>}` | exact release object |
+
+All five numeric values are on the passing side of their exact policy
+comparators. The five binding values equal the exact release authority; all
+15 evidence SHAs resolve and validate; `breaches=[]`, `result=pass`, and
+`window_start < window_end <= due`. The complete monitoring file is hashed,
+then registered by `monitoring_recorded`; this control has no missing evidence
+object and therefore `MONITORING_PASS_CONSTRUCTIBLE=yes`.
+
+Monitoring failure control: keep the complete measurement/evidence set but set
+`domain_compliance` to `out_of_domain`. Recompute exactly
+`breaches=[{metric_id:"domain_compliance",breach_code:"unhealthy_status"}]`
+and `result=suspend`. The evidence remains on the measurement row and is not
+duplicated in the breach row.
+
+Pre-release retention control: with `campaign_id=campaign_001`, a present
+package manifest hash, and no release, construct a PASS
+`PhaseFRetentionAuditV1` with
+`scope={type:"campaign",campaign_id:"campaign_001",
+package_manifest_sha256:<manifest SHA>}`. Register it with exactly
+`authorized_by+decision_bundle` and `references+package_manifest`, with no
+release relation. Add a reviewed `campaign_abandonment` incident; continue
+campaign-scoped audits through `detected_at + retention_seconds`. This path
+passes without constructing a release ID.
+
+Metrology lookup control: place `check_id=qc-01` under endpoint A and endpoint
+B in one policy. Results carry the policy SHA, endpoint ID, and `qc-01`; each
+selects exactly its endpoint's specification and passes. Mutating a result to
+endpoint B while retaining endpoint A's threshold selects the wrong spec and
+is NO-GO.
+
+Power review control: construct and hash the complete F1 analysis, create the
+five-role bundle targeting exactly that analysis file hash, require aggregate
+GO/P0=0/P1=0, and only then create `power_registered` with both
+`authorized_by+independent_review_bundle` and `depends_on+power_method_interface`.
+An analysis registered without that bundle is rejected.
+
+Owner-compromise control: construct a release-scoped `key_compromise` incident,
+then a suspended state with `reason_code=key_compromise` and
+`cause_incident_sha256=<exact incident file SHA>`. Its registry relations are
+exactly `changes_state_of+release_record`, `registered_after+claim_state`, and
+`depends_on+incident_record` naming that SHA. No owner signature is required;
+the registry/governance authority supplies the non-active transition.
+
+Registry-compromise control: complete the incident, emergency file, and
+five-role emergency review in that order. Publish the two already-complete
+files in a later commit at the deterministic digest paths, then pass their
+local paths and commit SHA to claim-status. It verifies ancestry, paths, and
+byte equality and returns `NOT_ACTIVE`; adding the commit SHA to either file
+is a schema failure. This proves
+`REGISTRY_COMPROMISE_GIT_FIXED_POINT_CYCLES=0` and
+`COMPOSITE_REVIEW_TARGET_PATHS=0`.
 
 ## 19. Historical regression repair and traceability substance
 
@@ -1638,14 +1916,16 @@ reviewed architecture supersession, not an unaccounted result change.
 | R2 checker source/binary binding | §7 | R5-05/R5-36; AC5-05/36; T5-05/36; EV5-05/36 | REMEDIATED |
 | R2 monitoring/deviation restoration | §11, §14-15 | R5-17/R5-31/R5-32; AC5-17/31/32; T5-17/31/32; EV5-17/31/32 | REMEDIATED |
 
-The R6 requirements and traceability rows are the canonical operational
-requirements for this document. Each has one primary AC, one test, and one
-evidence item with an executable KAT/transcript and deterministic oracle. Every
-F-OD-01 through F-OD-20 is mapped below; no additional owner decision exists.
+The following R6 requirements and traceability rows are retained as historical
+cross-references only. The current operational authority is the R7 requirement
+set in §19.2. Each historical row has one primary AC, one test, and one
+evidence item; no historical row changes the R7 contract. Every F-OD-01 through
+F-OD-20 is mapped by the current R7 table; no additional owner decision exists.
 
-### 19.1 Executable R6 requirement traceability
+### 19.1 Historical R6 executable requirement traceability
 
-Every row below is normative and contains the complete requirement-to-path
+Every historical R6 row below contains the complete requirement-to-path mapping;
+it is retained for regression accounting, while §19.2 is the current normative
 mapping. `owner_decision_ids` is `none` only when no F0 decision is involved.
 
 | requirement ID | normative statement | owner-decision IDs | external schemas | production/checker path | primary AC ID | test ID(s) | evidence ID(s) | review role | stage |
@@ -1713,11 +1993,118 @@ identity, and acceptance oracle:
 | EV6-10 | incident, retention, emergency Git artifacts | operations/security/live remote | complete hashes plus Git commit/blob | scope and compromise action fail closed |
 | EV6-11 | R6 plan/catalog/KAT transcripts | independent R6 reviewer | plan SHA/blob and transcript identity | all IDs mapped and cases accounted |
 
+### 19.2 Executable R7 requirement traceability
+
+The following current R7 requirements are normative. Each row has one complete
+requirement/AC/test/evidence chain; the detailed tables that follow are part of
+the requirement, not identifier-only cross-references.
+
+| requirement ID | normative statement | F-OD mapping | schemas | stage | review role | primary AC | test | evidence |
+|---|---|---|---|---|---|---|---|---|
+| `R7-01` | Emergency files are complete, reviewed as one external object, and published only by a later Git outer attestation at deterministic paths. | F-OD-14,F-OD-17 | PhaseFIncidentRecordV1, PhaseFRegistryCompromiseEmergencyV1, PhaseFIndependentReviewBundleV1 | emergency/claim-status | security | AC7-01 | T7-01 | EV7-01 |
+| `R7-02` | Every review bundle has exactly one tagged target union: Git commit or external object; external objects never require a Git SHA. | none | PhaseFReviewTargetV1, PhaseFIndependentReviewBundleV1 | all review gates | architecture_data | AC7-02 | T7-02 | EV7-02 |
+| `R7-03` | F0 contains only power method ID/version; F1 constructs and binds the interface before analysis. | F-OD-12 | PhaseFDecisionBundleV1, PhaseFPowerMethodInterfaceV1, PhaseFPowerAnalysisRecordV1 | F0-F1 | scientific_metrology | AC7-03 | T7-03 | EV7-03 |
+| `R7-04` | Every monitoring measurement has a typed value and evidence SHA; PASS is derived only when all evidence verifies. | F-OD-19 | PhaseFMonitoringPolicyV1, PhaseFMonitoringRecordV1, PhaseFMonitoringMeasurementV1, PhaseFMonitoringBreachV1 | F5+ | operations_governance | AC7-04 | T7-04 | EV7-04 |
+| `R7-05` | Review rows use immutable artifact references and role uniqueness; no undefined review-row identity exists. | none | PhaseFIndependentReviewV1, PhaseFIndependentReviewBundleV1 | all review gates | architecture_data | AC7-05 | T7-05 | EV7-05 |
+| `R7-06` | Readiness evidence derives its ID from the semantic payload, inserts it into the complete file, and then hashes/reviews that file. | none | PhaseFCheckerReadinessEvidenceV1 | readiness | compatibility | AC7-06 | T7-06 | EV7-06 |
+| `R7-07` | Claim-state cause hashes and registry relations are exact for every reason, with all inapplicable tuples forbidden. | F-OD-16 | PhaseFClaimStateRecordV1, PhaseFIncidentRecordV1, PhaseFRegistryRecordV1, PhaseFRegistryRelationV1 | F5+ | operations_governance | AC7-07 | T7-07 | EV7-07 |
+| `R7-08` | Retention has release and campaign scopes, and campaign audits are constructible before any release exists. | F-OD-20 | PhaseFRetentionScopeV1, PhaseFRetentionAuditV1, PhaseFIncidentRecordV1, PhaseFRegistryRecordV1 | all stages | security | AC7-08 | T7-08 | EV7-08 |
+| `R7-09` | Metrology check specifications and results resolve by policy, endpoint, and check ID, so duplicate check IDs across endpoints are deterministic. | F-OD-11 | PhaseFMetrologyPolicyV1, PhaseFMetrologyCheckSpecV1, PhaseFMetrologyCheckResultV1 | F0-F2 | scientific_metrology | AC7-09 | T7-09 | EV7-09 |
+| `R7-10` | Power analysis is complete and scientifically reviewed before its registry record; the registry relation binds the review target to the exact analysis file hash. | F-OD-12 | PhaseFPowerAnalysisRecordV1, PhaseFIndependentReviewBundleV1, PhaseFRegistryRecordV1 | F1 | scientific_metrology | AC7-10 | T7-10 | EV7-10 |
+| `R7-11` | Owner-key compromise uses an incident-bound governance state transition and does not require the compromised owner signature. | F-OD-16 | PhaseFIncidentRecordV1, PhaseFClaimStateRecordV1, PhaseFRegistryRecordV1 | F5+ | security | AC7-11 | T7-11 | EV7-11 |
+| `R7-12` | The master catalog individually enumerates all six approval schemas and every normative nested schema with closure, wire, authority, stage, and traceability. | F-OD-01..F-OD-20 | all catalogued PhaseF schemas and six approval bodies | plan review | architecture_data | AC7-12 | T7-12 | EV7-12 |
+| `R7-13` | The current F0 contract is exactly 20 owner decisions and no normative stale 21-decision or F-OD-21 reference remains. | F-OD-01..F-OD-20 | PhaseFDecisionBundleV1, PhaseFDecisionRowV1 | F0 | architecture_data | AC7-13 | T7-13 | EV7-13 |
+
+| AC ID | preconditions | exact input files/objects | exact operation | expected result | expected output | failure oracle |
+|---|---|---|---|---|---|---|
+| `AC7-01` | incident, emergency, review, and later commit are complete | exact incident/emergency/review bytes and commit tree | validate emergency ID, review target/aggregate, ancestry, deterministic paths, and byte equality | NOT_ACTIVE | verified emergency command report | any Git self-field, composite target, wrong path, ancestry, or byte mismatch -> reject |
+| `AC7-02` | one review target and five role rows exist | Git commit target or external object target plus bundle | parse closed tagged union and validate target hash | exactly one deterministic target | valid review bundle | nullable/meaningless Git SHA or multiple targets -> reject |
+| `AC7-03` | F0 decision bundle is complete and F1 interface exists | F0 row 12, interface, analysis | assert F0 row closure; build interface; compare ID/version; construct analysis | zero future F0 references | F0 projection and F1 interface/analysis files | interface hash/length in F0 or chronology reversal -> reject |
+| `AC7-04` | policy defines 15 metrics and context contains evidence | monitoring record, 15 evidence objects, policy, release | validate cardinality/types/evidence, recompute thresholds/status/bindings/breaches | PASS with empty breach set | accepted monitoring record | missing/invalid evidence or declared/recomputed mismatch -> `missing_evidence`/suspend |
+| `AC7-05` | five roles and immutable review artifacts exist | review rows with and without proposed row IDs | parse exact row closure and role uniqueness | rows validate without row ID | five-row review bundle | any review-row ID or ambiguous target -> schema reject |
+| `AC7-06` | readiness semantic payload and two build hashes exist | readiness payload/file and build evidence | derive ID excluding only own ID, insert, hash complete file, review exact hash | readiness file and tag bind same hash | readiness evidence | construction text omits ID or hash precedes insertion -> plan consistency failure |
+| `AC7-07` | release, incident, prior state, and cause file are valid | state file and exact registry relations | recompute reason transition and exact relation set | incident-driven state validates only with matching incident relation | suspended state and registry record | missing cause hash/relation or inapplicable tuple -> reject |
+| `AC7-08` | campaign package/manifest exists and no release exists | campaign retention audit, package manifest, decision bundle | validate campaign scope and register package relation; append reviewed abandonment | PASS without release ID | campaign audit/incident chain | campaign audit requires release relation or release-only scope -> reject |
+| `AC7-09` | one policy has endpoint A and B, each with `qc-01` | policy plus endpoint-qualified specs/results | resolve `(policy SHA, endpoint ID, check ID)` and recompute result | both endpoint results PASS | endpoint-qualified check results | endpoint mutation selects wrong/missing spec -> reject |
+| `AC7-10` | complete analysis and independent scientific review exist | analysis, five-role bundle, power registry record | compare bundle target to subject hash and validate exact relations | registration accepted only after review | bound power registry record | missing review relation or target mismatch -> reject |
+| `AC7-11` | key-compromise incident and active prior state exist | incident, suspended state, prior-state and incident registry records | validate cause hash, reason, transition, and governance signature authority | suspended transition validates without owner signature | incident/state registry chain | missing incident hash/relation or owner-signature requirement -> reject |
+| `AC7-12` | catalog and schema list are present | master catalog, field audit, approval rows | enumerate and compare every required schema and closure/traceability field | six approvals and all new types individually listed | catalog consistency report | wildcard approval row or absent schema -> catalog KAT fail |
+| `AC7-13` | normative document text is available | F0 table, catalog, full plan text | count F-OD rows and scan forbidden stale tokens | exactly 20; no F-OD-21/21-decision normative token | plan consistency report | any stale 21 reference -> plan consistency failure |
+
+| test ID | fixture construction | checker/function invocation | exact expected result | negative mutation |
+|---|---|---|---|---|
+| `T7-01` | complete incident/emergency/review, then commit both files at digest paths | emergency claim-status verifier | NOT_ACTIVE; acyclic PASS | add repository commit to emergency or publish wrong path -> reject |
+| `T7-02` | external target with object kind/hash only; Git target separately | review-bundle validator | external target PASS; Git target PASS | external target adds `git_sha` or nullable target SHA -> reject |
+| `T7-03` | F0 row 12 plus later interface/analysis fixtures | F0 consistency and F1 chronology validator | F0/F1 positive path PASS | add interface hash/length to F0 -> reject |
+| `T7-04` | 15 passing measurements with 15 valid evidence objects | monitoring recomputation | PASS, `breaches=[]` | remove one evidence SHA/object -> `missing_evidence`, suspend |
+| `T7-05` | five role rows with artifact references and no row IDs | review schema validator | five-row aggregate GO | add `review_instance_id` -> schema reject |
+| `T7-06` | semantic readiness payload and complete ID/file hash | readiness construction audit | ID in body, exact file hash, review/tag binding | omit readiness ID from construction table -> plan consistency fail |
+| `T7-07` | incident-driven state plus exact release/prior-state relations | state/registry validator | PASS | remove `depends_on+incident_record` or alter cause hash -> reject |
+| `T7-08` | campaign audit for `campaign_001`, manifest, no release, reviewed abandonment | retention/registry validator | campaign audit PASS | require release ID or add release relation -> reject |
+| `T7-09` | endpoint A/B both define `qc-01`; results carry endpoint and policy SHA | metrology lookup/recompute | both correct results PASS | endpoint B result uses endpoint A threshold -> reject |
+| `T7-10` | complete power analysis, exact-target five-role review, registry record | power registration validator | registration PASS | register analysis without review relation -> reject |
+| `T7-11` | key-compromise incident, active prior state, suspended next state | claim-state transition validator | suspended state PASS without owner signature | remove cause hash or incident relation -> reject |
+| `T7-12` | catalog contains six separate approval rows and new nested types | plan catalog KAT | zero orphan schemas | replace six rows with wildcard -> catalog fail |
+| `T7-13` | full plan text and F0 table | normative token/count scanner | exactly 20 and no stale token | inject normative `F-OD-21` or `decision_count=21` -> plan fail |
+
+| evidence ID | real artifact | producer | immutable identity | review/verification oracle |
+|---|---|---|---|---|
+| `EV7-01` | incident, emergency, review files and later Git commit/tree | security/operations and repository governance | complete file SHAs, review SHA, commit SHA, deterministic tree paths | checker proves target, ancestry, paths, and local byte equality |
+| `EV7-02` | canonical review bundles and immutable review artifacts | five independent reviewers | bundle file SHA and object reference SHA/length | strict tagged-union and five-row validation |
+| `EV7-03` | F0 decision bundle, F1 interface, analysis chronology | decision authority/statistician | complete canonical file SHAs and method IDs | no future object identity in F0; interface ID/version equality |
+| `EV7-04` | 15 metric evidence objects and monitoring record | operations and domain/QC/build authorities | evidence SHA per measurement and monitoring file SHA | context retrieval plus exact metric recomputation |
+| `EV7-05` | five review artifacts with role assignments | independent review roles | immutable `PhaseFObjectReferenceV1` values | no row ID, one row per role, artifact resolves |
+| `EV7-06` | readiness payload, derived-ID transcript, complete file, review/tag | checker builder and readiness reviewer | readiness ID/file SHA/review SHA | recompute domain hash and exact tag binding |
+| `EV7-07` | incident, state, prior state, signed registry record | governance/registry authority | incident/state/registry complete hashes | cause SHA and exact relation tuple equality |
+| `EV7-08` | campaign manifest, campaign audit, abandonment incident | retention auditor/governance | manifest/audit/incident complete hashes | campaign relation has package manifest and no release |
+| `EV7-09` | endpoint policy, duplicate-ID specs, endpoint-qualified results | metrology authority/laboratory | policy/check-result complete hashes | resolve one spec by policy+endpoint+check and recompute comparator |
+| `EV7-10` | complete power analysis, five-role review, power registry record | statistician/scientific reviewers/registry | analysis file SHA, bundle SHA, registry record SHA | target SHA equals subject SHA and relation is present |
+| `EV7-11` | key-compromise incident and governance state transition | security/governance/registry authority | incident/state/registry hashes | exact cause binding and no compromised-key signature dependency |
+| `EV7-12` | master catalog, field audit, approval-schema rows | plan author and independent catalog reviewer | R7 plan SHA/blob and catalog transcript | every required schema has closure, wire, producer, validator, stage, target, review, requirement, AC, test, evidence |
+| `EV7-13` | full R7 plan and F0 decision table | plan author and independent plan reviewer | plan SHA/blob and consistency transcript | exact 20 rows and forbidden-token scan |
+
+`TRACEABILITY_SUBSTANCE_GAPS=0`, `UNMAPPED_REQUIREMENTS=0`, `UNMAPPED_ACS=0`,
+`UNMAPPED_TESTS=0`, `UNMAPPED_EVIDENCE=0`, and `UNMAPPED_ODS=0` are required.
+
+### 19.3 Exact owner-decision mapping
+
+Every owner decision has a current normative consumer; none exists only in the
+F0 table.
+
+| owner decision | current requirement IDs |
+|---|---|
+| `F-OD-01` | `R7-03,R7-12,R7-13` |
+| `F-OD-02` | `R7-12,R7-13` |
+| `F-OD-03` | `R7-04,R7-12,R7-13` |
+| `F-OD-04` | `R7-04,R7-12,R7-13` |
+| `F-OD-05` | `R7-09,R7-12,R7-13` |
+| `F-OD-06` | `R7-09,R7-12,R7-13` |
+| `F-OD-07` | `R7-07,R7-12,R7-13` |
+| `F-OD-08` | `R7-12,R7-13` |
+| `F-OD-09` | `R7-12,R7-13` |
+| `F-OD-10` | `R7-07,R7-12,R7-13` |
+| `F-OD-11` | `R7-09,R7-12,R7-13` |
+| `F-OD-12` | `R7-03,R7-10,R7-12,R7-13` |
+| `F-OD-13` | `R7-11,R7-12,R7-13` |
+| `F-OD-14` | `R7-01,R7-07,R7-12,R7-13` |
+| `F-OD-15` | `R7-12,R7-13` |
+| `F-OD-16` | `R7-07,R7-11,R7-12,R7-13` |
+| `F-OD-17` | `R7-07,R7-12,R7-13` |
+| `F-OD-18` | `R7-07,R7-12,R7-13` |
+| `F-OD-19` | `R7-04,R7-12,R7-13` |
+| `F-OD-20` | `R7-08,R7-12,R7-13` |
+
+`UNMAPPED_ODS=0`.
+
 ## 20. Cumulative normative counterexamples
 
 Every historical case remains independently replayable. `NO-GO` means checker
 failure; public claim is NOT_ACTIVE except exact ACTIVE or
 AUTHORITY_UNAVAILABLE. R6 cases are appended, not substituted.
+R1-R6 rows are historical, non-normative regression fixtures; they do not
+reintroduce superseded fields or relations into the current R7 schemas.
+The exact stale-token strings in the R7 negative fixtures below are
+non-normative test inputs only; they do not define the F0 contract.
 
 | Case | Exact mutation/input | Deterministic result |
 |---|---|---|
@@ -1858,8 +2245,33 @@ AUTHORITY_UNAVAILABLE. R6 cases are appended, not substituted.
 | R6-CX-28 | historical R3R-CX-04 requires pusher identity | mark superseded; pusher is irrelevant |
 | R6-CX-29 | runtime reference endpoint projection contains result unit | reject |
 | R6-CX-30 | relation array differs only by insertion order | reject as noncanonical unless ASCII tuple-sorted |
+| R7-CX-01 | emergency file contains `repository_commit_sha` | schema reject |
+| R7-CX-02 | emergency file contains `repository_blob` | schema reject |
+| R7-CX-03 | external review target contains `git_sha` | schema reject |
+| R7-CX-04 | external review target contains object kind/hash only | PASS |
+| R7-CX-05 | F-OD-12 contains a power-interface object reference | schema reject |
+| R7-CX-06 | F-OD-12 contains only method ID/version | PASS |
+| R7-CX-07 | monitoring measurement has no evidence SHA | reject; `missing_evidence` |
+| R7-CX-08 | all 15 monitoring measurements have valid evidence and pass | PASS |
+| R7-CX-09 | readiness construction table omits `readiness_evidence_id` | plan consistency failure |
+| R7-CX-10 | reinstatement lacks `depends_on+reinstatement_approval` | registry record reject |
+| R7-CX-11 | superseded state lacks `supersedes+release_record` | reject |
+| R7-CX-12 | key-compromise state lacks cause incident SHA | reject |
+| R7-CX-13 | campaign-scoped retention audit has no release ID | PASS |
+| R7-CX-14 | release-scoped retention audit lacks release relation | reject |
+| R7-CX-15 | endpoints A and B both use `qc-01`, and result A includes endpoint A | PASS |
+| R7-CX-16 | endpoint B result uses endpoint A threshold | reject |
+| R7-CX-17 | power registry record lacks analysis review relation | reject |
+| R7-CX-18 | review target equals exact power-analysis SHA and registry relation binds bundle | PASS |
+| R7-CX-19 | master catalog uses wildcard `six approval schemas` | catalog consistency failure |
+| R7-CX-20 | all six approval schemas are individually enumerated | PASS |
+| R7-CX-21 | normative text contains `F-OD-08..21` | plan consistency failure |
+| R7-CX-22 | normative text contains `F-OD-08..20` | PASS |
+| R7-CX-23 | emergency and review files are committed after both are complete | acyclic PASS |
+| R7-CX-24 | `review_instance_id` is present without a defined derivation | schema reject because field is removed |
+| R7-CX-25 | owner compromise incident/state/relation triple is exact | PASS |
 
-## 21. R6 remediation ledger
+## 21. Historical R6 remediation ledger
 
 Only a fresh independent R6 reviewer may close a finding. Author dispositions are
 limited to `REMEDIATED` or `OPEN`; no author row uses `CLOSED`.
@@ -1877,6 +2289,27 @@ limited to `REMEDIATED` or `OPEN`; no author row uses `CLOSED`.
 | F-PLAN-R6-P1-09 | §14,§18 | first due window and breach semantics conflicted | grace period, five thresholds, exact windows/breaches | F-PLAN-R6-P1-09 | AC6-09 | T6-09 | EV6-09 | REMEDIATED |
 | F-PLAN-R6-P1-10 | §15 | incident/retention/compromise schemas were not constructible | typed scopes, retention relations, Git blob emergency path | F-PLAN-R6-P1-10 | AC6-10 | T6-10 | EV6-10 | REMEDIATED |
 | F-PLAN-R6-P1-11 | §19-§21 | traceability was identifier-only and history lacked supersession | substantive procedures, OD map, cumulative case accounting | F-PLAN-R6-P1-11 | AC6-11 | T6-11 | EV6-11 | REMEDIATED |
+
+### 21.1 R7 remediation ledger
+
+Only a fresh independent R7 reviewer may close a finding. The author
+disposition is limited to `REMEDIATED` or `OPEN`; no author row uses `CLOSED`.
+
+| R7 remediation ID | R6 finding | R7 exact section | root cause | R7 remediation | requirement | AC | test | evidence | AUTHOR DISPOSITION |
+|---|---|---|---|---|---|---|---|---|---|
+| `F-PLAN-R7-P1-01` | registry-compromise emergency Git fixed-point cycle | §15,§17,§18.1 | emergency file carried later commit/blob attestations and review linkage | remove all later attestations from emergency; review complete file; publish both files in later deterministic commit | R7-01 | AC7-01 | T7-01 | EV7-01 | REMEDIATED |
+| `F-PLAN-R7-P1-02` | review bundle target not deterministic for external objects | §2,§5,§19.2 | split nullable target fields allowed meaningless combinations | replace with exactly one tagged `PhaseFReviewTargetV1` union | R7-02 | AC7-02 | T7-02 | EV7-02 | REMEDIATED |
+| `F-PLAN-R7-P1-03` | F-OD-12 required a future F1 interface reference | §4,§12,§17 | F0 selected an object that does not exist until F1 | retain only method ID/version in F0; construct interface in F1 | R7-03 | AC7-03 | T7-03 | EV7-03 | REMEDIATED |
+| `F-PLAN-R7-P1-04` | monitoring PASS required evidence rows could not carry | §14,§18.1 | measurement closure had only metric/value | add exactly one evidence SHA to every measurement | R7-04 | AC7-04 | T7-04 | EV7-04 | REMEDIATED |
+| `F-PLAN-R7-P1-05` | review target Git and review-instance identity undefined | §2,§5,§16.1,§19.2 | review rows had an unconstructed second identity | remove row ID and make artifact reference the immutable evidence identity | R7-05 | AC7-05 | T7-05 | EV7-05 | REMEDIATED |
+| `F-PLAN-R7-P1-06` | readiness evidence ID contradicted construction table | §7,§16.1,§17 | table said the derived ID was absent from the body | document semantic-payload -> ID -> complete-file -> SHA construction | R7-06 | AC7-06 | T7-06 | EV7-06 | REMEDIATED |
+| `F-PLAN-R7-P1-07` | claim-state incident/reinstatement/supersession tuples were not exact | §9,§14,§16.1,§18.1 | transition authority was distributed across prose | add cause SHA and exact relation contract per reason | R7-07 | AC7-07 | T7-07 | EV7-07 | REMEDIATED |
+| `F-PLAN-R7-P1-08` | pre-release retention was release-only | §15,§17,§18.1 | retention audit had only a release ID | add release/campaign scope union and scope-specific relations | R7-08 | AC7-08 | T7-08 | EV7-08 | REMEDIATED |
+| `F-PLAN-R7-P1-09` | metrology check endpoint/spec identity was ambiguous | §13,§16.1,§18.1 | check ID was treated as globally unique | add endpoint/policy fields and exact tuple lookup | R7-09 | AC7-09 | T7-09 | EV7-09 | REMEDIATED |
+| `F-PLAN-R7-P1-10` | power scientific review was not bound to analysis authority | §9,§12,§17,§18.1 | registry record omitted an independent-review relation | require five-role review target equal to analysis subject SHA before registration | R7-10 | AC7-10 | T7-10 | EV7-10 | REMEDIATED |
+| `F-PLAN-R7-P1-11` | owner-key compromise lacked incident/evidence binding | §14,§18.1 | non-active transition could be asserted without exact cause | add cause incident SHA and `depends_on+incident_record`; use governance authority | R7-11 | AC7-11 | T7-11 | EV7-11 | REMEDIATED |
+| `F-PLAN-R7-P1-12` | master catalog orphaned approval schemas and new types | §16,§16.1,§19.2 | one wildcard row hid six independent wire contracts | enumerate six approval rows and every new normative type | R7-12 | AC7-12 | T7-12 | EV7-12 | REMEDIATED |
+| `F-PLAN-R7-P1-13` | stale 21-decision F0 language contradicted contract | §4,§19.2,§20 | prior prose was not globally reconciled | use exact F-OD-08..20 and enforce 20-row/no-stale-token scan | R7-13 | AC7-13 | T7-13 | EV7-13 | REMEDIATED |
 
 ## 22. Internal author audit
 
@@ -2001,6 +2434,25 @@ INCIDENT_SCOPE_AMBIGUITIES=0
 REGISTRY_KEY_COMPROMISE_AUTHORITY_AMBIGUITIES=0
 OWNER_KEY_COMPROMISE_AUTHORITY_AMBIGUITIES=0
 HISTORICAL_CASE_ACCOUNTING_GAPS=0
+SELF_GIT_IDENTITY_CYCLES=0
+REGISTRY_COMPROMISE_GIT_FIXED_POINT_CYCLES=0
+EMERGENCY_REVIEW_TARGET_AMBIGUITIES=0
+COMPOSITE_REVIEW_TARGET_PATHS=0
+REVIEW_TARGET_AMBIGUITIES=0
+REVIEW_INSTANCE_ID_AMBIGUITIES=0
+F0_F1_FUTURE_OBJECT_DEPENDENCY_PATHS=0
+F0_FUTURE_OBJECT_REFERENCE_PATHS=0
+READINESS_ID_CONTRADICTIONS=0
+MONITORING_EVIDENCE_AMBIGUITIES=0
+CLAIM_STATE_CAUSE_BINDING_AMBIGUITIES=0
+CLAIM_STATE_RELATION_AMBIGUITIES=0
+RETENTION_REGISTRY_RELATION_AMBIGUITIES=0
+PRE_RELEASE_RETENTION_POSITIVE_PATH_AMBIGUITIES=0
+METROLOGY_CHECK_LOOKUP_AMBIGUITIES=0
+POWER_SCIENTIFIC_REVIEW_BINDING_AMBIGUITIES=0
+ORPHAN_EXTERNAL_SCHEMAS=0
+STALE_F0_NORMATIVE_REFERENCES=0
+NORMATIVE_F0_COUNT_CONTRADICTIONS=0
 ```
 
 The constructive audit asks for one valid instance of every catalog schema,
@@ -2029,41 +2481,57 @@ No source, test, fixture, config, tool, Cargo, README, CHANGELOG, or
 `next_milestone_plan.md` change is allowed.
 
 Create one forward commit with subject
-`docs(plan): remove Phase F authority cycles`. Do not amend, reset, rebase,
+`docs(plan): close Phase F external positive paths`. Do not amend, reset, rebase,
 squash, force-push, tag, create an implementation branch, start F0, generate
 keys/signatures, provision trust, or create evidence/registry/monitoring/claim
 records. Immediately before push, verify local `main`, `origin/main`, and live
-remote `main` all equal the required R5 starting SHA; if live remote cannot be
+remote `main` all equal the required R6 starting SHA; if live remote cannot be
 verified, stop before push. Then push `main` normally. After a successful push,
-record the R6 commit SHA,
-plan SHA-256, and Git blob and require a clean worktree. No later commit occurs
-before fresh independent R6 rereview.
+record the R7 commit SHA, plan SHA-256, and Git blob and require a clean
+worktree. No later commit occurs before fresh independent R7 rereview.
 
-## 24. Required R6 planning-remediation handoff
+## 24. Fresh independent R7 rereview gate
+
+R7 remains unapproved pending a new independent reviewer. That reviewer must
+begin by constructing these positive controls: (1) an external-object review
+bundle with no Git SHA; (2) F0 with no F1 power-file identity; (3) monitoring
+PASS with evidence for all 15 measurements; (4) pre-release campaign retention;
+(5) duplicate check IDs across separate endpoints; (6) reviewed power analysis
+and registry relation; (7) incident-driven owner compromise state; (8) complete
+emergency object, review, and later Git publication; (9) all six approval
+schemas independently catalogued; and (10) the exact 20-decision contract. If
+any control cannot be built without guessing, it is P1. The reviewer then
+rechecks all thirteen R6 findings and all preserved historical authority.
+
+## 25. Required R7 planning-remediation handoff
 
 ```text
 MHI V1 PHASE F
-R6 PLANNING REMEDIATION HANDOFF
+R7 PLANNING REMEDIATION HANDOFF
 
-STARTING R5 SHA: 49b0f92ac3a8c14f84572d6603fd97b7d223f4a0
-R5 PLAN SHA-256: 507bca050a6c046f536f5244c9e0a0483d4a6fa04b22a004f6886d89685ddc04
-R5 PLAN BLOB: 51f19b6814e0f7ffb42bad647dabe6f804f743d4
-R6 PLAN REVIEW SHA: <filled only by fresh independent R6 reviewer>
-R6 PLAN SHA-256: <filled after final plan bytes>
-R6 PLAN GIT BLOB: <filled after final plan bytes>
+STARTING R6 SHA: b70a068afc0c2a2458dfee61281a455fd657400f
+R6 PLAN SHA-256: 776880c916366fd7cda6a5075ee8fc7df5ba70d5c5f4a8dd431a27b382862bde
+R6 PLAN BLOB: 558c11260f5fcec1e711b90931481cbd012db643
+R7 PLAN REVIEW SHA: <filled only by fresh independent R7 reviewer>
+R7 PLAN SHA-256: <filled after final plan bytes>
+R7 PLAN GIT BLOB: <filled after final plan bytes>
 CHANGED FILES: 1 expected
+R7 forward remediation: R6 NO-GO / P1=13; R7 independent rereview PENDING
 
-F-PLAN-R6-P1-01: REMEDIATED
-F-PLAN-R6-P1-02: REMEDIATED
-F-PLAN-R6-P1-03: REMEDIATED
-F-PLAN-R6-P1-04: REMEDIATED
-F-PLAN-R6-P1-05: REMEDIATED
-F-PLAN-R6-P1-06: REMEDIATED
-F-PLAN-R6-P1-07: REMEDIATED
-F-PLAN-R6-P1-08: REMEDIATED
-F-PLAN-R6-P1-09: REMEDIATED
-F-PLAN-R6-P1-10: REMEDIATED
-F-PLAN-R6-P1-11: REMEDIATED
+R6 P1 REMEDIATION
+F-PLAN-R7-P1-01: REMEDIATED
+F-PLAN-R7-P1-02: REMEDIATED
+F-PLAN-R7-P1-03: REMEDIATED
+F-PLAN-R7-P1-04: REMEDIATED
+F-PLAN-R7-P1-05: REMEDIATED
+F-PLAN-R7-P1-06: REMEDIATED
+F-PLAN-R7-P1-07: REMEDIATED
+F-PLAN-R7-P1-08: REMEDIATED
+F-PLAN-R7-P1-09: REMEDIATED
+F-PLAN-R7-P1-10: REMEDIATED
+F-PLAN-R7-P1-11: REMEDIATED
+F-PLAN-R7-P1-12: REMEDIATED
+F-PLAN-R7-P1-13: REMEDIATED
 
 TAG_PUSHER_IDENTITY_AUTHORITATIVE: NO
 ENROLLMENT_FILE_SIGNATURES: NO
@@ -2111,10 +2579,56 @@ RETENTION_AUDIT: COMPLETE
 INCIDENT_EFFECTS: COMPLETE
 REGISTRY_KEY_COMPROMISE: COMPLETE
 OWNER_KEY_COMPROMISE: COMPLETE
-CATALOG_REQUIREMENTS: 11 canonical R6 requirement rows plus schema mappings
-CATALOG_ACS: 11 substantive R6 acceptance criteria
-CATALOG_TESTS: 11 executable R6 tests
-CATALOG_EVIDENCE: 11 substantive R6 evidence items
+EMERGENCY
+self Git identity: REMOVED
+external-object review target: COMPLETE
+later Git publication: COMPLETE
+fixed-point cycles: 0
+
+REVIEW
+target tagged union: COMPLETE
+review_instance_id removed: yes
+aggregate rule: COMPLETE
+
+F0 / POWER
+owner decision count: 20
+F-OD-12 future object: REMOVED
+future-object dependency paths: 0
+power-analysis review binding: COMPLETE
+
+READINESS
+readiness ID construction: COMPLETE
+construction-table contradiction: REMOVED
+
+MONITORING
+measurement evidence: COMPLETE
+PASS constructible: yes
+breach schema: COMPLETE
+result derivation: COMPLETE
+
+CLAIM STATE
+cause incident: COMPLETE
+exact relations: COMPLETE
+owner compromise: COMPLETE
+
+RETENTION
+scope union: COMPLETE
+campaign audit: COMPLETE
+release audit: COMPLETE
+pre-release path constructible: yes
+
+METROLOGY
+endpoint-qualified check: COMPLETE
+policy-qualified result: COMPLETE
+duplicate check IDs across endpoints: DETERMINISTIC
+
+SCHEMA CATALOG
+six approval schemas individually listed: yes
+orphan schemas: 0
+CATALOG_REQUIREMENTS: 13 canonical R7 requirement rows plus schema mappings
+CATALOG_ACS: 13 substantive R7 acceptance criteria
+CATALOG_TESTS: 13 executable R7 tests
+CATALOG_EVIDENCE: 13 substantive R7 evidence items
 CATALOG_OWNER_DECISIONS: 20
 CATALOG_EXTERNAL_SCHEMAS_UNMAPPED: 0
 TRACEABILITY_SUBSTANCE_GAPS: 0
@@ -2180,10 +2694,10 @@ registry compromise: COMPLETE
 owner compromise: COMPLETE
 
 TRACEABILITY
-requirements: 11 substantive rows
-ACs: 11 substantive rows
-tests: 11 executable rows
-evidence: 11 substantive rows
+requirements: 13 substantive rows
+ACs: 13 substantive rows
+tests: 13 executable rows
+evidence: 13 substantive rows
 ODs: F-OD-01..20 all mapped
 unmapped ODs: 0
 traceability substance gaps: 0
@@ -2199,9 +2713,54 @@ complete DAG constructible: yes
 construction ambiguities: 0
 
 AUTHOR AUDIT
-all R6 counters in §22: 0
+all counters in §22 and the R7 audit list below: 0
+REGISTRY_BACK_POINTER_PATHS: 0
+WIRE_IDENTITY_CYCLES: 0
+SELF_GIT_IDENTITY_CYCLES: 0
+REGISTRY_COMPROMISE_GIT_FIXED_POINT_CYCLES: 0
+EMERGENCY_REVIEW_TARGET_AMBIGUITIES: 0
+COMPOSITE_REVIEW_TARGET_PATHS: 0
+REVIEW_TARGET_AMBIGUITIES: 0
+REVIEW_INSTANCE_ID_AMBIGUITIES: 0
+F0_F1_FUTURE_OBJECT_DEPENDENCY_PATHS: 0
+F0_FUTURE_OBJECT_REFERENCE_PATHS: 0
+READINESS_ID_CONTRADICTIONS: 0
+MONITORING_EVIDENCE_AMBIGUITIES: 0
+MONITORING_RESULT_DERIVATION_AMBIGUITIES: 0
+CLAIM_STATE_CAUSE_BINDING_AMBIGUITIES: 0
+CLAIM_STATE_RELATION_AMBIGUITIES: 0
+OWNER_KEY_COMPROMISE_AUTHORITY_AMBIGUITIES: 0
+RETENTION_REGISTRY_RELATION_AMBIGUITIES: 0
+PRE_RELEASE_RETENTION_POSITIVE_PATH_AMBIGUITIES: 0
+METROLOGY_CHECK_LOOKUP_AMBIGUITIES: 0
+POWER_SCIENTIFIC_REVIEW_BINDING_AMBIGUITIES: 0
+ORPHAN_EXTERNAL_SCHEMAS: 0
+STALE_F0_NORMATIVE_REFERENCES: 0
+NORMATIVE_F0_COUNT_CONTRADICTIONS: 0
+UNMAPPED_REQUIREMENTS: 0
+UNMAPPED_ACS: 0
+UNMAPPED_TESTS: 0
+UNMAPPED_EVIDENCE: 0
+UNMAPPED_ODS: 0
+TRACEABILITY_SUBSTANCE_GAPS: 0
+LOST_R1_NORMATIVE_OBLIGATIONS: 0
+MATERIAL_IMPLEMENTER_DISAGREEMENTS_AFTER_PLAN: 0
+NORMATIVE_CONTRADICTIONS: 0
+POSITIVE_PATH_CONSTRUCTION_AMBIGUITIES: 0
 
-R6 INDEPENDENT REREVIEW: PENDING
+BASELINE
+diff: PASS
+fmt: PASS
+check: PASS
+strict Clippy: PASS
+Clippy diagnostics: 0
+Phase E: 38/38
+Phase D: 73/73
+FROZEN PHASE-E PLAN: PASS
+CHANGED FILES: 1 expected
+WORKTREE CLEAN: yes after commit
+
+R7 INDEPENDENT REREVIEW: PENDING
 FROZEN PHASE-E PLAN: PASS if SHA/blob verify unchanged
 PLAN TAG CREATED: NO
 IMPLEMENTATION BRANCH: NO
@@ -2210,7 +2769,7 @@ TRUST CHANGED: NO
 KEYS CREATED: NO
 EVIDENCE CREATED: NO
 CLAIM CREATED: NO
-READY_FOR_FRESH_PHASE_F_R6_PLAN_REREVIEW: yes
-READY_FOR_PHASE_F_PLAN_APPROVAL_TAG: NO pending fresh R6 GO
+READY_FOR_FRESH_PHASE_F_R7_PLAN_REREVIEW: yes
+READY_FOR_PHASE_F_PLAN_APPROVAL_TAG: NO pending fresh R7 GO
 READY_FOR_PHASE_F_IMPLEMENTATION: NO
 ```
