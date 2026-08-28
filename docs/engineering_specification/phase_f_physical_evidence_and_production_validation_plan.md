@@ -1,9 +1,9 @@
-# MHI V1 Phase F — R8 planning-only final contract reconciliation
+# MHI V1 Phase F — R9 planning-only final authority / retention closure
 
 ## 1. Authority, status, scope, and chronology
 
-This document is the Phase-F R8 planning remediation of the independently
-rereviewed R7 plan. It changes only this plan document. It does not create a
+This document is the Phase-F R9 planning remediation of the independently
+rereviewed R8 plan. It changes only this plan document. It does not create a
 schema file, checker, tag, branch, key, signature, trust root, registry record,
 physical evidence, monitoring record, claim, production implementation, new
 scientific model, or new scientific scope.
@@ -15,13 +15,13 @@ The starting authority is exact:
 
 | Authority | Value |
 |---|---|
-| R7 plan-review SHA | `e9cef7d7370b084f64eb91a628fb47b0b868dc63` |
-| R7 plan SHA-256 | `ab4acec5c9f8f16e8c35d14f2ca83b977a16cacc4ac2505cc5e3bacdf9980c8b` |
-| R7 plan Git blob | `625413873fab712961e38f6e20b98d00a5110b52` |
-| R7 independent rereview | `P0=0`, `P1=5 grouped findings`, `P2=0`, `P3=0`, `PLAN_DECISION=NO-GO`, `PLAN_AUTHORITY=FAIL` |
-| R8 status | forward remediation; independent R8 rereview `PENDING` |
-| plan approval tag | absent; must remain absent in R8 |
-| implementation branch | absent; must remain absent in R8 |
+| R8 plan-review SHA | `ebed7b24102b1575fb950a8d15adc03c2eb11c22` |
+| R8 plan SHA-256 | `043e7811a2e93bb88912b483334bcac82a8b6cabd8206531945889678216e934` |
+| R8 plan Git blob | `1aed756793cf42c284d41e96ce2d8247a250e93f` |
+| R8 independent rereview | `P0=0`, `P1=4`, `P2=0`, `P3=0`, `PLAN_DECISION=NO-GO`, `PLAN_AUTHORITY=FAIL` |
+| R9 status | forward remediation; independent R9 rereview `PENDING` |
+| plan approval tag | absent; must remain absent in R9 |
+| implementation branch | absent; must remain absent in R9 |
 
 The immutable Phase-E authority is not changed: integrated baseline
 `14942a30928b88f16914bf0bb103cc0c2a5bfa76`, reviewed implementation
@@ -29,10 +29,16 @@ The immutable Phase-E authority is not changed: integrated baseline
 `0b68359f362434ef9f42df21ca553692ae6e3bb3c096881009ab5e9473cc2c33`, and
 frozen plan blob `6fce9d13a42a09027e0e730874a8d80e03e6a7da`.
 
+The current plan-review context is the external authority value
+`CURRENT_PLAN_REVIEW_SHA`. It is the exact Git commit SHA frozen after the
+final planning-only commit and supplied to the fresh independent plan
+reviewer. It is not embedded as a concrete SHA in this plan. At review start
+it must equal `HEAD`, local `main`, `origin/main`, and live remote `main`.
+
 R1 was `NO-GO/P1=13`; R2 was `NO-GO/P1=10`; R3 was `NO-GO/P1=19`; R4 was
 `NO-GO/P1=14`; R5 was `NO-GO/P1=11`; R6 was `NO-GO/P1=13`; R7 was
-`NO-GO/P1=5 grouped findings`. No rejected version is described as approved.
-The exact future order remains: fresh R8
+`NO-GO/P1=5`; R8 was `NO-GO/P1=4`. No rejected version is described as approved.
+The exact future order remains: fresh R9
 rereview, plan approval, F0, F-IMPL-1 checker and permanent F-MAINT-01/02
 closure, readiness, enrollment, genesis, F1, F2, F3, F4, and F5.
 F1-F5 remain blocked until the applicable approved tags and authority objects
@@ -40,7 +46,7 @@ exist.
 
 `F_IMPL_1_BEFORE_F0_EXIT`, `F_IMPL_2_BEFORE_F0_EXIT`,
 `F_IMPL_3_BEFORE_F0_EXIT`, and `F_IMPL_4_BEFORE_F0_EXIT` are forbidden.
-R5, R6, R7, and R8 author audits are not independent approval. No R6, R7, or R8 approval tag,
+R5, R6, R7, R8, and R9 author audits are not independent approval. No R6, R7, R8, or R9 approval tag,
 implementation branch, F0 activity, key, signature, trust, registry, evidence,
 claim, or monitoring object exists as a result of this plan edit.
 
@@ -107,15 +113,15 @@ PHASE_F_DECISION_V1 = GO | NO-GO
 PHASE_F_REVIEW_TARGET_V1 = {type:"git_commit",git_sha:GIT_SHA_V1}
   | {type:"external_object",object_kind:PHASE_F_OBJECT_KIND_V1,object_sha256:SHA256_V1}
 PHASE_F_OBJECT_KIND_V1 = decision_bundle | git_tag_message | authority_enrollment
-  | registry_record | registry_head | registration_document | protocol
+  | registry_record | registry_head | registration_document | validation_manifest | protocol
   | power_method_interface | power_analysis | package_manifest | dependency_audit
   | physical_unit_ledger | identity_audit | location_ledger | chain_of_custody
   | deviation_ledger | metrology_policy | metrology_check_result
   | reference_source_descriptor | reference_result | scientific_admissibility_audit
   | cohort_lock | owner_approval | execution_record | release_record | claim_state
   | reinstatement_approval | monitoring_policy | monitoring_record | incident_record
-  | monitoring_evidence | retention_audit | independent_review_bundle | trust_provisioning_approval
-  | physical_release_approval | emergency_registry_compromise | checker_build_evidence
+  | monitoring_evidence | retention_audit | independent_review_bundle | incident_resolution
+  | emergency_registry_compromise | checker_build_evidence
   | checker_readiness_evidence | f5_release_candidate
 PHASE_F_REVIEW_ROLE_V1 = scientific_metrology | architecture_data | security
   | compatibility | operations_governance
@@ -136,7 +142,7 @@ PHASE_F_PACKAGE_ROLE_V1 = raw_acquisition | derived_scientific_output | referenc
   | governance_document | software_kat_support | checker_input | other_documentary
 PHASE_F_RELATION_TYPE_V1 = authorized_by | depends_on | registered_after | locks
   | approves | executes | releases | changes_state_of | supersedes | references
-  | incident_recorded | retention_audited | scientific_admissibility
+  | incident_recorded | resolves | retention_audited | scientific_admissibility
 PHASE_F_DEPENDENCY_TYPE_V1 = raw_source | sample | sensor | preprocessing | model
   | reference | derived_output
 PHASE_F_CUSTODY_EVENT_V1 = acquired | transferred | aliquoted | processed | measured
@@ -171,7 +177,8 @@ PHASE_F_CLAIM_REASON_V1 = initial_release | monitoring_breach | reference_qc_bre
 PHASE_F_REGISTRY_RECORD_KIND_V1 = authority_enrolled | protocol_registered
   | power_registered | package_registered | cohort_locked | owner_approval_registered
   | execution_registered | release_registered | claim_state_changed
-  | monitoring_recorded | incident_recorded | retention_audit_recorded
+  | monitoring_recorded | incident_recorded | incident_resolution_recorded
+  | retention_audit_recorded
 PHASE_F_CHECKER_BUILD_ORDINAL_V1 = "1" | "2"
 PHASE_F_BUILD_RESULT_V1 = pass | no_go
 PHASE_F_MAINTENANCE_STATUS_V1 = closed
@@ -326,6 +333,7 @@ runtime stable IDs and are never recomputed by this rule.
 | `PhaseFMonitoringRecordV1` | `monitoring_record_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_monitoring_record_v1\0` | own ID | F5+ |
 | `PhaseFMonitoringEvidenceV1` | `monitoring_evidence_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_monitoring_evidence_v1\0` | own ID | F5+ |
 | `PhaseFIncidentRecordV1` | `incident_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_incident_record_v1\0` | own ID | all |
+| `PhaseFIncidentResolutionV1` | `incident_resolution_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_incident_resolution_v1\0` | own ID | all |
 | `PhaseFRetentionAuditV1` | `retention_audit_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_retention_audit_v1\0` | own ID | all |
 | `PhaseFScientificAdmissibilityAuditV1` | `scientific_admissibility_audit_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_scientific_admissibility_audit_v1\0` | own ID | F2 |
 | `PhaseFRegistryCompromiseEmergencyV1` | `emergency_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_registry_compromise_emergency_v1\0` | own ID | emergency |
@@ -480,8 +488,13 @@ The F5 review bundle sets `target={type:"external_object",
 object_kind:"f5_release_candidate",object_sha256:<complete candidate SHA>}`;
 its five rows therefore review one exact candidate, not a moving release or
 tag. The same target form is used for F0 decisions, readiness, enrollment,
-power analysis, and emergency objects. A plan review may use the Git-commit
-variant, for example `{type:"git_commit",git_sha:<R7 plan review SHA>}`.
+power analysis, and emergency objects. A plan review uses the Git-commit
+variant with the external review-context authority `CURRENT_PLAN_REVIEW_SHA`,
+for example `{type:"git_commit",git_sha:CURRENT_PLAN_REVIEW_SHA}`. This value
+is frozen after the final planning-only commit and supplied to the fresh
+independent reviewer; it is not embedded in the plan before that commit
+exists. At review start it must equal `HEAD`, local `main`, `origin/main`, and
+live remote `main`.
 The normative external-object examples are:
 `{type:"external_object",object_kind:"decision_bundle",object_sha256:<decision SHA>}`;
 `{type:"external_object",object_kind:"checker_readiness_evidence",object_sha256:<readiness SHA>}`;
@@ -534,18 +547,33 @@ body has `review_bundle_sha256=<SHA256_V1>`.
 
 | Tag / body schema | Target | Required ordered fields after `format_version=1` |
 |---|---|---|
-| `ism-mechanism-health-v1-f-plan-approved` / `PhaseFPlanApprovalV1` | reviewed R7 main | `plan_review_sha:GIT_SHA_V1,plan_sha256:SHA256_V1,plan_git_blob:GIT_BLOB_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
+| `ism-mechanism-health-v1-f-plan-approved` / `PhaseFPlanApprovalV1` | the frozen `CURRENT_PLAN_REVIEW_SHA` independently reviewed as GO | `plan_review_sha:GIT_SHA_V1,plan_sha256:SHA256_V1,plan_git_blob:GIT_BLOB_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
 | `ism-mechanism-health-v1-f-f0-decisions-approved` / `PhaseFDecisionApprovalV1` | reviewed F0 main | `phase_f_plan_tag:PHASE_F_TAG_NAME_V1,plan_review_sha:GIT_SHA_V1,decision_review_sha:GIT_SHA_V1,decision_bundle_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,decision_file_sha256:SHA256_V1,decision_git_blob:GIT_BLOB_V1,decision_count:CANONICAL_UNSIGNED_INTEGER_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
 | `ism-mechanism-health-v1-f-readiness-approved` / `PhaseFReadinessApprovalV1` | integrated F-IMPL-1 | `phase_f_plan_tag:PHASE_F_TAG_NAME_V1,f0_decisions_tag:PHASE_F_TAG_NAME_V1,readiness_review_sha:GIT_SHA_V1,readiness_evidence_sha256:SHA256_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
 | `ism-mechanism-health-v1-f-authority-enrollment-approved` / `PhaseFAuthorityEnrollmentApprovalV1` | readiness main | `phase_f_plan_tag:PHASE_F_TAG_NAME_V1,f0_decisions_tag:PHASE_F_TAG_NAME_V1,readiness_tag:PHASE_F_TAG_NAME_V1,readiness_main_sha:GIT_SHA_V1,enrollment_sha256:SHA256_V1,owner_authority_id:RUNTIME_STABLE_ID_V1,registry_authority_id:RUNTIME_STABLE_ID_V1,owner_public_key_fingerprint:SHA256_V1,registry_public_key_fingerprint:SHA256_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
 | `ism-mechanism-health-v1-f-trust-provisioning-approved` / `PhaseFTrustProvisioningApprovalV1` | integrated F3 main | `phase_f_plan_tag:PHASE_F_TAG_NAME_V1,f0_decisions_tag:PHASE_F_TAG_NAME_V1,readiness_tag:PHASE_F_TAG_NAME_V1,authority_enrollment_tag:PHASE_F_TAG_NAME_V1,enrollment_sha256:SHA256_V1,owner_public_key_fingerprint:SHA256_V1,registry_public_key_fingerprint:SHA256_V1,trust_root_id:RUNTIME_STABLE_ID_V1,trust_review_sha:GIT_SHA_V1,trust_store_git_blob:GIT_BLOB_V1,trust_store_sha256:SHA256_V1,f2_cohort_lock_registry_record_sha256:SHA256_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
 | `ism-mechanism-health-v1-f-physical-validation-released` / `PhaseFPhysicalReleaseApprovalV1` | final F4/F5 main | `phase_f_plan_tag:PHASE_F_TAG_NAME_V1,f0_decisions_tag:PHASE_F_TAG_NAME_V1,readiness_tag:PHASE_F_TAG_NAME_V1,authority_enrollment_tag:PHASE_F_TAG_NAME_V1,trust_provisioning_tag:PHASE_F_TAG_NAME_V1,release_code_sha:GIT_SHA_V1,protocol_sha256:SHA256_V1,cohort_lock_registry_record_sha256:SHA256_V1,owner_approval_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,owner_approval_file_sha256:SHA256_V1,validation_manifest_sha256:SHA256_V1,release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,release_file_sha256:SHA256_V1,release_registry_record_sha256:SHA256_V1,initial_claim_state_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,initial_claim_state_file_sha256:SHA256_V1,initial_claim_state_registry_record_sha256:SHA256_V1,review_bundle_sha256:SHA256_V1,approval_decision:GO` |
 
+For the plan tag, validity additionally requires peeled target exactly equal to
+`body.plan_review_sha` and the external `CURRENT_PLAN_REVIEW_SHA`; the plan
+file SHA-256 and Git blob at that commit must equal `body.plan_sha256` and
+`body.plan_git_blob`. A predecessor R7 or R8 target is invalid, and the plan
+cannot contain its own future review SHA. Thus
+`PLAN_TAG_STALE_TARGET_PATHS=0` and `PLAN_TAG_TARGET_AMBIGUITIES=0`.
+
+All six approval schemas are `TAG_BODY` contracts. A tag body is the exact
+ordered printable-ASCII message body plus one final LF, never JSON,
+`TOP_LEVEL_WIRE`, a canonical external approval object, or a registry subject.
+When its bytes are referenced, its only identity is
+`{object_kind:"git_tag_message",object_sha256:SHA-256(exact tag-message bytes)}`.
+There is no `trust_provisioning_approval` or `physical_release_approval`
+object kind.
+
 All values use the named types in §§2-3. Decisions and counts are not duplicated
 in any tag; the referenced bundle independently supplies five rows and the
 aggregate rule in §5. Each tag is absent before creation, never moved, and
 pushed only after its target and review bundle are live. No Phase-F tag is
-created during R6.
+created during R9 planning remediation.
 
 ## 7. Checker build and command authority
 
@@ -729,6 +757,7 @@ The exact object-kind set is the enum in §2. The hash meaning is exhaustive:
 | `registry_record` | SHA-256 of complete canonical signed registry-record bytes |
 | `registry_head` | SHA-256 of complete canonical signed head bytes |
 | `registration_document` | SHA-256 of exact original registered-document bytes |
+| `validation_manifest` | SHA-256 of exact validation-manifest bytes bound by the release record |
 | `protocol` | SHA-256 of exact original protocol TOML bytes |
 | `power_method_interface` | SHA-256 of complete canonical power-interface bytes |
 | `power_analysis` | SHA-256 of complete canonical power-analysis bytes |
@@ -754,10 +783,9 @@ The exact object-kind set is the enum in §2. The hash meaning is exhaustive:
 | `monitoring_record` | SHA-256 of complete canonical monitoring-record bytes |
 | `monitoring_evidence` | SHA-256 of complete canonical `PhaseFMonitoringEvidenceV1` bytes |
 | `incident_record` | SHA-256 of complete canonical incident bytes |
+| `incident_resolution` | SHA-256 of complete canonical `PhaseFIncidentResolutionV1` bytes |
 | `retention_audit` | SHA-256 of complete canonical retention-audit bytes |
 | `independent_review_bundle` | SHA-256 of complete canonical review-bundle bytes |
-| `trust_provisioning_approval` | SHA-256 of complete canonical trust-provisioning approval bytes |
-| `physical_release_approval` | SHA-256 of complete canonical physical-release approval bytes |
 | `emergency_registry_compromise` | SHA-256 of complete canonical emergency bytes |
 | `checker_build_evidence` | SHA-256 of complete canonical `PhaseFCheckerBuildEvidenceV1` bytes |
 | `checker_readiness_evidence` | SHA-256 of complete canonical `PhaseFCheckerReadinessEvidenceV1` bytes |
@@ -767,7 +795,7 @@ The exact object-kind set is the enum in §2. The hash meaning is exhaustive:
 `{relation_type:PHASE_F_RELATION_TYPE_V1,object_kind:PHASE_F_OBJECT_KIND_V1,
 object_sha256:SHA256_V1}`. Relation type is
 `authorized_by|depends_on|registered_after|locks|approves|executes|releases|
-changes_state_of|supersedes|references|incident_recorded|retention_audited|
+changes_state_of|supersedes|references|incident_recorded|resolves|retention_audited|
 scientific_admissibility`. Every relation is validated against kind and hash
 meaning; a bare hash never supplies a subject.
 
@@ -797,6 +825,7 @@ No semantic digest is ever substituted for a complete-file subject hash.
 | `claim_state_changed` | `claim_state_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `claim_state` | `changes_state_of+release_record` | initial ACTIVE also requires `authorized_by+independent_review_bundle` naming the exact F5 activation bundle; every noninitial state requires exactly one `registered_after+claim_state`; incident-driven reasons require exactly one `depends_on+incident_record` whose hash equals `cause_incident_sha256`; approved reinstatement requires exactly one `depends_on+reinstatement_approval`; superseded state requires exactly one `supersedes+release_record`; periodic expiry has none of those |
 | `monitoring_recorded` | `monitoring_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `monitoring_record` | `references+release_record`; `depends_on+monitoring_policy`; exactly 15 `depends_on+monitoring_evidence` relations, whose hashes equal exactly the 15 measurement `monitoring_evidence_sha256` values, one per measurement | one prior `registered_after+monitoring_record` after first; no missing, extra, or duplicate monitoring-evidence relation |
 | `incident_recorded` | `incident_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `incident_record` | for release scope exactly `incident_recorded+release_record`; for campaign or registry-namespace scope no release relation is permitted; campaign abandonment additionally requires exactly `authorized_by+decision_bundle`, `authorized_by+independent_review_bundle`, and `references+package_manifest` | references only to listed affected evidence; ordinary campaign incidents use the separately defined ordinary set |
+| `incident_resolution_recorded` | `incident_resolution_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `incident_resolution` | exactly once `resolves+incident_record`; every resolution after first exactly once `registered_after+incident_resolution` | none |
 | `retention_audit_recorded` | `retention_audit_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `retention_audit` | exactly once: `authorized_by+decision_bundle`; release scope exactly once `references+release_record`; campaign scope exactly once `references+package_manifest` | exactly one `registered_after+retention_audit` for every later audit of the same scope; no release relation for campaign scope and no package-manifest relation for release scope |
 
 Genesis is sequence `0` with null predecessor. Later records are prior sequence
@@ -1233,7 +1262,7 @@ complete-file SHA-256. `window_start<window_end` and
 `PHASE_F_MONITORING_SOURCE_KIND_V1` is exactly
 `domain_observation|reference_qc_record|calibration_record|sensor_drift_series|
 input_validation_summary|runtime_validation_summary|reference_uncertainty_record|
-execution_record|trust_provisioning_approval|owner_approval|release_record`.
+execution_record|trust_provisioning_tag_message|owner_approval|release_record`.
 `PhaseFMonitoringSourceReferenceV1` is exactly
 `{source_kind:PHASE_F_MONITORING_SOURCE_KIND_V1,object_reference:PhaseFObjectReferenceV1}`.
 Source references sort by source-kind literal ASCII bytes, then
@@ -1249,19 +1278,27 @@ each require `runtime_validation_summary`; `reference_uncertainty_status`
 requires `reference_uncertainty_record`; `software_git_sha` and
 `checker_binary_sha256` each require exactly one `execution_record`;
 `trust_store_sha256` and `trust_root_id` each require exactly one
-`trust_provisioning_approval`; `owner_approval_id` requires exactly one
+`trust_provisioning_tag_message`; `owner_approval_id` requires exactly one
 `owner_approval`; and `release_record_id` requires exactly one
 `release_record`. No source kind outside the listed mapping is permitted.
 For binding metrics the checker parses the named authority and compares exact
 fields: `PhaseFExecutionRecordV1.release_code_sha`,
 `PhaseFExecutionRecordV1.checker_binary_sha256`,
-`PhaseFTrustProvisioningApprovalV1.trust_store_sha256`,
-`PhaseFTrustProvisioningApprovalV1.trust_root_id`,
+the `trust_store_sha256` and `trust_root_id` fields parsed from the exact
+message bytes of the annotated tag
+`ism-mechanism-health-v1-f-trust-provisioning-approved`,
 `OwnerApprovalEvidenceV1.approval_record_id`, and
 `PhaseFReleaseRecordV1.release_record_id`, respectively. For observational
 metrics the checker validates syntax, ID/hash, source references, metric,
 window, value type, and measurement equality; it does not infer scientific
-truth from the underlying source.
+truth from the underlying source. For both trust metrics, the source reference
+must identify an immutable byte copy of that exact tag message. The checker
+resolves the annotated tag, verifies its name, peeled target and prerequisite
+tag contract, obtains the exact message bytes, hashes them as
+`object_kind="git_tag_message"`, requires exact hash and byte-length equality
+with the source reference, parses those bytes as
+`PhaseFTrustProvisioningApprovalV1`, and compares the measurement value. A
+JSON trust-provisioning object is never accepted.
 
 `PhaseFMonitoringRecordV1` is exactly
 `schema_version,monitoring_record_id,release_record_id,claim_id,window_start,
@@ -1331,81 +1368,176 @@ recomputed failures, and the declared result must equal recomputation.
 `schema_version,incident_id,scope,incident_type,detected_at,
 affected_object_sha256s,affected_unit_ids,evidence_references,required_action,
 incident_status`. Affected object entries are sorted
-`PhaseFObjectDigestV1`; unit IDs are
-sorted runtime IDs; evidence references are sorted `PhaseFObjectReferenceV1`;
-type/action/status use §2 enums. `other_registered_incident` requires an
-immutable incident-type definition document. `scope` is the exact tagged union
-`PhaseFIncidentScopeV1`: release scope carries a release ID, campaign
-abandonment carries a campaign ID and no release ID, and registry compromise
-uses registry-namespace scope. ID and complete-file hash follow §3/§9.
-`PhaseFIncidentRecordV1` contains no `review_bundle_sha256`, review-artifact
-reference, or future review hash. Campaign-abandonment construction is exactly
-complete incident file -> incident SHA -> independent review bundle with
-`target={type:"external_object",object_kind:"incident_record",
-object_sha256:<exact incident file SHA>}` -> `incident_recorded` attestation.
-There is no reverse pointer. For ordinary non-abandonment campaign incidents,
-the permitted relation set is separately defined as only the applicable
-`authorized_by+decision_bundle`, package/evidence references, and the required
-`incident_recorded` subject relation; the abandonment review relation is not
-inherited.
+`PhaseFObjectDigestV1`; unit IDs are sorted runtime IDs; evidence references are
+sorted `PhaseFObjectReferenceV1`; type/action/status use §2 enums. `other_registered_incident`
+requires an immutable incident-type definition document. `scope` is the exact
+tagged union `PhaseFIncidentScopeV1`: release scope carries a release ID,
+campaign abandonment carries a campaign ID and no release ID, and registry
+compromise uses registry-namespace scope. ID and complete-file hash follow
+§3/§9. Every newly created incident record has exactly
+`incident_status="open"`. It is an immutable detection event and is never
+rewritten to `contained`, `resolved`, or `superseded`; those statuses exist only
+in a later resolution object. The incident contains no review hash,
+review-artifact reference, or future review hash. Campaign-abandonment
+construction remains exactly complete incident file -> incident SHA ->
+independent review bundle targeting that incident file SHA ->
+`incident_recorded` attestation, with no reverse pointer.
 
-`PhaseFRetentionObjectV1` is exactly the tagged union
-`{type:"package_object",object_id:RUNTIME_STABLE_ID_V1,object_reference:PhaseFObjectReferenceV1}`
+`PhaseFIncidentResolutionV1` is exactly
+`schema_version,incident_resolution_id,incident_id,incident_record_sha256,
+resolution_number,previous_resolution_sha256,effective_at,resolution_status,
+evidence_references`. Types are respectively
+`JSON_INTEGER_ONE,PHASE_F_EXTERNAL_DIGEST_ID_V1,
+PHASE_F_EXTERNAL_DIGEST_ID_V1,SHA256_V1,CANONICAL_UNSIGNED_INTEGER_V1,
+SHA256_V1|null,UTC_SECOND_TIMESTAMP_V1,PHASE_F_INCIDENT_STATUS_V1,
+NONEMPTY_SORTED_UNIQUE<PhaseFObjectReferenceV1>`. Resolution status is exactly
+`contained|resolved|superseded`; `open` is forbidden. Its semantic-ID domain
+is `mhi_phase_f_incident_resolution_v1\0`, excluding only
+`incident_resolution_id`, and its complete canonical bytes define its file
+SHA. The referenced incident SHA must equal the complete incident file SHA.
+
+The first resolution has `resolution_number="0"` and
+`previous_resolution_sha256=null`. Every later resolution has a number exactly
+one greater than its predecessor and `previous_resolution_sha256` exactly equal
+to the predecessor's complete resolution-file SHA. Its `effective_at` is not
+earlier than the predecessor. Legal history is no resolution -> unresolved;
+`contained` -> unresolved; `contained` -> `resolved`; and `contained` ->
+`superseded`. A terminal `resolved` or `superseded` resolution cannot be
+followed by another resolution, and earlier files are immutable.
+
+The resolution registry contract adds object kind `incident_resolution`, record
+kind `incident_resolution_recorded`, and relation type `resolves`. Every
+resolution record has subject `incident_resolution_id`, subject hash equal to
+the complete resolution-file SHA, exactly one `resolves+incident_record`, and,
+for every resolution after the first, exactly one
+`registered_after+incident_resolution`. No release relation is required:
+`incident_record` already scopes the release or campaign authority.
+
+For ordinary non-abandonment campaign incidents, the permitted relation set is
+only the applicable `authorized_by+decision_bundle`, package/evidence
+references, and the required `incident_recorded` subject relation; the
+abandonment review relation is not inherited.
+
+`PhaseFRetentionObjectV1` is BYTE-IDENTITY ONLY and exactly the tagged union
+`{type:"package_object",object_id:RUNTIME_STABLE_ID_V1,object_sha256:SHA256_V1}`
 or `{type:"authority_object",object_kind:PHASE_F_OBJECT_KIND_V1,
-object_reference:PhaseFObjectReferenceV1}`. `PhaseFRetentionScopeV1` is exactly the tagged union
+object_sha256:SHA256_V1}`. It contains no URI or byte length. Those are
+properties of an audit copy, never of a retention identity.
+
+`PhaseFRetentionCopyVerificationV1` is exactly
+`{object_reference:PhaseFObjectReferenceV1,verified_at:UTC_SECOND_TIMESTAMP_V1,
+result:PHASE_F_RESULT_V1}`. A PASS copy requires an F-OD-20-approved immutable
+URI scheme, availability, exact byte length, exact SHA, and retrieved bytes
+whose SHA equals `object_reference.sha256`. For one object check, every PASS
+copy has `object_reference.sha256` equal to the retention object's
+`object_sha256`, and all PASS copies have one identical byte length and
+distinct URIs. Copies are sorted by raw ASCII `immutable_uri`, then `sha256`,
+then `byte_length`; there is no arbitrary primary-reference field.
+
+`PhaseFRetentionScopeV1` is exactly the tagged union
 `{type:"release",release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1}` or
 `{type:"campaign",campaign_id:RUNTIME_STABLE_ID_V1,
-package_manifest_sha256:SHA256_V1}`. `PhaseFRetentionAuditV1` is exactly
-`schema_version,retention_audit_id,scope,policy_sha256,audited_at,object_checks,
-result`. There is no top-level release ID. Each check is exactly
+package_manifest_sha256:SHA256_V1}`. `PhaseFRetentionObjectCheckV1` is exactly
 `{object:PhaseFRetentionObjectV1,
-primary_available:BOOLEAN_V1,primary_verified:BOOLEAN_V1,
-verified_backup_count:CANONICAL_UNSIGNED_INTEGER_V1,
-last_backup_verification_at:UTC_SECOND_TIMESTAMP_V1,result:PHASE_F_RESULT_V1}`.
-Rows sort by the raw ASCII lexical identity key: package object
-`("package_object",object_id,object_reference.sha256)` or authority object
-`("authority_object",object_kind,object_reference.sha256)`.
-Pass requires primary available and exact, backup count at least F0, and backup
-age below F0 interval. A `retention_audited` record is authorized by the
-decision bundle and has exactly one scope-specific relation: release scope
-uses `references+release_record`; campaign scope uses
-`references+package_manifest`. Every later audit of the same scope has exactly
-one `registered_after+retention_audit`. A campaign audit never requires a
-release relation, and a release audit never requires a package-manifest
-relation merely because its objects came from a package.
+copies:NONEMPTY_SORTED_UNIQUE<PhaseFRetentionCopyVerificationV1>,
+result:PHASE_F_RESULT_V1}`. Its result is derived. Let `valid_copy_count` be
+the PASS copies satisfying the exact object SHA, byte length, URI, availability,
+and retrieval checks. PASS requires
+`valid_copy_count >= 1 + backup_copy_count`, and for every counted PASS copy
+`audited_at >= verified_at` and
+`audited_at - verified_at < backup_verification_interval_seconds`. A failed,
+stale, unavailable, mismatched, or insufficient copy makes the check NO-GO.
+`PhaseFRetentionAuditV1` is exactly
+`schema_version,retention_audit_id,scope,policy_sha256,audited_at,object_checks,
+result`, with no top-level release ID. Rows sort by the kind/SHA identity key:
+package `("package_object",object_id,object_sha256)` or authority
+`("authority_object",object_kind,object_sha256)`.
 
-Retention starts when an authority object is first referenced by valid registry
-record. After terminal state, deadline is terminal `effective_at` plus F0
-retention seconds; retrieval is required while `now<deadline`, unless another
- nonterminal release references it. Pre-release campaigns end retention only by
-an independently reviewed `campaign_abandonment` incident with campaign scope;
-the deadline is `incident.detected_at + retention_seconds`, and all campaign
-authority objects are retained until that deadline. Campaign-scoped audits
-continue until that deadline without a release ID. For campaign scope, the
-required retention set is exactly one authority-object row for the exact
-package manifest plus one package-object row for every
-`PhaseFPackageManifestV1.objects` entry, copying exactly its `object_id` and
-`object_reference`; no missing, duplicate, or extra package object is legal.
-Deletion is never silent.
-Replacement is an additional copy with identical bytes, SHA, and length
-recorded in the next audit; different bytes are a new object. If every copy
-disappears before deadline, retention failure is required and claim-status is
-NOT_ACTIVE.
+A `retention_audited` record is authorized by the decision bundle and has
+exactly one scope-specific relation: release scope uses
+`references+release_record`; campaign scope uses `references+package_manifest`.
+Every later audit of the same scope has exactly one
+`registered_after+retention_audit`. A campaign audit never requires a release
+relation, and a release audit never requires a package-manifest relation merely
+because its objects came from a package.
 
-`CampaignRetentionSetV1` is the exact campaign set above. `ReleaseRetentionSetV1`
-is the deterministic union of: (A) the complete campaign set for the
-release-bound package; (B) one authority object each for protocol,
-power_analysis, cohort_lock, owner_approval, execution_record, release_record,
-monitoring_policy, metrology_policy, trust_provisioning_approval, the F5
-independent review bundle, the initial claim state, and the latest claim state
-at `audited_at`; (C) every accepted `monitoring_record` through `audited_at`;
-and (D) every unresolved incident affecting that release at `audited_at`.
-The current retention audit is excluded, registry records are excluded from
-retained objects, and every reference is derived from verified release,
-registry, and context bindings. Human-selected extras are forbidden.
-For campaign scope, `object_checks` equals `CampaignRetentionSetV1`; for
-release scope it equals `ReleaseRetentionSetV1`, by exact set equality with no
-missing, extra, or duplicate object. `RETENTION_COVERAGE_AMBIGUITIES=0`.
+Retention starts when an authority object is first referenced by a valid
+registry record. After terminal state, the deadline is terminal `effective_at`
+plus F0 retention seconds; retrieval is required while `now<deadline`, unless
+another nonterminal release references it. Pre-release campaigns end retention
+only by an independently reviewed `campaign_abandonment` incident with campaign
+scope; the deadline is `incident.detected_at + retention_seconds`, and all
+campaign identities are retained until that deadline. Deletion is never silent.
+Replacement is an additional verified copy with identical bytes, SHA, and
+length recorded in the next audit; different bytes are a new object. If every
+copy disappears before deadline, retention failure is required and claim-status
+is NOT_ACTIVE.
+
+`CampaignRetentionSetV1` is exactly one authority identity
+`{type:"authority_object",object_kind:"package_manifest",object_sha256:SHA256(M)}`
+for manifest `M`, plus one package identity for each manifest object `O`:
+`{type:"package_object",object_id:O.object_id,
+object_sha256:O.object_reference.sha256}`. No URI or length is copied into the
+set. `ReleaseRetentionSetV1` is the exact union of the campaign set, static
+release identities, accepted monitoring identities, unresolved incident
+identities, and the resolution authorities needed by the audited-at decision.
+
+| Retention member | Source authority | Source field / relation | Object kind | SHA rule |
+|---|---|---|---|---|
+| protocol | release record | `protocol_sha256` binding | `protocol` | exact bound protocol bytes |
+| power_analysis | cohort lock | `power_analysis_sha256` binding | `power_analysis` | exact bound complete file |
+| cohort_lock | release record | `cohort_lock_record_sha256` binding | `cohort_lock` | exact bound complete file |
+| owner_approval | release record | `owner_approval_file_sha256` binding | `owner_approval` | exact certified owner-approval bytes |
+| execution_record | release record | `execution_record_sha256` binding | `execution_record` | exact bound complete file |
+| release_record | registry chain | `release_registered` subject | `release_record` | exact subject complete-file SHA |
+| validation_manifest | release record | `validation_manifest_sha256` binding | `validation_manifest` | exact bound validation-manifest bytes |
+| monitoring_policy | release record | `monitoring_policy_sha256` binding | `monitoring_policy` | exact bound complete file |
+| metrology_policy | release record | `metrology_policy_sha256` binding | `metrology_policy` | exact bound complete file |
+| trust tag message | named Git tag | exact message of `ism-mechanism-health-v1-f-trust-provisioning-approved` | `git_tag_message` | SHA-256 exact annotated-tag message bytes |
+| F5 review bundle | initial ACTIVE state | `activation_review_bundle_sha256` | `independent_review_bundle` | exact bound complete file |
+| initial state | registry chain | first valid `claim_state_changed` subject | `claim_state` | exact subject complete-file SHA |
+| latest state at `audited_at` | registry chain | latest eligible `claim_state_changed` by verified sequence and state chain | `claim_state` | exact eligible subject complete-file SHA |
+
+The validation manifest is explicit because it is a normative release-record
+binding. The trust identity is obtained only by resolving the named annotated
+tag and hashing its exact message bytes; `trust_provisioning_approval` is not an
+object kind. No URI or byte length is derived by this table. The current audit
+contains exactly one object check for every identity in the set, with exact set
+equality and no registry records or human-selected extras.
+`RELEASE_RETENTION_STATIC_IDENTITY_AMBIGUITIES=0`.
+
+An incident is eligible at `audited_at` exactly when
+`incident.detected_at <= audited_at` and its `incident_recorded` registry
+record's `created_at <= audited_at`. Collect all valid resolution records for
+that incident whose `effective_at <= audited_at` and whose registry-record
+`created_at <= audited_at`; validate the complete resolution-number and
+predecessor-SHA chain. No eligible resolution means UNRESOLVED. Latest eligible
+`contained` means UNRESOLVED; `resolved` means RESOLVED; `superseded` means
+RESOLVED/SUPERSEDED. Ordering authority is verified registry sequence plus the
+exact resolution-number chain; timestamps alone cannot reorder history.
+`INCIDENT_AUDIT_TIME_STATUS_AMBIGUITIES=0`.
+
+Release retention includes every release-scoped incident record unresolved at
+`audited_at`, including open records with no resolution and contained records.
+It excludes resolved/superseded incident records but retains every resolution
+authority through the terminal resolution used to prove that exclusion. A
+broken chain, sequence conflict, terminal continuation, or ambiguous chronology
+is NO-GO.
+
+
+
+Release retention includes every `PhaseFMonitoringRecordV1` whose
+`monitoring_recorded` attestation is valid, whose `window_end <= audited_at`,
+and which is an accepted PASS window under §14's exact current-chain contract.
+Unregistered PASS files, suspend records, late unaccepted records, and records
+after `audited_at` are excluded. Monitoring membership is exactly
+`{type:"authority_object",object_kind:"monitoring_record",
+object_sha256:<subject complete-file SHA>}`. Initial/latest state identities
+with the same kind and SHA collapse to one member. The audit copy rows carry
+all URI and length information; membership never infers either from a SHA.
+`RETENTION_IDENTITY_LOCATOR_AMBIGUITIES=0`,
+`RELEASE_RETENTION_DEDUP_AMBIGUITIES=0`,
+`RELEASE_RETENTION_REFERENCE_DERIVATION_AMBIGUITIES=0`.
 
 Default consequences are exact: key compromise suspend; key revocation suspend
 or withdraw per F0; registry equivocation NOT_ACTIVE immediately; data
@@ -1463,11 +1595,11 @@ key never revokes itself.
 ## 16. Historical R7 master-schema catalog snapshot (non-normative)
 
 This is the retained R7 catalog snapshot. It is historical and non-normative;
-the one current catalog is the R8 MASTER SCHEMA CATALOG in §26. Each row includes exact
+the one current catalog is the R9 MASTER SCHEMA CATALOG in §33. Each row includes exact
 fields, identity, complete-file hash, producer, validator, stage, requirement,
 AC, test, evidence, and registry relation. The canonical substantive
 requirement/AC/test/evidence procedures were §19.2; every R7 identifier in this
-snapshot is a historical cross-reference only and is not current R8 acceptance
+snapshot is a historical cross-reference only and is not current R9 acceptance
 authority.
 
 | Schema | Field closure / identity | Producer; validator; stage | Registry relation | Requirement / AC / test / evidence |
@@ -1477,7 +1609,7 @@ authority.
 | `PhaseFReviewTargetV1` | §2 exact `git_commit` or `external_object` tagged union | reviewer; target validator; all review gates | nested in review bundle | R7-02 / AC7-02 / T7-02 / EV7-02 |
 | `PhaseFIndependentReviewV1` | §5 exact five role fields with no row ID | independent reviewer; review validator; all gates | nested in review bundle | R7-05 / AC7-05 / T7-05 / EV7-05 |
 | `PhaseFProtocolProjectionV1` | §4 exact plan contract; no wire ID | checker; projection; F1 | protocol | R5-03 / AC5-03 / T5-03 / EV5-03 |
-| `PhaseFAuthorityEnrollmentV1` | §5.1 unsigned; §3 ID/file hash | governance; enrollment; readiness | authority_enrolled | R5-04 / AC5-04 / T5-04 / EV5-04 |
+| `PhaseFAuthorityEnrollmentV1` | §5.2 current exact enrollment closure; R7 historical accounting | governance; enrollment; readiness | authority_enrolled | R5-04 / AC5-04 / T5-04 / EV5-04 |
 | `PhaseFCheckerBuildEvidenceV1` | §7 exact fields; §3 ID; complete hash | checker builder; independent verifier; readiness | readiness evidence | R6-03 / AC6-03 / T6-03 / EV6-03 |
 | `PhaseFCheckerReadinessEvidenceV1` | §7 exact fields; §3 ID in body; complete hash | checker readiness; independent verifier; readiness | readiness tag evidence | R7-06 / AC7-06 / T7-06 / EV7-06 |
 | `PhaseFCheckerReportV1` | §7 exact fields including semantic command and argv; complete hash | checker; report validator; all | none | R6-03 / AC6-03 / T6-03 / EV6-03 |
@@ -1530,7 +1662,7 @@ whose hash is the body field `review_bundle_sha256`.
 
 | approval schema | exact field closure / wire encoding | producer / validator / stage | tag name / target | review bundle / requirement / AC / test / evidence |
 |---|---|---|---|---|
-| `PhaseFPlanApprovalV1` | §6 plan body fields, fixed order, ASCII plus final LF | independent reviewer / tag validator / plan gate | `ism-mechanism-health-v1-f-plan-approved` / reviewed R7 main | five-role plan review / R7-12 / AC7-12 / T7-12 / EV7-12 |
+| `PhaseFPlanApprovalV1` | §6 plan body fields, fixed order, ASCII plus final LF | independent reviewer / tag validator / plan gate | `ism-mechanism-health-v1-f-plan-approved` / historical R7 predecessor target (non-current) | five-role plan review / R7-12 / AC7-12 / T7-12 / EV7-12 |
 | `PhaseFDecisionApprovalV1` | §6 F0 body fields, fixed order, ASCII plus final LF | independent reviewer / tag validator / F0 gate | `ism-mechanism-health-v1-f-f0-decisions-approved` / reviewed F0 main | five-role F0 review / R7-12 / AC7-12 / T7-12 / EV7-12 |
 | `PhaseFReadinessApprovalV1` | §6 readiness body fields, fixed order, ASCII plus final LF | independent reviewer / tag validator / readiness gate | `ism-mechanism-health-v1-f-readiness-approved` / integrated checker | five-role readiness review / R7-12 / AC7-12 / T7-12 / EV7-12 |
 | `PhaseFAuthorityEnrollmentApprovalV1` | §6 enrollment body fields, fixed order, ASCII plus final LF | independent reviewer / tag validator / enrollment gate | `ism-mechanism-health-v1-f-authority-enrollment-approved` / readiness main | five-role enrollment review / R7-12 / AC7-12 / T7-12 / EV7-12 |
@@ -1555,12 +1687,12 @@ lock binds exact audit hash and package registry relation binds it.
 ### 16.1 Historical R7 normative field-type audit
 
 The following was the R7 field audit. It is retained for historical accounting;
-the complete current R8 closure and metadata are in §26. `JSON_INTEGER_ONE` is the literal
+the historical R8 closure and metadata are retained above. The complete current R9 closure and metadata are in §33. `JSON_INTEGER_ONE` is the literal
 JSON integer `1`; `SORTED_UNIQUE<T>` is a strictly increasing JSON array whose
 member type is exactly `T`; `NONEMPTY_SORTED_UNIQUE<T>` adds nonempty; and
 `JCS_OBJECT<T>` means the complete canonical object type `T`. These were closed
-R7 constructions, retained for regression accounting. The current R8 catalog
-is the single source of catalog authority in §26.
+R7 constructions, retained for regression accounting. The current R9 catalog
+is the single source of catalog authority in §33.
 
 | Object | Every field and exact type |
 |---|---|
@@ -1642,7 +1774,7 @@ complete file -> file SHA. For claim state, `cause_incident_sha256` is
 `SHA256_V1|null` with the reason-specific nullability in §14. For monitoring,
 the measurement closure included `evidence_sha256` and the breach closure did
 not. For retention, the audit closure included `scope:PhaseFRetentionScopeV1`
-and never a top-level release ID. These are historical catalog entries; §26 is
+and never a top-level release ID. These are historical catalog entries; §33 is
 the current normative catalog.
 
 ## 17. Valid object construction order
@@ -1694,8 +1826,8 @@ the final review bundle is complete. It binds independently:
 ## 18. Historical R7 positive controls and complete DAG construction audit
 
 This section is retained for R7 accounting only and is non-normative. The
-current positive-path authority is §26; where this historical text differs,
-§26 controls.
+current positive-path authority is §34 and §41; where this historical text
+differs, the current R9 sections control.
 
 The foundational external-authority DAG is frozen as:
 
@@ -2028,10 +2160,10 @@ reviewed architecture supersession, not an unaccounted result change.
 
 The following R6 requirements and traceability rows are retained as historical
 cross-references only. The R7 rows in §19.2 are also historical. The current
-operational authority is the R8 requirement matrix in §27. Each historical row
+operational authority is the R9 requirement matrix in §34. Each historical row
 has one primary AC, one test, and one evidence item; no historical row changes
 the R8 contract. Every F-OD-01 through F-OD-20 is mapped only by the current
-R8 matrix; no additional owner decision exists.
+R9 matrix; no additional owner decision exists.
 
 ### 19.1 Historical R6 executable requirement traceability
 
@@ -2216,7 +2348,7 @@ Every historical case remains independently replayable. `NO-GO` means checker
 failure; public claim is NOT_ACTIVE except exact ACTIVE or
 AUTHORITY_UNAVAILABLE. R6 cases are appended, not substituted.
 R1-R6 rows are historical, non-normative regression fixtures; they do not
-reintroduce superseded fields or relations into the current R8 schemas.
+reintroduce superseded fields or relations into the historical R8 schemas.
 The exact stale-token strings in the R7 negative fixtures below are
 non-normative test inputs only; they do not define the F0 contract.
 
@@ -2888,7 +3020,10 @@ READY_FOR_PHASE_F_PLAN_APPROVAL_TAG: NO pending fresh R7 GO
 READY_FOR_PHASE_F_IMPLEMENTATION: NO
 ```
 
-## 26. R8 MASTER SCHEMA CATALOG
+## 26. Historical R8 master-schema catalog snapshot (non-normative)
+
+This entire section is retained historical R8 accounting and is not current
+authority. The current R9 catalog is §33.
 
 This section is the only current schema catalog. The historical R7 catalog in
 §16 is not current authority. The catalog is set-equal to every distinct
@@ -2999,7 +3134,7 @@ PhaseFUnitRuleV1
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `PhaseFArgvV1` | NESTED_WIRE | §7 exact argv derivation | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | containing object's stage | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
 | `PhaseFAuthorityEnrollmentApprovalV1` | TAG_BODY | §6 exact ASCII body | none | exact tag-body bytes | independent five-role reviewers | tag validator | enrollment gate | tag message hash; no object subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
-| `PhaseFAuthorityEnrollmentV1` | TOP_LEVEL_WIRE | §5.1 exact enrollment object | §3 exact domain and own ID | exact canonical file bytes | governance authority | enrollment strict parser | enrollment | subject `authority_enrollment` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFAuthorityEnrollmentV1` | TOP_LEVEL_WIRE | historical R8 §5.1 exact enrollment object | §3 exact domain and own ID | exact canonical file bytes | governance authority | enrollment strict parser | enrollment | subject `authority_enrollment` | R8-22 | AC8-22 | T8-16 | EV8-22 |
 | `PhaseFChainOfCustodyV1` | TOP_LEVEL_WIRE | §11 exact custody ledger | §3 exact domain and own ID | exact canonical file bytes | custody authority | custody strict parser | F2-F4 | subject `chain_of_custody` | R8-22 | AC8-22 | T8-16 | EV8-22 |
 | `PhaseFCheckListV1` | NESTED_WIRE | §13 exact checklist | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F0-F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
 | `PhaseFCheckerBuildEvidenceV1` | TOP_LEVEL_WIRE | §7 exact build evidence | §3 exact domain and own ID | exact canonical file bytes | checker builder | readiness strict parser | readiness | subject `checker_build_evidence` | R8-22 | AC8-22 | T8-16 | EV8-22 |
@@ -3098,7 +3233,10 @@ and `PhaseFPhysicalReleaseApprovalV1`. `PhaseFCheckListV1`,
 `PhaseFUncertaintyPolicyV1`, and `PhaseFUnitRuleV1` are individually listed,
 not represented by a grouped helper row.
 
-## 27. R8 CURRENT NORMATIVE REQUIREMENT MATRIX
+## 27. Historical R8 normative requirement matrix (non-current)
+
+This entire section is retained historical R8 accounting and is not current
+authority. The current R9 matrix is §34.
 
 This is the only current requirement-to-owner-decision mapping source. The R6
 and R7 tables in §19 are historical only. The `owner_decision_ids` column is
@@ -3136,7 +3274,10 @@ derived and non-normative.
 coverage computation is `union(R8 requirement.owner_decision_ids)` and must
 equal the exact set `{F-OD-01,...,F-OD-20}`.
 
-## 28. R8 AC, TEST, AND F-EV EXECUTABILITY
+## 28. Historical R8 AC, TEST, AND F-EV executability (non-current)
+
+This entire section is retained historical R8 accounting and is not current
+authority. The current R9 traceability is in §§35–37.
 
 Every current R8 acceptance criterion has preconditions, exact inputs, exact
 operation, expected result/output, and a failure oracle.
@@ -3224,7 +3365,10 @@ identity, and acceptance/review oracle.
 | `EV8-23` | current R8 requirement matrix | plan author and independent reviewer | plan SHA/blob and matrix row bytes | derived OD union exactly 01..20 |
 | `EV8-24` | current requirements, AC/test/evidence tables | plan author and independent reviewer | plan SHA/blob and row identities | bidirectional reference and substance audit |
 
-## 29. R8 POSITIVE CONTROLS AND COUNTEREXAMPLES
+## 29. Historical R8 positive controls and counterexamples (non-current)
+
+This entire section is retained historical R8 accounting and is not current
+authority. The current R9 controls are in §§35–37.
 
 ### 29.1 Emergency positive control
 
@@ -3326,7 +3470,10 @@ no release ID is required, and no cycle exists.
 | `R8-CX-19` | F-OD-12 has different mappings in two current tables | impossible; current-source failure |
 | `R8-CX-20` | derived owner-decision union equals exactly F-OD-01..20 | PASS |
 
-## 30. R8 REMEDIATION LEDGER
+## 30. Historical R8 remediation ledger (non-current)
+
+This entire section is retained historical R8 accounting and is not current
+authority. The current R9 ledger is §38.
 
 | R8 remediation ID | R7 P1 finding | R8 exact section | root cause | R8 remediation | current R8 requirement IDs | AC IDs | test IDs | F-EV IDs | AUTHOR DISPOSITION |
 |---|---|---|---|---|---|---|---|---|---|
@@ -3339,7 +3486,10 @@ no release ID is required, and no cycle exists.
 No author disposition is `CLOSED`; only the fresh independent R8 reviewer may
 close a remediation ID.
 
-## 31. R8 AUTHOR AUDIT AND REQUIRED VALIDATION
+## 31. Historical R8 author audit and validation (non-current)
+
+This entire section is retained historical R8 accounting and is not current
+authority. The current R9 audit is §39.
 
 The following is the post-edit author audit output. It is not independent
 approval. The set, row, reference, and constructive checks in §§26-29 produce
@@ -3416,7 +3566,10 @@ Phase-E Git blob `6fce9d13a42a09027e0e730874a8d80e03e6a7da`, and exactly one
 changed file:
 `docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md`.
 
-## 32. Fresh independent R8 rereview gate and handoff
+## 32. Historical R8 rereview gate and handoff (non-current)
+
+This entire section is retained historical R8 accounting and is not current
+authority. The current R9 handoff is §41.
 
 The R8 independent rereview is `PENDING`. A new independent reviewer must begin
 with these five positive paths, in order: (1) one canonical emergency path
@@ -3522,3 +3675,771 @@ READY_FOR_PHASE_F_IMPLEMENTATION: NO
 No Phase-F approval tag, implementation branch, F0 activity, key, signature,
 trust provisioning, registry record, physical evidence, monitoring evidence,
 claim, or monitoring record is created by this planning-only remediation.
+## 33. R9 MASTER SCHEMA CATALOG
+
+This is the one current R9 schema catalog. Sections 16 and 26 are historical
+accounting only; no historical catalog or matrix is current authority. The
+catalog is set-equal to every distinct normative identifier matching
+`PhaseF[A-Za-z0-9_]*V1` in this complete plan. The R9 additions are
+`PhaseFIncidentResolutionV1` and `PhaseFRetentionCopyVerificationV1`; no
+external schema file is created.
+
+### 33.1 NORMATIVE_PHASE_F_IDENTIFIER_SET
+
+The mechanically enumerated set is exactly 91 identifiers:
+
+```text
+PhaseFArgvV1
+PhaseFAuthorityEnrollmentApprovalV1
+PhaseFAuthorityEnrollmentV1
+PhaseFChainOfCustodyV1
+PhaseFCheckListV1
+PhaseFCheckerBuildEvidenceV1
+PhaseFCheckerExitCodeV1
+PhaseFCheckerReadinessEvidenceV1
+PhaseFCheckerReportV1
+PhaseFCheckerStdoutV1
+PhaseFClaimStateRecordV1
+PhaseFCohortLockRecordV1
+PhaseFCommandV1
+PhaseFCustodyEventV1
+PhaseFDecisionApprovalV1
+PhaseFDecisionBundleV1
+PhaseFDecisionRowV1
+PhaseFDecisionValueV1
+PhaseFDependencyAuditV1
+PhaseFDependencyEdgeV1
+PhaseFDeviationEventV1
+PhaseFDeviationLedgerRevisionV1
+PhaseFDeviationLedgerV1
+PhaseFEndpointMetrologyPolicyV1
+PhaseFEnvironmentEntryV1
+PhaseFExecutionRecordV1
+PhaseFF5ReleaseCandidateV1
+PhaseFIdentityComparisonV1
+PhaseFIncidentRecordV1
+PhaseFIncidentResolutionV1
+PhaseFIncidentScopeV1
+PhaseFIndependentReviewBundleV1
+PhaseFIndependentReviewV1
+PhaseFLODLOQPolicyV1
+PhaseFLocationLedgerV1
+PhaseFLocationV1
+PhaseFMethodVersionV1
+PhaseFMetricThresholdV1
+PhaseFMetrologyCheckResultV1
+PhaseFMetrologyCheckSpecV1
+PhaseFMetrologyPolicyV1
+PhaseFMonitoringBreachV1
+PhaseFMonitoringEvidenceV1
+PhaseFMonitoringMeasurementV1
+PhaseFMonitoringPolicyV1
+PhaseFMonitoringRecordV1
+PhaseFMonitoringSourceReferenceV1
+PhaseFMonitoringValueV1
+PhaseFNamedDigestV1
+PhaseFObjectDigestV1
+PhaseFObjectReferenceV1
+PhaseFOutputSpecV1
+PhaseFPackageBindingV1
+PhaseFPackageManifestV1
+PhaseFPackageObjectV1
+PhaseFParameterSpecV1
+PhaseFParameterValueRowV1
+PhaseFPhysicalIdentityAuditV1
+PhaseFPhysicalReleaseApprovalV1
+PhaseFPhysicalUnitLedgerV1
+PhaseFPlanApprovalV1
+PhaseFPowerAnalysisRecordV1
+PhaseFPowerMethodInterfaceV1
+PhaseFPowerOutputValueV1
+PhaseFProtocolProjectionV1
+PhaseFQuantifiedUncertaintyV1
+PhaseFRangeRuleV1
+PhaseFReadinessApprovalV1
+PhaseFReferenceAssessmentV1
+PhaseFReferenceResultV1
+PhaseFReferenceSourceDescriptorV1
+PhaseFRegistryCompromiseEmergencyV1
+PhaseFRegistryHeadV1
+PhaseFRegistryRecordV1
+PhaseFRegistryRelationV1
+PhaseFReinstatementApprovalV1
+PhaseFReleaseRecordV1
+PhaseFRetentionAuditV1
+PhaseFRetentionCopyVerificationV1
+PhaseFRetentionObjectCheckV1
+PhaseFRetentionObjectV1
+PhaseFRetentionScopeV1
+PhaseFRetrievalVerificationV1
+PhaseFReviewTargetV1
+PhaseFScientificAdmissibilityAuditV1
+PhaseFSensitivityCaseV1
+PhaseFSensitivityOverrideV1
+PhaseFTrustProvisioningApprovalV1
+PhaseFUncertaintyPolicyV1
+PhaseFUnitEntryV1
+PhaseFUnitRuleV1
+```
+
+### 33.2 CATALOG_PHASE_F_IDENTIFIER_SET
+
+The following table is the complete current catalog. Every row has the required
+identifier, category, exact field closure, identity rule, complete-file hash
+meaning, producer, validator, stage, registry behavior, current requirement,
+primary AC, test, and F-EV metadata.
+
+| exact identifier | category | exact field-closure section | semantic-ID rule | complete-file hash | producer | validator | stage | registry behavior | current requirement IDs | current primary AC IDs | current test IDs | current F-EV IDs |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `PhaseFArgvV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFAuthorityEnrollmentApprovalV1` | TAG_BODY | §6 exact ASCII enrollment approval body | none | not applicable as JSON; exact annotated-tag message SHA when referenced | independent five-role enrollment gate; tag operator non-authoritative | tag validator | enrollment gate | generic `git_tag_message` only where referenced; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFAuthorityEnrollmentV1` | TOP_LEVEL_WIRE | §5.2 exact enrollment closure | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFChainOfCustodyV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFCheckListV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFCheckerBuildEvidenceV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFCheckerExitCodeV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFCheckerReadinessEvidenceV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFCheckerReportV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFCheckerStdoutV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFClaimStateRecordV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFCohortLockRecordV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFCommandV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFCustodyEventV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFDecisionApprovalV1` | TAG_BODY | §6 exact ASCII decision approval body | none | not applicable as JSON; exact annotated-tag message SHA when referenced | independent five-role F0 gate; tag operator non-authoritative | tag validator | F0 gate | generic `git_tag_message` only where referenced; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFDecisionBundleV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFDecisionRowV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFDecisionValueV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFDependencyAuditV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFDependencyEdgeV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFDeviationEventV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFDeviationLedgerRevisionV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFDeviationLedgerV1` | PLAN_ONLY_CONTRACT | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFEndpointMetrologyPolicyV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFEnvironmentEntryV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFExecutionRecordV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFF5ReleaseCandidateV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFIdentityComparisonV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFIncidentRecordV1` | TOP_LEVEL_WIRE | §15 exact open detection-record closure | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | operations / audited retention | subject kind named by §9 where registered | R9-06 | AC9-06 | T9-CX-07,T9-CX-08,T9-CX-24,T9-CX-25,T9-CX-26,T9-CX-27 | EV9-06 |
+| `PhaseFIncidentResolutionV1` | TOP_LEVEL_WIRE | §15 exact resolution fields, chain, and §3 ID | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | operations / audited retention | subject kind named by §9 where registered | R9-06 | AC9-06 | T9-CX-11,T9-CX-12,T9-CX-24,T9-CX-25,T9-CX-26,T9-CX-27 | EV9-06 |
+| `PhaseFIncidentScopeV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | operations / audited retention | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFIndependentReviewBundleV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFIndependentReviewV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFLODLOQPolicyV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFLocationLedgerV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFLocationV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFMethodVersionV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFMetricThresholdV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFMetrologyCheckResultV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFMetrologyCheckSpecV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFMetrologyPolicyV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFMonitoringBreachV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFMonitoringEvidenceV1` | TOP_LEVEL_WIRE | §14 exact evidence closure; trust fields verify tag bytes | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFMonitoringMeasurementV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFMonitoringPolicyV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFMonitoringRecordV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFMonitoringSourceReferenceV1` | NESTED_WIRE | §14 exact source-reference closure including trust tag message | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-02,R9-07 | AC9-02,AC9-07 | T9-CX-13,T9-CX-14,T9-CX-15,T9-CX-16,T9-CX-17 | EV9-02,EV9-07 |
+| `PhaseFMonitoringValueV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFNamedDigestV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFObjectDigestV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFObjectReferenceV1` | NESTED_WIRE | §10 exact immutable URI/SHA/byte-length reference | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFOutputSpecV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFPackageBindingV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFPackageManifestV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFPackageObjectV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFParameterSpecV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFParameterValueRowV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFPhysicalIdentityAuditV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFPhysicalReleaseApprovalV1` | TAG_BODY | §6 exact ASCII physical-release approval body | none | not applicable as JSON; exact annotated-tag message SHA when referenced | independent five-role release gate; tag operator non-authoritative | tag validator | physical-release gate | generic `git_tag_message` only where referenced; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFPhysicalUnitLedgerV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFPlanApprovalV1` | TAG_BODY | §6 exact ASCII plan tag body and CURRENT_PLAN_REVIEW_SHA target | none | not applicable as JSON; exact annotated-tag message SHA when referenced | independent five-role plan gate; tag operator non-authoritative | tag validator | plan gate | tag message only; generic `git_tag_message` byte identity; no independent registry subject | R9-01 | AC9-01 | T9-CX-01,T9-CX-02,T9-CX-18 | EV9-01 |
+| `PhaseFPowerAnalysisRecordV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFPowerMethodInterfaceV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFPowerOutputValueV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFProtocolProjectionV1` | PLAN_ONLY_CONTRACT | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFQuantifiedUncertaintyV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFRangeRuleV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFReadinessApprovalV1` | TAG_BODY | §6 exact ASCII readiness approval body | none | not applicable as JSON; exact annotated-tag message SHA when referenced | independent five-role readiness gate; tag operator non-authoritative | tag validator | readiness gate | generic `git_tag_message` only where referenced; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFReferenceAssessmentV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFReferenceResultV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFReferenceSourceDescriptorV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFRegistryCompromiseEmergencyV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFRegistryHeadV1` | TOP_LEVEL_WIRE | §8 exact head fields and signature bytes | none | exact canonical signed head bytes | registry authority | head strict parser | all registry operations | resolver object; no subject row | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFRegistryRecordV1` | TOP_LEVEL_WIRE | §8 exact record fields and signature bytes | none | exact canonical signed record bytes | registry authority | registry strict parser | all registry operations | chain record; subject and relation fields exact | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFRegistryRelationV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFReinstatementApprovalV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFReleaseRecordV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFRetentionAuditV1` | TOP_LEVEL_WIRE | §15 exact retention-audit closure | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | operations / audited retention | subject kind named by §9 where registered | R9-03,R9-04,R9-05 | AC9-03,AC9-04,AC9-05 | T9-KAT-01 | EV9-03,EV9-04,EV9-05 |
+| `PhaseFRetentionCopyVerificationV1` | NESTED_WIRE | §15 exact copy-verification fields | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | operations / audited retention | nested; no independent registry subject | R9-07 | AC9-07 | T9-CX-04,T9-CX-05,T9-CX-23 | EV9-07 |
+| `PhaseFRetentionObjectCheckV1` | NESTED_WIRE | §15 exact copies/result closure | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | operations / audited retention | nested; no independent registry subject | R9-07 | AC9-07 | T9-CX-03,T9-CX-04,T9-CX-05,T9-CX-06 | EV9-07 |
+| `PhaseFRetentionObjectV1` | NESTED_WIRE | §15 exact byte-identity tagged union | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | operations / audited retention | nested; no independent registry subject | R9-03,R9-04,R9-05 | AC9-03,AC9-04,AC9-05 | T9-CX-03,T9-CX-04,T9-CX-05,T9-CX-06,T9-CX-22,T9-CX-23,T9-CX-30 | EV9-03,EV9-04,EV9-05 |
+| `PhaseFRetentionScopeV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | operations / audited retention | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFRetrievalVerificationV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFReviewTargetV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFScientificAdmissibilityAuditV1` | TOP_LEVEL_WIRE | §2–§15 exact closure; unchanged by R9 | §3 exact domain and own ID | exact canonical complete-file SHA | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | subject kind named by §9 where registered | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFSensitivityCaseV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFSensitivityOverrideV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFTrustProvisioningApprovalV1` | TAG_BODY | §6 exact ASCII trust tag body | none | not applicable as JSON; exact annotated-tag message SHA when referenced | independent five-role trust gate; tag operator non-authoritative | tag validator | F3 trust gate | tag message only; generic `git_tag_message` byte identity; no independent registry subject | R9-02 | AC9-02 | T9-CX-13,T9-CX-14,T9-CX-15,T9-CX-16,T9-CX-17,T9-CX-19,T9-CX-21 | EV9-02 |
+| `PhaseFUncertaintyPolicyV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFUnitEntryV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+| `PhaseFUnitRuleV1` | NESTED_WIRE | §2–§15 exact closure; unchanged by R9 | none / containing-object-only | containing-object-only | named Phase-F authority | strict schema/authority validator | existing Phase-F stage | nested; no independent registry subject | R9-09 | AC9-09 | T9-CAT | EV9-09 |
+
+The catalog audit requires exact set equality, one row per identifier, no blank
+metadata, no grouped identifier row, no duplicate row, and bidirectional
+catalog-to-R9-matrix coverage. In particular,
+`PhaseFAuthorityEnrollmentV1 -> §5.2`,
+`PhaseFTrustProvisioningApprovalV1 -> TAG_BODY / §6 exact tag bytes`, all
+six approval schemas are TAG_BODY, and neither obsolete approval object kind is
+present. `SCHEMA_CATALOG_SECTION_POINTER_ERRORS=0`,
+`APPROVAL_TAG_SCHEMA_CATEGORY_AMBIGUITIES=0`,
+`CATALOG_DUPLICATE_IDENTIFIER_ROWS=0`, and
+`INCOMPLETE_SCHEMA_CATALOG_ROWS=0`.
+## 34. R9 CURRENT NORMATIVE REQUIREMENT MATRIX
+
+Sections 27 and 28 are historical R8 accounting and are non-current. This is
+the one current R9 matrix. It carries forward all still-valid R8 contracts and
+splits the four R9 findings into plan-target, trust, static-retention,
+incident-chronology, monitoring-membership, and copy-coverage requirements.
+`owner_decision_ids` in this table is the only current F-OD mapping source.
+
+| requirement_id | normative_statement | owner_decision_ids | schema_ids | stage | review_roles | primary_ac_id | test_ids | evidence_ids |
+|---|---|---|---|---|---|---|---|---|
+| `R9-01` | Future plan tag targets only externally frozen CURRENT_PLAN_REVIEW_SHA and matches body and plan bytes at that commit. | none | PhaseFPlanApprovalV1,PhaseFIndependentReviewBundleV1,PhaseFReviewTargetV1 | plan review | architecture_data,security | AC9-01 | T9-POS-PLAN,T9-CX-01,T9-CX-02,T9-CX-18 | EV9-01 |
+| `R9-02` | Trust provisioning has one exact annotated-tag message authority and trust monitoring verifies tag bytes and fields. | F-OD-04 | PhaseFTrustProvisioningApprovalV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringEvidenceV1,PhaseFObjectReferenceV1 | F3,F5+ | security,operations_governance | AC9-02 | T9-POS-TRUST,T9-CX-13,T9-CX-14,T9-CX-15,T9-CX-16,T9-CX-17,T9-CX-19,T9-CX-21 | EV9-02 |
+| `R9-03` | Campaign retention derives a manifest/object identity set using kind and SHA only. | F-OD-18 | PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetentionAuditV1 | retention | operations_governance,security | AC9-03 | T9-POS-RETENTION,T9-CX-22,T9-CX-30 | EV9-03 |
+| `R9-04` | Static release retention derives every mandatory release authority as an exact kind/SHA identity, including validation_manifest and trust tag message. | F-OD-13,F-OD-14,F-OD-15 | PhaseFReleaseRecordV1,PhaseFCohortLockRecordV1,PhaseFExecutionRecordV1,PhaseFMonitoringPolicyV1,PhaseFMetrologyPolicyV1,PhaseFClaimStateRecordV1,PhaseFIndependentReviewBundleV1,PhaseFTrustProvisioningApprovalV1,PhaseFRetentionObjectV1 | F5+ | operations_governance,security | AC9-04 | T9-POS-RETENTION,T9-CX-03,T9-CX-06 | EV9-04 |
+| `R9-05` | Immutable incident detections and chained resolutions classify release incidents deterministically at audited_at. | F-OD-16 | PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFRetentionObjectV1 | operations | operations_governance,security | AC9-05 | T9-CX-07,T9-CX-08,T9-CX-11,T9-CX-12,T9-CX-24,T9-CX-25,T9-CX-26,T9-CX-27 | EV9-05 |
+| `R9-06` | Release retention includes accepted PASS monitoring identities through audited_at and excludes all unaccepted or future records. | F-OD-19 | PhaseFMonitoringRecordV1,PhaseFMonitoringEvidenceV1,PhaseFRegistryRecordV1,PhaseFRetentionObjectV1 | F5+ | operations_governance | AC9-06 | T9-CX-09,T9-CX-10,T9-CX-28,T9-CX-29 | EV9-06 |
+| `R9-07` | Every retention identity has exact verified immutable copies, freshness, byte length/SHA, distinct URI, and required backup count. | F-OD-20 | PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionAuditV1,PhaseFObjectReferenceV1 | retention | security,operations_governance | AC9-07 | T9-POS-RETENTION,T9-CX-04,T9-CX-05,T9-CX-23 | EV9-07 |
+| `R9-08` | Current R9 catalog exactly enumerates the normative PhaseF identifier set with complete metadata and no obsolete approval kind. | none | PhaseFArgvV1,PhaseFAuthorityEnrollmentApprovalV1,PhaseFAuthorityEnrollmentV1,PhaseFChainOfCustodyV1,PhaseFCheckListV1,PhaseFCheckerBuildEvidenceV1,PhaseFCheckerExitCodeV1,PhaseFCheckerReadinessEvidenceV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFClaimStateRecordV1,PhaseFCohortLockRecordV1,PhaseFCommandV1,PhaseFCustodyEventV1,PhaseFDecisionApprovalV1,PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1,PhaseFDeviationEventV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationLedgerV1,PhaseFEndpointMetrologyPolicyV1,PhaseFEnvironmentEntryV1,PhaseFExecutionRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFIdentityComparisonV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFIndependentReviewV1,PhaseFLODLOQPolicyV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFMethodVersionV1,PhaseFMetricThresholdV1,PhaseFMetrologyCheckResultV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyPolicyV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1,PhaseFNamedDigestV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1,PhaseFOutputSpecV1,PhaseFPackageBindingV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFPhysicalIdentityAuditV1,PhaseFPhysicalReleaseApprovalV1,PhaseFPhysicalUnitLedgerV1,PhaseFPlanApprovalV1,PhaseFPowerAnalysisRecordV1,PhaseFPowerMethodInterfaceV1,PhaseFPowerOutputValueV1,PhaseFProtocolProjectionV1,PhaseFQuantifiedUncertaintyV1,PhaseFRangeRuleV1,PhaseFReadinessApprovalV1,PhaseFReferenceAssessmentV1,PhaseFReferenceResultV1,PhaseFReferenceSourceDescriptorV1,PhaseFRegistryCompromiseEmergencyV1,PhaseFRegistryHeadV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFReinstatementApprovalV1,PhaseFReleaseRecordV1,PhaseFRetentionAuditV1,PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetrievalVerificationV1,PhaseFReviewTargetV1,PhaseFScientificAdmissibilityAuditV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFTrustProvisioningApprovalV1,PhaseFUncertaintyPolicyV1,PhaseFUnitEntryV1,PhaseFUnitRuleV1 | plan review | architecture_data | AC9-08 | T9-CAT,T9-CX-19,T9-CX-20 | EV9-08 |
+| `R9-09` | Current R9 requirements, catalog, AC, test, and F-EV rows are bidirectionally substantive and use one matrix. | none | PhaseFArgvV1,PhaseFAuthorityEnrollmentApprovalV1,PhaseFAuthorityEnrollmentV1,PhaseFChainOfCustodyV1,PhaseFCheckListV1,PhaseFCheckerBuildEvidenceV1,PhaseFCheckerExitCodeV1,PhaseFCheckerReadinessEvidenceV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFClaimStateRecordV1,PhaseFCohortLockRecordV1,PhaseFCommandV1,PhaseFCustodyEventV1,PhaseFDecisionApprovalV1,PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1,PhaseFDeviationEventV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationLedgerV1,PhaseFEndpointMetrologyPolicyV1,PhaseFEnvironmentEntryV1,PhaseFExecutionRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFIdentityComparisonV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFIndependentReviewV1,PhaseFLODLOQPolicyV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFMethodVersionV1,PhaseFMetricThresholdV1,PhaseFMetrologyCheckResultV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyPolicyV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1,PhaseFNamedDigestV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1,PhaseFOutputSpecV1,PhaseFPackageBindingV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFPhysicalIdentityAuditV1,PhaseFPhysicalReleaseApprovalV1,PhaseFPhysicalUnitLedgerV1,PhaseFPlanApprovalV1,PhaseFPowerAnalysisRecordV1,PhaseFPowerMethodInterfaceV1,PhaseFPowerOutputValueV1,PhaseFProtocolProjectionV1,PhaseFQuantifiedUncertaintyV1,PhaseFRangeRuleV1,PhaseFReadinessApprovalV1,PhaseFReferenceAssessmentV1,PhaseFReferenceResultV1,PhaseFReferenceSourceDescriptorV1,PhaseFRegistryCompromiseEmergencyV1,PhaseFRegistryHeadV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFReinstatementApprovalV1,PhaseFReleaseRecordV1,PhaseFRetentionAuditV1,PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetrievalVerificationV1,PhaseFReviewTargetV1,PhaseFScientificAdmissibilityAuditV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFTrustProvisioningApprovalV1,PhaseFUncertaintyPolicyV1,PhaseFUnitEntryV1,PhaseFUnitRuleV1 | plan review | architecture_data | AC9-09 | T9-CAT,T9-TRACE | EV9-09 |
+| `R9-10` | F0 retains exactly 20 owner decisions and exact runtime projection. | F-OD-01,F-OD-02 | PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFProtocolProjectionV1 | F0 | architecture_data,scientific_metrology | AC9-10 | T9-POS-DAG | EV9-10 |
+| `R9-11` | Readiness, unsigned enrollment, genesis, signatures, sequence, and relation contracts remain exact. | F-OD-03,F-OD-04 | PhaseFCheckerBuildEvidenceV1,PhaseFCheckerReadinessEvidenceV1,PhaseFAuthorityEnrollmentV1,PhaseFRegistryRecordV1,PhaseFRegistryHeadV1 | readiness/enrollment | security,compatibility | AC9-11 | T9-POS-DAG | EV9-11 |
+| `R9-12` | Retrieval, package classification, dependency, and package relations remain deterministic. | F-OD-05,F-OD-06,F-OD-07,F-OD-08 | PhaseFRetrievalVerificationV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFPackageBindingV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1 | F2 | security,scientific_metrology | AC9-12 | T9-POS-DAG | EV9-12 |
+| `R9-13` | Physical identity, pseudoreplication, location, and custody continuity remain exact. | F-OD-09,F-OD-10 | PhaseFPhysicalUnitLedgerV1,PhaseFUnitEntryV1,PhaseFPhysicalIdentityAuditV1,PhaseFIdentityComparisonV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFChainOfCustodyV1,PhaseFCustodyEventV1 | F2-F4 | scientific_metrology,operations_governance | AC9-13 | T9-POS-DAG | EV9-13 |
+| `R9-14` | Deviation revisions remain immutable, stable-ID, action-compatible, and acyclic. | F-OD-11 | PhaseFDeviationLedgerV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationEventV1 | F1-F4 | operations_governance,security | AC9-14 | T9-POS-DAG | EV9-14 |
+| `R9-15` | Power interface, typed values, ranges, units, sensitivity cases, outputs, review, and registration remain exact. | F-OD-12 | PhaseFPowerMethodInterfaceV1,PhaseFMethodVersionV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFOutputSpecV1,PhaseFPowerOutputValueV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFRangeRuleV1,PhaseFUnitRuleV1,PhaseFPowerAnalysisRecordV1 | F1 | scientific_metrology | AC9-15 | T9-POS-DAG | EV9-15 |
+| `R9-16` | Endpoint-qualified metrology and reference provenance/admissibility remain exact without new scientific scope. | none | PhaseFMetrologyPolicyV1,PhaseFEndpointMetrologyPolicyV1,PhaseFCheckListV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyCheckResultV1,PhaseFLODLOQPolicyV1,PhaseFUncertaintyPolicyV1,PhaseFReferenceSourceDescriptorV1,PhaseFReferenceResultV1,PhaseFScientificAdmissibilityAuditV1,PhaseFReferenceAssessmentV1,PhaseFQuantifiedUncertaintyV1 | F0-F2 | scientific_metrology | AC9-16 | T9-POS-DAG | EV9-16 |
+| `R9-17` | Claim-state causes, release/state chronology, final release authority, and P2 readiness remain exact. | none | PhaseFClaimStateRecordV1,PhaseFReinstatementApprovalV1,PhaseFIncidentScopeV1,PhaseFReleaseRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFPhysicalReleaseApprovalV1 | F4-F5 | operations_governance,architecture_data | AC9-17 | T9-POS-DAG | EV9-17 |
+| `R9-18` | Registry-compromise emergency publication and fail-closed claim status remain acyclic and path-exact. | none | PhaseFRegistryCompromiseEmergencyV1,PhaseFIndependentReviewBundleV1,PhaseFObjectReferenceV1 | emergency | security,operations_governance | AC9-18 | T9-POS-DAG | EV9-18 |
+| `R9-19` | Complete Phase-F positive path remains constructible in production runner order with no future-file or self-Git dependency. | none | PhaseFCommandV1,PhaseFArgvV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFCheckerExitCodeV1 | all | architecture_data,compatibility | AC9-19 | T9-POS-DAG,T9-KAT-01 | EV9-19 |
+| `R9-20` | Frozen Phase-E and all previously closed R7/R8 safety, scientific, identity, custody, DAG, runtime, and production-order contracts remain unchanged. | none | PhaseFDecisionBundleV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFRetentionAuditV1,PhaseFClaimStateRecordV1 | all | architecture_data,security,scientific_metrology | AC9-20 | T9-POS-DAG | EV9-20 |
+| `R9-21` | Fixed 15-metric monitoring contract remains exact except for the trust-source correction. | F-OD-17 | PhaseFMonitoringPolicyV1,PhaseFMetricThresholdV1,PhaseFMonitoringRecordV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringSourceReferenceV1 | F0/F5+ | operations_governance,security | AC9-21 | T9-POS-TRUST,T9-CX-13,T9-CX-14,T9-CX-15,T9-CX-16,T9-CX-17 | EV9-21 |
+| `R9-22` | Campaign-abandonment review remains incident-first and cannot introduce a back-pointer or retention cycle. | F-OD-18 | PhaseFIncidentRecordV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFPackageManifestV1 | all | operations_governance,security | AC9-22 | T9-POS-DAG | EV9-22 |
+| `R9-23` | Owner-decision coverage has exactly one current mapping source and union F-OD-01 through F-OD-20. | none | PhaseFDecisionBundleV1,PhaseFDecisionRowV1 | plan review | architecture_data | AC9-23 | T9-TRACE | EV9-23 |
+| `R9-24` | R9 retention outputs are exact-set equal, de-duplicated, copy-covered, and fail closed on missing authority. | F-OD-20 | PhaseFRetentionAuditV1,PhaseFRetentionObjectV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionCopyVerificationV1 | retention | security,operations_governance | AC9-24 | T9-KAT-01,T9-CX-03,T9-CX-04,T9-CX-05,T9-CX-06,T9-CX-22,T9-CX-23,T9-CX-30 | EV9-24 |
+| `R9-25` | One deterministic R9 KAT independently derives the complete release set, incident/monitoring chronology, and full copy coverage. | none | PhaseFReleaseRecordV1,PhaseFClaimStateRecordV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFMonitoringRecordV1,PhaseFRetentionAuditV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionCopyVerificationV1 | F5+ | architecture_data,security,operations_governance | AC9-25 | T9-KAT-01,T9-POS-RETENTION | EV9-25 |
+
+The derived owner-decision union is exactly
+`F-OD-01,F-OD-02,F-OD-03,F-OD-04,F-OD-05,F-OD-06,F-OD-07,F-OD-08,F-OD-09,F-OD-10,
+F-OD-11,F-OD-12,F-OD-13,F-OD-14,F-OD-15,F-OD-16,F-OD-17,F-OD-18,F-OD-19,F-OD-20`.
+No second current requirement-to-decision mapping exists.
+
+## 35. R9 ACCEPTANCE CRITERIA
+
+Every current R9 acceptance criterion has preconditions, exact inputs, exact
+operation, expected result, expected output, and a failure oracle. Release
+retention is split into independent static-set, incident-status,
+monitoring-membership, and copy-coverage criteria.
+
+| AC ID | preconditions | exact inputs | exact operation | expected result | expected output | failure oracle |
+|---|---|---|---|---|---|---|
+| `AC9-01` | external plan review context X, plan bytes, review bundle, and future tag | peel the named plan tag and compare target, body.plan_review_sha, X, plan SHA-256, and Git blob | only exact X/body/plan identities pass | plan-tag validation report | predecessor, mismatch, or self-SHA path is INVALID TAG / NO-GO |
+| `AC9-02` | trust tag, exact message copy, source reference, and both trust measurements | resolve and name-check the tag; validate peeled prerequisites; hash bytes; compare length and both fields | one exact tag message passes both trust bindings | tag-byte and binding transcript | JSON object, wrong bytes/hash, or field mismatch rejects |
+| `AC9-03` | manifest M and every manifest object O | derive package_manifest SHA and package object ID/SHA keys without URI/length | exact campaign identity set passes | CampaignRetentionSetV1 | missing, extra, duplicate, or locator-derived member fails |
+| `AC9-04` | release bindings, registry chain, trust tag, F5 bundle, and states | apply every row of the static release derivation table and de-duplicate keys | exact static set passes | static retention derivation report | missing/unresolvable binding is NO-GO |
+| `AC9-05` | incident, registry records, resolutions, and audited_at | filter both event and registry creation times; validate number/SHA chain; classify latest eligible status | no resolution/open/contained unresolved; terminal statuses resolved | audited-at incident report | broken chain, terminal continuation, or chronology conflict fails |
+| `AC9-06` | monitoring history with accepted PASS, suspend, unregistered, late, and future records | validate attestation, exact PASS/current chain, window_end, and audited_at cutoff | exact accepted monitoring identity set passes | accepted monitoring set | include excluded record or omit accepted PASS fails |
+| `AC9-07` | identity set, retrieved copy bytes, and F-OD-20 policy | verify URI scheme, availability, byte length/SHA, URI distinctness, freshness, count, and set equality | full copy coverage passes only at 1+backup_count | retention copy transcript | any missing/extra/bad/stale/insufficient copy is NO-GO |
+| `AC9-08` | complete plan and R9 catalog | mechanically enumerate 91 IDs and inspect every metadata cell and uniqueness | 91=91 and all catalog counters zero | catalog audit | missing/extra/duplicate/blank/stale pointer fails |
+| `AC9-09` | all current R9 traceability tables | resolve every reference both directions and inspect required substance | all mapping counters zero | traceability audit | historical table treated as current or identifier-only row fails |
+| `AC9-10` | twenty F0 rows and runtime projection | validate fixed IDs, values, owners, and projection with no future object fields | exact F0 bundle/projection passes | F0 projection report | 21st row or future field fails |
+| `AC9-11` | builds, readiness, enrollment, genesis, and head | validate schemas, unsigned enrollment, strict signatures, sequence, predecessor, relations, and currentness | preserved registry path passes | registry authority transcript | pointer/signature/sequence/relation error fails |
+| `AC9-12` | retrieval, package, dependency, and relation fixtures | verify immutable bytes, lengths, hashes, role classification, DAG, and registry relations | package authority passes | package validation report | unavailable object or relation/classification gap fails |
+| `AC9-13` | unit/location/custody ledgers and comparisons | recompute native identity, pseudoreplication, location, and event continuity | physical authority passes | identity/custody report | alias, discontinuity, or post-destroy use fails |
+| `AC9-14` | ledger ID, prior revision, and new deviation revision | verify immutable predecessor SHA, revision sequence, action compatibility, and acyclicity | one-way revision passes | deviation report | prior mutation or incompatible action fails |
+| `AC9-15` | F0 method/version, power interface/analysis, cases, and review | validate typed fields, ranges, units, equality, review-before-registration, and outputs | power authority passes | power review report | missing range/unit or early registration fails |
+| `AC9-16` | metrology policies/checks, references, audit, and runtime projection | resolve endpoint/check keys and math; enforce provenance, independence, and projection ceiling | metrology/reference authority passes | scientific audit report | conversion, missing provenance, or scalar leakage fails |
+| `AC9-17` | candidate, release, states, tags, registries, P2 result | enforce F4/F5 order, final bindings, state relations, and P2 hard gate | release authority passes only after prerequisites | release chronology report | early tag, P2 bypass, or cause mismatch fails |
+| `AC9-18` | emergency/review bytes, exact paths, commit, and live remote | run the ten-step path/ancestry/tree-byte verifier | fail-closed NOT_ACTIVE path passes | emergency transcript | fallback path or byte/ancestry mismatch fails |
+| `AC9-19` | command, argv, report, runtime inputs, and all authority stages | derive exact argv and replay production runner order | complete DAG constructible | DAG transcript | future-file or self-Git edge fails |
+| `AC9-20` | frozen Phase-E SHA/blob and preservation fixtures | compare frozen hashes and replay all closed contracts | all preservation counters zero | preservation report | frozen mismatch or reopened contract fails |
+| `AC9-21` | 15 metrics, 4/1/4/6 partition, five thresholds, evidence, and relations | recompute fixed order/source mappings/thresholds/evidence and exact 15 relations | healthy monitoring PASS and corrected trust source pass | monitoring report | wrong count/order/source/threshold/relation fails |
+| `AC9-22` | campaign-abandonment incident, manifest, review, and registry record | construct incident fully before review and verify target/no reverse pointer | acyclic campaign path passes | campaign authority report | review field in incident or future target fails |
+| `AC9-23` | R9 matrix owner_decision_ids | derive union and scan for any second current mapping source | exact F-OD-01..20 union passes | OD coverage report | missing/extra OD or second source fails |
+| `AC9-24` | full release identity set and object checks/copies | perform exact-set equality, key de-duplication, and all copy checks | release retention PASS | release retention oracle | missing authority, duplicate same-state row, or invalid copy fails |
+| `AC9-25` | complete R9 release-retention KAT fixture | independently derive expected set, compare exact identities, then verify copies | KAT PASS with declared campaign/static/monitoring/incident/resolution set | KAT transcript | any derivation or coverage discrepancy is NO-GO |
+
+## 36. R9 POSITIVE RELEASE-RETENTION CONTROL AND TEST PROCEDURES
+
+### 36.1 Complete positive release-retention example
+
+Construct a valid release `R` with manifest `M` and package objects `O1,O2`;
+protocol `P`; power analysis `A`; cohort lock `C`; owner approval `OA`; execution
+record `E`; release record `R`; monitoring policy `MP`; metrology policy `MET`;
+the exact trust-tag message `TT`; F5 activation review bundle `RB`; initial and
+latest claim states `S0,S1`; accepted PASS monitoring records `MR1,MR2`; open
+incident `I1`; and incident `I2` resolved by valid resolution `IR2`. At an
+`audited_at` after `MR1,MR2,IR2` are eligible, the exact expected membership is:
+
+```text
+campaign:
+  authority_object(package_manifest,SHA(M))
+  package_object(O1,SHA(O1))
+  package_object(O2,SHA(O2))
+authority:
+  protocol(P), power_analysis(A), cohort_lock(C), owner_approval(OA),
+  execution_record(E), release_record(R), validation_manifest,
+  monitoring_policy(MP), metrology_policy(MET), git_tag_message(TT),
+  independent_review_bundle(RB), claim_state(S0), claim_state(S1),
+  monitoring_record(MR1), monitoring_record(MR2), incident_record(I1),
+  incident_resolution(IR2)
+```
+
+`I2` is not an unresolved-incident member, but `IR2` is retained to prove its
+resolved status. If `S0` and `S1` have the same kind and SHA, only one state
+identity is present. For every identity, provide exactly one object check and at
+least `1 + backup_copy_count` PASS copy rows; every counted row has an approved
+immutable URI, exact retrieved byte length and SHA, distinct URI, and
+`audited_at - verified_at < backup_verification_interval_seconds`. The exact
+identity set and every copy check must PASS; a missing/extra identity, guessed
+URI/length, wrong copy SHA, stale copy, or insufficient count is NO-GO.
+
+### 36.2 R9 TEST PROCEDURES
+
+Every current R9 test has fixture construction, exact invocation, expected exact
+result, and a negative mutation. The R9 counterexamples are stable review
+fixtures, not production runtime or evidence artifacts.
+
+| test ID | fixture construction | exact invocation | expected exact result | negative mutation |
+|---|---|---|---|---|
+| `R9-CX-01` | R9 review at X; future tag peels predecessor R8 SHA; body names R8. | R9 plan-tag validator with target, body, plan bytes, review context X | INVALID TAG / NO-GO | replace predecessor target with X and body X -> R9-CX-02 |
+| `R9-CX-02` | R9 review at X; tag peels X; body.plan_review_sha=X; plan SHA/blob match X. | plan-tag validator with exact annotated tag and external CURRENT_PLAN_REVIEW_SHA=X | PASS | change body SHA, peeled target, plan SHA, or blob -> INVALID |
+| `R9-CX-03` | One required authority identity is derived but no retention object check exists. | release retention exact-set and coverage validator | FAIL; missing required check | add the missing check with valid copies -> PASS |
+| `R9-CX-04` | Identity kind/SHA is correct but a copy reference has a different SHA. | retention copy verifier against retrieved bytes and object identity | FAIL | replace copy SHA and bytes with the identity SHA -> PASS |
+| `R9-CX-05` | F-OD-20 backup_copy_count is b but only b valid PASS copies exist. | retention object check with valid freshness and count | FAIL; requires at least 1+b | add one extra valid fresh copy -> PASS |
+| `R9-CX-06` | Initial and latest state have the same kind and SHA but appear in two object_checks rows. | retention set exact-equality and key de-dup validator | FAIL; duplicate identity key | collapse the two rows to one -> PASS |
+| `R9-CX-07` | Resolved incident record is present in unresolved-incident membership. | audited_at incident classifier and release-set derivation | FAIL | remove incident record but retain terminal resolution authority -> PASS |
+| `R9-CX-08` | Open incident has no retention membership. | audited_at incident classifier and release-set derivation | FAIL | include the open incident identity -> PASS |
+| `R9-CX-09` | Monitoring suspend record has a valid registry attestation. | accepted monitoring membership derivation | FAIL; suspend is never accepted | replace with accepted PASS record -> PASS |
+| `R9-CX-10` | Accepted PASS monitoring record through audited_at is omitted. | accepted monitoring membership exact-set validator | FAIL | include its monitoring_record identity -> PASS |
+| `R9-CX-11` | Resolution registry record names a predecessor SHA different from the actual previous resolution. | incident resolution chain validator | FAIL | use exact previous complete-file SHA -> PASS |
+| `R9-CX-12` | Terminal resolved resolution receives a later resolution. | incident resolution chain validator | FAIL | remove later resolution or make prior status contained -> PASS |
+| `R9-CX-13` | Trust source bytes are valid JSON representing a supposed trust-provisioning object. | trust monitoring source validator | reject; no JSON trust authority exists | replace with exact tag-message bytes -> PASS |
+| `R9-CX-14` | Trust source bytes are exact bytes of the named annotated tag and tag validation passes. | trust tag resolver, byte hash/length verifier, and monitoring binding validator | PASS | alter one message byte -> R9-CX-15 |
+| `R9-CX-15` | Source hash is correct but source bytes differ from repository tag message. | trust tag byte equality verifier | reject | restore exact repository tag-message bytes -> PASS |
+| `R9-CX-16` | Tag trust_root_id differs from monitoring trust_root_id. | trust field binding comparator | binding mismatch | make both exact tag value -> PASS |
+| `R9-CX-17` | Tag trust_store_sha256 equals monitoring trust_store_sha256. | trust field binding comparator | PASS | change one value -> binding mismatch |
+| `R9-CX-18` | Future plan tag targets R8 SHA while R9 externally frozen review SHA differs. | plan-tag stale-target test with X and R8 SHA | INVALID TAG / NO-GO | target and body both X -> PASS |
+| `R9-CX-19` | PhaseFTrustProvisioningApprovalV1 catalog category is TOP_LEVEL_WIRE. | R9 catalog category audit | catalog consistency failure | change category to TAG_BODY -> PASS |
+| `R9-CX-20` | Obsolete object kind trust_provisioning_approval remains in the R9 object-kind enum. | object-kind enum/hash-table audit | plan consistency failure | remove kind and retain only git_tag_message -> PASS |
+| `R9-CX-21` | Trust tag is represented only as authority_object/git_tag_message with exact message SHA. | retention and monitoring identity derivation | PASS | add a second trust approval object kind -> FAIL |
+| `R9-CX-22` | Release membership attempts to infer immutable URI from a registry SHA. | release-retention derivation audit | invalid algorithm; membership must use kind/SHA only | move URI and length to copy-verification rows -> PASS |
+| `R9-CX-23` | One retention identity has two valid distinct immutable copies with exact SHA/length and fresh verification. | retention copy verifier with backup policy | PASS if count/freshness policy is satisfied | make URI duplicate or stale -> FAIL |
+| `R9-CX-24` | Incident has no resolution eligible at audited_at. | audited_at incident classifier | unresolved | add eligible contained resolution -> remains unresolved; add terminal resolved -> resolved |
+| `R9-CX-25` | Latest eligible resolution status is contained. | audited_at incident classifier with valid chain | unresolved | change status to resolved with valid terminal resolution -> resolved |
+| `R9-CX-26` | Latest eligible terminal resolution status is resolved. | audited_at incident classifier with valid chain | resolved | change status to contained -> unresolved |
+| `R9-CX-27` | Resolution exists only after audited_at. | audited_at incident classifier using both effective_at and registry created_at | incident remains unresolved at audited_at | move resolution before audited_at with valid chain -> classify by it |
+| `R9-CX-28` | Monitoring record is registered after audited_at. | monitoring membership derivation using registry sequence and created_at | not included | register before audited_at and satisfy acceptance -> included |
+| `R9-CX-29` | Monitoring PASS is registered before audited_at, accepted, and window_end <= audited_at. | monitoring membership derivation | included | make it suspend or unaccepted -> excluded |
+| `R9-CX-30` | Initial and latest claim-state complete-file SHA are identical. | retention identity key de-duplication | one retention identity | change latest SHA -> two distinct state identities |
+| `T9-CAT` | Complete plan with exactly the mechanically enumerated R9 catalog. | catalog set/metadata audit over PhaseF identifiers | PASS; exact 91 rows and zero catalog counters | delete a row or blank a required cell -> FAIL |
+| `T9-TRACE` | R9 matrix, catalog, AC, test, and F-EV tables with all references. | traceability resolver and owner-decision union audit | PASS; all unmapped and contradiction counters zero | add a second current OD mapping or identifier-only row -> FAIL |
+| `T9-KAT-01` | Construct release R, manifest M/O1/O2, P/A/C/OA/E/R/MP/MET/TT/RB/S0/S1, MR1/MR2, I1, IR2, audited_at, and valid copies. | independent ReleaseRetentionSetV1 derivation, exact-set comparison, then copy verifier | PASS; exact expected identities and full copy coverage | mutate any identity, incident status/time, monitoring acceptance, copy SHA, URI, or count -> NO-GO |
+| `T9-POS-PLAN` | Current plan review context X and positive future plan-tag fixture. | future plan-tag validator with X supplied externally | PASS | target predecessor R8 -> R9-CX-01 |
+| `T9-POS-TRUST` | Exact trust tag message, source copy, and matching trust measurements. | trust tag resolver and monitoring source validator | PASS | supply JSON trust object -> R9-CX-13 |
+| `T9-POS-RETENTION` | Full static/campaign/incident/monitoring identity set and 1+backup copies. | release-retention derivation and copy coverage validator | PASS | omit one member -> R9-CX-03 |
+| `T9-POS-DAG` | All existing Phase-F authority fixtures in production runner order. | positive-path DAG replay and preservation validator | PASS; COMPLETE_VALID_DAG_CONSTRUCTIBLE=yes | add a future-file or self-Git edge -> NO-GO |
+
+## 37. R9 F-EV EVIDENCE ORACLES
+
+Each current R9 F-EV names a real artifact, producer or authority, immutable
+identity, and acceptance/review oracle. Planning-only examples describe later
+artifacts; none is created by this edit.
+
+| F-EV ID | real artifact | producer/authority | immutable identity | acceptance/review oracle |
+|---|---|---|---|---|
+| `EV9-01` | future plan review bundle, annotated plan tag, and plan bytes at external X | independent reviewer and Git tag validator | review-bundle SHA; peeled X; plan SHA-256 and Git blob | target/body equality and plan-byte equality |
+| `EV9-02` | actual trust-provisioning annotated-tag message and trust monitoring source copies | independent trust gate, tag validator, operations authority | exact tag-message SHA and byte length; trust source reference | tag name/peel/prerequisites, exact bytes, TAG_BODY parse, trust field comparison |
+| `EV9-03` | actual package manifest, manifest objects, and campaign retention audit | campaign authority and retention auditor | manifest/object complete hashes and kind/ID/SHA set | exact campaign membership, no URI/length derivation |
+| `EV9-04` | actual release/cohort/execution/owner/policy/state/review authority | release authority and registry authority | exact kind/SHA identities from source bindings | static derivation table and exact-set oracle |
+| `EV9-05` | actual incident and incident-resolution files plus registry records | operations/governance authority and registry authority | incident/resolution complete-file SHA and registry sequence | chain, effective_at, created_at, and audited_at classification |
+| `EV9-06` | actual registered monitoring records and accepted PASS windows | operations authority and registry authority | monitoring subject complete-file SHA | accepted PASS, attestation, window_end, due-chain, and audited_at oracle |
+| `EV9-07` | actual retention copy references, retrieved bytes, and retrieval/hash transcripts | retention auditor and copy retriever | each immutable URI, exact byte length, and SHA | URI scheme, availability, byte/hash equality, freshness, distinctness, count |
+| `EV9-08` | complete final plan and current catalog rows | plan author and independent reviewer | final plan SHA/blob and catalog row identities | regex/set equality, metadata completeness, pointer and duplicate audit |
+| `EV9-09` | current R9 requirement/AC/test/F-EV graph | plan author and independent reviewer | row bytes and referenced artifact IDs | bidirectional resolution and substance audit |
+| `EV9-10` | F0 decision bundle and runtime projection | F0 authority and compatibility reviewer | decision bundle/projection complete hashes | exact 20 decisions and projection |
+| `EV9-11` | two build transcripts, readiness, enrollment, signed genesis/head | checker, governance, and registry authorities | complete-file hashes, signatures, sequence | readiness/enrollment/registry validation |
+| `EV9-12` | retrieved external objects, package manifest, dependency audit | retrieval/package authorities | URI/length/SHA plus complete package hashes | retrieval, classification, dependency, relation oracle |
+| `EV9-13` | physical unit/location/custody ledgers and comparison/audit records | campaign, laboratory, and custody authorities | complete ledger/audit hashes and native identities | no alias, pseudoreplication, discontinuity, or post-destroy use |
+| `EV9-14` | deviation revisions and event records | campaign/deviation authority | stable ledger ID and revision complete SHA | immutable predecessor and action compatibility |
+| `EV9-15` | power interface, typed analysis, sensitivity cases, and review | statistician and independent scientific reviewers | content IDs and reviewed complete-file SHA | range/unit/method equality and pre-registration |
+| `EV9-16` | metrology policy/checks and reference source/result/admissibility files | metrology laboratory and runtime authority | policy/result/source/audit hashes | endpoint lookup, exact math, provenance, independence, projection ceiling |
+| `EV9-17` | F5 candidate, release, state chain, approval tags, and registry records | release authority and independent reviewers | candidate/release/state/tag bytes and registry hashes | F4/F5 order, P2 gate, and binding oracle |
+| `EV9-18` | emergency/review files and later full-prefixed Git tree | security authority, independent reviewers, Git | emergency/review/file/tree hashes and commit SHA | exact ten-step path, ancestry, and byte equality |
+| `EV9-19` | command, argv, report, runtime inputs, and construction transcript | checker and compatibility authorities | command/report and input hashes | exact runner order and no cycle |
+| `EV9-20` | frozen Phase-E plan and closed-contract replay fixtures | architecture and security authorities | required frozen SHA/blob and replay transcript | preservation comparison |
+| `EV9-21` | monitoring policy, thresholds, 15 measurements/evidence files, relations | F0 owner, operations, and registry authorities | policy/record/evidence/relation hashes | fixed order, 4/1/4/6, five thresholds, exact trust source |
+| `EV9-22` | campaign-abandonment incident, review bundle, manifest, registry record | campaign operator, independent reviewers, registry authority | incident/review/registry complete hashes | incident-first target and no reverse pointer |
+| `EV9-23` | current R9 matrix and owner-decision cells | plan author and independent reviewer | matrix bytes and plan SHA/blob | union exactly F-OD-01..20 and one mapping source |
+| `EV9-24` | complete release retention audit and all object checks/copies | retention authority and independent auditor | audit complete SHA; identity and copy hashes | exact set equality, dedup, copy SHA/length/URI/freshness/count |
+| `EV9-25` | R9 full positive KAT transcript and independently derived expected set | independent plan reviewer and retention auditor | KAT fixture hashes and audit transcript identity | reproduce exact campaign/static/monitoring/incident/resolution set and PASS copies |
+
+`RELEASE_RETENTION_EVIDENCE_ORACLE_GAPS=0` and
+`CURRENT_EVIDENCE_ORACLE_GAPS=0`.
+## 38. R9 REMEDIATION LEDGER
+
+Exactly four stable R9 remediation IDs are defined. Author disposition is only
+`REMEDIATED` or `OPEN`; only the fresh independent R9 reviewer may close a
+finding.
+
+| R8 P1 finding | R9 section | root cause | R9 remediation | current R9 requirements | ACs | tests | F-EV | AUTHOR DISPOSITION |
+|---|---|---|---|---|---|---|---|---|
+| `F-PLAN-R9-P1-01` — future plan tag targeted stale R7 commit | §§5.1, 6, 34–37 | plan tag contract named a predecessor revision and could create a self-SHA cycle | external `CURRENT_PLAN_REVIEW_SHA`; target/body/plan SHA/blob equality; stale-target counterexamples | R9-01 | AC9-01 | T9-POS-PLAN,T9-CX-01,T9-CX-02,T9-CX-18 | EV9-01 | REMEDIATED |
+| `F-PLAN-R9-P1-02` — trust tag body and canonical object had dual identity | §§2, 6, 9, 14, 33, 34–37 | tag body was also described as a special trust object and monitoring source | all approvals TAG_BODY; remove special kinds; exact `git_tag_message` source and repository-byte verification | R9-02,R9-21 | AC9-02,AC9-21 | T9-POS-TRUST,T9-CX-13,T9-CX-14,T9-CX-15,T9-CX-16,T9-CX-17,T9-CX-19,T9-CX-20,T9-CX-21 | EV9-02,EV9-21 | REMEDIATED |
+| `F-PLAN-R9-P1-03` — retention identities could not derive locators or audited-at incidents | §15 and §§33–37 | retention membership mixed registry identity with current storage copies and mutable incident status | byte-only kind/SHA identities; copy-verification rows; incident resolution chain; audited-at sequence/time algorithm; deduplication | R9-03,R9-04,R9-05,R9-06,R9-07,R9-24,R9-25 | AC9-03,AC9-04,AC9-05,AC9-06,AC9-07,AC9-24,AC9-25 | T9-KAT-01,T9-POS-RETENTION,T9-CX-03,T9-CX-04,T9-CX-05,T9-CX-06,T9-CX-07,T9-CX-08,T9-CX-09,T9-CX-10,T9-CX-11,T9-CX-12,T9-CX-22,T9-CX-23,T9-CX-24,T9-CX-25,T9-CX-26,T9-CX-27,T9-CX-28,T9-CX-29,T9-CX-30 | EV9-03,EV9-04,EV9-05,EV9-06,EV9-07,EV9-24,EV9-25 | REMEDIATED |
+| `F-PLAN-R9-P1-04` — retention tests/evidence did not exercise release authority contract | §§34–37 | R8 coverage tested only campaign manifest equality | separate static, incident, monitoring, and copy ACs/tests/F-EV plus positive release KAT and negative controls | R9-04,R9-05,R9-06,R9-07,R9-24,R9-25 | AC9-04,AC9-05,AC9-06,AC9-07,AC9-24,AC9-25 | T9-KAT-01,T9-POS-RETENTION,T9-CX-03,T9-CX-04,T9-CX-05,T9-CX-06,T9-CX-07,T9-CX-08,T9-CX-09,T9-CX-10,T9-CX-11,T9-CX-12,T9-CX-22,T9-CX-23,T9-CX-24,T9-CX-25,T9-CX-26,T9-CX-27,T9-CX-28,T9-CX-29,T9-CX-30 | EV9-04,EV9-05,EV9-06,EV9-07,EV9-24,EV9-25 | REMEDIATED |
+
+## 39. R9 AUTHOR AUDIT AND FRESH REREVIEW GATE
+
+The author audit is not independent approval. The following counters are the
+required R9 audit result:
+
+PLAN_TAG_STALE_TARGET_PATHS=0
+PLAN_TAG_TARGET_AMBIGUITIES=0
+TAG_BODY_VS_OBJECT_IDENTITY_AMBIGUITIES=0
+TRUST_MONITORING_SOURCE_AMBIGUITIES=0
+SCHEMA_CATALOG_SECTION_POINTER_ERRORS=0
+RETENTION_IDENTITY_LOCATOR_AMBIGUITIES=0
+RELEASE_RETENTION_STATIC_IDENTITY_AMBIGUITIES=0
+INCIDENT_AUDIT_TIME_STATUS_AMBIGUITIES=0
+RELEASE_RETENTION_DEDUP_AMBIGUITIES=0
+RELEASE_RETENTION_REFERENCE_DERIVATION_AMBIGUITIES=0
+RELEASE_RETENTION_TEST_COVERAGE_GAPS=0
+RELEASE_RETENTION_EVIDENCE_ORACLE_GAPS=0
+APPROVAL_TAG_SCHEMA_CATEGORY_AMBIGUITIES=0
+OBJECT_KIND_HASH_TABLE_AMBIGUITIES=0
+ORPHAN_EXTERNAL_SCHEMAS=0
+INCOMPLETE_SCHEMA_CATALOG_ROWS=0
+CATALOG_DUPLICATE_IDENTIFIER_ROWS=0
+CATALOG_TO_REQUIREMENT_GAPS=0
+REQUIREMENT_TO_CATALOG_GAPS=0
+UNMAPPED_REQUIREMENTS=0
+UNMAPPED_ACS=0
+UNMAPPED_TESTS=0
+UNMAPPED_EVIDENCE=0
+UNMAPPED_ODS=0
+TRACEABILITY_SUBSTANCE_GAPS=0
+CURRENT_TEST_PROCEDURE_GAPS=0
+CURRENT_EVIDENCE_ORACLE_GAPS=0
+CONTRADICTORY_CURRENT_TRACEABILITY_TABLES=0
+NORMATIVE_CONTRADICTIONS=0
+MATERIAL_IMPLEMENTER_DISAGREEMENTS_AFTER_PLAN=0
+POSITIVE_PATH_CONSTRUCTION_AMBIGUITIES=0
+
+Previously closed safety, scientific, identity, custody, DAG, runtime, and
+production-order counters remain zero. The four R9 findings are not marked
+CLOSED. A fresh independent reviewer must begin with the four positive controls:
+plan tag target/body at external X; one exact trust tag message; deterministic
+kind/SHA release retention with audited-at status; and substantive split
+traceability for static, incident, monitoring, and copy coverage. Failure of any
+control is P1. R9 independent rereview remains PENDING.
+
+## 40. BASELINE VALIDATION AND FROZEN PHASE-E AUTHORITY
+
+Before and after the planning-only edit, the required commands are:
+
+```text
+git diff --check
+cargo fmt --all --check
+cargo check --locked
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --test phase_e_validation
+cargo test --locked --test phase_d_reporting_public_output
+```
+
+Required result is all PASS: Phase E 38/38, Phase D 73/73, and zero strict
+Clippy diagnostics. The frozen Phase-E plan remains unchanged and must retain
+SHA-256 `0b68359f362434ef9f42df21ca553692ae6e3bb3c096881009ab5e9473cc2c33`
+and Git blob `6fce9d13a42a09027e0e730874a8d80e03e6a7da`.
+
+## 41. MHI V1 PHASE F R9 PLANNING REMEDIATION HANDOFF
+
+STARTING R8 SHA:
+`ebed7b24102b1575fb950a8d15adc03c2eb11c22`
+
+R8 PLAN SHA-256:
+`043e7811a2e93bb88912b483334bcac82a8b6cabd8206531945889678216e934`
+
+R8 PLAN BLOB:
+`1aed756793cf42c284d41e96ce2d8247a250e93f`
+
+R9 PLAN REVIEW SHA:
+`<externally frozen after final planning-only commit>`
+
+R9 PLAN SHA-256:
+`<computed after final R9 bytes>`
+
+R9 PLAN GIT BLOB:
+`<computed after final R9 bytes>`
+
+CHANGED FILES:
+1 expected
+
+R8 P1 REMEDIATION
+
+F-PLAN-R9-P1-01:
+REMEDIATED
+
+F-PLAN-R9-P1-02:
+REMEDIATED
+
+F-PLAN-R9-P1-03:
+REMEDIATED
+
+F-PLAN-R9-P1-04:
+REMEDIATED
+
+PLAN TAG
+
+stale revision target:
+0 expected
+
+current review SHA externally frozen:
+yes after final commit; not embedded
+
+target/body equality rule:
+COMPLETE
+
+TRUST
+
+trust approval category:
+TAG_BODY expected
+
+special trust approval object kind:
+ABSENT expected
+
+trust monitoring source:
+trust_provisioning_tag_message expected
+
+second trust object:
+NO expected
+
+trust monitoring binding:
+COMPLETE
+
+RETENTION
+
+membership uses kind/SHA only:
+yes
+
+copy verification carries URI/length:
+yes
+
+campaign set:
+COMPLETE
+
+static release set:
+COMPLETE
+
+accepted monitoring membership:
+COMPLETE
+
+incident resolution schema:
+COMPLETE
+
+audited_at incident classification:
+COMPLETE
+
+initial/latest dedup:
+COMPLETE
+
+copy count/freshness:
+COMPLETE
+
+RELEASE RETENTION TESTING
+
+static-set tests:
+COMPLETE
+
+state-dedup test:
+COMPLETE
+
+monitoring-membership tests:
+COMPLETE
+
+incident-status tests:
+COMPLETE
+
+copy-reference tests:
+COMPLETE
+
+trust-tag retention test:
+COMPLETE
+
+CATALOG
+
+normative identifiers:
+91
+
+catalog identifiers:
+91
+
+missing:
+0
+
+extra:
+0
+
+duplicates:
+0
+
+incomplete metadata:
+0
+
+enrollment closure pointer:
+CORRECT
+
+all approval schemas TAG_BODY:
+6/6
+
+TRACEABILITY
+
+current R9 requirements:
+25
+
+ACs:
+25
+
+tests:
+37
+
+evidence:
+25
+
+owner decisions:
+20
+
+schemas:
+91
+
+unmapped requirements:
+0
+
+unmapped ACs:
+0
+
+unmapped tests:
+0
+
+unmapped evidence:
+0
+
+unmapped ODs:
+0
+
+traceability substance gaps:
+0
+
+test-procedure gaps:
+0
+
+evidence-oracle gaps:
+0
+
+POSITIVE PATH
+
+complete DAG constructible:
+yes
+
+construction ambiguities:
+0
+
+AUTHOR AUDIT
+
+PLAN_TAG_STALE_TARGET_PATHS=0
+PLAN_TAG_TARGET_AMBIGUITIES=0
+TAG_BODY_VS_OBJECT_IDENTITY_AMBIGUITIES=0
+TRUST_MONITORING_SOURCE_AMBIGUITIES=0
+SCHEMA_CATALOG_SECTION_POINTER_ERRORS=0
+RETENTION_IDENTITY_LOCATOR_AMBIGUITIES=0
+RELEASE_RETENTION_STATIC_IDENTITY_AMBIGUITIES=0
+INCIDENT_AUDIT_TIME_STATUS_AMBIGUITIES=0
+RELEASE_RETENTION_DEDUP_AMBIGUITIES=0
+RELEASE_RETENTION_REFERENCE_DERIVATION_AMBIGUITIES=0
+RELEASE_RETENTION_TEST_COVERAGE_GAPS=0
+RELEASE_RETENTION_EVIDENCE_ORACLE_GAPS=0
+APPROVAL_TAG_SCHEMA_CATEGORY_AMBIGUITIES=0
+OBJECT_KIND_HASH_TABLE_AMBIGUITIES=0
+ORPHAN_EXTERNAL_SCHEMAS=0
+INCOMPLETE_SCHEMA_CATALOG_ROWS=0
+CATALOG_DUPLICATE_IDENTIFIER_ROWS=0
+CATALOG_TO_REQUIREMENT_GAPS=0
+REQUIREMENT_TO_CATALOG_GAPS=0
+UNMAPPED_REQUIREMENTS=0
+UNMAPPED_ACS=0
+UNMAPPED_TESTS=0
+UNMAPPED_EVIDENCE=0
+UNMAPPED_ODS=0
+TRACEABILITY_SUBSTANCE_GAPS=0
+CURRENT_TEST_PROCEDURE_GAPS=0
+CURRENT_EVIDENCE_ORACLE_GAPS=0
+CONTRADICTORY_CURRENT_TRACEABILITY_TABLES=0
+NORMATIVE_CONTRADICTIONS=0
+MATERIAL_IMPLEMENTER_DISAGREEMENTS_AFTER_PLAN=0
+POSITIVE_PATH_CONSTRUCTION_AMBIGUITIES=0
+
+BASELINE
+
+diff:
+PASS
+
+fmt:
+PASS
+
+check:
+PASS
+
+strict Clippy:
+PASS
+
+Clippy diagnostics:
+0
+
+Phase E:
+38/38
+
+Phase D:
+73/73
+
+FROZEN PHASE-E PLAN:
+PASS
+
+PLAN TAG CREATED:
+NO expected
+
+IMPLEMENTATION BRANCH:
+NO expected
+
+F0 STARTED:
+NO expected
+
+KEYS CREATED:
+NO expected
+
+EVIDENCE CREATED:
+NO expected
+
+CLAIMS CREATED:
+NO expected
+
+WORKTREE CLEAN:
+yes after one forward commit
+
+READY_FOR_FRESH_PHASE_F_R9_PLAN_REREVIEW:
+yes
+
+READY_FOR_PHASE_F_PLAN_APPROVAL_TAG:
+NO expected pending fresh R9 GO
+
+READY_FOR_PHASE_F_IMPLEMENTATION:
+NO
