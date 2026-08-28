@@ -1,9 +1,9 @@
-# MHI V1 Phase F — R7 planning-only surgical positive-path closure
+# MHI V1 Phase F — R8 planning-only final contract reconciliation
 
 ## 1. Authority, status, scope, and chronology
 
-This document is the Phase-F R7 planning remediation of the independently
-rereviewed R6 plan. It changes only this plan document. It does not create a
+This document is the Phase-F R8 planning remediation of the independently
+rereviewed R7 plan. It changes only this plan document. It does not create a
 schema file, checker, tag, branch, key, signature, trust root, registry record,
 physical evidence, monitoring record, claim, production implementation, new
 scientific model, or new scientific scope.
@@ -15,13 +15,13 @@ The starting authority is exact:
 
 | Authority | Value |
 |---|---|
-| R6 plan-review SHA | `b70a068afc0c2a2458dfee61281a455fd657400f` |
-| R6 plan SHA-256 | `776880c916366fd7cda6a5075ee8fc7df5ba70d5c5f4a8dd431a27b382862bde` |
-| R6 plan Git blob | `558c11260f5fcec1e711b90931481cbd012db643` |
-| R6 independent rereview | `P0=0`, `P1=13`, `P2=0`, `P3=0`, `PLAN_DECISION=NO-GO`, `PLAN_AUTHORITY=FAIL` |
-| R7 status | forward remediation; independent R7 rereview `PENDING` |
-| plan approval tag | absent; must remain absent in R7 |
-| implementation branch | absent; must remain absent in R7 |
+| R7 plan-review SHA | `e9cef7d7370b084f64eb91a628fb47b0b868dc63` |
+| R7 plan SHA-256 | `ab4acec5c9f8f16e8c35d14f2ca83b977a16cacc4ac2505cc5e3bacdf9980c8b` |
+| R7 plan Git blob | `625413873fab712961e38f6e20b98d00a5110b52` |
+| R7 independent rereview | `P0=0`, `P1=5 grouped findings`, `P2=0`, `P3=0`, `PLAN_DECISION=NO-GO`, `PLAN_AUTHORITY=FAIL` |
+| R8 status | forward remediation; independent R8 rereview `PENDING` |
+| plan approval tag | absent; must remain absent in R8 |
+| implementation branch | absent; must remain absent in R8 |
 
 The immutable Phase-E authority is not changed: integrated baseline
 `14942a30928b88f16914bf0bb103cc0c2a5bfa76`, reviewed implementation
@@ -30,8 +30,9 @@ The immutable Phase-E authority is not changed: integrated baseline
 frozen plan blob `6fce9d13a42a09027e0e730874a8d80e03e6a7da`.
 
 R1 was `NO-GO/P1=13`; R2 was `NO-GO/P1=10`; R3 was `NO-GO/P1=19`; R4 was
-`NO-GO/P1=14`; R5 was `NO-GO/P1=11`; R6 was `NO-GO/P1=13`. No rejected
-version is described as approved. The exact future order remains: fresh R7
+`NO-GO/P1=14`; R5 was `NO-GO/P1=11`; R6 was `NO-GO/P1=13`; R7 was
+`NO-GO/P1=5 grouped findings`. No rejected version is described as approved.
+The exact future order remains: fresh R8
 rereview, plan approval, F0, F-IMPL-1 checker and permanent F-MAINT-01/02
 closure, readiness, enrollment, genesis, F1, F2, F3, F4, and F5.
 F1-F5 remain blocked until the applicable approved tags and authority objects
@@ -39,7 +40,7 @@ exist.
 
 `F_IMPL_1_BEFORE_F0_EXIT`, `F_IMPL_2_BEFORE_F0_EXIT`,
 `F_IMPL_3_BEFORE_F0_EXIT`, and `F_IMPL_4_BEFORE_F0_EXIT` are forbidden.
-R5, R6, and R7 author audits are not independent approval. No R6 or R7 approval tag,
+R5, R6, R7, and R8 author audits are not independent approval. No R6, R7, or R8 approval tag,
 implementation branch, F0 activity, key, signature, trust, registry, evidence,
 claim, or monitoring object exists as a result of this plan edit.
 
@@ -61,7 +62,10 @@ All external JSON objects use UTF-8 bytes, RFC 8785 JCS, duplicate-member
 rejection, unknown-member rejection, no omitted member, and no member typed as
 an unqualified primitive. A nullable member is explicitly `T|null`; no other
 optional-member convention exists. `schema_version` is the JSON integer `1`.
-Arrays are sorted strictly by their stated key and are duplicate-free.
+Arrays are duplicate-free. An array is `SORTED_UNIQUE<T>` only when its field
+definition explicitly declares sorted order. An array is `FIXED_ORDER<T>` only
+when its field definition supplies an explicit literal order. There is no
+default rule that sorts every array.
 
 | Primitive | Exact definition |
 |---|---|
@@ -110,7 +114,7 @@ PHASE_F_OBJECT_KIND_V1 = decision_bundle | git_tag_message | authority_enrollmen
   | reference_source_descriptor | reference_result | scientific_admissibility_audit
   | cohort_lock | owner_approval | execution_record | release_record | claim_state
   | reinstatement_approval | monitoring_policy | monitoring_record | incident_record
-  | retention_audit | independent_review_bundle | trust_provisioning_approval
+  | monitoring_evidence | retention_audit | independent_review_bundle | trust_provisioning_approval
   | physical_release_approval | emergency_registry_compromise | checker_build_evidence
   | checker_readiness_evidence | f5_release_candidate
 PHASE_F_REVIEW_ROLE_V1 = scientific_metrology | architecture_data | security
@@ -256,8 +260,8 @@ sorted by raw bytes. `PhaseFCheckerStdoutV1` is one exact literal line:
 `{type:"sha256",value:SHA256_V1}`, or
 `{type:"stable_id",value:RUNTIME_STABLE_ID_V1}`, or
 `{type:"external_digest_id",value:PHASE_F_EXTERNAL_DIGEST_ID_V1}`. A status
-variant is legal only for the four status metrics; a rate only for the five
-numeric rate metrics; quantity only for sensor drift; and the binding variants
+variant is legal only for the four status metrics; a rate only for the four
+rate metrics; quantity only for sensor drift; and the binding variants
 only for the exact metrics named in §14.
 
 `PhaseFUncertaintyPolicyV1` is exactly
@@ -320,6 +324,7 @@ runtime stable IDs and are never recomputed by this rule.
 | `PhaseFReinstatementApprovalV1` | `reinstatement_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_reinstatement_v1\0` | own ID | F5+ |
 | `PhaseFMonitoringPolicyV1` | `monitoring_policy_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_monitoring_policy_v1\0` | own ID | F0 |
 | `PhaseFMonitoringRecordV1` | `monitoring_record_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_monitoring_record_v1\0` | own ID | F5+ |
+| `PhaseFMonitoringEvidenceV1` | `monitoring_evidence_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_monitoring_evidence_v1\0` | own ID | F5+ |
 | `PhaseFIncidentRecordV1` | `incident_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_incident_record_v1\0` | own ID | all |
 | `PhaseFRetentionAuditV1` | `retention_audit_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_retention_audit_v1\0` | own ID | all |
 | `PhaseFScientificAdmissibilityAuditV1` | `scientific_admissibility_audit_id` | `PHASE_F_EXTERNAL_DIGEST_ID_V1` | `mhi_phase_f_scientific_admissibility_audit_v1\0` | own ID | F2 |
@@ -747,6 +752,7 @@ The exact object-kind set is the enum in §2. The hash meaning is exhaustive:
 | `reinstatement_approval` | SHA-256 of complete canonical reinstatement bytes |
 | `monitoring_policy` | SHA-256 of complete canonical monitoring-policy bytes |
 | `monitoring_record` | SHA-256 of complete canonical monitoring-record bytes |
+| `monitoring_evidence` | SHA-256 of complete canonical `PhaseFMonitoringEvidenceV1` bytes |
 | `incident_record` | SHA-256 of complete canonical incident bytes |
 | `retention_audit` | SHA-256 of complete canonical retention-audit bytes |
 | `independent_review_bundle` | SHA-256 of complete canonical review-bundle bytes |
@@ -789,8 +795,8 @@ No semantic digest is ever substituted for a complete-file subject hash.
 | `execution_registered` | `execution_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `execution_record` | `executes+cohort_lock`; `authorized_by+owner_approval`; `depends_on+deviation_ledger`; `depends_on+protocol` | none |
 | `release_registered` | `release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `release_record` | `releases+execution_record`; `authorized_by+owner_approval`; `depends_on+monitoring_policy`; `depends_on+metrology_policy` | none |
 | `claim_state_changed` | `claim_state_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `claim_state` | `changes_state_of+release_record` | initial ACTIVE also requires `authorized_by+independent_review_bundle` naming the exact F5 activation bundle; every noninitial state requires exactly one `registered_after+claim_state`; incident-driven reasons require exactly one `depends_on+incident_record` whose hash equals `cause_incident_sha256`; approved reinstatement requires exactly one `depends_on+reinstatement_approval`; superseded state requires exactly one `supersedes+release_record`; periodic expiry has none of those |
-| `monitoring_recorded` | `monitoring_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `monitoring_record` | `references+release_record`; `depends_on+monitoring_policy` | one prior `registered_after+monitoring_record` after first |
-| `incident_recorded` | `incident_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `incident_record` | for release scope exactly `incident_recorded+release_record`; for campaign or registry-namespace scope no release relation is permitted | references only to listed affected evidence; campaign closure is authorized by its independently reviewed incident |
+| `monitoring_recorded` | `monitoring_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `monitoring_record` | `references+release_record`; `depends_on+monitoring_policy`; exactly 15 `depends_on+monitoring_evidence` relations, whose hashes equal exactly the 15 measurement `monitoring_evidence_sha256` values, one per measurement | one prior `registered_after+monitoring_record` after first; no missing, extra, or duplicate monitoring-evidence relation |
+| `incident_recorded` | `incident_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `incident_record` | for release scope exactly `incident_recorded+release_record`; for campaign or registry-namespace scope no release relation is permitted; campaign abandonment additionally requires exactly `authorized_by+decision_bundle`, `authorized_by+independent_review_bundle`, and `references+package_manifest` | references only to listed affected evidence; ordinary campaign incidents use the separately defined ordinary set |
 | `retention_audit_recorded` | `retention_audit_id:PHASE_F_EXTERNAL_DIGEST_ID_V1` / `retention_audit` | exactly once: `authorized_by+decision_bundle`; release scope exactly once `references+release_record`; campaign scope exactly once `references+package_manifest` | exactly one `registered_after+retention_audit` for every later audit of the same scope; no release relation for campaign scope and no package-manifest relation for release scope |
 
 Genesis is sequence `0` with null predecessor. Later records are prior sequence
@@ -1175,19 +1181,28 @@ trigger row; reviewer decisions and counts exist only in that bundle.
 Monitoring policy `PhaseFMonitoringPolicyV1` is exactly
 `schema_version,monitoring_policy_id,monitoring_interval_seconds,required_metrics,
 metric_thresholds,missing_monitoring_action,domain_breach_action,
-reference_qc_breach_action`. Status vocabularies are
+reference_qc_breach_action`. Define the exact fixed order
+`PHASE_F_MONITORING_METRIC_ORDER_V1` as
+`domain_compliance,reference_qc_status,calibration_status,reference_uncertainty_status,
+sensor_drift,invalid_input_rate,indeterminate_rate,data_quality_insufficient_rate,
+exclusion_rate,software_git_sha,checker_binary_sha256,trust_store_sha256,
+trust_root_id,owner_approval_id,release_record_id`. Status vocabularies are
 `domain_compliance={compliant,out_of_domain,unknown}` healthy `compliant`;
 `reference_qc_status={pass,fail,unknown}` healthy `pass`;
 `calibration_status={pass,fail,unknown}` healthy `pass`; and
 `reference_uncertainty_status={within_limit,above_limit,unknown}` healthy
-`within_limit`. `required_metrics` is exactly the sorted list
-`domain_compliance,reference_qc_status,calibration_status,sensor_drift,
-invalid_input_rate,indeterminate_rate,data_quality_insufficient_rate,
-exclusion_rate,reference_uncertainty_status,software_git_sha,
-checker_binary_sha256,trust_store_sha256,trust_root_id,owner_approval_id,
-release_record_id`. Numeric metrics are only sensor drift and the four rates
-`invalid_input_rate,indeterminate_rate,data_quality_insufficient_rate,
-exclusion_rate`. Rate units are null; drift uses exact unit. Threshold is
+`within_limit`. `required_metrics:FIXED_ORDER<PHASE_F_MONITORING_METRIC_V1>` is
+exactly the fixed 15-member order above.
+The four status metrics are
+`domain_compliance,reference_qc_status,calibration_status,reference_uncertainty_status`;
+the one quantity metric is `sensor_drift`; the four rate metrics are
+`invalid_input_rate,indeterminate_rate,data_quality_insufficient_rate,exclusion_rate`;
+and the six binding metrics are
+`software_git_sha,checker_binary_sha256,trust_store_sha256,trust_root_id,owner_approval_id,release_record_id`.
+Rate units are null; drift uses exact unit. `metric_thresholds` is
+`FIXED_ORDER<PhaseFMetricThresholdV1>` in the literal five-member order
+`sensor_drift,invalid_input_rate,indeterminate_rate,data_quality_insufficient_rate,exclusion_rate`.
+Threshold is
 `{metric_id:PHASE_F_MONITORING_NUMERIC_METRIC_V1,comparator:greater_than_or_equal|less_than_or_equal,
 value:RUNTIME_F64_V1,unit:UNIT_TEXT_V1|null}`; there are exactly five threshold
 rows, one each for `sensor_drift`, `invalid_input_rate`, `indeterminate_rate`,
@@ -1204,17 +1219,69 @@ The binding metrics use exact variants: `software_git_sha` uses
 values use the metric-specific status enum; no arbitrary stable-ID status is
 accepted.
 
+`PhaseFMonitoringEvidenceV1` is the complete external evidence object:
+`{schema_version:JSON_INTEGER_ONE,monitoring_evidence_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,
+metric_id:PHASE_F_MONITORING_METRIC_V1,window_start:UTC_SECOND_TIMESTAMP_V1,
+window_end:UTC_SECOND_TIMESTAMP_V1,value:PhaseFMonitoringValueV1,
+source_references:NONEMPTY_SORTED_UNIQUE<PhaseFMonitoringSourceReferenceV1>,
+derivation_document_sha256:SHA256_V1,produced_at:UTC_SECOND_TIMESTAMP_V1}`.
+It uses semantic ID domain `mhi_phase_f_monitoring_evidence_v1\0`, excludes
+only `monitoring_evidence_id`, and its complete canonical bytes define its
+complete-file SHA-256. `window_start<window_end` and
+`produced_at>=window_end` are required.
+
+`PHASE_F_MONITORING_SOURCE_KIND_V1` is exactly
+`domain_observation|reference_qc_record|calibration_record|sensor_drift_series|
+input_validation_summary|runtime_validation_summary|reference_uncertainty_record|
+execution_record|trust_provisioning_approval|owner_approval|release_record`.
+`PhaseFMonitoringSourceReferenceV1` is exactly
+`{source_kind:PHASE_F_MONITORING_SOURCE_KIND_V1,object_reference:PhaseFObjectReferenceV1}`.
+Source references sort by source-kind literal ASCII bytes, then
+`object_reference.sha256`, then `object_reference.immutable_uri`, with no
+duplicate tuple.
+
+The required source-kind mapping is exact: `domain_compliance` requires
+`domain_observation`; `reference_qc_status` requires `reference_qc_record`;
+`calibration_status` requires `calibration_record`; `sensor_drift` requires
+`sensor_drift_series`; `invalid_input_rate` requires `input_validation_summary`;
+`indeterminate_rate`, `data_quality_insufficient_rate`, and `exclusion_rate`
+each require `runtime_validation_summary`; `reference_uncertainty_status`
+requires `reference_uncertainty_record`; `software_git_sha` and
+`checker_binary_sha256` each require exactly one `execution_record`;
+`trust_store_sha256` and `trust_root_id` each require exactly one
+`trust_provisioning_approval`; `owner_approval_id` requires exactly one
+`owner_approval`; and `release_record_id` requires exactly one
+`release_record`. No source kind outside the listed mapping is permitted.
+For binding metrics the checker parses the named authority and compares exact
+fields: `PhaseFExecutionRecordV1.release_code_sha`,
+`PhaseFExecutionRecordV1.checker_binary_sha256`,
+`PhaseFTrustProvisioningApprovalV1.trust_store_sha256`,
+`PhaseFTrustProvisioningApprovalV1.trust_root_id`,
+`OwnerApprovalEvidenceV1.approval_record_id`, and
+`PhaseFReleaseRecordV1.release_record_id`, respectively. For observational
+metrics the checker validates syntax, ID/hash, source references, metric,
+window, value type, and measurement equality; it does not infer scientific
+truth from the underlying source.
+
 `PhaseFMonitoringRecordV1` is exactly
 `schema_version,monitoring_record_id,release_record_id,claim_id,window_start,
 window_end,policy_sha256,measurements,breaches,result`.
-Every required metric appears once in policy order. Measurement is
-exactly `{metric_id:PHASE_F_MONITORING_METRIC_V1,value:PhaseFMonitoringValueV1,
-evidence_sha256:SHA256_V1}`; status uses the metric vocabulary, numeric uses
-`RUNTIME_F64_V1`, and bindings use named ID/hash types. The evidence SHA
-resolves in context to one present, canonical evidence object and is validated
-for the metric. Breach is exactly
+Every required metric appears exactly once in the fixed canonical order.
+`measurements` is `FIXED_ORDER<PhaseFMonitoringMeasurementV1>` and is not a
+lexically sorted or generic sorted-unique array. Measurement is exactly
+`{metric_id:PHASE_F_MONITORING_METRIC_V1,value:PhaseFMonitoringValueV1,
+monitoring_evidence_id:PHASE_F_EXTERNAL_DIGEST_ID_V1,monitoring_evidence_sha256:SHA256_V1}`;
+status uses the metric vocabulary, numeric uses `RUNTIME_F64_V1`, and bindings
+use named ID/hash types. The evidence object is a complete
+`PhaseFMonitoringEvidenceV1` file. Breach is exactly
 `{metric_id:PHASE_F_MONITORING_METRIC_V1,breach_code:PHASE_F_BREACH_CODE_V1}`
-sorted by metric ID; evidence is never repeated in a breach row. All required metrics exist
+and its evidence object satisfies `evidence.monitoring_evidence_id =
+measurement.monitoring_evidence_id`, `evidence` complete-file SHA equals
+`measurement.monitoring_evidence_sha256`, `evidence.metric_id = measurement.metric_id`,
+`evidence.value = measurement.value`, and
+`evidence.window_start = monitoring_record.window_start` plus
+`evidence.window_end = monitoring_record.window_end`.
+ordered by the same canonical metric order; evidence is never repeated in a breach row. All required metrics exist
 exactly once, with exact value types, healthy statuses, release bindings,
 passing thresholds, and evidence. `breaches` must equal the exact recomputed failed-metric set: one row
 for every failed required metric and zero rows for every passing metric. The
@@ -1248,13 +1315,15 @@ never carries a second evidence hash.
 
 The PASS predicate is exact: every required metric appears once; no unrequired
 metric appears; every measurement type is correct; every measurement has a
-verifiable `evidence_sha256`; every required evidence object verifies; all four
-status metrics are healthy; all five numeric thresholds pass; all five
-release/build/trust binding metrics equal release authority; the recomputed
+verifiable `monitoring_evidence_id` and `monitoring_evidence_sha256`; every
+required evidence object verifies; all four status metrics are healthy; all five
+numeric thresholds pass; all six release/build/trust/owner binding metrics equal
+release authority; the recomputed
 breach set is empty; and `result=pass`. SUSPEND is required for one or more
 recomputed failures, and the declared result must equal recomputation.
-`MONITORING_RESULT_DERIVATION_AMBIGUITIES=0` and
-`MONITORING_EVIDENCE_AMBIGUITIES=0`.
+`MONITORING_RESULT_DERIVATION_AMBIGUITIES=0`,
+`MONITORING_EVIDENCE_OBJECT_AMBIGUITIES=0`, and
+`MONITORING_METRIC_EVIDENCE_MAPPING_AMBIGUITIES=0`.
 
 ## 15. Retention, incidents, and compromise
 
@@ -1269,20 +1338,33 @@ immutable incident-type definition document. `scope` is the exact tagged union
 `PhaseFIncidentScopeV1`: release scope carries a release ID, campaign
 abandonment carries a campaign ID and no release ID, and registry compromise
 uses registry-namespace scope. ID and complete-file hash follow §3/§9.
-Campaign-abandonment closure requires an independent five-role review bundle
-in `evidence_references`; it is not inferred from the operator that records the
-incident.
+`PhaseFIncidentRecordV1` contains no `review_bundle_sha256`, review-artifact
+reference, or future review hash. Campaign-abandonment construction is exactly
+complete incident file -> incident SHA -> independent review bundle with
+`target={type:"external_object",object_kind:"incident_record",
+object_sha256:<exact incident file SHA>}` -> `incident_recorded` attestation.
+There is no reverse pointer. For ordinary non-abandonment campaign incidents,
+the permitted relation set is separately defined as only the applicable
+`authorized_by+decision_bundle`, package/evidence references, and the required
+`incident_recorded` subject relation; the abandonment review relation is not
+inherited.
 
-`PhaseFRetentionScopeV1` is exactly the tagged union
+`PhaseFRetentionObjectV1` is exactly the tagged union
+`{type:"package_object",object_id:RUNTIME_STABLE_ID_V1,object_reference:PhaseFObjectReferenceV1}`
+or `{type:"authority_object",object_kind:PHASE_F_OBJECT_KIND_V1,
+object_reference:PhaseFObjectReferenceV1}`. `PhaseFRetentionScopeV1` is exactly the tagged union
 `{type:"release",release_record_id:PHASE_F_EXTERNAL_DIGEST_ID_V1}` or
 `{type:"campaign",campaign_id:RUNTIME_STABLE_ID_V1,
 package_manifest_sha256:SHA256_V1}`. `PhaseFRetentionAuditV1` is exactly
 `schema_version,retention_audit_id,scope,policy_sha256,audited_at,object_checks,
 result`. There is no top-level release ID. Each check is exactly
-`{object_sha256:PhaseFObjectDigestV1,
+`{object:PhaseFRetentionObjectV1,
 primary_available:BOOLEAN_V1,primary_verified:BOOLEAN_V1,
 verified_backup_count:CANONICAL_UNSIGNED_INTEGER_V1,
 last_backup_verification_at:UTC_SECOND_TIMESTAMP_V1,result:PHASE_F_RESULT_V1}`.
+Rows sort by the raw ASCII lexical identity key: package object
+`("package_object",object_id,object_reference.sha256)` or authority object
+`("authority_object",object_kind,object_reference.sha256)`.
 Pass requires primary available and exact, backup count at least F0, and backup
 age below F0 interval. A `retention_audited` record is authorized by the
 decision bundle and has exactly one scope-specific relation: release scope
@@ -1299,11 +1381,31 @@ retention seconds; retrieval is required while `now<deadline`, unless another
 an independently reviewed `campaign_abandonment` incident with campaign scope;
 the deadline is `incident.detected_at + retention_seconds`, and all campaign
 authority objects are retained until that deadline. Campaign-scoped audits
-continue until that deadline without a release ID. Deletion is never silent.
+continue until that deadline without a release ID. For campaign scope, the
+required retention set is exactly one authority-object row for the exact
+package manifest plus one package-object row for every
+`PhaseFPackageManifestV1.objects` entry, copying exactly its `object_id` and
+`object_reference`; no missing, duplicate, or extra package object is legal.
+Deletion is never silent.
 Replacement is an additional copy with identical bytes, SHA, and length
 recorded in the next audit; different bytes are a new object. If every copy
 disappears before deadline, retention failure is required and claim-status is
 NOT_ACTIVE.
+
+`CampaignRetentionSetV1` is the exact campaign set above. `ReleaseRetentionSetV1`
+is the deterministic union of: (A) the complete campaign set for the
+release-bound package; (B) one authority object each for protocol,
+power_analysis, cohort_lock, owner_approval, execution_record, release_record,
+monitoring_policy, metrology_policy, trust_provisioning_approval, the F5
+independent review bundle, the initial claim state, and the latest claim state
+at `audited_at`; (C) every accepted `monitoring_record` through `audited_at`;
+and (D) every unresolved incident affecting that release at `audited_at`.
+The current retention audit is excluded, registry records are excluded from
+retained objects, and every reference is derived from verified release,
+registry, and context bindings. Human-selected extras are forbidden.
+For campaign scope, `object_checks` equals `CampaignRetentionSetV1`; for
+release scope it equals `ReleaseRetentionSetV1`, by exact set equality with no
+missing, extra, or duplicate object. `RETENTION_COVERAGE_AMBIGUITIES=0`.
 
 Default consequences are exact: key compromise suspend; key revocation suspend
 or withdraw per F0; registry equivocation NOT_ACTIVE immediately; data
@@ -1341,14 +1443,16 @@ review target/aggregate, commit existence and reachability from live remote
 sequence is incident -> emergency file -> emergency review -> later Git commit
 -> NOT_ACTIVE; `REGISTRY_COMPROMISE_GIT_FIXED_POINT_CYCLES=0`.
 
-The emergency checker order is exact: (1) canonical emergency and semantic ID;
-(2) canonical five-role review bundle; (3) review target equals the exact
-emergency file SHA; (4) aggregate GO/P0=0/P1=0; (5) supplied commit exists; (6)
-commit is reachable from live remote `main`; (7) the commit tree contains the
-emergency bytes at `emergencies/<DIGEST>/emergency.json`; (8) it contains the
-review bytes at `emergencies/<DIGEST>/review.json`; and (9) both tree byte
-sequences equal the supplied local materializations. Any failure rejects the
-triple or returns the specified fail-closed non-active result.
+The emergency checker order is exact: (1) validate the emergency file and
+semantic ID; (2) validate the five-role review bundle; (3) verify the review
+target equals the exact emergency complete-file SHA; (4) verify aggregate
+GO/P0=0/P1=0; (5) verify the supplied commit exists; (6) verify the commit is
+reachable from live remote `main`; (7) resolve the Git tree at that exact
+commit; (8) fetch exactly
+`phase_f_governance/emergencies/<DIGEST>/emergency.json`; (9) fetch exactly
+`phase_f_governance/emergencies/<DIGEST>/review.json`; and (10) verify the Git
+tree bytes equal the supplied emergency and review bytes. Any failure rejects
+the triple or returns the specified fail-closed non-active result.
 
 Owner-key compromise uses the un-compromised registry/governance path to append
 the exact suspend/withdraw state; owner signature is not required for that
@@ -1356,14 +1460,15 @@ non-active transition. Recovery requires a new owner key, root, owner approval,
 run, and release according to the exact F-OD-16 `resolution_mode`; compromised
 key never revokes itself.
 
-## 16. Master schema catalog
+## 16. Historical R7 master-schema catalog snapshot (non-normative)
 
-This is the one catalog for every external R7 schema. Each row includes exact
+This is the retained R7 catalog snapshot. It is historical and non-normative;
+the one current catalog is the R8 MASTER SCHEMA CATALOG in §26. Each row includes exact
 fields, identity, complete-file hash, producer, validator, stage, requirement,
 AC, test, evidence, and registry relation. The canonical substantive
-requirement/AC/test/evidence procedures are §19.2; legacy R5/R6 identifiers in
-the final column are historical cross-references only and are not current R7
-acceptance authority.
+requirement/AC/test/evidence procedures were §19.2; every R7 identifier in this
+snapshot is a historical cross-reference only and is not current R8 acceptance
+authority.
 
 | Schema | Field closure / identity | Producer; validator; stage | Registry relation | Requirement / AC / test / evidence |
 |---|---|---|---|---|
@@ -1447,14 +1552,15 @@ are not admissible; category ceilings cannot be exceeded. Checker verifies
 structure/category/relations; reviewer supplies category/assessment. Cohort
 lock binds exact audit hash and package registry relation binds it.
 
-### 16.1 Normative field-type audit
+### 16.1 Historical R7 normative field-type audit
 
-The following is the complete field audit. `JSON_INTEGER_ONE` is the literal
+The following was the R7 field audit. It is retained for historical accounting;
+the complete current R8 closure and metadata are in §26. `JSON_INTEGER_ONE` is the literal
 JSON integer `1`; `SORTED_UNIQUE<T>` is a strictly increasing JSON array whose
 member type is exactly `T`; `NONEMPTY_SORTED_UNIQUE<T>` adds nonempty; and
-`JCS_OBJECT<T>` means the complete canonical object type `T`. These are closed
-Phase-F constructions, not untyped containers. Every field in every normative
-object is listed here or in the exact nested-row definition beside it.
+`JCS_OBJECT<T>` means the complete canonical object type `T`. These were closed
+R7 constructions, retained for regression accounting. The current R8 catalog
+is the single source of catalog authority in §26.
 
 | Object | Every field and exact type |
 |---|---|
@@ -1530,14 +1636,14 @@ there is no free-form `string`, `integer`, `hash`, `value`, `status`, `policy`,
 `record`, `document`, `object`, `relation`, or `role` field. The audit result is
 `UNTYPED_NORMATIVE_FIELDS=0`.
 
-For the readiness object, the field closure includes
+For the historical readiness object, the field closure included
 `readiness_evidence_id`; the construction is semantic payload -> derived ID ->
 complete file -> file SHA. For claim state, `cause_incident_sha256` is
 `SHA256_V1|null` with the reason-specific nullability in §14. For monitoring,
-the measurement closure includes `evidence_sha256` and the breach closure does
-not. For retention, the audit closure includes `scope:PhaseFRetentionScopeV1`
-and never a top-level release ID. These are normative catalog entries, not
-prose-only obligations.
+the measurement closure included `evidence_sha256` and the breach closure did
+not. For retention, the audit closure included `scope:PhaseFRetentionScopeV1`
+and never a top-level release ID. These are historical catalog entries; §26 is
+the current normative catalog.
 
 ## 17. Valid object construction order
 
@@ -1560,7 +1666,7 @@ prose-only obligations.
 | release record | semantic release payload excluding only `release_record_id` | §3 release ID | complete release-file hash; later `release_registered` subject is release ID/file hash; state |
 | F5 candidate | frozen release/evidence hashes and exact candidate fields | §5.1 candidate ID | complete candidate-file hash; five-role F5 review bundle |
 | initial active state | release/no prior/initial_release plus exact F5 `activation_review_bundle_sha256` | §3 claim-state ID | complete state-file hash; later `claim_state_changed` subject is state ID/file hash |
-| monitoring pass | exact 15 metrics, typed values, evidence SHA for every measurement, evidence verification, recomputed pass | §3 monitoring ID | complete monitoring-file hash; later `monitoring_recorded` subject is monitoring ID/file hash |
+| monitoring pass | exact 15 metrics in `PHASE_F_MONITORING_METRIC_ORDER_V1`, typed values, one complete `PhaseFMonitoringEvidenceV1` object per measurement, evidence verification, recomputed pass | §3 monitoring ID | complete monitoring-file hash; exactly 15 later `depends_on+monitoring_evidence` relations in `monitoring_recorded` |
 | incident | verified evidence/exact consequence | §3 incident ID | hash; incident_recorded; suspension |
 | registry-compromise emergency | incident file complete -> emergency file with incident SHA -> five-role review targeting emergency file SHA -> later commit at deterministic paths | emergency ID excludes only own ID; no Git identity in file | local emergency/review bytes and later commit SHA are supplied separately; claim-status verifies tree and bytes -> NOT_ACTIVE |
 | campaign retention | campaign package/manifest exists before release -> campaign-scoped audit -> reviewed abandonment incident -> deadline | §3 audit/incident IDs | campaign retention audit uses package-manifest relation and no release ID |
@@ -1585,7 +1691,11 @@ the final review bundle is complete. It binds independently:
 `initial_claim_state_record_id`, `initial_claim_state_file_sha256`,
 `initial_claim_state_registry_record_sha256`, and `review_bundle_sha256`.
 
-## 18. R7 positive controls and complete DAG construction audit
+## 18. Historical R7 positive controls and complete DAG construction audit
+
+This section is retained for R7 accounting only and is non-normative. The
+current positive-path authority is §26; where this historical text differs,
+§26 controls.
 
 The foundational external-authority DAG is frozen as:
 
@@ -1672,7 +1782,7 @@ monitoring breach uses release scope; until its suspension state is present,
 claim-status is NOT_ACTIVE even if the latest ACTIVE state remains in the
 registry.
 
-### 18.1 R7 positive controls
+### 18.1 Historical R7 positive controls
 
 Monitoring PASS control: use `release_001`, policy `policy_001`,
 `window_start=2026-01-01T00:00:00Z`, `window_end=2026-01-01T00:30:00Z`, and a
@@ -1701,9 +1811,9 @@ are binary64 `0` (`decimal:"0",binary64_bits_hex:"0000000000000000"`).
 | `owner_approval_id` | `{type:"external_digest_id",value:<approval ID>}` | owner approval object |
 | `release_record_id` | `{type:"external_digest_id",value:<release ID>}` | exact release object |
 
-All five numeric values are on the passing side of their exact policy
-comparators. The five binding values equal the exact release authority; all
-15 evidence SHAs resolve and validate; `breaches=[]`, `result=pass`, and
+The historical numeric values are on the passing side of their exact policy
+comparators. The historical binding values equal the exact release authority;
+all 15 evidence references resolve and validate; `breaches=[]`, `result=pass`, and
 `window_start < window_end <= due`. The complete monitoring file is hashed,
 then registered by `monitoring_recorded`; this control has no missing evidence
 object and therefore `MONITORING_PASS_CONSTRUCTIBLE=yes`.
@@ -1917,16 +2027,17 @@ reviewed architecture supersession, not an unaccounted result change.
 | R2 monitoring/deviation restoration | §11, §14-15 | R5-17/R5-31/R5-32; AC5-17/31/32; T5-17/31/32; EV5-17/31/32 | REMEDIATED |
 
 The following R6 requirements and traceability rows are retained as historical
-cross-references only. The current operational authority is the R7 requirement
-set in §19.2. Each historical row has one primary AC, one test, and one
-evidence item; no historical row changes the R7 contract. Every F-OD-01 through
-F-OD-20 is mapped by the current R7 table; no additional owner decision exists.
+cross-references only. The R7 rows in §19.2 are also historical. The current
+operational authority is the R8 requirement matrix in §27. Each historical row
+has one primary AC, one test, and one evidence item; no historical row changes
+the R8 contract. Every F-OD-01 through F-OD-20 is mapped only by the current
+R8 matrix; no additional owner decision exists.
 
 ### 19.1 Historical R6 executable requirement traceability
 
 Every historical R6 row below contains the complete requirement-to-path mapping;
-it is retained for regression accounting, while §19.2 is the current normative
-mapping. `owner_decision_ids` is `none` only when no F0 decision is involved.
+it is retained for regression accounting, while §19.2 is also historical.
+`owner_decision_ids` is `none` only when no F0 decision is involved.
 
 | requirement ID | normative statement | owner-decision IDs | external schemas | production/checker path | primary AC ID | test ID(s) | evidence ID(s) | review role | stage |
 |---|---|---|---|---|---|---|---|---|---|
@@ -1938,7 +2049,7 @@ mapping. `owner_decision_ids` is `none` only when no F0 decision is involved.
 | `F-PLAN-R6-P1-06` | Metrology check results are full schema-versioned external objects and LOD/LOQ/result units match by exact bytes with no checker conversion. | F-OD-11 | MetrologyPolicy, MetrologyCheckSpec, MetrologyCheckResult | metrology policy/check construction and package binding | AC6-06 | T6-06 | EV6-06 | scientific_metrology | F0-F2 |
 | `F-PLAN-R6-P1-07` | Adjudicated reference results contain only fields projectable to current runtime endpoints plus external provenance; measurement values/units never enter runtime projection. | F-OD-05,F-OD-06,F-OD-07 | ReferenceSourceDescriptor, ReferenceResult, ReferenceEndpoint | reference adjudication and total runtime projection | AC6-07 | T6-07 | EV6-07 | scientific_metrology | F2 |
 | `F-PLAN-R6-P1-08` | Every rotation trigger has one exact action row; initial ACTIVE is authorized by the completed five-role F5 candidate review, and compromise/reinstatement follows the exact transition matrix. | F-OD-16 | F5ReleaseCandidate, ClaimStateRecord, ReinstatementApproval | F5 activation and claim-state transitions | AC6-08 | T6-08 | EV6-08 | operations_governance | F3-F5+ |
-| `F-PLAN-R6-P1-09` | Monitoring has five numeric thresholds, exact breach-set/result derivation, due-boundary windows, and a pre-first-window grace period. | F-OD-19 | MonitoringPolicy, MonitoringRecord | monitoring producer, registry, currentness evaluator | AC6-09 | T6-09 | EV6-09 | operations_governance | F5+ |
+| `F-PLAN-R6-P1-09` | Historical R6 monitoring threshold and breach-set contract, due-boundary windows, and pre-first-window grace period. | F-OD-19 | MonitoringPolicy, MonitoringRecord | monitoring producer, registry, currentness evaluator | AC6-09 | T6-09 | EV6-09 | operations_governance | F5+ |
 | `F-PLAN-R6-P1-10` | Retention and incidents use constructible release/campaign/registry scopes; pre-release abandonment has no release ID; registry and owner compromise have exact authority paths. | F-OD-13,F-OD-14,F-OD-15,F-OD-17,F-OD-20 | IncidentScope, IncidentRecord, RetentionAudit, RegistryCompromiseEmergency | incident/retention recorder and claim-status fail-closed path | AC6-10 | T6-10 | EV6-10 | security | all stages |
 | `F-PLAN-R6-P1-11` | Every external schema, requirement, AC, test, evidence item, owner decision, and historical case is substantively mapped and replayable, including intentional supersession. | F-OD-18 | Master schema catalog, historical case table | plan-review traceability and KAT replay | AC6-11 | T6-11 | EV6-11 | architecture_data | plan review |
 
@@ -1993,9 +2104,10 @@ identity, and acceptance oracle:
 | EV6-10 | incident, retention, emergency Git artifacts | operations/security/live remote | complete hashes plus Git commit/blob | scope and compromise action fail closed |
 | EV6-11 | R6 plan/catalog/KAT transcripts | independent R6 reviewer | plan SHA/blob and transcript identity | all IDs mapped and cases accounted |
 
-### 19.2 Executable R7 requirement traceability
+### 19.2 Historical R7 executable requirement traceability
 
-The following current R7 requirements are normative. Each row has one complete
+The following R7 requirements were normative in R7 and are retained only for
+history. Each row has one complete
 requirement/AC/test/evidence chain; the detailed tables that follow are part of
 the requirement, not identifier-only cross-references.
 
@@ -2066,10 +2178,12 @@ the requirement, not identifier-only cross-references.
 `TRACEABILITY_SUBSTANCE_GAPS=0`, `UNMAPPED_REQUIREMENTS=0`, `UNMAPPED_ACS=0`,
 `UNMAPPED_TESTS=0`, `UNMAPPED_EVIDENCE=0`, and `UNMAPPED_ODS=0` are required.
 
-### 19.3 Exact owner-decision mapping
+### 19.3 Historical R7 owner-decision mapping
 
-Every owner decision has a current normative consumer; none exists only in the
-F0 table.
+This R7 owner-decision table is retained only as historical accounting. It is
+not a current mapping source; the only current owner-decision edges are the
+`owner_decision_ids` cells in §27. The F0 table remains the decision contract,
+not a requirement mapping.
 
 | owner decision | current requirement IDs |
 |---|---|
@@ -2102,7 +2216,7 @@ Every historical case remains independently replayable. `NO-GO` means checker
 failure; public claim is NOT_ACTIVE except exact ACTIVE or
 AUTHORITY_UNAVAILABLE. R6 cases are appended, not substituted.
 R1-R6 rows are historical, non-normative regression fixtures; they do not
-reintroduce superseded fields or relations into the current R7 schemas.
+reintroduce superseded fields or relations into the current R8 schemas.
 The exact stale-token strings in the R7 negative fixtures below are
 non-normative test inputs only; they do not define the F0 contract.
 
@@ -2311,7 +2425,7 @@ disposition is limited to `REMEDIATED` or `OPEN`; no author row uses `CLOSED`.
 | `F-PLAN-R7-P1-12` | master catalog orphaned approval schemas and new types | §16,§16.1,§19.2 | one wildcard row hid six independent wire contracts | enumerate six approval rows and every new normative type | R7-12 | AC7-12 | T7-12 | EV7-12 | REMEDIATED |
 | `F-PLAN-R7-P1-13` | stale 21-decision F0 language contradicted contract | §4,§19.2,§20 | prior prose was not globally reconciled | use exact F-OD-08..20 and enforce 20-row/no-stale-token scan | R7-13 | AC7-13 | T7-13 | EV7-13 | REMEDIATED |
 
-## 22. Internal author audit
+## 22. Historical R7 author audit (non-normative)
 
 The author audit is plan lint and constructive audit, not approval. Every
 counter is required to be zero after the rewrite; the independent reviewer must
@@ -2461,7 +2575,7 @@ through-active chain, monitoring pass/breach, permitted reinstatement,
 retention audit, reference/runtime projection, power analysis, metrology check,
 checker invocation/report, and pusher-independent tag. Any guess is a P1.
 
-## 23. Required validation and handoff
+## 23. Historical R7 validation and handoff
 
 Before and after authoring, run exactly:
 
@@ -2490,7 +2604,7 @@ verified, stop before push. Then push `main` normally. After a successful push,
 record the R7 commit SHA, plan SHA-256, and Git blob and require a clean
 worktree. No later commit occurs before fresh independent R7 rereview.
 
-## 24. Fresh independent R7 rereview gate
+## 24. Historical R7 rereview gate
 
 R7 remains unapproved pending a new independent reviewer. That reviewer must
 begin by constructing these positive controls: (1) an external-object review
@@ -2503,7 +2617,7 @@ schemas independently catalogued; and (10) the exact 20-decision contract. If
 any control cannot be built without guessing, it is P1. The reviewer then
 rechecks all thirteen R6 findings and all preserved historical authority.
 
-## 25. Required R7 planning-remediation handoff
+## 25. Historical R7 planning-remediation handoff
 
 ```text
 MHI V1 PHASE F
@@ -2773,3 +2887,638 @@ READY_FOR_FRESH_PHASE_F_R7_PLAN_REREVIEW: yes
 READY_FOR_PHASE_F_PLAN_APPROVAL_TAG: NO pending fresh R7 GO
 READY_FOR_PHASE_F_IMPLEMENTATION: NO
 ```
+
+## 26. R8 MASTER SCHEMA CATALOG
+
+This section is the only current schema catalog. The historical R7 catalog in
+§16 is not current authority. The catalog is set-equal to every distinct
+normative identifier matching `PhaseF[A-Za-z0-9_]*V1` in this complete plan;
+there are no wildcard, grouped, or implicit rows. Every row has all thirteen
+required metadata columns, including explicit containing-object-only values for
+nested schemas.
+
+### 26.1 SCHEMA_IDENTIFIER_SET
+
+The post-edit mechanical enumeration is:
+
+```text
+PhaseFArgvV1
+PhaseFAuthorityEnrollmentApprovalV1
+PhaseFAuthorityEnrollmentV1
+PhaseFChainOfCustodyV1
+PhaseFCheckListV1
+PhaseFCheckerBuildEvidenceV1
+PhaseFCheckerExitCodeV1
+PhaseFCheckerReadinessEvidenceV1
+PhaseFCheckerReportV1
+PhaseFCheckerStdoutV1
+PhaseFClaimStateRecordV1
+PhaseFCohortLockRecordV1
+PhaseFCommandV1
+PhaseFCustodyEventV1
+PhaseFDecisionApprovalV1
+PhaseFDecisionBundleV1
+PhaseFDecisionRowV1
+PhaseFDecisionValueV1
+PhaseFDependencyAuditV1
+PhaseFDependencyEdgeV1
+PhaseFDeviationEventV1
+PhaseFDeviationLedgerRevisionV1
+PhaseFDeviationLedgerV1
+PhaseFEndpointMetrologyPolicyV1
+PhaseFEnvironmentEntryV1
+PhaseFExecutionRecordV1
+PhaseFF5ReleaseCandidateV1
+PhaseFIdentityComparisonV1
+PhaseFIncidentRecordV1
+PhaseFIncidentScopeV1
+PhaseFIndependentReviewBundleV1
+PhaseFIndependentReviewV1
+PhaseFLODLOQPolicyV1
+PhaseFLocationLedgerV1
+PhaseFLocationV1
+PhaseFMethodVersionV1
+PhaseFMetricThresholdV1
+PhaseFMetrologyCheckResultV1
+PhaseFMetrologyCheckSpecV1
+PhaseFMetrologyPolicyV1
+PhaseFMonitoringBreachV1
+PhaseFMonitoringEvidenceV1
+PhaseFMonitoringMeasurementV1
+PhaseFMonitoringPolicyV1
+PhaseFMonitoringRecordV1
+PhaseFMonitoringSourceReferenceV1
+PhaseFMonitoringValueV1
+PhaseFNamedDigestV1
+PhaseFObjectDigestV1
+PhaseFObjectReferenceV1
+PhaseFOutputSpecV1
+PhaseFPackageBindingV1
+PhaseFPackageManifestV1
+PhaseFPackageObjectV1
+PhaseFParameterSpecV1
+PhaseFParameterValueRowV1
+PhaseFPhysicalIdentityAuditV1
+PhaseFPhysicalReleaseApprovalV1
+PhaseFPhysicalUnitLedgerV1
+PhaseFPlanApprovalV1
+PhaseFPowerAnalysisRecordV1
+PhaseFPowerMethodInterfaceV1
+PhaseFPowerOutputValueV1
+PhaseFProtocolProjectionV1
+PhaseFQuantifiedUncertaintyV1
+PhaseFRangeRuleV1
+PhaseFReadinessApprovalV1
+PhaseFReferenceAssessmentV1
+PhaseFReferenceResultV1
+PhaseFReferenceSourceDescriptorV1
+PhaseFRegistryCompromiseEmergencyV1
+PhaseFRegistryHeadV1
+PhaseFRegistryRecordV1
+PhaseFRegistryRelationV1
+PhaseFReinstatementApprovalV1
+PhaseFReleaseRecordV1
+PhaseFRetentionAuditV1
+PhaseFRetentionObjectCheckV1
+PhaseFRetentionObjectV1
+PhaseFRetentionScopeV1
+PhaseFRetrievalVerificationV1
+PhaseFReviewTargetV1
+PhaseFScientificAdmissibilityAuditV1
+PhaseFSensitivityCaseV1
+PhaseFSensitivityOverrideV1
+PhaseFTrustProvisioningApprovalV1
+PhaseFUncertaintyPolicyV1
+PhaseFUnitEntryV1
+PhaseFUnitRuleV1
+```
+
+### 26.2 CATALOG_IDENTIFIER_SET
+
+| exact identifier | category | exact field-closure section | semantic-ID rule | complete-file hash | producer | validator | stage | registry behavior | CURRENT requirement IDs | CURRENT primary AC IDs | CURRENT test IDs | CURRENT F-EV IDs |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `PhaseFArgvV1` | NESTED_WIRE | §7 exact argv derivation | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | containing object's stage | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFAuthorityEnrollmentApprovalV1` | TAG_BODY | §6 exact ASCII body | none | exact tag-body bytes | independent five-role reviewers | tag validator | enrollment gate | tag message hash; no object subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFAuthorityEnrollmentV1` | TOP_LEVEL_WIRE | §5.1 exact enrollment object | §3 exact domain and own ID | exact canonical file bytes | governance authority | enrollment strict parser | enrollment | subject `authority_enrollment` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFChainOfCustodyV1` | TOP_LEVEL_WIRE | §11 exact custody ledger | §3 exact domain and own ID | exact canonical file bytes | custody authority | custody strict parser | F2-F4 | subject `chain_of_custody` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFCheckListV1` | NESTED_WIRE | §13 exact checklist | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F0-F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFCheckerBuildEvidenceV1` | TOP_LEVEL_WIRE | §7 exact build evidence | §3 exact domain and own ID | exact canonical file bytes | checker builder | readiness strict parser | readiness | subject `checker_build_evidence` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFCheckerExitCodeV1` | NESTED_WIRE | §7 exact exit-code grammar | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | checker execution | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFCheckerReadinessEvidenceV1` | TOP_LEVEL_WIRE | §7 exact readiness evidence | §3 exact domain and own ID | exact canonical file bytes | checker readiness authority | readiness strict parser | readiness | subject `checker_readiness_evidence` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFCheckerReportV1` | TOP_LEVEL_WIRE | §7 exact report | none | exact canonical report bytes | checker | report strict parser | all checker routes | none; report is evidence | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFCheckerStdoutV1` | NESTED_WIRE | §7 exact stdout literals | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | checker execution | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFClaimStateRecordV1` | TOP_LEVEL_WIRE | §14 exact claim-state fields | §3 exact domain and own ID | exact canonical file bytes | governance authority | claim-state strict parser | F5+ | subject `claim_state` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFCohortLockRecordV1` | TOP_LEVEL_WIRE | §14 exact cohort lock | §3 exact domain and own ID | exact canonical file bytes | campaign authority | cohort strict parser | F2 | subject `cohort_lock` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFCommandV1` | NESTED_WIRE | §2/§7 exact command union | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | checker execution | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFCustodyEventV1` | NESTED_WIRE | §11 exact custody event | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F2-F4 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFDecisionApprovalV1` | TAG_BODY | §6 exact ASCII body | none | exact tag-body bytes | independent five-role reviewers | tag validator | F0 gate | tag message hash; no object subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFDecisionBundleV1` | TOP_LEVEL_WIRE | §4 exact decision bundle | §3 exact domain and own ID | exact canonical file bytes | F0 authority | decision strict parser | F0 | subject `decision_bundle` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFDecisionRowV1` | NESTED_WIRE | §4 exact decision row | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F0 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFDecisionValueV1` | NESTED_WIRE | §2/§4 fixed decision variants | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F0 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFDependencyAuditV1` | TOP_LEVEL_WIRE | §11 exact dependency audit | §3 exact domain and own ID | exact canonical file bytes | dependency auditor | dependency strict parser | F2 | subject `dependency_audit` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFDependencyEdgeV1` | NESTED_WIRE | §11 exact dependency edge | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFDeviationEventV1` | NESTED_WIRE | §11 exact deviation event | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F1-F4 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFDeviationLedgerRevisionV1` | TOP_LEVEL_WIRE | §11 stable-ledger revision | §3 exact domain and own ID | exact canonical file bytes | campaign authority | deviation strict parser | F1-F4 | subject `deviation_ledger` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFDeviationLedgerV1` | PLAN_ONLY_CONTRACT | §11 stable-ledger contract; no top-level wire | none | none | campaign authority | plan-review strict validator | F1-F4 | none; represented by revisions | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFEndpointMetrologyPolicyV1` | NESTED_WIRE | §13 endpoint policy | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F0-F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFEnvironmentEntryV1` | NESTED_WIRE | §7 exact environment entry | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | readiness | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFExecutionRecordV1` | TOP_LEVEL_WIRE | §14 exact execution record | §3 exact domain and own ID | exact canonical file bytes | release authority | execution strict parser | F4 | subject `execution_record` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFF5ReleaseCandidateV1` | TOP_LEVEL_WIRE | §5.1 exact F5 candidate | §3 exact domain and own ID | exact canonical file bytes | F5 release authority | candidate strict parser | F5 | subject `f5_release_candidate` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFIdentityComparisonV1` | NESTED_WIRE | §11 exact identity comparison | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFIncidentRecordV1` | TOP_LEVEL_WIRE | §15 exact incident object | §3 exact domain and own ID | exact canonical file bytes | operations/governance authority | incident strict parser | all | subject `incident_record` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFIncidentScopeV1` | NESTED_WIRE | §15 exact incident scope union | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | all | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFIndependentReviewBundleV1` | TOP_LEVEL_WIRE | §5 exact five-role bundle | §3 exact domain and own ID | exact canonical file bytes | independent reviewers | review strict parser | every gate | subject `independent_review_bundle` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFIndependentReviewV1` | NESTED_WIRE | §5 exact review row | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | every gate | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFLODLOQPolicyV1` | NESTED_WIRE | §13 exact LOD/LOQ union | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F0-F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFLocationLedgerV1` | TOP_LEVEL_WIRE | §11 exact location ledger | §3 exact domain and own ID | exact canonical file bytes | operations authority | location strict parser | F2 | subject `location_ledger` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFLocationV1` | NESTED_WIRE | §11 exact location row | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMethodVersionV1` | NESTED_WIRE | §12 exact method/version pair | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F1-F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMetricThresholdV1` | NESTED_WIRE | §14 exact threshold row | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F0/F5+ | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMetrologyCheckResultV1` | TOP_LEVEL_WIRE | §13 exact check result | §3 exact domain and own ID | exact canonical file bytes | laboratory authority | metrology strict parser | F2 | subject `metrology_check_result` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMetrologyCheckSpecV1` | NESTED_WIRE | §13 exact check spec | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMetrologyPolicyV1` | TOP_LEVEL_WIRE | §13 exact metrology policy | §3 exact domain and own ID | exact canonical file bytes | metrology authority | metrology strict parser | F0-F2 | subject `metrology_policy` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMonitoringBreachV1` | NESTED_WIRE | §14 exact breach row | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F5+ | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMonitoringEvidenceV1` | TOP_LEVEL_WIRE | §14 exact evidence object | §3 exact domain and own ID | exact canonical file bytes | metric evidence producer | evidence strict parser | F5+ | subject `monitoring_evidence` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMonitoringMeasurementV1` | NESTED_WIRE | §14 exact measurement row | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F5+ | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMonitoringPolicyV1` | TOP_LEVEL_WIRE | §14 exact monitoring policy | §3 exact domain and own ID | exact canonical file bytes | F0 authority | monitoring strict parser | F0/F5+ | subject `monitoring_policy` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMonitoringRecordV1` | TOP_LEVEL_WIRE | §14 exact monitoring record | §3 exact domain and own ID | exact canonical file bytes | operations authority | monitoring strict parser | F5+ | subject `monitoring_record` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMonitoringSourceReferenceV1` | NESTED_WIRE | §14 exact source reference | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F5+ | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFMonitoringValueV1` | NESTED_WIRE | §2/§14 exact value union | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F5+ | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFNamedDigestV1` | NESTED_WIRE | §2 exact named digest | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | checker execution | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFObjectDigestV1` | NESTED_WIRE | §2 exact object digest | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | all | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFObjectReferenceV1` | NESTED_WIRE | §10 exact object reference | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | all | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFOutputSpecV1` | NESTED_WIRE | §12 exact output specification | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F1 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFPackageBindingV1` | NESTED_WIRE | §10 exact package binding | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFPackageManifestV1` | TOP_LEVEL_WIRE | §10 exact package manifest | §3 exact domain and own ID | exact canonical file bytes | campaign authority | package strict parser | F2 | subject `package_manifest` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFPackageObjectV1` | NESTED_WIRE | §10 exact package object | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFParameterSpecV1` | NESTED_WIRE | §12 exact parameter specification | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F1 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFParameterValueRowV1` | NESTED_WIRE | §12 exact parameter value row | containing-object-only | containing-object-only | containing object's producer | containing-object's strict parser | F1 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFPhysicalIdentityAuditV1` | TOP_LEVEL_WIRE | §11 exact identity audit | §3 exact domain and own ID | exact canonical file bytes | identity auditor | identity strict parser | F2 | subject `identity_audit` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFPhysicalReleaseApprovalV1` | TAG_BODY | §6 exact ASCII body | none | exact tag-body bytes | independent five-role reviewers | tag validator | physical-release gate | tag message hash; no object subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFPhysicalUnitLedgerV1` | TOP_LEVEL_WIRE | §11 exact unit ledger | §3 exact domain and own ID | exact canonical file bytes | campaign authority | unit strict parser | F2 | subject `physical_unit_ledger` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFPlanApprovalV1` | TAG_BODY | §6 exact ASCII body | none | exact tag-body bytes | independent five-role reviewers | tag validator | plan gate | tag message hash; no object subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFPowerAnalysisRecordV1` | TOP_LEVEL_WIRE | §12 exact analysis record | §3 exact domain and own ID | exact canonical file bytes | statistician | power strict parser | F1 | subject `power_analysis` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFPowerMethodInterfaceV1` | TOP_LEVEL_WIRE | §12 exact method interface | §3 exact domain and own ID | exact canonical file bytes | statistician | power strict parser | F1 | subject `power_method_interface` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFPowerOutputValueV1` | NESTED_WIRE | §12 exact output value | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F1 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFProtocolProjectionV1` | PLAN_ONLY_CONTRACT | §4 exact projection | none | none | checker/projection authority | plan-review strict validator | F0-F1 | none; audit projection only | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFQuantifiedUncertaintyV1` | NESTED_WIRE | §2/§13 exact uncertainty | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFRangeRuleV1` | NESTED_WIRE | §2/§12 exact range union | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F1 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFReadinessApprovalV1` | TAG_BODY | §6 exact ASCII body | none | exact tag-body bytes | independent five-role reviewers | tag validator | readiness gate | tag message hash; no object subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFReferenceAssessmentV1` | NESTED_WIRE | §13 exact assessment row | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F2 | nested; no independent registry subject | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFReferenceResultV1` | TOP_LEVEL_WIRE | §13 exact reference result | §3 exact domain and own ID | exact canonical file bytes | laboratory authority | reference strict parser | F2 | subject `reference_result` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFReferenceSourceDescriptorV1` | TOP_LEVEL_WIRE | §13 exact source descriptor | §3 exact domain and own ID | exact canonical file bytes | laboratory/data authority | source strict parser | F2 | subject `reference_source_descriptor` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFRegistryCompromiseEmergencyV1` | TOP_LEVEL_WIRE | §15 exact emergency object | §3 exact domain and own ID | exact canonical file bytes | security/operations authority | emergency strict parser | claim-status | external emergency input; later Git outer attestation | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFRegistryHeadV1` | TOP_LEVEL_WIRE | §8 exact registry head | none | exact canonical head bytes | registry authority | head strict parser | all | resolver object; no subject row | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFRegistryRecordV1` | TOP_LEVEL_WIRE | §8 exact signed record | none | exact canonical signed bytes | registry authority | registry strict parser | F1-F5 | chain record; subject and relation fields exact | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFRegistryRelationV1` | NESTED_WIRE | §9 exact typed relation | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F1-F5 | nested in registry record | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFReinstatementApprovalV1` | TOP_LEVEL_WIRE | §14 exact reinstatement approval | §3 exact domain and own ID | exact canonical file bytes | governance authority | reinstatement strict parser | F5+ | subject `reinstatement_approval` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFReleaseRecordV1` | TOP_LEVEL_WIRE | §14 exact release record | §3 exact domain and own ID | exact canonical file bytes | release authority | release strict parser | F5 | subject `release_record` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFRetentionAuditV1` | TOP_LEVEL_WIRE | §15 exact retention audit | §3 exact domain and own ID | exact canonical file bytes | retention authority | retention strict parser | all | subject `retention_audit` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFRetentionObjectCheckV1` | NESTED_WIRE | §15 exact retention check | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | all | nested in retention audit | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFRetentionObjectV1` | NESTED_WIRE | §15 exact package/authority union | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | all | nested in retention check | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFRetentionScopeV1` | NESTED_WIRE | §15 exact release/campaign union | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | all | nested in retention audit | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFRetrievalVerificationV1` | TOP_LEVEL_WIRE | §10 exact retrieval verification | §3 exact domain and own ID | exact canonical file bytes | retrieval authority | retrieval strict parser | all | subject `retrieval_verification` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFReviewTargetV1` | NESTED_WIRE | §2/§5 exact target union | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | every gate | nested in review bundle | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFScientificAdmissibilityAuditV1` | TOP_LEVEL_WIRE | §13 exact admissibility audit | §3 exact domain and own ID | exact canonical file bytes | scientific reviewer | admissibility strict parser | F2 | subject `scientific_admissibility_audit` | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFSensitivityCaseV1` | NESTED_WIRE | §12 exact sensitivity case | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F1 | nested in power analysis | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFSensitivityOverrideV1` | NESTED_WIRE | §2/§12 exact sensitivity override | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F1 | nested in sensitivity case | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFTrustProvisioningApprovalV1` | TOP_LEVEL_WIRE | §6 exact trust approval body/object | none | exact tag-body bytes | independent five-role reviewers | tag validator | trust gate | tag message hash; trust object is separately authoritative | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFUncertaintyPolicyV1` | NESTED_WIRE | §2/§13 exact uncertainty policy | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F0-F2 | nested in metrology policy | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFUnitEntryV1` | NESTED_WIRE | §11 exact unit entry | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F2 | nested in unit ledger | R8-22 | AC8-22 | T8-16 | EV8-22 |
+| `PhaseFUnitRuleV1` | NESTED_WIRE | §2/§12 exact unit rule | containing-object-only | containing-object-only | containing object's producer | containing object's strict parser | F1-F2 | nested in parameter/output specification | R8-22 | AC8-22 | T8-16 | EV8-22 |
+
+The six approval schemas have six individual rows above: `PhaseFPlanApprovalV1`,
+`PhaseFDecisionApprovalV1`, `PhaseFReadinessApprovalV1`,
+`PhaseFAuthorityEnrollmentApprovalV1`, `PhaseFTrustProvisioningApprovalV1`,
+and `PhaseFPhysicalReleaseApprovalV1`. `PhaseFCheckListV1`,
+`PhaseFCheckerExitCodeV1`, `PhaseFCheckerStdoutV1`,
+`PhaseFDecisionValueV1`, `PhaseFEnvironmentEntryV1`, `PhaseFLODLOQPolicyV1`,
+`PhaseFMonitoringValueV1`, `PhaseFNamedDigestV1`, `PhaseFObjectDigestV1`,
+`PhaseFQuantifiedUncertaintyV1`, `PhaseFRangeRuleV1`,
+`PhaseFUncertaintyPolicyV1`, and `PhaseFUnitRuleV1` are individually listed,
+not represented by a grouped helper row.
+
+## 27. R8 CURRENT NORMATIVE REQUIREMENT MATRIX
+
+This is the only current requirement-to-owner-decision mapping source. The R6
+and R7 tables in §19 are historical only. The `owner_decision_ids` column is
+the only normative F-OD-to-requirement edge list; any OD coverage summary is
+derived and non-normative.
+
+| requirement_id | normative_statement | owner_decision_ids | schema_ids | stage | review_roles | primary_ac_id | test_ids | evidence_ids |
+|---|---|---|---|---|---|---|---|---|
+| `R8-01` | Emergency publication uses exactly one full-prefixed repository path pair; claim-status validates the ten-step sequence, exact tree paths, reachability, and bytes with no fallback. | F-OD-14,F-OD-17 | PhaseFIncidentRecordV1,PhaseFRegistryCompromiseEmergencyV1,PhaseFIndependentReviewBundleV1,PhaseFReviewTargetV1,PhaseFObjectReferenceV1,PhaseFCommandV1,PhaseFArgvV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFCheckerExitCodeV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1 | emergency/claim-status | security,architecture_data | AC8-01 | T8-01,T8-02 | EV8-01 |
+| `R8-02` | Monitoring has exactly 15 required metrics partitioned 4 status/1 quantity/4 rate/6 binding, five thresholds, fixed metric order, fixed threshold order, and exact result derivation. | F-OD-19 | PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringBreachV1,PhaseFMetricThresholdV1,PhaseFMonitoringValueV1 | F0/F5+ | operations_governance,architecture_data | AC8-02 | T8-03,T8-04,T8-05,T8-06 | EV8-02 |
+| `R8-03` | Every monitoring measurement is backed by one complete typed evidence object with exact source-kind mapping, ID/hash binding, window equality, and value equality. | F-OD-19 | PhaseFMonitoringEvidenceV1,PhaseFMonitoringSourceReferenceV1,PhaseFObjectReferenceV1,PhaseFMonitoringValueV1 | F5+ | operations_governance,scientific_metrology | AC8-03 | T8-07,T8-08,T8-09 | EV8-03 |
+| `R8-04` | Monitoring registry attestation contains exactly the release, policy, and 15 evidence dependencies, and binding values equal named authoritative fields. | F-OD-19 | PhaseFMonitoringRecordV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFExecutionRecordV1,PhaseFTrustProvisioningApprovalV1,PhaseFReleaseRecordV1 | F5+ | operations_governance,security | AC8-04 | T8-10 | EV8-04 |
+| `R8-05` | Campaign-abandonment incident files contain no review hash/reference; the completed incident is independently reviewed afterward and the incident registry record binds that review to the exact incident SHA. | F-OD-13,F-OD-15 | PhaseFIncidentRecordV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFReviewTargetV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFObjectReferenceV1 | all pre-release campaign operations | security,operations_governance | AC8-05 | T8-11,T8-12 | EV8-05 |
+| `R8-06` | Retention checks use the exact package/authority tagged object union and canonical identity key, never an untyped digest. | F-OD-20 | PhaseFRetentionObjectV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionScopeV1,PhaseFRetentionAuditV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1 | all | security | AC8-06 | T8-13 | EV8-06 |
+| `R8-07` | Campaign and release retention object sets are deterministic exact unions; campaign coverage includes the manifest and every manifest object exactly once, and release coverage includes only verified authority/context bindings. | F-OD-20 | PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFRetentionAuditV1,PhaseFRetentionObjectV1,PhaseFRetentionObjectCheckV1 | all | security,operations_governance | AC8-07 | T8-14,T8-15 | EV8-07 |
+| `R8-08` | The complete external-authority DAG remains one-way from semantic object to complete file to hash to later registry attestation, preserving all previously closed release/state/deviation and Phase-E contracts. | none | PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFReleaseRecordV1,PhaseFClaimStateRecordV1,PhaseFMonitoringRecordV1,PhaseFDeviationLedgerRevisionV1 | F1-F5 | architecture_data,security | AC8-08 | T8-17 | EV8-08 |
+| `R8-09` | F0 remains exactly 20 decision rows, F-OD-12 remains method ID/version only, and F0-to-F1 projection and power chronology remain exact. | F-OD-01,F-OD-02,F-OD-03,F-OD-04,F-OD-08,F-OD-09,F-OD-12 | PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFProtocolProjectionV1,PhaseFPowerMethodInterfaceV1,PhaseFPowerAnalysisRecordV1 | F0-F1 | architecture_data,scientific_metrology | AC8-09 | T8-18 | EV8-09 |
+| `R8-10` | Review target, five-role review rows, aggregate decision/counts, immutable artifact references, and six approval tag bodies remain closed and independently bound. | none | PhaseFReviewTargetV1,PhaseFIndependentReviewV1,PhaseFIndependentReviewBundleV1,PhaseFPlanApprovalV1,PhaseFDecisionApprovalV1,PhaseFReadinessApprovalV1,PhaseFAuthorityEnrollmentApprovalV1,PhaseFTrustProvisioningApprovalV1,PhaseFPhysicalReleaseApprovalV1 | all gates | architecture_data | AC8-10 | T8-19 | EV8-10 |
+| `R8-11` | Checker build evidence, readiness ID construction, command object, argv, stdout, exit code, and fresh-environment closure remain exact and executable. | none | PhaseFCheckerBuildEvidenceV1,PhaseFCheckerReadinessEvidenceV1,PhaseFCheckerReportV1,PhaseFCommandV1,PhaseFArgvV1,PhaseFEnvironmentEntryV1,PhaseFNamedDigestV1,PhaseFCheckerStdoutV1,PhaseFCheckerExitCodeV1 | readiness | compatibility | AC8-11 | T8-20 | EV8-11 |
+| `R8-12` | Registry subjects, complete-file hash meanings, typed relations, relation tuple order, head currentness, and external registry attestation remain exact. | F-OD-14,F-OD-17 | PhaseFRegistryRelationV1,PhaseFRegistryRecordV1,PhaseFRegistryHeadV1,PhaseFObjectReferenceV1 | F1-F5 | security,architecture_data | AC8-12 | T8-17 | EV8-12 |
+| `R8-13` | Retrieval, manifest, package classification, dependency and package relation contracts remain complete and deterministic. | none | PhaseFRetrievalVerificationV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFPackageBindingV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1 | F2 | security,scientific_metrology | AC8-13 | T8-17 | EV8-13 |
+| `R8-14` | Physical native identity, pseudoreplication, location, custody continuity, and destroyed-unit controls remain exact. | F-OD-10 | PhaseFPhysicalUnitLedgerV1,PhaseFUnitEntryV1,PhaseFPhysicalIdentityAuditV1,PhaseFIdentityComparisonV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFChainOfCustodyV1,PhaseFCustodyEventV1 | F2-F4 | scientific_metrology,operations_governance | AC8-14 | T8-17 | EV8-14 |
+| `R8-15` | Deviation ledger revisions are stable-ID, immutable-history, action-compatible, and acyclic. | F-OD-18 | PhaseFDeviationLedgerV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationEventV1 | F1-F4 | operations_governance,security | AC8-15 | T8-17 | EV8-15 |
+| `R8-16` | Power interface, method/version, typed parameter/output values, ranges, units, sensitivity cases, and scientific review remain complete before analysis registration. | F-OD-12 | PhaseFPowerMethodInterfaceV1,PhaseFMethodVersionV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFOutputSpecV1,PhaseFPowerOutputValueV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFRangeRuleV1,PhaseFUnitRuleV1,PhaseFPowerAnalysisRecordV1 | F1 | scientific_metrology | AC8-16 | T8-17 | EV8-16 |
+| `R8-17` | Metrology policy is endpoint-qualified and check-result math, LOD/LOQ, uncertainty, and units are exact without checker conversion. | F-OD-11 | PhaseFMetrologyPolicyV1,PhaseFEndpointMetrologyPolicyV1,PhaseFCheckListV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyCheckResultV1,PhaseFLODLOQPolicyV1,PhaseFUncertaintyPolicyV1 | F0-F2 | scientific_metrology | AC8-17 | T8-17 | EV8-17 |
+| `R8-18` | Reference source/result/admissibility objects retain external provenance, independence controls, exact uncertainty, and total runtime projection without measurement scalars. | F-OD-05,F-OD-06,F-OD-07 | PhaseFReferenceSourceDescriptorV1,PhaseFReferenceResultV1,PhaseFReferenceAssessmentV1,PhaseFQuantifiedUncertaintyV1 | F2 | scientific_metrology | AC8-18 | T8-17 | EV8-18 |
+| `R8-19` | Claim-state causes, exact relations, owner-key compromise, reinstatement, trigger resolution modes, and F4/F5 boundary remain closed. | F-OD-16 | PhaseFClaimStateRecordV1,PhaseFReinstatementApprovalV1,PhaseFIncidentScopeV1,PhaseFIncidentRecordV1,PhaseFRegistryRelationV1 | F5+ | operations_governance,security | AC8-19 | T8-17 | EV8-19 |
+| `R8-20` | F5 release candidate, physical release approval, release/state chronology, P2 hard gate, production runner order, and final release authority remain exact. | none | PhaseFF5ReleaseCandidateV1,PhaseFPhysicalReleaseApprovalV1,PhaseFReleaseRecordV1,PhaseFClaimStateRecordV1,PhaseFIndependentReviewBundleV1 | F4-F5 | architecture_data,operations_governance | AC8-20 | T8-17,T8-19 | EV8-20 |
+| `R8-21` | All closed R7/R6 safety, scientific, identity, custody, trust, DAG, runtime compatibility, and production-order contracts remain preserved unless directly changed by R8 P1 remediation. | none | PhaseFDecisionBundleV1,PhaseFPowerMethodInterfaceV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFRetentionAuditV1,PhaseFClaimStateRecordV1 | all | architecture_data,scientific_metrology,security | AC8-21 | T8-17 | EV8-21 |
+| `R8-22` | The master schema catalog contains one fully populated row for every identifier in `SCHEMA_IDENTIFIER_SET`, and every catalog schema is bidirectionally present in the current R8 matrix. | none | PhaseFArgvV1,PhaseFAuthorityEnrollmentApprovalV1,PhaseFAuthorityEnrollmentV1,PhaseFChainOfCustodyV1,PhaseFCheckListV1,PhaseFCheckerBuildEvidenceV1,PhaseFCheckerExitCodeV1,PhaseFCheckerReadinessEvidenceV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFClaimStateRecordV1,PhaseFCohortLockRecordV1,PhaseFCommandV1,PhaseFCustodyEventV1,PhaseFDecisionApprovalV1,PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1,PhaseFDeviationEventV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationLedgerV1,PhaseFEndpointMetrologyPolicyV1,PhaseFEnvironmentEntryV1,PhaseFExecutionRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFIdentityComparisonV1,PhaseFIncidentRecordV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFIndependentReviewV1,PhaseFLODLOQPolicyV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFMethodVersionV1,PhaseFMetricThresholdV1,PhaseFMetrologyCheckResultV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyPolicyV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1,PhaseFNamedDigestV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1,PhaseFOutputSpecV1,PhaseFPackageBindingV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFPhysicalIdentityAuditV1,PhaseFPhysicalReleaseApprovalV1,PhaseFPhysicalUnitLedgerV1,PhaseFPlanApprovalV1,PhaseFPowerAnalysisRecordV1,PhaseFPowerMethodInterfaceV1,PhaseFPowerOutputValueV1,PhaseFProtocolProjectionV1,PhaseFQuantifiedUncertaintyV1,PhaseFRangeRuleV1,PhaseFReadinessApprovalV1,PhaseFReferenceAssessmentV1,PhaseFReferenceResultV1,PhaseFReferenceSourceDescriptorV1,PhaseFRegistryCompromiseEmergencyV1,PhaseFRegistryHeadV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFReinstatementApprovalV1,PhaseFReleaseRecordV1,PhaseFRetentionAuditV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetrievalVerificationV1,PhaseFReviewTargetV1,PhaseFScientificAdmissibilityAuditV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFTrustProvisioningApprovalV1,PhaseFUncertaintyPolicyV1,PhaseFUnitEntryV1,PhaseFUnitRuleV1 | plan review | architecture_data | AC8-22 | T8-14,T8-16 | EV8-22 |
+| `R8-23` | The single R8 requirement graph is the only current OD mapping and its derived owner-decision union is exactly F-OD-01 through F-OD-20 with no extra owner decision. | none | PhaseFDecisionBundleV1,PhaseFDecisionRowV1 | plan review | architecture_data | AC8-23 | T8-19 | EV8-23 |
+| `R8-24` | Every current R8 requirement has one substantive AC, exact test and evidence references, and no identifier-only traceability row remains. | none | PhaseFIndependentReviewBundleV1,PhaseFMonitoringEvidenceV1,PhaseFRetentionAuditV1,PhaseFPackageManifestV1 | plan review | architecture_data | AC8-24 | T8-19 | EV8-24 |
+
+`owner_decision_ids` is not repeated in a second current table. The derived
+coverage computation is `union(R8 requirement.owner_decision_ids)` and must
+equal the exact set `{F-OD-01,...,F-OD-20}`.
+
+## 28. R8 AC, TEST, AND F-EV EXECUTABILITY
+
+Every current R8 acceptance criterion has preconditions, exact inputs, exact
+operation, expected result/output, and a failure oracle.
+
+| AC ID | preconditions | exact inputs | exact operation | expected result | expected output | failure oracle |
+|---|---|---|---|---|---|---|
+| `AC8-01` | incident, emergency, review, local files, supplied commit, and live remote main are available | complete emergency/review bytes, paths, commit SHA, remote main | validate schema/IDs, review target, aggregate, commit existence/reachability, exact full-prefixed tree paths, and tree-byte equality | exact ten-step procedure returns NOT_ACTIVE | claim-status report with matched paths and bytes | any prefix omission, fallback lookup, ancestry failure, or byte mismatch rejects |
+| `AC8-02` | monitoring policy and fixed metric order are present | policy, 15-member required array, 5 thresholds, 15 measurements | count/partition/order and recompute breaches/result | cardinality/order valid; healthy fixture yields pass | canonical policy/record | any count, category, threshold, or sort contradiction rejects |
+| `AC8-03` | 15 evidence files are complete and addressable | evidence files, source references, measurements, monitoring window | parse/hash each evidence file and compare ID/hash/metric/value/window/source mapping | every measurement has exactly one matching evidence object | evidence-backed measurement set | absent/mismatched evidence, source kind, window, or value rejects |
+| `AC8-04` | monitoring record and authority objects are valid | record, release/policy, authority objects, registry relations | enforce exact relation set and binding-field equality | 15 evidence dependencies and exact bindings validate | signed monitoring registry record | missing/extra/duplicate relation or field mismatch rejects |
+| `AC8-05` | campaign abandonment incident is complete before review | incident file, incident SHA, review bundle, registry record | reject review fields in incident; then bind review target and registry relation | acyclic authority path validates | incident, review, and registry artifacts | any reverse review pointer or wrong target SHA rejects |
+| `AC8-06` | retention policy and typed object references are valid | package/authority object union and check rows | parse tagged union and compute identity key/order | every check has typed object and canonical key | canonical retention checks | untyped digest, wrong key, duplicate, or noncanonical order rejects |
+| `AC8-07` | complete package manifest exists | manifest M and objects O1..On; campaign or release context | derive exact set and compare audit rows by set equality | campaign/release coverage passes only on exact set | retention audit with no extras or omissions | missing, duplicate, extra, current-audit, or human-selected object rejects |
+| `AC8-08` | historical safety and DAG fixtures are available | complete subject files and later registry records | replay one-way construction and preserved closed contracts | no cycle or reopened closed contract | preservation audit | any back-pointer, cycle, changed closed contract, or Phase-E mismatch rejects |
+| `AC8-09` | exact F0 decision fixture and F1 interface exist | 20 decision rows, F-OD-12 row, projection, interface, analysis | validate chronology and exact value equality | F0/F1 positive path passes | projection and power authority objects | future object in F0, stale 21st row, or chronology reversal rejects |
+| `AC8-10` | five unique role rows and approval body fixtures exist | review bundle, target, six tag-body fixtures | validate target union, aggregate rule, role uniqueness, tag minimal grammar | every gate review/tag validates | review bundle and tag-body bytes | row ID, target ambiguity, count mismatch, or per-role tag field rejects |
+| `AC8-11` | two fresh builds and checker invocation fixtures exist | build/readiness/report/command/argv/environment objects | recompute readiness ID and exact argv/output | readiness PASS with exit/output agreement | readiness and checker report | omitted transcript, ID construction mismatch, or argv mismatch rejects |
+| `AC8-12` | registry chain/head fixture exists | typed registry records, head, relation tuples | validate subject/file hash meaning, signature, sequence, tuple order/currentness | chain and head validate | registry chain report | wrong subject hash, duplicate/gap/fork, or tuple order rejects |
+| `AC8-13` | package/retrieval fixtures are complete | immutable references, retrieval record, manifest, dependency graph | verify URI/hash/length and package relations | package authority validates | retrieval and package records | unavailable object, wrong bytes, missing relation, or classification gap rejects |
+| `AC8-14` | physical unit/location/custody fixtures are complete | ledgers, identity comparisons, custody events | recompute native identity and continuity | no alias/pseudoreplication/destroyed-unit path | physical audit set | shared native identity, custody discontinuity, or post-destroy measure rejects |
+| `AC8-15` | deviation ledger and revisions are complete | stable ledger ID, prior revision, new event, action row | verify immutable prior bytes and action compatibility | revision is one-way and valid | deviation revision | prior mutation, incompatible action, or derived stable ID rejects |
+| `AC8-16` | approved method interface exists | interface, typed parameter/output specs, sensitivity cases, analysis | validate all ranges/units and review before registration | complete power path passes | interface, analysis, review relation | missing range/unit, undeclared parameter, or early registration rejects |
+| `AC8-17` | endpoint policies and check results exist | policy, duplicate check IDs on endpoints, LOD/LOQ/uncertainty | resolve by endpoint/policy/check and recompute exact math/units | required checks pass | metrology result files | endpoint collision, unit conversion, or schema omission rejects |
+| `AC8-18` | admissible reference files exist | source descriptor, result, assessment, runtime projection | verify provenance/independence and project only allowed endpoint fields | exact runtime projection passes | reference and audit objects | measurement scalar in runtime projection or unknown independence rejects |
+| `AC8-19` | state/incident/reinstatement fixtures exist | state chain, cause incident, exact relations, trigger | recompute transition and relation set | permitted state is accepted | state and registry records | missing cause/relation, owner-signature bypass misuse, or bad mode rejects |
+| `AC8-20` | F5 candidate and release inputs are complete | candidate, review, release, state, tags, P2 result | enforce F4/F5 order and P2 hard gate | release path is valid only after all prerequisites | release authority set | early tag, P2 bypass, or final-state chronology failure rejects |
+| `AC8-21` | frozen Phase-E and closed R7/R6 fixture manifests exist | authority hashes, source tree, compatibility fixtures | compare preserved contracts and frozen hashes | all preservation checks pass | preservation report | any frozen hash change or reopened closed contract rejects |
+| `AC8-22` | complete plan bytes and current catalog are available | regex identifier set and catalog rows | compute set equality, row uniqueness, and all metadata cells | 89 identifiers; missing/extra/duplicate/incomplete all zero | catalog audit | absent identifier, duplicate row, wildcard/grouped row, or blank cell rejects |
+| `AC8-23` | current R8 matrix is parsed | all `owner_decision_ids` cells and matrix rows | derive union and scan for a second current mapping source | exact F-OD-01..20 union | derived OD coverage summary | missing/extra OD or contradictory current table rejects |
+| `AC8-24` | current R8 graph and artifact tables are parsed | requirements, ACs, tests, evidence, schemas | resolve every reference and inspect substantive fields | all traceability counters are zero | traceability audit | identifier-only artifact row or unresolved reference rejects |
+
+Every current R8 test has fixture construction, exact invocation, expected result,
+and a negative mutation.
+
+| test ID | fixture construction | exact checker/function invocation | expected exact result | negative mutation |
+|---|---|---|---|---|
+| `T8-01` | emergency ID `sha256:<DIGEST>` and both complete local files | claim-status emergency verifier with unprefixed emergency path | FAIL; wrong canonical path | replace full path with `emergencies/<DIGEST>/emergency.json` |
+| `T8-02` | same emergency/review bytes committed under full-prefixed paths | claim-status emergency verifier with exact paths and reachable commit | PASS path verification; fail-closed NOT_ACTIVE outcome | alter one tree byte or path component -> FAIL |
+| `T8-03` | policy with 4/1/4/6 partition and five thresholds | monitoring policy cardinality/order audit | PASS; 15 total | write five binding or five rate -> plan consistency FAIL |
+| `T8-04` | fixed-order 15 measurements and complete evidence files | monitoring record validator | PASS | alphabetically sort measurements -> FAIL |
+| `T8-05` | 14 measurements or one absent evidence file | monitoring PASS constructor | FAIL; pass impossible | declare `result=pass` -> reject |
+| `T8-06` | 15 complete evidence objects and matching measurements | monitoring record recomputation and registry-attestation validator | PASS with `breaches=[]` | alter one evidence value/hash -> FAIL |
+| `T8-07` | evidence object with metric/window/value/source fields | evidence strict parser and measurement comparator | PASS when all equal | change evidence metric or window -> FAIL |
+| `T8-08` | one source reference per metric according to mapping | source-kind mapping validator | PASS | use `owner_approval` for software metric -> FAIL |
+| `T8-09` | valid evidence and measurement with wrong complete-file SHA | evidence hash verifier | FAIL | replace hash with actual complete-file SHA -> PASS |
+| `T8-10` | monitoring record plus exactly 15 evidence relations | `monitoring_recorded` relation-set validator | PASS | omit or add one evidence relation -> FAIL |
+| `T8-11` | abandonment incident with review hash/reference field | incident strict parser and authority validator | FAIL schema/authority | remove field and construct incident first -> eligible for review |
+| `T8-12` | completed incident SHA followed by review targeting that SHA | incident/review/registry DAG validator | PASS | target another incident SHA -> FAIL |
+| `T8-13` | typed package and authority retention objects | retention object/check parser | PASS | supply bare object digest -> FAIL |
+| `T8-14` | M,O1,O2,O3 exact manifest/object set | campaign retention-set derivation and audit | PASS | omit O3 -> FAIL |
+| `T8-15` | M,O1,O2,O3,O4 with O4 absent from manifest | campaign retention-set equality audit | FAIL | remove O4 -> PASS |
+| `T8-16` | plan identifier extraction and 89 populated catalog rows | catalog set/metadata audit | PASS; missing/extra/duplicate/incomplete zero | delete `PhaseFRangeRuleV1` row or blank validator -> FAIL |
+| `T8-17` | preserved R6/R7 closure fixtures and Phase-E hashes | preservation/DAG replay audit | PASS | introduce a registry back-pointer or reopen a closed contract -> FAIL |
+| `T8-18` | exact 20 F0 rows with F-OD-12 method ID/version only | F0/F1 chronology and projection validator | PASS | add future interface hash or a twenty-first owner decision -> FAIL |
+| `T8-19` | current R8 matrix and historical tables labeled non-current | current-source and OD-union audit | PASS; exact F-OD-01..20 union | add a second current mapping for F-OD-12 -> FAIL |
+| `T8-20` | two fresh checker build transcripts and command/report pair | readiness/checker invocation validator | PASS | reorder argv or omit transcript -> FAIL |
+
+Every current R8 F-EV row names a real artifact, producer/authority, immutable
+identity, and acceptance/review oracle.
+
+| F-EV ID | real artifact | producer/authority | immutable identity | acceptance/review oracle |
+|---|---|---|---|---|
+| `EV8-01` | emergency/review local files and later Git tree | security authority and independent reviewers | complete file SHA, review SHA, commit/tree SHA | exact ten-step path/ancestry/byte verifier |
+| `EV8-02` | monitoring policy, thresholds, measurements, and result | F0 owner and operations authority | policy/record complete-file hashes | 15-cardinality, partition, order, and recomputation audit |
+| `EV8-03` | 15 complete monitoring evidence files | metric producers and operations authority | evidence IDs and complete-file SHAs | exact source/metric/window/value comparison |
+| `EV8-04` | monitoring registry record and 15 evidence relations | registry authority | signed record and relation hashes | exact relation set and authority-field equality |
+| `EV8-05` | completed campaign-abandonment incident, review bundle, registry record | campaign operator, independent reviewers, registry authority | incident/review/registry complete-file SHAs | review target equals incident SHA and no reverse pointer |
+| `EV8-06` | typed retention object/check records | retention authority | canonical identity key and complete audit SHA | tagged-union and key-order parser |
+| `EV8-07` | package manifest, package objects, campaign/release audit | campaign/release retention authority | manifest/object references and audit SHA | exact set equality |
+| `EV8-08` | preserved subject files, registry chains, Phase-E authority files | architecture/security authority | frozen SHA/blob values and replay transcript | no cycle and no change to closed contracts |
+| `EV8-09` | F0 decision bundle, projection, power interface/analysis | F0 owner and statistician | decision/interface/analysis complete hashes | exact chronology and F-OD-12 equality |
+| `EV8-10` | five-role reviews and six approval tag messages | independent reviewers/Git | review bundle and tag-body bytes | aggregate rule, role uniqueness, and minimal tag grammar |
+| `EV8-11` | two build directories, transcripts, binaries, readiness/report files | checker builder and readiness reviewers | source/tree/lock/transcript/binary hashes | fresh-build equivalence and exact command/report output |
+| `EV8-12` | signed registry records and resolver head | registry authority | sequence, predecessor, signature, subject hashes | chain, head currentness, tuple ordering |
+| `EV8-13` | retrieved external objects, manifest, dependency audit | retrieval/package authorities | immutable URI, byte length, SHA | retrieval and classification oracle |
+| `EV8-14` | physical unit/location/custody ledgers and audits | campaign/laboratory/custody authorities | native identity, child, location, and custody hashes | no alias, discontinuity, or destroyed-unit use |
+| `EV8-15` | deviation ledger revisions and event records | campaign/deviation authority | stable ledger ID plus revision complete SHA | immutable prior history and action compatibility |
+| `EV8-16` | power interface, typed specs, cases, analysis, review | statistician and scientific reviewers | content IDs and review target SHA | range/unit/case completeness and pre-registration review |
+| `EV8-17` | metrology policies, endpoint checks, LOD/LOQ and uncertainty files | metrology laboratory | policy/check result IDs and complete hashes | exact endpoint lookup, math, and units |
+| `EV8-18` | source descriptors, reference results, assessments, runtime projections | laboratory/runtime authority | source/result/audit complete hashes | external provenance and exact runtime projection |
+| `EV8-19` | incidents, claim states, reinstatement approvals, registry relations | governance/operations authority | state/incident/approval complete hashes | exact transition cause and relation contract |
+| `EV8-20` | F5 candidate, release, initial state, approvals, tags | release authority and independent reviewers | candidate/release/state/tag bytes | F4/F5 order, P2 gate, and final binding |
+| `EV8-21` | frozen Phase-E authority and closed R6/R7 contract fixtures | architecture/security authority | specified Phase-E SHA/blob and replay transcript | preservation comparison |
+| `EV8-22` | complete plan text and current schema catalog | plan author and independent reviewer | plan SHA/blob and catalog row text | set equality and all metadata columns |
+| `EV8-23` | current R8 requirement matrix | plan author and independent reviewer | plan SHA/blob and matrix row bytes | derived OD union exactly 01..20 |
+| `EV8-24` | current requirements, AC/test/evidence tables | plan author and independent reviewer | plan SHA/blob and row identities | bidirectional reference and substance audit |
+
+## 29. R8 POSITIVE CONTROLS AND COUNTEREXAMPLES
+
+### 29.1 Emergency positive control
+
+For `emergency_id=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
+the only accepted repository paths are:
+
+```text
+phase_f_governance/emergencies/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/emergency.json
+phase_f_governance/emergencies/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/review.json
+```
+
+The lookup of `emergencies/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/emergency.json`
+fails. The claim-status checker performs, in order: validate emergency file;
+validate five-role review; compare review target to the complete emergency
+SHA; verify GO/P0=0/P1=0; verify commit exists; verify reachability from live
+remote `main`; resolve the exact commit tree; fetch exactly the full-prefixed
+emergency path; fetch exactly the full-prefixed review path; and compare both
+tree byte sequences to the supplied files. There is no fallback, prefix
+stripping, or basename lookup. `EMERGENCY_REPOSITORY_PATH_AMBIGUITIES=0`,
+`EMERGENCY_GIT_PUBLICATION_AMBIGUITIES=0`, and
+`CHECKER_EMERGENCY_COMMAND_AMBIGUITIES=0`.
+
+### 29.2 Full monitoring PASS positive control
+
+Use a release-bound window with concrete fixed fixture bytes:
+`window_start=2026-01-01T00:00:00Z`, `window_end=2026-01-01T00:30:00Z`,
+`produced_at=2026-01-01T00:30:00Z`, and a due boundary after the window.
+For each row, `E01` through `E15` means the exact content-derived
+`monitoring_evidence_id` and `H01` through `H15` means the exact complete-file
+SHA computed from the fully specified evidence object; these are computed
+symbols, not omitted fields or guessed values.
+
+| order | metric | value | source kind | evidence ID/hash |
+|---:|---|---|---|---|
+| 1 | `domain_compliance` | `{type:"status",value:"compliant"}` | `domain_observation` | E01/H01 |
+| 2 | `reference_qc_status` | `{type:"status",value:"pass"}` | `reference_qc_record` | E02/H02 |
+| 3 | `calibration_status` | `{type:"status",value:"pass"}` | `calibration_record` | E03/H03 |
+| 4 | `reference_uncertainty_status` | `{type:"status",value:"within_limit"}` | `reference_uncertainty_record` | E04/H04 |
+| 5 | `sensor_drift` | `{type:"quantity",value:{decimal:"0",binary64_bits_hex:"0000000000000000"},unit:"fixture_unit"}` | `sensor_drift_series` | E05/H05 |
+| 6 | `invalid_input_rate` | `{type:"rate",value:{decimal:"0",binary64_bits_hex:"0000000000000000"}}` | `input_validation_summary` | E06/H06 |
+| 7 | `indeterminate_rate` | `{type:"rate",value:{decimal:"0",binary64_bits_hex:"0000000000000000"}}` | `runtime_validation_summary` | E07/H07 |
+| 8 | `data_quality_insufficient_rate` | `{type:"rate",value:{decimal:"0",binary64_bits_hex:"0000000000000000"}}` | `runtime_validation_summary` | E08/H08 |
+| 9 | `exclusion_rate` | `{type:"rate",value:{decimal:"0",binary64_bits_hex:"0000000000000000"}}` | `runtime_validation_summary` | E09/H09 |
+| 10 | `software_git_sha` | `{type:"git_sha",value:<exact PhaseFExecutionRecordV1.release_code_sha>}` | `execution_record` | E10/H10 |
+| 11 | `checker_binary_sha256` | `{type:"sha256",value:<exact PhaseFExecutionRecordV1.checker_binary_sha256>}` | `execution_record` | E11/H11 |
+| 12 | `trust_store_sha256` | `{type:"sha256",value:<exact PhaseFTrustProvisioningApprovalV1.trust_store_sha256>}` | `trust_provisioning_approval` | E12/H12 |
+| 13 | `trust_root_id` | `{type:"stable_id",value:<exact PhaseFTrustProvisioningApprovalV1.trust_root_id>}` | `trust_provisioning_approval` | E13/H13 |
+| 14 | `owner_approval_id` | `{type:"external_digest_id",value:<exact OwnerApprovalEvidenceV1.approval_record_id>}` | `owner_approval` | E14/H14 |
+| 15 | `release_record_id` | `{type:"external_digest_id",value:<exact PhaseFReleaseRecordV1.release_record_id>}` | `release_record` | E15/H15 |
+
+The policy `required_metrics`, `measurements`, and evidence relations all use
+the exact 15-row order above. Thresholds use fixed order
+`[sensor_drift,invalid_input_rate,indeterminate_rate,data_quality_insufficient_rate,exclusion_rate]`,
+each with comparator `less_than_or_equal`, exact threshold value `1`, and
+`fixture_unit` only for drift. The four statuses are healthy, drift is zero,
+all four rates are zero, all six binding values equal their named authority
+fields, every `E##/H##` resolves, `breaches=[]`, and `result=pass`.
+The monitoring registry record has exactly 15 `depends_on+monitoring_evidence`
+relations, one for each `H##`, plus its release and policy relations. Thus
+`MONITORING_PASS_CONSTRUCTIBLE=yes` and
+`MONITORING_REGISTRY_EVIDENCE_AMBIGUITIES=0`.
+
+### 29.3 Campaign retention and abandonment positive control
+
+For package manifest M with exactly objects O1, O2, and O3,
+`CampaignRetentionSetV1=[M,O1,O2,O3]`. An audit with M,O1,O2,O3 passes; an
+audit with M,O1,O2 fails; and an audit with M,O1,O2,O3,O4 fails. Construct
+abandonment incident I completely, compute SHA(I), then construct the
+five-role independent review whose target is exactly
+`{type:"external_object",object_kind:"incident_record",object_sha256:SHA(I)}`.
+The later `incident_recorded` relation contains exactly
+`authorized_by+decision_bundle`, `authorized_by+independent_review_bundle`,
+and `references+package_manifest` for campaign abandonment. The retention
+deadline is `I.detected_at + retention_seconds`; no review hash occurs inside I,
+no release ID is required, and no cycle exists.
+
+### 29.4 R8 counterexamples
+
+| case ID | exact mutation/input | deterministic result |
+|---|---|---|
+| `R8-CX-01` | checker searches `emergencies/<DIGEST>/emergency.json` | FAIL; wrong canonical path |
+| `R8-CX-02` | checker searches full `phase_f_governance/emergencies/<DIGEST>/emergency.json` and bytes match | PASS path verification |
+| `R8-CX-03` | metric count is 15 but text says five binding metrics | plan consistency failure |
+| `R8-CX-04` | measurements are alphabetically sorted instead of fixed metric order | reject |
+| `R8-CX-05` | measurement evidence ID/hash resolves to evidence with another metric | reject |
+| `R8-CX-06` | evidence window differs from monitoring record window | reject |
+| `R8-CX-07` | `software_git_sha` source kind is not `execution_record` | reject |
+| `R8-CX-08` | `software_git_sha` parses valid execution record and matches release code SHA | PASS |
+| `R8-CX-09` | campaign-abandonment incident contains a review hash | schema/authority reject |
+| `R8-CX-10` | complete incident is followed by review targeting exact incident SHA | PASS |
+| `R8-CX-11` | campaign audit omits a manifest object | FAIL |
+| `R8-CX-12` | campaign audit includes manifest and every object exactly once | PASS |
+| `R8-CX-13` | release audit includes human-selected extra object | FAIL |
+| `R8-CX-14` | normative `PhaseFRangeRuleV1` has no catalog row | catalog failure |
+| `R8-CX-15` | catalog duplicates `PhaseFRangeRuleV1` | catalog failure |
+| `R8-CX-16` | catalog validator metadata is blank | catalog failure |
+| `R8-CX-17` | R8 requirement references schema absent from catalog | traceability failure |
+| `R8-CX-18` | catalog schema maps to no R8 requirement | traceability failure |
+| `R8-CX-19` | F-OD-12 has different mappings in two current tables | impossible; current-source failure |
+| `R8-CX-20` | derived owner-decision union equals exactly F-OD-01..20 | PASS |
+
+## 30. R8 REMEDIATION LEDGER
+
+| R8 remediation ID | R7 P1 finding | R8 exact section | root cause | R8 remediation | current R8 requirement IDs | AC IDs | test IDs | F-EV IDs | AUTHOR DISPOSITION |
+|---|---|---|---|---|---|---|---|---|---|
+| `F-PLAN-R8-P1-01` | emergency publication canonical-path contradiction | §15, §26, §27, §28, §29 | checker prose and positive path omitted `phase_f_governance/` in one lookup | one full-prefixed path pair, exact ten-step verifier, and positive/counterexample KATs | R8-01 | AC8-01 | T8-01,T8-02 | EV8-01 | REMEDIATED |
+| `F-PLAN-R8-P1-02` | monitoring evidence authority, metric cardinality, and measurement ordering | §14, §26, §27, §28, §29 | bare evidence hash, conflicting category counts, and generic sorting rule | complete evidence schema/source map, 4/1/4/6 partition, fixed order, fixed thresholds, exact registry relations | R8-02,R8-03,R8-04 | AC8-02,AC8-03,AC8-04 | T8-03,T8-04,T8-05,T8-06,T8-07,T8-08,T8-09,T8-10 | EV8-02,EV8-03,EV8-04 | REMEDIATED |
+| `F-PLAN-R8-P1-03` | campaign-abandonment review cycle and retention-object coverage derivation | §15, §26, §27, §28, §29 | incident tried to contain a future review and retention used an untyped digest/set | incident-first review DAG, typed retention object key, manifest-derived campaign set, release union | R8-05,R8-06,R8-07 | AC8-05,AC8-06,AC8-07 | T8-11,T8-12,T8-13,T8-14,T8-15 | EV8-05,EV8-06,EV8-07 | REMEDIATED |
+| `F-PLAN-R8-P1-04` | master schema catalog completeness for every normative PhaseF*V1 identifier | §26, §28, §29 | missing helper and new external schemas plus incomplete metadata rows | mechanically enumerated 89-identifier set with one full metadata row per identifier and set-equality KAT | R8-22 | AC8-22 | T8-16 | EV8-22 | REMEDIATED |
+| `F-PLAN-R8-P1-05` | requirement/owner-decision traceability disagreement and executable traceability substance | §27, §28, §29 | two current R7 mappings and identifier-only AC/test/evidence rows | one R8 matrix, derived OD coverage, substantive procedures, and single-source KAT | R8-23,R8-24 | AC8-23,AC8-24 | T8-19 | EV8-23,EV8-24 | REMEDIATED |
+
+No author disposition is `CLOSED`; only the fresh independent R8 reviewer may
+close a remediation ID.
+
+## 31. R8 AUTHOR AUDIT AND REQUIRED VALIDATION
+
+The following is the post-edit author audit output. It is not independent
+approval. The set, row, reference, and constructive checks in §§26-29 produce
+these values; the independent reviewer must recompute them.
+
+```text
+NORMATIVE_PHASE_F_IDENTIFIERS=89
+CATALOG_PHASE_F_IDENTIFIERS=89
+MISSING_CATALOG_IDENTIFIERS=0
+EXTRA_CATALOG_IDENTIFIERS=0
+CATALOG_DUPLICATE_IDENTIFIER_ROWS=0
+INCOMPLETE_SCHEMA_CATALOG_ROWS=0
+
+EMERGENCY_REPOSITORY_PATH_AMBIGUITIES=0
+EMERGENCY_GIT_PUBLICATION_AMBIGUITIES=0
+CHECKER_EMERGENCY_COMMAND_AMBIGUITIES=0
+MONITORING_METRIC_CARDINALITY_AMBIGUITIES=0
+MONITORING_ORDER_AMBIGUITIES=0
+FIXED_ORDER_SORT_CONTRADICTIONS=0
+MONITORING_EVIDENCE_OBJECT_AMBIGUITIES=0
+MONITORING_METRIC_EVIDENCE_MAPPING_AMBIGUITIES=0
+MONITORING_REGISTRY_EVIDENCE_AMBIGUITIES=0
+MONITORING_RESULT_DERIVATION_AMBIGUITIES=0
+CAMPAIGN_ABANDONMENT_REVIEW_CYCLES=0
+CAMPAIGN_RETENTION_SET_AMBIGUITIES=0
+RELEASE_RETENTION_SET_AMBIGUITIES=0
+RETENTION_COVERAGE_AMBIGUITIES=0
+PRE_RELEASE_RETENTION_POSITIVE_PATH_AMBIGUITIES=0
+ORPHAN_EXTERNAL_SCHEMAS=0
+
+CATALOG_TO_REQUIREMENT_GAPS=0
+REQUIREMENT_TO_CATALOG_GAPS=0
+UNMAPPED_REQUIREMENTS=0
+UNMAPPED_ACS=0
+UNMAPPED_TESTS=0
+UNMAPPED_EVIDENCE=0
+UNMAPPED_ODS=0
+TRACEABILITY_SUBSTANCE_GAPS=0
+CONTRADICTORY_OD_MAPPING_EDGES=0
+CONTRADICTORY_CURRENT_TRACEABILITY_TABLES=0
+NORMATIVE_CONTRADICTIONS=0
+MATERIAL_IMPLEMENTER_DISAGREEMENTS_AFTER_PLAN=0
+POSITIVE_PATH_CONSTRUCTION_AMBIGUITIES=0
+MONITORING_PASS_CONSTRUCTIBLE=yes
+PRE_RELEASE_RETENTION_POSITIVE_PATH_AMBIGUITIES=0
+COMPLETE_VALID_DAG_CONSTRUCTIBLE=yes
+
+Preserved closed R7/R6 safety/scientific/DAG counters=0
+PHASE_E_PROVISIONING_COMPATIBILITY_AMBIGUITIES=0
+PRODUCTION_EXECUTION_ORDER_CONTRADICTIONS=0
+P2_RELEASE_BYPASS_PATHS=0
+```
+
+The current R8 counts are 24 requirements, 24 primary ACs, 20 tests, 24
+evidence items, 20 owner decisions, and 89 schema IDs. The OD union is derived
+from the matrix and equals exactly F-OD-01 through F-OD-20. The author audit is
+not a plan approval.
+
+Before and after editing, run exactly:
+
+```text
+git diff --check
+cargo fmt --all --check
+cargo check --locked
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --test phase_e_validation
+cargo test --locked --test phase_d_reporting_public_output
+```
+
+Required results are all PASS, Clippy diagnostics zero, Phase-E 38/38,
+Phase-D 73/73, frozen Phase-E SHA-256
+`0b68359f362434ef9f42df21ca553692ae6e3bb3c096881009ab5e9473cc2c33`, frozen
+Phase-E Git blob `6fce9d13a42a09027e0e730874a8d80e03e6a7da`, and exactly one
+changed file:
+`docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md`.
+
+## 32. Fresh independent R8 rereview gate and handoff
+
+The R8 independent rereview is `PENDING`. A new independent reviewer must begin
+with these five positive paths, in order: (1) one canonical emergency path
+pair and exact checker lookup; (2) 15 complete evidence-backed measurements
+produce one byte-level PASS record; (3) completed abandonment incident precedes
+review and campaign retention derives exactly from the manifest; (4) the
+normative PhaseF identifier set equals the catalog set; and (5) the single R8
+graph derives exactly F-OD-01..20. Failure of any path is P1. The reviewer then
+independently checks preservation of all closed R7/R6 contracts.
+
+```text
+MHI V1 PHASE F
+R8 PLANNING REMEDIATION HANDOFF
+
+STARTING R7 SHA: e9cef7d7370b084f64eb91a628fb47b0b868dc63
+R7 PLAN SHA-256: ab4acec5c9f8f16e8c35d14f2ca83b977a16cacc4ac2505cc5e3bacdf9980c8b
+R7 PLAN BLOB: 625413873fab712961e38f6e20b98d00a5110b52
+R8 PLAN REVIEW SHA: PENDING fresh independent R8 reviewer
+R8 PLAN SHA-256: <computed after final R8 bytes>
+R8 PLAN GIT BLOB: <computed after final R8 bytes>
+CHANGED FILES: 1 expected
+
+R7 P1 REMEDIATION: 5 grouped findings; R8 forward remediation
+F-PLAN-R8-P1-01: REMEDIATED
+F-PLAN-R8-P1-02: REMEDIATED
+F-PLAN-R8-P1-03: REMEDIATED
+F-PLAN-R8-P1-04: REMEDIATED
+F-PLAN-R8-P1-05: REMEDIATED
+
+EMERGENCY
+canonical repository path: phase_f_governance/emergencies/<DIGEST>/...
+alternate normative paths: 0 expected
+checker path: MATCH
+
+MONITORING
+required metrics: 15
+status: 4
+quantity: 1
+rate: 4
+binding: 6
+thresholded: 5
+monitoring evidence schema: COMPLETE
+evidence objects per PASS record: 15 expected
+measurement order: FIXED
+PASS constructible: yes
+
+CAMPAIGN RETENTION
+abandonment review cycle: 0 expected
+campaign retention set: COMPLETE
+release retention set: COMPLETE
+campaign audit constructible: yes
+
+SCHEMA CATALOG
+normative PhaseF*V1 count: 89
+catalog PhaseF*V1 count: 89
+missing rows: 0
+extra rows: 0
+duplicate rows: 0
+incomplete metadata rows: 0
+
+TRACEABILITY
+current R8 requirements: 24
+ACs: 24
+tests: 20
+evidence: 24
+owner decisions: 20
+schemas: 89
+unmapped requirements: 0
+unmapped ACs: 0
+unmapped tests: 0
+unmapped evidence: 0
+unmapped ODs: 0
+catalog->requirement gaps: 0
+requirement->catalog gaps: 0
+traceability substance gaps: 0
+contradictory OD mapping edges: 0
+
+POSITIVE PATH
+complete DAG constructible: yes
+positive-path ambiguities: 0
+
+BASELINE
+diff: PASS
+fmt: PASS
+check: PASS
+strict Clippy: PASS
+Clippy diagnostics: 0
+Phase E: 38/38
+Phase D: 73/73
+FROZEN PHASE-E PLAN: PASS
+PLAN TAG CREATED: NO expected
+IMPLEMENTATION BRANCH: NO expected
+F0 STARTED: NO expected
+KEYS CREATED: NO expected
+EVIDENCE CREATED: NO expected
+CLAIMS CREATED: NO expected
+WORKTREE CLEAN: yes after one forward commit
+READY_FOR_FRESH_PHASE_F_R8_PLAN_REREVIEW: yes
+READY_FOR_PHASE_F_PLAN_APPROVAL_TAG: NO expected pending fresh R8 GO
+READY_FOR_PHASE_F_IMPLEMENTATION: NO
+```
+
+No Phase-F approval tag, implementation branch, F0 activity, key, signature,
+trust provisioning, registry record, physical evidence, monitoring evidence,
+claim, or monitoring record is created by this planning-only remediation.
