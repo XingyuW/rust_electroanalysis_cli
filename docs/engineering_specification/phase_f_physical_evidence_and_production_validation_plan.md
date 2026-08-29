@@ -1,9 +1,9 @@
-# MHI V1 Phase F — R9 planning-only final authority / retention closure
+# MHI V1 Phase F — R10 planning-only fixture / catalog / traceability closure
 
 ## 1. Authority, status, scope, and chronology
 
-This document is the Phase-F R9 planning remediation of the independently
-rereviewed R8 plan. It changes only this plan document. It does not create a
+This document is the Phase-F R10 planning remediation of the independently
+rereviewed R9 plan. It changes only this plan document. It does not create a
 schema file, checker, tag, branch, key, signature, trust root, registry record,
 physical evidence, monitoring record, claim, production implementation, new
 scientific model, or new scientific scope.
@@ -15,13 +15,13 @@ The starting authority is exact:
 
 | Authority | Value |
 |---|---|
-| R8 plan-review SHA | `ebed7b24102b1575fb950a8d15adc03c2eb11c22` |
-| R8 plan SHA-256 | `043e7811a2e93bb88912b483334bcac82a8b6cabd8206531945889678216e934` |
-| R8 plan Git blob | `1aed756793cf42c284d41e96ce2d8247a250e93f` |
-| R8 independent rereview | `P0=0`, `P1=4`, `P2=0`, `P3=0`, `PLAN_DECISION=NO-GO`, `PLAN_AUTHORITY=FAIL` |
-| R9 status | forward remediation; independent R9 rereview `PENDING` |
-| plan approval tag | absent; must remain absent in R9 |
-| implementation branch | absent; must remain absent in R9 |
+| R9 plan-review SHA | `1084257636e74d16d1f64da1062bb187e58b46f6` |
+| R9 plan SHA-256 | `2b0c79858e8f82b4ae756555d69ba5caa12cc1cce9a5fb13bd300d1e1c755adb` |
+| R9 plan Git blob | `304ce6c4931ae1b105829abca64b559e98916d01` |
+| R9 independent rereview | `P0=0`, `P1=6 grouped findings`, `P2=0`, `P3=0`, `PLAN_DECISION=NO-GO`, `PLAN_AUTHORITY=FAIL` |
+| R10 status | forward remediation; independent R10 rereview `PENDING` |
+| plan approval tag | absent; must remain absent in R10 |
+| implementation branch | absent; must remain absent in R10 |
 
 The immutable Phase-E authority is not changed: integrated baseline
 `14942a30928b88f16914bf0bb103cc0c2a5bfa76`, reviewed implementation
@@ -37,8 +37,9 @@ it must equal `HEAD`, local `main`, `origin/main`, and live remote `main`.
 
 R1 was `NO-GO/P1=13`; R2 was `NO-GO/P1=10`; R3 was `NO-GO/P1=19`; R4 was
 `NO-GO/P1=14`; R5 was `NO-GO/P1=11`; R6 was `NO-GO/P1=13`; R7 was
-`NO-GO/P1=5`; R8 was `NO-GO/P1=4`. No rejected version is described as approved.
-The exact future order remains: fresh R9
+`NO-GO/P1=5`; R8 was `NO-GO/P1=4`; R9 was `NO-GO/P1=6 grouped fixture/catalog findings`.
+R10 is forward remediation and no rejected version is described as approved.
+The exact future order remains: fresh R10
 rereview, plan approval, F0, F-IMPL-1 checker and permanent F-MAINT-01/02
 closure, readiness, enrollment, genesis, F1, F2, F3, F4, and F5.
 F1-F5 remain blocked until the applicable approved tags and authority objects
@@ -46,7 +47,8 @@ exist.
 
 `F_IMPL_1_BEFORE_F0_EXIT`, `F_IMPL_2_BEFORE_F0_EXIT`,
 `F_IMPL_3_BEFORE_F0_EXIT`, and `F_IMPL_4_BEFORE_F0_EXIT` are forbidden.
-R5, R6, R7, R8, and R9 author audits are not independent approval. No R6, R7, R8, or R9 approval tag,
+R5, R6, R7, R8, R9, and R10 author audits are not independent approval. No R6,
+R7, R8, R9, or R10 approval tag,
 implementation branch, F0 activity, key, signature, trust, registry, evidence,
 claim, or monitoring object exists as a result of this plan edit.
 
@@ -3018,7 +3020,6 @@ CLAIM CREATED: NO
 READY_FOR_FRESH_PHASE_F_R7_PLAN_REREVIEW: yes
 READY_FOR_PHASE_F_PLAN_APPROVAL_TAG: NO pending fresh R7 GO
 READY_FOR_PHASE_F_IMPLEMENTATION: NO
-```
 
 ## 26. Historical R8 master-schema catalog snapshot (non-normative)
 
@@ -3675,11 +3676,11 @@ READY_FOR_PHASE_F_IMPLEMENTATION: NO
 No Phase-F approval tag, implementation branch, F0 activity, key, signature,
 trust provisioning, registry record, physical evidence, monitoring evidence,
 claim, or monitoring record is created by this planning-only remediation.
-## 33. R9 MASTER SCHEMA CATALOG
+## 33. Historical R9 MASTER SCHEMA CATALOG (NON-CURRENT)
 
-This is the one current R9 schema catalog. Sections 16 and 26 are historical
-accounting only; no historical catalog or matrix is current authority. The
-catalog is set-equal to every distinct normative identifier matching
+This is a retained historical R9 catalog and is not current authority. Sections
+16 and 26 are historical accounting only; the current catalog and matrix are
+defined in §42 onward. The R9 catalog was set-equal to every distinct normative identifier matching
 `PhaseF[A-Za-z0-9_]*V1` in this complete plan. The R9 additions are
 `PhaseFIncidentResolutionV1` and `PhaseFRetentionCopyVerificationV1`; no
 external schema file is created.
@@ -3782,7 +3783,7 @@ PhaseFUnitEntryV1
 PhaseFUnitRuleV1
 ```
 
-### 33.2 CATALOG_PHASE_F_IDENTIFIER_SET
+### 33.2 HISTORICAL CATALOG_PHASE_F_IDENTIFIER_SET
 
 The following table is the complete current catalog. Every row has the required
 identifier, category, exact field closure, identity rule, complete-file hash
@@ -3893,10 +3894,11 @@ present. `SCHEMA_CATALOG_SECTION_POINTER_ERRORS=0`,
 `APPROVAL_TAG_SCHEMA_CATEGORY_AMBIGUITIES=0`,
 `CATALOG_DUPLICATE_IDENTIFIER_ROWS=0`, and
 `INCOMPLETE_SCHEMA_CATALOG_ROWS=0`.
-## 34. R9 CURRENT NORMATIVE REQUIREMENT MATRIX
+## 34. Historical R9 CURRENT NORMATIVE REQUIREMENT MATRIX (NON-CURRENT)
 
 Sections 27 and 28 are historical R8 accounting and are non-current. This is
-the one current R9 matrix. It carries forward all still-valid R8 contracts and
+the retained R9 matrix, not the current matrix. The current R10 matrix is in §43.
+The R9 matrix carried forward all still-valid R8 contracts and
 splits the four R9 findings into plan-target, trust, static-retention,
 incident-chronology, monitoring-membership, and copy-coverage requirements.
 `owner_decision_ids` in this table is the only current F-OD mapping source.
@@ -3934,7 +3936,7 @@ The derived owner-decision union is exactly
 F-OD-11,F-OD-12,F-OD-13,F-OD-14,F-OD-15,F-OD-16,F-OD-17,F-OD-18,F-OD-19,F-OD-20`.
 No second current requirement-to-decision mapping exists.
 
-## 35. R9 ACCEPTANCE CRITERIA
+## 35. Historical R9 ACCEPTANCE CRITERIA (NON-CURRENT)
 
 Every current R9 acceptance criterion has preconditions, exact inputs, exact
 operation, expected result, expected output, and a failure oracle. Release
@@ -3969,7 +3971,7 @@ monitoring-membership, and copy-coverage criteria.
 | `AC9-24` | full release identity set and object checks/copies | perform exact-set equality, key de-duplication, and all copy checks | release retention PASS | release retention oracle | missing authority, duplicate same-state row, or invalid copy fails |
 | `AC9-25` | complete R9 release-retention KAT fixture | independently derive expected set, compare exact identities, then verify copies | KAT PASS with declared campaign/static/monitoring/incident/resolution set | KAT transcript | any derivation or coverage discrepancy is NO-GO |
 
-## 36. R9 POSITIVE RELEASE-RETENTION CONTROL AND TEST PROCEDURES
+## 36. Historical R9 POSITIVE RELEASE-RETENTION CONTROL AND TEST PROCEDURES (NON-CURRENT)
 
 ### 36.1 Complete positive release-retention example
 
@@ -3978,7 +3980,8 @@ protocol `P`; power analysis `A`; cohort lock `C`; owner approval `OA`; executio
 record `E`; release record `R`; monitoring policy `MP`; metrology policy `MET`;
 the exact trust-tag message `TT`; F5 activation review bundle `RB`; initial and
 latest claim states `S0,S1`; accepted PASS monitoring records `MR1,MR2`; open
-incident `I1`; and incident `I2` resolved by valid resolution `IR2`. At an
+incident `I1`; and incident `I2` with first contained resolution `IR2-C` followed
+by terminal resolved resolution `IR2-R`. At an
 `audited_at` after `MR1,MR2,IR2` are eligible, the exact expected membership is:
 
 ```text
@@ -3992,11 +3995,12 @@ authority:
   monitoring_policy(MP), metrology_policy(MET), git_tag_message(TT),
   independent_review_bundle(RB), claim_state(S0), claim_state(S1),
   monitoring_record(MR1), monitoring_record(MR2), incident_record(I1),
-  incident_resolution(IR2)
+  incident_resolution(IR2-C)
+  incident_resolution(IR2-R)
 ```
 
-`I2` is not an unresolved-incident member, but `IR2` is retained to prove its
-resolved status. If `S0` and `S1` have the same kind and SHA, only one state
+`I2` is not an unresolved-incident member, but both `IR2-C` and `IR2-R` are
+retained to prove its resolved status. If `S0` and `S1` have the same kind and SHA, only one state
 identity is present. For every identity, provide exactly one object check and at
 least `1 + backup_copy_count` PASS copy rows; every counted row has an approved
 immutable URI, exact retrieved byte length and SHA, distinct URI, and
@@ -4004,7 +4008,7 @@ immutable URI, exact retrieved byte length and SHA, distinct URI, and
 identity set and every copy check must PASS; a missing/extra identity, guessed
 URI/length, wrong copy SHA, stale copy, or insufficient count is NO-GO.
 
-### 36.2 R9 TEST PROCEDURES
+### 36.2 Historical R9 TEST PROCEDURES
 
 Every current R9 test has fixture construction, exact invocation, expected exact
 result, and a negative mutation. The R9 counterexamples are stable review
@@ -4050,7 +4054,7 @@ fixtures, not production runtime or evidence artifacts.
 | `T9-POS-RETENTION` | Full static/campaign/incident/monitoring identity set and 1+backup copies. | release-retention derivation and copy coverage validator | PASS | omit one member -> R9-CX-03 |
 | `T9-POS-DAG` | All existing Phase-F authority fixtures in production runner order. | positive-path DAG replay and preservation validator | PASS; COMPLETE_VALID_DAG_CONSTRUCTIBLE=yes | add a future-file or self-Git edge -> NO-GO |
 
-## 37. R9 F-EV EVIDENCE ORACLES
+## 37. Historical R9 F-EV EVIDENCE ORACLES (NON-CURRENT)
 
 Each current R9 F-EV names a real artifact, producer or authority, immutable
 identity, and acceptance/review oracle. Planning-only examples describe later
@@ -4086,7 +4090,7 @@ artifacts; none is created by this edit.
 
 `RELEASE_RETENTION_EVIDENCE_ORACLE_GAPS=0` and
 `CURRENT_EVIDENCE_ORACLE_GAPS=0`.
-## 38. R9 REMEDIATION LEDGER
+## 38. Historical R9 REMEDIATION LEDGER (NON-CURRENT)
 
 Exactly four stable R9 remediation IDs are defined. Author disposition is only
 `REMEDIATED` or `OPEN`; only the fresh independent R9 reviewer may close a
@@ -4099,7 +4103,7 @@ finding.
 | `F-PLAN-R9-P1-03` — retention identities could not derive locators or audited-at incidents | §15 and §§33–37 | retention membership mixed registry identity with current storage copies and mutable incident status | byte-only kind/SHA identities; copy-verification rows; incident resolution chain; audited-at sequence/time algorithm; deduplication | R9-03,R9-04,R9-05,R9-06,R9-07,R9-24,R9-25 | AC9-03,AC9-04,AC9-05,AC9-06,AC9-07,AC9-24,AC9-25 | T9-KAT-01,T9-POS-RETENTION,T9-CX-03,T9-CX-04,T9-CX-05,T9-CX-06,T9-CX-07,T9-CX-08,T9-CX-09,T9-CX-10,T9-CX-11,T9-CX-12,T9-CX-22,T9-CX-23,T9-CX-24,T9-CX-25,T9-CX-26,T9-CX-27,T9-CX-28,T9-CX-29,T9-CX-30 | EV9-03,EV9-04,EV9-05,EV9-06,EV9-07,EV9-24,EV9-25 | REMEDIATED |
 | `F-PLAN-R9-P1-04` — retention tests/evidence did not exercise release authority contract | §§34–37 | R8 coverage tested only campaign manifest equality | separate static, incident, monitoring, and copy ACs/tests/F-EV plus positive release KAT and negative controls | R9-04,R9-05,R9-06,R9-07,R9-24,R9-25 | AC9-04,AC9-05,AC9-06,AC9-07,AC9-24,AC9-25 | T9-KAT-01,T9-POS-RETENTION,T9-CX-03,T9-CX-04,T9-CX-05,T9-CX-06,T9-CX-07,T9-CX-08,T9-CX-09,T9-CX-10,T9-CX-11,T9-CX-12,T9-CX-22,T9-CX-23,T9-CX-24,T9-CX-25,T9-CX-26,T9-CX-27,T9-CX-28,T9-CX-29,T9-CX-30 | EV9-04,EV9-05,EV9-06,EV9-07,EV9-24,EV9-25 | REMEDIATED |
 
-## 39. R9 AUTHOR AUDIT AND FRESH REREVIEW GATE
+## 39. Historical R9 AUTHOR AUDIT AND FRESH REREVIEW GATE (NON-CURRENT)
 
 The author audit is not independent approval. The following counters are the
 required R9 audit result:
@@ -4144,7 +4148,7 @@ kind/SHA release retention with audited-at status; and substantive split
 traceability for static, incident, monitoring, and copy coverage. Failure of any
 control is P1. R9 independent rereview remains PENDING.
 
-## 40. BASELINE VALIDATION AND FROZEN PHASE-E AUTHORITY
+## 40. Historical R9 BASELINE VALIDATION AND FROZEN PHASE-E AUTHORITY (NON-CURRENT)
 
 Before and after the planning-only edit, the required commands are:
 
@@ -4162,7 +4166,7 @@ Clippy diagnostics. The frozen Phase-E plan remains unchanged and must retain
 SHA-256 `0b68359f362434ef9f42df21ca553692ae6e3bb3c096881009ab5e9473cc2c33`
 and Git blob `6fce9d13a42a09027e0e730874a8d80e03e6a7da`.
 
-## 41. MHI V1 PHASE F R9 PLANNING REMEDIATION HANDOFF
+## 41. Historical MHI V1 PHASE F R9 PLANNING REMEDIATION HANDOFF (NON-CURRENT)
 
 STARTING R8 SHA:
 `ebed7b24102b1575fb950a8d15adc03c2eb11c22`
@@ -4443,3 +4447,763 @@ NO expected pending fresh R9 GO
 
 READY_FOR_PHASE_F_IMPLEMENTATION:
 NO
+
+## 42. R10 MASTER SCHEMA CATALOG AND FIXTURE AUTHORITY
+
+Sections 33-41 are a retained historical R9 appendix and are excluded from
+current extraction. This section and §§43-52 are the one current R10 authority.
+R10 remains planning only. All fixtures below are plan-embedded KAT definitions,
+not production evidence, schema files, registry records, physical evidence,
+monitoring evidence, claims, keys, signatures, or tags.
+
+R10 preserves every closed R9 contract and changes no authority architecture or
+scientific scope. R1 through R8 were NO-GO with P1 counts 13, 10, 19, 14, 11,
+13, 5, and 4. R9 was NO-GO with six grouped fixture/catalog findings. R10 is
+forward remediation and independent R10 rereview is PENDING.
+
+### 42.1 R10 CURRENT NORMATIVE IDENTIFIER SET
+
+Mechanical enumeration of PhaseF[A-Za-z0-9_]*V1 produces exactly 91
+identifiers. The current master set is:
+
+~~~text
+PhaseFArgvV1
+PhaseFAuthorityEnrollmentApprovalV1
+PhaseFAuthorityEnrollmentV1
+PhaseFChainOfCustodyV1
+PhaseFCheckListV1
+PhaseFCheckerBuildEvidenceV1
+PhaseFCheckerExitCodeV1
+PhaseFCheckerReadinessEvidenceV1
+PhaseFCheckerReportV1
+PhaseFCheckerStdoutV1
+PhaseFClaimStateRecordV1
+PhaseFCohortLockRecordV1
+PhaseFCommandV1
+PhaseFCustodyEventV1
+PhaseFDecisionApprovalV1
+PhaseFDecisionBundleV1
+PhaseFDecisionRowV1
+PhaseFDecisionValueV1
+PhaseFDependencyAuditV1
+PhaseFDependencyEdgeV1
+PhaseFDeviationEventV1
+PhaseFDeviationLedgerRevisionV1
+PhaseFDeviationLedgerV1
+PhaseFEndpointMetrologyPolicyV1
+PhaseFEnvironmentEntryV1
+PhaseFExecutionRecordV1
+PhaseFF5ReleaseCandidateV1
+PhaseFIdentityComparisonV1
+PhaseFIncidentRecordV1
+PhaseFIncidentResolutionV1
+PhaseFIncidentScopeV1
+PhaseFIndependentReviewBundleV1
+PhaseFIndependentReviewV1
+PhaseFLODLOQPolicyV1
+PhaseFLocationLedgerV1
+PhaseFLocationV1
+PhaseFMethodVersionV1
+PhaseFMetricThresholdV1
+PhaseFMetrologyCheckResultV1
+PhaseFMetrologyCheckSpecV1
+PhaseFMetrologyPolicyV1
+PhaseFMonitoringBreachV1
+PhaseFMonitoringEvidenceV1
+PhaseFMonitoringMeasurementV1
+PhaseFMonitoringPolicyV1
+PhaseFMonitoringRecordV1
+PhaseFMonitoringSourceReferenceV1
+PhaseFMonitoringValueV1
+PhaseFNamedDigestV1
+PhaseFObjectDigestV1
+PhaseFObjectReferenceV1
+PhaseFOutputSpecV1
+PhaseFPackageBindingV1
+PhaseFPackageManifestV1
+PhaseFPackageObjectV1
+PhaseFParameterSpecV1
+PhaseFParameterValueRowV1
+PhaseFPhysicalIdentityAuditV1
+PhaseFPhysicalReleaseApprovalV1
+PhaseFPhysicalUnitLedgerV1
+PhaseFPlanApprovalV1
+PhaseFPowerAnalysisRecordV1
+PhaseFPowerMethodInterfaceV1
+PhaseFPowerOutputValueV1
+PhaseFProtocolProjectionV1
+PhaseFQuantifiedUncertaintyV1
+PhaseFRangeRuleV1
+PhaseFReadinessApprovalV1
+PhaseFReferenceAssessmentV1
+PhaseFReferenceResultV1
+PhaseFReferenceSourceDescriptorV1
+PhaseFRegistryCompromiseEmergencyV1
+PhaseFRegistryHeadV1
+PhaseFRegistryRecordV1
+PhaseFRegistryRelationV1
+PhaseFReinstatementApprovalV1
+PhaseFReleaseRecordV1
+PhaseFRetentionAuditV1
+PhaseFRetentionCopyVerificationV1
+PhaseFRetentionObjectCheckV1
+PhaseFRetentionObjectV1
+PhaseFRetentionScopeV1
+PhaseFRetrievalVerificationV1
+PhaseFReviewTargetV1
+PhaseFScientificAdmissibilityAuditV1
+PhaseFSensitivityCaseV1
+PhaseFSensitivityOverrideV1
+PhaseFTrustProvisioningApprovalV1
+PhaseFUncertaintyPolicyV1
+PhaseFUnitEntryV1
+PhaseFUnitRuleV1
+~~~
+
+Each identifier occurs exactly once in the current catalog below. Historical
+catalog rows are not current rows.
+
+### 42.2 R10 CURRENT MASTER SCHEMA CATALOG
+
+Category rules are exact: TOP_LEVEL_WIRE is an independently serialized or
+materialized file with a complete byte representation; NESTED_WIRE is only a
+member/value inside the named parent and is never an independent authority;
+TAG_BODY is the annotated-tag message grammar; PLAN_ONLY_CONTRACT has no
+standalone wire artifact. The three confirmed corrections are
+PhaseFChainOfCustodyV1, PhaseFCheckerReportV1, and PhaseFRetrievalVerificationV1
+to TOP_LEVEL_WIRE.
+
+| exact identifier | category | exact field-closure pointer | semantic-ID rule | complete-file hash meaning | concrete producer | actual validator | exact stage/set | exact registry behavior | derived current requirement IDs | derived current AC IDs | derived current test IDs | derived current F-EV IDs |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| PhaseFArgvV1 | NESTED_WIRE | §2 PhaseFArgvV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | Phase-F checker build/readiness operation | Phase-F schema strict parser plus field/type consistency validator | readiness and checker-invocation stages | nested field of PhaseFCommandV1 and PhaseFCheckerReportV1; no independent registry subject | R10-08,R10-09,R10-10,R10-20 | AC10-08,AC10-09,AC10-10,AC10-20 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-20 |
+| PhaseFAuthorityEnrollmentApprovalV1 | TAG_BODY | §2 PhaseFAuthorityEnrollmentApprovalV1 exact primitive/helper definition | no JSON semantic ID; annotated-tag message identity only | SHA-256 of exact annotated-tag message bytes when referenced | independent enrollment gate | annotated-tag grammar plus target/body/prerequisite validator | enrollment approval gate | annotated-tag message only; no registry subject | R10-08,R10-09,R10-10 | AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-TRACE | EV10-08,EV10-09,EV10-10 |
+| PhaseFAuthorityEnrollmentV1 | TOP_LEVEL_WIRE | §5.2 PhaseFAuthorityEnrollmentV1 exact unsigned enrollment fields | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFAuthorityEnrollmentV1 bytes | authority-enrollment operation | enrollment strict parser plus identity/field validator | enrollment stage | independent registry subject; exact object kind authority_enrollment | R10-08,R10-09,R10-10,R10-12 | AC10-08,AC10-09,AC10-10,AC10-12 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-12 |
+| PhaseFChainOfCustodyV1 | TOP_LEVEL_WIRE | §11 PhaseFChainOfCustodyV1 exact physical/deviation definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFChainOfCustodyV1 bytes | campaign laboratory and custody authority | custody strict parser plus continuity/terminal-unit validator | F2-F4 physical-validation stages | independent registry subject; exact object kind chain_of_custody | R10-08,R10-09,R10-10,R10-14 | AC10-08,AC10-09,AC10-10,AC10-14 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-14 |
+| PhaseFCheckListV1 | NESTED_WIRE | §2 PhaseFCheckListV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | nested field of PhaseFMetrologyPolicyV1; no independent registry subject | R10-08,R10-09,R10-10,R10-17 | AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFCheckerBuildEvidenceV1 | TOP_LEVEL_WIRE | §7 PhaseFCheckerBuildEvidenceV1 exact checker definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFCheckerBuildEvidenceV1 bytes | Phase-F checker build/readiness operation | Phase-F schema strict parser plus field/type consistency validator | readiness and checker-invocation stages | independent registry subject; exact object kind checker_build_evidence | R10-08,R10-09,R10-10,R10-12 | AC10-08,AC10-09,AC10-10,AC10-12 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-12 |
+| PhaseFCheckerExitCodeV1 | NESTED_WIRE | §2 PhaseFCheckerExitCodeV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | Phase-F checker build/readiness operation | Phase-F schema strict parser plus field/type consistency validator | readiness and checker-invocation stages | nested field of PhaseFCheckerReportV1; no independent registry subject | R10-08,R10-09,R10-10,R10-20 | AC10-08,AC10-09,AC10-10,AC10-20 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-20 |
+| PhaseFCheckerReadinessEvidenceV1 | TOP_LEVEL_WIRE | §7 PhaseFCheckerReadinessEvidenceV1 exact checker definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFCheckerReadinessEvidenceV1 bytes | Phase-F checker build/readiness operation | Phase-F schema strict parser plus field/type consistency validator | readiness and checker-invocation stages | independent registry subject; exact object kind checker_readiness_evidence | R10-08,R10-09,R10-10,R10-12 | AC10-08,AC10-09,AC10-10,AC10-12 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-12 |
+| PhaseFCheckerReportV1 | TOP_LEVEL_WIRE | §7 PhaseFCheckerReportV1 exact checker definition | no content-derived semantic ID; explicit report operation identity | SHA-256 of complete canonical PhaseFCheckerReportV1 bytes | Phase-F checker build/readiness operation | checker-report strict parser plus command/result consistency validator | readiness and checker-invocation stages | standalone evidence file at explicit output path; not registered | R10-08,R10-09,R10-10,R10-20 | AC10-08,AC10-09,AC10-10,AC10-20 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-20 |
+| PhaseFCheckerStdoutV1 | NESTED_WIRE | §2 PhaseFCheckerStdoutV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | Phase-F checker build/readiness operation | Phase-F schema strict parser plus field/type consistency validator | readiness and checker-invocation stages | nested field of PhaseFCheckerReportV1; no independent registry subject | R10-08,R10-09,R10-10,R10-20 | AC10-08,AC10-09,AC10-10,AC10-20 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-20 |
+| PhaseFClaimStateRecordV1 | TOP_LEVEL_WIRE | §14 PhaseFClaimStateRecordV1 exact release/monitoring definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFClaimStateRecordV1 bytes | release authority | Phase-F schema strict parser plus field/type consistency validator | F4-F5 release/state stages | independent registry subject; exact object kind claim_state | R10-04,R10-08,R10-09,R10-10,R10-18,R10-24,R10-25 | AC10-04,AC10-08,AC10-09,AC10-10,AC10-18,AC10-24,AC10-25 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-21,T10-CX-22,T10-CX-23,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27,T10-CX-28,T10-CX-29,T10-CX-30,T10-CX-31,T10-KAT-RETENTION,T10-POS-DAG,T10-POS-RETENTION,T10-TRACE | EV10-04,EV10-08,EV10-09,EV10-10,EV10-18,EV10-24,EV10-25 |
+| PhaseFCohortLockRecordV1 | TOP_LEVEL_WIRE | §14 PhaseFCohortLockRecordV1 exact release/monitoring definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFCohortLockRecordV1 bytes | release authority | Phase-F schema strict parser plus field/type consistency validator | F4-F5 release/state stages | independent registry subject; exact object kind cohort_lock | R10-04,R10-08,R10-09,R10-10 | AC10-04,AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-CX-21,T10-POS-RETENTION,T10-TRACE | EV10-04,EV10-08,EV10-09,EV10-10 |
+| PhaseFCommandV1 | NESTED_WIRE | §2 PhaseFCommandV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | Phase-F checker build/readiness operation | command grammar and command/result consistency validator | readiness and checker-invocation stages | nested field of PhaseFCheckerReadinessEvidenceV1 and PhaseFCheckerReportV1; no independent registry subject | R10-08,R10-09,R10-10,R10-20 | AC10-08,AC10-09,AC10-10,AC10-20 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-20 |
+| PhaseFCustodyEventV1 | NESTED_WIRE | §11 PhaseFCustodyEventV1 exact physical/deviation definition | no independent identity; parent bytes only | containing-object canonical bytes | campaign laboratory and custody authority | physical/custody strict parser plus identity/continuity validator | F2-F4 physical-validation stages | nested field of PhaseFChainOfCustodyV1; no independent registry subject | R10-08,R10-09,R10-10,R10-14 | AC10-08,AC10-09,AC10-10,AC10-14 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-14 |
+| PhaseFDecisionApprovalV1 | TAG_BODY | §4 PhaseFDecisionApprovalV1 exact decision definition | no JSON semantic ID; annotated-tag message identity only | SHA-256 of exact annotated-tag message bytes when referenced | independent F0 decision gate | annotated-tag grammar plus target/body/prerequisite validator | F0 approval gate | annotated-tag message only; no registry subject | R10-08,R10-09,R10-10 | AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-TRACE | EV10-08,EV10-09,EV10-10 |
+| PhaseFDecisionBundleV1 | TOP_LEVEL_WIRE | §4 PhaseFDecisionBundleV1 exact decision definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFDecisionBundleV1 bytes | F0 decision authority | Phase-F schema strict parser plus field/type consistency validator | F0 decision-bundle construction | independent registry subject; exact object kind decision_bundle | R10-08,R10-09,R10-10,R10-11,R10-23 | AC10-08,AC10-09,AC10-10,AC10-11,AC10-23 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-11,EV10-23 |
+| PhaseFDecisionRowV1 | NESTED_WIRE | §4 PhaseFDecisionRowV1 exact decision definition | no independent identity; parent bytes only | containing-object canonical bytes | F0 decision authority | Phase-F schema strict parser plus field/type consistency validator | F0 decision-bundle construction | nested field of PhaseFDecisionBundleV1; no independent registry subject | R10-08,R10-09,R10-10,R10-11,R10-23 | AC10-08,AC10-09,AC10-10,AC10-11,AC10-23 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-11,EV10-23 |
+| PhaseFDecisionValueV1 | NESTED_WIRE | §2 PhaseFDecisionValueV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | F0 decision authority | Phase-F schema strict parser plus field/type consistency validator | F0 decision-bundle construction | nested field of PhaseFDecisionRowV1; no independent registry subject | R10-08,R10-09,R10-10,R10-11 | AC10-08,AC10-09,AC10-10,AC10-11 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-11 |
+| PhaseFDependencyAuditV1 | TOP_LEVEL_WIRE | §10 PhaseFDependencyAuditV1 exact retrieval/package definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFDependencyAuditV1 bytes | retrieval/package authority | retrieval/package strict parser plus classification/DAG validator | F2 retrieval/package stage | independent registry subject; exact object kind dependency_audit | R10-08,R10-09,R10-10,R10-13 | AC10-08,AC10-09,AC10-10,AC10-13 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-13 |
+| PhaseFDependencyEdgeV1 | NESTED_WIRE | §10 PhaseFDependencyEdgeV1 exact retrieval/package definition | no independent identity; parent bytes only | containing-object canonical bytes | retrieval/package authority | retrieval/package strict parser plus classification/DAG validator | F2 retrieval/package stage | nested field of PhaseFDependencyAuditV1; no independent registry subject | R10-08,R10-09,R10-10,R10-13 | AC10-08,AC10-09,AC10-10,AC10-13 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-13 |
+| PhaseFDeviationEventV1 | NESTED_WIRE | §11 PhaseFDeviationEventV1 exact physical/deviation definition | no independent identity; parent bytes only | containing-object canonical bytes | Phase-F plan authority | Phase-F schema strict parser plus field/type consistency validator | F1-F4 deviation stages | nested field of PhaseFDeviationLedgerRevisionV1; no independent registry subject | R10-08,R10-09,R10-10,R10-15 | AC10-08,AC10-09,AC10-10,AC10-15 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-15 |
+| PhaseFDeviationLedgerRevisionV1 | TOP_LEVEL_WIRE | §11 PhaseFDeviationLedgerRevisionV1 exact physical/deviation definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFDeviationLedgerRevisionV1 bytes | Phase-F plan authority | Phase-F schema strict parser plus field/type consistency validator | F1-F4 deviation stages | independent registry subject; exact object kind deviation_ledger | R10-08,R10-09,R10-10,R10-15 | AC10-08,AC10-09,AC10-10,AC10-15 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-15 |
+| PhaseFDeviationLedgerV1 | PLAN_ONLY_CONTRACT | §11 PhaseFDeviationLedgerV1 exact physical/deviation definition | no artifact identity; planning construct only | not applicable; no standalone bytes | plan author | plan consistency validator; no runtime artifact validator | F1-F4 deviation stages | plan-only contract; no standalone artifact or registry subject | R10-08,R10-09,R10-10,R10-15 | AC10-08,AC10-09,AC10-10,AC10-15 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-15 |
+| PhaseFEndpointMetrologyPolicyV1 | NESTED_WIRE | §13 PhaseFEndpointMetrologyPolicyV1 exact metrology/reference definition | no independent identity; parent bytes only | containing-object canonical bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | nested field of the exact parent field named by §13 PhaseFEndpointMetrologyPolicyV1 exact metrology/reference definition; no independent registry subject | R10-08,R10-09,R10-10,R10-17 | AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFEnvironmentEntryV1 | NESTED_WIRE | §2 PhaseFEnvironmentEntryV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | Phase-F plan authority | Phase-F schema strict parser plus field/type consistency validator | the exact parent operation named in this row | nested field of PhaseFCheckerBuildEvidenceV1 and PhaseFCheckerReadinessEvidenceV1; no independent registry subject | R10-08,R10-09,R10-10 | AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-TRACE | EV10-08,EV10-09,EV10-10 |
+| PhaseFExecutionRecordV1 | TOP_LEVEL_WIRE | §14 PhaseFExecutionRecordV1 exact release/monitoring definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFExecutionRecordV1 bytes | release authority | Phase-F schema strict parser plus field/type consistency validator | F4-F5 release/state stages | independent registry subject; exact object kind execution_record | R10-04,R10-08,R10-09,R10-10 | AC10-04,AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-CX-21,T10-POS-RETENTION,T10-TRACE | EV10-04,EV10-08,EV10-09,EV10-10 |
+| PhaseFF5ReleaseCandidateV1 | TOP_LEVEL_WIRE | §5 PhaseFF5ReleaseCandidateV1 exact review definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFF5ReleaseCandidateV1 bytes | independent review panel | Phase-F schema strict parser plus field/type consistency validator | F4-F5 release/state stages | independent registry subject; exact object kind f5_release_candidate | R10-08,R10-09,R10-10,R10-18 | AC10-08,AC10-09,AC10-10,AC10-18 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-18 |
+| PhaseFIdentityComparisonV1 | NESTED_WIRE | §11 PhaseFIdentityComparisonV1 exact physical/deviation definition | no independent identity; parent bytes only | containing-object canonical bytes | campaign laboratory and custody authority | physical/custody strict parser plus identity/continuity validator | F2-F4 physical-validation stages | nested field of PhaseFPhysicalIdentityAuditV1; no independent registry subject | R10-08,R10-09,R10-10,R10-14 | AC10-08,AC10-09,AC10-10,AC10-14 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-14 |
+| PhaseFIncidentRecordV1 | TOP_LEVEL_WIRE | §15 PhaseFIncidentRecordV1 exact incident/retention definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFIncidentRecordV1 bytes | operations/governance incident-resolution authority | incident strict parser plus chronology/status validator | operations after incident detection through F5+ audited retention | independent registry subject; exact object kind incident_record | R10-05,R10-08,R10-09,R10-10,R10-22,R10-24,R10-25 | AC10-05,AC10-08,AC10-09,AC10-10,AC10-22,AC10-24,AC10-25 | T10-CAT,T10-CX-01,T10-CX-02,T10-CX-03,T10-CX-04,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-21,T10-CX-22,T10-CX-23,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27,T10-CX-28,T10-CX-29,T10-CX-30,T10-CX-31,T10-KAT-RETENTION,T10-POS-DAG,T10-POS-RETENTION,T10-TRACE | EV10-05,EV10-08,EV10-09,EV10-10,EV10-22,EV10-24,EV10-25 |
+| PhaseFIncidentResolutionV1 | TOP_LEVEL_WIRE | §15 PhaseFIncidentResolutionV1 exact incident/retention definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFIncidentResolutionV1 bytes | operations/governance incident-resolution authority | incident-resolution strict parser plus resolution-chain validator | operations after incident detection through F5+ audited retention | independent registry subject; exact object kind incident_resolution | R10-05,R10-08,R10-09,R10-10,R10-24,R10-25 | AC10-05,AC10-08,AC10-09,AC10-10,AC10-24,AC10-25 | T10-CAT,T10-CX-01,T10-CX-02,T10-CX-03,T10-CX-04,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-21,T10-CX-22,T10-CX-23,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27,T10-CX-28,T10-CX-29,T10-CX-30,T10-CX-31,T10-KAT-RETENTION,T10-POS-RETENTION,T10-TRACE | EV10-05,EV10-08,EV10-09,EV10-10,EV10-24,EV10-25 |
+| PhaseFIncidentScopeV1 | NESTED_WIRE | §2 PhaseFIncidentScopeV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | operations/governance incident-resolution authority | incident strict parser plus chronology/status validator | operations after incident detection through F5+ audited retention | nested field of PhaseFIncidentRecordV1; no independent registry subject | R10-08,R10-09,R10-10,R10-18,R10-22 | AC10-08,AC10-09,AC10-10,AC10-18,AC10-22 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-18,EV10-22 |
+| PhaseFIndependentReviewBundleV1 | TOP_LEVEL_WIRE | §5 PhaseFIndependentReviewBundleV1 exact review definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFIndependentReviewBundleV1 bytes | independent review panel | Phase-F schema strict parser plus field/type consistency validator | the exact parent operation named in this row | independent registry subject; exact object kind independent_review_bundle | R10-01,R10-04,R10-08,R10-09,R10-10,R10-19,R10-22 | AC10-01,AC10-04,AC10-08,AC10-09,AC10-10,AC10-19,AC10-22 | T10-CAT,T10-CX-01,T10-CX-02,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-CX-21,T10-POS-DAG,T10-POS-PLAN,T10-POS-RETENTION,T10-TRACE | EV10-01,EV10-04,EV10-08,EV10-09,EV10-10,EV10-19,EV10-22 |
+| PhaseFIndependentReviewV1 | NESTED_WIRE | §5 PhaseFIndependentReviewV1 exact review definition | no independent identity; parent bytes only | containing-object canonical bytes | independent review panel | Phase-F schema strict parser plus field/type consistency validator | the exact parent operation named in this row | nested field of PhaseFIndependentReviewBundleV1; no independent registry subject | R10-08,R10-09,R10-10 | AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-TRACE | EV10-08,EV10-09,EV10-10 |
+| PhaseFLODLOQPolicyV1 | NESTED_WIRE | §2 PhaseFLODLOQPolicyV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | nested field of PhaseFMetrologyPolicyV1; no independent registry subject | R10-08,R10-09,R10-10,R10-17 | AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFLocationLedgerV1 | TOP_LEVEL_WIRE | §11 PhaseFLocationLedgerV1 exact physical/deviation definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFLocationLedgerV1 bytes | campaign laboratory and custody authority | physical/custody strict parser plus identity/continuity validator | F2-F4 physical-validation stages | independent registry subject; exact object kind location_ledger | R10-08,R10-09,R10-10,R10-14 | AC10-08,AC10-09,AC10-10,AC10-14 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-14 |
+| PhaseFLocationV1 | NESTED_WIRE | §11 PhaseFLocationV1 exact physical/deviation definition | no independent identity; parent bytes only | containing-object canonical bytes | campaign laboratory and custody authority | physical/custody strict parser plus identity/continuity validator | F2-F4 physical-validation stages | nested field of PhaseFLocationLedgerV1; no independent registry subject | R10-08,R10-09,R10-10,R10-14 | AC10-08,AC10-09,AC10-10,AC10-14 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-14 |
+| PhaseFMethodVersionV1 | NESTED_WIRE | §12 PhaseFMethodVersionV1 exact power definition | no independent identity; parent bytes only | containing-object canonical bytes | power-analysis authority | power strict parser plus type/range/unit validator | F1 power-analysis stage | nested field of PhaseFPowerMethodInterfaceV1; no independent registry subject | R10-08,R10-09,R10-10,R10-16 | AC10-08,AC10-09,AC10-10,AC10-16 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-16 |
+| PhaseFMetricThresholdV1 | NESTED_WIRE | §14 PhaseFMetricThresholdV1 exact release/monitoring definition | no independent identity; parent bytes only | containing-object canonical bytes | Phase-F plan authority | Phase-F schema strict parser plus field/type consistency validator | F0 policy and F5+ monitoring stages | nested field of PhaseFMonitoringPolicyV1; no independent registry subject | R10-08,R10-09,R10-10,R10-21 | AC10-08,AC10-09,AC10-10,AC10-21 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-POS-TRUST,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-21 |
+| PhaseFMetrologyCheckResultV1 | TOP_LEVEL_WIRE | §13 PhaseFMetrologyCheckResultV1 exact metrology/reference definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFMetrologyCheckResultV1 bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | independent registry subject; exact object kind metrology_check_result | R10-08,R10-09,R10-10,R10-17 | AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFMetrologyCheckSpecV1 | NESTED_WIRE | §13 PhaseFMetrologyCheckSpecV1 exact metrology/reference definition | no independent identity; parent bytes only | containing-object canonical bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | nested field of PhaseFMetrologyPolicyV1; no independent registry subject | R10-08,R10-09,R10-10,R10-17 | AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFMetrologyPolicyV1 | TOP_LEVEL_WIRE | §13 PhaseFMetrologyPolicyV1 exact metrology/reference definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFMetrologyPolicyV1 bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | independent registry subject; exact object kind metrology_policy | R10-04,R10-08,R10-09,R10-10,R10-17 | AC10-04,AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-CX-21,T10-POS-DAG,T10-POS-RETENTION,T10-TRACE | EV10-04,EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFMonitoringBreachV1 | NESTED_WIRE | §14 PhaseFMonitoringBreachV1 exact release/monitoring definition | no independent identity; parent bytes only | containing-object canonical bytes | operations monitoring authority | monitoring strict parser plus fixed-order/acceptance validator | F0 policy and F5+ monitoring stages | nested field of PhaseFMonitoringRecordV1; no independent registry subject | R10-08,R10-09,R10-10,R10-21 | AC10-08,AC10-09,AC10-10,AC10-21 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-POS-TRUST,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-21 |
+| PhaseFMonitoringEvidenceV1 | TOP_LEVEL_WIRE | §14 PhaseFMonitoringEvidenceV1 exact release/monitoring definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFMonitoringEvidenceV1 bytes | operations monitoring authority | monitoring strict parser plus fixed-order/acceptance validator | F0 policy and F5+ monitoring stages | independent registry subject; exact object kind monitoring_evidence | R10-02,R10-06,R10-08,R10-09,R10-10,R10-21 | AC10-02,AC10-06,AC10-08,AC10-09,AC10-10,AC10-21 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-19,T10-CX-20,T10-CX-22,T10-CX-23,T10-POS-DAG,T10-POS-TRUST,T10-TRACE | EV10-02,EV10-06,EV10-08,EV10-09,EV10-10,EV10-21 |
+| PhaseFMonitoringMeasurementV1 | NESTED_WIRE | §14 PhaseFMonitoringMeasurementV1 exact release/monitoring definition | no independent identity; parent bytes only | containing-object canonical bytes | operations monitoring authority | monitoring strict parser plus fixed-order/acceptance validator | F0 policy and F5+ monitoring stages | nested field of PhaseFMonitoringRecordV1; no independent registry subject | R10-08,R10-09,R10-10,R10-21 | AC10-08,AC10-09,AC10-10,AC10-21 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-POS-TRUST,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-21 |
+| PhaseFMonitoringPolicyV1 | TOP_LEVEL_WIRE | §14 PhaseFMonitoringPolicyV1 exact release/monitoring definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFMonitoringPolicyV1 bytes | operations monitoring authority | monitoring strict parser plus fixed-order/acceptance validator | F0 policy and F5+ monitoring stages | independent registry subject; exact object kind monitoring_policy | R10-04,R10-08,R10-09,R10-10,R10-21 | AC10-04,AC10-08,AC10-09,AC10-10,AC10-21 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-CX-21,T10-POS-DAG,T10-POS-RETENTION,T10-POS-TRUST,T10-TRACE | EV10-04,EV10-08,EV10-09,EV10-10,EV10-21 |
+| PhaseFMonitoringRecordV1 | TOP_LEVEL_WIRE | §14 PhaseFMonitoringRecordV1 exact release/monitoring definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFMonitoringRecordV1 bytes | operations monitoring authority | monitoring strict parser plus fixed-order/acceptance validator | F0 policy and F5+ monitoring stages | independent registry subject; exact object kind monitoring_record | R10-06,R10-08,R10-09,R10-10,R10-21,R10-24,R10-25 | AC10-06,AC10-08,AC10-09,AC10-10,AC10-21,AC10-24,AC10-25 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-21,T10-CX-22,T10-CX-23,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27,T10-CX-28,T10-CX-29,T10-CX-30,T10-CX-31,T10-KAT-RETENTION,T10-POS-DAG,T10-POS-RETENTION,T10-POS-TRUST,T10-TRACE | EV10-06,EV10-08,EV10-09,EV10-10,EV10-21,EV10-24,EV10-25 |
+| PhaseFMonitoringSourceReferenceV1 | NESTED_WIRE | §13 PhaseFMonitoringSourceReferenceV1 exact metrology/reference definition | no independent identity; parent bytes only | containing-object canonical bytes | operations monitoring authority | monitoring strict parser plus fixed-order/acceptance validator | F0-F2 metrology/reference stages | nested field of PhaseFMonitoringEvidenceV1; no independent registry subject | R10-02,R10-08,R10-09,R10-10,R10-21 | AC10-02,AC10-08,AC10-09,AC10-10,AC10-21 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-POS-TRUST,T10-TRACE | EV10-02,EV10-08,EV10-09,EV10-10,EV10-21 |
+| PhaseFMonitoringValueV1 | NESTED_WIRE | §2 PhaseFMonitoringValueV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | operations monitoring authority | monitoring strict parser plus fixed-order/acceptance validator | F0 policy and F5+ monitoring stages | nested field of PhaseFMonitoringMeasurementV1; no independent registry subject | R10-08,R10-09,R10-10,R10-21 | AC10-08,AC10-09,AC10-10,AC10-21 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-POS-TRUST,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-21 |
+| PhaseFNamedDigestV1 | NESTED_WIRE | §2 PhaseFNamedDigestV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | Phase-F plan authority | Phase-F schema strict parser plus field/type consistency validator | the exact parent operation named in this row | nested field of PhaseFObjectDigestV1 and PhaseFIncidentRecordV1; no independent registry subject | R10-08,R10-09,R10-10 | AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-TRACE | EV10-08,EV10-09,EV10-10 |
+| PhaseFObjectDigestV1 | NESTED_WIRE | §2 PhaseFObjectDigestV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | Phase-F plan authority | Phase-F schema strict parser plus field/type consistency validator | the exact parent operation named in this row | nested field of PhaseFIncidentRecordV1; no independent registry subject | R10-08,R10-09,R10-10 | AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-TRACE | EV10-08,EV10-09,EV10-10 |
+| PhaseFObjectReferenceV1 | NESTED_WIRE | §10 PhaseFObjectReferenceV1 exact retrieval/package definition | no independent identity; parent bytes only | containing-object canonical bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | nested field of PhaseFRetrievalVerificationV1, PhaseFPackageManifestV1, PhaseFRetentionCopyVerificationV1, and PhaseFMonitoringEvidenceV1; no independent registry subject | R10-02,R10-07,R10-08,R10-09,R10-10,R10-19,R10-25 | AC10-02,AC10-07,AC10-08,AC10-09,AC10-10,AC10-19,AC10-25 | T10-CAT,T10-CX-05,T10-CX-06,T10-CX-07,T10-CX-08,T10-CX-09,T10-CX-10,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-30,T10-CX-31,T10-KAT-RETENTION,T10-POS-DAG,T10-POS-TRUST,T10-TRACE | EV10-02,EV10-07,EV10-08,EV10-09,EV10-10,EV10-19,EV10-25 |
+| PhaseFOutputSpecV1 | NESTED_WIRE | §12 PhaseFOutputSpecV1 exact power definition | no independent identity; parent bytes only | containing-object canonical bytes | power-analysis authority | power strict parser plus type/range/unit validator | F1 power-analysis stage | nested field of PhaseFPowerMethodInterfaceV1; no independent registry subject | R10-08,R10-09,R10-10,R10-16 | AC10-08,AC10-09,AC10-10,AC10-16 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-16 |
+| PhaseFPackageBindingV1 | NESTED_WIRE | §10 PhaseFPackageBindingV1 exact retrieval/package definition | no independent identity; parent bytes only | containing-object canonical bytes | retrieval/package authority | retrieval/package strict parser plus classification/DAG validator | F2 retrieval/package stage | nested field of PhaseFPackageManifestV1; no independent registry subject | R10-08,R10-09,R10-10,R10-13 | AC10-08,AC10-09,AC10-10,AC10-13 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-13 |
+| PhaseFPackageManifestV1 | TOP_LEVEL_WIRE | §10 PhaseFPackageManifestV1 exact retrieval/package definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFPackageManifestV1 bytes | retrieval/package authority | retrieval/package strict parser plus classification/DAG validator | F2 retrieval/package stage | independent registry subject; exact object kind package_manifest | R10-03,R10-08,R10-09,R10-10,R10-13,R10-22,R10-25 | AC10-03,AC10-08,AC10-09,AC10-10,AC10-13,AC10-22,AC10-25 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-28,T10-CX-29,T10-KAT-RETENTION,T10-POS-DAG,T10-TRACE | EV10-03,EV10-08,EV10-09,EV10-10,EV10-13,EV10-22,EV10-25 |
+| PhaseFPackageObjectV1 | NESTED_WIRE | §10 PhaseFPackageObjectV1 exact retrieval/package definition | no independent identity; parent bytes only | containing-object canonical bytes | retrieval/package authority | retrieval/package strict parser plus classification/DAG validator | F2 retrieval/package stage | nested field of PhaseFPackageManifestV1; no independent registry subject | R10-03,R10-08,R10-09,R10-10,R10-13,R10-25 | AC10-03,AC10-08,AC10-09,AC10-10,AC10-13,AC10-25 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-28,T10-CX-29,T10-KAT-RETENTION,T10-POS-DAG,T10-TRACE | EV10-03,EV10-08,EV10-09,EV10-10,EV10-13,EV10-25 |
+| PhaseFParameterSpecV1 | NESTED_WIRE | §12 PhaseFParameterSpecV1 exact power definition | no independent identity; parent bytes only | containing-object canonical bytes | power-analysis authority | power strict parser plus type/range/unit validator | F1 power-analysis stage | nested field of PhaseFPowerMethodInterfaceV1; no independent registry subject | R10-08,R10-09,R10-10,R10-16 | AC10-08,AC10-09,AC10-10,AC10-16 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-16 |
+| PhaseFParameterValueRowV1 | NESTED_WIRE | §12 PhaseFParameterValueRowV1 exact power definition | no independent identity; parent bytes only | containing-object canonical bytes | power-analysis authority | power strict parser plus type/range/unit validator | F1 power-analysis stage | nested field of PhaseFPowerMethodInterfaceV1 and PhaseFPowerAnalysisRecordV1; no independent registry subject | R10-08,R10-09,R10-10,R10-16 | AC10-08,AC10-09,AC10-10,AC10-16 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-16 |
+| PhaseFPhysicalIdentityAuditV1 | TOP_LEVEL_WIRE | §11 PhaseFPhysicalIdentityAuditV1 exact physical/deviation definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFPhysicalIdentityAuditV1 bytes | campaign laboratory and custody authority | physical/custody strict parser plus identity/continuity validator | F2-F4 physical-validation stages | independent registry subject; exact object kind identity_audit | R10-08,R10-09,R10-10,R10-14 | AC10-08,AC10-09,AC10-10,AC10-14 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-14 |
+| PhaseFPhysicalReleaseApprovalV1 | TAG_BODY | §11 PhaseFPhysicalReleaseApprovalV1 exact physical/deviation definition | no JSON semantic ID; annotated-tag message identity only | SHA-256 of exact annotated-tag message bytes when referenced | independent physical-release gate | annotated-tag grammar plus target/body/prerequisite validator | physical-release approval gate | annotated-tag message only; no registry subject | R10-08,R10-09,R10-10,R10-18 | AC10-08,AC10-09,AC10-10,AC10-18 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-18 |
+| PhaseFPhysicalUnitLedgerV1 | TOP_LEVEL_WIRE | §11 PhaseFPhysicalUnitLedgerV1 exact physical/deviation definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFPhysicalUnitLedgerV1 bytes | campaign laboratory and custody authority | physical/custody strict parser plus identity/continuity validator | F2-F4 physical-validation stages | independent registry subject; exact object kind physical_unit_ledger | R10-08,R10-09,R10-10,R10-14 | AC10-08,AC10-09,AC10-10,AC10-14 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-14 |
+| PhaseFPlanApprovalV1 | TAG_BODY | §2 PhaseFPlanApprovalV1 exact primitive/helper definition | no JSON semantic ID; annotated-tag message identity only | SHA-256 of exact annotated-tag message bytes when referenced | independent plan-review gate | annotated-tag grammar plus target/body/prerequisite validator | plan-review approval gate | annotated-tag message only; no registry subject | R10-01,R10-08,R10-09,R10-10 | AC10-01,AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-01,T10-CX-02,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-PLAN,T10-TRACE | EV10-01,EV10-08,EV10-09,EV10-10 |
+| PhaseFPowerAnalysisRecordV1 | TOP_LEVEL_WIRE | §12 PhaseFPowerAnalysisRecordV1 exact power definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFPowerAnalysisRecordV1 bytes | power-analysis authority | power strict parser plus type/range/unit validator | F1 power-analysis stage | independent registry subject; exact object kind power_analysis | R10-08,R10-09,R10-10,R10-16 | AC10-08,AC10-09,AC10-10,AC10-16 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-16 |
+| PhaseFPowerMethodInterfaceV1 | TOP_LEVEL_WIRE | §12 PhaseFPowerMethodInterfaceV1 exact power definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFPowerMethodInterfaceV1 bytes | power-analysis authority | power strict parser plus type/range/unit validator | F1 power-analysis stage | independent registry subject; exact object kind power_method_interface | R10-08,R10-09,R10-10,R10-16 | AC10-08,AC10-09,AC10-10,AC10-16 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-16 |
+| PhaseFPowerOutputValueV1 | NESTED_WIRE | §2 PhaseFPowerOutputValueV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | power-analysis authority | power strict parser plus type/range/unit validator | F1 power-analysis stage | nested field of PhaseFPowerAnalysisRecordV1; no independent registry subject | R10-08,R10-09,R10-10,R10-16 | AC10-08,AC10-09,AC10-10,AC10-16 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-16 |
+| PhaseFProtocolProjectionV1 | PLAN_ONLY_CONTRACT | §4 PhaseFProtocolProjectionV1 exact decision definition | no artifact identity; planning construct only | not applicable; no standalone bytes | plan author | plan consistency validator; no runtime artifact validator | the exact parent operation named in this row | plan-only contract; no standalone artifact or registry subject | R10-08,R10-09,R10-10,R10-11 | AC10-08,AC10-09,AC10-10,AC10-11 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-11 |
+| PhaseFQuantifiedUncertaintyV1 | NESTED_WIRE | §2 PhaseFQuantifiedUncertaintyV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | nested field of PhaseFMetrologyPolicyV1; no independent registry subject | R10-08,R10-09,R10-10,R10-17 | AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFRangeRuleV1 | NESTED_WIRE | §2 PhaseFRangeRuleV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | power-analysis authority | power strict parser plus type/range/unit validator | F1 power-analysis stage | nested field of PhaseFParameterSpecV1; no independent registry subject | R10-08,R10-09,R10-10,R10-16 | AC10-08,AC10-09,AC10-10,AC10-16 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-16 |
+| PhaseFReadinessApprovalV1 | TAG_BODY | §2 PhaseFReadinessApprovalV1 exact primitive/helper definition | no JSON semantic ID; annotated-tag message identity only | SHA-256 of exact annotated-tag message bytes when referenced | independent readiness gate | annotated-tag grammar plus target/body/prerequisite validator | readiness approval gate | annotated-tag message only; no registry subject | R10-08,R10-09,R10-10 | AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-TRACE | EV10-08,EV10-09,EV10-10 |
+| PhaseFReferenceAssessmentV1 | NESTED_WIRE | §13 PhaseFReferenceAssessmentV1 exact metrology/reference definition | no independent identity; parent bytes only | containing-object canonical bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | nested field of PhaseFReferenceResultV1; no independent registry subject | R10-08,R10-09,R10-10,R10-17 | AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFReferenceResultV1 | TOP_LEVEL_WIRE | §13 PhaseFReferenceResultV1 exact metrology/reference definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFReferenceResultV1 bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | independent registry subject; exact object kind reference_result | R10-08,R10-09,R10-10,R10-17 | AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFReferenceSourceDescriptorV1 | TOP_LEVEL_WIRE | §13 PhaseFReferenceSourceDescriptorV1 exact metrology/reference definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFReferenceSourceDescriptorV1 bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | independent registry subject; exact object kind reference_source_descriptor | R10-08,R10-09,R10-10,R10-17 | AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFRegistryCompromiseEmergencyV1 | TOP_LEVEL_WIRE | §15 PhaseFRegistryCompromiseEmergencyV1 exact emergency fields | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFRegistryCompromiseEmergencyV1 bytes | security emergency authority | emergency strict parser plus exact path/claim-status validator | emergency stage | independent registry subject; exact object kind emergency_registry_compromise | R10-08,R10-09,R10-10,R10-19 | AC10-08,AC10-09,AC10-10,AC10-19 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-19 |
+| PhaseFRegistryHeadV1 | TOP_LEVEL_WIRE | §8 PhaseFRegistryHeadV1 exact registry definition | sequence/predecessor identity from §8; no §3 semantic ID | SHA-256 of complete canonical PhaseFRegistryHeadV1 bytes | registry authority | registry strict parser plus sequence/signature/relation validator | all registry operations | registry resolver object; no authority subject row | R10-08,R10-09,R10-10,R10-12 | AC10-08,AC10-09,AC10-10,AC10-12 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-12 |
+| PhaseFRegistryRecordV1 | TOP_LEVEL_WIRE | §8 PhaseFRegistryRecordV1 exact registry definition | sequence/predecessor identity from §8; no §3 semantic ID | SHA-256 of complete canonical PhaseFRegistryRecordV1 bytes | registry authority | registry strict parser plus sequence/signature/relation validator | all registry operations | signed registry-chain record; exact subject and relation fields | R10-05,R10-06,R10-08,R10-09,R10-10,R10-12 | AC10-05,AC10-06,AC10-08,AC10-09,AC10-10,AC10-12 | T10-CAT,T10-CX-01,T10-CX-02,T10-CX-03,T10-CX-04,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-CX-22,T10-CX-23,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27,T10-POS-DAG,T10-TRACE | EV10-05,EV10-06,EV10-08,EV10-09,EV10-10,EV10-12 |
+| PhaseFRegistryRelationV1 | NESTED_WIRE | §9 PhaseFRegistryRelationV1 exact relation definition | no independent identity; parent bytes only | containing-object canonical bytes | registry authority | registry strict parser plus sequence/signature/relation validator | all registry operations | nested field of PhaseFRegistryRecordV1; no independent registry subject | R10-05,R10-08,R10-09,R10-10 | AC10-05,AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-01,T10-CX-02,T10-CX-03,T10-CX-04,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27,T10-TRACE | EV10-05,EV10-08,EV10-09,EV10-10 |
+| PhaseFReinstatementApprovalV1 | TOP_LEVEL_WIRE | §14 PhaseFReinstatementApprovalV1 exact release/monitoring definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFReinstatementApprovalV1 bytes | release authority | Phase-F schema strict parser plus field/type consistency validator | F4-F5 release/state stages | independent registry subject; exact object kind reinstatement_approval | R10-08,R10-09,R10-10,R10-18 | AC10-08,AC10-09,AC10-10,AC10-18 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-18 |
+| PhaseFReleaseRecordV1 | TOP_LEVEL_WIRE | §14 PhaseFReleaseRecordV1 exact release/monitoring definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFReleaseRecordV1 bytes | release authority | Phase-F schema strict parser plus field/type consistency validator | F4-F5 release/state stages | independent registry subject; exact object kind release_record | R10-04,R10-08,R10-09,R10-10,R10-18,R10-25 | AC10-04,AC10-08,AC10-09,AC10-10,AC10-18,AC10-25 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-21,T10-KAT-RETENTION,T10-POS-DAG,T10-POS-RETENTION,T10-TRACE | EV10-04,EV10-08,EV10-09,EV10-10,EV10-18,EV10-25 |
+| PhaseFRetentionAuditV1 | TOP_LEVEL_WIRE | §15 PhaseFRetentionAuditV1 exact incident/retention definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFRetentionAuditV1 bytes | retention auditor | retention strict parser plus exact-set validator | campaign pre-release and release-retention operations | independent registry subject; exact object kind retention_audit | R10-03,R10-07,R10-08,R10-09,R10-10,R10-24,R10-25 | AC10-03,AC10-07,AC10-08,AC10-09,AC10-10,AC10-24,AC10-25 | T10-CAT,T10-CX-05,T10-CX-06,T10-CX-07,T10-CX-08,T10-CX-09,T10-CX-10,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-21,T10-CX-22,T10-CX-23,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27,T10-CX-28,T10-CX-29,T10-CX-30,T10-CX-31,T10-KAT-RETENTION,T10-POS-RETENTION,T10-TRACE | EV10-03,EV10-07,EV10-08,EV10-09,EV10-10,EV10-24,EV10-25 |
+| PhaseFRetentionCopyVerificationV1 | NESTED_WIRE | §15 PhaseFRetentionCopyVerificationV1 exact incident/retention definition | no independent identity; parent bytes only | containing-object canonical bytes | retention auditor | retention copy retrieval/hash/count/freshness validator | campaign pre-release and release-retention operations | nested field of PhaseFRetentionObjectCheckV1; no independent registry subject | R10-07,R10-08,R10-09,R10-10,R10-24,R10-25 | AC10-07,AC10-08,AC10-09,AC10-10,AC10-24,AC10-25 | T10-CAT,T10-CX-05,T10-CX-06,T10-CX-07,T10-CX-08,T10-CX-09,T10-CX-10,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-21,T10-CX-22,T10-CX-23,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27,T10-CX-28,T10-CX-29,T10-CX-30,T10-CX-31,T10-KAT-RETENTION,T10-POS-RETENTION,T10-TRACE | EV10-07,EV10-08,EV10-09,EV10-10,EV10-24,EV10-25 |
+| PhaseFRetentionObjectCheckV1 | NESTED_WIRE | §15 PhaseFRetentionObjectCheckV1 exact incident/retention definition | no independent identity; parent bytes only | containing-object canonical bytes | retention auditor | retention strict parser plus exact-set validator | campaign pre-release and release-retention operations | nested field of PhaseFRetentionAuditV1; no independent registry subject | R10-07,R10-08,R10-09,R10-10,R10-24,R10-25 | AC10-07,AC10-08,AC10-09,AC10-10,AC10-24,AC10-25 | T10-CAT,T10-CX-05,T10-CX-06,T10-CX-07,T10-CX-08,T10-CX-09,T10-CX-10,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-21,T10-CX-22,T10-CX-23,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27,T10-CX-28,T10-CX-29,T10-CX-30,T10-CX-31,T10-KAT-RETENTION,T10-POS-RETENTION,T10-TRACE | EV10-07,EV10-08,EV10-09,EV10-10,EV10-24,EV10-25 |
+| PhaseFRetentionObjectV1 | NESTED_WIRE | §15 PhaseFRetentionObjectV1 exact incident/retention definition | no independent identity; parent bytes only | containing-object canonical bytes | retention auditor | retention strict parser plus exact-set validator | campaign pre-release and release-retention operations | nested field of PhaseFRetentionAuditV1; no independent registry subject | R10-03,R10-04,R10-05,R10-06,R10-08,R10-09,R10-10,R10-24 | AC10-03,AC10-04,AC10-05,AC10-06,AC10-08,AC10-09,AC10-10,AC10-24 | T10-CAT,T10-CX-01,T10-CX-02,T10-CX-03,T10-CX-04,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-17,T10-CX-18,T10-CX-19,T10-CX-20,T10-CX-21,T10-CX-22,T10-CX-23,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27,T10-CX-28,T10-CX-29,T10-CX-30,T10-CX-31,T10-POS-RETENTION,T10-TRACE | EV10-03,EV10-04,EV10-05,EV10-06,EV10-08,EV10-09,EV10-10,EV10-24 |
+| PhaseFRetentionScopeV1 | NESTED_WIRE | §15 PhaseFRetentionScopeV1 exact incident/retention definition | no independent identity; parent bytes only | containing-object canonical bytes | retention auditor | retention strict parser plus exact-set validator | campaign pre-release and release-retention operations | nested field of PhaseFRetentionAuditV1; no independent registry subject | R10-03,R10-08,R10-09,R10-10 | AC10-03,AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-CX-28,T10-CX-29,T10-TRACE | EV10-03,EV10-08,EV10-09,EV10-10 |
+| PhaseFRetrievalVerificationV1 | TOP_LEVEL_WIRE | §10 PhaseFRetrievalVerificationV1 exact retrieval/package definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFRetrievalVerificationV1 bytes | retrieval/package authority | retrieval-verification strict parser plus URI/hash/length verifier | F2 retrieval/package stage | standalone evidence file at explicit output path; not registered | R10-08,R10-09,R10-10,R10-13 | AC10-08,AC10-09,AC10-10,AC10-13 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-13 |
+| PhaseFReviewTargetV1 | NESTED_WIRE | §5 PhaseFReviewTargetV1 exact review definition | no independent identity; parent bytes only | containing-object canonical bytes | independent review panel | Phase-F schema strict parser plus field/type consistency validator | the exact parent operation named in this row | nested field of PhaseFIndependentReviewBundleV1; no independent registry subject | R10-01,R10-08,R10-09,R10-10 | AC10-01,AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-01,T10-CX-02,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-PLAN,T10-TRACE | EV10-01,EV10-08,EV10-09,EV10-10 |
+| PhaseFScientificAdmissibilityAuditV1 | TOP_LEVEL_WIRE | §2 PhaseFScientificAdmissibilityAuditV1 exact primitive/helper definition | §3 exact domain and own declared identity field | SHA-256 of complete canonical PhaseFScientificAdmissibilityAuditV1 bytes | Phase-F plan authority | Phase-F schema strict parser plus field/type consistency validator | the exact parent operation named in this row | independent registry subject; exact object kind scientific_admissibility_audit | R10-08,R10-09,R10-10,R10-17 | AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFSensitivityCaseV1 | NESTED_WIRE | §12 PhaseFSensitivityCaseV1 exact power definition | no independent identity; parent bytes only | containing-object canonical bytes | power-analysis authority | power strict parser plus type/range/unit validator | F1 power-analysis stage | nested field of PhaseFPowerAnalysisRecordV1; no independent registry subject | R10-08,R10-09,R10-10,R10-16 | AC10-08,AC10-09,AC10-10,AC10-16 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-16 |
+| PhaseFSensitivityOverrideV1 | NESTED_WIRE | §2 PhaseFSensitivityOverrideV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | power-analysis authority | power strict parser plus type/range/unit validator | F1 power-analysis stage | nested field of PhaseFSensitivityCaseV1; no independent registry subject | R10-08,R10-09,R10-10,R10-16 | AC10-08,AC10-09,AC10-10,AC10-16 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-16 |
+| PhaseFTrustProvisioningApprovalV1 | TAG_BODY | §2 PhaseFTrustProvisioningApprovalV1 exact primitive/helper definition | no JSON semantic ID; annotated-tag message identity only | SHA-256 of exact annotated-tag message bytes when referenced | independent trust-provisioning gate | annotated-tag grammar plus target/body/prerequisite validator | F3 trust approval gate | annotated-tag message only; no registry subject | R10-02,R10-04,R10-08,R10-09,R10-10 | AC10-02,AC10-04,AC10-08,AC10-09,AC10-10 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16,T10-CX-19,T10-CX-20,T10-CX-21,T10-POS-RETENTION,T10-POS-TRUST,T10-TRACE | EV10-02,EV10-04,EV10-08,EV10-09,EV10-10 |
+| PhaseFUncertaintyPolicyV1 | NESTED_WIRE | §2 PhaseFUncertaintyPolicyV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | metrology laboratory | metrology strict parser plus endpoint/provenance validator | F0-F2 metrology/reference stages | nested field of PhaseFMetrologyPolicyV1; no independent registry subject | R10-08,R10-09,R10-10,R10-17 | AC10-08,AC10-09,AC10-10,AC10-17 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-17 |
+| PhaseFUnitEntryV1 | NESTED_WIRE | §11 PhaseFUnitEntryV1 exact physical/deviation definition | no independent identity; parent bytes only | containing-object canonical bytes | campaign laboratory and custody authority | physical/custody strict parser plus identity/continuity validator | F2-F4 physical-validation stages | nested field of PhaseFPhysicalUnitLedgerV1; no independent registry subject | R10-08,R10-09,R10-10,R10-14 | AC10-08,AC10-09,AC10-10,AC10-14 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-14 |
+| PhaseFUnitRuleV1 | NESTED_WIRE | §2 PhaseFUnitRuleV1 exact primitive/helper definition | no independent identity; parent bytes only | containing-object canonical bytes | campaign laboratory and custody authority | physical/custody strict parser plus identity/continuity validator | F2-F4 physical-validation stages | nested field of PhaseFParameterSpecV1; no independent registry subject | R10-08,R10-09,R10-10,R10-16 | AC10-08,AC10-09,AC10-10,AC10-16 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-19,T10-CX-20,T10-POS-DAG,T10-TRACE | EV10-08,EV10-09,EV10-10,EV10-16 |
+
+No row uses a generic closure, producer, validator, stage, or registry
+placeholder. The category KAT is:
+
+~~~text
+PhaseFChainOfCustodyV1=TOP_LEVEL_WIRE
+PhaseFCheckerReportV1=TOP_LEVEL_WIRE
+PhaseFRetrievalVerificationV1=TOP_LEVEL_WIRE
+PhaseFTrustProvisioningApprovalV1=TAG_BODY
+PhaseFIncidentResolutionV1=TOP_LEVEL_WIRE
+PhaseFRetentionCopyVerificationV1=NESTED_WIRE
+~~~
+
+### 42.3 CATALOG DERIVATION RULE
+
+R10 CURRENT NORMATIVE REQUIREMENT MATRIX in §43 is the only normative
+requirement/F-OD/schema mapping source. Catalog traceability columns are a
+MANDATORY DERIVED INTEGRITY PROJECTION, not an independently authored mapping
+graph. For schema S, current requirement IDs are all §43 rows whose literal
+schema_ids contain S; current AC, test, and F-EV IDs are the sorted unions of
+the primary AC, test, and evidence cells on those rows. Any mismatch makes the
+plan invalid. Incident schemas derive from incident-resolution and retention
+requirements; monitoring-source references derive from monitoring requirements;
+retention audit derives from every current retention row that lists it.
+
+## 43. R10 CURRENT NORMATIVE REQUIREMENT MATRIX
+
+This is the one current R10 matrix. The R9 matrix in §34 is historical and
+non-current. Every row has a normative statement, owner decisions, literal
+schema IDs, stage, review roles, primary AC, tests, and F-EVs.
+
+| requirement_id | normative_statement | owner_decision_ids | schema_ids | stage | review_roles | primary_ac_id | test_ids | evidence_ids |
+|---|---|---|---|---|---|---|---|---|
+| R10-01 | Future plan approval uses external CURRENT_PLAN_REVIEW_SHA and exact tag/body/plan equality. | none | PhaseFPlanApprovalV1,PhaseFIndependentReviewBundleV1,PhaseFReviewTargetV1 | plan review | architecture_data,security | AC10-01 | T10-POS-PLAN,T10-CX-01,T10-CX-02 | EV10-01 |
+| R10-02 | Trust provisioning has one exact annotated-tag-message authority and exact trust monitoring binding. | F-OD-04 | PhaseFTrustProvisioningApprovalV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringEvidenceV1,PhaseFObjectReferenceV1 | F3,F5+ | security,operations_governance | AC10-02 | T10-POS-TRUST,T10-CX-13,T10-CX-14,T10-CX-15,T10-CX-16 | EV10-02 |
+| R10-03 | Campaign retention is the exact manifest/object kind-and-SHA set with no locator derivation. | F-OD-18 | PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetentionAuditV1 | retention | operations_governance,security | AC10-03 | T10-CX-28,T10-CX-29 | EV10-03 |
+| R10-04 | Static release retention includes every bound release authority and de-duplicates kind/SHA identities. | F-OD-13,F-OD-14,F-OD-15 | PhaseFReleaseRecordV1,PhaseFCohortLockRecordV1,PhaseFExecutionRecordV1,PhaseFMonitoringPolicyV1,PhaseFMetrologyPolicyV1,PhaseFClaimStateRecordV1,PhaseFIndependentReviewBundleV1,PhaseFTrustProvisioningApprovalV1,PhaseFRetentionObjectV1 | F5+ | operations_governance,security | AC10-04 | T10-POS-RETENTION,T10-CX-21 | EV10-04 |
+| R10-05 | Incident membership uses the exact contained-before-terminal state machine at audited_at. | F-OD-16 | PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFRetentionObjectV1 | operations after incident detection | operations_governance,security | AC10-05 | T10-CX-01,T10-CX-02,T10-CX-03,T10-CX-04,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27 | EV10-05 |
+| R10-06 | Release retention includes accepted PASS monitoring through audited_at and excludes all unaccepted/future records. | F-OD-19 | PhaseFMonitoringRecordV1,PhaseFMonitoringEvidenceV1,PhaseFRegistryRecordV1,PhaseFRetentionObjectV1 | F5+ | operations_governance | AC10-06 | T10-CX-22,T10-CX-23 | EV10-06 |
+| R10-07 | Every retention identity has exact immutable copies, SHA, length, distinct URI, freshness, and 1+backup count. | F-OD-20 | PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionAuditV1,PhaseFObjectReferenceV1 | retention | security,operations_governance | AC10-07 | T10-CX-05,T10-CX-06,T10-CX-07,T10-CX-08,T10-CX-09,T10-CX-10,T10-CX-30,T10-CX-31 | EV10-07 |
+| R10-08 | Current catalog categories match actual standalone wire, nested wire, tag-body, and plan-only use. | none | PhaseFArgvV1,PhaseFAuthorityEnrollmentApprovalV1,PhaseFAuthorityEnrollmentV1,PhaseFChainOfCustodyV1,PhaseFCheckListV1,PhaseFCheckerBuildEvidenceV1,PhaseFCheckerExitCodeV1,PhaseFCheckerReadinessEvidenceV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFClaimStateRecordV1,PhaseFCohortLockRecordV1,PhaseFCommandV1,PhaseFCustodyEventV1,PhaseFDecisionApprovalV1,PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1,PhaseFDeviationEventV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationLedgerV1,PhaseFEndpointMetrologyPolicyV1,PhaseFEnvironmentEntryV1,PhaseFExecutionRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFIdentityComparisonV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFIndependentReviewV1,PhaseFLODLOQPolicyV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFMethodVersionV1,PhaseFMetricThresholdV1,PhaseFMetrologyCheckResultV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyPolicyV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1,PhaseFNamedDigestV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1,PhaseFOutputSpecV1,PhaseFPackageBindingV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFPhysicalIdentityAuditV1,PhaseFPhysicalReleaseApprovalV1,PhaseFPhysicalUnitLedgerV1,PhaseFPlanApprovalV1,PhaseFPowerAnalysisRecordV1,PhaseFPowerMethodInterfaceV1,PhaseFPowerOutputValueV1,PhaseFProtocolProjectionV1,PhaseFQuantifiedUncertaintyV1,PhaseFRangeRuleV1,PhaseFReadinessApprovalV1,PhaseFReferenceAssessmentV1,PhaseFReferenceResultV1,PhaseFReferenceSourceDescriptorV1,PhaseFRegistryCompromiseEmergencyV1,PhaseFRegistryHeadV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFReinstatementApprovalV1,PhaseFReleaseRecordV1,PhaseFRetentionAuditV1,PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetrievalVerificationV1,PhaseFReviewTargetV1,PhaseFScientificAdmissibilityAuditV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFTrustProvisioningApprovalV1,PhaseFUncertaintyPolicyV1,PhaseFUnitEntryV1,PhaseFUnitRuleV1 | plan review | architecture_data | AC10-08 | T10-CAT,T10-CX-11,T10-CX-12,T10-CX-20 | EV10-08 |
+| R10-09 | Current catalog metadata names exact closure, producer, validator, stage, and registry behavior for every row. | none | PhaseFArgvV1,PhaseFAuthorityEnrollmentApprovalV1,PhaseFAuthorityEnrollmentV1,PhaseFChainOfCustodyV1,PhaseFCheckListV1,PhaseFCheckerBuildEvidenceV1,PhaseFCheckerExitCodeV1,PhaseFCheckerReadinessEvidenceV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFClaimStateRecordV1,PhaseFCohortLockRecordV1,PhaseFCommandV1,PhaseFCustodyEventV1,PhaseFDecisionApprovalV1,PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1,PhaseFDeviationEventV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationLedgerV1,PhaseFEndpointMetrologyPolicyV1,PhaseFEnvironmentEntryV1,PhaseFExecutionRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFIdentityComparisonV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFIndependentReviewV1,PhaseFLODLOQPolicyV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFMethodVersionV1,PhaseFMetricThresholdV1,PhaseFMetrologyCheckResultV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyPolicyV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1,PhaseFNamedDigestV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1,PhaseFOutputSpecV1,PhaseFPackageBindingV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFPhysicalIdentityAuditV1,PhaseFPhysicalReleaseApprovalV1,PhaseFPhysicalUnitLedgerV1,PhaseFPlanApprovalV1,PhaseFPowerAnalysisRecordV1,PhaseFPowerMethodInterfaceV1,PhaseFPowerOutputValueV1,PhaseFProtocolProjectionV1,PhaseFQuantifiedUncertaintyV1,PhaseFRangeRuleV1,PhaseFReadinessApprovalV1,PhaseFReferenceAssessmentV1,PhaseFReferenceResultV1,PhaseFReferenceSourceDescriptorV1,PhaseFRegistryCompromiseEmergencyV1,PhaseFRegistryHeadV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFReinstatementApprovalV1,PhaseFReleaseRecordV1,PhaseFRetentionAuditV1,PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetrievalVerificationV1,PhaseFReviewTargetV1,PhaseFScientificAdmissibilityAuditV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFTrustProvisioningApprovalV1,PhaseFUncertaintyPolicyV1,PhaseFUnitEntryV1,PhaseFUnitRuleV1 | plan review | architecture_data,security | AC10-09 | T10-CAT,T10-CX-13,T10-CX-19 | EV10-09 |
+| R10-10 | Current catalog traceability is mechanically the sorted inverse projection of this matrix. | none | PhaseFArgvV1,PhaseFAuthorityEnrollmentApprovalV1,PhaseFAuthorityEnrollmentV1,PhaseFChainOfCustodyV1,PhaseFCheckListV1,PhaseFCheckerBuildEvidenceV1,PhaseFCheckerExitCodeV1,PhaseFCheckerReadinessEvidenceV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFClaimStateRecordV1,PhaseFCohortLockRecordV1,PhaseFCommandV1,PhaseFCustodyEventV1,PhaseFDecisionApprovalV1,PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1,PhaseFDeviationEventV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationLedgerV1,PhaseFEndpointMetrologyPolicyV1,PhaseFEnvironmentEntryV1,PhaseFExecutionRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFIdentityComparisonV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFIndependentReviewV1,PhaseFLODLOQPolicyV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFMethodVersionV1,PhaseFMetricThresholdV1,PhaseFMetrologyCheckResultV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyPolicyV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1,PhaseFNamedDigestV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1,PhaseFOutputSpecV1,PhaseFPackageBindingV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFPhysicalIdentityAuditV1,PhaseFPhysicalReleaseApprovalV1,PhaseFPhysicalUnitLedgerV1,PhaseFPlanApprovalV1,PhaseFPowerAnalysisRecordV1,PhaseFPowerMethodInterfaceV1,PhaseFPowerOutputValueV1,PhaseFProtocolProjectionV1,PhaseFQuantifiedUncertaintyV1,PhaseFRangeRuleV1,PhaseFReadinessApprovalV1,PhaseFReferenceAssessmentV1,PhaseFReferenceResultV1,PhaseFReferenceSourceDescriptorV1,PhaseFRegistryCompromiseEmergencyV1,PhaseFRegistryHeadV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFReinstatementApprovalV1,PhaseFReleaseRecordV1,PhaseFRetentionAuditV1,PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetrievalVerificationV1,PhaseFReviewTargetV1,PhaseFScientificAdmissibilityAuditV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFTrustProvisioningApprovalV1,PhaseFUncertaintyPolicyV1,PhaseFUnitEntryV1,PhaseFUnitRuleV1 | plan review | architecture_data | AC10-10 | T10-TRACE,T10-CX-14,T10-CX-15 | EV10-10 |
+| R10-11 | F0 retains exactly 20 owner decisions and exact runtime projection. | F-OD-01,F-OD-02 | PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFProtocolProjectionV1 | F0 | architecture_data,scientific_metrology | AC10-11 | T10-POS-DAG | EV10-11 |
+| R10-12 | Readiness, unsigned enrollment, registry genesis, signatures, sequence, and relations remain exact. | F-OD-03,F-OD-04 | PhaseFCheckerBuildEvidenceV1,PhaseFCheckerReadinessEvidenceV1,PhaseFAuthorityEnrollmentV1,PhaseFRegistryRecordV1,PhaseFRegistryHeadV1 | readiness/enrollment | security,compatibility | AC10-12 | T10-POS-DAG | EV10-12 |
+| R10-13 | Retrieval, package classification, dependencies, and package relations remain deterministic. | F-OD-05,F-OD-06,F-OD-07,F-OD-08 | PhaseFRetrievalVerificationV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFPackageBindingV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1 | F2 | security,scientific_metrology | AC10-13 | T10-POS-DAG | EV10-13 |
+| R10-14 | Physical identity, pseudoreplication, location, and custody continuity remain exact. | F-OD-09,F-OD-10 | PhaseFPhysicalUnitLedgerV1,PhaseFUnitEntryV1,PhaseFPhysicalIdentityAuditV1,PhaseFIdentityComparisonV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFChainOfCustodyV1,PhaseFCustodyEventV1 | F2-F4 | scientific_metrology,operations_governance | AC10-14 | T10-POS-DAG | EV10-14 |
+| R10-15 | Deviation revisions remain immutable, stable-ID, action-compatible, and acyclic. | F-OD-11 | PhaseFDeviationLedgerV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationEventV1 | F1-F4 | operations_governance,security | AC10-15 | T10-POS-DAG | EV10-15 |
+| R10-16 | Power interface, typed values, ranges, units, sensitivity cases, outputs, review, and registration remain exact. | F-OD-12 | PhaseFPowerMethodInterfaceV1,PhaseFMethodVersionV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFOutputSpecV1,PhaseFPowerOutputValueV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFRangeRuleV1,PhaseFUnitRuleV1,PhaseFPowerAnalysisRecordV1 | F1 | scientific_metrology | AC10-16 | T10-POS-DAG | EV10-16 |
+| R10-17 | Endpoint-qualified metrology and reference provenance/admissibility remain exact without new scope. | none | PhaseFMetrologyPolicyV1,PhaseFEndpointMetrologyPolicyV1,PhaseFCheckListV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyCheckResultV1,PhaseFLODLOQPolicyV1,PhaseFUncertaintyPolicyV1,PhaseFQuantifiedUncertaintyV1,PhaseFReferenceSourceDescriptorV1,PhaseFReferenceResultV1,PhaseFReferenceAssessmentV1,PhaseFScientificAdmissibilityAuditV1 | F0-F2 | scientific_metrology | AC10-17 | T10-POS-DAG | EV10-17 |
+| R10-18 | Claim state causes, release chronology, final release authority, and P2 readiness remain exact. | none | PhaseFClaimStateRecordV1,PhaseFReinstatementApprovalV1,PhaseFIncidentScopeV1,PhaseFReleaseRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFPhysicalReleaseApprovalV1 | F4-F5 | operations_governance,architecture_data | AC10-18 | T10-POS-DAG | EV10-18 |
+| R10-19 | Registry-compromise emergency publication and fail-closed status remain acyclic and path-exact. | none | PhaseFRegistryCompromiseEmergencyV1,PhaseFIndependentReviewBundleV1,PhaseFObjectReferenceV1 | emergency | security,operations_governance | AC10-19 | T10-POS-DAG | EV10-19 |
+| R10-20 | The complete positive path remains constructible in production runner order with no future-file or self-Git edge. | none | PhaseFCommandV1,PhaseFArgvV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFCheckerExitCodeV1 | all | architecture_data,compatibility | AC10-20 | T10-POS-DAG | EV10-20 |
+| R10-21 | The fixed 15-metric monitoring contract and trust-source binding remain exact. | F-OD-17 | PhaseFMonitoringPolicyV1,PhaseFMetricThresholdV1,PhaseFMonitoringRecordV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1 | F0/F5+ | operations_governance,security | AC10-21 | T10-POS-TRUST,T10-POS-DAG | EV10-21 |
+| R10-22 | Campaign-abandonment review remains incident-first and cannot introduce a reverse pointer or retention cycle. | F-OD-18 | PhaseFIncidentRecordV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFPackageManifestV1 | all | operations_governance,security | AC10-22 | T10-POS-DAG | EV10-22 |
+| R10-23 | Owner-decision coverage has exactly one current source and union F-OD-01 through F-OD-20. | none | PhaseFDecisionBundleV1,PhaseFDecisionRowV1 | plan review | architecture_data | AC10-23 | T10-TRACE | EV10-23 |
+| R10-24 | Release retention is exact-set equal, de-duplicated, incident-aware, monitoring-aware, copy-covered, and fail-closed. | F-OD-20 | PhaseFRetentionAuditV1,PhaseFRetentionObjectV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionCopyVerificationV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFMonitoringRecordV1,PhaseFClaimStateRecordV1 | retention | security,operations_governance | AC10-24 | T10-POS-RETENTION,T10-CX-17,T10-CX-18,T10-CX-21,T10-CX-22,T10-CX-23,T10-CX-24,T10-CX-25,T10-CX-26,T10-CX-27,T10-CX-28,T10-CX-29,T10-CX-30,T10-CX-31 | EV10-24 |
+| R10-25 | One deterministic R10 KAT derives the complete release set, chronology, and literal two-copy coverage. | none | PhaseFReleaseRecordV1,PhaseFClaimStateRecordV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFMonitoringRecordV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFRetentionAuditV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionCopyVerificationV1,PhaseFObjectReferenceV1 | F5+ | architecture_data,security,operations_governance | AC10-25 | T10-KAT-RETENTION,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19 | EV10-25 |
+
+The derived owner-decision union from owner_decision_ids is exactly:
+
+~~~text
+F-OD-01,F-OD-02,F-OD-03,F-OD-04,F-OD-05,F-OD-06,F-OD-07,F-OD-08,F-OD-09,F-OD-10,
+F-OD-11,F-OD-12,F-OD-13,F-OD-14,F-OD-15,F-OD-16,F-OD-17,F-OD-18,F-OD-19,F-OD-20
+~~~
+
+There is no F-OD-21 and no second current mapping source.
+
+## 44. R10 RETENTION KAT PROFILE AND LITERAL BYTE TABLE
+
+R10_RETENTION_KAT_F0 is one explicit PLAN-EMBEDDED TEST-ONLY profile. THESE
+ARE KAT-ONLY TEST VALUES. THEY DO NOT PRE-DECIDE FUTURE F0:
+
+~~~text
+allowed_immutable_uri_schemes=["fixture+sha256"]
+retention_seconds="7200"
+backup_copy_count="1"
+backup_verification_interval_seconds="3600"
+authorized_access_role_ids=["r10.retention.fixture"]
+replacement_authority_role_id="r10.retention.fixture"
+unavailable_object_action="no_go"
+audited_at=2026-01-01T02:00:00Z
+copy-A verified_at=2026-01-01T01:15:00Z
+copy-B verified_at=2026-01-01T01:30:00Z
+audited_at-copy-A=2700 seconds
+audited_at-copy-B=1800 seconds
+~~~
+
+Each identity requires exactly one primary verified copy plus one backup:
+two valid fresh distinct copies. Every source byte object is the UTF-8 byte
+string r10-retention-fixture/<LABEL> followed by LF, where LABEL is the literal
+label in the table and contains neither its SHA, URI, nor length.
+
+| label | exact UTF-8 fixture bytes | byte_length | sha256 |
+|---|---|---:|---|
+| manifest-M | r10-retention-fixture/manifest-M\n | 33 | df963ee5224c52c91bcb5f4ec0aa2ff5def708c2989f6eb592dcb269311eef98 |
+| package-O1 | r10-retention-fixture/package-O1\n | 33 | 90ee35572a33af574c0c8fdb137aee2a7b6d325a7cc60efb36c942fa2d11065f |
+| package-O2 | r10-retention-fixture/package-O2\n | 33 | 24050263ca4a8ec011c7d718e1d0fc52b2350d67265b925b636b75f0a87374ee |
+| protocol-P | r10-retention-fixture/protocol-P\n | 33 | 73fb452c36f96f4db361f5bbca287c20f6a899296db86ec064992de91880fcd3 |
+| power-A | r10-retention-fixture/power-A\n | 30 | 380d4d36ac0f8bae7d2558eb22e7003739b86f2b2222d9f507fbf3967672a58a |
+| cohort-C | r10-retention-fixture/cohort-C\n | 31 | 9d75af9d77ddc8ff159d961e0f35ac8b1d3eee6e412e007b90faf49161a6b196 |
+| owner-OA | r10-retention-fixture/owner-OA\n | 31 | d06f4b22f31603f062847547a6aefeac400d6556a392df1a499b78c0eb031dc4 |
+| execution-E | r10-retention-fixture/execution-E\n | 34 | 4e13d9bc0c22f4acd5d5ae6e9f500d143dd17ca40f15c6719830215914b59876 |
+| release-R | r10-retention-fixture/release-R\n | 32 | e136326de2b7a883df571265505752f7600422519de2ce823ca322633c1cd856 |
+| validation-VM | r10-retention-fixture/validation-VM\n | 36 | a2e77f55d1a719a28db66e299f9500dd7c0e826cf86f9ebf50f021c2b3ebc8e7 |
+| monitoring-policy-MP | r10-retention-fixture/monitoring-policy-MP\n | 43 | 22b90909658de8d2fead19836e5b71d3bc8e92ac6ef941434cc7b0bac19be6fb |
+| metrology-policy-MET | r10-retention-fixture/metrology-policy-MET\n | 43 | e592b9ff6c5ec6890910097154bbfed958cf9383651aed3f41072ef208cc3f64 |
+| trust-tag-TT | r10-retention-fixture/trust-tag-TT\n | 35 | 09c14e2106d90c93d25b3c2793d97f94ec74e87f77a817d004bca714723113f9 |
+| f5-review-RB | r10-retention-fixture/f5-review-RB\n | 35 | 62dbce3dc5b0203ad287599e35b246ae81710859535b4486de3e7126637ad56f |
+| claim-S0 | r10-retention-fixture/claim-S0\n | 31 | 7b6387ff4259fafe1418268a9c80c9aa6811c26e744f629e92f3355ea2b6d69e |
+| claim-S1 | r10-retention-fixture/claim-S1\n | 31 | 390de3582256a63f592d43f418927c80828947a127d21eb5ef42eb760ae50003 |
+| monitor-MR1 | r10-retention-fixture/monitor-MR1\n | 34 | d38e0ed279e3ce7c601a4ca25e46d7a7489268d911c904bed43e2a2159d9e035 |
+| monitor-MR2 | r10-retention-fixture/monitor-MR2\n | 34 | 6a2ddbc9c8ab34f013ea6202a5b062e6a892e247cb6c1a2ef6f50f91b0c0c524 |
+| incident-I1 | r10-retention-fixture/incident-I1\n | 34 | 98d48c525f84456d66549129982203dd903747d05eac2a55d03e8137d9e8976d |
+| incident-I2 | r10-retention-fixture/incident-I2\n | 34 | 5bb81df36e55d4ec3e3e4d894c163adb9cba2f9ae009c502b26a1d4eca08733e |
+| resolution-I2-C | r10-retention-fixture/resolution-I2-C\n | 38 | f78e0507178453370a1e7e6f4dc93cf7e0133f2ef4f469a3e59d7320d1b6922c |
+| resolution-I2-R | r10-retention-fixture/resolution-I2-R\n | 38 | 373cf9999b808695b6dde6971de2b8c9946f766c2ddbb35804d2b885bfd48d55 |
+
+The excluded incident-I2 row is materialized so its complete incident identity
+is reproducible, but it is not a retention member.
+RETENTION_KAT_SYMBOLIC_BYTE_VALUES=0.
+
+## 45. R10 POSITIVE INCIDENT FIXTURE AND EXPECTED RETENTION SET
+
+The positive incident fixture is:
+
+~~~text
+I1 incident file: incident_status=open; detected_at=2025-12-31T23:00:00Z
+I1 incident_recorded created_at=2025-12-31T23:05:00Z
+
+I2 incident file: incident_status=open; detected_at=2026-01-01T00:10:00Z
+I2 incident_recorded created_at=2026-01-01T00:20:00Z
+
+IR2-C resolution file: incident_id=I2; resolution_number="0";
+previous_resolution_sha256=null; resolution_status=contained;
+effective_at=2026-01-01T00:30:00Z
+IR2-C incident_resolution_recorded created_at=2026-01-01T00:40:00Z
+
+IR2-R resolution file: incident_id=I2; resolution_number="1";
+previous_resolution_sha256=f78e0507178453370a1e7e6f4dc93cf7e0133f2ef4f469a3e59d7320d1b6922c;
+resolution_status=resolved; effective_at=2026-01-01T01:00:00Z
+IR2-R incident_resolution_recorded created_at=2026-01-01T01:10:00Z;
+registered_after+incident_resolution=IR2-C
+
+IR2-C.effective_at < IR2-R.effective_at <= audited_at
+both incident_resolution_recorded(IR2-C) and incident_resolution_recorded(IR2-R)
+are valid and created no later than audited_at
+~~~
+
+previous_resolution_sha256 is the literal SHA of the complete canonical IR2-C
+fixture bytes declared in §44. At audited_at, I1 has no eligible resolution and
+is retained as incident_record(I1). I2 is RESOLVED and is not retained as
+incident_record(I2). Both incident_resolution(IR2-C) and
+incident_resolution(IR2-R) are retained because both complete objects are
+required to validate the contained-before-terminal proof.
+
+The exact ReleaseRetentionSetV1 has these 21 members:
+
+| identity key | fixture label | literal SHA-256 |
+|---|---|---|
+| package_manifest | manifest-M | df963ee5224c52c91bcb5f4ec0aa2ff5def708c2989f6eb592dcb269311eef98 |
+| package_object:O1 | package-O1 | 90ee35572a33af574c0c8fdb137aee2a7b6d325a7cc60efb36c942fa2d11065f |
+| package_object:O2 | package-O2 | 24050263ca4a8ec011c7d718e1d0fc52b2350d67265b925b636b75f0a87374ee |
+| protocol | protocol-P | 73fb452c36f96f4db361f5bbca287c20f6a899296db86ec064992de91880fcd3 |
+| power_analysis | power-A | 380d4d36ac0f8bae7d2558eb22e7003739b86f2b2222d9f507fbf3967672a58a |
+| cohort_lock | cohort-C | 9d75af9d77ddc8ff159d961e0f35ac8b1d3eee6e412e007b90faf49161a6b196 |
+| owner_approval | owner-OA | d06f4b22f31603f062847547a6aefeac400d6556a392df1a499b78c0eb031dc4 |
+| execution_record | execution-E | 4e13d9bc0c22f4acd5d5ae6e9f500d143dd17ca40f15c6719830215914b59876 |
+| release_record | release-R | e136326de2b7a883df571265505752f7600422519de2ce823ca322633c1cd856 |
+| validation_manifest | validation-VM | a2e77f55d1a719a28db66e299f9500dd7c0e826cf86f9ebf50f021c2b3ebc8e7 |
+| monitoring_policy | monitoring-policy-MP | 22b90909658de8d2fead19836e5b71d3bc8e92ac6ef941434cc7b0bac19be6fb |
+| metrology_policy | metrology-policy-MET | e592b9ff6c5ec6890910097154bbfed958cf9383651aed3f41072ef208cc3f64 |
+| git_tag_message | trust-tag-TT | 09c14e2106d90c93d25b3c2793d97f94ec74e87f77a817d004bca714723113f9 |
+| independent_review_bundle | f5-review-RB | 62dbce3dc5b0203ad287599e35b246ae81710859535b4486de3e7126637ad56f |
+| claim_state:S0 | claim-S0 | 7b6387ff4259fafe1418268a9c80c9aa6811c26e744f629e92f3355ea2b6d69e |
+| claim_state:S1 | claim-S1 | 390de3582256a63f592d43f418927c80828947a127d21eb5ef42eb760ae50003 |
+| monitoring_record:MR1 | monitor-MR1 | d38e0ed279e3ce7c601a4ca25e46d7a7489268d911c904bed43e2a2159d9e035 |
+| monitoring_record:MR2 | monitor-MR2 | 6a2ddbc9c8ab34f013ea6202a5b062e6a892e247cb6c1a2ef6f50f91b0c0c524 |
+| incident_record:I1 | incident-I1 | 98d48c525f84456d66549129982203dd903747d05eac2a55d03e8137d9e8976d |
+| incident_resolution:IR2-C | resolution-I2-C | f78e0507178453370a1e7e6f4dc93cf7e0133f2ef4f469a3e59d7320d1b6922c |
+| incident_resolution:IR2-R | resolution-I2-R | 373cf9999b808695b6dde6971de2b8c9946f766c2ddbb35804d2b885bfd48d55 |
+
+The set contains campaign manifest/object identities, static release
+authorities, distinct S0/S1 state identities, accepted MR1/MR2 monitoring
+identities, I1, and both IR2 resolution authorities. It does not contain
+incident-I2. Expected retention-member count is the literal integer 21.
+INCIDENT_POSITIVE_FIXTURE_CONSISTENT=yes.
+
+## 46. R10 POSITIVE COPY COVERAGE
+
+The following is the complete two-copy table for every one of the 21 expected
+members. Each member has exactly one copy-A and one copy-B row; every row is a
+literal PASS. Copy URIs are immutable and distinct.
+
+| identity key | copy | URI | SHA | byte_length | verified_at | result |
+|---|---|---|---|---:|---|---|
+| package_manifest | copy-A | fixture+sha256://copy-a/df963ee5224c52c91bcb5f4ec0aa2ff5def708c2989f6eb592dcb269311eef98 | df963ee5224c52c91bcb5f4ec0aa2ff5def708c2989f6eb592dcb269311eef98 | 33 | 2026-01-01T01:15:00Z | PASS |
+| package_manifest | copy-B | fixture+sha256://copy-b/df963ee5224c52c91bcb5f4ec0aa2ff5def708c2989f6eb592dcb269311eef98 | df963ee5224c52c91bcb5f4ec0aa2ff5def708c2989f6eb592dcb269311eef98 | 33 | 2026-01-01T01:30:00Z | PASS |
+| package_object:O1 | copy-A | fixture+sha256://copy-a/90ee35572a33af574c0c8fdb137aee2a7b6d325a7cc60efb36c942fa2d11065f | 90ee35572a33af574c0c8fdb137aee2a7b6d325a7cc60efb36c942fa2d11065f | 33 | 2026-01-01T01:15:00Z | PASS |
+| package_object:O1 | copy-B | fixture+sha256://copy-b/90ee35572a33af574c0c8fdb137aee2a7b6d325a7cc60efb36c942fa2d11065f | 90ee35572a33af574c0c8fdb137aee2a7b6d325a7cc60efb36c942fa2d11065f | 33 | 2026-01-01T01:30:00Z | PASS |
+| package_object:O2 | copy-A | fixture+sha256://copy-a/24050263ca4a8ec011c7d718e1d0fc52b2350d67265b925b636b75f0a87374ee | 24050263ca4a8ec011c7d718e1d0fc52b2350d67265b925b636b75f0a87374ee | 33 | 2026-01-01T01:15:00Z | PASS |
+| package_object:O2 | copy-B | fixture+sha256://copy-b/24050263ca4a8ec011c7d718e1d0fc52b2350d67265b925b636b75f0a87374ee | 24050263ca4a8ec011c7d718e1d0fc52b2350d67265b925b636b75f0a87374ee | 33 | 2026-01-01T01:30:00Z | PASS |
+| protocol | copy-A | fixture+sha256://copy-a/73fb452c36f96f4db361f5bbca287c20f6a899296db86ec064992de91880fcd3 | 73fb452c36f96f4db361f5bbca287c20f6a899296db86ec064992de91880fcd3 | 33 | 2026-01-01T01:15:00Z | PASS |
+| protocol | copy-B | fixture+sha256://copy-b/73fb452c36f96f4db361f5bbca287c20f6a899296db86ec064992de91880fcd3 | 73fb452c36f96f4db361f5bbca287c20f6a899296db86ec064992de91880fcd3 | 33 | 2026-01-01T01:30:00Z | PASS |
+| power_analysis | copy-A | fixture+sha256://copy-a/380d4d36ac0f8bae7d2558eb22e7003739b86f2b2222d9f507fbf3967672a58a | 380d4d36ac0f8bae7d2558eb22e7003739b86f2b2222d9f507fbf3967672a58a | 30 | 2026-01-01T01:15:00Z | PASS |
+| power_analysis | copy-B | fixture+sha256://copy-b/380d4d36ac0f8bae7d2558eb22e7003739b86f2b2222d9f507fbf3967672a58a | 380d4d36ac0f8bae7d2558eb22e7003739b86f2b2222d9f507fbf3967672a58a | 30 | 2026-01-01T01:30:00Z | PASS |
+| cohort_lock | copy-A | fixture+sha256://copy-a/9d75af9d77ddc8ff159d961e0f35ac8b1d3eee6e412e007b90faf49161a6b196 | 9d75af9d77ddc8ff159d961e0f35ac8b1d3eee6e412e007b90faf49161a6b196 | 31 | 2026-01-01T01:15:00Z | PASS |
+| cohort_lock | copy-B | fixture+sha256://copy-b/9d75af9d77ddc8ff159d961e0f35ac8b1d3eee6e412e007b90faf49161a6b196 | 9d75af9d77ddc8ff159d961e0f35ac8b1d3eee6e412e007b90faf49161a6b196 | 31 | 2026-01-01T01:30:00Z | PASS |
+| owner_approval | copy-A | fixture+sha256://copy-a/d06f4b22f31603f062847547a6aefeac400d6556a392df1a499b78c0eb031dc4 | d06f4b22f31603f062847547a6aefeac400d6556a392df1a499b78c0eb031dc4 | 31 | 2026-01-01T01:15:00Z | PASS |
+| owner_approval | copy-B | fixture+sha256://copy-b/d06f4b22f31603f062847547a6aefeac400d6556a392df1a499b78c0eb031dc4 | d06f4b22f31603f062847547a6aefeac400d6556a392df1a499b78c0eb031dc4 | 31 | 2026-01-01T01:30:00Z | PASS |
+| execution_record | copy-A | fixture+sha256://copy-a/4e13d9bc0c22f4acd5d5ae6e9f500d143dd17ca40f15c6719830215914b59876 | 4e13d9bc0c22f4acd5d5ae6e9f500d143dd17ca40f15c6719830215914b59876 | 34 | 2026-01-01T01:15:00Z | PASS |
+| execution_record | copy-B | fixture+sha256://copy-b/4e13d9bc0c22f4acd5d5ae6e9f500d143dd17ca40f15c6719830215914b59876 | 4e13d9bc0c22f4acd5d5ae6e9f500d143dd17ca40f15c6719830215914b59876 | 34 | 2026-01-01T01:30:00Z | PASS |
+| release_record | copy-A | fixture+sha256://copy-a/e136326de2b7a883df571265505752f7600422519de2ce823ca322633c1cd856 | e136326de2b7a883df571265505752f7600422519de2ce823ca322633c1cd856 | 32 | 2026-01-01T01:15:00Z | PASS |
+| release_record | copy-B | fixture+sha256://copy-b/e136326de2b7a883df571265505752f7600422519de2ce823ca322633c1cd856 | e136326de2b7a883df571265505752f7600422519de2ce823ca322633c1cd856 | 32 | 2026-01-01T01:30:00Z | PASS |
+| validation_manifest | copy-A | fixture+sha256://copy-a/a2e77f55d1a719a28db66e299f9500dd7c0e826cf86f9ebf50f021c2b3ebc8e7 | a2e77f55d1a719a28db66e299f9500dd7c0e826cf86f9ebf50f021c2b3ebc8e7 | 36 | 2026-01-01T01:15:00Z | PASS |
+| validation_manifest | copy-B | fixture+sha256://copy-b/a2e77f55d1a719a28db66e299f9500dd7c0e826cf86f9ebf50f021c2b3ebc8e7 | a2e77f55d1a719a28db66e299f9500dd7c0e826cf86f9ebf50f021c2b3ebc8e7 | 36 | 2026-01-01T01:30:00Z | PASS |
+| monitoring_policy | copy-A | fixture+sha256://copy-a/22b90909658de8d2fead19836e5b71d3bc8e92ac6ef941434cc7b0bac19be6fb | 22b90909658de8d2fead19836e5b71d3bc8e92ac6ef941434cc7b0bac19be6fb | 43 | 2026-01-01T01:15:00Z | PASS |
+| monitoring_policy | copy-B | fixture+sha256://copy-b/22b90909658de8d2fead19836e5b71d3bc8e92ac6ef941434cc7b0bac19be6fb | 22b90909658de8d2fead19836e5b71d3bc8e92ac6ef941434cc7b0bac19be6fb | 43 | 2026-01-01T01:30:00Z | PASS |
+| metrology_policy | copy-A | fixture+sha256://copy-a/e592b9ff6c5ec6890910097154bbfed958cf9383651aed3f41072ef208cc3f64 | e592b9ff6c5ec6890910097154bbfed958cf9383651aed3f41072ef208cc3f64 | 43 | 2026-01-01T01:15:00Z | PASS |
+| metrology_policy | copy-B | fixture+sha256://copy-b/e592b9ff6c5ec6890910097154bbfed958cf9383651aed3f41072ef208cc3f64 | e592b9ff6c5ec6890910097154bbfed958cf9383651aed3f41072ef208cc3f64 | 43 | 2026-01-01T01:30:00Z | PASS |
+| git_tag_message | copy-A | fixture+sha256://copy-a/09c14e2106d90c93d25b3c2793d97f94ec74e87f77a817d004bca714723113f9 | 09c14e2106d90c93d25b3c2793d97f94ec74e87f77a817d004bca714723113f9 | 35 | 2026-01-01T01:15:00Z | PASS |
+| git_tag_message | copy-B | fixture+sha256://copy-b/09c14e2106d90c93d25b3c2793d97f94ec74e87f77a817d004bca714723113f9 | 09c14e2106d90c93d25b3c2793d97f94ec74e87f77a817d004bca714723113f9 | 35 | 2026-01-01T01:30:00Z | PASS |
+| independent_review_bundle | copy-A | fixture+sha256://copy-a/62dbce3dc5b0203ad287599e35b246ae81710859535b4486de3e7126637ad56f | 62dbce3dc5b0203ad287599e35b246ae81710859535b4486de3e7126637ad56f | 35 | 2026-01-01T01:15:00Z | PASS |
+| independent_review_bundle | copy-B | fixture+sha256://copy-b/62dbce3dc5b0203ad287599e35b246ae81710859535b4486de3e7126637ad56f | 62dbce3dc5b0203ad287599e35b246ae81710859535b4486de3e7126637ad56f | 35 | 2026-01-01T01:30:00Z | PASS |
+| claim_state:S0 | copy-A | fixture+sha256://copy-a/7b6387ff4259fafe1418268a9c80c9aa6811c26e744f629e92f3355ea2b6d69e | 7b6387ff4259fafe1418268a9c80c9aa6811c26e744f629e92f3355ea2b6d69e | 31 | 2026-01-01T01:15:00Z | PASS |
+| claim_state:S0 | copy-B | fixture+sha256://copy-b/7b6387ff4259fafe1418268a9c80c9aa6811c26e744f629e92f3355ea2b6d69e | 7b6387ff4259fafe1418268a9c80c9aa6811c26e744f629e92f3355ea2b6d69e | 31 | 2026-01-01T01:30:00Z | PASS |
+| claim_state:S1 | copy-A | fixture+sha256://copy-a/390de3582256a63f592d43f418927c80828947a127d21eb5ef42eb760ae50003 | 390de3582256a63f592d43f418927c80828947a127d21eb5ef42eb760ae50003 | 31 | 2026-01-01T01:15:00Z | PASS |
+| claim_state:S1 | copy-B | fixture+sha256://copy-b/390de3582256a63f592d43f418927c80828947a127d21eb5ef42eb760ae50003 | 390de3582256a63f592d43f418927c80828947a127d21eb5ef42eb760ae50003 | 31 | 2026-01-01T01:30:00Z | PASS |
+| monitoring_record:MR1 | copy-A | fixture+sha256://copy-a/d38e0ed279e3ce7c601a4ca25e46d7a7489268d911c904bed43e2a2159d9e035 | d38e0ed279e3ce7c601a4ca25e46d7a7489268d911c904bed43e2a2159d9e035 | 34 | 2026-01-01T01:15:00Z | PASS |
+| monitoring_record:MR1 | copy-B | fixture+sha256://copy-b/d38e0ed279e3ce7c601a4ca25e46d7a7489268d911c904bed43e2a2159d9e035 | d38e0ed279e3ce7c601a4ca25e46d7a7489268d911c904bed43e2a2159d9e035 | 34 | 2026-01-01T01:30:00Z | PASS |
+| monitoring_record:MR2 | copy-A | fixture+sha256://copy-a/6a2ddbc9c8ab34f013ea6202a5b062e6a892e247cb6c1a2ef6f50f91b0c0c524 | 6a2ddbc9c8ab34f013ea6202a5b062e6a892e247cb6c1a2ef6f50f91b0c0c524 | 34 | 2026-01-01T01:15:00Z | PASS |
+| monitoring_record:MR2 | copy-B | fixture+sha256://copy-b/6a2ddbc9c8ab34f013ea6202a5b062e6a892e247cb6c1a2ef6f50f91b0c0c524 | 6a2ddbc9c8ab34f013ea6202a5b062e6a892e247cb6c1a2ef6f50f91b0c0c524 | 34 | 2026-01-01T01:30:00Z | PASS |
+| incident_record:I1 | copy-A | fixture+sha256://copy-a/98d48c525f84456d66549129982203dd903747d05eac2a55d03e8137d9e8976d | 98d48c525f84456d66549129982203dd903747d05eac2a55d03e8137d9e8976d | 34 | 2026-01-01T01:15:00Z | PASS |
+| incident_record:I1 | copy-B | fixture+sha256://copy-b/98d48c525f84456d66549129982203dd903747d05eac2a55d03e8137d9e8976d | 98d48c525f84456d66549129982203dd903747d05eac2a55d03e8137d9e8976d | 34 | 2026-01-01T01:30:00Z | PASS |
+| incident_resolution:IR2-C | copy-A | fixture+sha256://copy-a/f78e0507178453370a1e7e6f4dc93cf7e0133f2ef4f469a3e59d7320d1b6922c | f78e0507178453370a1e7e6f4dc93cf7e0133f2ef4f469a3e59d7320d1b6922c | 38 | 2026-01-01T01:15:00Z | PASS |
+| incident_resolution:IR2-C | copy-B | fixture+sha256://copy-b/f78e0507178453370a1e7e6f4dc93cf7e0133f2ef4f469a3e59d7320d1b6922c | f78e0507178453370a1e7e6f4dc93cf7e0133f2ef4f469a3e59d7320d1b6922c | 38 | 2026-01-01T01:30:00Z | PASS |
+| incident_resolution:IR2-R | copy-A | fixture+sha256://copy-a/373cf9999b808695b6dde6971de2b8c9946f766c2ddbb35804d2b885bfd48d55 | 373cf9999b808695b6dde6971de2b8c9946f766c2ddbb35804d2b885bfd48d55 | 38 | 2026-01-01T01:15:00Z | PASS |
+| incident_resolution:IR2-R | copy-B | fixture+sha256://copy-b/373cf9999b808695b6dde6971de2b8c9946f766c2ddbb35804d2b885bfd48d55 | 373cf9999b808695b6dde6971de2b8c9946f766c2ddbb35804d2b885bfd48d55 | 38 | 2026-01-01T01:30:00Z | PASS |
+
+The positive KAT has exactly 42 PASS copy rows, two per identity, with no
+conditional PASS language. RETENTION_KAT_SYMBOLIC_COPY_VALUES=0 and
+RETENTION_POSITIVE_KAT_FULLY_MATERIALIZED=yes.
+```
+
+## 48. R10 ACCEPTANCE CRITERIA
+
+Every current R10 acceptance criterion has preconditions, exact inputs,
+operation, expected result/output, and a failure oracle.
+
+| AC ID | preconditions | exact inputs | exact operation | expected result | expected output | failure oracle |
+|---|---|---|---|---|---|---|
+| AC10-01 | External X, plan bytes, review bundle, and future plan tag | peeled plan tag target/body, CURRENT_PLAN_REVIEW_SHA=X, plan SHA-256, and plan Git blob | Peel tag; compare target/body/X and plan SHA-256/Git blob | Only exact X/body/plan identities pass | plan-tag report | stale target, mismatch, or self-SHA path is INVALID TAG / NO-GO |
+| AC10-02 | Trust approval tag, exact tag-message bytes, source reference, and trust measurements | trust approval tag message, exact tag-message SHA/length, trust source reference, and five trust measurements | Resolve tag, validate prerequisites, hash bytes, compare length and trust fields | One exact tag message and matching fields pass | trust binding transcript | JSON authority object, wrong bytes/hash, or field mismatch rejects |
+| AC10-03 | Manifest M and O1/O2 package objects | manifest-M, package-O1/O2 kind-SHA bindings, and campaign scope | Derive package/object kind-SHA keys without URI or length | Exact campaign set passes | campaign set report | missing, extra, duplicate, or locator-derived member fails |
+| AC10-04 | Release bindings, registry chain, trust tag, F5 review, states, and static rows | protocol-P, power-A, cohort-C, owner-OA, execution-E, release-R, validation-VM, policy/state/review/trust bindings | Apply every static derivation row and de-duplicate kind/SHA keys | Exact static release set passes | static retention report | missing or unresolvable binding is NO-GO |
+| AC10-05 | I1/I2, IR2-C/IR2-R, registry records, and audited_at | I1/I2, IR2-C/IR2-R fields and hashes, registry records, and audited_at=2026-01-01T02:00:00Z | Filter event/registry times; validate number/predecessor chain; classify latest eligible status | No resolution/contained is unresolved; valid resolved/superseded terminal is resolved | audited-at incident report | broken chain, terminal continuation, illegal first terminal, or chronology conflict fails |
+| AC10-06 | Accepted PASS, suspend, unaccepted, late, and future monitoring records | 15 monitoring records/measurement windows, acceptance statuses, current chain, and audited_at | Validate attestation, current chain, window_end, acceptance, and cutoff | Only exact accepted monitoring set passes | monitoring membership report | included excluded record or omitted accepted record fails |
+| AC10-07 | Every expected identity, two copy rows, retrieved bytes, and test-only F0 policy | 21 expected identities, two copy rows each, fixture URI/SHA/length values, retrieved bytes, and the KAT profile | Verify scheme, availability, byte length/SHA, URI distinctness, freshness, count, set equality | Every identity has two valid fresh distinct PASS copies | copy coverage transcript | missing/extra/bad/stale/duplicate/insufficient copy is NO-GO |
+| AC10-08 | Complete plan and all 91 current identifiers | 91 PhaseF identifiers and one current catalog row per identifier | Enumerate identifiers and compare category to actual wire use | 91=91 and category mismatch count is zero | catalog category report | missing, extra, duplicate, or wrong category fails |
+| AC10-09 | Complete plan and all 91 current rows | 91 current catalog rows and their exact definition sections | Inspect exact closure, producer, validator, stage, registry behavior, and banned-string cells | All metadata counters are zero | catalog metadata report | blank, broad, generic, or conflicting metadata fails |
+| AC10-10 | R10 matrix and current catalog | R10 matrix rows and current catalog traceability cells | Project matrix rows inversely by schema ID; sort and compare cells | Catalog projection equals matrix inverse | traceability report | independent mapping, route mismatch, or second source fails |
+| AC10-11 | Twenty F0 rows and runtime projection | 20 F0 owner-decision rows and the runtime projection | Validate fixed IDs, values, owners, and projection | Exact 20-decision bundle passes | F0 projection report | 21st row or projection drift fails |
+| AC10-12 | Builds, readiness, enrollment, genesis, head, and records | build transcripts, readiness, enrollment, genesis/head, and registry records | Validate schemas, unsigned enrollment, signatures, sequence, predecessor, relations | Preserved registry path passes | registry transcript | pointer/signature/sequence/relation error fails |
+| AC10-13 | Retrieval, package, dependency, and relation fixtures | retrieval/package/dependency fixtures, bytes, classifications, and relations | Verify bytes, lengths, hashes, classifications, DAG, and relations | Package authority passes | package report | unavailable object or relation/classification gap fails |
+| AC10-14 | Unit/location/custody ledgers and comparisons | unit/location/custody ledgers and identity comparisons | Recompute native identity, pseudoreplication, location, and continuity | Physical authority passes | identity/custody report | alias, discontinuity, or post-destroy use fails |
+| AC10-15 | Ledger ID, prior revision, and new deviation revision | ledger/revision records, prior SHA, sequence, and action fields | Verify immutable predecessor SHA, sequence, action compatibility, acyclicity | One-way deviation revision passes | deviation report | prior mutation or incompatible action fails |
+| AC10-16 | F0 method/version, power interface/analysis, cases, and review | method/version, interface/analysis fields, sensitivity cases, review, and registration | Validate typed fields, ranges, units, equality, review-before-registration, outputs | Power authority passes | power report | missing range/unit or early registration fails |
+| AC10-17 | Metrology policies/checks, references, audit, and projection | metrology/check/reference files, endpoint keys, inputs, and provenance | Resolve endpoint/check keys and math; enforce provenance, independence, ceiling | Metrology/reference authority passes | scientific audit report | conversion, missing provenance, or scalar leakage fails |
+| AC10-18 | Candidate, release, states, tags, registries, and P2 result | F5 candidate/release/state/tag/registry records and the P2 result | Enforce F4/F5 order, bindings, state relations, and P2 gate | Release authority passes only after prerequisites | release chronology report | early tag, P2 bypass, or cause mismatch fails |
+| AC10-19 | Emergency/review bytes, exact paths, commit, and live remote | emergency/review bytes, exact paths, commit/tree, and live remote | Run the ten-step emergency path and tree-byte verifier | Fail-closed NOT_ACTIVE path passes | emergency transcript | fallback path or byte/ancestry mismatch fails |
+| AC10-20 | Command, argv, report, runtime inputs, and all authority stages | command/argv/report/runtime inputs and preserved authority stages | Derive argv and replay production runner order | Complete DAG is constructible | DAG transcript | future-file or self-Git edge fails |
+| AC10-21 | 15 metrics, 4/1/4/6 partition, five thresholds, evidence, and relations | 15 ordered metrics, 4/1/4/6 membership, five thresholds, and trust source | Recompute order, mappings, thresholds, evidence, and 15 relations | Healthy monitoring PASS and exact trust source pass | monitoring report | wrong count/order/source/threshold/relation fails |
+| AC10-22 | Campaign-abandonment incident, manifest, review, and registry record | campaign incident, review bundle, manifest, and registry record | Construct incident before review; verify target and no reverse pointer | Acyclic campaign path passes | campaign report | review field in incident or future target fails |
+| AC10-23 | R10 matrix owner_decision_ids | R10 matrix owner_decision_ids and all current mapping text | Derive union and scan for a second current source | Exact F-OD-01..20 union passes | OD coverage report | missing/extra OD or second source fails |
+| AC10-24 | Full release set, chronology, and object checks/copies | 21 expected identities, incident/monitoring/state records, and copy checks | Perform exact-set equality, de-duplication, status, acceptance, copy checks | Release retention PASS | release-retention report | missing authority, duplicate identity, or invalid copy fails |
+| AC10-25 | Complete literal R10 retention KAT | 22 literal byte rows, 21 expected identities, 42 copy rows, exact times, and the KAT profile | Hash every byte row; derive set; compare copies and count | KAT PASS with 21 members and 42 PASS copies | R10 KAT transcript | any derivation, hash, length, URI, chronology, or coverage discrepancy is NO-GO |
+
+## 49. R10 TEST PROCEDURES
+
+Every current test has complete fixture construction, exact invocation,
+expected exact result, and a negative mutation. Exact PASS claims use the
+literal values in §§44-46 or the preserved exact contracts in §§2-15.
+
+| test ID | complete fixture construction | exact invocation | expected exact result | negative mutation |
+|---|---|---|---|---|
+| T10-CX-01 | I2 has only terminal IR2-R and no IR2-C; other positive literals unchanged | incident-chain validator at audited_at 2026-01-01T02:00:00Z | PLAN FIXTURE FAILURE | add IR2-C number 0 contained with previous null -> PASS |
+| T10-CX-02 | I2 open; IR2-C number 0 contained/previous null at 00:30; IR2-R number 1 resolved/previous f78e0507178453370a1e7e6f4dc93cf7e0133f2ef4f469a3e59d7320d1b6922c at 01:00; both registry records before 02:00 | incident-resolution validator plus audited-at classifier | PASS; I2 RESOLVED and both resolution identities retained | change predecessor or make either registry record late -> FAIL |
+| T10-CX-03 | Use CX-02; move IR2-R effective_at and registry created_at to 2026-01-01T02:01:00Z | audited-at classifier | I2 UNRESOLVED; IR2-C latest eligible | move IR2-R back to 01:00 -> RESOLVED |
+| T10-CX-04 | Use CX-02 and append resolution number 2 after terminal IR2-R | resolution-chain validator | FAIL; terminal successor rejected | remove successor -> PASS |
+| T10-CX-05 | R10_RETENTION_KAT_F0 says backup_copy_count=1 but positive copy table omits that literal | KAT completeness validator | fixture incompleteness / FAIL | restore literal profile and two copy rows -> PASS |
+| T10-CX-06 | Profile backup_copy_count=1; every member has copy-A at 01:15 and copy-B at 01:30 | copy count/freshness validator | PASS | remove either copy -> FAIL |
+| T10-CX-07 | For manifest-M keep SHA df963ee5224c52c91bcb5f4ec0aa2ff5def708c2989f6eb592dcb269311eef98 but change copy-A length 33 to 32 | copy hash/length validator | FAIL | restore length 33 -> PASS |
+| T10-CX-08 | Make manifest-M copy-B URI equal to fixture+sha256://copy-a/df963ee5224c52c91bcb5f4ec0aa2ff5def708c2989f6eb592dcb269311eef98 | URI distinctness validator | FAIL | restore copy-B URI -> PASS |
+| T10-CX-09 | Set copy-A verified_at to 2026-01-01T01:00:00Z while audited_at remains 02:00:00Z | freshness validator | FAIL; exact age 3600 and policy is strict less-than | restore 01:15:00Z -> PASS |
+| T10-CX-10 | Set copy-A verified_at to 2026-01-01T01:15:00Z while audited_at remains 02:00:00Z | freshness validator | PASS; age 2700 seconds | set time to 01:00:00Z -> FAIL |
+| T10-CX-11 | Set PhaseFChainOfCustodyV1 catalog category to NESTED_WIRE | catalog category audit | FAIL | set TOP_LEVEL_WIRE -> PASS |
+| T10-CX-12 | Set PhaseFCheckerReportV1 category to TOP_LEVEL_WIRE | catalog category audit | PASS | set NESTED_WIRE -> FAIL |
+| T10-CX-13 | Put the literal banned phrase §2–§15 exact closure; unchanged by R9 in a current row | current-catalog banned-string lint | FAIL | replace with exact definition pointer -> PASS |
+| T10-CX-14 | Set incident record/resolution traceability to monitoring-only | matrix inverse projection audit | catalog/matrix derivation FAIL | derive incident and retention rows -> PASS |
+| T10-CX-15 | Project every current catalog row from all matrix rows containing that schema and sort IDs | matrix inverse projection audit | PASS | delete or add one projected ID -> FAIL |
+| T10-CX-16 | Hash all 22 literal byte rows as UTF-8 r10-retention-fixture/LABEL plus LF; verify every SHA and length | independent R10 KAT byte/hash audit | PASS | mutate one byte row -> FAIL |
+| T10-CX-17 | Change resolution-I2-C SHA to 64 zeroes | R10 KAT byte/hash audit | FAIL | restore f78e0507178453370a1e7e6f4dc93cf7e0133f2ef4f469a3e59d7320d1b6922c -> PASS |
+| T10-CX-18 | Change literal expected retention count 21 to 20 | R10 KAT cardinality audit | FAIL | restore literal count 21 -> PASS |
+| T10-CX-19 | Delete any literal byte, length, SHA, URI, time, or policy input from the positive KAT | R10 KAT completeness audit | FAIL; incomplete fixture | restore deleted literal -> PASS |
+| T10-CX-20 | Keep 91 identifiers and metadata but set one category wrong | catalog set and metadata audit | FAIL | restore actual category -> PASS |
+| T10-CX-21 | Make claim-S0 and claim-S1 the same claim_state kind and SHA; retain one object-check row | retention identity de-duplication validator | PASS; one state identity | change claim-S1 SHA -> two identities and FAIL |
+| T10-CX-22 | MR1 is registered before audited_at, accepted PASS, window_end=2026-01-01T01:00:00Z, and all 15 evidence bindings pass | accepted monitoring membership validator | PASS; MR1 included | omit MR1 from the exact set -> FAIL |
+| T10-CX-23 | MR2 is registered before audited_at but has result=SUSPEND and an otherwise valid attestation | accepted monitoring membership validator | PASS release set excludes MR2 | mutate result to accepted PASS -> included; omit exclusion rule -> FAIL |
+| T10-CX-24 | I1 is open, detected and registered before audited_at, and has no eligible resolution | audited-at incident classifier | PASS; incident_record(I1) retained | omit incident_record(I1) -> FAIL |
+| T10-CX-25 | I2 has only IR2-C number 0 contained with previous null and effective_at=2026-01-01T00:30:00Z | audited-at incident classifier | PASS; I2 UNRESOLVED | add valid IR2-R -> RESOLVED |
+| T10-CX-26 | I2 has IR2-C then IR2-S number 1 superseded with predecessor SHA f78e0507178453370a1e7e6f4dc93cf7e0133f2ef4f469a3e59d7320d1b6922c | incident-resolution chain validator | PASS; I2 RESOLVED/SUPERSEDED | change first status to superseded -> FAIL |
+| T10-CX-27 | IR2-R number 1 has previous_resolution_sha256=0000000000000000000000000000000000000000000000000000000000000000 | incident-resolution chain validator | FAIL; predecessor mismatch | restore literal IR2-C SHA -> PASS |
+| T10-CX-28 | Delete protocol-P from the campaign identity set while its manifest binding remains present | campaign exact-set validator | FAIL; missing retention identity | restore protocol-P membership -> PASS |
+| T10-CX-29 | Add excluded incident-I2 to the expected retention identity set | campaign/release exact-set validator | FAIL; extra retention identity | remove incident-I2 -> PASS |
+| T10-CX-30 | Keep manifest-M URI and length but replace copy-A SHA with 64 zeroes | retention copy hash validator | FAIL | restore manifest-M SHA -> PASS |
+| T10-CX-31 | Remove copy-B for one expected member while backup_copy_count remains 1 | retention copy count validator | FAIL; only one valid copy | restore copy-B -> PASS |
+| T10-KAT-RETENTION | Use profile, 22 byte rows, 21 expected identities, 42 copy rows, complete IR2-C/IR2-R chain, and exact times | independent ReleaseRetentionSetV1 derivation, hash/length audit, and copy verifier | PASS; expected cardinality 21 | mutate any identity/hash/length/URI/time/chain/count -> NO-GO |
+| T10-POS-RETENTION | Use complete R10 positive release-retention KAT in §§44-46 | release retention derivation and copy coverage validator | PASS | omit one expected member -> FAIL |
+| T10-POS-TRUST | Use preserved exact annotated trust-tag-message contract and trust source identity | trust tag resolver and monitoring source validator | PASS | supply JSON trust object -> FAIL |
+| T10-POS-PLAN | Use external X and exact future tag body/target/plan bytes | plan-tag validator | PASS | target R9 predecessor instead of X -> FAIL |
+| T10-POS-DAG | Use preserved §§2-15 authority fixtures in production runner order | positive-path DAG replay and preservation validator | PASS; COMPLETE_VALID_DAG_CONSTRUCTIBLE=yes | add future-file or self-Git edge -> NO-GO |
+| T10-CAT | Use all 91 current identifiers and one catalog row per identifier | catalog set/category/metadata audit | PASS; 91=91 and all catalog counters zero | delete, duplicate, or blank a row -> FAIL |
+| T10-TRACE | Use R10 matrix, derived catalog, AC, test, and F-EV tables | bidirectional traceability and OD union audit | PASS; all unmapped and contradiction counters zero | add a second current mapping source -> FAIL |
+
+The exact positive backup test is backup_copy_count=1 plus two fresh distinct
+copies -> PASS; one fresh copy -> FAIL. The exact time boundary is 2700
+seconds -> PASS and 3600 seconds -> FAIL.
+RELEASE_RETENTION_TEST_COVERAGE_GAPS=0.
+
+## 50. R10 F-EV EVIDENCE ORACLES
+
+These rows describe future REAL artifacts and are not created by this
+planning-only edit. No row claims release-retention PASS solely from the plan
+KAT. The incident oracle requires the complete contained-before-terminal chain
+when a terminal status is asserted. The copy oracle requires exact URI,
+length, SHA, retrieved bytes, verified_at, count, and freshness.
+
+| F-EV ID | future real artifact | producer/authority | immutable identity | acceptance/review oracle |
+|---|---|---|---|---|
+| EV10-01 | future plan review bundle, annotated plan tag, and plan bytes at external X | independent reviewer and Git tag validator | review-bundle SHA; peeled X; plan SHA-256 and Git blob | target/body equality and plan-byte equality |
+| EV10-02 | actual trust-provisioning annotated-tag message and monitoring source copies | independent trust gate, tag validator, and operations authority | exact tag-message SHA and length; source reference | tag prerequisites, exact bytes, TAG_BODY parse, trust-field comparison |
+| EV10-03 | actual package manifest, manifest objects, and campaign audit | campaign authority and retention auditor | manifest/object complete hashes and kind/ID/SHA set | exact campaign membership and no locator derivation |
+| EV10-04 | actual release/cohort/execution/owner/policy/state/review authorities | release and registry authorities | exact kind/SHA identities from source bindings | static derivation and exact-set oracle |
+| EV10-05 | actual incident and complete contained-before-terminal resolution files plus registry records | operations/governance and registry authorities | incident/resolution complete-file hashes and registry sequence | complete chain, effective_at, created_at, and audited_at classification |
+| EV10-06 | actual registered monitoring records and accepted PASS windows | operations and registry authorities | monitoring subject complete-file hashes | accepted PASS, attestation, window_end, due-chain, and cutoff |
+| EV10-07 | actual retention copy references, retrieved bytes, and retrieval/hash transcripts | retention auditor and copy retriever | each immutable URI, byte length, SHA, verified_at | scheme, availability, byte/hash equality, freshness, distinctness, count |
+| EV10-08 | complete final plan and all current catalog rows | plan author and independent reviewer | final plan SHA/blob and catalog row identities | regex/set equality, category/metadata completeness, pointers, duplicates |
+| EV10-09 | current catalog metadata and exact definition locations | plan author and independent reviewer | row bytes and definition section IDs | no generic phrase, blank cell, or broad pointer |
+| EV10-10 | current R10 matrix and derived catalog cells | plan author and independent reviewer | matrix row bytes and sorted projection cells | bidirectional resolution and exact inverse projection |
+| EV10-11 | F0 decision bundle and runtime projection | F0 authority and compatibility reviewer | decision bundle/projection complete hashes | exact 20 decisions and projection |
+| EV10-12 | two build transcripts, readiness, enrollment, signed genesis/head | checker, governance, and registry authorities | complete-file hashes, signatures, sequence | readiness/enrollment/registry validation |
+| EV10-13 | retrieved external objects, package manifest, dependency audit | retrieval/package authorities | URI/length/SHA plus complete package hashes | retrieval, classification, dependency, relation oracle |
+| EV10-14 | physical unit/location/custody ledgers and comparison/audit records | campaign, laboratory, and custody authorities | complete ledger/audit hashes and native identities | no alias, pseudoreplication, discontinuity, post-destroy use |
+| EV10-15 | deviation revisions and event records | campaign/deviation authority | stable ledger ID and revision complete SHA | immutable predecessor and action compatibility |
+| EV10-16 | power interface, typed analysis, sensitivity cases, and review | statistician and independent scientific reviewers | content IDs and reviewed complete-file hashes | range/unit/method equality and pre-registration |
+| EV10-17 | metrology policy/checks and reference source/result/admissibility files | metrology laboratory and runtime authority | policy/result/source/audit hashes | endpoint lookup, exact math, provenance, independence, ceiling |
+| EV10-18 | F5 candidate, release, state chain, approval tags, and registry records | release authority and independent reviewers | candidate/release/state/tag bytes and registry hashes | F4/F5 order, P2 gate, binding oracle |
+| EV10-19 | emergency/review files and later full-prefixed Git tree | security authority, independent reviewers, and Git | emergency/review/file/tree hashes and commit SHA | exact ten-step path, ancestry, byte equality |
+| EV10-20 | command, argv, report, runtime inputs, and construction transcript | checker and compatibility authorities | command/report and input hashes | exact runner order and no cycle |
+| EV10-21 | monitoring policy, thresholds, 15 measurements/evidence files, and relations | F0 owner, operations, and registry authorities | policy/record/evidence/relation hashes | fixed order, 4/1/4/6, five thresholds, trust source |
+| EV10-22 | campaign-abandonment incident, review bundle, manifest, and registry record | campaign operator, independent reviewers, and registry authority | incident/review/registry complete hashes | incident-first target and no reverse pointer |
+| EV10-23 | current R10 matrix and owner-decision cells | plan author and independent reviewer | matrix bytes and plan SHA/blob | union exactly F-OD-01..20 and one current mapping source |
+| EV10-24 | complete release retention audit and all object checks/copies | retention authority and independent auditor | audit complete SHA; identity and copy hashes | exact set, de-duplication, chronology, and copy SHA/length/URI/freshness/count |
+| EV10-25 | R10 full positive KAT transcript and independently derived expected set | independent plan reviewer and retention auditor | fixture hashes, copy transcript, and audit identity | reproduce exact 21-member set and 42 PASS copies; KAT never substitutes for real evidence |
+
+RELEASE_RETENTION_EVIDENCE_ORACLE_GAPS=0.
+
+## 51. R10 REMEDIATION LEDGER AND AUTHOR AUDIT
+
+Exactly six R10 remediation IDs are created. Author disposition is only
+REMEDIATED or OPEN; only a fresh independent R10 reviewer may mark a finding
+CLOSED.
+
+| R9 rereview P1 group | R10 exact section | root cause | exact remediation | current R10 requirements | ACs | tests | F-EVs | AUTHOR DISPOSITION |
+|---|---|---|---|---|---|---|---|---|
+| F-PLAN-R10-P1-01 | §§45-46 | Positive incident fixture used a terminal alias and omitted the required contained predecessor. | Literal I2 -> IR2-C number 0 contained -> IR2-R number 1 resolved chain, predecessor SHA, times, registry records, and exact membership. | R10-05,R10-24,R10-25 | AC10-05,AC10-24,AC10-25 | T10-CX-01,T10-CX-02,T10-CX-03,T10-CX-04,T10-CX-18,T10-KAT-RETENTION | EV10-05,EV10-24,EV10-25 | REMEDIATED |
+| F-PLAN-R10-P1-02 | §§44-46 | Positive copy KAT was symbolic and delegated bytes, locators, lengths, times, and policy to invention. | Explicit test-only profile, 22 literal byte rows, 21 expected members, 42 literal PASS rows, exact times and count. | R10-07,R10-24,R10-25 | AC10-07,AC10-24,AC10-25 | T10-CX-05,T10-CX-06,T10-CX-07,T10-CX-08,T10-CX-09,T10-CX-10,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-KAT-RETENTION | EV10-07,EV10-24,EV10-25 | REMEDIATED |
+| F-PLAN-R10-P1-03 | §42.2 | Three independently serialized artifacts were classified as NESTED_WIRE. | Set ChainOfCustody, CheckerReport, and RetrievalVerification to TOP_LEVEL_WIRE and audit all remaining identifiers. | R10-08 | AC10-08 | T10-CX-11,T10-CX-12,T10-CX-20,T10-CAT | EV10-08 | REMEDIATED |
+| F-PLAN-R10-P1-04 | §42.2 | 73 rows used generic closure, producer, validator, stage, or registry metadata. | Give all 91 rows one exact definition pointer and concrete metadata; lint banned phrases. | R10-09 | AC10-09 | T10-CX-13,T10-CX-19,T10-CX-20,T10-CAT | EV10-09 | REMEDIATED |
+| F-PLAN-R10-P1-05 | §§42.2-43 | Catalog traceability was independently authored and misrouted incident, monitoring-source, and retention-audit rows. | Make §43 the only current mapping source and derive every catalog cell from it. | R10-10 | AC10-10 | T10-CX-14,T10-CX-15,T10-TRACE | EV10-10 | REMEDIATED |
+| F-PLAN-R10-P1-06 | §§45-49 | Deterministic PASS claims relied on incomplete incident/copy fixtures and incomplete real-artifact oracles. | Add separate retention tests, 21-member KAT, 42 copy rows, and future real-artifact F-EV oracles. | R10-05,R10-06,R10-07,R10-24,R10-25 | AC10-05,AC10-06,AC10-07,AC10-24,AC10-25 | T10-CX-01,T10-CX-02,T10-CX-03,T10-CX-04,T10-CX-05,T10-CX-06,T10-CX-07,T10-CX-08,T10-CX-09,T10-CX-10,T10-CX-16,T10-CX-17,T10-CX-18,T10-CX-19,T10-KAT-RETENTION | EV10-05,EV10-06,EV10-07,EV10-24,EV10-25 | REMEDIATED |
+
+The following counters are author audit results after the constructive and
+mechanical checks above. They are not independent approval:
+
+~~~text
+INCIDENT_POSITIVE_FIXTURE_CONSISTENT=yes
+INCIDENT_COUNTEREXAMPLE_SEMANTIC_GAPS=0
+RETENTION_POSITIVE_KAT_FULLY_MATERIALIZED=yes
+RETENTION_KAT_SYMBOLIC_BYTE_VALUES=0
+RETENTION_KAT_SYMBOLIC_COPY_VALUES=0
+RELEASE_RETENTION_TEST_COVERAGE_GAPS=0
+RELEASE_RETENTION_EVIDENCE_ORACLE_GAPS=0
+CATALOG_CATEGORY_MISMATCHES=0
+CATALOG_FIELD_CLOSURE_AMBIGUITIES=0
+CATALOG_PRODUCER_AMBIGUITIES=0
+CATALOG_VALIDATOR_AMBIGUITIES=0
+CATALOG_STAGE_AMBIGUITIES=0
+CATALOG_REGISTRY_BEHAVIOR_AMBIGUITIES=0
+CATALOG_GENERIC_METADATA_AMBIGUITIES=0
+CATALOG_TRACEABILITY_DERIVATION_MISMATCHES=0
+INCOMPLETE_SCHEMA_CATALOG_ROWS=0
+INCORRECT_SCHEMA_CATALOG_ROWS=0
+CONTRADICTORY_CURRENT_TRACEABILITY_TABLES=0
+TRACEABILITY_SUBSTANCE_GAPS=0
+CURRENT_TEST_PROCEDURE_GAPS=0
+CURRENT_EVIDENCE_ORACLE_GAPS=0
+POSITIVE_PATH_CONSTRUCTION_AMBIGUITIES=0
+MATERIAL_IMPLEMENTER_DISAGREEMENTS_AFTER_PLAN=0
+NORMATIVE_CONTRADICTIONS=0
+
+synthetic-to-physical=0
+constructed-to-physical=0
+unknown-to-physical=0
+test-to-physical=0
+same-source independence=0
+undeclared-dependency independence=0
+pseudoreplication=0
+underpowered-to-pass=0
+F4-to-active=0
+compromised-authority bypass=0
+private-key repository paths=0
+Phase-E compatibility=CLOSED
+production runner order=PASS
+P2 gate=PASS
+~~~
+
+## 52. R10 BASELINE, FROZEN AUTHORITY, AND REQUIRED HANDOFF
+
+Before and after this planning-only edit, run:
+
+~~~text
+git diff --check
+cargo fmt --all --check
+cargo check --locked
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --test phase_e_validation
+cargo test --locked --test phase_d_reporting_public_output
+~~~
+
+Required results are all PASS, Phase E 38/38, Phase D 73/73, and zero strict
+Clippy diagnostics. Frozen Phase-E SHA-256 remains
+0b68359f362434ef9f42df21ca553692ae6e3bb3c096881009ab5e9473cc2c33 and its
+Git blob remains 6fce9d13a42a09027e0e730874a8d80e03e6a7da.
+
+~~~text
+MHI V1 PHASE F
+R10 PLANNING REMEDIATION HANDOFF
+
+STARTING R9 SHA: 1084257636e74d16d1f64da1062bb187e58b46f6
+R9 PLAN SHA-256: 2b0c79858e8f82b4ae756555d69ba5caa12cc1cce9a5fb13bd300d1e1c755adb
+R9 PLAN GIT BLOB: 304ce6c4931ae1b105829abca64b559e98916d01
+R10 PLAN REVIEW SHA: <externally frozen after final planning-only commit>
+R10 PLAN SHA-256: <computed after final R10 bytes>
+R10 PLAN GIT BLOB: <computed after final R10 bytes>
+CHANGED FILES: 1 expected
+
+F-PLAN-R10-P1-01: REMEDIATED
+F-PLAN-R10-P1-02: REMEDIATED
+F-PLAN-R10-P1-03: REMEDIATED
+F-PLAN-R10-P1-04: REMEDIATED
+F-PLAN-R10-P1-05: REMEDIATED
+F-PLAN-R10-P1-06: REMEDIATED
+
+contained predecessor present: yes
+terminal resolution present: yes
+both resolution objects retained: yes
+fixture consistent: yes
+test F0 backup count: 1
+test F0 interval: 3600
+audited_at: 2026-01-01T02:00:00Z
+copy-A verified_at: 2026-01-01T01:15:00Z
+copy-B verified_at: 2026-01-01T01:30:00Z
+literal byte rows: 22
+literal SHA rows: 22
+literal byte-length rows: 22
+literal URI rows: 42
+symbolic placeholders remaining: 0
+expected retention-member count: 21
+KAT PASS constructible: yes
+
+normative identifier count: 91
+catalog identifier count: 91
+missing: 0
+extra: 0
+duplicates: 0
+category mismatches: 0
+field-closure ambiguities: 0
+producer ambiguities: 0
+validator ambiguities: 0
+stage ambiguities: 0
+registry-behavior ambiguities: 0
+generic metadata rows: 0
+incorrect rows: 0
+
+current R10 requirements: 25
+ACs: 25
+tests: 38
+evidence: 25
+owner decisions: 20
+unmapped requirements: 0
+unmapped ACs: 0
+unmapped tests: 0
+unmapped evidence: 0
+unmapped ODs: 0
+catalog traceability derivation mismatches: 0
+contradictory current mapping tables: 0
+traceability substance gaps: 0
+test-procedure gaps: 0
+evidence-oracle gaps: 0
+complete DAG constructible: yes
+construction ambiguities: 0
+
+diff: PASS
+fmt: PASS
+check: PASS
+strict Clippy: PASS
+Clippy diagnostics: 0
+Phase E: 38/38
+Phase D: 73/73
+FROZEN PHASE-E PLAN: PASS
+PLAN TAG CREATED: NO expected
+IMPLEMENTATION BRANCH: NO expected
+F0 STARTED: NO expected
+KEYS CREATED: NO expected
+EVIDENCE CREATED: NO expected
+CLAIMS CREATED: NO expected
+WORKTREE CLEAN: yes after one forward commit
+READY_FOR_FRESH_PHASE_F_R10_PLAN_REREVIEW: yes
+READY_FOR_PHASE_F_PLAN_APPROVAL_TAG: NO expected pending fresh R10 GO
+READY_FOR_PHASE_F_IMPLEMENTATION: NO
+~~~
+
+R10 requires a NEW independent reviewer to begin with six positive checks:
+the complete I2 chain and both retained resolutions; literal byte/SHA/length/
+URI/time/count reproducibility; every actual catalog category; exact catalog
+metadata; matrix-inverse traceability; and complete test/evidence closure.
+Failure of any is P1. R10 remains unapproved pending that rereview. No
+Phase-F approval tag, implementation branch, F0 activity, key, signature,
+trust provisioning, registry record, physical evidence, monitoring evidence,
+claim, or production change is authorized by this plan.
