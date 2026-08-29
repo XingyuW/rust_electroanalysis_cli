@@ -1,0 +1,79 @@
+{
+  "aggregate_specification_bundle_review_sha256": null,
+  "approval_decision": "NO-GO",
+  "architecture_plan": {
+    "approved_tag": null,
+    "git_blob": "b548c530c45985f55316b7b8fc5c824f6560b4d2",
+    "path": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+    "sha256": "b61081d3d67a71626e7dde47e593ec37177edb0cb61c88d93554fb518b0ee305"
+  },
+  "artifact_kind": "phase_f_specification_bundle_manifest_candidate",
+  "blocking_reasons": [
+    "architecture_plan_tag_absent",
+    "f0_decisions_tag_absent",
+    "component_independent_reviews_pending",
+    "aggregate_specification_bundle_review_absent"
+  ],
+  "component_specifications": [
+    {
+      "git_blob": "237c9acdb589febd4cd0b85f222f56f78ad7c39d",
+      "independent_review_bundle_sha256": null,
+      "p0_count": null,
+      "p1_count": null,
+      "path": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
+      "review_status": "PENDING",
+      "sha256": "19cc874054176bf4ce40fca93b596624fbde815b7c89e1bb3a93c8b12b71d4e2"
+    },
+    {
+      "git_blob": "4f65fa473572e1be067bab4e9c321cd0bde266cc",
+      "independent_review_bundle_sha256": null,
+      "p0_count": null,
+      "p1_count": null,
+      "path": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md",
+      "review_status": "PENDING",
+      "sha256": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3"
+    },
+    {
+      "git_blob": "dab4466fe3aad03dfc468a67cf528525b639703e",
+      "independent_review_bundle_sha256": null,
+      "p0_count": null,
+      "p1_count": null,
+      "path": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
+      "review_status": "PENDING",
+      "sha256": "5ceaf042e5904e78c757e1fd227b9162c1331bce246901aab415c6afab02a78a"
+    },
+    {
+      "git_blob": "70f05a57cb415568642ca3e89dc942ac6d7ca9dc",
+      "independent_review_bundle_sha256": null,
+      "p0_count": null,
+      "p1_count": null,
+      "path": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
+      "review_status": "PENDING",
+      "sha256": "5e2ce835cf8d36b7fca01415010eae8509506062a28c8cb8ee96911b60078f54"
+    },
+    {
+      "git_blob": "e637afe67741c48ee02b2fad169a7a0d350a6a0b",
+      "independent_review_bundle_sha256": null,
+      "p0_count": null,
+      "p1_count": null,
+      "path": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md",
+      "review_status": "PENDING",
+      "sha256": "eea3099a1cdcfbfd68e2c7b5ff682603823192305b054b374a5b61396daa549f"
+    }
+  ],
+  "eligible_for_g3": false,
+  "f0_decisions": {
+    "approved_tag": null,
+    "decision_bundle_sha256": null
+  },
+  "migration_ledger": {
+    "path": "docs/engineering_specification/phase_f/phase_f_r11_to_r12_migration_ledger.md",
+    "sha256": "7322f0dc45765de045924a3e64a396d171bd21d9bb714a1b50c21574b022e786"
+  },
+  "schema_version": 1,
+  "status": "DRAFT_NO_AUTHORITY",
+  "traceability_manifest": {
+    "path": "docs/engineering_specification/phase_f/phase_f_traceability_manifest.json",
+    "sha256": "8c1f0a82ed827efbddb60a068d6bbd608a4a07ce0a58a613a4bf587348b3b5f3"
+  }
+}

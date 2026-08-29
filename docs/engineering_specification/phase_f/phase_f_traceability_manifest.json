@@ -1,0 +1,1510 @@
+{
+  "artifact_kind": "phase_f_derived_traceability_manifest",
+  "generation_rule": "docs/engineering_specification/phase_f/generate_phase_f_manifests.py",
+  "requirements": [
+    {
+      "authority_anchor": "#f-arch-001",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-001",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-002",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-CNF-007",
+        "F-SCI-001",
+        "F-SCI-009"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-002",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-003",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-CNF-008",
+        "F-IMPL-006"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-003",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-004",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-IMPL-002",
+        "F-WIRE-001",
+        "F-WIRE-008"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-004",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-005",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-WIRE-008"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-005",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-006",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-WIRE-004"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-006",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-007",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-WIRE-003"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-007",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-008",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-CNF-004",
+        "F-WIRE-003",
+        "F-WIRE-007"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-008",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-009",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-CNF-004",
+        "F-WIRE-007"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-009",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-010",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-CNF-004",
+        "F-IMPL-003",
+        "F-IMPL-004",
+        "F-IMPL-005",
+        "F-IMPL-007",
+        "F-WIRE-007"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-010",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-011",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-IMPL-001"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-011",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-012",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-CNF-007",
+        "F-SCI-001",
+        "F-SCI-008",
+        "F-SCI-009",
+        "F-WIRE-006"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-012",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-013",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-SCI-002",
+        "F-WIRE-006"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-013",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-014",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-SCI-002",
+        "F-SCI-003",
+        "F-SCI-004",
+        "F-SCI-005",
+        "F-SCI-006",
+        "F-SCI-007",
+        "F-SCI-008",
+        "F-WIRE-006"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-014",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-015",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-IMPL-003",
+        "F-IMPL-005",
+        "F-OPS-005",
+        "F-WIRE-005",
+        "F-WIRE-006"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-015",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-016",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-OPS-001",
+        "F-OPS-002",
+        "F-OPS-003",
+        "F-OPS-004",
+        "F-OPS-005",
+        "F-OPS-006",
+        "F-OPS-007",
+        "F-OPS-008",
+        "F-WIRE-006"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-016",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-017",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-CNF-001",
+        "F-CNF-002",
+        "F-CNF-003",
+        "F-CNF-005",
+        "F-CNF-006",
+        "F-CNF-007",
+        "F-CNF-008",
+        "F-IMPL-001",
+        "F-IMPL-002",
+        "F-IMPL-004",
+        "F-IMPL-006",
+        "F-SCI-009",
+        "F-SCI-010",
+        "F-WIRE-001",
+        "F-WIRE-002",
+        "F-WIRE-005",
+        "F-WIRE-008",
+        "F-WIRE-009"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-017",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-018",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-018",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-019",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-019",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-020",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-020",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-021",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-IMPL-007",
+        "F-OPS-001",
+        "F-OPS-008",
+        "F-WIRE-006",
+        "F-WIRE-009"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-021",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#f-arch-022",
+      "authority_document": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md",
+      "downstream_child_requirements": [
+        "F-CNF-005",
+        "F-SCI-010"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-ARCH-022",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [],
+      "verification_gate": "G0"
+    },
+    {
+      "authority_anchor": "#F-CNF-001",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-CNF-001",
+      "test_ids": [
+        "R11-KAT-INCIDENT",
+        "R11-POS-PLAN",
+        "R11-POS-TRUST",
+        "R11-CX-04"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-017",
+        "F-WIRE-001",
+        "F-WIRE-002",
+        "F-WIRE-003",
+        "F-WIRE-004",
+        "F-WIRE-005",
+        "F-WIRE-006",
+        "F-WIRE-007",
+        "F-WIRE-008",
+        "F-WIRE-009"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-CNF-002",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-CNF-002",
+      "test_ids": [
+        "R11-KAT-RETENTION-COPY",
+        "R11-CX-01",
+        "R11-CX-02",
+        "R11-CX-14",
+        "R11-CX-15"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-017",
+        "F-OPS-006",
+        "F-OPS-007"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-CNF-003",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-CNF-003",
+      "test_ids": [
+        "R11-PROP-MONITORING",
+        "R11-CX-06",
+        "R11-CX-07",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-017",
+        "F-OPS-003",
+        "F-SCI-002",
+        "F-SCI-003",
+        "F-SCI-004",
+        "F-SCI-005",
+        "F-SCI-006",
+        "F-SCI-007",
+        "F-SCI-008"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-CNF-004",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-CNF-004",
+      "test_ids": [
+        "R11-POS-PLAN",
+        "R11-POS-TRUST",
+        "R12-POS-SPEC-BUNDLE-TAG"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-008",
+        "F-ARCH-009",
+        "F-ARCH-010",
+        "F-WIRE-007"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-CNF-005",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-CNF-005",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-CAT",
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-10",
+        "R11-CX-11",
+        "R11-CX-12",
+        "R11-CX-13",
+        "R11-CX-19",
+        "R11-CX-20"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-017",
+        "F-ARCH-022",
+        "F-WIRE-008"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-CNF-006",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-CNF-006",
+      "test_ids": [
+        "R11-CX-05",
+        "R11-CX-06",
+        "R11-CX-07"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-017"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-CNF-007",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-CNF-007",
+      "test_ids": [
+        "R11-CX-01",
+        "R11-CX-02",
+        "R11-CX-04"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-002",
+        "F-ARCH-012",
+        "F-ARCH-017",
+        "F-SCI-009",
+        "F-SCI-010"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-CNF-008",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-CNF-008",
+      "test_ids": [
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-003",
+        "F-ARCH-017",
+        "F-IMPL-006"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-IMPL-001",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [
+        "EV11-08",
+        "EV11-17"
+      ],
+      "requirement_id": "F-IMPL-001",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-011",
+        "F-ARCH-017"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-IMPL-002",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [
+        "EV11-08",
+        "EV11-17"
+      ],
+      "requirement_id": "F-IMPL-002",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-004",
+        "F-ARCH-017",
+        "F-WIRE-001",
+        "F-WIRE-002",
+        "F-WIRE-003",
+        "F-WIRE-004",
+        "F-WIRE-005",
+        "F-WIRE-006",
+        "F-WIRE-007",
+        "F-WIRE-008",
+        "F-WIRE-009",
+        "F-SCI-001",
+        "F-SCI-002",
+        "F-SCI-003",
+        "F-SCI-004",
+        "F-SCI-005",
+        "F-SCI-006",
+        "F-SCI-007",
+        "F-SCI-008",
+        "F-SCI-009",
+        "F-SCI-010",
+        "F-OPS-001",
+        "F-OPS-002",
+        "F-OPS-003",
+        "F-OPS-004",
+        "F-OPS-005",
+        "F-OPS-006",
+        "F-OPS-007",
+        "F-OPS-008"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-IMPL-003",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [
+        "EV11-08",
+        "EV11-17"
+      ],
+      "requirement_id": "F-IMPL-003",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-010",
+        "F-ARCH-015"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-IMPL-004",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [
+        "EV11-08",
+        "EV11-17"
+      ],
+      "requirement_id": "F-IMPL-004",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-010",
+        "F-ARCH-017"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-IMPL-005",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [
+        "EV11-08",
+        "EV11-17"
+      ],
+      "requirement_id": "F-IMPL-005",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-010",
+        "F-ARCH-015",
+        "F-WIRE-005"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-IMPL-006",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-008"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [
+        "EV11-08",
+        "EV11-17"
+      ],
+      "requirement_id": "F-IMPL-006",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-003",
+        "F-ARCH-017"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-IMPL-007",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md",
+      "downstream_child_requirements": [],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [
+        "EV11-08",
+        "EV11-17"
+      ],
+      "requirement_id": "F-IMPL-007",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-010",
+        "F-ARCH-021"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-OPS-001",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
+      "downstream_child_requirements": [
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [
+        "EV11-17"
+      ],
+      "requirement_id": "F-OPS-001",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-016",
+        "F-ARCH-021"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-OPS-002",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
+      "downstream_child_requirements": [
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-16",
+        "F-OD-17"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-17"
+      ],
+      "requirement_id": "F-OPS-002",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-016"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-OPS-003",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-003",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-17",
+        "F-OD-19"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-07"
+      ],
+      "requirement_id": "F-OPS-003",
+      "test_ids": [
+        "R11-PROP-MONITORING",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-016"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-OPS-004",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
+      "downstream_child_requirements": [
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-16"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-04"
+      ],
+      "requirement_id": "F-OPS-004",
+      "test_ids": [
+        "R11-KAT-INCIDENT",
+        "R11-CX-03",
+        "R11-CX-04"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-016"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-OPS-005",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
+      "downstream_child_requirements": [
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-14",
+        "F-OD-15",
+        "F-OD-16"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-17"
+      ],
+      "requirement_id": "F-OPS-005",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-CX-08"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-015",
+        "F-ARCH-016"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-OPS-006",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-002",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-18",
+        "F-OD-19",
+        "F-OD-20"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-05"
+      ],
+      "requirement_id": "F-OPS-006",
+      "test_ids": [
+        "R11-KAT-RETENTION-COPY",
+        "R11-CX-14",
+        "R11-CX-15"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-016"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-OPS-007",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-002",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-20"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-03"
+      ],
+      "requirement_id": "F-OPS-007",
+      "test_ids": [
+        "R11-KAT-RETENTION-COPY",
+        "R11-CX-01",
+        "R11-CX-02"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-016"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-OPS-008",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
+      "downstream_child_requirements": [
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-17",
+        "F-OD-18",
+        "F-OD-19",
+        "F-OD-20"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-17"
+      ],
+      "requirement_id": "F-OPS-008",
+      "test_ids": [
+        "R11-DAG-AUDIT",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-016",
+        "F-ARCH-021"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-SCI-001",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md",
+      "downstream_child_requirements": [
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-08"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-17",
+        "EV11-19"
+      ],
+      "requirement_id": "F-SCI-001",
+      "test_ids": [
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-002",
+        "F-ARCH-012"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-SCI-002",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-003",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-10"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-17"
+      ],
+      "requirement_id": "F-SCI-002",
+      "test_ids": [
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-013",
+        "F-ARCH-014"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-SCI-003",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-003",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-05",
+        "F-OD-06",
+        "F-OD-07"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-17"
+      ],
+      "requirement_id": "F-SCI-003",
+      "test_ids": [
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-014"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-SCI-004",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-003",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-09"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-17"
+      ],
+      "requirement_id": "F-SCI-004",
+      "test_ids": [
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-014"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-SCI-005",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-003",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-12"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-17"
+      ],
+      "requirement_id": "F-SCI-005",
+      "test_ids": [
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-014"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-SCI-006",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-003",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-11"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-17"
+      ],
+      "requirement_id": "F-SCI-006",
+      "test_ids": [
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-014"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-SCI-007",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-003",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-11"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-17"
+      ],
+      "requirement_id": "F-SCI-007",
+      "test_ids": [
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-014"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-SCI-008",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-003",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-01",
+        "F-OD-02",
+        "F-OD-03",
+        "F-OD-04",
+        "F-OD-05",
+        "F-OD-06",
+        "F-OD-07",
+        "F-OD-08",
+        "F-OD-09",
+        "F-OD-10",
+        "F-OD-11",
+        "F-OD-12"
+      ],
+      "future_real_evidence_ids": [
+        "EV11-05",
+        "EV11-06",
+        "EV11-17"
+      ],
+      "requirement_id": "F-SCI-008",
+      "test_ids": [
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-012",
+        "F-ARCH-014"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-SCI-009",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-007",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [
+        "EV11-14",
+        "EV11-19"
+      ],
+      "requirement_id": "F-SCI-009",
+      "test_ids": [
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-002",
+        "F-ARCH-012",
+        "F-ARCH-017"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-SCI-010",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-007",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [
+        "EV11-01",
+        "EV11-02",
+        "EV11-03",
+        "EV11-04",
+        "EV11-05",
+        "EV11-06",
+        "EV11-07",
+        "EV11-08",
+        "EV11-17",
+        "EV11-19",
+        "EV11-20"
+      ],
+      "requirement_id": "F-SCI-010",
+      "test_ids": [
+        "R11-TRACE",
+        "R11-CX-08",
+        "R11-CX-18"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-017",
+        "F-ARCH-022"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-WIRE-001",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-001",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-WIRE-001",
+      "test_ids": [
+        "R11-CAT",
+        "R11-TRACE",
+        "R11-CX-10",
+        "R11-CX-11",
+        "R11-CX-12",
+        "R11-CX-13"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-004",
+        "F-ARCH-017"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-WIRE-002",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-001",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-WIRE-002",
+      "test_ids": [
+        "R11-CAT",
+        "R11-TRACE",
+        "R11-CX-10",
+        "R11-CX-11",
+        "R11-CX-12",
+        "R11-CX-13"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-017"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-WIRE-003",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-001",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-WIRE-003",
+      "test_ids": [
+        "R11-CAT",
+        "R11-TRACE",
+        "R11-CX-10",
+        "R11-CX-11",
+        "R11-CX-12",
+        "R11-CX-13",
+        "R11-POS-PLAN",
+        "R11-POS-TRUST",
+        "R12-POS-SPEC-BUNDLE-TAG"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-007",
+        "F-ARCH-008"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-WIRE-004",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-001",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-01",
+        "F-OD-02",
+        "F-OD-03",
+        "F-OD-04",
+        "F-OD-05",
+        "F-OD-06",
+        "F-OD-07",
+        "F-OD-08",
+        "F-OD-09",
+        "F-OD-10",
+        "F-OD-11",
+        "F-OD-12",
+        "F-OD-13",
+        "F-OD-14",
+        "F-OD-15",
+        "F-OD-16",
+        "F-OD-17",
+        "F-OD-18",
+        "F-OD-19",
+        "F-OD-20"
+      ],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-WIRE-004",
+      "test_ids": [
+        "R11-CAT",
+        "R11-TRACE",
+        "R11-CX-10",
+        "R11-CX-11",
+        "R11-CX-12",
+        "R11-CX-13"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-006"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-WIRE-005",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-001",
+        "F-IMPL-002",
+        "F-IMPL-005"
+      ],
+      "f0_decision_dependencies": [
+        "F-OD-04",
+        "F-OD-13",
+        "F-OD-14",
+        "F-OD-15",
+        "F-OD-16"
+      ],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-WIRE-005",
+      "test_ids": [
+        "R11-CAT",
+        "R11-TRACE",
+        "R11-CX-10",
+        "R11-CX-11",
+        "R11-CX-12",
+        "R11-CX-13"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-015",
+        "F-ARCH-017"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-WIRE-006",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-001",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-WIRE-006",
+      "test_ids": [
+        "R11-CAT",
+        "R11-TRACE",
+        "R11-CX-10",
+        "R11-CX-11",
+        "R11-CX-12",
+        "R11-CX-13"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-012",
+        "F-ARCH-013",
+        "F-ARCH-014",
+        "F-ARCH-015",
+        "F-ARCH-016",
+        "F-ARCH-021"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-WIRE-007",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-001",
+        "F-CNF-004",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-WIRE-007",
+      "test_ids": [
+        "R11-CAT",
+        "R11-TRACE",
+        "R11-CX-10",
+        "R11-CX-11",
+        "R11-CX-12",
+        "R11-CX-13",
+        "R11-POS-PLAN",
+        "R11-POS-TRUST",
+        "R12-POS-SPEC-BUNDLE-TAG"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-008",
+        "F-ARCH-009",
+        "F-ARCH-010"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-WIRE-008",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-001",
+        "F-CNF-005",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-WIRE-008",
+      "test_ids": [
+        "R11-CAT",
+        "R11-TRACE",
+        "R11-CX-10",
+        "R11-CX-11",
+        "R11-CX-12",
+        "R11-CX-13"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-004",
+        "F-ARCH-005",
+        "F-ARCH-017"
+      ],
+      "verification_gate": "G2"
+    },
+    {
+      "authority_anchor": "#F-WIRE-009",
+      "authority_document": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
+      "downstream_child_requirements": [
+        "F-CNF-001",
+        "F-IMPL-002"
+      ],
+      "f0_decision_dependencies": [],
+      "future_real_evidence_ids": [],
+      "requirement_id": "F-WIRE-009",
+      "test_ids": [
+        "R11-CAT",
+        "R11-TRACE",
+        "R11-CX-10",
+        "R11-CX-11",
+        "R11-CX-12",
+        "R11-CX-13"
+      ],
+      "upstream_requirement_ids": [
+        "F-ARCH-017",
+        "F-ARCH-021"
+      ],
+      "verification_gate": "G2"
+    }
+  ],
+  "schema_version": 1,
+  "semantic_authority": false
+}
