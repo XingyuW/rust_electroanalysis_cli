@@ -1,6 +1,17 @@
 {
   "artifact_kind": "phase_f_derived_traceability_manifest",
   "generation_rule": "docs/engineering_specification/phase_f/generate_phase_f_manifests.py",
+  "reference_catalogs": {
+    "future_real_evidence": {
+      "count": 20,
+      "source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md"
+    },
+    "tests": {
+      "count": 29,
+      "r11_source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md",
+      "r12_source": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md"
+    }
+  },
   "requirements": [
     {
       "authority_anchor": "#f-arch-001",

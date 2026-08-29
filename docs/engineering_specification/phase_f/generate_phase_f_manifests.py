@@ -11,6 +11,8 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
+from copy import deepcopy
 from pathlib import Path
 
 
@@ -58,6 +60,144 @@ EXPECTED_R11_FINDINGS = [
 ]
 EXPECTED_R11_SHA256 = "987bc6e06a5c43873b844f864cb1f858c6b57c40c18dd0d4ed4a4edcf32dec3d"
 EXPECTED_R11_GIT_BLOB = "34ab62d094c4cb0bb31a40dc7a192ed304faf981"
+EXPECTED_R11_TEST_COUNT = 28
+EXPECTED_R11_EVIDENCE_COUNT = 20
+EXPECTED_R12_SCHEMA_COUNT = 92
+
+G3_TAG_NAME = "ism-mechanism-health-v1-f-specification-bundle-approved"
+G3_TAG_FIELDS = (
+    "phase_f_architecture_plan_tag",
+    "phase_f_f0_decisions_tag",
+    "specification_bundle_manifest_sha256",
+    "aggregate_review_bundle_sha256",
+    "approval_decision",
+    "schema_version",
+)
+G3_EXPECTED_FIELDS = {
+    "phase_f_architecture_plan_tag": "ism-mechanism-health-v1-f-plan-approved",
+    "phase_f_f0_decisions_tag": "ism-mechanism-health-v1-f-f0-decisions-approved",
+    "specification_bundle_manifest_sha256": "0" * 64,
+    "aggregate_review_bundle_sha256": "1" * 64,
+    "approval_decision": "GO",
+    "schema_version": "1",
+}
+G3_FIXTURE_BODY = (
+    b"phase_f_architecture_plan_tag=ism-mechanism-health-v1-f-plan-approved\n"
+    b"phase_f_f0_decisions_tag=ism-mechanism-health-v1-f-f0-decisions-approved\n"
+    b"specification_bundle_manifest_sha256=" + b"0" * 64 + b"\n"
+    b"aggregate_review_bundle_sha256=" + b"1" * 64 + b"\n"
+    b"approval_decision=GO\n"
+    b"schema_version=1\n"
+)
+G3_FIXTURE_BYTE_LENGTH = 379
+G3_FIXTURE_SHA256 = "af3f94a1a5ae85f2e62d8a0ad54e66b3bd985cd150805a5750528befa15027b6"
+G3_LEGACY_FIELDS = {"architecture_plan_tag", "f0_decisions_tag"}
+
+G3_KAT_MUTATIONS = (
+    {
+        "id": "R12-NEG-G3-WRONG-FIELD-NAME",
+        "operation": "replace first key phase_f_architecture_plan_tag with phase_f_architecture_plan",
+        "expected_category": "unknown_field",
+    },
+    {
+        "id": "R12-NEG-G3-LEGACY-FIELD-NAME",
+        "operation": "replace first key with legacy unprefixed architecture_plan_tag",
+        "expected_category": "legacy_field_name",
+    },
+    {
+        "id": "R12-NEG-G3-MISSING-REQUIRED-FIELD",
+        "operation": "remove the complete aggregate_review_bundle_sha256 line and its LF",
+        "expected_category": "missing_required_field",
+    },
+    {
+        "id": "R12-NEG-G3-DUPLICATE-FIELD",
+        "operation": "insert a second approval_decision=GO line immediately before schema_version=1",
+        "expected_category": "duplicate_field",
+    },
+    {
+        "id": "R12-NEG-G3-UNEXPECTED-FIELD",
+        "operation": "replace the final schema_version=1 line with unexpected_field=x",
+        "expected_category": "unexpected_field",
+    },
+    {
+        "id": "R12-NEG-G3-WRONG-LINE-ORDER",
+        "operation": "swap the first and second complete lines",
+        "expected_category": "wrong_field_order",
+    },
+    {
+        "id": "R12-NEG-G3-SCHEMA-VERSION",
+        "operation": "replace schema_version=1 with schema_version=2",
+        "expected_category": "invalid_schema_version",
+    },
+    {
+        "id": "R12-NEG-G3-MALFORMED-TAG-NAME",
+        "operation": "replace the input tag name with the deterministic malformed name",
+        "expected_category": "invalid_tag_name",
+    },
+    {
+        "id": "R12-NEG-G3-WRONG-ARCHITECTURE-BINDING",
+        "operation": "replace the architecture-plan tag value with the F0 tag value",
+        "expected_category": "wrong_architecture_plan_binding",
+    },
+    {
+        "id": "R12-NEG-G3-WRONG-F0-BINDING",
+        "operation": "replace the F0 tag value with the architecture-plan tag value",
+        "expected_category": "wrong_f0_decisions_binding",
+    },
+    {
+        "id": "R12-NEG-G3-WRONG-BUNDLE-HASH",
+        "operation": "replace the first manifest-hash zero with ASCII a",
+        "expected_category": "wrong_bundle_hash",
+    },
+    {
+        "id": "R12-NEG-G3-MALFORMED-SHA",
+        "operation": "replace the first aggregate-hash one with ASCII z",
+        "expected_category": "malformed_sha256",
+    },
+    {
+        "id": "R12-NEG-G3-TRAILING-WHITESPACE",
+        "operation": "replace approval_decision=GO with approval_decision=GO plus one space",
+        "expected_category": "trailing_whitespace",
+    },
+    {
+        "id": "R12-NEG-G3-MISSING-DELIMITER",
+        "operation": "replace the first equals delimiter with one ASCII space",
+        "expected_category": "missing_delimiter",
+    },
+    {
+        "id": "R12-NEG-G3-INVALID-NEWLINE",
+        "operation": "replace the first LF with CRLF",
+        "expected_category": "invalid_newline",
+    },
+    {
+        "id": "R12-NEG-G3-EXTRA-TRAILING-CONTENT",
+        "operation": "append trailing plus LF after the required final LF",
+        "expected_category": "extra_trailing_content",
+    },
+    {
+        "id": "R12-NEG-G3-TRUNCATED-CONTENT",
+        "operation": "remove the final ten bytes, producing a partial final field",
+        "expected_category": "truncated_content",
+    },
+    {
+        "id": "R12-NEG-G3-MISSING-FINAL-NEWLINE",
+        "operation": "remove exactly the required final LF byte",
+        "expected_category": "missing_final_newline",
+    },
+    {
+        "id": "R12-NEG-G3-WRONG-APPROVAL-VALUE",
+        "operation": "replace approval_decision=GO with approval_decision=NO-GO",
+        "expected_category": "invalid_approval_decision",
+    },
+)
+
+
+class G3ValidationError(ValueError):
+    """A deterministic failure category for the synthetic G3 checker."""
+
+    def __init__(self, category: str):
+        self.category = category
+        super().__init__(category)
 
 
 def sha256(path: Path) -> str:
@@ -72,6 +212,415 @@ def git_blob(path: Path) -> str:
     return subprocess.check_output(
         ["git", "hash-object", str(path)], cwd=ROOT, text=True
     ).strip()
+
+
+def parse_g3_tag(tag_name: str, body: bytes) -> dict[str, str]:
+    if tag_name != G3_TAG_NAME:
+        raise G3ValidationError("invalid_tag_name")
+    if not isinstance(body, bytes):
+        raise G3ValidationError("body_is_not_bytes")
+    if not body.endswith(b"\n"):
+        last_line = body.rsplit(b"\n", 1)[-1]
+        if last_line.startswith(b"schema_") and last_line != b"schema_version=1":
+            raise G3ValidationError("truncated_content")
+        raise G3ValidationError("missing_final_newline")
+    if b"\r" in body:
+        raise G3ValidationError("invalid_newline")
+    if any(byte > 0x7F for byte in body):
+        raise G3ValidationError("non_ascii_body")
+
+    lines = body[:-1].split(b"\n")
+    if len(lines) < len(G3_TAG_FIELDS):
+        raise G3ValidationError("missing_required_field")
+    if len(lines) > len(G3_TAG_FIELDS):
+        names = [line.split(b"=", 1)[0] for line in lines if b"=" in line]
+        if len(names) != len(set(names)):
+            raise G3ValidationError("duplicate_field")
+        if lines[-1].startswith(b"trailing"):
+            raise G3ValidationError("extra_trailing_content")
+        raise G3ValidationError("unexpected_field")
+
+    fields: dict[str, str] = {}
+    for expected_name, line in zip(G3_TAG_FIELDS, lines):
+        if not line:
+            raise G3ValidationError("blank_line")
+        if b"=" not in line:
+            raise G3ValidationError("missing_delimiter")
+        raw_name, raw_value = line.split(b"=", 1)
+        try:
+            name = raw_name.decode("ascii")
+            value = raw_value.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise G3ValidationError("non_ascii_body") from error
+        if name in G3_LEGACY_FIELDS:
+            raise G3ValidationError("legacy_field_name")
+        if name == "unexpected_field":
+            raise G3ValidationError("unexpected_field")
+        if name not in G3_TAG_FIELDS:
+            raise G3ValidationError("unknown_field")
+        if name in fields:
+            raise G3ValidationError("duplicate_field")
+        if name != expected_name:
+            raise G3ValidationError("wrong_field_order")
+        if not value or value != value.strip():
+            raise G3ValidationError("trailing_whitespace")
+        if "=" in value:
+            raise G3ValidationError("unexpected_value_delimiter")
+        fields[name] = value
+
+    for field in G3_TAG_FIELDS:
+        if field not in fields:
+            raise G3ValidationError("missing_required_field")
+    if not re.fullmatch(r"[0-9a-f]{64}", fields["specification_bundle_manifest_sha256"]):
+        raise G3ValidationError("malformed_sha256")
+    if not re.fullmatch(r"[0-9a-f]{64}", fields["aggregate_review_bundle_sha256"]):
+        raise G3ValidationError("malformed_sha256")
+    if fields["approval_decision"] != "GO":
+        raise G3ValidationError("invalid_approval_decision")
+    if fields["schema_version"] != "1":
+        raise G3ValidationError("invalid_schema_version")
+    if fields["phase_f_architecture_plan_tag"] != G3_EXPECTED_FIELDS[
+        "phase_f_architecture_plan_tag"
+    ]:
+        raise G3ValidationError("wrong_architecture_plan_binding")
+    if fields["phase_f_f0_decisions_tag"] != G3_EXPECTED_FIELDS[
+        "phase_f_f0_decisions_tag"
+    ]:
+        raise G3ValidationError("wrong_f0_decisions_binding")
+    return fields
+
+
+def check_g3_kat(tag_name: str, body: bytes) -> dict[str, object]:
+    try:
+        fields = parse_g3_tag(tag_name, body)
+    except G3ValidationError as error:
+        return {"result": "REJECT", "category": error.category}
+    if fields["specification_bundle_manifest_sha256"] != G3_EXPECTED_FIELDS[
+        "specification_bundle_manifest_sha256"
+    ]:
+        return {"result": "REJECT", "category": "wrong_bundle_hash"}
+    if fields["aggregate_review_bundle_sha256"] != G3_EXPECTED_FIELDS[
+        "aggregate_review_bundle_sha256"
+    ]:
+        return {"result": "REJECT", "category": "wrong_aggregate_review_hash"}
+    return {"result": "PASS", "category": "valid", "decoded_fields": fields}
+
+
+def apply_g3_mutation(mutation_id: str) -> tuple[str, bytes]:
+    body = G3_FIXTURE_BODY
+    tag_name = G3_TAG_NAME
+    replacements = {
+        "R12-NEG-G3-WRONG-FIELD-NAME": (
+            b"phase_f_architecture_plan_tag=",
+            b"phase_f_architecture_plan=",
+        ),
+        "R12-NEG-G3-LEGACY-FIELD-NAME": (
+            b"phase_f_architecture_plan_tag=",
+            b"architecture_plan_tag=",
+        ),
+        "R12-NEG-G3-SCHEMA-VERSION": (b"schema_version=1\n", b"schema_version=2\n"),
+        "R12-NEG-G3-WRONG-ARCHITECTURE-BINDING": (
+            b"phase_f_architecture_plan_tag=ism-mechanism-health-v1-f-plan-approved",
+            b"phase_f_architecture_plan_tag=ism-mechanism-health-v1-f-f0-decisions-approved",
+        ),
+        "R12-NEG-G3-WRONG-F0-BINDING": (
+            b"phase_f_f0_decisions_tag=ism-mechanism-health-v1-f-f0-decisions-approved",
+            b"phase_f_f0_decisions_tag=ism-mechanism-health-v1-f-plan-approved",
+        ),
+        "R12-NEG-G3-TRAILING-WHITESPACE": (
+            b"approval_decision=GO\n",
+            b"approval_decision=GO \n",
+        ),
+        "R12-NEG-G3-MISSING-DELIMITER": (
+            b"phase_f_architecture_plan_tag=",
+            b"phase_f_architecture_plan_tag ",
+        ),
+        "R12-NEG-G3-INVALID-NEWLINE": (
+            b"ism-mechanism-health-v1-f-plan-approved\n",
+            b"ism-mechanism-health-v1-f-plan-approved\r\n",
+        ),
+        "R12-NEG-G3-WRONG-APPROVAL-VALUE": (
+            b"approval_decision=GO\n",
+            b"approval_decision=NO-GO\n",
+        ),
+    }
+    if mutation_id in replacements:
+        old, new = replacements[mutation_id]
+        body = body.replace(old, new, 1)
+    elif mutation_id == "R12-NEG-G3-MISSING-REQUIRED-FIELD":
+        line = b"aggregate_review_bundle_sha256=" + b"1" * 64 + b"\n"
+        body = body.replace(line, b"", 1)
+    elif mutation_id == "R12-NEG-G3-DUPLICATE-FIELD":
+        body = body.replace(
+            b"schema_version=1\n", b"approval_decision=GO\nschema_version=1\n", 1
+        )
+    elif mutation_id == "R12-NEG-G3-UNEXPECTED-FIELD":
+        body = body.replace(b"schema_version=1\n", b"unexpected_field=x\n", 1)
+    elif mutation_id == "R12-NEG-G3-WRONG-LINE-ORDER":
+        lines = body.splitlines(keepends=True)
+        lines[0], lines[1] = lines[1], lines[0]
+        body = b"".join(lines)
+    elif mutation_id == "R12-NEG-G3-MALFORMED-TAG-NAME":
+        tag_name = "ism-mechanism-health-v1-f-specification-bundl-approved"
+    elif mutation_id == "R12-NEG-G3-WRONG-BUNDLE-HASH":
+        body = body.replace(
+            b"specification_bundle_manifest_sha256=" + b"0" * 64,
+            b"specification_bundle_manifest_sha256=a" + b"0" * 63,
+            1,
+        )
+    elif mutation_id == "R12-NEG-G3-MALFORMED-SHA":
+        body = body.replace(
+            b"aggregate_review_bundle_sha256=" + b"1" * 64,
+            b"aggregate_review_bundle_sha256=z" + b"1" * 63,
+            1,
+        )
+    elif mutation_id == "R12-NEG-G3-EXTRA-TRAILING-CONTENT":
+        body += b"trailing\n"
+    elif mutation_id == "R12-NEG-G3-TRUNCATED-CONTENT":
+        body = body[:-10]
+    elif mutation_id == "R12-NEG-G3-MISSING-FINAL-NEWLINE":
+        body = body[:-1]
+    else:
+        raise ValueError(f"unknown G3 mutation: {mutation_id}")
+    return tag_name, body
+
+
+def parse_pipe_row(line: str) -> list[str]:
+    if not line.startswith("|") or not line.rstrip().endswith("|"):
+        raise ValueError(f"invalid catalog row: {line}")
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def parse_r11_test_catalog() -> dict[str, dict[str, str]]:
+    text = R11_SOURCE.read_text()
+    section = text.split("### 53.10", 1)[1].split("### 53.11", 1)[0]
+    catalog: dict[str, dict[str, str]] = {}
+    for line in section.splitlines():
+        if not line.startswith("| R11-"):
+            continue
+        cells = parse_pipe_row(line)
+        if len(cells) != 9:
+            raise ValueError(f"R11 test catalog column count: {line}")
+        test_id = cells[0]
+        if test_id in catalog:
+            raise ValueError(f"duplicate test ID: {test_id}")
+        if any(not cell for cell in cells):
+            raise ValueError(f"blank R11 test catalog cell: {test_id}")
+        catalog[test_id] = {
+            "kat_class": cells[1],
+            "fixture_scope": cells[2],
+            "expected_result": cells[6],
+        }
+    if len(catalog) != EXPECTED_R11_TEST_COUNT:
+        raise ValueError(f"R11 test catalog count: {len(catalog)}")
+    return catalog
+
+
+def parse_r11_evidence_catalog() -> dict[str, dict[str, str]]:
+    text = R11_SOURCE.read_text()
+    section = text.split("### 53.11", 1)[1].split("### 53.12", 1)[0]
+    catalog: dict[str, dict[str, str]] = {}
+    for line in section.splitlines():
+        if not line.startswith("| EV11-"):
+            continue
+        cells = parse_pipe_row(line)
+        if len(cells) != 5:
+            raise ValueError(f"R11 evidence catalog column count: {line}")
+        evidence_id = cells[0]
+        if evidence_id in catalog:
+            raise ValueError(f"duplicate evidence ID: {evidence_id}")
+        if any(not cell for cell in cells):
+            raise ValueError(f"blank R11 evidence catalog cell: {evidence_id}")
+        catalog[evidence_id] = {"artifact": cells[1], "oracle": cells[4]}
+    if len(catalog) != EXPECTED_R11_EVIDENCE_COUNT:
+        raise ValueError(f"R11 evidence catalog count: {len(catalog)}")
+    return catalog
+
+
+def parse_r12_test_catalog() -> dict[str, dict[str, str]]:
+    text = SPECS["F-CNF"].read_text()
+    section = text.split("## 3. Current executable catalog", 1)[1].split(
+        "### 3.1", 1
+    )[0]
+    catalog: dict[str, dict[str, str]] = {}
+    for line in section.splitlines():
+        if not line.startswith("| R12-"):
+            continue
+        cells = parse_pipe_row(line)
+        if len(cells) != 9:
+            raise ValueError(f"R12 test catalog column count: {line}")
+        test_id = cells[0]
+        if test_id in catalog:
+            raise ValueError(f"duplicate test ID: {test_id}")
+        if any(not cell for cell in cells):
+            raise ValueError(f"blank R12 test catalog cell: {test_id}")
+        catalog[test_id] = {
+            "kat_class": cells[1],
+            "fixture_scope": cells[2],
+            "expected_result": cells[6],
+        }
+    if set(catalog) != {"R12-POS-SPEC-BUNDLE-TAG"}:
+        raise ValueError(f"R12 test catalog set: {sorted(catalog)}")
+    row = catalog["R12-POS-SPEC-BUNDLE-TAG"]
+    if row != {
+        "kat_class": "literal_kat",
+        "fixture_scope": "g3_specification_bundle_tag",
+        "expected_result": "PASS with exact decoded fields",
+    }:
+        raise ValueError(f"R12 test catalog metadata: {row}")
+    return catalog
+
+
+def load_reference_catalogs() -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
+    tests = parse_r11_test_catalog()
+    r12_tests = parse_r12_test_catalog()
+    if set(tests).intersection(r12_tests):
+        raise ValueError("R11/R12 test catalog ID collision")
+    tests.update(r12_tests)
+    evidence = parse_r11_evidence_catalog()
+    return tests, evidence
+
+
+def validate_wire_catalog() -> None:
+    wire_text = SPECS["F-WIRE"].read_text()
+    grammar = "\n".join(
+        [
+            "phase_f_architecture_plan_tag=<annotated tag name>",
+            "phase_f_f0_decisions_tag=<annotated tag name>",
+            "specification_bundle_manifest_sha256=<SHA256_V1>",
+            "aggregate_review_bundle_sha256=<SHA256_V1>",
+            "approval_decision=GO",
+            "schema_version=1",
+        ]
+    ) + "\n"
+    if wire_text.count(grammar) != 1:
+        raise ValueError("G3 grammar is missing or duplicated")
+
+    section = wire_text.split("## 4. Current R12 schema catalog closure", 1)[1].split(
+        "## 5. Review gate", 1
+    )[0]
+    rows = {}
+    for line in section.splitlines():
+        if not line.startswith("| PhaseF"):
+            continue
+        cells = parse_pipe_row(line)
+        if len(cells) != 9:
+            raise ValueError(f"schema catalog column count: {line}")
+        identifier = cells[0]
+        if identifier in rows:
+            raise ValueError(f"duplicate schema catalog row: {identifier}")
+        if any(not cell for cell in cells):
+            raise ValueError(f"blank schema catalog cell: {identifier}")
+        rows[identifier] = cells
+
+    inherited = parse_schema_catalog_ids(R11_SOURCE.read_text())
+    expected = set(inherited) | {"PhaseFSpecificationBundleApprovalV1"}
+    if len(inherited) != 91 or set(rows) != {"PhaseFSpecificationBundleApprovalV1"}:
+        raise ValueError(
+            f"R12 schema catalog delta mismatch: inherited={len(inherited)}, rows={sorted(rows)}"
+        )
+    if len(expected) != EXPECTED_R12_SCHEMA_COUNT:
+        raise ValueError(f"R12 schema set count: {len(expected)}")
+    expected_row = [
+        "PhaseFSpecificationBundleApprovalV1",
+        "TAG_BODY",
+        "#schema-def-PhaseFSpecificationBundleApprovalV1",
+        "no JSON semantic ID; SHA-256 of the exact six-line annotated tag-message bytes including the final LF",
+        "independent five-role specification-bundle approval gate",
+        "exact §3 tag-name/body parser plus target, architecture approval, F0 approval, five component-review, traceability, migrated-finding, aggregate-review, and `approval_decision=GO` validator",
+        "G3 specification-bundle approval, after architecture/F0 approvals and all five component reviews",
+        "TAG_BODY; Git annotated-tag message only; no registry subject and no registry record",
+        "INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFSpecificationBundleApprovalV1)",
+    ]
+    if rows["PhaseFSpecificationBundleApprovalV1"] != expected_row:
+        raise ValueError("R12 schema catalog metadata mismatch")
+    anchor = '<a id="schema-def-PhaseFSpecificationBundleApprovalV1"></a>'
+    if wire_text.count(anchor) != 1:
+        raise ValueError("R12 schema definition anchor missing or duplicated")
+
+
+def parse_schema_catalog_ids(text: str) -> list[str]:
+    section = text.split("### 53.12", 1)[1].split("The inverse projection", 1)[0]
+    ids: list[str] = []
+    for line in section.splitlines():
+        if not line.startswith("| PhaseF"):
+            continue
+        cells = parse_pipe_row(line)
+        if len(cells) != 9:
+            raise ValueError(f"R11 schema catalog column count: {line}")
+        ids.append(cells[0])
+    if len(ids) != len(set(ids)):
+        raise ValueError("duplicate R11 schema catalog ID")
+    return ids
+
+
+def validate_kat_spec() -> None:
+    text = SPECS["F-CNF"].read_text()
+    if len(G3_FIXTURE_BODY) != G3_FIXTURE_BYTE_LENGTH:
+        raise ValueError("G3 fixture byte length constant mismatch")
+    if sha256_bytes(G3_FIXTURE_BODY) != G3_FIXTURE_SHA256:
+        raise ValueError("G3 fixture SHA-256 constant mismatch")
+    required_literals = [
+        "fixture_id=R12-POS-SPEC-BUNDLE-TAG",
+        f"fixture_byte_length={G3_FIXTURE_BYTE_LENGTH}",
+        f"fixture_sha256={G3_FIXTURE_SHA256}",
+        G3_FIXTURE_BODY.decode("ascii").rstrip("\n"),
+        G3_FIXTURE_BODY.hex(),
+        "operation=validate_g3_tag(tag_name,body_bytes,synthetic_context)",
+    ]
+    for literal in required_literals:
+        if literal not in text:
+            raise ValueError(f"R12 KAT specification is missing: {literal[:80]}")
+    for mutation in G3_KAT_MUTATIONS:
+        mutation_row = next(
+            (
+                line
+                for line in text.splitlines()
+                if line.startswith(f"| {mutation['id']} |")
+            ),
+            None,
+        )
+        if mutation_row is None or mutation["expected_category"] not in mutation_row:
+            raise ValueError(f"R12 KAT mutation is missing: {mutation['id']}")
+
+    positive = check_g3_kat(G3_TAG_NAME, G3_FIXTURE_BODY)
+    if positive.get("result") != "PASS" or positive.get("decoded_fields") != G3_EXPECTED_FIELDS:
+        raise ValueError(f"G3 positive KAT failed: {positive}")
+    for mutation in G3_KAT_MUTATIONS:
+        tag_name, body = apply_g3_mutation(mutation["id"])
+        result = check_g3_kat(tag_name, body)
+        if result != {"result": "REJECT", "category": mutation["expected_category"]}:
+            raise ValueError(f"G3 mutation {mutation['id']} result: {result}")
+
+
+def validate_reference_catalogs(
+    entries: list[dict[str, object]],
+    test_catalog: dict[str, dict[str, str]],
+    evidence_catalog: dict[str, dict[str, str]],
+) -> None:
+    if len(test_catalog) != EXPECTED_R11_TEST_COUNT + 1:
+        raise ValueError(f"test catalog count: {len(test_catalog)}")
+    if len(evidence_catalog) != EXPECTED_R11_EVIDENCE_COUNT:
+        raise ValueError(f"evidence catalog count: {len(evidence_catalog)}")
+    for entry in entries:
+        test_ids = list(entry["test_ids"])
+        evidence_ids = list(entry["future_real_evidence_ids"])
+        if len(test_ids) != len(set(test_ids)):
+            raise ValueError(f"duplicate test reference in {entry['requirement_id']}")
+        if len(evidence_ids) != len(set(evidence_ids)):
+            raise ValueError(f"duplicate evidence reference in {entry['requirement_id']}")
+        unknown_tests = sorted(set(test_ids) - set(test_catalog))
+        unknown_evidence = sorted(set(evidence_ids) - set(evidence_catalog))
+        if unknown_tests or unknown_evidence:
+            raise ValueError(
+                f"undefined traceability reference for {entry['requirement_id']}; "
+                f"tests={unknown_tests}, evidence={unknown_evidence}"
+            )
+        for test_id in test_ids:
+            if test_id.startswith("R12-") and test_catalog[test_id]["kat_class"] != "literal_kat":
+                raise ValueError(f"R12 KAT has wrong catalog category: {test_id}")
+        if set(test_ids).intersection(evidence_ids):
+            raise ValueError(f"test/evidence identifier collision in {entry['requirement_id']}")
 
 
 def expand_refs(value: str) -> list[str]:
@@ -301,14 +850,25 @@ def validate_traceability(entries: list[dict[str, object]]) -> None:
         visit(requirement_id)
 
 
+def load_phase_f_entries() -> tuple[
+    list[dict[str, object]], dict[str, dict[str, str]], dict[str, dict[str, str]]
+]:
+    entries = parse_architecture()
+    for prefix, path in SPECS.items():
+        entries.extend(parse_spec(prefix, path))
+    test_catalog, evidence_catalog = load_reference_catalogs()
+    validate_traceability(entries)
+    validate_reference_catalogs(entries, test_catalog, evidence_catalog)
+    return entries, test_catalog, evidence_catalog
+
+
 def build_traceability() -> dict[str, object]:
     validate_inventory()
     validate_r11_and_migration()
     validate_f0_decisions()
-    entries = parse_architecture()
-    for prefix, path in SPECS.items():
-        entries.extend(parse_spec(prefix, path))
-    validate_traceability(entries)
+    validate_wire_catalog()
+    validate_kat_spec()
+    entries, test_catalog, evidence_catalog = load_phase_f_entries()
     by_id = {entry["requirement_id"]: entry for entry in entries}
     for child in entries:
         for parent_id in child["upstream_requirement_ids"]:
@@ -322,6 +882,17 @@ def build_traceability() -> dict[str, object]:
         "artifact_kind": "phase_f_derived_traceability_manifest",
         "semantic_authority": False,
         "generation_rule": "docs/engineering_specification/phase_f/generate_phase_f_manifests.py",
+        "reference_catalogs": {
+            "tests": {
+                "r11_source": str(R11_SOURCE.relative_to(ROOT)),
+                "r12_source": str(SPECS["F-CNF"].relative_to(ROOT)),
+                "count": len(test_catalog),
+            },
+            "future_real_evidence": {
+                "source": str(R11_SOURCE.relative_to(ROOT)),
+                "count": len(evidence_catalog),
+            },
+        },
         "requirements": sorted(entries, key=lambda row: row["requirement_id"]),
     }
 
@@ -368,11 +939,75 @@ def build_bundle(trace_sha: str) -> dict[str, object]:
             "f0_decisions_tag_absent",
             "component_independent_reviews_pending",
             "aggregate_specification_bundle_review_absent",
+            "migrated_finding_review_pending",
         ],
     }
 
 
+def run_regression_self_tests() -> None:
+    trace = build_traceability()
+    entries = trace["requirements"]
+    test_catalog, evidence_catalog = load_reference_catalogs()
+
+    def must_reject(label: str, mutate: object) -> None:
+        mutant = deepcopy(entries)
+        mutate(mutant)
+        try:
+            validate_reference_catalogs(mutant, test_catalog, evidence_catalog)
+        except ValueError:
+            return
+        raise AssertionError(f"undefined-reference regression did not reject: {label}")
+
+    must_reject(
+        "undefined test ID",
+        lambda rows: rows[0]["test_ids"].append("R12-UNDEFINED-TEST"),
+    )
+    must_reject(
+        "undefined KAT/fixture ID",
+        lambda rows: rows[0]["test_ids"].append("R12-UNDEFINED-KAT"),
+    )
+    scientific_row = next(row for row in entries if row["requirement_id"] == "F-SCI-001")
+    scientific_index = entries.index(scientific_row)
+    mutant = deepcopy(entries)
+    mutant[scientific_index]["future_real_evidence_ids"].append("EV11-UNDEFINED")
+    try:
+        validate_reference_catalogs(mutant, test_catalog, evidence_catalog)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("undefined evidence regression did not reject")
+
+    anchor_mutant = deepcopy(entries)
+    anchor_mutant[0]["authority_anchor"] = "#undefined-anchor"
+    try:
+        validate_traceability(anchor_mutant)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("undefined anchor regression did not reject")
+    print(
+        "PHASE_F_SELF_TEST_PASS "
+        f"requirements={len(entries)} tests={len(test_catalog)} evidence={len(evidence_catalog)} "
+        f"g3_mutations={len(G3_KAT_MUTATIONS)}"
+    )
+
+
 def main() -> None:
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--check-kat" and len(sys.argv) == 2:
+            validate_inventory()
+            validate_r11_and_migration()
+            validate_wire_catalog()
+            validate_kat_spec()
+            print(
+                "PHASE_F_KAT_PASS "
+                f"fixture_bytes={G3_FIXTURE_BYTE_LENGTH} mutations={len(G3_KAT_MUTATIONS)}"
+            )
+            return
+        if sys.argv[1] == "--self-test" and len(sys.argv) == 2:
+            run_regression_self_tests()
+            return
+        raise SystemExit("usage: generate_phase_f_manifests.py [--check-kat|--self-test]")
     trace = build_traceability()
     trace_bytes = (json.dumps(trace, indent=2, sort_keys=True) + "\n").encode()
     bundle = build_bundle(sha256_bytes(trace_bytes))

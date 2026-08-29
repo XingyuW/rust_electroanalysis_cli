@@ -12,17 +12,18 @@
     "architecture_plan_tag_absent",
     "f0_decisions_tag_absent",
     "component_independent_reviews_pending",
-    "aggregate_specification_bundle_review_absent"
+    "aggregate_specification_bundle_review_absent",
+    "migrated_finding_review_pending"
   ],
   "component_specifications": [
     {
-      "git_blob": "237c9acdb589febd4cd0b85f222f56f78ad7c39d",
+      "git_blob": "68e0c64505dc3cc91401c7f8bde89e67039b5644",
       "independent_review_bundle_sha256": null,
       "p0_count": null,
       "p1_count": null,
       "path": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
       "review_status": "PENDING",
-      "sha256": "19cc874054176bf4ce40fca93b596624fbde815b7c89e1bb3a93c8b12b71d4e2"
+      "sha256": "f8a033dbe74329a45452ec448a1d22674bc879889dc0b9bda8f964abaf7c3349"
     },
     {
       "git_blob": "4f65fa473572e1be067bab4e9c321cd0bde266cc",
@@ -43,13 +44,13 @@
       "sha256": "5ceaf042e5904e78c757e1fd227b9162c1331bce246901aab415c6afab02a78a"
     },
     {
-      "git_blob": "70f05a57cb415568642ca3e89dc942ac6d7ca9dc",
+      "git_blob": "85d33413d1a40eb82e95d0f7538e6e1a3659074c",
       "independent_review_bundle_sha256": null,
       "p0_count": null,
       "p1_count": null,
       "path": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
       "review_status": "PENDING",
-      "sha256": "5e2ce835cf8d36b7fca01415010eae8509506062a28c8cb8ee96911b60078f54"
+      "sha256": "6c8d36e670f761e6387644867f5ab3179faeb4c5ce8e0ef768f72be8bf03890a"
     },
     {
       "git_blob": "e637afe67741c48ee02b2fad169a7a0d350a6a0b",
@@ -74,6 +75,6 @@
   "status": "DRAFT_NO_AUTHORITY",
   "traceability_manifest": {
     "path": "docs/engineering_specification/phase_f/phase_f_traceability_manifest.json",
-    "sha256": "8c1f0a82ed827efbddb60a068d6bbd608a4a07ce0a58a613a4bf587348b3b5f3"
+    "sha256": "b3def3c168316a6fd483eb864420795312b70e1b2eeaab570981094922808a38"
   }
 }
