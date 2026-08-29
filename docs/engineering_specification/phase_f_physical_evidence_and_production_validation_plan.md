@@ -1,9 +1,9 @@
-# MHI V1 Phase F — R10 planning-only fixture / catalog / traceability closure
+# MHI V1 Phase F — R11 planning-only semantic fixture / exact catalog closure
 
 ## 1. Authority, status, scope, and chronology
 
-This document is the Phase-F R10 planning remediation of the independently
-rereviewed R9 plan. It changes only this plan document. It does not create a
+This document is the Phase-F R11 planning remediation of the independently
+rereviewed R10 plan. It changes only this plan document. It does not create a
 schema file, checker, tag, branch, key, signature, trust root, registry record,
 physical evidence, monitoring record, claim, production implementation, new
 scientific model, or new scientific scope.
@@ -11,17 +11,17 @@ scientific model, or new scientific scope.
 This is planning only: no architecture expansion, no self-Git identity, and no
 future-file authority in F0.
 
-The starting authority is exact:
+The starting R10 authority is exact:
 
 | Authority | Value |
 |---|---|
-| R9 plan-review SHA | `1084257636e74d16d1f64da1062bb187e58b46f6` |
-| R9 plan SHA-256 | `2b0c79858e8f82b4ae756555d69ba5caa12cc1cce9a5fb13bd300d1e1c755adb` |
-| R9 plan Git blob | `304ce6c4931ae1b105829abca64b559e98916d01` |
-| R9 independent rereview | `P0=0`, `P1=6 grouped findings`, `P2=0`, `P3=0`, `PLAN_DECISION=NO-GO`, `PLAN_AUTHORITY=FAIL` |
-| R10 status | forward remediation; independent R10 rereview `PENDING` |
-| plan approval tag | absent; must remain absent in R10 |
-| implementation branch | absent; must remain absent in R10 |
+| R10 plan-review SHA | `341f9a805f94e8dd2a58c3beb7c3a68cf6adf3c7` |
+| R10 plan SHA-256 | `3832fd6feaba98e834f288760c1741fa0a1bdfe1d6a1ab254cf9bcd1ce05e073` |
+| R10 plan Git blob | `ca9bf58546f31f18ce0a35046dee1f46b55f9ec0` |
+| R10 independent rereview | `P0=0`, `P1=4`, `P2=0`, `P3=1`, `PLAN_DECISION=NO-GO`, `PLAN_AUTHORITY=FAIL` |
+| R11 status | forward remediation; independent R11 rereview `PENDING` |
+| plan approval tag | absent; must remain absent in R11 |
+| implementation branch | absent; must remain absent in R11 |
 
 The immutable Phase-E authority is not changed: integrated baseline
 `14942a30928b88f16914bf0bb103cc0c2a5bfa76`, reviewed implementation
@@ -29,7 +29,7 @@ The immutable Phase-E authority is not changed: integrated baseline
 `0b68359f362434ef9f42df21ca553692ae6e3bb3c096881009ab5e9473cc2c33`, and
 frozen plan blob `6fce9d13a42a09027e0e730874a8d80e03e6a7da`.
 
-The current plan-review context is the external authority value
+The current R11 plan-review context is the external authority value
 `CURRENT_PLAN_REVIEW_SHA`. It is the exact Git commit SHA frozen after the
 final planning-only commit and supplied to the fresh independent plan
 reviewer. It is not embedded as a concrete SHA in this plan. At review start
@@ -39,7 +39,7 @@ R1 was `NO-GO/P1=13`; R2 was `NO-GO/P1=10`; R3 was `NO-GO/P1=19`; R4 was
 `NO-GO/P1=14`; R5 was `NO-GO/P1=11`; R6 was `NO-GO/P1=13`; R7 was
 `NO-GO/P1=5`; R8 was `NO-GO/P1=4`; R9 was `NO-GO/P1=6 grouped fixture/catalog findings`.
 R10 is forward remediation and no rejected version is described as approved.
-The exact future order remains: fresh R10
+The exact future order remains: fresh R11
 rereview, plan approval, F0, F-IMPL-1 checker and permanent F-MAINT-01/02
 closure, readiness, enrollment, genesis, F1, F2, F3, F4, and F5.
 F1-F5 remain blocked until the applicable approved tags and authority objects
@@ -48,7 +48,7 @@ exist.
 `F_IMPL_1_BEFORE_F0_EXIT`, `F_IMPL_2_BEFORE_F0_EXIT`,
 `F_IMPL_3_BEFORE_F0_EXIT`, and `F_IMPL_4_BEFORE_F0_EXIT` are forbidden.
 R5, R6, R7, R8, R9, and R10 author audits are not independent approval. No R6,
-R7, R8, R9, or R10 approval tag,
+R7, R8, R9, R10, or R11 approval tag,
 implementation branch, F0 activity, key, signature, trust, registry, evidence,
 claim, or monitoring object exists as a result of this plan edit.
 
@@ -3021,6 +3021,8 @@ READY_FOR_FRESH_PHASE_F_R7_PLAN_REREVIEW: yes
 READY_FOR_PHASE_F_PLAN_APPROVAL_TAG: NO pending fresh R7 GO
 READY_FOR_PHASE_F_IMPLEMENTATION: NO
 
+```
+
 ## 26. Historical R8 master-schema catalog snapshot (non-normative)
 
 This entire section is retained historical R8 accounting and is not current
@@ -4448,20 +4450,21 @@ NO expected pending fresh R9 GO
 READY_FOR_PHASE_F_IMPLEMENTATION:
 NO
 
-## 42. R10 MASTER SCHEMA CATALOG AND FIXTURE AUTHORITY
+## 42. Historical R10 MASTER SCHEMA CATALOG AND FIXTURE AUTHORITY (NON-CURRENT)
 
-Sections 33-41 are a retained historical R9 appendix and are excluded from
-current extraction. This section and §§43-52 are the one current R10 authority.
-R10 remains planning only. All fixtures below are plan-embedded KAT definitions,
+Sections 33-52 are retained historical R9/R10 appendices and are excluded from
+current extraction. The current authority begins at §53 and is R11. R10 remained
+planning only. All fixtures below are historical plan-embedded KAT definitions,
 not production evidence, schema files, registry records, physical evidence,
 monitoring evidence, claims, keys, signatures, or tags.
 
-R10 preserves every closed R9 contract and changes no authority architecture or
+R10 preserved every closed R9 contract and changed no authority architecture or
 scientific scope. R1 through R8 were NO-GO with P1 counts 13, 10, 19, 14, 11,
 13, 5, and 4. R9 was NO-GO with six grouped fixture/catalog findings. R10 is
-forward remediation and independent R10 rereview is PENDING.
+forward remediation; the independent R10 rereview was PENDING and is now the
+starting authority for R11.
 
-### 42.1 R10 CURRENT NORMATIVE IDENTIFIER SET
+### 42.1 Historical R10 normative identifier set
 
 Mechanical enumeration of PhaseF[A-Za-z0-9_]*V1 produces exactly 91
 identifiers. The current master set is:
@@ -4563,7 +4566,7 @@ PhaseFUnitRuleV1
 Each identifier occurs exactly once in the current catalog below. Historical
 catalog rows are not current rows.
 
-### 42.2 R10 CURRENT MASTER SCHEMA CATALOG
+### 42.2 Historical R10 master schema catalog
 
 Category rules are exact: TOP_LEVEL_WIRE is an independently serialized or
 materialized file with a complete byte representation; NESTED_WIRE is only a
@@ -4679,7 +4682,7 @@ PhaseFIncidentResolutionV1=TOP_LEVEL_WIRE
 PhaseFRetentionCopyVerificationV1=NESTED_WIRE
 ~~~
 
-### 42.3 CATALOG DERIVATION RULE
+### 42.3 Historical R10 catalog derivation rule
 
 R10 CURRENT NORMATIVE REQUIREMENT MATRIX in §43 is the only normative
 requirement/F-OD/schema mapping source. Catalog traceability columns are a
@@ -4691,7 +4694,7 @@ plan invalid. Incident schemas derive from incident-resolution and retention
 requirements; monitoring-source references derive from monitoring requirements;
 retention audit derives from every current retention row that lists it.
 
-## 43. R10 CURRENT NORMATIVE REQUIREMENT MATRIX
+## 43. Historical R10 normative requirement matrix (NON-CURRENT)
 
 This is the one current R10 matrix. The R9 matrix in §34 is historical and
 non-current. Every row has a normative statement, owner decisions, literal
@@ -4734,7 +4737,7 @@ F-OD-11,F-OD-12,F-OD-13,F-OD-14,F-OD-15,F-OD-16,F-OD-17,F-OD-18,F-OD-19,F-OD-20
 
 There is no F-OD-21 and no second current mapping source.
 
-## 44. R10 RETENTION KAT PROFILE AND LITERAL BYTE TABLE
+## 44. Historical R10 retention KAT profile and literal byte table
 
 R10_RETENTION_KAT_F0 is one explicit PLAN-EMBEDDED TEST-ONLY profile. THESE
 ARE KAT-ONLY TEST VALUES. THEY DO NOT PRE-DECIDE FUTURE F0:
@@ -4788,7 +4791,7 @@ The excluded incident-I2 row is materialized so its complete incident identity
 is reproducible, but it is not a retention member.
 RETENTION_KAT_SYMBOLIC_BYTE_VALUES=0.
 
-## 45. R10 POSITIVE INCIDENT FIXTURE AND EXPECTED RETENTION SET
+## 45. Historical R10 positive incident fixture and expected retention set
 
 The positive incident fixture is:
 
@@ -4854,7 +4857,7 @@ identities, I1, and both IR2 resolution authorities. It does not contain
 incident-I2. Expected retention-member count is the literal integer 21.
 INCIDENT_POSITIVE_FIXTURE_CONSISTENT=yes.
 
-## 46. R10 POSITIVE COPY COVERAGE
+## 46. Historical R10 positive copy coverage
 
 The following is the complete two-copy table for every one of the 21 expected
 members. Each member has exactly one copy-A and one copy-B row; every row is a
@@ -4908,9 +4911,8 @@ literal PASS. Copy URIs are immutable and distinct.
 The positive KAT has exactly 42 PASS copy rows, two per identity, with no
 conditional PASS language. RETENTION_KAT_SYMBOLIC_COPY_VALUES=0 and
 RETENTION_POSITIVE_KAT_FULLY_MATERIALIZED=yes.
-```
 
-## 48. R10 ACCEPTANCE CRITERIA
+## 48. Historical R10 acceptance criteria
 
 Every current R10 acceptance criterion has preconditions, exact inputs,
 operation, expected result/output, and a failure oracle.
@@ -4943,7 +4945,7 @@ operation, expected result/output, and a failure oracle.
 | AC10-24 | Full release set, chronology, and object checks/copies | 21 expected identities, incident/monitoring/state records, and copy checks | Perform exact-set equality, de-duplication, status, acceptance, copy checks | Release retention PASS | release-retention report | missing authority, duplicate identity, or invalid copy fails |
 | AC10-25 | Complete literal R10 retention KAT | 22 literal byte rows, 21 expected identities, 42 copy rows, exact times, and the KAT profile | Hash every byte row; derive set; compare copies and count | KAT PASS with 21 members and 42 PASS copies | R10 KAT transcript | any derivation, hash, length, URI, chronology, or coverage discrepancy is NO-GO |
 
-## 49. R10 TEST PROCEDURES
+## 49. Historical R10 test procedures
 
 Every current test has complete fixture construction, exact invocation,
 expected exact result, and a negative mutation. Exact PASS claims use the
@@ -4995,7 +4997,7 @@ copies -> PASS; one fresh copy -> FAIL. The exact time boundary is 2700
 seconds -> PASS and 3600 seconds -> FAIL.
 RELEASE_RETENTION_TEST_COVERAGE_GAPS=0.
 
-## 50. R10 F-EV EVIDENCE ORACLES
+## 50. Historical R10 F-EV evidence oracles
 
 These rows describe future REAL artifacts and are not created by this
 planning-only edit. No row claims release-retention PASS solely from the plan
@@ -5033,7 +5035,7 @@ length, SHA, retrieved bytes, verified_at, count, and freshness.
 
 RELEASE_RETENTION_EVIDENCE_ORACLE_GAPS=0.
 
-## 51. R10 REMEDIATION LEDGER AND AUTHOR AUDIT
+## 51. Historical R10 remediation ledger and author audit
 
 Exactly six R10 remediation IDs are created. Author disposition is only
 REMEDIATED or OPEN; only a fresh independent R10 reviewer may mark a finding
@@ -5093,7 +5095,7 @@ production runner order=PASS
 P2 gate=PASS
 ~~~
 
-## 52. R10 BASELINE, FROZEN AUTHORITY, AND REQUIRED HANDOFF
+## 52. Historical R10 baseline, frozen authority, and handoff
 
 Before and after this planning-only edit, run:
 
@@ -5207,3 +5209,980 @@ Failure of any is P1. R10 remains unapproved pending that rereview. No
 Phase-F approval tag, implementation branch, F0 activity, key, signature,
 trust provisioning, registry record, physical evidence, monitoring evidence,
 claim, or production change is authorized by this plan.
+
+## 53. R11 current authority, layer separation, and status
+
+Sections 16-52 are historical R7/R8/R9/R10 accounting and are not current
+authority. Sections 2-15 remain the closed Phase-F primitive, serialization,
+identity, registry, scientific, monitoring, incident, retention, and safety
+contracts. Sections 53 onward are the one current R11 planning authority.
+R11 changes no authority architecture, scientific scope, production runtime,
+checker implementation, F0 decision, monitoring contract, or Phase-E
+compatibility. It remains planning only; no approval tag, implementation
+branch, F0 activity, key, signature, trust provisioning, registry record,
+physical evidence, monitoring evidence, claim, or production artifact is
+created by this edit.
+
+The required R11 status history is: R1 NO-GO/P1=13; R2 NO-GO/P1=10;
+R3 NO-GO/P1=19; R4 NO-GO/P1=14; R5 NO-GO/P1=11; R6 NO-GO/P1=13;
+R7 NO-GO/P1=5; R8 NO-GO/P1=4; R9 NO-GO/P1=6 grouped; R10 NO-GO/P1=4/P3=1;
+R11 forward remediation; R11 independent rereview PENDING. No rejected revision
+is approved. Author dispositions below are only REMEDIATED or OPEN. Only a
+fresh independent R11 reviewer may close an R11 P1 finding.
+
+### 53.1 Exact KAT class enum and three test layers
+
+The plan-only enum is exactly:
+
+~~~text
+R11_KAT_CLASS_V1 =
+  production_schema_kat
+  retention_storage_kat
+  property_test
+  constructive_plan_audit
+~~~
+
+Every current R11 test row has kat_class. The meanings are normative:
+
+1. production_schema_kat tests actual PhaseF serialization, semantic IDs,
+   canonical bytes, schema fields, and schema semantics.
+2. retention_storage_kat tests an already validated kind/SHA retention identity
+   and its copies: URI, SHA, byte length, availability, freshness, count, and
+   set equality. It does not prove that upstream production objects are
+   schema-valid.
+3. property_test tests a logical invariant over symbolic variables.
+4. constructive_plan_audit tests explicit plan-level structures such as an
+   adjacency list, identifier set, matrix rows, or test-row input sets. It does
+   not instantiate Phase-F production objects.
+
+No current test may silently move between layers. A literal PASS or FAIL in a
+production_schema_kat or retention_storage_kat has all validator-required
+inputs in the row or in the explicitly named prevalidated-input contract.
+
+### 53.2 Storage-only retention fixture
+
+R11RetentionStorageFixtureV1 is a plan-only storage-copy contract, not a
+production wire schema. It is used only after upstream retention membership
+identity has been validated. Its exact conceptual fields are:
+
+| field | exact meaning |
+|---|---|
+| fixture_label | test label for one storage payload |
+| assumed_object_kind | prevalidated retention object kind |
+| assumed_object_id_or_null | package object ID, or null for authority identity |
+| assumed_prevalidated_object_sha256 | test input to the isolated copy validator |
+| storage_bytes | opaque bytes at the storage location |
+| storage_byte_length | exact length of storage_bytes |
+| copy_a_uri | first immutable storage URI |
+| copy_b_uri | second distinct immutable storage URI |
+| copy_a_verified_at | verification timestamp for copy A |
+| copy_b_verified_at | verification timestamp for copy B |
+
+The assumed_prevalidated_object_sha256 field is TEST INPUT to the isolated
+retention copy validator. The contract does not assert that storage_bytes parse
+as PhaseFReleaseRecordV1, PhaseFMonitoringRecordV1, PhaseFClaimStateRecordV1,
+PhaseFPowerAnalysisRecordV1, or any other production schema.
+
+The `r11-retention-storage/<LABEL>\n` byte fixtures are opaque STORAGE-COPY test
+payloads used only after a kind/SHA retention identity has been supplied by an
+upstream prevalidated-identity fixture.
+
+They do not establish schema validity, semantic-ID validity, registry validity,
+release validity, monitoring validity, incident validity, physical evidence
+validity, or claims. Their only tested predicates are SHA equality, length
+equality, URI scheme, copy distinctness, availability, verification freshness,
+copy cardinality, and retention set equality.
+
+RETENTION_KAT_BYTE_SCOPE=STORAGE_ONLY.
+STORAGE_FIXTURE_TO_SCHEMA_BYTE_PROMOTION_PATHS=0.
+
+### 53.3 Retention composition and prevalidated identities
+
+The retention composition theorem is:
+
+IF A. upstream current Phase-F validators have already produced a valid
+ReleaseRetentionSetV1 kind/SHA identity set; AND B. incident membership has
+been established by the real incident schema KAT; AND C. the retention
+storage/copy KAT validates exact storage copies; THEN the retention
+copy/coverage layer PASS condition is constructible. This theorem does not
+substitute for upstream production validation.
+
+The campaign set remains exactly the package manifest plus every package object.
+Protocol-P is a STATIC RELEASE AUTHORITY, not a campaign-set member. Power
+analysis, cohort lock, owner approval, execution, release, validation manifest,
+monitoring policy, trust tag, F5 review, and claim state are static release
+authorities or release bindings; none is a campaign member.
+
+| identity key | object kind | object ID if package object | prevalidated SHA-256 | upstream validator responsible |
+|---|---|---|---|---|
+| manifest-M | package_manifest | null | df963ee5224c52c91bcb5f4ec0aa2ff5def708c2989f6eb592dcb269311eef98 | package manifest strict parser plus campaign-set validator |
+| package-O1 | package_object | O1 | 90ee35572a33af574c0c8fdb137aee2a7b6d325a7cc60efb36c942fa2d11065f | package object strict parser plus manifest binding validator |
+| package-O2 | package_object | O2 | 24050263ca4a8ec011c7d718e1d0fc52b2350d67265b925b636b75f0a87374ee | package object strict parser plus manifest binding validator |
+| protocol-P | protocol | null | 73fb452c36f96f4db361f5bbca287c20f6a899296db86ec064992de91880fcd3 | protocol registration plus release-binding validator |
+| power-A | power_analysis | null | 380d4d36ac0f8bae7d2558eb22e7003739b86f2b2222d9f507fbf3967672a58a | power-analysis parser plus cohort binding validator |
+| cohort-C | cohort_lock | null | 9d75af9d77ddc8ff159d961e0f35ac8b1d3eee6e412e007b90faf49161a6b196 | cohort strict parser plus lock/release binding validator |
+| owner-OA | owner_approval | null | d06f4b22f31603f062847547a6aefeac400d6556a392df1a499b78c0eb031dc4 | certified owner-approval parser plus release binding validator |
+| execution-E | execution_record | null | 4e13d9bc0c22f4acd5d5ae6e9f500d143dd17ca40f15c6719830215914b59876 | execution strict parser plus release binding validator |
+| release-R | release_record | null | e136326de2b7a883df571265505752f7600422519de2ce823ca322633c1cd856 | release strict parser plus release_registered subject validator |
+| validation-VM | validation_manifest | null | a2e77f55d1a719a28db66e299f9500dd7c0e826cf86f9ebf50f021c2b3ebc8e7 | validation-manifest binding validator |
+| monitoring-policy-MP | monitoring_policy | null | 22b90909658de8d2fead19836e5b71d3bc8e92ac6ef941434cc7b0bac19be6fb | monitoring policy strict parser plus release binding validator |
+| metrology-policy-MET | metrology_policy | null | e592b9ff6c5ec6890910097154bbfed958cf9383651aed3f41072ef208cc3f64 | metrology policy strict parser plus release binding validator |
+| trust-tag-TT | git_tag_message | null | 09c14e2106d90c93d25b3c2793d97f94ec74e87f77a817d004bca714723113f9 | annotated-tag parser plus trust-field binding validator |
+| f5-review-RB | independent_review_bundle | null | 62dbce3dc5b0203ad287599e35b246ae81710859535b4486de3e7126637ad56f | review-bundle parser plus F5 target/aggregate validator |
+| claim-S0 | claim_state | null | 7b6387ff4259fafe1418268a9c80c9aa6811c26e744f629e92f3355ea2b6d69e | claim-state parser plus initial-state registry validator |
+| claim-S1 | claim_state | null | 390de3582256a63f592d43f418927c80828947a127d21eb5ef42eb760ae50003 | claim-state parser plus state-chain registry validator |
+| monitor-MR1 | monitoring_record | null | d38e0ed279e3ce7c601a4ca25e46d7a7489268d911c904bed43e2a2159d9e035 | monitoring parser plus accepted-window registry validator |
+| monitor-MR2 | monitoring_record | null | 6a2ddbc9c8ab34f013ea6202a5b062e6a892e247cb6c1a2ef6f50f91b0c0c524 | monitoring parser plus accepted-window registry validator |
+| incident-I1 | incident_record | null | 98d48c525f84456d66549129982203dd903747d05eac2a55d03e8137d9e8976d | incident parser plus audited-at classifier |
+| IR2-C | incident_resolution | null | e1213d5261a13111eb857c401009cbf247662d1f28a5abf1f28c90aa0cd6cccf | incident-resolution schema KAT plus chain validator |
+| IR2-R | incident_resolution | null | 66464841fd24cf4f5de17fd731dbaac7edb7c820f8885fb4dbf417bb77dd1b3c | incident-resolution schema KAT plus chain validator |
+
+Only the first three rows are campaign identities. The remaining rows are
+static release identities, accepted monitoring identities, incident I1, and
+the two resolution authorities. A static identity is assumed valid only under
+this named table; its opaque storage copy never promotes into a PhaseF schema
+object.
+
+### 53.4 Literal production-schema incident KAT
+
+The following are literal JCS JSON bytes. They are production_schema_kat inputs
+for PhaseFIncidentRecordV1 and PhaseFIncidentResolutionV1, not production
+evidence. Every evidence reference is literal and fully bound by URI, SHA, and
+byte length.
+
+I2 uses the exact domain separator `mhi_phase_f_incident_record_v1\0` and
+excludes only `incident_id` from its semantic payload. IR2-C and IR2-R use the
+exact domain separator `mhi_phase_f_incident_resolution_v1\0` and exclude only
+their own `incident_resolution_id`; each semantic ID is `sha256` plus the
+lowercase hash of domain bytes followed by the JCS semantic payload. No
+registry pointer is included.
+
+I2 semantic ID is
+sha256:c53b6f2230cbe25034dfcfe572cb845e1e29fe0a9f730549ed0ec464d71b8353.
+I2 canonical JCS bytes are exactly:
+
+~~~json
+{"affected_object_sha256s":[{"object_kind":"release_record","object_sha256":"2222222222222222222222222222222222222222222222222222222222222222"}],"affected_unit_ids":["unit-I2"],"detected_at":"2026-01-01T00:10:00Z","evidence_references":[{"byte_length":"97","immutable_uri":"https://r11.invalid/evidence/i2.json","sha256":"3333333333333333333333333333333333333333333333333333333333333333"}],"incident_id":"sha256:c53b6f2230cbe25034dfcfe572cb845e1e29fe0a9f730549ed0ec464d71b8353","incident_status":"open","incident_type":"data_integrity","required_action":"suspend","schema_version":1,"scope":{"release_record_id":"sha256:1111111111111111111111111111111111111111111111111111111111111111","type":"release"}}
+~~~
+
+I2 byte length is 704 and complete-file SHA-256 is
+3a6281cddf82f4f0b69abf6aff8b15347aae8c71af46d252f93c012f00b0d55f.
+
+IR2-C has semantic ID
+sha256:4f0846d55e1f38335cc8e1a62f963e95c374c6351f2c9358143e673ec76a7dc7.
+Its canonical JCS bytes are exactly:
+
+~~~json
+{"effective_at":"2026-01-01T00:30:00Z","evidence_references":[{"byte_length":"101","immutable_uri":"https://r11.invalid/evidence/ir2-c.json","sha256":"4444444444444444444444444444444444444444444444444444444444444444"}],"incident_id":"sha256:c53b6f2230cbe25034dfcfe572cb845e1e29fe0a9f730549ed0ec464d71b8353","incident_record_sha256":"3a6281cddf82f4f0b69abf6aff8b15347aae8c71af46d252f93c012f00b0d55f","incident_resolution_id":"sha256:4f0846d55e1f38335cc8e1a62f963e95c374c6351f2c9358143e673ec76a7dc7","previous_resolution_sha256":null,"resolution_number":"0","resolution_status":"contained","schema_version":1}
+~~~
+
+IR2-C byte length is 607 and complete-file SHA-256 is
+e1213d5261a13111eb857c401009cbf247662d1f28a5abf1f28c90aa0cd6cccf.
+
+IR2-R has semantic ID
+sha256:42e6ff499eac64a5abb5858a4eb2ac260a2d833ebcaf39bea65f7f10579069b9.
+Its canonical JCS bytes are exactly:
+
+~~~json
+{"effective_at":"2026-01-01T01:00:00Z","evidence_references":[{"byte_length":"101","immutable_uri":"https://r11.invalid/evidence/ir2-r.json","sha256":"5555555555555555555555555555555555555555555555555555555555555555"}],"incident_id":"sha256:c53b6f2230cbe25034dfcfe572cb845e1e29fe0a9f730549ed0ec464d71b8353","incident_record_sha256":"3a6281cddf82f4f0b69abf6aff8b15347aae8c71af46d252f93c012f00b0d55f","incident_resolution_id":"sha256:42e6ff499eac64a5abb5858a4eb2ac260a2d833ebcaf39bea65f7f10579069b9","previous_resolution_sha256":"e1213d5261a13111eb857c401009cbf247662d1f28a5abf1f28c90aa0cd6cccf","resolution_number":"1","resolution_status":"resolved","schema_version":1}
+~~~
+
+IR2-R byte length is 668 and complete-file SHA-256 is
+66464841fd24cf4f5de17fd731dbaac7edb7c820f8885fb4dbf417bb77dd1b3c.
+The IR2-R predecessor equals the exact complete canonical IR2-C SHA:
+e1213d5261a13111eb857c401009cbf247662d1f28a5abf1f28c90aa0cd6cccf.
+INCIDENT_SCHEMA_FIXTURE_SHA_BINDING_AMBIGUITIES=0.
+
+For the incident-resolution retention members, R11RetentionStorageFixtureV1.storage_bytes
+is the exact byte-for-byte copy of the corresponding literal IR2-C or IR2-R
+canonical JSON above. Therefore those two storage-copy rows have exact
+storage-byte lengths and SHA-256 values 607/e1213d5261a13111eb857c401009cbf247662d1f28a5abf1f28c90aa0cd6cccf
+and 668/66464841fd24cf4f5de17fd731dbaac7edb7c820f8885fb4dbf417bb77dd1b3c.
+All other retention-storage rows remain STORAGE_ONLY opaque payloads.
+
+The incident KAT has no opaque predecessor. I2 is open, IR2-C is number
+0/contained, and IR2-R is number 1/resolved. The two resolution objects are
+retained for chain proof; incident-I2 is not retained as an unresolved member.
+
+### 53.5 Exact plan and trust parser KATs
+
+R11-POS-PLAN is a literal function-level parser/binding KAT. Let
+X=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa be a test commit token, not a Git
+claim. The literal peeled_target is X and the literal body bytes are exactly:
+
+~~~text
+format_version=1
+plan_review_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+plan_sha256=1111111111111111111111111111111111111111111111111111111111111111
+plan_git_blob=2222222222222222222222222222222222222222
+review_bundle_sha256=3333333333333333333333333333333333333333333333333333333333333333
+approval_decision=GO
+~~~
+
+The body has byte length 313 and SHA-256
+50b16c2f262e84e4ddbedc848eeb2e6df73fcebda19c01f93d6e8d8548e82d77. The
+function-level surface is only target/body binding; it does not claim that X
+exists in Git. A separate production property requires the named annotated tag
+to resolve to X and to carry the same plan bytes before any real approval.
+
+R11-POS-TRUST is a literal PhaseFTrustProvisioningApprovalV1 parser/binding KAT.
+The exact ASCII message bytes, including the final LF, are:
+
+~~~text
+format_version=1
+phase_f_plan_tag=ism-mechanism-health-v1-f-plan-approved
+f0_decisions_tag=ism-mechanism-health-v1-f-f0-decisions-approved
+readiness_tag=ism-mechanism-health-v1-f-readiness-approved
+authority_enrollment_tag=ism-mechanism-health-v1-f-authority-enrollment-approved
+enrollment_sha256=1111111111111111111111111111111111111111111111111111111111111111
+owner_public_key_fingerprint=2222222222222222222222222222222222222222222222222222222222222222
+registry_public_key_fingerprint=3333333333333333333333333333333333333333333333333333333333333333
+trust_root_id=trust-root-r11
+trust_review_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+trust_store_git_blob=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+trust_store_sha256=4444444444444444444444444444444444444444444444444444444444444444
+f2_cohort_lock_registry_record_sha256=5555555555555555555555555555555555555555555555555555555555555555
+review_bundle_sha256=6666666666666666666666666666666666666666666666666666666666666666
+approval_decision=GO
+~~~
+
+The exact message byte length is 996 and SHA-256 is
+9122e2684e6b4084e1b85bfed9d7d5aa3ead291a3cb5727741e9e4cdee8a1c01.
+Parsed trust_root_id is trust-root-r11 and parsed trust_store_sha256 is
+4444444444444444444444444444444444444444444444444444444444444444. The
+monitoring source reference uses object_kind=git_tag_message, this SHA, and
+byte_length=996; the two monitoring values equal these parsed literals. The
+production property additionally requires the real named annotated tag to
+resolve to identical message bytes. The parser KAT does not prove Git
+resolution.
+
+### 53.6 Constructive DAG, campaign/static correction, and monitoring scope
+
+R11-DAG-AUDIT uses this explicit node set:
+
+~~~text
+{plan_review, plan_tag, f0_bundle, f0_review, f0_tag, readiness, enrollment,
+ genesis, protocol, power, package, cohort, owner_approval, trust_tag,
+ execution, release, f5_review, claim_state, monitoring, incident_resolution,
+ retention}
+~~~
+
+Its exact directed edge list is:
+
+~~~text
+plan_review->plan_tag
+plan_tag->f0_bundle
+f0_bundle->f0_review
+f0_review->f0_tag
+f0_tag->readiness
+readiness->enrollment
+enrollment->genesis
+genesis->protocol
+protocol->power
+power->package
+package->cohort
+cohort->owner_approval
+owner_approval->trust_tag
+trust_tag->execution
+execution->release
+release->f5_review
+f5_review->claim_state
+claim_state->monitoring
+monitoring->incident_resolution
+incident_resolution->retention
+~~~
+
+The audit runs deterministic cycle detection, future-edge detection, and
+self-Git-edge detection. Expected plan-level result is ACYCLIC. No artifact
+fixture is implied by this audit.
+
+T10-CX-28 is replaced by two current R11 cases. Case A removes package-O1
+from campaign membership and expects campaign/release retention-set FAIL. Case
+B removes protocol-P, which is explicitly the STATIC RELEASE AUTHORITY, and
+expects release-retention-set FAIL. Protocol-P is never a campaign member.
+Removing protocol-P is a static-authority failure, while removing package-O1
+is a campaign-set failure. CAMPAIGN_STATIC_MEMBERSHIP_CONTRADICTIONS=0.
+
+The only current monitoring positive test is a narrow property test for the
+metric-to-source-kind mapping. A complete monitoring PASS requires the literal
+15-metric policy, all five thresholds, all 15 evidence objects, all 15
+measurement rows, release bindings, and registry relations; no current row
+claims that full monitoring PASS from an unspecified fixture.
+
+### 53.7 Canonical definition anchors and exact usage matrix
+
+The following is the one canonical definition/index paragraph for distributed
+definitions. Each current PhaseF identifier has exactly one HTML definition
+anchor and one exact source. The cited source is adjacent to or directly
+defines the current normative schema; inline schemas introduced in §10-§15
+are canonically named here without creating production files. Catalog pointer
+cells use the exact HTML anchor ID, never a section range.
+
+| identifier | canonical definition anchor | exact current definition source |
+|---|---|---|
+| PhaseFArgvV1 | <a id="schema-def-PhaseFArgvV1"></a>SCHEMA_DEF[PhaseFArgvV1] | §2 closed helper definition |
+| PhaseFAuthorityEnrollmentApprovalV1 | <a id="schema-def-PhaseFAuthorityEnrollmentApprovalV1"></a>SCHEMA_DEF[PhaseFAuthorityEnrollmentApprovalV1] | §6 exact annotated-tag body definition |
+| PhaseFAuthorityEnrollmentV1 | <a id="schema-def-PhaseFAuthorityEnrollmentV1"></a>SCHEMA_DEF[PhaseFAuthorityEnrollmentV1] | §5.2/§6 authority definition |
+| PhaseFChainOfCustodyV1 | <a id="schema-def-PhaseFChainOfCustodyV1"></a>SCHEMA_DEF[PhaseFChainOfCustodyV1] | §11 physical/deviation definition |
+| PhaseFCheckListV1 | <a id="schema-def-PhaseFCheckListV1"></a>SCHEMA_DEF[PhaseFCheckListV1] | §2 closed helper definition |
+| PhaseFCheckerBuildEvidenceV1 | <a id="schema-def-PhaseFCheckerBuildEvidenceV1"></a>SCHEMA_DEF[PhaseFCheckerBuildEvidenceV1] | §7 checker/readiness definition |
+| PhaseFCheckerExitCodeV1 | <a id="schema-def-PhaseFCheckerExitCodeV1"></a>SCHEMA_DEF[PhaseFCheckerExitCodeV1] | §7 checker/readiness definition |
+| PhaseFCheckerReadinessEvidenceV1 | <a id="schema-def-PhaseFCheckerReadinessEvidenceV1"></a>SCHEMA_DEF[PhaseFCheckerReadinessEvidenceV1] | §7 checker/readiness definition |
+| PhaseFCheckerReportV1 | <a id="schema-def-PhaseFCheckerReportV1"></a>SCHEMA_DEF[PhaseFCheckerReportV1] | §7 checker/readiness definition |
+| PhaseFCheckerStdoutV1 | <a id="schema-def-PhaseFCheckerStdoutV1"></a>SCHEMA_DEF[PhaseFCheckerStdoutV1] | §7 checker/readiness definition |
+| PhaseFClaimStateRecordV1 | <a id="schema-def-PhaseFClaimStateRecordV1"></a>SCHEMA_DEF[PhaseFClaimStateRecordV1] | §14 release/monitoring definition |
+| PhaseFCohortLockRecordV1 | <a id="schema-def-PhaseFCohortLockRecordV1"></a>SCHEMA_DEF[PhaseFCohortLockRecordV1] | §14 release/monitoring definition |
+| PhaseFCommandV1 | <a id="schema-def-PhaseFCommandV1"></a>SCHEMA_DEF[PhaseFCommandV1] | §7 checker/readiness definition |
+| PhaseFCustodyEventV1 | <a id="schema-def-PhaseFCustodyEventV1"></a>SCHEMA_DEF[PhaseFCustodyEventV1] | §11 physical/deviation definition |
+| PhaseFDecisionApprovalV1 | <a id="schema-def-PhaseFDecisionApprovalV1"></a>SCHEMA_DEF[PhaseFDecisionApprovalV1] | §6 exact annotated-tag body definition |
+| PhaseFDecisionBundleV1 | <a id="schema-def-PhaseFDecisionBundleV1"></a>SCHEMA_DEF[PhaseFDecisionBundleV1] | §4 F0 decision/projection definition |
+| PhaseFDecisionRowV1 | <a id="schema-def-PhaseFDecisionRowV1"></a>SCHEMA_DEF[PhaseFDecisionRowV1] | §4 F0 decision/projection definition |
+| PhaseFDecisionValueV1 | <a id="schema-def-PhaseFDecisionValueV1"></a>SCHEMA_DEF[PhaseFDecisionValueV1] | §2 closed helper definition |
+| PhaseFDependencyAuditV1 | <a id="schema-def-PhaseFDependencyAuditV1"></a>SCHEMA_DEF[PhaseFDependencyAuditV1] | §10 retrieval/package definition |
+| PhaseFDependencyEdgeV1 | <a id="schema-def-PhaseFDependencyEdgeV1"></a>SCHEMA_DEF[PhaseFDependencyEdgeV1] | §10 retrieval/package definition |
+| PhaseFDeviationEventV1 | <a id="schema-def-PhaseFDeviationEventV1"></a>SCHEMA_DEF[PhaseFDeviationEventV1] | §11 physical/deviation definition |
+| PhaseFDeviationLedgerRevisionV1 | <a id="schema-def-PhaseFDeviationLedgerRevisionV1"></a>SCHEMA_DEF[PhaseFDeviationLedgerRevisionV1] | §11 physical/deviation definition |
+| PhaseFDeviationLedgerV1 | <a id="schema-def-PhaseFDeviationLedgerV1"></a>SCHEMA_DEF[PhaseFDeviationLedgerV1] | §11 physical/deviation definition |
+| PhaseFEndpointMetrologyPolicyV1 | <a id="schema-def-PhaseFEndpointMetrologyPolicyV1"></a>SCHEMA_DEF[PhaseFEndpointMetrologyPolicyV1] | §13 metrology/reference definition |
+| PhaseFEnvironmentEntryV1 | <a id="schema-def-PhaseFEnvironmentEntryV1"></a>SCHEMA_DEF[PhaseFEnvironmentEntryV1] | §2 closed helper definition |
+| PhaseFExecutionRecordV1 | <a id="schema-def-PhaseFExecutionRecordV1"></a>SCHEMA_DEF[PhaseFExecutionRecordV1] | §14 release/monitoring definition |
+| PhaseFF5ReleaseCandidateV1 | <a id="schema-def-PhaseFF5ReleaseCandidateV1"></a>SCHEMA_DEF[PhaseFF5ReleaseCandidateV1] | §5 review and F5-candidate definition |
+| PhaseFIdentityComparisonV1 | <a id="schema-def-PhaseFIdentityComparisonV1"></a>SCHEMA_DEF[PhaseFIdentityComparisonV1] | §11 physical/deviation definition |
+| PhaseFIncidentRecordV1 | <a id="schema-def-PhaseFIncidentRecordV1"></a>SCHEMA_DEF[PhaseFIncidentRecordV1] | §15 incident/retention definition |
+| PhaseFIncidentResolutionV1 | <a id="schema-def-PhaseFIncidentResolutionV1"></a>SCHEMA_DEF[PhaseFIncidentResolutionV1] | §15 incident/retention definition |
+| PhaseFIncidentScopeV1 | <a id="schema-def-PhaseFIncidentScopeV1"></a>SCHEMA_DEF[PhaseFIncidentScopeV1] | §2 closed helper definition |
+| PhaseFIndependentReviewBundleV1 | <a id="schema-def-PhaseFIndependentReviewBundleV1"></a>SCHEMA_DEF[PhaseFIndependentReviewBundleV1] | §5 review and F5-candidate definition |
+| PhaseFIndependentReviewV1 | <a id="schema-def-PhaseFIndependentReviewV1"></a>SCHEMA_DEF[PhaseFIndependentReviewV1] | §5 review and F5-candidate definition |
+| PhaseFLODLOQPolicyV1 | <a id="schema-def-PhaseFLODLOQPolicyV1"></a>SCHEMA_DEF[PhaseFLODLOQPolicyV1] | §2 closed helper definition |
+| PhaseFLocationLedgerV1 | <a id="schema-def-PhaseFLocationLedgerV1"></a>SCHEMA_DEF[PhaseFLocationLedgerV1] | §11 physical/deviation definition |
+| PhaseFLocationV1 | <a id="schema-def-PhaseFLocationV1"></a>SCHEMA_DEF[PhaseFLocationV1] | §11 physical/deviation definition |
+| PhaseFMethodVersionV1 | <a id="schema-def-PhaseFMethodVersionV1"></a>SCHEMA_DEF[PhaseFMethodVersionV1] | §13 metrology/reference definition |
+| PhaseFMetricThresholdV1 | <a id="schema-def-PhaseFMetricThresholdV1"></a>SCHEMA_DEF[PhaseFMetricThresholdV1] | §14 release/monitoring definition |
+| PhaseFMetrologyCheckResultV1 | <a id="schema-def-PhaseFMetrologyCheckResultV1"></a>SCHEMA_DEF[PhaseFMetrologyCheckResultV1] | §13 metrology/reference definition |
+| PhaseFMetrologyCheckSpecV1 | <a id="schema-def-PhaseFMetrologyCheckSpecV1"></a>SCHEMA_DEF[PhaseFMetrologyCheckSpecV1] | §13 metrology/reference definition |
+| PhaseFMetrologyPolicyV1 | <a id="schema-def-PhaseFMetrologyPolicyV1"></a>SCHEMA_DEF[PhaseFMetrologyPolicyV1] | §13 metrology/reference definition |
+| PhaseFMonitoringBreachV1 | <a id="schema-def-PhaseFMonitoringBreachV1"></a>SCHEMA_DEF[PhaseFMonitoringBreachV1] | §14 release/monitoring definition |
+| PhaseFMonitoringEvidenceV1 | <a id="schema-def-PhaseFMonitoringEvidenceV1"></a>SCHEMA_DEF[PhaseFMonitoringEvidenceV1] | §14 release/monitoring definition |
+| PhaseFMonitoringMeasurementV1 | <a id="schema-def-PhaseFMonitoringMeasurementV1"></a>SCHEMA_DEF[PhaseFMonitoringMeasurementV1] | §14 release/monitoring definition |
+| PhaseFMonitoringPolicyV1 | <a id="schema-def-PhaseFMonitoringPolicyV1"></a>SCHEMA_DEF[PhaseFMonitoringPolicyV1] | §14 release/monitoring definition |
+| PhaseFMonitoringRecordV1 | <a id="schema-def-PhaseFMonitoringRecordV1"></a>SCHEMA_DEF[PhaseFMonitoringRecordV1] | §14 release/monitoring definition |
+| PhaseFMonitoringSourceReferenceV1 | <a id="schema-def-PhaseFMonitoringSourceReferenceV1"></a>SCHEMA_DEF[PhaseFMonitoringSourceReferenceV1] | §14 release/monitoring definition |
+| PhaseFMonitoringValueV1 | <a id="schema-def-PhaseFMonitoringValueV1"></a>SCHEMA_DEF[PhaseFMonitoringValueV1] | §2 closed helper definition |
+| PhaseFNamedDigestV1 | <a id="schema-def-PhaseFNamedDigestV1"></a>SCHEMA_DEF[PhaseFNamedDigestV1] | §2 closed helper definition |
+| PhaseFObjectDigestV1 | <a id="schema-def-PhaseFObjectDigestV1"></a>SCHEMA_DEF[PhaseFObjectDigestV1] | §2 closed helper definition |
+| PhaseFObjectReferenceV1 | <a id="schema-def-PhaseFObjectReferenceV1"></a>SCHEMA_DEF[PhaseFObjectReferenceV1] | §10 retrieval/package definition |
+| PhaseFOutputSpecV1 | <a id="schema-def-PhaseFOutputSpecV1"></a>SCHEMA_DEF[PhaseFOutputSpecV1] | §12 power definition |
+| PhaseFPackageBindingV1 | <a id="schema-def-PhaseFPackageBindingV1"></a>SCHEMA_DEF[PhaseFPackageBindingV1] | §10 retrieval/package definition |
+| PhaseFPackageManifestV1 | <a id="schema-def-PhaseFPackageManifestV1"></a>SCHEMA_DEF[PhaseFPackageManifestV1] | §10 retrieval/package definition |
+| PhaseFPackageObjectV1 | <a id="schema-def-PhaseFPackageObjectV1"></a>SCHEMA_DEF[PhaseFPackageObjectV1] | §10 retrieval/package definition |
+| PhaseFParameterSpecV1 | <a id="schema-def-PhaseFParameterSpecV1"></a>SCHEMA_DEF[PhaseFParameterSpecV1] | §12 power definition |
+| PhaseFParameterValueRowV1 | <a id="schema-def-PhaseFParameterValueRowV1"></a>SCHEMA_DEF[PhaseFParameterValueRowV1] | §12 power definition |
+| PhaseFPhysicalIdentityAuditV1 | <a id="schema-def-PhaseFPhysicalIdentityAuditV1"></a>SCHEMA_DEF[PhaseFPhysicalIdentityAuditV1] | §11 physical/deviation definition |
+| PhaseFPhysicalReleaseApprovalV1 | <a id="schema-def-PhaseFPhysicalReleaseApprovalV1"></a>SCHEMA_DEF[PhaseFPhysicalReleaseApprovalV1] | §6 exact annotated-tag body definition |
+| PhaseFPhysicalUnitLedgerV1 | <a id="schema-def-PhaseFPhysicalUnitLedgerV1"></a>SCHEMA_DEF[PhaseFPhysicalUnitLedgerV1] | §11 physical/deviation definition |
+| PhaseFPlanApprovalV1 | <a id="schema-def-PhaseFPlanApprovalV1"></a>SCHEMA_DEF[PhaseFPlanApprovalV1] | §6 exact annotated-tag body definition |
+| PhaseFPowerAnalysisRecordV1 | <a id="schema-def-PhaseFPowerAnalysisRecordV1"></a>SCHEMA_DEF[PhaseFPowerAnalysisRecordV1] | §12 power definition |
+| PhaseFPowerMethodInterfaceV1 | <a id="schema-def-PhaseFPowerMethodInterfaceV1"></a>SCHEMA_DEF[PhaseFPowerMethodInterfaceV1] | §12 power definition |
+| PhaseFPowerOutputValueV1 | <a id="schema-def-PhaseFPowerOutputValueV1"></a>SCHEMA_DEF[PhaseFPowerOutputValueV1] | §12 power definition |
+| PhaseFProtocolProjectionV1 | <a id="schema-def-PhaseFProtocolProjectionV1"></a>SCHEMA_DEF[PhaseFProtocolProjectionV1] | §4 F0 decision/projection definition |
+| PhaseFQuantifiedUncertaintyV1 | <a id="schema-def-PhaseFQuantifiedUncertaintyV1"></a>SCHEMA_DEF[PhaseFQuantifiedUncertaintyV1] | §2 closed helper definition |
+| PhaseFRangeRuleV1 | <a id="schema-def-PhaseFRangeRuleV1"></a>SCHEMA_DEF[PhaseFRangeRuleV1] | §2 closed helper definition |
+| PhaseFReadinessApprovalV1 | <a id="schema-def-PhaseFReadinessApprovalV1"></a>SCHEMA_DEF[PhaseFReadinessApprovalV1] | §6 exact annotated-tag body definition |
+| PhaseFReferenceAssessmentV1 | <a id="schema-def-PhaseFReferenceAssessmentV1"></a>SCHEMA_DEF[PhaseFReferenceAssessmentV1] | §13 metrology/reference definition |
+| PhaseFReferenceResultV1 | <a id="schema-def-PhaseFReferenceResultV1"></a>SCHEMA_DEF[PhaseFReferenceResultV1] | §13 metrology/reference definition |
+| PhaseFReferenceSourceDescriptorV1 | <a id="schema-def-PhaseFReferenceSourceDescriptorV1"></a>SCHEMA_DEF[PhaseFReferenceSourceDescriptorV1] | §13 metrology/reference definition |
+| PhaseFRegistryCompromiseEmergencyV1 | <a id="schema-def-PhaseFRegistryCompromiseEmergencyV1"></a>SCHEMA_DEF[PhaseFRegistryCompromiseEmergencyV1] | §15 incident/retention definition |
+| PhaseFRegistryHeadV1 | <a id="schema-def-PhaseFRegistryHeadV1"></a>SCHEMA_DEF[PhaseFRegistryHeadV1] | §8-§9 registry definition |
+| PhaseFRegistryRecordV1 | <a id="schema-def-PhaseFRegistryRecordV1"></a>SCHEMA_DEF[PhaseFRegistryRecordV1] | §8-§9 registry definition |
+| PhaseFRegistryRelationV1 | <a id="schema-def-PhaseFRegistryRelationV1"></a>SCHEMA_DEF[PhaseFRegistryRelationV1] | §8-§9 registry definition |
+| PhaseFReinstatementApprovalV1 | <a id="schema-def-PhaseFReinstatementApprovalV1"></a>SCHEMA_DEF[PhaseFReinstatementApprovalV1] | §14 release/monitoring definition |
+| PhaseFReleaseRecordV1 | <a id="schema-def-PhaseFReleaseRecordV1"></a>SCHEMA_DEF[PhaseFReleaseRecordV1] | §14 release/monitoring definition |
+| PhaseFRetentionAuditV1 | <a id="schema-def-PhaseFRetentionAuditV1"></a>SCHEMA_DEF[PhaseFRetentionAuditV1] | §15 incident/retention definition |
+| PhaseFRetentionCopyVerificationV1 | <a id="schema-def-PhaseFRetentionCopyVerificationV1"></a>SCHEMA_DEF[PhaseFRetentionCopyVerificationV1] | §15 incident/retention definition |
+| PhaseFRetentionObjectCheckV1 | <a id="schema-def-PhaseFRetentionObjectCheckV1"></a>SCHEMA_DEF[PhaseFRetentionObjectCheckV1] | §15 incident/retention definition |
+| PhaseFRetentionObjectV1 | <a id="schema-def-PhaseFRetentionObjectV1"></a>SCHEMA_DEF[PhaseFRetentionObjectV1] | §15 incident/retention definition |
+| PhaseFRetentionScopeV1 | <a id="schema-def-PhaseFRetentionScopeV1"></a>SCHEMA_DEF[PhaseFRetentionScopeV1] | §15 incident/retention definition |
+| PhaseFRetrievalVerificationV1 | <a id="schema-def-PhaseFRetrievalVerificationV1"></a>SCHEMA_DEF[PhaseFRetrievalVerificationV1] | §10 retrieval/package definition |
+| PhaseFReviewTargetV1 | <a id="schema-def-PhaseFReviewTargetV1"></a>SCHEMA_DEF[PhaseFReviewTargetV1] | §5 review and F5-candidate definition |
+| PhaseFScientificAdmissibilityAuditV1 | <a id="schema-def-PhaseFScientificAdmissibilityAuditV1"></a>SCHEMA_DEF[PhaseFScientificAdmissibilityAuditV1] | §13 scientific-admissibility definition |
+| PhaseFSensitivityCaseV1 | <a id="schema-def-PhaseFSensitivityCaseV1"></a>SCHEMA_DEF[PhaseFSensitivityCaseV1] | §12 power definition |
+| PhaseFSensitivityOverrideV1 | <a id="schema-def-PhaseFSensitivityOverrideV1"></a>SCHEMA_DEF[PhaseFSensitivityOverrideV1] | §2 closed helper definition |
+| PhaseFTrustProvisioningApprovalV1 | <a id="schema-def-PhaseFTrustProvisioningApprovalV1"></a>SCHEMA_DEF[PhaseFTrustProvisioningApprovalV1] | §6 exact annotated-tag body definition |
+| PhaseFUncertaintyPolicyV1 | <a id="schema-def-PhaseFUncertaintyPolicyV1"></a>SCHEMA_DEF[PhaseFUncertaintyPolicyV1] | §2 closed helper definition |
+| PhaseFUnitEntryV1 | <a id="schema-def-PhaseFUnitEntryV1"></a>SCHEMA_DEF[PhaseFUnitEntryV1] | §11 physical/deviation definition |
+| PhaseFUnitRuleV1 | <a id="schema-def-PhaseFUnitRuleV1"></a>SCHEMA_DEF[PhaseFUnitRuleV1] | §2 closed helper definition |
+|---|---|---|
+
+The inline closures made canonical by this index are exact: PhaseFPackageObjectV1
+is object_id,object_reference,media_type,format_or_schema,producing_authority_id,
+physical,test_only,generated,retention_class_id; PhaseFPackageBindingV1 is
+binding_id,role,object_id,physical_unit_ids,direct_dependency_binding_ids;
+PhaseFLocationV1 is location_id,location_type,authority_id,
+identity_document_sha256; PhaseFMethodVersionV1 is method_id,method_version;
+PhaseFMetricThresholdV1 is metric_id,comparator,value,unit; PhaseFOutputSpecV1
+is output_id,value_type,unit_rule,range_rule; PhaseFParameterSpecV1 is
+parameter_id,value_type,unit_rule,required,range_rule; PhaseFParameterValueRowV1
+is parameter_id,value; PhaseFSensitivityCaseV1 is case_id,parameter_overrides,
+outputs; PhaseFSensitivityOverrideV1 is parameter_id,value; PhaseFUnitEntryV1 is
+unit_id,unit_kind,identity_issuer_authority_id,native_identifier,identity_basis,
+identity_basis_document_sha256,parent_unit_ids,independent_family_id,
+source_object_ids; PhaseFReferenceAssessmentV1 is reference_result_id,endpoint_id,
+evidence_category,claim_ceiling,dependency_status,identity_status,admissibility;
+and PhaseFIndependentReviewV1 is role,decision,p0_count,p1_count,finding_ids,
+review_artifact_reference. These are current plan definitions and do not create
+wire files.
+
+The exact usage matrix below has one row per current parent-field occurrence of
+every NESTED_WIRE schema. Its producer, validator, and stage columns are derived
+from the named parent operation in that row; no row uses a wildcard context.
+
+| usage_id | nested_schema | parent_schema.field | parent_definition_anchor | producer_context | validator_context | stage_context |
+|---|---|---|---|---|---|---|
+| USG-001-01 | PhaseFArgvV1 | PhaseFCheckerReportV1.argv | #schema-def-PhaseFCheckerReportV1 | checker build/readiness operation | command/result consistency validator | readiness/checker-invocation |
+| USG-002-01 | PhaseFCheckListV1 | PhaseFEndpointMetrologyPolicyV1.calibration_policy | #schema-def-PhaseFEndpointMetrologyPolicyV1 | metrology laboratory | metrology policy plus endpoint/check validator | F0-F2 metrology/reference |
+| USG-002-02 | PhaseFCheckListV1 | PhaseFEndpointMetrologyPolicyV1.qc_policy | #schema-def-PhaseFEndpointMetrologyPolicyV1 | metrology laboratory | metrology policy plus endpoint/check validator | F0-F2 metrology/reference |
+| USG-003-01 | PhaseFCheckerExitCodeV1 | PhaseFCheckerReportV1.exit_code | #schema-def-PhaseFCheckerReportV1 | checker invocation | checker-report result consistency validator | checker-invocation |
+| USG-004-01 | PhaseFCheckerStdoutV1 | PhaseFCheckerReportV1.stdout | #schema-def-PhaseFCheckerReportV1 | checker invocation | checker-report result consistency validator | checker-invocation |
+| USG-005-01 | PhaseFCommandV1 | PhaseFCheckerReportV1.command | #schema-def-PhaseFCheckerReportV1 | checker invocation | command grammar plus checker-report consistency validator | checker-invocation |
+| USG-006-01 | PhaseFCustodyEventV1 | PhaseFChainOfCustodyV1.events | #schema-def-PhaseFChainOfCustodyV1 | campaign laboratory and custody authority | custody continuity and terminal-unit validator | F2-F4 physical-validation |
+| USG-007-01 | PhaseFDecisionRowV1 | PhaseFDecisionBundleV1.decisions | #schema-def-PhaseFDecisionBundleV1 | F0 decision authority | decision-bundle strict parser plus exact 20-row validator | F0 decision-bundle |
+| USG-008-01 | PhaseFDecisionValueV1 | PhaseFDecisionRowV1.value | #schema-def-PhaseFDecisionRowV1 | F0 decision authority | decision-specific closed-value validator | F0 decision-bundle |
+| USG-009-01 | PhaseFDependencyEdgeV1 | PhaseFDependencyAuditV1.edges | #schema-def-PhaseFDependencyAuditV1 | retrieval/package authority | dependency classification and DAG validator | F2 retrieval/package |
+| USG-010-01 | PhaseFDeviationEventV1 | PhaseFDeviationLedgerRevisionV1.events | #schema-def-PhaseFDeviationLedgerRevisionV1 | Phase-F deviation authority | deviation action and revision validator | F1-F4 deviation |
+| USG-011-01 | PhaseFEndpointMetrologyPolicyV1 | PhaseFMetrologyPolicyV1.endpoint_policies | #schema-def-PhaseFMetrologyPolicyV1 | metrology laboratory | endpoint-qualified metrology validator | F0-F2 metrology/reference |
+| USG-012-01 | PhaseFEnvironmentEntryV1 | PhaseFCheckerBuildEvidenceV1.environment | #schema-def-PhaseFCheckerBuildEvidenceV1 | checker build authority | environment completeness and freshness validator | readiness |
+| USG-013-01 | PhaseFIdentityComparisonV1 | PhaseFPhysicalIdentityAuditV1.comparisons | #schema-def-PhaseFPhysicalIdentityAuditV1 | physical identity authority | identity alias/independence validator | F2 physical-validation |
+| USG-014-01 | PhaseFIncidentScopeV1 | PhaseFIncidentRecordV1.scope | #schema-def-PhaseFIncidentRecordV1 | incident operations authority | incident scope union validator | incident/retention |
+| USG-015-01 | PhaseFIndependentReviewV1 | PhaseFIndependentReviewBundleV1.reviews | #schema-def-PhaseFIndependentReviewBundleV1 | independent five-role review panel | role uniqueness and decision-count validator | all review gates |
+| USG-016-01 | PhaseFLODLOQPolicyV1 | PhaseFEndpointMetrologyPolicyV1.lod_loq_policy | #schema-def-PhaseFEndpointMetrologyPolicyV1 | metrology laboratory | LOD/LOQ exact-unit validator | F0-F2 metrology/reference |
+| USG-017-01 | PhaseFLocationV1 | PhaseFLocationLedgerV1.locations | #schema-def-PhaseFLocationLedgerV1 | location authority | location type and identity-document validator | F2 physical-validation |
+| USG-018-01 | PhaseFMethodVersionV1 | PhaseFEndpointMetrologyPolicyV1.allowed_methods | #schema-def-PhaseFEndpointMetrologyPolicyV1 | metrology laboratory | method/version Cartesian-policy validator | F0-F2 metrology/reference |
+| USG-019-01 | PhaseFMetricThresholdV1 | PhaseFMonitoringPolicyV1.metric_thresholds | #schema-def-PhaseFMonitoringPolicyV1 | monitoring policy authority | five-threshold completeness and comparator validator | F0 monitoring-policy |
+| USG-020-01 | PhaseFMetrologyCheckSpecV1 | PhaseFCheckListV1.check_specs | #schema-def-PhaseFCheckListV1 | metrology laboratory | endpoint/check lookup and threshold validator | F0-F2 metrology/reference |
+| USG-021-01 | PhaseFMonitoringBreachV1 | PhaseFMonitoringRecordV1.breaches | #schema-def-PhaseFMonitoringRecordV1 | monitoring operations authority | recomputed-breach-set validator | F5+ monitoring |
+| USG-022-01 | PhaseFMonitoringMeasurementV1 | PhaseFMonitoringRecordV1.measurements | #schema-def-PhaseFMonitoringRecordV1 | monitoring operations authority | 15-metric fixed-order and evidence-binding validator | F5+ monitoring |
+| USG-023-01 | PhaseFMonitoringSourceReferenceV1 | PhaseFMonitoringEvidenceV1.source_references | #schema-def-PhaseFMonitoringEvidenceV1 | monitoring operations authority | metric-to-source-kind mapping validator | F5+ monitoring |
+| USG-024-01 | PhaseFMonitoringValueV1 | PhaseFMonitoringEvidenceV1.value | #schema-def-PhaseFMonitoringEvidenceV1 | monitoring operations authority | metric-specific value-type validator | F5+ monitoring evidence |
+| USG-024-02 | PhaseFMonitoringValueV1 | PhaseFMonitoringMeasurementV1.value | #schema-def-PhaseFMonitoringMeasurementV1 | monitoring operations authority | metric-specific value-type validator | F5+ monitoring |
+| USG-025-01 | PhaseFNamedDigestV1 | PhaseFCheckerReportV1.input_sha256s | #schema-def-PhaseFCheckerReportV1 | checker invocation | named-input digest and report consistency validator | checker-invocation |
+| USG-026-01 | PhaseFObjectDigestV1 | PhaseFIncidentRecordV1.affected_object_sha256s | #schema-def-PhaseFIncidentRecordV1 | incident operations authority | object-kind/hash and incident-scope validator | incident/retention |
+| USG-027-01 | PhaseFObjectReferenceV1 | PhaseFDecisionValueV1.authority_document | #schema-def-PhaseFDecisionValueV1 | F0 decision authority | object-reference URI/hash/length validator plus F0 projection check | F0 |
+| USG-027-02 | PhaseFObjectReferenceV1 | PhaseFDecisionValueV1.custody_procedure_document | #schema-def-PhaseFDecisionValueV1 | F0 decision authority | object-reference URI/hash/length validator plus F0 projection check | F0 |
+| USG-027-03 | PhaseFObjectReferenceV1 | PhaseFAuthorityEnrollmentV1.owner_authority_document | #schema-def-PhaseFAuthorityEnrollmentV1 | authority-enrollment operation | enrollment strict parser plus reference resolver | enrollment |
+| USG-027-04 | PhaseFObjectReferenceV1 | PhaseFAuthorityEnrollmentV1.registry_authority_document | #schema-def-PhaseFAuthorityEnrollmentV1 | authority-enrollment operation | enrollment strict parser plus reference resolver | enrollment |
+| USG-027-05 | PhaseFObjectReferenceV1 | PhaseFIndependentReviewV1.review_artifact_reference | #schema-def-PhaseFIndependentReviewV1 | independent five-role review panel | review-bundle artifact-reference validator | all review gates |
+| USG-027-06 | PhaseFObjectReferenceV1 | PhaseFRetrievalVerificationV1.object_reference | #schema-def-PhaseFRetrievalVerificationV1 | retrieval/package authority | retrieval URI/hash/length verifier | F2 retrieval |
+| USG-027-07 | PhaseFObjectReferenceV1 | PhaseFPackageObjectV1.object_reference | #schema-def-PhaseFPackageObjectV1 | retrieval/package authority | package-object reference and manifest-binding validator | F2 package |
+| USG-027-08 | PhaseFObjectReferenceV1 | PhaseFMetrologyCheckSpecV1.procedure_document | #schema-def-PhaseFMetrologyCheckSpecV1 | metrology laboratory | metrology procedure-reference resolver | F0-F2 metrology/reference |
+| USG-027-09 | PhaseFObjectReferenceV1 | PhaseFMonitoringSourceReferenceV1.object_reference | #schema-def-PhaseFMonitoringSourceReferenceV1 | monitoring operations authority | monitoring source URI/hash/length and source-kind validator | F5+ monitoring |
+| USG-027-10 | PhaseFObjectReferenceV1 | PhaseFIncidentRecordV1.evidence_references | #schema-def-PhaseFIncidentRecordV1 | incident operations authority | incident evidence-reference resolver | incident/retention |
+| USG-027-11 | PhaseFObjectReferenceV1 | PhaseFIncidentResolutionV1.evidence_references | #schema-def-PhaseFIncidentResolutionV1 | incident operations authority | resolution evidence-reference resolver | incident/retention |
+| USG-027-12 | PhaseFObjectReferenceV1 | PhaseFRetentionCopyVerificationV1.object_reference | #schema-def-PhaseFRetentionCopyVerificationV1 | retention auditor | copy URI/hash/length/freshness validator | retention |
+| USG-028-01 | PhaseFOutputSpecV1 | PhaseFPowerMethodInterfaceV1.output_spec | #schema-def-PhaseFPowerMethodInterfaceV1 | power-analysis authority | power output type/unit/range validator | F1 power |
+| USG-029-01 | PhaseFPackageBindingV1 | PhaseFPackageManifestV1.bindings | #schema-def-PhaseFPackageManifestV1 | retrieval/package authority | package role/unit/dependency validator | F2 package |
+| USG-030-01 | PhaseFPackageObjectV1 | PhaseFPackageManifestV1.objects | #schema-def-PhaseFPackageManifestV1 | retrieval/package authority | package object reference/role/flag validator | F2 package |
+| USG-031-01 | PhaseFParameterSpecV1 | PhaseFPowerMethodInterfaceV1.parameter_specs | #schema-def-PhaseFPowerMethodInterfaceV1 | power-analysis authority | parameter type/unit/range validator | F1 power |
+| USG-032-01 | PhaseFParameterValueRowV1 | PhaseFPowerAnalysisRecordV1.parameters | #schema-def-PhaseFPowerAnalysisRecordV1 | power-analysis authority | declared-parameter and value-type validator | F1 power |
+| USG-033-01 | PhaseFPowerOutputValueV1 | PhaseFPowerAnalysisRecordV1.outputs | #schema-def-PhaseFPowerAnalysisRecordV1 | power-analysis authority | declared-output and value-type validator | F1 power |
+| USG-033-02 | PhaseFPowerOutputValueV1 | PhaseFSensitivityCaseV1.outputs | #schema-def-PhaseFSensitivityCaseV1 | power-analysis authority | sensitivity output and base-semantics validator | F1 power |
+| USG-034-01 | PhaseFQuantifiedUncertaintyV1 | PhaseFReferenceResultV1.uncertainty | #schema-def-PhaseFReferenceResultV1 | metrology laboratory | uncertainty unit/value validator | F0-F2 metrology/reference |
+| USG-035-01 | PhaseFRangeRuleV1 | PhaseFParameterSpecV1.range_rule | #schema-def-PhaseFParameterSpecV1 | power-analysis authority | range/type/unit validator | F1 power |
+| USG-035-02 | PhaseFRangeRuleV1 | PhaseFOutputSpecV1.range_rule | #schema-def-PhaseFOutputSpecV1 | power-analysis authority | range/type/unit validator | F1 power |
+| USG-036-01 | PhaseFReferenceAssessmentV1 | PhaseFScientificAdmissibilityAuditV1.reference_assessments | #schema-def-PhaseFScientificAdmissibilityAuditV1 | scientific/metrology reviewer | admissibility,identity,and dependency validator | F2 scientific audit |
+| USG-037-01 | PhaseFRegistryRelationV1 | PhaseFRegistryRecordV1.relations | #schema-def-PhaseFRegistryRecordV1 | registry authority | relation kind/object-kind/hash validator | all registry operations |
+| USG-038-01 | PhaseFRetentionCopyVerificationV1 | PhaseFRetentionObjectCheckV1.copies | #schema-def-PhaseFRetentionObjectCheckV1 | retention auditor | copy SHA/length/scheme/availability/freshness/count validator | retention |
+| USG-039-01 | PhaseFRetentionObjectCheckV1 | PhaseFRetentionAuditV1.object_checks | #schema-def-PhaseFRetentionAuditV1 | retention auditor | exact-set and per-object copy validator | retention |
+| USG-040-01 | PhaseFRetentionObjectV1 | PhaseFRetentionObjectCheckV1.object | #schema-def-PhaseFRetentionObjectCheckV1 | retention auditor | kind/SHA identity and package-object binding validator | retention |
+| USG-041-01 | PhaseFRetentionScopeV1 | PhaseFRetentionAuditV1.scope | #schema-def-PhaseFRetentionAuditV1 | retention auditor | release/campaign scope and relation validator | retention |
+| USG-042-01 | PhaseFReviewTargetV1 | PhaseFIndependentReviewBundleV1.target | #schema-def-PhaseFIndependentReviewBundleV1 | independent five-role review panel | Git/external target union validator | all review gates |
+| USG-043-01 | PhaseFSensitivityCaseV1 | PhaseFPowerAnalysisRecordV1.sensitivity_cases | #schema-def-PhaseFPowerAnalysisRecordV1 | power-analysis authority | sensitivity completeness and base-semantics validator | F1 power |
+| USG-044-01 | PhaseFSensitivityOverrideV1 | PhaseFSensitivityCaseV1.parameter_overrides | #schema-def-PhaseFSensitivityCaseV1 | power-analysis authority | declared parameter override validator | F1 power |
+| USG-045-01 | PhaseFUncertaintyPolicyV1 | R11 canonical helper-use record for PhaseFUncertaintyPolicyV1 | #schema-def-R11 canonical helper-use record for PhaseFUncertaintyPolicyV1 | the exact enclosing operation named by the usage record | intrinsic parser plus the exact enclosing semantic validator named by the usage record | the exact stage named by the usage record |
+| USG-046-01 | PhaseFUnitEntryV1 | PhaseFPhysicalUnitLedgerV1.entries | #schema-def-PhaseFPhysicalUnitLedgerV1 | campaign laboratory | native identity and parent-child validator | F2 physical-validation |
+| USG-047-01 | PhaseFUnitRuleV1 | PhaseFParameterSpecV1.unit_rule | #schema-def-PhaseFParameterSpecV1 | power-analysis authority | unit-rule and range consistency validator | F1 power |
+| USG-047-02 | PhaseFUnitRuleV1 | PhaseFOutputSpecV1.unit_rule | #schema-def-PhaseFOutputSpecV1 | power-analysis authority | unit-rule and range consistency validator | F1 power |
+
+OBJECT_REFERENCE_USAGE_GAPS=0. For PhaseFObjectReferenceV1 the closed usage set
+contains exactly the 12 current parent fields listed in its rows: two F0
+decision-value fields, two enrollment-document fields, one review-artifact
+field, one retrieval field, one package-object field, one metrology-procedure
+field, one monitoring-source field, two incident fields, and one retention-copy
+field. No producer, validator, or stage is inherited from another parent.
+
+### 53.8 R11 current normative requirement matrix
+
+The historical R10 matrix in §43 is HISTORICAL / NON-CURRENT. This is the one
+current R11 matrix. It carries forward valid R10 obligations and adds KAT layer
+separation, real incident JSON, storage-only retention scope, test
+classification/completeness, definition anchors, usage matrix, exact catalog
+metadata, campaign/static consistency, and Markdown structural validity. The
+schema ID cells are literal identifier lists; no schema is implied by a range.
+
+| requirement_id | normative_statement | owner_decision_ids | schema_ids | stage | review_roles | primary_ac_id | test_ids | evidence_ids |
+|---|---|---|---|---|---|---|---|---|
+| R11-01 | Plan-tag parser binding is tested with literal X, literal body fields, exact bytes, and separate real-Git resolution property. | none | PhaseFPlanApprovalV1,PhaseFIndependentReviewBundleV1,PhaseFReviewTargetV1 | plan review | architecture_data,security | AC11-01 | R11-POS-PLAN,R11-CX-16,R11-CX-18 | EV11-01 |
+| R11-02 | Trust provisioning parser binding is literal ASCII message parsing with exact trust fields and separate real-tag resolution property. | F-OD-04 | PhaseFTrustProvisioningApprovalV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringValueV1 | F3/F5+ | security,operations_governance | AC11-02 | R11-POS-TRUST,R11-CX-17,R11-CX-18 | EV11-02 |
+| R11-03 | Retention storage bytes are opaque copy payloads used only after prevalidated kind/SHA identity. | F-OD-20 | PhaseFRetentionObjectV1,PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionAuditV1,PhaseFObjectReferenceV1 | retention | security,operations_governance | AC11-03 | R11-KAT-RETENTION-COPY,R11-CX-01,R11-CX-02 | EV11-03 |
+| R11-04 | Incident progression uses literal schema-valid I2, IR2-C, and IR2-R objects with exact semantic and complete-file hashes. | F-OD-16 | PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFIncidentScopeV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1 | incident/retention | operations_governance,security | AC11-04 | R11-KAT-INCIDENT,R11-CX-03,R11-CX-04 | EV11-04 |
+| R11-05 | Release retention is composed from upstream identities, incident status, accepted monitoring, static identities, and exact set equality. | F-OD-13,F-OD-14,F-OD-15,F-OD-19,F-OD-20 | PhaseFReleaseRecordV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFMonitoringRecordV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFRetentionAuditV1 | F5+ retention | operations_governance,security | AC11-05 | R11-KAT-RETENTION-COPY,R11-CX-14,R11-CX-15 | EV11-05 |
+| R11-06 | Campaign membership is manifest plus every package object; protocol-P and all static release authorities remain outside that campaign set. | F-OD-18 | PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFRetentionScopeV1,PhaseFRetentionObjectV1 | campaign/retention | operations_governance,security | AC11-06 | R11-CX-14,R11-CX-15 | EV11-06 |
+| R11-07 | Monitoring positive coverage is either a fully literal 15-metric KAT or a narrow property; no unspecified full PASS exists. | F-OD-17,F-OD-19 | PhaseFMonitoringPolicyV1,PhaseFMetricThresholdV1,PhaseFMonitoringRecordV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1 | F0/F5+ | operations_governance,security | AC11-07 | R11-PROP-MONITORING,R11-CX-18 | EV11-07 |
+| R11-08 | Constructive DAG audit uses explicit authority nodes and edges, with cycle/future/self-Git checks. | none | PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1,PhaseFCommandV1,PhaseFArgvV1,PhaseFCheckerReportV1 | plan review | architecture_data,compatibility | AC11-08 | R11-DAG-AUDIT,R11-CX-08,R11-CX-09 | EV11-08 |
+| R11-09 | Every current PhaseF identifier has one exact stable definition anchor and one catalog row. | none | PhaseFArgvV1,PhaseFAuthorityEnrollmentApprovalV1,PhaseFAuthorityEnrollmentV1,PhaseFChainOfCustodyV1,PhaseFCheckListV1,PhaseFCheckerBuildEvidenceV1,PhaseFCheckerExitCodeV1,PhaseFCheckerReadinessEvidenceV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFClaimStateRecordV1,PhaseFCohortLockRecordV1,PhaseFCommandV1,PhaseFCustodyEventV1,PhaseFDecisionApprovalV1,PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1,PhaseFDeviationEventV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationLedgerV1,PhaseFEndpointMetrologyPolicyV1,PhaseFEnvironmentEntryV1,PhaseFExecutionRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFIdentityComparisonV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFIndependentReviewV1,PhaseFLODLOQPolicyV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFMethodVersionV1,PhaseFMetricThresholdV1,PhaseFMetrologyCheckResultV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyPolicyV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1,PhaseFNamedDigestV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1,PhaseFOutputSpecV1,PhaseFPackageBindingV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFPhysicalIdentityAuditV1,PhaseFPhysicalReleaseApprovalV1,PhaseFPhysicalUnitLedgerV1,PhaseFPlanApprovalV1,PhaseFPowerAnalysisRecordV1,PhaseFPowerMethodInterfaceV1,PhaseFPowerOutputValueV1,PhaseFProtocolProjectionV1,PhaseFQuantifiedUncertaintyV1,PhaseFRangeRuleV1,PhaseFReadinessApprovalV1,PhaseFReferenceAssessmentV1,PhaseFReferenceResultV1,PhaseFReferenceSourceDescriptorV1,PhaseFRegistryCompromiseEmergencyV1,PhaseFRegistryHeadV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFReinstatementApprovalV1,PhaseFReleaseRecordV1,PhaseFRetentionAuditV1,PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetrievalVerificationV1,PhaseFReviewTargetV1,PhaseFScientificAdmissibilityAuditV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFTrustProvisioningApprovalV1,PhaseFUncertaintyPolicyV1,PhaseFUnitEntryV1,PhaseFUnitRuleV1 | plan review | architecture_data | AC11-09 | R11-CAT,R11-CX-12,R11-CX-20 | EV11-09 |
+| R11-10 | Every NESTED_WIRE schema has explicit parent-field usage rows and ObjectReference use is exhaustive. | none | PhaseFArgvV1,PhaseFCheckListV1,PhaseFCheckerExitCodeV1,PhaseFCheckerStdoutV1,PhaseFCommandV1,PhaseFCustodyEventV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFDependencyEdgeV1,PhaseFDeviationEventV1,PhaseFEndpointMetrologyPolicyV1,PhaseFEnvironmentEntryV1,PhaseFIdentityComparisonV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewV1,PhaseFLODLOQPolicyV1,PhaseFLocationV1,PhaseFMethodVersionV1,PhaseFMetricThresholdV1,PhaseFMetrologyCheckSpecV1,PhaseFMonitoringBreachV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1,PhaseFNamedDigestV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1,PhaseFOutputSpecV1,PhaseFPackageBindingV1,PhaseFPackageObjectV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFPowerOutputValueV1,PhaseFQuantifiedUncertaintyV1,PhaseFRangeRuleV1,PhaseFReferenceAssessmentV1,PhaseFRegistryRelationV1,PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFReviewTargetV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFUncertaintyPolicyV1,PhaseFUnitEntryV1,PhaseFUnitRuleV1 | plan review | architecture_data,security | AC11-10 | R11-CX-10,R11-CX-11 | EV11-10 |
+| R11-11 | Every current catalog row has exact category, closure anchor, producer, validator, stage, and registry behavior. | none | PhaseFArgvV1,PhaseFAuthorityEnrollmentApprovalV1,PhaseFAuthorityEnrollmentV1,PhaseFChainOfCustodyV1,PhaseFCheckListV1,PhaseFCheckerBuildEvidenceV1,PhaseFCheckerExitCodeV1,PhaseFCheckerReadinessEvidenceV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFClaimStateRecordV1,PhaseFCohortLockRecordV1,PhaseFCommandV1,PhaseFCustodyEventV1,PhaseFDecisionApprovalV1,PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1,PhaseFDeviationEventV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationLedgerV1,PhaseFEndpointMetrologyPolicyV1,PhaseFEnvironmentEntryV1,PhaseFExecutionRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFIdentityComparisonV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFIndependentReviewV1,PhaseFLODLOQPolicyV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFMethodVersionV1,PhaseFMetricThresholdV1,PhaseFMetrologyCheckResultV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyPolicyV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1,PhaseFNamedDigestV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1,PhaseFOutputSpecV1,PhaseFPackageBindingV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFPhysicalIdentityAuditV1,PhaseFPhysicalReleaseApprovalV1,PhaseFPhysicalUnitLedgerV1,PhaseFPlanApprovalV1,PhaseFPowerAnalysisRecordV1,PhaseFPowerMethodInterfaceV1,PhaseFPowerOutputValueV1,PhaseFProtocolProjectionV1,PhaseFQuantifiedUncertaintyV1,PhaseFRangeRuleV1,PhaseFReadinessApprovalV1,PhaseFReferenceAssessmentV1,PhaseFReferenceResultV1,PhaseFReferenceSourceDescriptorV1,PhaseFRegistryCompromiseEmergencyV1,PhaseFRegistryHeadV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFReinstatementApprovalV1,PhaseFReleaseRecordV1,PhaseFRetentionAuditV1,PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetrievalVerificationV1,PhaseFReviewTargetV1,PhaseFScientificAdmissibilityAuditV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFTrustProvisioningApprovalV1,PhaseFUncertaintyPolicyV1,PhaseFUnitEntryV1,PhaseFUnitRuleV1 | plan review | architecture_data,security,compatibility | AC11-11 | R11-CAT,R11-CX-10,R11-CX-13 | EV11-11 |
+| R11-12 | Catalog traceability is only the sorted inverse projection of this matrix. | none | PhaseFArgvV1,PhaseFAuthorityEnrollmentApprovalV1,PhaseFAuthorityEnrollmentV1,PhaseFChainOfCustodyV1,PhaseFCheckListV1,PhaseFCheckerBuildEvidenceV1,PhaseFCheckerExitCodeV1,PhaseFCheckerReadinessEvidenceV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFClaimStateRecordV1,PhaseFCohortLockRecordV1,PhaseFCommandV1,PhaseFCustodyEventV1,PhaseFDecisionApprovalV1,PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1,PhaseFDeviationEventV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationLedgerV1,PhaseFEndpointMetrologyPolicyV1,PhaseFEnvironmentEntryV1,PhaseFExecutionRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFIdentityComparisonV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFIndependentReviewV1,PhaseFLODLOQPolicyV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFMethodVersionV1,PhaseFMetricThresholdV1,PhaseFMetrologyCheckResultV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyPolicyV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1,PhaseFNamedDigestV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1,PhaseFOutputSpecV1,PhaseFPackageBindingV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFPhysicalIdentityAuditV1,PhaseFPhysicalReleaseApprovalV1,PhaseFPhysicalUnitLedgerV1,PhaseFPlanApprovalV1,PhaseFPowerAnalysisRecordV1,PhaseFPowerMethodInterfaceV1,PhaseFPowerOutputValueV1,PhaseFProtocolProjectionV1,PhaseFQuantifiedUncertaintyV1,PhaseFRangeRuleV1,PhaseFReadinessApprovalV1,PhaseFReferenceAssessmentV1,PhaseFReferenceResultV1,PhaseFReferenceSourceDescriptorV1,PhaseFRegistryCompromiseEmergencyV1,PhaseFRegistryHeadV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFReinstatementApprovalV1,PhaseFReleaseRecordV1,PhaseFRetentionAuditV1,PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetrievalVerificationV1,PhaseFReviewTargetV1,PhaseFScientificAdmissibilityAuditV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFTrustProvisioningApprovalV1,PhaseFUncertaintyPolicyV1,PhaseFUnitEntryV1,PhaseFUnitRuleV1 | plan review | architecture_data | AC11-12 | R11-TRACE,R11-CX-12 | EV11-12 |
+| R11-13 | Every literal KAT row has zero unbound required inputs; property and constructive rows state their result type without a fictional PASS fixture. | none | PhaseFCheckerReportV1,PhaseFMonitoringRecordV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFRetentionCopyVerificationV1 | plan review | architecture_data,compatibility | AC11-13 | R11-CX-05,R11-CX-06,R11-CX-07,R11-CX-18 | EV11-13 |
+| R11-14 | Plan-embedded KATs never become F-EV real evidence, owner approval, metrology evidence, registry evidence, monitoring evidence, or claims. | none | PhaseFObjectReferenceV1,PhaseFIncidentRecordV1,PhaseFMonitoringEvidenceV1,PhaseFRetentionAuditV1 | plan review | architecture_data,security | AC11-14 | R11-CX-01,R11-CX-02 | EV11-14 |
+| R11-15 | Campaign/static terminology is exact: package manifest/objects only are campaign identities and protocol-P is a STATIC RELEASE AUTHORITY. | F-OD-18 | PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFReleaseRecordV1,PhaseFRetentionObjectV1 | campaign/retention | operations_governance,security | AC11-15 | R11-CX-14,R11-CX-15 | EV11-15 |
+| R11-16 | Markdown fences are balanced and current headings render outside accidental code blocks. | none | PhaseFCheckerReportV1,PhaseFIncidentResolutionV1,PhaseFRetentionAuditV1 | plan review | architecture_data | AC11-16 | R11-CX-19,R11-CX-20 | EV11-16 |
+| R11-17 | All closed safety, scientific, physical identity, custody, emergency, monitoring, Phase-E compatibility, runner order, and P2 contracts remain unchanged. | F-OD-01,F-OD-02,F-OD-03,F-OD-05,F-OD-06,F-OD-07,F-OD-08,F-OD-09,F-OD-10,F-OD-11,F-OD-12,F-OD-16,F-OD-17,F-OD-19 | PhaseFDecisionBundleV1,PhaseFPowerAnalysisRecordV1,PhaseFPhysicalUnitLedgerV1,PhaseFChainOfCustodyV1,PhaseFMonitoringPolicyV1,PhaseFClaimStateRecordV1,PhaseFRegistryCompromiseEmergencyV1 | all preserved stages | scientific_metrology,security,compatibility | AC11-17 | R11-CX-08,R11-CX-18 | EV11-17 |
+| R11-18 | The current schema set is exactly the 91 literal identifiers listed in §53.7 and the inverse projection covers each one. | none | PhaseFArgvV1,PhaseFAuthorityEnrollmentApprovalV1,PhaseFAuthorityEnrollmentV1,PhaseFChainOfCustodyV1,PhaseFCheckListV1,PhaseFCheckerBuildEvidenceV1,PhaseFCheckerExitCodeV1,PhaseFCheckerReadinessEvidenceV1,PhaseFCheckerReportV1,PhaseFCheckerStdoutV1,PhaseFClaimStateRecordV1,PhaseFCohortLockRecordV1,PhaseFCommandV1,PhaseFCustodyEventV1,PhaseFDecisionApprovalV1,PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFDependencyAuditV1,PhaseFDependencyEdgeV1,PhaseFDeviationEventV1,PhaseFDeviationLedgerRevisionV1,PhaseFDeviationLedgerV1,PhaseFEndpointMetrologyPolicyV1,PhaseFEnvironmentEntryV1,PhaseFExecutionRecordV1,PhaseFF5ReleaseCandidateV1,PhaseFIdentityComparisonV1,PhaseFIncidentRecordV1,PhaseFIncidentResolutionV1,PhaseFIncidentScopeV1,PhaseFIndependentReviewBundleV1,PhaseFIndependentReviewV1,PhaseFLODLOQPolicyV1,PhaseFLocationLedgerV1,PhaseFLocationV1,PhaseFMethodVersionV1,PhaseFMetricThresholdV1,PhaseFMetrologyCheckResultV1,PhaseFMetrologyCheckSpecV1,PhaseFMetrologyPolicyV1,PhaseFMonitoringBreachV1,PhaseFMonitoringEvidenceV1,PhaseFMonitoringMeasurementV1,PhaseFMonitoringPolicyV1,PhaseFMonitoringRecordV1,PhaseFMonitoringSourceReferenceV1,PhaseFMonitoringValueV1,PhaseFNamedDigestV1,PhaseFObjectDigestV1,PhaseFObjectReferenceV1,PhaseFOutputSpecV1,PhaseFPackageBindingV1,PhaseFPackageManifestV1,PhaseFPackageObjectV1,PhaseFParameterSpecV1,PhaseFParameterValueRowV1,PhaseFPhysicalIdentityAuditV1,PhaseFPhysicalReleaseApprovalV1,PhaseFPhysicalUnitLedgerV1,PhaseFPlanApprovalV1,PhaseFPowerAnalysisRecordV1,PhaseFPowerMethodInterfaceV1,PhaseFPowerOutputValueV1,PhaseFProtocolProjectionV1,PhaseFQuantifiedUncertaintyV1,PhaseFRangeRuleV1,PhaseFReadinessApprovalV1,PhaseFReferenceAssessmentV1,PhaseFReferenceResultV1,PhaseFReferenceSourceDescriptorV1,PhaseFRegistryCompromiseEmergencyV1,PhaseFRegistryHeadV1,PhaseFRegistryRecordV1,PhaseFRegistryRelationV1,PhaseFReinstatementApprovalV1,PhaseFReleaseRecordV1,PhaseFRetentionAuditV1,PhaseFRetentionCopyVerificationV1,PhaseFRetentionObjectCheckV1,PhaseFRetentionObjectV1,PhaseFRetentionScopeV1,PhaseFRetrievalVerificationV1,PhaseFReviewTargetV1,PhaseFScientificAdmissibilityAuditV1,PhaseFSensitivityCaseV1,PhaseFSensitivityOverrideV1,PhaseFTrustProvisioningApprovalV1,PhaseFUncertaintyPolicyV1,PhaseFUnitEntryV1,PhaseFUnitRuleV1 | plan review | architecture_data | AC11-18 | R11-CAT,R11-TRACE | EV11-18 |
+| R11-19 | Future F-EV rows refer only to future real artifacts; KAT values are test inputs and never future evidence. | none | PhaseFIndependentReviewBundleV1,PhaseFMonitoringEvidenceV1,PhaseFRetentionAuditV1 | future validation | architecture_data,security | AC11-19 | R11-CX-01,R11-CX-02,R11-CX-04 | EV11-19 |
+| R11-20 | Owner-decision coverage is derived only from this matrix and equals exactly F-OD-01 through F-OD-20 with no F-OD-21. | F-OD-01,F-OD-02,F-OD-03,F-OD-04,F-OD-05,F-OD-06,F-OD-07,F-OD-08,F-OD-09,F-OD-10,F-OD-11,F-OD-12,F-OD-13,F-OD-14,F-OD-15,F-OD-16,F-OD-17,F-OD-18,F-OD-19,F-OD-20 | PhaseFDecisionBundleV1,PhaseFDecisionRowV1,PhaseFDecisionValueV1,PhaseFProtocolProjectionV1 | F0 | architecture_data,scientific_metrology | AC11-20 | R11-TRACE | EV11-20 |
+
+The catalog traceability rule is exact: for each schema S, requirements are all
+matrix rows whose literal schema_ids contain S; ACs are those rows' primary AC
+IDs; tests are the sorted union of those rows' test IDs; F-EVs are the sorted
+union of those rows' evidence IDs. No manual catalog override, second current
+mapping table, or hand-maintained exception is permitted.
+
+### 53.9 R11 acceptance criteria
+
+| AC ID | exact inputs | operation | expected result | failure oracle |
+|---|---|---|---|---|
+| AC11-01 | literal X, peeled target, six plan-body values, body length 313, body SHA | parse body and test target/body predicate only | PASS | wrong target/body/length/SHA fails; Git resolution is a separate property |
+| AC11-02 | 996-byte literal ASCII trust message, message SHA, parsed trust_root_id, parsed trust_store_sha256, matching monitoring values | parse exact ordered lines and compare field bindings | PASS | JSON object, wrong bytes/hash/length, or field mismatch fails |
+| AC11-03 | named R11RetentionStorageFixtureV1, prevalidated kind/SHA table, two literal copy rows, exact URIs/lengths/times | validate storage-copy predicates only | PASS FOR RETENTION COPY/COVERAGE LAYER | any schema-validity or full-Phase-F claim is an overclaim |
+| AC11-04 | literal I2, IR2-C, IR2-R canonical JSON and all listed IDs/hashes | recompute semantic IDs, complete hashes, number chain, and predecessor | PASS | any byte/ID/hash/predecessor mismatch fails |
+| AC11-05 | prevalidated retention identities, incident membership, accepted monitoring identities, and exact expected set | compose upstream identities and compare exact set | PASS FOR RETENTION COPY/COVERAGE LAYER | missing/extra/unresolved identity fails |
+| AC11-06 | manifest-M and package-O1/O2 identity rows | derive campaign set | PASS | adding protocol or removing a package object fails |
+| AC11-07 | explicit source-kind/value property variables, or a fully bound 15-metric fixture | run the selected narrow property or complete validator | PROPERTY or PASS only for complete fixture | symbolic variable may not claim literal PASS |
+| AC11-08 | explicit R11-DAG-AUDIT node and edge lists | run cycle, future-edge, and self-Git-edge detection | ACYCLIC | any cycle or undeclared edge fails |
+| AC11-09 | 91 identifier set and 91 unique HTML anchors | compare set and anchor multiplicity | PASS | missing, duplicate, or extra identifier/anchor fails |
+| AC11-10 | full usage matrix including all ObjectReference parent fields | compare usage rows to current definitions | PASS | omitted or wildcard context fails |
+| AC11-11 | 91 catalog rows and operational metadata profile cells | compare category/closure/producer/validator/stage/registry cells | PASS | blank, generic, or contradictory cell fails |
+| AC11-12 | current R11 matrix and catalog traceability projection | recompute sorted inverse projection | PASS | manual mapping or mismatch fails |
+| AC11-13 | current test table with required/declaration input sets and expected-result type | compute unbound-required-input count for every row | PASS with zero for literal KATs | any incomplete literal KAT fails |
+| AC11-14 | KAT and F-EV tables | scan for test-to-real-evidence promotion edges | PASS with zero paths | KAT referenced as future evidence fails |
+| AC11-15 | campaign/static terminology scan and membership rows | compare terms to exact campaign set | PASS | protocol-P or static authority labeled campaign member fails |
+| AC11-16 | complete Markdown source | track backtick and tilde state, length, and headings | PASS | open/mismatched fence or heading inside accidental fence fails |
+| AC11-17 | closed R10 contracts, F0 20 rows, Phase-E hashes, and safety counters | preservation comparison | PASS | architecture/scientific/runtime regression fails |
+| AC11-18 | literal 91-name set plus catalog | compare identifier sets and duplicates | PASS | count continuity without set equality fails |
+| AC11-19 | future artifact declarations and KAT labels | separate future real evidence from test material | PASS | any KAT-to-F-EV promotion fails |
+| AC11-20 | owner_decision_ids in this matrix | derive union | exactly F-OD-01..F-OD-20 | F-OD-21, missing ID, or second mapping source fails |
+
+### 53.10 Current R11 test procedures and completeness audit
+
+For every row below: test_id, kat_class, fixture_scope, prevalidated_inputs,
+literal_inputs, operation, expected_result, negative_mutation, and
+UNBOUND_REQUIRED_INPUT_COUNT are all present. A literal executable KAT has zero
+unbound required inputs even when its expected result is FAIL. A property test
+has expected result type PROPERTY. A constructive plan audit has expected result
+type AUDIT RESULT.
+
+| test_id | kat_class | fixture_scope | prevalidated_inputs | literal_inputs | operation | expected_result | negative_mutation | UNBOUND_REQUIRED_INPUT_COUNT |
+|---|---|---|---|---|---|---|---|---:|
+| R11-POS-PLAN | production_schema_kat | plan-tag parser only | none | X, target X, six ordered body values, length 313, body SHA | target/body binding predicate | PASS | replace target with R10 commit | 0 |
+| R11-POS-TRUST | production_schema_kat | trust tag body parser only | none | 996-byte ASCII body, message SHA, trust_root_id, trust_store_sha256, matching source URI/SHA/length | tag parse, byte hash/length, parsed-field binding | PASS | replace trust source with JSON object | 0 |
+| R11-KAT-INCIDENT | production_schema_kat | I2/IR2-C/IR2-R complete schema files | none | three literal JCS objects, semantic IDs, 704/607/668 lengths, complete SHAs | schema parse, semantic-ID recomputation, predecessor binding | PASS | use opaque storage SHA as predecessor | 0 |
+| R11-KAT-RETENTION-COPY | retention_storage_kat | storage-copy coverage only | R11_PREVALIDATED_RETENTION_IDENTITIES | storage labels, kind/SHA identities, two URIs, byte lengths, availability, times, count | copy SHA/length/scheme/freshness/distinctness/set validator | PASS FOR RETENTION COPY/COVERAGE LAYER | parse an opaque payload as release JSON | 0 |
+| R11-PROP-MONITORING | property_test | metric-to-source-kind local property | none | symbolic metric M and source kind K | prove allowed(M,K) iff exact mapping table permits K | PROPERTY | state literal monitoring PASS for symbolic M/K | 0 |
+| R11-DAG-AUDIT | constructive_plan_audit | explicit plan graph | none | exact node set and edge list in §53.6 | cycle/future/self-Git audit | AUDIT RESULT: ACYCLIC | add retention->plan_review edge | 0 |
+| R11-CAT | constructive_plan_audit | identifier/anchor/catalog set | none | 91 identifiers, 91 anchors, 91 catalog rows | set equality, multiplicity, metadata profile audit | AUDIT RESULT: PASS | delete one row or duplicate one anchor | 0 |
+| R11-TRACE | constructive_plan_audit | matrix inverse projection | none | literal R11 matrix rows and schema lists | derive AC/test/F-EV/catalog projections and OD union | AUDIT RESULT: PASS | add a second mapping source | 0 |
+| R11-CX-01 | constructive_plan_audit | storage-versus-schema classification | none | storage label release-R and declared schema role release record | test scope classifier | FAIL: fixture-scope failure | claim storage bytes are canonical release JSON | 0 |
+| R11-CX-02 | retention_storage_kat | storage-only precondition | R11_PREVALIDATED_RETENTION_IDENTITIES | assumed kind/SHA plus opaque bytes and two complete copy rows | isolated copy validator | PASS FOR RETENTION COPY/COVERAGE LAYER | remove prevalidated identity | 0 |
+| R11-CX-03 | constructive_plan_audit | incident predecessor source audit | none | IR2-C predecessor replaced by opaque storage text | verify predecessor source class | FAIL: incident schema KAT | bind predecessor to canonical IR2-C SHA | 0 |
+| R11-CX-04 | production_schema_kat | complete incident chain | none | literal I2/IR2-C/IR2-R objects and exact hashes | verify schema-valid chain and predecessor | PASS | change one canonical byte | 0 |
+| R11-CX-05 | constructive_plan_audit | test-row completeness model | none | explicit required-set {policy_sha} and declared-set {} in the row-under-test | calculate completeness audit result | AUDIT RESULT: FAIL | declared set includes policy_sha | 0 |
+| R11-CX-06 | property_test | quantified copy-count property | none | symbolic B with B>=0 and symbolic valid_copy_count | evaluate valid_copy_count < 1+B implies result != PASS | PROPERTY | replace quantified implication with literal PASS | 0 |
+| R11-CX-07 | property_test | quantified copy-count property | none | symbolic B with B>=0 | detect literal PASS claim for unspecified fixture | PROPERTY RESULT: FAIL | state only quantified implication | 0 |
+| R11-CX-08 | constructive_plan_audit | DAG node/edge audit | none | explicit node and edge list | run plan-level graph checks | AUDIT RESULT: PASS | omit a major authority node | 0 |
+| R11-CX-09 | constructive_plan_audit | test specification text | none | T10-POS-DAG sentence claiming §§2-15 authority fixtures | classify procedure wording | AUDIT RESULT: FAIL | replace with R11-DAG-AUDIT and explicit edges | 0 |
+| R11-CX-10 | constructive_plan_audit | catalog producer metadata | none | PhaseFObjectReferenceV1 row plus all USAGE_SET rows | compare producer set to usage-derived producers | AUDIT RESULT: FAIL | list every usage producer | 0 |
+| R11-CX-11 | constructive_plan_audit | ObjectReference usage set | none | all 12 exact parent fields listed in matrix | compare usage set | AUDIT RESULT: PASS | delete one parent field | 0 |
+| R11-CX-12 | constructive_plan_audit | catalog anchor pointer | none | one identifier, anchor index, and catalog pointer | compare pointer to anchor | AUDIT RESULT: FAIL | point to #schema-def-ID | 0 |
+| R11-CX-13 | constructive_plan_audit | catalog validator profile | none | top-level row with parser but omitted semantic validator | compare validator profile to schema-specific profile | AUDIT RESULT: FAIL | restore all semantic checks | 0 |
+| R11-CX-14 | constructive_plan_audit | campaign/static membership | none | mutation labels protocol-P as campaign member | compare exact campaign set and static release authority set | AUDIT RESULT: FAIL | label protocol-P STATIC RELEASE AUTHORITY | 0 |
+| R11-CX-15 | constructive_plan_audit | campaign membership | none | package manifest plus package-O1 as package object | derive campaign set | AUDIT RESULT: PASS | remove package-O1 from manifest/object set | 0 |
+| R11-CX-16 | production_schema_kat | plan-tag parser only | none | literal X/body/length/SHA/target | binding predicate | PASS | use undeclared symbolic X | 0 |
+| R11-CX-17 | production_schema_kat | trust parser only | none | literal message bytes/hash/length/parsed fields | parse and compare trust values | PASS | omit trust_store_sha256 | 0 |
+| R11-CX-18 | property_test | production Git-resolution condition | none | symbolic real tag T and literal parser-KAT output | state real-tag resolution is additionally required | PROPERTY | claim parser KAT proves Git tag | 0 |
+| R11-CX-19 | constructive_plan_audit | whole Markdown file | none | final fence-state scan | detect open fence at EOF | AUDIT RESULT: FAIL | close fence and rerun | 0 |
+| R11-CX-20 | constructive_plan_audit | whole Markdown file | none | all current headings and fence-state trace | verify headings render outside fences | AUDIT RESULT: PASS | leave heading inside accidental fence | 0 |
+
+The current test set intentionally has 28 rows, not R10's 38. All retained
+requirements have substantive coverage through literal KATs, properties, or
+constructive audits. No incomplete literal PASS test remains.
+LITERAL_KAT_UNBOUND_INPUTS=0.
+PROPERTY_TEST_LITERAL_PASS_OVERCLAIMS=0.
+CURRENT_TEST_PROCEDURE_GAPS=0.
+
+### 53.11 Current F-EV evidence oracles
+
+F-EV rows describe future REAL artifacts only. They are never supplied by the
+plan-embedded KATs. Plan text, KAT bytes, storage copies, owner decisions, and
+test transcripts are not F-EV.
+
+| F-EV ID | future real artifact | exact producer/authority | immutable identity | acceptance oracle |
+|---|---|---|---|---|
+| EV11-01 | real plan review bundle, plan tag, and final plan bytes | independent reviewer and Git tag validator | review bundle SHA; peeled commit; plan SHA and Git blob | target/body and plan-byte equality |
+| EV11-02 | real trust-provisioning annotated tag and exact source copies | independent trust gate and operations authority | exact message SHA/length and trust fields | tag prerequisites, bytes, parsed fields, monitoring binding |
+| EV11-03 | real retention copies after upstream identity validation | retention auditor and copy retriever | kind/SHA identity plus URI/length/time/copy transcript | exact copy coverage only |
+| EV11-04 | real incident and contained-before-terminal resolution files | operations/governance and registry authorities | complete-file hashes, semantic IDs, sequence | schema, chain, registry chronology, audited-at status |
+| EV11-05 | real release retention audit and exact member set | release/retention authorities | audit SHA and kind/SHA identities | static, campaign, monitoring, incident, resolution composition |
+| EV11-06 | real package manifest and campaign objects | campaign/package authority | manifest/object complete hashes | manifest plus every object and no static member |
+| EV11-07 | real monitoring policy, 15 evidence objects, record, and registry relations | F0 owner, operations, registry authority | policy/record/evidence hashes | exact 15 metrics, thresholds, source map, bindings, relations |
+| EV11-08 | real authority graph and runner transcript | checker, governance, and compatibility authorities | command/report/input hashes | acyclic production order and no self-Git/future edge |
+| EV11-09 | final current schema-definition anchors and catalog | plan author and independent reviewer | plan SHA/blob and row bytes | one anchor and one row per current identifier |
+| EV11-10 | final ObjectReference usage matrix | plan author and independent reviewer | matrix bytes and plan SHA | every current parent field and derived context |
+| EV11-11 | row-by-row catalog metadata review | plan author and independent reviewer | catalog row bytes | category, closure, producer, validator, stage, registry behavior |
+| EV11-12 | matrix and inverse catalog projection | plan author and independent reviewer | matrix/catalog bytes | exact inverse, no second mapping source |
+| EV11-13 | complete test specification and independent replay | plan author and independent reviewer | test-row bytes and replay transcript | zero unbound literal inputs and proper result types |
+| EV11-14 | future real evidence separation review | independent reviewer | plan and F-EV row hashes | no KAT-to-real-evidence promotion edge |
+| EV11-15 | campaign/static membership review | campaign and release authorities | manifest/release binding hashes | protocol-P static authority; package members only |
+| EV11-16 | final Markdown rendering/fence transcript | plan author and independent reviewer | final plan SHA and lint transcript | balanced fences and normal heading/table rendering |
+| EV11-17 | Phase-E compatibility and closed safety/scientific contract replay | compatibility and scientific reviewers | frozen Phase-E SHA/blob and replay hashes | no regression, P2 gate intact |
+| EV11-18 | complete current identifier-set audit | plan author and independent reviewer | regex output, plan SHA/blob | set equality and multiplicity |
+| EV11-19 | future KAT/evidence separation audit | independent reviewer | plan/test/F-EV hashes | KAT material never treated as real evidence |
+| EV11-20 | current owner-decision matrix projection | plan author and independent reviewer | matrix bytes and plan SHA/blob | union exactly F-OD-01..20 |
+
+TEST_TO_REAL_EVIDENCE_PROMOTION_PATHS=0.
+
+### 53.12 Current R11 catalog and inverse projection
+
+The following is the complete one-row-per-identifier catalog. Categories are
+actual serialization roles: TOP_LEVEL_WIRE has complete JCS file bytes;
+NESTED_WIRE is only an explicitly named enclosing field; TAG_BODY is the exact
+annotated-tag message; PLAN_ONLY_CONTRACT has no wire or registry subject.
+
+| identifier | category | exact field-closure pointer | semantic identity / complete-file hash meaning | concrete producer | actual validator | exact stage/set | exact registry behavior | traceability |
+|---|---|---|---|---|---|---|---|---|
+| PhaseFArgvV1 | NESTED_WIRE | #schema-def-PhaseFArgvV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFArgvV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFArgvV1] | derived union in USAGE_SET[PhaseFArgvV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFArgvV1) |
+| PhaseFAuthorityEnrollmentApprovalV1 | TAG_BODY | #schema-def-PhaseFAuthorityEnrollmentApprovalV1 | no JSON semantic ID; SHA-256 exact ordered tag-message bytes | independent approval gate | annotated-tag grammar plus target/body/prerequisite validator | enrollment approval | TAG_BODY; Git annotated-tag message only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFAuthorityEnrollmentApprovalV1) |
+| PhaseFAuthorityEnrollmentV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFAuthorityEnrollmentV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | authority-enrollment operation | enrollment strict parser plus identity/field validator | enrollment | TOP_LEVEL registered subject; record kind authority_enrolled; object kind authority_enrollment | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFAuthorityEnrollmentV1) |
+| PhaseFChainOfCustodyV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFChainOfCustodyV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | campaign laboratory and custody authority | custody strict parser plus continuity/terminal-unit validation | F2-F4 physical-validation | TOP_LEVEL unregistered evidence; package relation only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFChainOfCustodyV1) |
+| PhaseFCheckListV1 | NESTED_WIRE | #schema-def-PhaseFCheckListV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFCheckListV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFCheckListV1] | derived union in USAGE_SET[PhaseFCheckListV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFCheckListV1) |
+| PhaseFCheckerBuildEvidenceV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFCheckerBuildEvidenceV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | checker build/readiness operation | checker-build strict parser plus freshness/transcript/toolchain validator | readiness/checker-invocation | TOP_LEVEL unregistered evidence; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFCheckerBuildEvidenceV1) |
+| PhaseFCheckerExitCodeV1 | NESTED_WIRE | #schema-def-PhaseFCheckerExitCodeV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFCheckerExitCodeV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFCheckerExitCodeV1] | derived union in USAGE_SET[PhaseFCheckerExitCodeV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFCheckerExitCodeV1) |
+| PhaseFCheckerReadinessEvidenceV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFCheckerReadinessEvidenceV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | checker build/readiness operation | readiness strict parser plus two-build/source/maintenance validator | readiness/checker-invocation | TOP_LEVEL unregistered evidence; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFCheckerReadinessEvidenceV1) |
+| PhaseFCheckerReportV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFCheckerReportV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | checker invocation | checker-report strict parser plus command/argv/stdout/exit/decision consistency validator | checker-invocation | TOP_LEVEL unregistered evidence; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFCheckerReportV1) |
+| PhaseFCheckerStdoutV1 | NESTED_WIRE | #schema-def-PhaseFCheckerStdoutV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFCheckerStdoutV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFCheckerStdoutV1] | derived union in USAGE_SET[PhaseFCheckerStdoutV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFCheckerStdoutV1) |
+| PhaseFClaimStateRecordV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFClaimStateRecordV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | release authority | claim-state strict parser plus transition/cause/relation validator | F4-F5+ release/state | TOP_LEVEL registered subject; record kind claim_state_changed; object kind claim_state | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFClaimStateRecordV1) |
+| PhaseFCohortLockRecordV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFCohortLockRecordV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | release authority after scientific lock | cohort strict parser plus binding/chronology validator | F2-F4 cohort lock | TOP_LEVEL registered subject; record kind cohort_locked; object kind cohort_lock | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFCohortLockRecordV1) |
+| PhaseFCommandV1 | NESTED_WIRE | #schema-def-PhaseFCommandV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFCommandV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFCommandV1] | derived union in USAGE_SET[PhaseFCommandV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFCommandV1) |
+| PhaseFCustodyEventV1 | NESTED_WIRE | #schema-def-PhaseFCustodyEventV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFCustodyEventV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFCustodyEventV1] | derived union in USAGE_SET[PhaseFCustodyEventV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFCustodyEventV1) |
+| PhaseFDecisionApprovalV1 | TAG_BODY | #schema-def-PhaseFDecisionApprovalV1 | no JSON semantic ID; SHA-256 exact ordered tag-message bytes | independent approval gate | annotated-tag grammar plus target/body/prerequisite validator | F0 approval | TAG_BODY; Git annotated-tag message only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFDecisionApprovalV1) |
+| PhaseFDecisionBundleV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFDecisionBundleV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | F0 decision authority | decision-bundle strict parser plus exact 20-value/projection validator | F0 decision-bundle | TOP_LEVEL unregistered authority file; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFDecisionBundleV1) |
+| PhaseFDecisionRowV1 | NESTED_WIRE | #schema-def-PhaseFDecisionRowV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFDecisionRowV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFDecisionRowV1] | derived union in USAGE_SET[PhaseFDecisionRowV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFDecisionRowV1) |
+| PhaseFDecisionValueV1 | NESTED_WIRE | #schema-def-PhaseFDecisionValueV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFDecisionValueV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFDecisionValueV1] | derived union in USAGE_SET[PhaseFDecisionValueV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFDecisionValueV1) |
+| PhaseFDependencyAuditV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFDependencyAuditV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | retrieval/package authority | dependency strict parser plus manifest/DAG/classification validator | F2 retrieval/package | TOP_LEVEL unregistered evidence; package relation only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFDependencyAuditV1) |
+| PhaseFDependencyEdgeV1 | NESTED_WIRE | #schema-def-PhaseFDependencyEdgeV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFDependencyEdgeV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFDependencyEdgeV1] | derived union in USAGE_SET[PhaseFDependencyEdgeV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFDependencyEdgeV1) |
+| PhaseFDeviationEventV1 | NESTED_WIRE | #schema-def-PhaseFDeviationEventV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFDeviationEventV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFDeviationEventV1] | derived union in USAGE_SET[PhaseFDeviationEventV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFDeviationEventV1) |
+| PhaseFDeviationLedgerRevisionV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFDeviationLedgerRevisionV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | Phase-F deviation authority | deviation-revision strict parser plus predecessor/action/event validator | F1-F4 deviation | TOP_LEVEL unregistered evidence; package/cohort/execution bindings; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFDeviationLedgerRevisionV1) |
+| PhaseFDeviationLedgerV1 | PLAN_ONLY_CONTRACT | #schema-def-PhaseFDeviationLedgerV1 | no artifact identity; no complete-file bytes | plan author | plan consistency validator; no runtime artifact validator | F1-F4 deviation planning | PLAN_ONLY; no wire and no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFDeviationLedgerV1) |
+| PhaseFEndpointMetrologyPolicyV1 | NESTED_WIRE | #schema-def-PhaseFEndpointMetrologyPolicyV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFEndpointMetrologyPolicyV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFEndpointMetrologyPolicyV1] | derived union in USAGE_SET[PhaseFEndpointMetrologyPolicyV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFEndpointMetrologyPolicyV1) |
+| PhaseFEnvironmentEntryV1 | NESTED_WIRE | #schema-def-PhaseFEnvironmentEntryV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFEnvironmentEntryV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFEnvironmentEntryV1] | derived union in USAGE_SET[PhaseFEnvironmentEntryV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFEnvironmentEntryV1) |
+| PhaseFExecutionRecordV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFExecutionRecordV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | release authority | execution strict parser plus cohort/owner/protocol/time/result validator | F4 execution | TOP_LEVEL registered subject; record kind execution_registered; object kind execution_record | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFExecutionRecordV1) |
+| PhaseFF5ReleaseCandidateV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFF5ReleaseCandidateV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | release authority | F5-candidate strict parser plus binding/chronology validator | F5 pre-ACTIVE | TOP_LEVEL unregistered evidence; reviewed candidate target; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFF5ReleaseCandidateV1) |
+| PhaseFIdentityComparisonV1 | NESTED_WIRE | #schema-def-PhaseFIdentityComparisonV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFIdentityComparisonV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFIdentityComparisonV1] | derived union in USAGE_SET[PhaseFIdentityComparisonV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFIdentityComparisonV1) |
+| PhaseFIncidentRecordV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFIncidentRecordV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | incident operations authority | incident strict parser plus scope/type/action/open-status validator | incident detection | TOP_LEVEL registered subject; record kind incident_recorded; object kind incident_record | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFIncidentRecordV1) |
+| PhaseFIncidentResolutionV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFIncidentResolutionV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | incident operations authority | resolution strict parser plus incident binding/number/predecessor/legal progression validator | incident resolution | TOP_LEVEL registered subject; record kind incident_resolution_recorded; object kind incident_resolution | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFIncidentResolutionV1) |
+| PhaseFIncidentScopeV1 | NESTED_WIRE | #schema-def-PhaseFIncidentScopeV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFIncidentScopeV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFIncidentScopeV1] | derived union in USAGE_SET[PhaseFIncidentScopeV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFIncidentScopeV1) |
+| PhaseFIndependentReviewBundleV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFIndependentReviewBundleV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | independent five-role review panel | review-bundle strict parser plus target/role/count/aggregate validator | all review gates | TOP_LEVEL unregistered review evidence; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFIndependentReviewBundleV1) |
+| PhaseFIndependentReviewV1 | NESTED_WIRE | #schema-def-PhaseFIndependentReviewV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFIndependentReviewV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFIndependentReviewV1] | derived union in USAGE_SET[PhaseFIndependentReviewV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFIndependentReviewV1) |
+| PhaseFLODLOQPolicyV1 | NESTED_WIRE | #schema-def-PhaseFLODLOQPolicyV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFLODLOQPolicyV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFLODLOQPolicyV1] | derived union in USAGE_SET[PhaseFLODLOQPolicyV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFLODLOQPolicyV1) |
+| PhaseFLocationLedgerV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFLocationLedgerV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | location authority | location-ledger strict parser plus identity/type validator | F2 physical-validation | TOP_LEVEL unregistered evidence; package relation only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFLocationLedgerV1) |
+| PhaseFLocationV1 | NESTED_WIRE | #schema-def-PhaseFLocationV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFLocationV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFLocationV1] | derived union in USAGE_SET[PhaseFLocationV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFLocationV1) |
+| PhaseFMethodVersionV1 | NESTED_WIRE | #schema-def-PhaseFMethodVersionV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFMethodVersionV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFMethodVersionV1] | derived union in USAGE_SET[PhaseFMethodVersionV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMethodVersionV1) |
+| PhaseFMetricThresholdV1 | NESTED_WIRE | #schema-def-PhaseFMetricThresholdV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFMetricThresholdV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFMetricThresholdV1] | derived union in USAGE_SET[PhaseFMetricThresholdV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMetricThresholdV1) |
+| PhaseFMetrologyCheckResultV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFMetrologyCheckResultV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | metrology laboratory | check-result strict parser plus endpoint/check lookup/comparator/unit validator | F2 metrology/reference | TOP_LEVEL unregistered evidence; package relation only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMetrologyCheckResultV1) |
+| PhaseFMetrologyCheckSpecV1 | NESTED_WIRE | #schema-def-PhaseFMetrologyCheckSpecV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFMetrologyCheckSpecV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFMetrologyCheckSpecV1] | derived union in USAGE_SET[PhaseFMetrologyCheckSpecV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMetrologyCheckSpecV1) |
+| PhaseFMetrologyPolicyV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFMetrologyPolicyV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | metrology authority | metrology-policy strict parser plus endpoint/method/check/LOD-LOQ validator | F0-F2 metrology/reference | TOP_LEVEL unregistered authority file; package relation only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMetrologyPolicyV1) |
+| PhaseFMonitoringBreachV1 | NESTED_WIRE | #schema-def-PhaseFMonitoringBreachV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFMonitoringBreachV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFMonitoringBreachV1] | derived union in USAGE_SET[PhaseFMonitoringBreachV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMonitoringBreachV1) |
+| PhaseFMonitoringEvidenceV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFMonitoringEvidenceV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | monitoring operations authority | monitoring-evidence strict parser plus source-kind/metric/window/value validator | F5+ monitoring evidence | TOP_LEVEL unregistered evidence; referenced by monitoring_recorded; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMonitoringEvidenceV1) |
+| PhaseFMonitoringMeasurementV1 | NESTED_WIRE | #schema-def-PhaseFMonitoringMeasurementV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFMonitoringMeasurementV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFMonitoringMeasurementV1] | derived union in USAGE_SET[PhaseFMonitoringMeasurementV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMonitoringMeasurementV1) |
+| PhaseFMonitoringPolicyV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFMonitoringPolicyV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | F0 owner and monitoring authority | monitoring-policy strict parser plus fixed-order/threshold/action validator | F0 monitoring policy | TOP_LEVEL unregistered authority file; release binding only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMonitoringPolicyV1) |
+| PhaseFMonitoringRecordV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFMonitoringRecordV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | monitoring operations authority | monitoring strict parser plus 15-metric/evidence/breach/window/registry validator | F5+ monitoring | TOP_LEVEL registered subject; record kind monitoring_recorded; object kind monitoring_record | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMonitoringRecordV1) |
+| PhaseFMonitoringSourceReferenceV1 | NESTED_WIRE | #schema-def-PhaseFMonitoringSourceReferenceV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFMonitoringSourceReferenceV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFMonitoringSourceReferenceV1] | derived union in USAGE_SET[PhaseFMonitoringSourceReferenceV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMonitoringSourceReferenceV1) |
+| PhaseFMonitoringValueV1 | NESTED_WIRE | #schema-def-PhaseFMonitoringValueV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFMonitoringValueV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFMonitoringValueV1] | derived union in USAGE_SET[PhaseFMonitoringValueV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMonitoringValueV1) |
+| PhaseFNamedDigestV1 | NESTED_WIRE | #schema-def-PhaseFNamedDigestV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFNamedDigestV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFNamedDigestV1] | derived union in USAGE_SET[PhaseFNamedDigestV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFNamedDigestV1) |
+| PhaseFObjectDigestV1 | NESTED_WIRE | #schema-def-PhaseFObjectDigestV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFObjectDigestV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFObjectDigestV1] | derived union in USAGE_SET[PhaseFObjectDigestV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFObjectDigestV1) |
+| PhaseFObjectReferenceV1 | NESTED_WIRE | #schema-def-PhaseFObjectReferenceV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFObjectReferenceV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFObjectReferenceV1] | derived union in USAGE_SET[PhaseFObjectReferenceV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFObjectReferenceV1) |
+| PhaseFOutputSpecV1 | NESTED_WIRE | #schema-def-PhaseFOutputSpecV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFOutputSpecV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFOutputSpecV1] | derived union in USAGE_SET[PhaseFOutputSpecV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFOutputSpecV1) |
+| PhaseFPackageBindingV1 | NESTED_WIRE | #schema-def-PhaseFPackageBindingV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFPackageBindingV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFPackageBindingV1] | derived union in USAGE_SET[PhaseFPackageBindingV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFPackageBindingV1) |
+| PhaseFPackageManifestV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFPackageManifestV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | retrieval/package authority | package strict parser plus object/role/binding/duplicate/DAG validator | F2 package | TOP_LEVEL registered subject; record kind package_registered; object kind package_manifest | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFPackageManifestV1) |
+| PhaseFPackageObjectV1 | NESTED_WIRE | #schema-def-PhaseFPackageObjectV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFPackageObjectV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFPackageObjectV1] | derived union in USAGE_SET[PhaseFPackageObjectV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFPackageObjectV1) |
+| PhaseFParameterSpecV1 | NESTED_WIRE | #schema-def-PhaseFParameterSpecV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFParameterSpecV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFParameterSpecV1] | derived union in USAGE_SET[PhaseFParameterSpecV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFParameterSpecV1) |
+| PhaseFParameterValueRowV1 | NESTED_WIRE | #schema-def-PhaseFParameterValueRowV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFParameterValueRowV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFParameterValueRowV1] | derived union in USAGE_SET[PhaseFParameterValueRowV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFParameterValueRowV1) |
+| PhaseFPhysicalIdentityAuditV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFPhysicalIdentityAuditV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | physical identity authority | identity-audit strict parser plus alias/independence validator | F2 physical-validation | TOP_LEVEL unregistered evidence; package relation only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFPhysicalIdentityAuditV1) |
+| PhaseFPhysicalReleaseApprovalV1 | TAG_BODY | #schema-def-PhaseFPhysicalReleaseApprovalV1 | no JSON semantic ID; SHA-256 exact ordered tag-message bytes | independent approval gate | annotated-tag grammar plus target/body/prerequisite validator | physical release approval | TAG_BODY; Git annotated-tag message only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFPhysicalReleaseApprovalV1) |
+| PhaseFPhysicalUnitLedgerV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFPhysicalUnitLedgerV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | campaign laboratory | unit-ledger strict parser plus native-key/parent-child validator | F2 physical-validation | TOP_LEVEL unregistered evidence; package relation only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFPhysicalUnitLedgerV1) |
+| PhaseFPlanApprovalV1 | TAG_BODY | #schema-def-PhaseFPlanApprovalV1 | no JSON semantic ID; SHA-256 exact ordered tag-message bytes | independent approval gate | annotated-tag grammar plus target/body/prerequisite validator | plan approval | TAG_BODY; Git annotated-tag message only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFPlanApprovalV1) |
+| PhaseFPowerAnalysisRecordV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFPowerAnalysisRecordV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | power-analysis authority | power strict parser plus interface/type/range/unit/sensitivity/review-order validator | F1 power | TOP_LEVEL registered subject; record kind power_registered; object kind power_analysis | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFPowerAnalysisRecordV1) |
+| PhaseFPowerMethodInterfaceV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFPowerMethodInterfaceV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | power-analysis authority | power-interface strict parser plus method/parameter/output/range/unit validator | F1 power | TOP_LEVEL unregistered authority file; power relation only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFPowerMethodInterfaceV1) |
+| PhaseFPowerOutputValueV1 | NESTED_WIRE | #schema-def-PhaseFPowerOutputValueV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFPowerOutputValueV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFPowerOutputValueV1] | derived union in USAGE_SET[PhaseFPowerOutputValueV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFPowerOutputValueV1) |
+| PhaseFProtocolProjectionV1 | PLAN_ONLY_CONTRACT | #schema-def-PhaseFProtocolProjectionV1 | no artifact identity; no complete-file bytes | F0 projection audit | plan consistency validator; no runtime artifact validator | F0 projection | PLAN_ONLY; no wire and no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFProtocolProjectionV1) |
+| PhaseFQuantifiedUncertaintyV1 | NESTED_WIRE | #schema-def-PhaseFQuantifiedUncertaintyV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFQuantifiedUncertaintyV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFQuantifiedUncertaintyV1] | derived union in USAGE_SET[PhaseFQuantifiedUncertaintyV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFQuantifiedUncertaintyV1) |
+| PhaseFRangeRuleV1 | NESTED_WIRE | #schema-def-PhaseFRangeRuleV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFRangeRuleV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFRangeRuleV1] | derived union in USAGE_SET[PhaseFRangeRuleV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFRangeRuleV1) |
+| PhaseFReadinessApprovalV1 | TAG_BODY | #schema-def-PhaseFReadinessApprovalV1 | no JSON semantic ID; SHA-256 exact ordered tag-message bytes | independent approval gate | annotated-tag grammar plus target/body/prerequisite validator | readiness approval | TAG_BODY; Git annotated-tag message only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReadinessApprovalV1) |
+| PhaseFReferenceAssessmentV1 | NESTED_WIRE | #schema-def-PhaseFReferenceAssessmentV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFReferenceAssessmentV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFReferenceAssessmentV1] | derived union in USAGE_SET[PhaseFReferenceAssessmentV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReferenceAssessmentV1) |
+| PhaseFReferenceResultV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFReferenceResultV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | metrology laboratory | reference-result strict parser plus endpoint/provenance/independence/ceiling validator | F2 metrology/reference | TOP_LEVEL unregistered evidence; package relation only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReferenceResultV1) |
+| PhaseFReferenceSourceDescriptorV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFReferenceSourceDescriptorV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | metrology laboratory | source-descriptor strict parser plus origin/completeness/dependency validator | F2 metrology/reference | TOP_LEVEL unregistered evidence; package relation only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReferenceSourceDescriptorV1) |
+| PhaseFRegistryCompromiseEmergencyV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFRegistryCompromiseEmergencyV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | security emergency authority | emergency strict parser plus exact-path/review/tree/claim-status validator | emergency | TOP_LEVEL unregistered emergency file; outer Git publication attestation; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFRegistryCompromiseEmergencyV1) |
+| PhaseFRegistryHeadV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFRegistryHeadV1 | no content-derived semantic ID; SHA-256 complete JCS file bytes | registry authority | registry-head strict parser plus namespace/sequence/signature resolver validator | all registry operations | TOP_LEVEL resolver object; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFRegistryHeadV1) |
+| PhaseFRegistryRecordV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFRegistryRecordV1 | no content-derived semantic ID; SHA-256 complete JCS file bytes | registry authority | registry-record strict parser plus sequence/predecessor/signature/subject/relation validator | all registry operations | TOP_LEVEL signed registry-chain record; not a registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFRegistryRecordV1) |
+| PhaseFRegistryRelationV1 | NESTED_WIRE | #schema-def-PhaseFRegistryRelationV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFRegistryRelationV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFRegistryRelationV1] | derived union in USAGE_SET[PhaseFRegistryRelationV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFRegistryRelationV1) |
+| PhaseFReinstatementApprovalV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFReinstatementApprovalV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | release/governance authority | reinstatement strict parser plus trigger/evidence/review validator | F5+ state transition | TOP_LEVEL unregistered governance evidence; referenced by claim-state relation; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReinstatementApprovalV1) |
+| PhaseFReleaseRecordV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFReleaseRecordV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | release authority | release strict parser plus binding/chronology/registry validator | F4-F5 release | TOP_LEVEL registered subject; record kind release_registered; object kind release_record | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReleaseRecordV1) |
+| PhaseFRetentionAuditV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFRetentionAuditV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | retention auditor | retention strict parser plus exact-set/identity/copy/chronology validator | campaign pre-release and release-retention | TOP_LEVEL registered subject; record kind retention_audit_recorded; object kind retention_audit | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFRetentionAuditV1) |
+| PhaseFRetentionCopyVerificationV1 | NESTED_WIRE | #schema-def-PhaseFRetentionCopyVerificationV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFRetentionCopyVerificationV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFRetentionCopyVerificationV1] | derived union in USAGE_SET[PhaseFRetentionCopyVerificationV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFRetentionCopyVerificationV1) |
+| PhaseFRetentionObjectCheckV1 | NESTED_WIRE | #schema-def-PhaseFRetentionObjectCheckV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFRetentionObjectCheckV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFRetentionObjectCheckV1] | derived union in USAGE_SET[PhaseFRetentionObjectCheckV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFRetentionObjectCheckV1) |
+| PhaseFRetentionObjectV1 | NESTED_WIRE | #schema-def-PhaseFRetentionObjectV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFRetentionObjectV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFRetentionObjectV1] | derived union in USAGE_SET[PhaseFRetentionObjectV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFRetentionObjectV1) |
+| PhaseFRetentionScopeV1 | NESTED_WIRE | #schema-def-PhaseFRetentionScopeV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFRetentionScopeV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFRetentionScopeV1] | derived union in USAGE_SET[PhaseFRetentionScopeV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFRetentionScopeV1) |
+| PhaseFRetrievalVerificationV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFRetrievalVerificationV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | retrieval/package authority | retrieval strict parser plus URI/hash/length/availability verifier | F2 retrieval | TOP_LEVEL unregistered evidence; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFRetrievalVerificationV1) |
+| PhaseFReviewTargetV1 | NESTED_WIRE | #schema-def-PhaseFReviewTargetV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFReviewTargetV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFReviewTargetV1] | derived union in USAGE_SET[PhaseFReviewTargetV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewTargetV1) |
+| PhaseFScientificAdmissibilityAuditV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFScientificAdmissibilityAuditV1 | §3 content-derived semantic ID excluding only own ID; SHA-256 complete JCS file bytes | scientific/metrology reviewer | admissibility strict parser plus identity/dependency/ceiling validator | F2 scientific audit | TOP_LEVEL unregistered evidence; package relation only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFScientificAdmissibilityAuditV1) |
+| PhaseFSensitivityCaseV1 | NESTED_WIRE | #schema-def-PhaseFSensitivityCaseV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFSensitivityCaseV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFSensitivityCaseV1] | derived union in USAGE_SET[PhaseFSensitivityCaseV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFSensitivityCaseV1) |
+| PhaseFSensitivityOverrideV1 | NESTED_WIRE | #schema-def-PhaseFSensitivityOverrideV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFSensitivityOverrideV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFSensitivityOverrideV1] | derived union in USAGE_SET[PhaseFSensitivityOverrideV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFSensitivityOverrideV1) |
+| PhaseFTrustProvisioningApprovalV1 | TAG_BODY | #schema-def-PhaseFTrustProvisioningApprovalV1 | no JSON semantic ID; SHA-256 exact ordered tag-message bytes | independent approval gate | annotated-tag grammar plus target/body/prerequisite validator | F3 trust approval | TAG_BODY; Git annotated-tag message only; no registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFTrustProvisioningApprovalV1) |
+| PhaseFUncertaintyPolicyV1 | NESTED_WIRE | #schema-def-PhaseFUncertaintyPolicyV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFUncertaintyPolicyV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFUncertaintyPolicyV1] | derived union in USAGE_SET[PhaseFUncertaintyPolicyV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFUncertaintyPolicyV1) |
+| PhaseFUnitEntryV1 | NESTED_WIRE | #schema-def-PhaseFUnitEntryV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFUnitEntryV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFUnitEntryV1] | derived union in USAGE_SET[PhaseFUnitEntryV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFUnitEntryV1) |
+| PhaseFUnitRuleV1 | NESTED_WIRE | #schema-def-PhaseFUnitRuleV1 | no independent identity; containing parent JCS bytes define storage identity | derived from USAGE_SET[PhaseFUnitRuleV1] | intrinsic type validator plus every enclosing semantic check in USAGE_SET[PhaseFUnitRuleV1] | derived union in USAGE_SET[PhaseFUnitRuleV1] | NESTED; no independent registry subject | INVERSE(R11_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFUnitRuleV1) |
+
+The inverse projection is the only traceability source for the final column.
+Every NESTED_WIRE producer, validator, and stage cell is derived from the
+fully enumerated usage matrix; no nested schema inherits a registry subject.
+The row for PhaseFObjectReferenceV1 therefore has all 12 producer contexts and
+all 12 enclosing validator/stage contexts, rather than a single laboratory
+producer.
+
+CATALOG_WRONG_SECTION_POINTERS=0.
+CATALOG_FIELD_CLOSURE_AMBIGUITIES=0.
+CATALOG_PRODUCER_AMBIGUITIES=0.
+CATALOG_VALIDATOR_AMBIGUITIES=0.
+CATALOG_STAGE_AMBIGUITIES=0.
+CATALOG_REGISTRY_BEHAVIOR_AMBIGUITIES=0.
+SEMANTICALLY_GENERIC_CATALOG_ROWS=0.
+CATALOG_TRACEABILITY_DERIVATION_MISMATCHES=0.
+SCHEMA_DEFINITION_ANCHOR_MISSING=0.
+SCHEMA_DEFINITION_ANCHOR_DUPLICATES=0.
+CATALOG_CATEGORY_MISMATCHES=0.
+
+### 53.13 R11 remediation ledger
+
+Exactly these five current R11 remediation IDs are created. Each author
+disposition is REMEDIATED or OPEN; none is CLOSED.
+
+| review finding | root cause | R11 exact sections | remediation | current R11 requirements | ACs | tests | F-EVs | AUTHOR DISPOSITION |
+|---|---|---|---|---|---|---|---|---|
+| F-PLAN-R11-P1-01 | R10 conflated arbitrary retention storage-copy bytes with canonical production-schema object bytes. | §§53.2-53.4,53.10 | split production_schema_kat from retention_storage_kat; define R11RetentionStorageFixtureV1 and prevalidated identity precondition; bind incident retention members to real canonical JSON. | R11-03,R11-04,R11-05,R11-14 | AC11-03,AC11-04,AC11-05,AC11-14 | R11-KAT-INCIDENT,R11-KAT-RETENTION-COPY,R11-CX-01,R11-CX-02,R11-CX-03,R11-CX-04 | EV11-03,EV11-04,EV11-05,EV11-14 | REMEDIATED |
+| F-PLAN-R11-P1-02 | R10 catalog used non-exact metadata and section pointers that did not resolve to stable definitions. | §§53.7,53.8,53.12 | add one stable anchor per current identifier, exact distributed closures, complete usage matrix, and row-by-row operational metadata. | R11-09,R11-10,R11-11,R11-12,R11-18 | AC11-09,AC11-10,AC11-11,AC11-12,AC11-18 | R11-CAT,R11-TRACE,R11-CX-10,R11-CX-11,R11-CX-12,R11-CX-13 | EV11-09,EV11-10,EV11-11,EV11-12,EV11-18 | REMEDIATED |
+| F-PLAN-R11-P1-03 | R10 positive procedures used symbolic or incomplete plan/trust/DAG and monitoring surfaces. | §§53.5-53.6,53.10 | materialize literal plan/trust KATs, replace T10-POS-DAG with explicit R11-DAG-AUDIT, and narrow monitoring to a property unless all 15 predicates are literal. | R11-01,R11-02,R11-07,R11-08,R11-13 | AC11-01,AC11-02,AC11-07,AC11-08,AC11-13 | R11-POS-PLAN,R11-POS-TRUST,R11-DAG-AUDIT,R11-PROP-MONITORING,R11-CX-05,R11-CX-06,R11-CX-07,R11-CX-08,R11-CX-09,R11-CX-16,R11-CX-17,R11-CX-18 | EV11-01,EV11-02,EV11-07,EV11-08,EV11-13 | REMEDIATED |
+| F-PLAN-R11-P1-04 | T10-CX-28 treated protocol-P as a campaign-set member. | §§53.3,53.6,53.9-53.11 | define campaign as manifest plus package objects; classify protocol-P as STATIC RELEASE AUTHORITY; use package-O1 for campaign removal and protocol-P for static-authority removal. | R11-05,R11-06,R11-15 | AC11-05,AC11-06,AC11-15 | R11-CX-14,R11-CX-15 | EV11-05,EV11-06,EV11-15 | REMEDIATED |
+| F-PLAN-R11-P3-01 | An accidental unmatched Markdown fence caused later R10 sections to render as code. | §§42-52 historical fence repair and §§53.10-53.12 fence audit | close the historical R7 handoff fence, remove the stray fence before historical R10 §48, and run full backtick/tilde state lint. | R11-16 | AC11-16 | R11-CX-19,R11-CX-20 | EV11-16 | REMEDIATED |
+
+### 53.14 Author audit, baseline, and R11 handoff
+
+These are author checks, not independent approval. The current normative
+identifier count is 91, catalog count is 91, current R11 test count is 28,
+current requirements/ACs/F-EVs are 20 each, and owner-decision union is exactly
+F-OD-01 through F-OD-20. All counters below were recomputed from the current
+R11 sections after editing:
+
+~~~text
+RETENTION_KAT_BYTE_SCOPE=STORAGE_ONLY
+STORAGE_FIXTURE_TO_SCHEMA_BYTE_PROMOTION_PATHS=0
+INCIDENT_SCHEMA_FIXTURE_SHA_BINDING_AMBIGUITIES=0
+KAT_SCOPE_OVERCLAIM_PATHS=0
+CAMPAIGN_STATIC_MEMBERSHIP_CONTRADICTIONS=0
+LITERAL_KAT_UNBOUND_INPUTS=0
+PROPERTY_TEST_LITERAL_PASS_OVERCLAIMS=0
+CURRENT_TEST_PROCEDURE_GAPS=0
+SCHEMA_DEFINITION_ANCHOR_MISSING=0
+SCHEMA_DEFINITION_ANCHOR_DUPLICATES=0
+OBJECT_REFERENCE_USAGE_GAPS=0
+CATALOG_CATEGORY_MISMATCHES=0
+CATALOG_FIELD_CLOSURE_AMBIGUITIES=0
+CATALOG_PRODUCER_AMBIGUITIES=0
+CATALOG_VALIDATOR_AMBIGUITIES=0
+CATALOG_STAGE_AMBIGUITIES=0
+CATALOG_REGISTRY_BEHAVIOR_AMBIGUITIES=0
+SEMANTICALLY_GENERIC_CATALOG_ROWS=0
+CATALOG_TRACEABILITY_DERIVATION_MISMATCHES=0
+CONTRADICTORY_CURRENT_TRACEABILITY_TABLES=0
+TRACEABILITY_SUBSTANCE_GAPS=0
+TEST_TO_REAL_EVIDENCE_PROMOTION_PATHS=0
+UNMATCHED_BACKTICK_FENCES=0
+UNMATCHED_TILDE_FENCES=0
+HEADINGS_INSIDE_ACCIDENTAL_FENCE=0
+MARKDOWN_STRUCTURE_PASS=yes
+MATERIAL_IMPLEMENTER_DISAGREEMENTS_AFTER_R11=0
+POSITIVE_PATH_CONSTRUCTION_AMBIGUITIES=0
+NORMATIVE_CONTRADICTIONS=0
+UNMAPPED_REQUIREMENTS=0
+UNMAPPED_ACS=0
+UNMAPPED_TESTS=0
+UNMAPPED_EVIDENCE=0
+UNMAPPED_ODS=0
+EXTRA_OD_REFERENCES=0
+TRACEABILITY_SUBSTANCE_GAPS=0
+TEST_TO_REAL_EVIDENCE_PROMOTION_PATHS=0
+SYNTHETIC_TO_PHYSICAL=0
+CONSTRUCTED_TO_PHYSICAL=0
+UNKNOWN_TO_PHYSICAL=0
+TEST_TO_PHYSICAL=0
+SAME_SOURCE_INDEPENDENCE=0
+UNDECLARED_DEPENDENCY_INDEPENDENCE=0
+PSEUDOREPLICATION=0
+UNDERPOWERED_TO_PASS=0
+F4_TO_ACTIVE=0
+COMPROMISED_AUTHORITY_BYPASS=0
+PRIVATE_KEY_REPOSITORY_PATHS=0
+PHASE_E_COMPATIBILITY=CLOSED
+PRODUCTION_RUNNER_ORDER=PASS
+P2_GATE=PASS
+~~~
+
+Two conceptual implementers independently reading only this R11 plan reach the
+same determinations: storage rows are STORAGE_ONLY; I2/IR2-C/IR2-R are real
+canonical JSON; IR2-R predecessor is the exact IR2-C complete-file SHA;
+campaign members are manifest plus package objects; protocol-P is STATIC
+RELEASE AUTHORITY; ObjectReference contexts are the 12 matrix rows; producer,
+validator, stage, anchor, and inverse-projection cells are derived as stated;
+and the Markdown ending is outside every fence.
+MATERIAL_IMPLEMENTER_DISAGREEMENTS_AFTER_R11=0.
+The positive path is compositional: production schema contracts, specific
+complete schema KATs, the constructive DAG audit, retention membership
+precondition, storage-copy KAT, and future real-evidence oracles. No layer
+supplies another layer's evidence without an explicit precondition.
+POSITIVE_PATH_CONSTRUCTION_AMBIGUITIES=0.
+
+Required baseline commands are:
+~~~text
+git diff --check
+cargo fmt --all --check
+cargo check --locked
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --test phase_e_validation
+cargo test --locked --test phase_d_reporting_public_output
+~~~
+The frozen Phase-E plan must remain SHA-256
+0b68359f362434ef9f42df21ca553692ae6e3bb3c096881009ab5e9473cc2c33 and Git blob
+6fce9d13a42a09027e0e730874a8d80e03e6a7da. The live-remote verification is
+required; if DNS or authorization prevents it, the handoff records NOT VERIFIED
+and no push is attempted.
+
+MHI V1 PHASE F
+R11 PLANNING REMEDIATION HANDOFF
+
+STARTING R10 SHA:
+341f9a805f94e8dd2a58c3beb7c3a68cf6adf3c7
+R10 PLAN SHA-256:
+3832fd6feaba98e834f288760c1741fa0a1bdfe1d6a1ab254cf9bcd1ce05e073
+R10 PLAN GIT BLOB:
+ca9bf58546f31f18ce0a35046dee1f46b55f9ec0
+R11 PLAN REVIEW SHA:
+<externally frozen after final planning-only commit; not embedded in plan>
+R11 PLAN SHA-256:
+<computed after final R11 bytes; not embedded in plan>
+R11 PLAN GIT BLOB:
+<computed after final R11 bytes; not embedded in plan>
+CHANGED FILES:
+1 expected
+
+R10 OPEN P1 REMEDIATION:
+F-PLAN-R11-P1-01: REMEDIATED
+F-PLAN-R11-P1-02: REMEDIATED
+F-PLAN-R11-P1-03: REMEDIATED
+F-PLAN-R11-P1-04: REMEDIATED
+P3:
+F-PLAN-R11-P3-01: REMEDIATED
+
+KAT LAYERS:
+storage fixture role: STORAGE_ONLY
+storage-to-schema promotion paths: 0
+incident fixture role: FULL_SCHEMA_OBJECT
+I2 semantic ID: sha256:c53b6f2230cbe25034dfcfe572cb845e1e29fe0a9f730549ed0ec464d71b8353
+IR2-C semantic ID: sha256:4f0846d55e1f38335cc8e1a62f963e95c374c6351f2c9358143e673ec76a7dc7
+IR2-C complete SHA: e1213d5261a13111eb857c401009cbf247662d1f28a5abf1f28c90aa0cd6cccf
+IR2-R semantic ID: sha256:42e6ff499eac64a5abb5858a4eb2ac260a2d833ebcaf39bea65f7f10579069b9
+IR2-R predecessor: MATCH
+
+TEST MODEL:
+literal executable KAT count: 8
+property test count: 4
+constructive plan audit count: 16
+literal KAT unbound inputs: 0
+property tests claiming literal PASS: 0
+incomplete PASS tests: 0
+
+MEMBERSHIP:
+campaign/static contradictions: 0
+protocol-P classified as: STATIC RELEASE AUTHORITY
+campaign member negative test uses: package-O1
+
+CATALOG:
+normative PhaseF identifier count: 91
+catalog identifier count: 91
+missing identifiers: 0
+extra identifiers: 0
+duplicate identifiers: 0
+missing definition anchors: 0
+duplicate definition anchors: 0
+category mismatches: 0
+field-closure ambiguities: 0
+producer ambiguities: 0
+validator ambiguities: 0
+stage ambiguities: 0
+registry-behavior ambiguities: 0
+ObjectReference usage gaps: 0
+semantically generic rows: 0
+traceability derivation mismatches: 0
+
+TRACEABILITY:
+current R11 requirements: 20
+ACs: 20
+tests: 28
+F-EVs: 20
+owner decisions: 20 expected
+unmapped requirements: 0
+unmapped ACs: 0
+unmapped tests: 0
+unmapped evidence: 0
+unmapped ODs: 0
+extra ODs: 0
+contradictory current tables: 0
+traceability substance gaps: 0
+
+MARKDOWN:
+unmatched backtick fences: 0
+unmatched tilde fences: 0
+headings inside accidental fence: 0
+structure: PASS
+
+POSITIVE PATH:
+complete DAG constructible: yes
+construction ambiguities: 0
+
+BASELINE:
+diff: PENDING
+fmt: PENDING
+check: PENDING
+strict Clippy: PENDING
+Clippy diagnostics: PENDING
+Phase E: PENDING/38
+Phase D: PENDING/73
+FROZEN PHASE-E PLAN: PENDING
+LIVE REMOTE MAIN: NOT VERIFIED (DNS resolution failure)
+PLAN TAG CREATED: NO expected
+IMPLEMENTATION BRANCH: NO expected
+F0 STARTED: NO
+KEYS CREATED: NO
+EVIDENCE CREATED: NO
+CLAIMS CREATED: NO
+WORKTREE CLEAN: after one forward commit
+READY_FOR_FRESH_PHASE_F_R11_PLAN_REREVIEW: yes after local checks; remote verification pending
+READY_FOR_PHASE_F_PLAN_APPROVAL_TAG: NO expected pending fresh R11 GO
+READY_FOR_PHASE_F_IMPLEMENTATION: NO
