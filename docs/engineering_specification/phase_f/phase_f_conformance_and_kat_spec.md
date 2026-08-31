@@ -64,6 +64,40 @@ real approval or an `F-EV`.
 | R12-G3-LIGHTWEIGHT-TAG | constructive_plan_audit | g3_git_authority | lightweight tag supplied where annotated tag is required | same as positive | `validate_g3_tag(...)` | REJECT | lightweight tag | 0 |
 | R12-G3-MISSING-REAL-PREREQUISITES | constructive_plan_audit | real_repository_authority | current repository with no actual approvals | canonical body | `validate_g3_tag(...)` | REJECT | missing real G3 authority | 0 |
 | R12-G3-SYNTHETIC-CANNOT-AUTHORIZE-REAL | constructive_plan_audit | authority_isolation | synthetic context marked as real-authority request | same as positive | `validate_g3_tag(...)` | REJECT | synthetic authority isolation | 0 |
+| R12-G3-MIGRATED-DISPOSITION-ENUM | constructive_plan_audit | migrated_review_authority | complete synthetic context with an unresolved or unknown finding disposition | same as positive | `validate_g3_tag(...)` | REJECT | closed disposition/count/decision mismatch | 0 |
+| R12-G3-MIGRATED-REVIEW-RECORDS | constructive_plan_audit | migrated_review_authority | complete synthetic context with a missing, duplicate, stale, or non-independent review row | same as positive | `validate_g3_tag(...)` | REJECT | review-record closure or independence mismatch | 0 |
+| R12-G3-MIGRATED-INPUT-FINGERPRINT | constructive_plan_audit | migrated_review_authority | complete synthetic context with a stale derived review-input fingerprint | same as positive | `validate_g3_tag(...)` | REJECT | review-input fingerprint mismatch | 0 |
+| R12-G3-REAL-FORMAT-POSITIVE | constructive_plan_audit | isolated_real_repository_authority | isolated repository with canonical authority JSON, annotated tags, and real Git target | real-format fixture | `make_repository_context(...); validate_g3_tag(...)` | PASS | resolved real authority closure | 0 |
+| R12-G3-REAL-FORMAT-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | real-format fixture mutated across missing, malformed, stale, wrong-target, wrong-hash, and tag cases | real-format fixture mutation matrix | `make_repository_context(...); validate_g3_tag(...)` | REJECT | every real-format mutation rejected | 0 |
+| R12-G3-MIGRATED-PENDING-P1 | constructive_plan_audit | migrated_review_authority | one P1 finding is pending | same as positive | `validate_g3_tag(...)` | REJECT | pending P1 | 0 |
+| R12-G3-MIGRATED-OPEN-P1 | constructive_plan_audit | migrated_review_authority | one P1 finding is open | same as positive | `validate_g3_tag(...)` | REJECT | open P1 | 0 |
+| R12-G3-MIGRATED-PARTIALLY-CLOSED-P1 | constructive_plan_audit | migrated_review_authority | one P1 finding is partially closed | same as positive | `validate_g3_tag(...)` | REJECT | partially closed P1 | 0 |
+| R12-G3-MIGRATED-COUNT-MISMATCH | constructive_plan_audit | migrated_review_authority | disposition-derived P1/P2 counts disagree with the object | same as positive | `validate_g3_tag(...)` | REJECT | count/disposition mismatch | 0 |
+| R12-G3-MIGRATED-MISSING-FINDING | constructive_plan_audit | migrated_review_authority | one required finding ID is absent | same as positive | `validate_g3_tag(...)` | REJECT | missing finding | 0 |
+| R12-G3-MIGRATED-DUPLICATE-FINDING | constructive_plan_audit | migrated_review_authority | reviewed finding ID list contains a duplicate | same as positive | `validate_g3_tag(...)` | REJECT | duplicate finding | 0 |
+| R12-G3-MIGRATED-UNKNOWN-FINDING | constructive_plan_audit | migrated_review_authority | disposition map contains an unknown finding ID | same as positive | `validate_g3_tag(...)` | REJECT | unknown finding | 0 |
+| R12-G3-MIGRATED-MISSING-ROLE | constructive_plan_audit | migrated_review_authority | one required review role is absent | same as positive | `validate_g3_tag(...)` | REJECT | missing review role | 0 |
+| R12-G3-MIGRATED-DUPLICATE-ROLE | constructive_plan_audit | migrated_review_authority | two review rows claim one role | same as positive | `validate_g3_tag(...)` | REJECT | duplicate review role | 0 |
+| R12-G3-MIGRATED-INDEPENDENCE | constructive_plan_audit | migrated_review_authority | a review row violates the distinct-reviewer independence relation | same as positive | `validate_g3_tag(...)` | REJECT | independence mismatch | 0 |
+| R12-G3-MIGRATED-WRONG-REVIEW-TARGET | constructive_plan_audit | migrated_review_authority | a review row targets another input fingerprint | same as positive | `validate_g3_tag(...)` | REJECT | review target mismatch | 0 |
+| R12-G3-MIGRATED-WRONG-REVIEW-HASH | constructive_plan_audit | migrated_review_authority | a review row hash does not match its canonical fields | same as positive | `validate_g3_tag(...)` | REJECT | review hash mismatch | 0 |
+| R12-G3-MIGRATED-WRONG-BUNDLE-FINGERPRINT | constructive_plan_audit | migrated_review_authority | migrated review targets another bundle-input fingerprint | same as positive | `validate_g3_tag(...)` | REJECT | bundle fingerprint mismatch | 0 |
+| R12-G3-MIGRATED-ARCH-APPROVAL-ID | constructive_plan_audit | authority_staleness | architecture approval authority ID changes without refreshing the review | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-G3-MIGRATED-ARCH-APPROVAL-DIGEST | constructive_plan_audit | authority_staleness | architecture approval digest changes without refreshing the review | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-G3-MIGRATED-ARCH-APPROVAL-TARGET | constructive_plan_audit | authority_staleness | architecture approval target changes without refreshing the review | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-G3-MIGRATED-F0-APPROVAL-ID | constructive_plan_audit | authority_staleness | F0 approval authority ID changes without refreshing the review | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-G3-MIGRATED-F0-APPROVAL-DIGEST | constructive_plan_audit | authority_staleness | F0 approval digest changes without refreshing the review | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-G3-MIGRATED-F0-APPROVAL-TARGET | constructive_plan_audit | authority_staleness | F0 approval target changes without refreshing the review | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-G3-MIGRATED-COMPONENT-SPEC-HASH | constructive_plan_audit | authority_staleness | a bound component specification hash changes | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-G3-MIGRATED-COMPONENT-REVIEW-ID | constructive_plan_audit | authority_staleness | a bound component review identity changes | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-G3-MIGRATED-LEDGER-HASH | constructive_plan_audit | authority_staleness | migration-ledger identity changes | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-G3-MIGRATED-NORMATIVE-HASH | constructive_plan_audit | authority_staleness | normative-matrix identity changes | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-G3-MIGRATED-TRACEABILITY-HASH | constructive_plan_audit | authority_staleness | generated-traceability identity changes | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-G3-MIGRATED-TARGET-COMMIT | constructive_plan_audit | authority_staleness | reviewed target commit changes | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
+| R12-DAG-TYPED-EDGE-CONTRACT | constructive_plan_audit | r12_artifact_authority_graph | typed source-kind/relation/destination-kind tuple changed or omitted | graph mutation | R12 artifact DAG audit | REJECT | typed-edge contract mismatch | 0 |
+| R12-DAG-IDENTITY-RULE-CONTRACT | constructive_plan_audit | r12_artifact_authority_graph | identity rule type or required/optional field closure changed | graph mutation | R12 artifact DAG audit | REJECT | identity-rule contract mismatch | 0 |
+| R12-DAG-SEMANTIC-AUDITS | constructive_plan_audit | r12_artifact_authority_graph | computed hash, self-Git, review-target, future-object, and bypass audits mutated | graph mutation | R12 artifact DAG audit | REJECT | semantic audit violation path | 0 |
+| R12-DAG-BINDING-EQUALITY | constructive_plan_audit | r12_artifact_authority_graph | serialized binding field map no longer equals the typed graph edge set | graph mutation | R12 artifact DAG audit | REJECT | serialized binding equality mismatch | 0 |
 | R12-TRACE-SEMANTIC-SUBSTITUTION | constructive_plan_audit | normative_traceability | catalog-valid but wrong F-OPS-004 relationship | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
 | R12-TRACE-WRONG-KAT | constructive_plan_audit | normative_traceability | valid KAT substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
 | R12-TRACE-WRONG-EVIDENCE | constructive_plan_audit | normative_traceability | valid evidence substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
@@ -205,6 +239,27 @@ authority-prerequisite negative in the catalog, real checked-in repository
 NO-GO with absent approvals, and synthetic-to-real isolation. This is a
 conformance path only; it does not create an approval tag or change the
 candidate bundle's fail-closed state.
+
+The self-test also constructs a disposable isolated Git repository containing
+the real-format source files, canonical external authority JSON objects under
+`.phase_f_authority/`, annotated architecture/F0/G3 tags, and a target commit.
+The positive path resolves that repository through `make_repository_context`
+and passes the same `validate_g3_tag` function used by the real path. Its
+negative matrix mutates missing objects, malformed/noncanonical objects,
+wrong digests, wrong targets, stale/superseded records, incomplete migrated
+dispositions, review-row identities/targets, serialized bindings, and
+annotated-tag type/peel/message fields; every mutation must reject. The
+disposable fixture is never copied into the checked-in candidate and is
+removed after the self-test.
+
+The R12 authority graph is a typed contract, not only an edge-membership
+check. Each edge is closed by its source authority kind, relation, and
+destination authority kind; each node has one closed identity-rule schema;
+and serialized binding fields must equal the graph edge set. Computed audits
+emit named pass records and violation paths for hash cycles, self-Git cycles,
+review-target cycles, future-object dependencies, self-reference, G3 bypass,
+and implementation-readiness bypass. Mutations of any contract or audit
+input reject before an authority result can be returned.
 
 ### 3.3 Normative semantic traceability and schema usage
 

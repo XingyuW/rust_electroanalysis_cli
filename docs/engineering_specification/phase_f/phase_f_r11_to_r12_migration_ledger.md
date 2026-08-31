@@ -23,7 +23,7 @@ remains provenance and is not silently promoted to a second current authority.
 | R11-05 | Exact release retention composition | Operations `F-OPS-006`; Conformance `F-CNF-002` | unchanged | none | PENDING |
 | R11-06 | Exact campaign membership, static protocol separation | Operations `F-OPS-006`; Conformance `F-CNF-002` | unchanged | none | PENDING |
 | R11-07 | Complete 15-metric KAT or narrow property only | Operations `F-OPS-003`; Conformance `F-CNF-003` | unchanged | none | PENDING |
-| R11-08 | Explicit constructive authority DAG | Architecture `F-ARCH-017`; Conformance `F-CNF-005`; Implementation `F-IMPL-007` | refined for G3 | authoritative typed R12 graph with topological, hash, self-reference, future-object, target, and bypass audits | PENDING |
+| R11-08 | Explicit constructive authority DAG | Architecture `F-ARCH-017`; Conformance `F-CNF-005`; Implementation `F-IMPL-007` | refined for G3 | authoritative typed R12 graph with exact source-kind/relation/destination-kind tuples, closed identity rules, serialized binding equality, computed hash/self-Git/self-reference/future-object/target/bypass audits, and isolated real-format fixture coverage | PENDING |
 | R11-09 | One anchor and catalog row per identifier | Wire `F-WIRE-008`; Conformance `F-CNF-005` | refined | add bundle-tag schema | PENDING |
 | R11-10 | Exhaustive nested usage rows | Wire `F-WIRE-008`; Conformance `F-CNF-005` | unchanged | reconcile new schema use | PENDING |
 | R11-11 | Exact catalog metadata | Wire `F-WIRE-008`; Conformance `F-CNF-005` | unchanged | add new row | PENDING |
@@ -77,6 +77,7 @@ The current R12 closure adds no approval result. The immutable
 the five migrated findings remain pending fresh independent disposition. The
 bundle binds a typed nullable reference to that object and stays fail closed
 until a genuine external review exists. The exact R12 artifact-level graph,
-semantic traceability matrix, shared G3 validator, and all lifecycle/staleness
-checks are defined as planning contracts only. This remediation does not
-fabricate a review artifact for its own work.
+semantic traceability matrix, shared G3 validator, real-format resolver,
+serialized binding checks, and all lifecycle/staleness checks are defined as
+planning contracts only. This remediation does not fabricate a review artifact
+for its own work.

@@ -85,7 +85,7 @@ review object is not a G3 approval and cannot be produced by this remediation.
 | identifier | category | exact field-closure pointer | semantic identity / complete-file hash meaning | concrete producer | actual validator | exact stage/set | exact registry behavior | traceability |
 |---|---|---|---|---|---|---|---|---|
 | PhaseFSpecificationBundleApprovalV1 | TAG_BODY | #schema-def-PhaseFSpecificationBundleApprovalV1 | no JSON semantic ID; SHA-256 of the exact six-line annotated tag-message bytes including the final LF | independent five-role specification-bundle approval gate | exact §3 tag-name/body parser plus target, architecture approval, F0 approval, five component-review, traceability, migrated-finding, aggregate-review, and `approval_decision=GO` validator | G3 specification-bundle approval, after architecture/F0 approvals and all five component reviews | TAG_BODY; Git annotated-tag message only; no registry subject and no registry record | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFSpecificationBundleApprovalV1) |
-| PhaseFMigratedFindingReviewV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFMigratedFindingReviewV1 | no registry subject before G3; SHA-256 of the complete canonical review object excluding its own ID field | independent migrated-finding review panel | strict migrated-review schema, exact bundle-input target, five-role independence, finding disposition, lifecycle, staleness, and hash validator | G2 review prerequisite for the specification bundle | external authority object; registry publication is prohibited before later gate authority | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMigratedFindingReviewV1) |
+| PhaseFMigratedFindingReviewV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFMigratedFindingReviewV1 | no registry subject before G3; SHA-256 of the complete canonical review object excluding its own ID field | independent migrated-finding review panel | strict migrated-review schema, closed finding-disposition/count/decision validator, exact bundle-input target, concrete five-role review records and independence, lifecycle, staleness, and hash validator | G2 review prerequisite for the specification bundle | external authority object; registry publication is prohibited before later gate authority | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMigratedFindingReviewV1) |
 
 The approval object binds the exact architecture-plan tag, F0-decisions tag,
 specification-bundle manifest SHA, aggregate review-bundle SHA, and all five
@@ -113,10 +113,12 @@ payload that the generic bundle does not own. Its exact top-level fields are:
 ```text
 schema_version,migrated_finding_review_id,target_git_commit,
 target_bundle_inputs_sha256,
-reviewed_migration_ledger_sha256,reviewed_traceability_manifest_sha256,
+reviewed_migration_ledger_sha256,reviewed_normative_traceability_matrix_sha256,
+reviewed_traceability_manifest_sha256,
 reviewed_component_sha256s,reviewed_finding_ids,finding_dispositions,
-reviewer_roles,p0_count,p1_count,p2_count,decision,created_stage,producer,
-validator,lifecycle,stale,superseded_by,invalidated
+reviewer_roles,review_records,review_input_fingerprint,
+p0_count,p1_count,p2_count,decision,created_stage,producer,validator,
+lifecycle,stale,superseded_by,invalidated
 ```
 
 The ID is the SHA-256 of the complete canonical object with the
@@ -125,17 +127,32 @@ target Git commit plus the exact `PhaseFSpecificationBundleInputsV1`
 fingerprint, not the final bundle manifest, so the review can exist before the
 bundle binds its own review hash.
 `reviewed_migration_ledger_sha256`,
+`reviewed_normative_traceability_matrix_sha256`,
 `reviewed_traceability_manifest_sha256`, and the sorted five-entry
 `reviewed_component_sha256s` must equal the inputs used to compute that
-fingerprint. `reviewed_finding_ids` is exactly
+fingerprint. `review_input_fingerprint` is the canonical SHA-256 of the target
+commit, bundle-input identity, all reviewed source identities, the exact five
+finding IDs, and their dispositions. `reviewed_finding_ids` is exactly
 `F-PLAN-R11-P1-01`, `F-PLAN-R11-P1-02`, `F-PLAN-R11-P1-03`,
 `F-PLAN-R11-P1-04`, and `F-PLAN-R11-P3-01`; `finding_dispositions` contains
-exactly one non-empty disposition for each of those IDs. Counts are
-non-negative integers, and `decision=GO` requires `p0_count=0`, `p1_count=0`,
-all five roles, and complete finding coverage. `reviewer_roles` is exactly
+exactly one value for each of those IDs from the closed enum
+`OPEN|PARTIALLY_CLOSED|PENDING|TECHNICALLY_CLOSED|NON_BLOCKING_DEBT|SUPERSEDED|INVALIDATED`.
+`TECHNICALLY_CLOSED` contributes no unresolved count; `NON_BLOCKING_DEBT` is
+valid only for a P2 finding and contributes to `p2_count`; all other values
+remain unresolved and derive the severity count. Counts are non-negative
+integers and are derived from the disposition map, so `decision` is exactly
+`NO-GO` for unresolved findings, `GO_WITH_DOCUMENTED_NON_BLOCKING_DEBT` for
+P2 debt, and `GO` only when all five findings are technically closed.
+`reviewer_roles` is exactly
 the five roles `scientific_metrology`, `architecture_data`, `security`,
-`compatibility`, and `operations_governance`; the producer is an independent
-review panel and never the remediation agent.
+`compatibility`, and `operations_governance`. `review_records` contains exactly
+one concrete row per role with the closed fields `role`,
+`reviewer_authority_id`, `reviewed_target`, `review_artifact_id`, `decision`,
+`review_sha256`, `lifecycle`, and `independence_relation`; reviewer and
+artifact identities are unique, active, distinct from the remediation agent,
+target the exact `review_input_fingerprint`, and hash their canonical row
+content. The producer is an independent review panel and never the
+remediation agent.
 
 The only valid lifecycle is `ACTIVE` with `stale=false`, `invalidated=false`,
 and `superseded_by=null`. A changed target commit, architecture plan, F0
@@ -148,13 +165,32 @@ coverage, counts, decision, lifecycle, and staleness. A missing or malformed
 object is not an intentional null success: it leaves the checked-in bundle
 `DRAFT_NO_AUTHORITY` and blocks G3.
 
+The real resolver discovers this closure from the typed authority graph. Source
+specification, matrix, ledger, and generated-manifest nodes are read from the
+target commit; external authority objects are canonical UTF-8 JSON under
+`.phase_f_authority/{node_id}.json`; architecture and F0 approvals additionally
+require the graph-declared annotated tags and exact five-line tag-message
+bindings. The resolver reports every requested, resolved, missing, and
+malformed node in a structured resolution record. Synthetic records are
+accepted only by the conformance KAT and can never authorize the real mode.
+
+`PhaseFSpecificationBundleInputsV1.authority_bindings` and the manifest's
+`bound_authority_sha256s` are exact maps of the graph's `binds` edges. Every
+`reviews`, `targets`, `approves`, `requires`, and `generated_from` edge with a
+declared serialized field has one exact source identity binding; extra, missing,
+or substituted fields reject. The graph also carries the closed typed
+source-kind/relation/destination-kind contract and closed per-node identity
+rules used by the resolver.
+
 The bundle binds the object through the typed nullable reference
 `migrated_finding_review`, whose `schema`, `authority_id`, `sha256`,
 `target_git_commit`,
 `target_bundle_inputs_sha256`, `reviewed_migration_ledger_sha256`,
-`reviewed_traceability_manifest_sha256`, and `review_status` fields are all
-required. A future complete bundle must populate every field from one
-immutable review object; the present candidate keeps them null/`ABSENT`.
+`reviewed_normative_traceability_matrix_sha256`,
+`reviewed_traceability_manifest_sha256`, `review_records`,
+`review_input_fingerprint`, and `review_status` fields are all required. A
+future complete bundle must populate every field from one immutable review
+object; the present candidate keeps them null/`ABSENT`.
 The aggregate review targets the final bundle manifest and must include the
 migrated-review identity in its dependency closure. G3 validates both
 relationships through the R12 authority graph.

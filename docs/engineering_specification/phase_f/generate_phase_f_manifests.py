@@ -12,8 +12,9 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +81,37 @@ EXPECTED_MIGRATED_FINDINGS = {
     "F-PLAN-R11-P1-03",
     "F-PLAN-R11-P1-04",
     "F-PLAN-R11-P3-01",
+}
+EXPECTED_MIGRATED_FINDING_SEVERITIES = {
+    "F-PLAN-R11-P1-01": 1,
+    "F-PLAN-R11-P1-02": 1,
+    "F-PLAN-R11-P1-03": 1,
+    "F-PLAN-R11-P1-04": 1,
+    "F-PLAN-R11-P3-01": 3,
+}
+MIGRATED_FINDING_DISPOSITIONS = {
+    "OPEN",
+    "PARTIALLY_CLOSED",
+    "PENDING",
+    "TECHNICALLY_CLOSED",
+    "NON_BLOCKING_DEBT",
+    "SUPERSEDED",
+    "INVALIDATED",
+}
+MIGRATED_REVIEW_DECISIONS = {
+    "GO",
+    "GO_WITH_DOCUMENTED_NON_BLOCKING_DEBT",
+    "NO-GO",
+}
+MIGRATED_REVIEW_RECORD_FIELDS = {
+    "role",
+    "reviewer_authority_id",
+    "reviewed_target",
+    "review_artifact_id",
+    "decision",
+    "review_sha256",
+    "lifecycle",
+    "independence_relation",
 }
 REVIEW_ROLES = {
     "scientific_metrology",
@@ -196,6 +228,36 @@ R12_G3_TEST_IDS = [
     "R12-G3-LIGHTWEIGHT-TAG",
     "R12-G3-MISSING-REAL-PREREQUISITES",
     "R12-G3-SYNTHETIC-CANNOT-AUTHORIZE-REAL",
+    "R12-G3-MIGRATED-DISPOSITION-ENUM",
+    "R12-G3-MIGRATED-REVIEW-RECORDS",
+    "R12-G3-MIGRATED-INPUT-FINGERPRINT",
+    "R12-G3-REAL-FORMAT-POSITIVE",
+    "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+    "R12-G3-MIGRATED-PENDING-P1",
+    "R12-G3-MIGRATED-OPEN-P1",
+    "R12-G3-MIGRATED-PARTIALLY-CLOSED-P1",
+    "R12-G3-MIGRATED-COUNT-MISMATCH",
+    "R12-G3-MIGRATED-MISSING-FINDING",
+    "R12-G3-MIGRATED-DUPLICATE-FINDING",
+    "R12-G3-MIGRATED-UNKNOWN-FINDING",
+    "R12-G3-MIGRATED-MISSING-ROLE",
+    "R12-G3-MIGRATED-DUPLICATE-ROLE",
+    "R12-G3-MIGRATED-INDEPENDENCE",
+    "R12-G3-MIGRATED-WRONG-REVIEW-TARGET",
+    "R12-G3-MIGRATED-WRONG-REVIEW-HASH",
+    "R12-G3-MIGRATED-WRONG-BUNDLE-FINGERPRINT",
+    "R12-G3-MIGRATED-ARCH-APPROVAL-ID",
+    "R12-G3-MIGRATED-ARCH-APPROVAL-DIGEST",
+    "R12-G3-MIGRATED-ARCH-APPROVAL-TARGET",
+    "R12-G3-MIGRATED-F0-APPROVAL-ID",
+    "R12-G3-MIGRATED-F0-APPROVAL-DIGEST",
+    "R12-G3-MIGRATED-F0-APPROVAL-TARGET",
+    "R12-G3-MIGRATED-COMPONENT-SPEC-HASH",
+    "R12-G3-MIGRATED-COMPONENT-REVIEW-ID",
+    "R12-G3-MIGRATED-LEDGER-HASH",
+    "R12-G3-MIGRATED-NORMATIVE-HASH",
+    "R12-G3-MIGRATED-TRACEABILITY-HASH",
+    "R12-G3-MIGRATED-TARGET-COMMIT",
 ]
 R12_TRACE_TEST_IDS = [
     "R12-TRACE-SEMANTIC-SUBSTITUTION",
@@ -223,6 +285,10 @@ R12_DAG_TEST_IDS = [
     "R12-DAG-SELF-GIT",
     "R12-DAG-ALTERNATIVE-BYPASS",
     "R12-DAG-G3-BEFORE-AGGREGATE",
+    "R12-DAG-TYPED-EDGE-CONTRACT",
+    "R12-DAG-IDENTITY-RULE-CONTRACT",
+    "R12-DAG-SEMANTIC-AUDITS",
+    "R12-DAG-BINDING-EQUALITY",
 ]
 EXPECTED_R12_TEST_CATALOG_IDS = {
     "R12-POS-SPEC-BUNDLE-TAG",
@@ -374,15 +440,16 @@ class G3AuthorityContext:
     mode: str
     graph: dict[str, Any]
     objects: dict[str, dict[str, Any]]
-    bundle_manifest_sha256: str
-    aggregate_review_sha256: str
+    bundle_manifest_sha256: str | None
+    aggregate_review_sha256: str | None
     expected_target_commit: str
     tag: dict[str, Any]
     component_sha256s: list[str]
     component_sha_by_node: dict[str, str]
     architecture_plan_sha256: str
-    f0_decisions_sha256: str
+    f0_decisions_sha256: str | None
     real_authority_requested: bool = False
+    resolution: dict[str, Any] = field(default_factory=dict)
 
 
 def canonical_json_bytes(value: object) -> bytes:
@@ -487,6 +554,223 @@ def _ancestors(
     return found
 
 
+def _audit_record(
+    name: str, passed: bool, checked_nodes: int, checked_edges: int,
+    violation_path: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "passed": passed,
+        "checked_nodes": checked_nodes,
+        "checked_edges": checked_edges,
+        "violation_path": violation_path or [],
+    }
+
+
+def _identity_rule_contract(graph: dict[str, Any]) -> dict[str, dict[str, set[str]]]:
+    contract = graph.get("identity_rule_contract")
+    if not isinstance(contract, dict) or not contract:
+        raise ValueError("R12 identity-rule contract is missing")
+    result: dict[str, dict[str, set[str]]] = {}
+    for rule_type, fields in contract.items():
+        if not isinstance(rule_type, str) or not isinstance(fields, dict):
+            raise ValueError("R12 identity-rule contract is malformed")
+        required = fields.get("required_fields")
+        optional = fields.get("optional_fields")
+        if (
+            not isinstance(required, list)
+            or not isinstance(optional, list)
+            or len(required) != len(set(required))
+            or len(optional) != len(set(optional))
+            or any(not isinstance(name, str) or not name for name in required + optional)
+            or set(required).intersection(optional)
+        ):
+            raise ValueError(f"R12 identity-rule field contract is malformed: {rule_type}")
+        result[rule_type] = {"required": set(required), "optional": set(optional)}
+    return result
+
+
+def _edge_contract(graph: dict[str, Any]) -> set[str]:
+    contract = graph.get("typed_edge_contract")
+    if not isinstance(contract, list) or len(contract) != len(set(contract)):
+        raise ValueError("R12 typed-edge contract is malformed")
+    if any(not isinstance(item, str) or item.count("|") != 2 for item in contract):
+        raise ValueError("R12 typed-edge contract entry is malformed")
+    return set(contract)
+
+
+def _edge_key(edge: dict[str, str], nodes: dict[str, dict[str, Any]]) -> str:
+    return "|".join(
+        (
+            nodes[edge["from"]]["authority_kind"],
+            edge["type"],
+            nodes[edge["to"]]["authority_kind"],
+        )
+    )
+
+
+def _validate_serialized_binding_contract(
+    graph: dict[str, Any], nodes: dict[str, dict[str, Any]], edges: list[dict[str, str]]
+) -> None:
+    contract = graph.get("serialized_binding_fields")
+    if not isinstance(contract, dict):
+        raise ValueError("R12 serialized binding contract is missing")
+    concrete_types = {
+        "approves", "binds", "generated_from", "reviews", "requires", "targets"
+    }
+    expected: dict[str, set[tuple[str, str]]] = {}
+    for target, relations in contract.items():
+        if not isinstance(relations, dict):
+            raise ValueError(f"R12 serialized binding relation map is malformed: {target}")
+        for edge in edges:
+            if edge["to"] == target and edge["type"] in relations:
+                expected.setdefault(target, set()).add((edge["type"], edge["from"]))
+    for target, relations in contract.items():
+        if target not in nodes or not isinstance(relations, dict):
+            raise ValueError(f"R12 serialized binding target is malformed: {target}")
+        actual: set[tuple[str, str]] = set()
+        for edge_type, sources in relations.items():
+            if edge_type not in concrete_types or not isinstance(sources, dict):
+                raise ValueError(f"R12 serialized binding relation is malformed: {target}/{edge_type}")
+            for source, field_name in sources.items():
+                if source != "*" and source not in nodes:
+                    raise ValueError(f"R12 serialized binding source is unknown: {source}")
+                if not isinstance(field_name, str) or not field_name:
+                    raise ValueError(f"R12 serialized binding field is malformed: {target}/{source}")
+                matching = {
+                    (edge_type, edge["from"])
+                    for edge in edges
+                    if edge["to"] == target
+                    and edge["type"] == edge_type
+                    and (source == "*" or edge["from"] == source)
+                }
+                if not matching:
+                    raise ValueError(f"R12 serialized binding has no matching edge: {target}/{source}")
+                actual.update(matching)
+        if actual != expected.get(target, set()):
+            raise ValueError(f"R12 serialized binding edge set mismatch: {target}")
+    if set(contract) != set(expected):
+        raise ValueError("R12 serialized binding target closure is incomplete")
+
+
+def _find_identity_cycle(
+    graph: dict[str, Any], nodes: dict[str, dict[str, Any]]
+) -> list[str] | None:
+    rules = graph["node_identity_rules"]
+    outgoing = {
+        node_id: list(rules[node_id].get("identity_dependencies", []))
+        for node_id in nodes
+    }
+    for node_id, dependencies in outgoing.items():
+        if any(dependency not in nodes for dependency in dependencies):
+            return [node_id, *[dependency for dependency in dependencies if dependency not in nodes]]
+    visiting: list[str] = []
+    visited: set[str] = set()
+
+    def visit(node_id: str) -> list[str] | None:
+        if node_id in visiting:
+            return [*visiting[visiting.index(node_id):], node_id]
+        if node_id in visited:
+            return None
+        visiting.append(node_id)
+        for dependency in outgoing[node_id]:
+            found = visit(dependency)
+            if found:
+                return found
+        visiting.pop()
+        visited.add(node_id)
+        return None
+
+    for node_id in nodes:
+        found = visit(node_id)
+        if found:
+            return found
+    return None
+
+
+def _semantic_graph_audits(
+    graph: dict[str, Any], nodes: dict[str, dict[str, Any]], edges: list[dict[str, str]], order: list[str]
+) -> list[dict[str, Any]]:
+    audits: list[dict[str, Any]] = []
+    identity_cycle = _find_identity_cycle(graph, nodes)
+    audits.append(_audit_record("hash_cycle", identity_cycle is None, len(nodes), len(edges), identity_cycle))
+
+    self_git_path: list[str] | None = None
+    for node_id, rule in graph["node_identity_rules"].items():
+        if rule["type"] == "git_commit_identity" and (
+            rule.get("commit_source") == "self" or rule.get("self_referential") is True
+        ):
+            self_git_path = [node_id, "future_git_commit"]
+            break
+        if node_id in rule.get("identity_dependencies", []):
+            self_git_path = [node_id, node_id]
+            break
+    audits.append(_audit_record("self_git_cycle", self_git_path is None, len(nodes), len(edges), self_git_path))
+
+    review_target_path: list[str] | None = None
+    for node_id, rule in graph["node_identity_rules"].items():
+        target = rule.get("review_target_node")
+        if target is None:
+            continue
+        if target not in nodes:
+            review_target_path = [node_id, str(target)]
+            break
+        incoming = [edge for edge in edges if edge["to"] == node_id and edge["type"] in {"reviews", "targets"}]
+        if target not in {edge["from"] for edge in incoming}:
+            review_target_path = [target, node_id]
+            break
+        if nodes[target]["creation_stage"] >= nodes[node_id]["creation_stage"]:
+            review_target_path = [target, node_id]
+            break
+    audits.append(_audit_record("review_target_cycle", review_target_path is None, len(nodes), len(edges), review_target_path))
+
+    future_path: list[str] | None = None
+    for edge in edges:
+        if nodes[edge["from"]]["creation_stage"] >= nodes[edge["to"]]["creation_stage"]:
+            future_path = [edge["from"], edge["to"]]
+            break
+    if future_path is None:
+        for node_id, rule in graph["node_identity_rules"].items():
+            for dependency in rule.get("identity_dependencies", []):
+                if dependency in nodes and nodes[dependency]["creation_stage"] >= nodes[node_id]["creation_stage"]:
+                    future_path = [dependency, node_id]
+                    break
+            if future_path:
+                break
+    audits.append(_audit_record("future_object", future_path is None, len(nodes), len(edges), future_path))
+
+    self_reference_path: list[str] | None = None
+    for node_id, rule in graph["node_identity_rules"].items():
+        if rule.get("self_reference") is True:
+            self_reference_path = [node_id, node_id]
+            break
+    audits.append(_audit_record("self_reference", self_reference_path is None, len(nodes), len(edges), self_reference_path))
+
+    required_inputs = graph["required_inputs"]
+    g3 = "g3_approval_tag"
+    implementation = graph["implementation_gate_node"]
+
+    def closure(node_id: str, seen: set[str] | None = None) -> set[str]:
+        seen = set() if seen is None else seen
+        if node_id in seen:
+            return set()
+        seen.add(node_id)
+        found = {node_id}
+        for dependency in required_inputs[node_id]:
+            found.update(closure(dependency, seen))
+        seen.remove(node_id)
+        return found
+
+    g3_closure = closure(g3)
+    required = set(graph["g3_required_nodes"])
+    g3_bypass = sorted(required - g3_closure)
+    audits.append(_audit_record("g3_bypass", not g3_bypass, len(nodes), len(edges), g3_bypass))
+    implementation_closure = closure(implementation)
+    implementation_path = [] if g3 in implementation_closure else [implementation, g3]
+    audits.append(_audit_record("implementation_bypass", not implementation_path, len(nodes), len(edges), implementation_path))
+    return audits
+
+
 def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
     if graph.get("schema_version") != 1:
         raise ValueError("R12 graph schema version mismatch")
@@ -498,12 +782,40 @@ def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
     identity_rules = graph.get("identity_cycle_rules")
     if not isinstance(identity_rules, dict) or set(identity_rules) != EXPECTED_IDENTITY_CYCLE_RULES:
         raise ValueError("R12 identity-cycle rules are not closed")
-    if any(not isinstance(rule, str) or not rule for rule in identity_rules.values()):
-        raise ValueError("R12 identity-cycle rule is blank")
+    if any(
+        not isinstance(rule, dict)
+        or set(rule) != {"audit", "prohibited"}
+        or not isinstance(rule["audit"], str)
+        or rule["prohibited"] is not True
+        for rule in identity_rules.values()
+    ):
+        raise ValueError("R12 identity-cycle rule is not typed")
     nodes = _graph_nodes(graph)
     if set(nodes) != EXPECTED_GRAPH_NODE_IDS:
         raise ValueError("R12 graph node catalog is not closed")
     edges = _graph_edges(graph, nodes)
+    typed_contract = _edge_contract(graph)
+    actual_typed_edges = {_edge_key(edge, nodes) for edge in edges}
+    if not actual_typed_edges.issubset(typed_contract):
+        raise ValueError("R12 graph edge violates typed-edge contract")
+    if actual_typed_edges != typed_contract:
+        raise ValueError("R12 typed-edge contract has unused or missing tuple")
+    identity_contract = _identity_rule_contract(graph)
+    node_identity_rules = graph.get("node_identity_rules")
+    if not isinstance(node_identity_rules, dict) or set(node_identity_rules) != set(nodes):
+        raise ValueError("R12 node identity-rule catalog is not closed")
+    for node_id, rule in node_identity_rules.items():
+        if not isinstance(rule, dict) or not isinstance(rule.get("type"), str):
+            raise ValueError(f"R12 node identity rule is malformed: {node_id}")
+        rule_type = rule["type"]
+        if rule_type not in identity_contract:
+            raise ValueError(f"R12 unknown identity-rule type: {rule_type}")
+        allowed = {"type", *identity_contract[rule_type]["required"], *identity_contract[rule_type]["optional"]}
+        if set(rule) - allowed or not identity_contract[rule_type]["required"].issubset(rule):
+            raise ValueError(f"R12 identity-rule field closure mismatch: {node_id}")
+        if any(not isinstance(dependency, str) or dependency not in nodes for dependency in rule.get("identity_dependencies", [])):
+            raise ValueError(f"R12 identity-rule dependency is unknown: {node_id}")
+    _validate_serialized_binding_contract(graph, nodes, edges)
     order = _topological_order(nodes, edges)
 
     for edge in edges:
@@ -569,6 +881,12 @@ def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
     if implementation_node not in implementation_closure or not required_inputs["implementation_readiness_specification"] == [g3_node]:
         raise ValueError("R12 implementation gate remains reachable without G3")
 
+    audits = _semantic_graph_audits(graph, nodes, edges, order)
+    failed_audit = next((audit for audit in audits if not audit["passed"]), None)
+    if failed_audit:
+        raise ValueError(
+            f"R12 {failed_audit['name']} audit failed: {failed_audit['violation_path']}"
+        )
     return {
         "node_count": len(nodes),
         "edge_count": len(edges),
@@ -576,13 +894,14 @@ def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
         "topological_order": order,
         "g3_ancestor_count": len(g3_ancestors),
         "g3_required_count": len(required),
-        "hash_cycle": False,
-        "self_reference": False,
-        "self_git_cycle": False,
-        "review_target_cycle": False,
-        "future_object": False,
-        "g3_bypass": False,
-        "implementation_bypass": False,
+        "hash_cycle": any(a["name"] == "hash_cycle" and not a["passed"] for a in audits),
+        "self_reference": any(a["name"] == "self_reference" and not a["passed"] for a in audits),
+        "self_git_cycle": any(a["name"] == "self_git_cycle" and not a["passed"] for a in audits),
+        "review_target_cycle": any(a["name"] == "review_target_cycle" and not a["passed"] for a in audits),
+        "future_object": any(a["name"] == "future_object" and not a["passed"] for a in audits),
+        "g3_bypass": any(a["name"] == "g3_bypass" and not a["passed"] for a in audits),
+        "implementation_bypass": any(a["name"] == "implementation_bypass" and not a["passed"] for a in audits),
+        "audits": audits,
     }
 
 
@@ -676,6 +995,101 @@ def parse_g3_tag(tag_name: str, body: bytes) -> dict[str, str]:
     return fields
 
 
+def _record_target(record: dict[str, Any]) -> str | None:
+    for field_name in (
+        "target_sha256",
+        "target_bundle_inputs_sha256",
+        "target_bundle_manifest_sha256",
+        "target_git_commit",
+        "target_commit",
+    ):
+        value = record.get(field_name)
+        if isinstance(value, str):
+            return value
+    return None
+
+
+def _authority_descriptor(record: dict[str, Any]) -> dict[str, str | None]:
+    return {
+        "authority_id": record.get("authority_id")
+        if isinstance(record.get("authority_id"), str)
+        else None,
+        "sha256": record.get("sha256")
+        if isinstance(record.get("sha256"), str)
+        else None,
+        "target": _record_target(record),
+    }
+
+
+def _graph_edges_for(
+    graph: dict[str, Any], target: str, edge_type: str
+) -> list[dict[str, str]]:
+    nodes = _graph_nodes(graph)
+    return [
+        edge
+        for edge in _graph_edges(graph, nodes)
+        if edge["to"] == target and edge["type"] == edge_type
+    ]
+
+
+def _binding_field(
+    graph: dict[str, Any], target: str, edge_type: str, source: str
+) -> str | None:
+    target_contract = graph["serialized_binding_fields"].get(target, {})
+    relation = target_contract.get(edge_type, {})
+    return relation.get(source) or relation.get("*")
+
+
+def _migrated_review_input_fingerprint(record: dict[str, Any]) -> str:
+    payload = {
+        "target_git_commit": record.get("target_git_commit"),
+        "target_bundle_inputs_sha256": record.get("target_bundle_inputs_sha256"),
+        "reviewed_migration_ledger_sha256": record.get("reviewed_migration_ledger_sha256"),
+        "reviewed_normative_traceability_matrix_sha256": record.get(
+            "reviewed_normative_traceability_matrix_sha256"
+        ),
+        "reviewed_traceability_manifest_sha256": record.get(
+            "reviewed_traceability_manifest_sha256"
+        ),
+        "reviewed_component_sha256s": record.get("reviewed_component_sha256s"),
+        "reviewed_finding_ids": record.get("reviewed_finding_ids"),
+        "finding_dispositions": record.get("finding_dispositions"),
+    }
+    return sha256_bytes(canonical_json_bytes(payload))
+
+
+def _disposition_counts(
+    dispositions: dict[str, str],
+) -> tuple[dict[str, int], bool]:
+    counts = {"p0_count": 0, "p1_count": 0, "p2_count": 0}
+    unresolved = False
+    for finding_id, disposition in dispositions.items():
+        severity = EXPECTED_MIGRATED_FINDING_SEVERITIES[finding_id]
+        if disposition == "TECHNICALLY_CLOSED":
+            continue
+        if disposition == "NON_BLOCKING_DEBT":
+            if severity != 2:
+                raise G3ValidationError("invalid_non_blocking_debt_severity")
+            counts["p2_count"] += 1
+            continue
+        unresolved = True
+        if severity in (0, 1, 2):
+            counts[f"p{severity}_count"] += 1
+    return counts, unresolved
+
+
+def _parse_json_without_duplicates(value: bytes) -> object:
+    def reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, item in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON member: {key}")
+            result[key] = item
+        return result
+
+    return json.loads(value.decode("utf-8"), object_pairs_hook=reject_duplicate_pairs)
+
+
 def _object_digest_matches(context: G3AuthorityContext, record: dict[str, Any]) -> bool:
     expected = record.get("sha256")
     if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
@@ -686,10 +1100,17 @@ def _object_digest_matches(context: G3AuthorityContext, record: dict[str, Any]) 
             and record.get("expected_sha256") == expected
             and record.get("content_unchanged", True) is True
         )
+    if record.get("content_unchanged", True) is not True:
+        return False
     canonical_object = record.get("canonical_object")
     if isinstance(canonical_object, dict):
-        payload = dict(canonical_object)
-        payload.pop("migrated_finding_review_id", None)
+        if record.get("bytes") != canonical_json_bytes(canonical_object):
+            return False
+        identity_rule = context.graph["node_identity_rules"].get(record.get("node_id"), {})
+        excluded = identity_rule.get("exclude_fields", [])
+        payload = {
+            key: value for key, value in canonical_object.items() if key not in excluded
+        }
         return sha256_bytes(canonical_json_bytes(payload)) == expected
     value = record.get("bytes")
     return isinstance(value, bytes) and sha256_bytes(value) == expected
@@ -714,6 +1135,83 @@ def _require_authority_object(
     return record
 
 
+def _validate_graph_object_bindings(context: G3AuthorityContext) -> None:
+    graph = context.graph
+    nodes = _graph_nodes(graph)
+    edges = _graph_edges(graph, nodes)
+
+    for target in nodes:
+        record = context.objects.get(target)
+        if record is None:
+            continue
+        for edge_type in ("binds", "generated_from"):
+            incoming = [edge for edge in edges if edge["to"] == target and edge["type"] == edge_type]
+            if not incoming:
+                continue
+            field_name = _binding_field(graph, target, edge_type, "*")
+            if field_name is None:
+                continue
+            actual = record.get(field_name)
+            expected_sources = sorted(edge["from"] for edge in incoming)
+            if field_name in {"authority_bindings", "bound_authority_sha256s"}:
+                if not isinstance(actual, dict) or sorted(actual) != expected_sources:
+                    raise G3ValidationError(f"{target}_binding_set_mismatch")
+                for source in expected_sources:
+                    source_record = context.objects.get(source)
+                    if source_record is None:
+                        raise G3ValidationError(f"missing_{source}")
+                    if field_name == "authority_bindings":
+                        if actual[source] != _authority_descriptor(source_record):
+                            raise G3ValidationError(f"{target}_{source}_binding_mismatch")
+                    elif actual[source] != source_record.get("sha256"):
+                        raise G3ValidationError(f"{target}_{source}_binding_mismatch")
+            elif field_name == "generated_source_sha256s":
+                if not isinstance(actual, dict) or sorted(actual) != expected_sources:
+                    raise G3ValidationError(f"{target}_binding_set_mismatch")
+                for source in expected_sources:
+                    source_record = context.objects.get(source)
+                    if source_record is None or actual[source] != source_record.get("sha256"):
+                        raise G3ValidationError(f"{target}_{source}_binding_mismatch")
+
+    for target, relations in graph["serialized_binding_fields"].items():
+        target_record = context.objects.get(target)
+        if target_record is None:
+            continue
+        for edge_type, sources in relations.items():
+            for source in sources:
+                if source == "*" or edge_type in {"binds", "generated_from"}:
+                    continue
+                field_name = _binding_field(graph, target, edge_type, source)
+                if field_name is None:
+                    continue
+                source_record = context.objects.get(source)
+                if source_record is None:
+                    raise G3ValidationError(f"missing_{source}")
+                expected = source_record.get("sha256")
+                if target_record.get(field_name) != expected:
+                    raise G3ValidationError(f"{target}_{source}_binding_mismatch")
+
+    for target, relation_types in graph["serialized_binding_fields"].items():
+        target_record = context.objects.get(target)
+        if target_record is None:
+            continue
+        for edge_type in ("reviews", "targets", "approves", "requires"):
+            incoming = [
+                edge for edge in edges if edge["to"] == target and edge["type"] == edge_type
+            ]
+            for edge in incoming:
+                field_name = _binding_field(graph, target, edge_type, edge["from"])
+                if field_name is None:
+                    continue
+                source_record = context.objects.get(edge["from"])
+                if source_record is None:
+                    raise G3ValidationError(f"missing_{edge['from']}")
+                if target_record.get(field_name) != source_record.get("sha256"):
+                    raise G3ValidationError(
+                        f"{target}_{edge['from']}_{edge_type}_binding_mismatch"
+                    )
+
+
 def _validate_migrated_review(
     context: G3AuthorityContext, record: dict[str, Any]
 ) -> None:
@@ -722,11 +1220,14 @@ def _validate_migrated_review(
         "target_git_commit",
         "target_bundle_inputs_sha256",
         "reviewed_migration_ledger_sha256",
+        "reviewed_normative_traceability_matrix_sha256",
         "reviewed_traceability_manifest_sha256",
         "reviewed_component_sha256s",
         "reviewed_finding_ids",
         "finding_dispositions",
         "reviewer_roles",
+        "review_records",
+        "review_input_fingerprint",
         "p0_count",
         "p1_count",
         "p2_count",
@@ -763,6 +1264,10 @@ def _validate_migrated_review(
         "migration_ledger"
     ].get("sha256"):
         raise G3ValidationError("migrated_review_ledger_mismatch")
+    if record.get("reviewed_normative_traceability_matrix_sha256") != context.objects[
+        "normative_traceability_matrix"
+    ].get("sha256"):
+        raise G3ValidationError("migrated_review_normative_matrix_mismatch")
     if record.get("reviewed_traceability_manifest_sha256") != context.objects[
         "generated_traceability_manifest"
     ].get("sha256"):
@@ -775,16 +1280,81 @@ def _validate_migrated_review(
     if (
         not isinstance(dispositions, dict)
         or set(dispositions) != EXPECTED_MIGRATED_FINDINGS
-        or any(not isinstance(value, str) or not value for value in dispositions.values())
+        or any(
+            not isinstance(value, str) or value not in MIGRATED_FINDING_DISPOSITIONS
+            for value in dispositions.values()
+        )
     ):
-        raise G3ValidationError("incomplete_migrated_finding_coverage")
-    if record.get("reviewer_roles") != sorted(REVIEW_ROLES):
+        raise G3ValidationError("invalid_migrated_finding_disposition")
+    if record.get("review_input_fingerprint") != _migrated_review_input_fingerprint(record):
+        raise G3ValidationError("migrated_review_input_fingerprint_mismatch")
+    review_records = record.get("review_records")
+    if (
+        not isinstance(review_records, list)
+        or len(review_records) != len(REVIEW_ROLES)
+        or any(
+            not isinstance(row, dict) or set(row) != MIGRATED_REVIEW_RECORD_FIELDS
+            for row in review_records
+        )
+    ):
+        raise G3ValidationError("migrated_review_review_record_schema_mismatch")
+    roles = [row["role"] for row in review_records]
+    reviewer_ids = [row["reviewer_authority_id"] for row in review_records]
+    if (
+        sorted(roles) != sorted(REVIEW_ROLES)
+        or len(set(roles)) != len(roles)
+        or any(not isinstance(value, str) or not value for value in reviewer_ids)
+        or len(set(reviewer_ids)) != len(reviewer_ids)
+        or record.get("reviewer_roles") != sorted(roles)
+    ):
         raise G3ValidationError("non_independent_migrated_review")
+    for row in review_records:
+        if row["reviewed_target"] != record["review_input_fingerprint"]:
+            raise G3ValidationError("migrated_review_review_target_mismatch")
+        if row["decision"] not in {"GO", "NO-GO"}:
+            raise G3ValidationError("migrated_review_review_decision_invalid")
+        if row["lifecycle"] != "ACTIVE":
+            raise G3ValidationError("stale_migrated_review_record")
+        if (
+            not isinstance(row["review_artifact_id"], str)
+            or not row["review_artifact_id"]
+            or not isinstance(row["review_sha256"], str)
+            or not re.fullmatch(r"[0-9a-f]{64}", row["review_sha256"])
+            or row["independence_relation"]
+            != {
+                "type": "distinct_reviewer_authority",
+                "reviewer_authority_id": row["reviewer_authority_id"],
+            }
+        ):
+            raise G3ValidationError("non_independent_migrated_review")
+        row_payload = dict(row)
+        row_payload.pop("review_sha256")
+        if sha256_bytes(canonical_json_bytes(row_payload)) != row["review_sha256"]:
+            raise G3ValidationError("migrated_review_review_hash_mismatch")
+        if context.mode == "real" and (
+            row["reviewer_authority_id"].startswith("synthetic:")
+            or row["review_artifact_id"].startswith("synthetic:")
+        ):
+            raise G3ValidationError("synthetic_cannot_authorize_real")
+        if row["reviewer_authority_id"] in {"remediation_agent", "remediation-agent"}:
+            raise G3ValidationError("non_independent_migrated_review")
     if record.get("producer") != "independent_review_panel":
         raise G3ValidationError("non_independent_migrated_review")
     if any(not isinstance(record.get(name), int) or record[name] < 0 for name in ("p0_count", "p1_count", "p2_count")):
         raise G3ValidationError("malformed_migrated_review_counts")
-    if record.get("decision") != "GO" or record["p0_count"] != 0 or record["p1_count"] != 0:
+    expected_counts, unresolved = _disposition_counts(dispositions)
+    if any(record[name] != value for name, value in expected_counts.items()):
+        raise G3ValidationError("migrated_review_count_disposition_mismatch")
+    expected_decision = (
+        "NO-GO"
+        if unresolved or expected_counts["p0_count"] or expected_counts["p1_count"]
+        else (
+            "GO_WITH_DOCUMENTED_NON_BLOCKING_DEBT"
+            if expected_counts["p2_count"]
+            else "GO"
+        )
+    )
+    if record.get("decision") != expected_decision:
         raise G3ValidationError("migrated_review_not_go")
 
 
@@ -840,10 +1410,6 @@ def validate_g3_tag(
         raise G3ValidationError("invalid_validation_context_mode")
     if context.mode == "synthetic" and context.real_authority_requested:
         raise G3ValidationError("synthetic_cannot_authorize_real")
-    if fields["specification_bundle_manifest_sha256"] != context.bundle_manifest_sha256:
-        raise G3ValidationError("wrong_bundle_hash")
-    if fields["aggregate_review_bundle_sha256"] != context.aggregate_review_sha256:
-        raise G3ValidationError("wrong_aggregate_review_hash")
 
     tag = context.tag
     if tag.get("exists") is not True:
@@ -854,6 +1420,14 @@ def validate_g3_tag(
         raise G3ValidationError("g3_target_mismatch")
     if tag.get("message") != body_bytes:
         raise G3ValidationError("g3_message_mismatch")
+    if context.bundle_manifest_sha256 is None:
+        raise G3ValidationError("missing_specification_bundle_manifest")
+    if context.aggregate_review_sha256 is None:
+        raise G3ValidationError("missing_aggregate_review")
+    if fields["specification_bundle_manifest_sha256"] != context.bundle_manifest_sha256:
+        raise G3ValidationError("wrong_bundle_hash")
+    if fields["aggregate_review_bundle_sha256"] != context.aggregate_review_sha256:
+        raise G3ValidationError("wrong_aggregate_review_hash")
 
     try:
         graph_audit = validate_r12_authority_graph(context.graph)
@@ -863,6 +1437,7 @@ def validate_g3_tag(
         raise G3ValidationError("invalid_authority_graph")
     for node_id in context.graph["g3_required_nodes"]:
         _require_authority_object(context, node_id)
+    _validate_graph_object_bindings(context)
 
     bundle_inputs = _require_authority_object(context, "specification_bundle_inputs")
     manifest = _require_authority_object(context, "specification_bundle_manifest")
@@ -895,7 +1470,9 @@ def validate_g3_tag(
 
 def check_g3_kat(tag_name: str, body: bytes) -> dict[str, object]:
     try:
-        fields = validate_g3_tag(tag_name, body, make_synthetic_context())
+        context = make_synthetic_context()
+        context.tag["message"] = body
+        fields = validate_g3_tag(tag_name, body, context)
     except G3ValidationError as error:
         return {"result": "REJECT", "category": error.category}
     return {"result": "PASS", "category": "valid", "decoded_fields": fields}
@@ -1063,11 +1640,16 @@ def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]
         "expected_result": "PASS with exact decoded fields",
     }:
         raise ValueError(f"R12 test catalog metadata: {row}")
-    literal_ids = {"R12-POS-SPEC-BUNDLE-TAG", "R12-G3-AUTHORITY-CONTEXT-POS"}
-    for test_id in EXPECTED_R12_TEST_CATALOG_IDS - literal_ids:
+    positive_ids = {
+        "R12-POS-SPEC-BUNDLE-TAG",
+        "R12-G3-AUTHORITY-CONTEXT-POS",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-DAG-VALID",
+    }
+    for test_id in EXPECTED_R12_TEST_CATALOG_IDS - positive_ids:
         if catalog[test_id]["kat_class"] != "constructive_plan_audit":
             raise ValueError(f"R12 constructive test category: {test_id}")
-        if catalog[test_id]["expected_result"] != "REJECT" and test_id not in {"R12-DAG-VALID"}:
+        if catalog[test_id]["expected_result"] != "REJECT":
             raise ValueError(f"R12 constructive test result: {test_id}")
     return catalog
 
@@ -1197,7 +1779,7 @@ def validate_wire_catalog() -> None:
         "#schema-def-PhaseFMigratedFindingReviewV1",
         "no registry subject before G3; SHA-256 of the complete canonical review object excluding its own ID field",
         "independent migrated-finding review panel",
-        "strict migrated-review schema, exact bundle-input target, five-role independence, finding disposition, lifecycle, staleness, and hash validator",
+        "strict migrated-review schema, closed finding-disposition/count/decision validator, exact bundle-input target, concrete five-role review records and independence, lifecycle, staleness, and hash validator",
         "G2 review prerequisite for the specification bundle",
         "external authority object; registry publication is prohibited before later gate authority",
         "INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMigratedFindingReviewV1)",
@@ -1618,6 +2200,12 @@ def build_traceability() -> dict[str, object]:
             )
     for entry in entries:
         entry["downstream_child_requirements"] = sorted(set(entry["downstream_child_requirements"]))
+    generated_source_sha256s = {
+        edge["from"]: sha256(
+            ROOT / graph["node_identity_rules"][edge["from"]]["path"]
+        )
+        for edge in _graph_edges_for(graph, "generated_traceability_manifest", "generated_from")
+    }
     return {
         "schema_version": 1,
         "artifact_kind": "phase_f_derived_traceability_manifest",
@@ -1645,6 +2233,7 @@ def build_traceability() -> dict[str, object]:
             "audit": graph_audit,
         },
         "schema_usage": validate_schema_usage(load_normative_matrix()),
+        "generated_source_sha256s": generated_source_sha256s,
         "requirements": sorted(entries, key=lambda row: row["requirement_id"]),
     }
 
@@ -1665,10 +2254,29 @@ def build_bundle_inputs(trace_sha: str) -> dict[str, object]:
         name: sha256(path) for name, path in sorted(input_paths.items())
     }
     source_sha256s["generated_traceability_manifest"] = trace_sha
+    graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
+    validate_r12_authority_graph(graph)
+    authority_bindings: dict[str, dict[str, str | None]] = {}
+    for edge in _graph_edges_for(graph, "specification_bundle_inputs", "binds"):
+        source = edge["from"]
+        rule = graph["node_identity_rules"][source]
+        if rule["type"] == "repository_file_sha256":
+            authority_bindings[source] = {
+                "authority_id": None,
+                "sha256": sha256(ROOT / rule["path"]),
+                "target": None,
+            }
+        else:
+            authority_bindings[source] = {
+                "authority_id": None,
+                "sha256": None,
+                "target": None,
+            }
     payload = {
         "schema_version": 1,
         "artifact_kind": "phase_f_specification_bundle_inputs",
         "source_sha256s": source_sha256s,
+        "authority_bindings": authority_bindings,
     }
     return {
         **payload,
@@ -1733,7 +2341,10 @@ def build_bundle(trace_sha: str) -> dict[str, object]:
             "target_git_commit": None,
             "target_bundle_inputs_sha256": None,
             "reviewed_migration_ledger_sha256": None,
+            "reviewed_normative_traceability_matrix_sha256": None,
             "reviewed_traceability_manifest_sha256": None,
+            "review_records": None,
+            "review_input_fingerprint": None,
             "review_status": "ABSENT",
         },
         "aggregate_specification_bundle_review_sha256": None,
@@ -1756,6 +2367,31 @@ def component_node_id(prefix: str) -> str:
         "F-CNF": "component_conformance_spec",
         "F-IMPL": "component_implementation_spec",
     }[prefix]
+
+
+def _migrated_review_rows(target: str, synthetic: bool) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for role in sorted(REVIEW_ROLES):
+        reviewer_prefix = "synthetic:" if synthetic else "reviewer:"
+        artifact_prefix = "synthetic:" if synthetic else "review-artifact:"
+        row: dict[str, Any] = {
+            "role": role,
+            "reviewer_authority_id": f"{reviewer_prefix}{role}",
+            "reviewed_target": target,
+            "review_artifact_id": f"{artifact_prefix}{role}",
+            "decision": "GO",
+            "review_sha256": "",
+            "lifecycle": "ACTIVE",
+            "independence_relation": {
+                "type": "distinct_reviewer_authority",
+                "reviewer_authority_id": f"{reviewer_prefix}{role}",
+            },
+        }
+        row_payload = dict(row)
+        row_payload.pop("review_sha256")
+        row["review_sha256"] = sha256_bytes(canonical_json_bytes(row_payload))
+        rows.append(row)
+    return rows
 
 
 def _synthetic_record(
@@ -1791,22 +2427,40 @@ def make_synthetic_context() -> G3AuthorityContext:
     migration_sha = "5" * 64
     matrix_sha = "3" * 64
     objects: dict[str, dict[str, Any]] = {
+        "architecture_plan": _synthetic_record(
+            graph, "architecture_plan", sha256(ARCH), bytes=ARCH.read_bytes()
+        ),
+        "architecture_review": _synthetic_record(
+            graph, "architecture_review", "8" * 64,
+            target_sha256=sha256(ARCH), decision="GO", p0_count=0, p1_count=0,
+        ),
         "architecture_approval": _synthetic_record(
             graph,
             "architecture_approval",
             "a" * 64,
+            authority_id="synthetic:architecture-approval",
             tag_name=G3_EXPECTED_FIELDS["phase_f_architecture_plan_tag"],
             target_sha256=sha256(ARCH),
+            review_sha256="8" * 64,
             decision="GO",
             p0_count=0,
             p1_count=0,
+        ),
+        "f0_decision_bundle": _synthetic_record(
+            graph, "f0_decision_bundle", "9" * 64
+        ),
+        "f0_review": _synthetic_record(
+            graph, "f0_review", "7" * 64,
+            target_sha256="9" * 64, decision="GO", p0_count=0, p1_count=0,
         ),
         "f0_approval": _synthetic_record(
             graph,
             "f0_approval",
             "b" * 64,
+            authority_id="synthetic:f0-approval",
             tag_name=G3_EXPECTED_FIELDS["phase_f_f0_decisions_tag"],
-            target_sha256="b" * 64,
+            target_sha256="9" * 64,
+            review_sha256="7" * 64,
             decision="GO",
             p0_count=0,
             p1_count=0,
@@ -1818,18 +2472,35 @@ def make_synthetic_context() -> G3AuthorityContext:
             graph, "migration_ledger", migration_sha
         ),
         "generated_traceability_manifest": _synthetic_record(
-            graph, "generated_traceability_manifest", trace_sha
+            graph, "generated_traceability_manifest", trace_sha,
+            generated_source_sha256s={
+                "architecture_plan": sha256(ARCH),
+                "normative_traceability_matrix": matrix_sha,
+                "migration_ledger": migration_sha,
+                **{
+                    component_node_id(prefix): sha256(path)
+                    for prefix, path in SPECS.items()
+                },
+            },
         ),
         "specification_bundle_inputs": _synthetic_record(
             graph,
             "specification_bundle_inputs",
             bundle_inputs_sha,
-            source_sha256s={
-                "normative_traceability_matrix": matrix_sha,
-                "migration_ledger": migration_sha,
-                "generated_traceability_manifest": trace_sha,
-            },
+            authority_id="synthetic:bundle-inputs",
         ),
+    }
+    for prefix, path in SPECS.items():
+        node_id = component_node_id(prefix)
+        objects[node_id] = _synthetic_record(
+            graph, node_id, sha256(path), bytes=path.read_bytes()
+        )
+    objects["specification_bundle_inputs"]["authority_bindings"] = {
+        source: _authority_descriptor(objects[source])
+        for source in sorted(
+            edge["from"]
+            for edge in _graph_edges_for(graph, "specification_bundle_inputs", "binds")
+        )
     }
     for index, node_id in enumerate(
         [
@@ -1845,12 +2516,13 @@ def make_synthetic_context() -> G3AuthorityContext:
             graph,
             node_id,
             f"{index + 10:064x}",
+            authority_id=f"synthetic:{node_id}",
             decision="GO",
             p0_count=0,
             p1_count=0,
             target_sha256=component_sha256s[index - 1],
         )
-    objects["migrated_finding_review"] = _synthetic_record(
+    migrated = _synthetic_record(
         graph,
         "migrated_finding_review",
         "d" * 64,
@@ -1858,14 +2530,16 @@ def make_synthetic_context() -> G3AuthorityContext:
         target_git_commit=target,
         target_bundle_inputs_sha256=bundle_inputs_sha,
         reviewed_migration_ledger_sha256=migration_sha,
+        reviewed_normative_traceability_matrix_sha256=matrix_sha,
         reviewed_traceability_manifest_sha256=trace_sha,
         reviewed_component_sha256s=sorted(component_sha256s),
         reviewed_finding_ids=sorted(EXPECTED_MIGRATED_FINDINGS),
         finding_dispositions={
-            finding_id: "PENDING_FRESH_INDEPENDENT_REREVIEW"
+            finding_id: "TECHNICALLY_CLOSED"
             for finding_id in sorted(EXPECTED_MIGRATED_FINDINGS)
         },
         reviewer_roles=sorted(REVIEW_ROLES),
+        review_records=[],
         p0_count=0,
         p1_count=0,
         p2_count=0,
@@ -1874,6 +2548,11 @@ def make_synthetic_context() -> G3AuthorityContext:
         producer="independent_review_panel",
         validator="validate_migrated_finding_review",
     )
+    migrated["review_input_fingerprint"] = _migrated_review_input_fingerprint(migrated)
+    migrated["review_records"] = _migrated_review_rows(
+        migrated["review_input_fingerprint"], synthetic=True
+    )
+    objects["migrated_finding_review"] = migrated
     objects["specification_bundle_manifest"] = _synthetic_record(
         graph,
         "specification_bundle_manifest",
@@ -1882,6 +2561,7 @@ def make_synthetic_context() -> G3AuthorityContext:
         eligible_for_g3=True,
         target_commit=target,
         bundle_input_fingerprint_sha256=bundle_inputs_sha,
+        bound_authority_sha256s={},
         bytes=b"synthetic-complete-bundle-manifest",
     )
     objects["aggregate_review"] = _synthetic_record(
@@ -1904,6 +2584,13 @@ def make_synthetic_context() -> G3AuthorityContext:
         p1_count=0,
         bytes=b"synthetic-complete-aggregate-review",
     )
+    objects["specification_bundle_manifest"]["bound_authority_sha256s"] = {
+        source: objects[source]["sha256"]
+        for source in sorted(
+            edge["from"]
+            for edge in _graph_edges_for(graph, "specification_bundle_manifest", "binds")
+        )
+    }
     return G3AuthorityContext(
         mode="synthetic",
         graph=graph,
@@ -1921,58 +2608,560 @@ def make_synthetic_context() -> G3AuthorityContext:
         component_sha256s=component_sha256s,
         component_sha_by_node=component_sha_by_node,
         architecture_plan_sha256=sha256(ARCH),
-        f0_decisions_sha256="b" * 64,
+        f0_decisions_sha256="9" * 64,
     )
 
 
-def make_repository_context() -> G3AuthorityContext:
-    graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
-    target = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    tag_ref = f"refs/tags/{G3_TAG_NAME}"
-    tag: dict[str, Any] = {
+def _git_output(repository: Path, arguments: list[str]) -> bytes:
+    return subprocess.check_output(
+        ["git", *arguments], cwd=repository, stderr=subprocess.DEVNULL
+    )
+
+
+def _empty_tag() -> dict[str, Any]:
+    return {
         "exists": False,
         "annotated": False,
         "object_type": None,
         "peeled_commit": None,
         "message": None,
     }
+
+
+def _read_git_tag(repository: Path, tag_name: str) -> dict[str, Any]:
+    tag_ref = f"refs/tags/{tag_name}"
+    tag = _empty_tag()
     try:
-        object_type = subprocess.check_output(
-            ["git", "cat-file", "-t", tag_ref],
-            cwd=ROOT,
-            text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
+        object_type = _git_output(repository, ["cat-file", "-t", tag_ref]).decode().strip()
     except subprocess.CalledProcessError:
-        object_type = None
+        return tag
     if object_type is not None:
         tag["exists"] = True
         tag["object_type"] = object_type
         tag["annotated"] = object_type == "tag"
         if tag["annotated"]:
-            tag["peeled_commit"] = subprocess.check_output(
-                ["git", "rev-parse", f"{tag_ref}^{{commit}}"], cwd=ROOT, text=True
-            ).strip()
-            raw_tag = subprocess.check_output(
-                ["git", "cat-file", "tag", tag_ref], cwd=ROOT
+            tag["peeled_commit"] = _git_output(
+                repository, ["rev-parse", f"{tag_ref}^{{commit}}"]
+            ).decode().strip()
+            raw_tag = _git_output(repository, ["cat-file", "tag", tag_ref])
+            if b"\n\n" in raw_tag:
+                tag["message"] = raw_tag.split(b"\n\n", 1)[1]
+    return tag
+
+
+def _parse_authority_tag(
+    tag_name: str, tag: dict[str, Any], node_id: str, authority_id: str,
+    authority_sha256: str, target_commit: str,
+) -> None:
+    if tag.get("exists") is not True:
+        raise G3ValidationError(f"missing_{node_id}_tag")
+    if tag.get("annotated") is not True or tag.get("object_type") != "tag":
+        raise G3ValidationError(f"lightweight_{node_id}_tag")
+    if tag.get("peeled_commit") != target_commit:
+        raise G3ValidationError(f"{node_id}_target_mismatch")
+    expected = (
+        f"authority_node_id={node_id}\n"
+        f"authority_id={authority_id}\n"
+        f"authority_sha256={authority_sha256}\n"
+        f"target_git_commit={target_commit}\n"
+        "schema_version=1\n"
+    ).encode("ascii")
+    if tag.get("message") != expected:
+        raise G3ValidationError(f"{node_id}_message_mismatch")
+
+
+def _load_real_json_authority(
+    repository: Path, graph: dict[str, Any], node_id: str, path: Path
+) -> dict[str, Any]:
+    try:
+        raw = path.read_bytes()
+        decoded = _parse_json_without_duplicates(raw)
+    except FileNotFoundError as error:
+        raise G3ValidationError(f"missing_{node_id}") from error
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise G3ValidationError(f"malformed_{node_id}") from error
+    if not isinstance(decoded, dict) or canonical_json_bytes(decoded) != raw:
+        raise G3ValidationError(f"noncanonical_{node_id}")
+    expected_fields = graph["object_field_contracts"].get(node_id)
+    if not isinstance(expected_fields, list) or set(decoded) != set(expected_fields):
+        raise G3ValidationError(f"{node_id}_schema_mismatch")
+    rule = graph["node_identity_rules"][node_id]
+    excluded = rule.get("exclude_fields", [])
+    identity_payload = {
+        key: value for key, value in decoded.items() if key not in excluded
+    }
+    identity = sha256_bytes(canonical_json_bytes(identity_payload))
+    if rule["type"] != "canonical_object_sha256_excluding_field":
+        identity = sha256_bytes(raw)
+    record = dict(decoded)
+    record.update(
+        {
+            "bytes": raw,
+            "canonical_object": decoded,
+            "sha256": identity,
+            "expected_sha256": identity,
+            "content_unchanged": True,
+        }
+    )
+    return record
+
+
+def _load_real_repository_file(
+    repository: Path, target_commit: str, graph: dict[str, Any], node_id: str
+) -> dict[str, Any]:
+    rule = graph["node_identity_rules"][node_id]
+    relative_path = rule["path"]
+    try:
+        raw = _git_output(repository, ["show", f"{target_commit}:{relative_path}"])
+    except subprocess.CalledProcessError as error:
+        raise G3ValidationError(f"missing_{node_id}") from error
+    record: dict[str, Any] = {
+        "node_id": node_id,
+        "authority_kind": _graph_nodes(graph)[node_id]["authority_kind"],
+        "schema_version": 1,
+        "sha256": sha256_bytes(raw),
+        "expected_sha256": sha256_bytes(raw),
+        "content_unchanged": True,
+        "lifecycle": "ACTIVE",
+        "stale": False,
+        "superseded_by": None,
+        "invalidated": False,
+        "bytes": raw,
+    }
+    if relative_path.endswith(".json"):
+        try:
+            decoded = _parse_json_without_duplicates(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            decoded = None
+        if isinstance(decoded, dict):
+            record["decoded_object"] = decoded
+            record.update(
+                {
+                    key: value
+                    for key, value in decoded.items()
+                    if key not in {"node_id", "authority_kind", "schema_version"}
+                }
             )
-            tag["message"] = raw_tag.split(b"\n\n", 1)[1]
-    component_sha256s = [sha256(path) for path in SPECS.values()]
+    return record
+
+
+def _resolve_real_authority(
+    repository: Path, graph: dict[str, Any], target_commit: str
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any], dict[str, Any]]:
+    nodes = _graph_nodes(graph)
+    edges = _graph_edges(graph, nodes)
+    order = _topological_order(nodes, edges)
+    required_closure = _ancestors("g3_approval_tag", edges) | {"g3_approval_tag"}
+    objects: dict[str, dict[str, Any]] = {}
+    resolution: dict[str, Any] = {
+        "requested_node_ids": [node_id for node_id in order if node_id in required_closure],
+        "resolved_node_ids": [],
+        "missing": [],
+        "errors": [],
+    }
+    tags: dict[str, dict[str, Any]] = {}
+    for node_id in order:
+        if node_id not in required_closure or node_id == "g3_approval_tag":
+            continue
+        rule = graph["node_identity_rules"][node_id]
+        try:
+            if rule["type"] == "repository_file_sha256":
+                record = _load_real_repository_file(repository, target_commit, graph, node_id)
+            elif rule["type"] in {"authority_file_sha256", "canonical_object_sha256_excluding_field"}:
+                record = _load_real_json_authority(
+                    repository, graph, node_id, repository / rule["path"]
+                )
+            elif rule["type"] == "annotated_tag_message_sha256":
+                record = _load_real_json_authority(
+                    repository, graph, node_id, repository / rule["authority_path"]
+                )
+                tag = _read_git_tag(repository, rule["tag_name"])
+                tags[node_id] = tag
+                _parse_authority_tag(
+                    rule["tag_name"], tag, node_id, record["authority_id"],
+                    record["sha256"], target_commit,
+                )
+            else:
+                raise G3ValidationError(f"unknown_discovery_rule_{node_id}")
+        except G3ValidationError as error:
+            resolution["errors"].append(
+                {"node_id": node_id, "category": error.category}
+            )
+            if error.category.startswith("missing_"):
+                resolution["missing"].append(
+                    {"node_id": node_id, "category": error.category}
+                )
+            continue
+        objects[node_id] = record
+        resolution["resolved_node_ids"].append(node_id)
+    g3_tag = _read_git_tag(repository, G3_TAG_NAME)
+    resolution["authority_tags"] = {
+        node_id: {
+            "exists": tag["exists"],
+            "annotated": tag["annotated"],
+            "peeled_commit": tag["peeled_commit"],
+        }
+        for node_id, tag in sorted(tags.items())
+    }
+    resolution["authority_tags"]["g3_approval_tag"] = {
+        "exists": g3_tag["exists"],
+        "annotated": g3_tag["annotated"],
+        "peeled_commit": g3_tag["peeled_commit"],
+    }
+    resolution["g3_tag"] = {
+        "exists": g3_tag["exists"],
+        "annotated": g3_tag["annotated"],
+        "peeled_commit": g3_tag["peeled_commit"],
+    }
+    if not g3_tag["exists"]:
+        resolution["missing"].append(
+            {"node_id": "g3_approval_tag", "category": "missing_g3_approval_tag"}
+        )
+    elif g3_tag["annotated"] is not True or g3_tag["object_type"] != "tag":
+        resolution["errors"].append(
+            {"node_id": "g3_approval_tag", "category": "lightweight_g3_approval_tag"}
+        )
+    elif g3_tag["peeled_commit"] != target_commit:
+        resolution["errors"].append(
+            {"node_id": "g3_approval_tag", "category": "g3_target_mismatch"}
+        )
+    return objects, g3_tag, resolution
+
+
+def make_repository_context(
+    repository: Path | None = None, target_ref: str = "HEAD"
+) -> G3AuthorityContext:
+    repository = ROOT if repository is None else Path(repository).resolve()
+    target = _git_output(repository, ["rev-parse", target_ref]).decode().strip()
+    graph_relative_path = str(AUTHORITY_GRAPH_PATH.relative_to(ROOT))
+    graph_path = repository / graph_relative_path
+    graph = json.loads(graph_path.read_text())
+    validate_r12_authority_graph(graph)
+    objects, tag, resolution = _resolve_real_authority(repository, graph, target)
+    component_nodes = [
+        component_node_id(prefix) for prefix in SPECS
+    ]
+    component_sha_by_node = {
+        node_id: objects[node_id]["sha256"]
+        for node_id in component_nodes
+        if node_id in objects
+    }
+    component_sha256s = [
+        component_sha_by_node.get(node_id, "")
+        for node_id in component_nodes
+    ]
+    architecture_plan_sha256 = (
+        objects["architecture_plan"]["sha256"]
+        if "architecture_plan" in objects
+        else None
+    )
+    f0_decisions_sha256 = (
+        objects["f0_decision_bundle"]["sha256"]
+        if "f0_decision_bundle" in objects
+        else None
+    )
     return G3AuthorityContext(
         mode="real",
         graph=graph,
-        objects={},
-        bundle_manifest_sha256=sha256(BUNDLE_PATH),
-        aggregate_review_sha256="1" * 64,
+        objects=objects,
+        bundle_manifest_sha256=objects.get("specification_bundle_manifest", {}).get("sha256"),
+        aggregate_review_sha256=objects.get("aggregate_review", {}).get("sha256"),
         expected_target_commit=target,
         tag=tag,
         component_sha256s=component_sha256s,
-        component_sha_by_node={
-            component_node_id(prefix): sha256(path) for prefix, path in SPECS.items()
-        },
-        architecture_plan_sha256=sha256(ARCH),
-        f0_decisions_sha256="b" * 64,
+        component_sha_by_node=component_sha_by_node,
+        architecture_plan_sha256=architecture_plan_sha256 or "",
+        f0_decisions_sha256=f0_decisions_sha256,
+        resolution=resolution,
     )
+
+
+def _fixture_git(repository: Path, arguments: list[str], input_bytes: bytes | None = None) -> bytes:
+    return subprocess.check_output(
+        ["git", *arguments], cwd=repository, input=input_bytes, stderr=subprocess.PIPE
+    )
+
+
+def _fixture_authority_payload(
+    graph: dict[str, Any], node_id: str, **fields: Any
+) -> dict[str, Any]:
+    return {
+        "node_id": node_id,
+        "authority_kind": _graph_nodes(graph)[node_id]["authority_kind"],
+        "schema_version": 1,
+        "lifecycle": "ACTIVE",
+        "stale": False,
+        "superseded_by": None,
+        "invalidated": False,
+        **fields,
+    }
+
+
+def _fixture_write_authority(
+    repository: Path, graph: dict[str, Any], node_id: str, payload: dict[str, Any]
+) -> str:
+    rule = graph["node_identity_rules"][node_id]
+    if rule["type"] == "canonical_object_sha256_excluding_field":
+        identity_payload = {
+            key: value
+            for key, value in payload.items()
+            if key not in rule["exclude_fields"]
+        }
+        digest = sha256_bytes(canonical_json_bytes(identity_payload))
+        payload = {**payload, "migrated_finding_review_id": digest}
+    else:
+        digest = sha256_bytes(canonical_json_bytes(payload))
+    relative_path = rule.get("path") or rule["authority_path"]
+    path = repository / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(canonical_json_bytes(payload))
+    return digest
+
+
+def _fixture_annotated_tag(
+    repository: Path, tag_name: str, target_commit: str, message: bytes
+) -> None:
+    raw = (
+        f"object {target_commit}\n"
+        "type commit\n"
+        f"tag {tag_name}\n"
+        "tagger Phase F Test <phase-f-test@example.invalid> 1 +0000\n"
+        "\n"
+    ).encode("ascii") + message
+    tag_object = _fixture_git(repository, ["mktag"], raw).decode().strip()
+    _fixture_git(repository, ["update-ref", f"refs/tags/{tag_name}", tag_object])
+
+
+def _isolated_real_fixture() -> tuple[tempfile.TemporaryDirectory[str], Path, str, bytes]:
+    graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
+    review_root = Path.home() / "Library" / "Caches" / "Codex" / "reviews" / "rust_electroanalysis_cli"
+    review_root.mkdir(parents=True, exist_ok=True)
+    temporary = tempfile.TemporaryDirectory(
+        prefix="phase-f-r12-authority-", dir=review_root
+    )
+    repository = Path(temporary.name)
+    _fixture_git(repository, ["init", "-q"])
+    _fixture_git(repository, ["config", "user.name", "Phase F Test"])
+    _fixture_git(repository, ["config", "user.email", "phase-f-test@example.invalid"])
+    graph_destination = repository / AUTHORITY_GRAPH_PATH.relative_to(ROOT)
+    graph_destination.parent.mkdir(parents=True, exist_ok=True)
+    graph_destination.write_bytes(AUTHORITY_GRAPH_PATH.read_bytes())
+    for rule in graph["node_identity_rules"].values():
+        if rule["type"] == "repository_file_sha256":
+            source = ROOT / rule["path"]
+            destination = repository / rule["path"]
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source.read_bytes())
+    _fixture_git(repository, ["add", "."])
+    _fixture_git(repository, ["commit", "-qm", "fixture source input"])
+    target_commit = _fixture_git(repository, ["rev-parse", "HEAD"]).decode().strip()
+    nodes = _graph_nodes(graph)
+
+    def source_digest(node_id: str) -> str:
+        rule = graph["node_identity_rules"][node_id]
+        return sha256(repository / rule["path"])
+
+    source_records = {
+        node_id: {
+            "node_id": node_id,
+            "authority_kind": nodes[node_id]["authority_kind"],
+            "schema_version": 1,
+            "sha256": source_digest(node_id),
+            "target": None,
+        }
+        for node_id, rule in graph["node_identity_rules"].items()
+        if rule["type"] == "repository_file_sha256"
+    }
+    arch_review_payload = _fixture_authority_payload(
+        graph, "architecture_review", authority_id="fixture:architecture-review",
+        target_sha256=source_records["architecture_plan"]["sha256"],
+        decision="GO", p0_count=0, p1_count=0,
+    )
+    arch_review_sha = _fixture_write_authority(
+        repository, graph, "architecture_review", arch_review_payload
+    )
+    arch_approval_payload = _fixture_authority_payload(
+        graph, "architecture_approval", authority_id="fixture:architecture-approval",
+        tag_name=G3_EXPECTED_FIELDS["phase_f_architecture_plan_tag"],
+        target_sha256=source_records["architecture_plan"]["sha256"],
+        review_sha256=arch_review_sha, decision="GO", p0_count=0, p1_count=0,
+    )
+    arch_approval_sha = _fixture_write_authority(
+        repository, graph, "architecture_approval", arch_approval_payload
+    )
+    f0_bundle_payload = _fixture_authority_payload(
+        graph, "f0_decision_bundle", authority_id="fixture:f0-decision-bundle"
+    )
+    f0_bundle_sha = _fixture_write_authority(
+        repository, graph, "f0_decision_bundle", f0_bundle_payload
+    )
+    f0_review_payload = _fixture_authority_payload(
+        graph, "f0_review", authority_id="fixture:f0-review",
+        target_sha256=f0_bundle_sha, decision="GO", p0_count=0, p1_count=0,
+    )
+    f0_review_sha = _fixture_write_authority(
+        repository, graph, "f0_review", f0_review_payload
+    )
+    f0_approval_payload = _fixture_authority_payload(
+        graph, "f0_approval", authority_id="fixture:f0-approval",
+        tag_name=G3_EXPECTED_FIELDS["phase_f_f0_decisions_tag"],
+        target_sha256=f0_bundle_sha, review_sha256=f0_review_sha,
+        decision="GO", p0_count=0, p1_count=0,
+    )
+    f0_approval_sha = _fixture_write_authority(
+        repository, graph, "f0_approval", f0_approval_payload
+    )
+    authority_records = {
+        "architecture_approval": {
+            "authority_id": "fixture:architecture-approval",
+            "sha256": arch_approval_sha,
+            "target": source_records["architecture_plan"]["sha256"],
+        },
+        "f0_approval": {
+            "authority_id": "fixture:f0-approval",
+            "sha256": f0_approval_sha,
+            "target": f0_bundle_sha,
+        },
+    }
+    input_bindings = {}
+    for edge in _graph_edges_for(graph, "specification_bundle_inputs", "binds"):
+        source = edge["from"]
+        input_bindings[source] = (
+            authority_records[source]
+            if source in authority_records
+            else {
+                "authority_id": None,
+                "sha256": source_records[source]["sha256"],
+                "target": None,
+            }
+        )
+    input_payload = _fixture_authority_payload(
+        graph, "specification_bundle_inputs",
+        authority_id="fixture:bundle-inputs", authority_bindings=input_bindings,
+    )
+    input_sha = _fixture_write_authority(
+        repository, graph, "specification_bundle_inputs", input_payload
+    )
+    component_sha_by_node = {
+        node_id: source_records[node_id]["sha256"]
+        for node_id in (
+            "component_wire_spec", "component_scientific_spec",
+            "component_operations_spec", "component_conformance_spec",
+            "component_implementation_spec",
+        )
+    }
+    component_review_sha: dict[str, str] = {}
+    for node_id, spec_node in (
+        ("component_wire_review", "component_wire_spec"),
+        ("component_scientific_review", "component_scientific_spec"),
+        ("component_operations_review", "component_operations_spec"),
+        ("component_conformance_review", "component_conformance_spec"),
+        ("component_implementation_review", "component_implementation_spec"),
+    ):
+        payload = _fixture_authority_payload(
+            graph, node_id, authority_id=f"fixture:{node_id}",
+            reviewer_authority_id=f"reviewer:{node_id}", target_sha256=component_sha_by_node[spec_node],
+            decision="GO", p0_count=0, p1_count=0,
+        )
+        component_review_sha[node_id] = _fixture_write_authority(
+            repository, graph, node_id, payload
+        )
+    migrated = _fixture_authority_payload(
+        graph, "migrated_finding_review",
+        target_git_commit=target_commit,
+        target_bundle_inputs_sha256=input_sha,
+        reviewed_migration_ledger_sha256=source_records["migration_ledger"]["sha256"],
+        reviewed_normative_traceability_matrix_sha256=source_records["normative_traceability_matrix"]["sha256"],
+        reviewed_traceability_manifest_sha256=source_records["generated_traceability_manifest"]["sha256"],
+        reviewed_component_sha256s=sorted(component_sha_by_node.values()),
+        reviewed_finding_ids=sorted(EXPECTED_MIGRATED_FINDINGS),
+        finding_dispositions={
+            finding_id: "TECHNICALLY_CLOSED"
+            for finding_id in sorted(EXPECTED_MIGRATED_FINDINGS)
+        },
+        reviewer_roles=sorted(REVIEW_ROLES),
+        review_records=[],
+        review_input_fingerprint="",
+        p0_count=0, p1_count=0, p2_count=0, decision="GO",
+        created_stage=10, producer="independent_review_panel",
+        validator="validate_migrated_finding_review",
+    )
+    migrated["review_input_fingerprint"] = _migrated_review_input_fingerprint(migrated)
+    migrated["review_records"] = _migrated_review_rows(
+        migrated["review_input_fingerprint"], synthetic=False
+    )
+    migrated_sha = _fixture_write_authority(
+        repository, graph, "migrated_finding_review", migrated
+    )
+    bound_authorities = {
+        source: (
+            component_review_sha[source]
+            if source in component_review_sha
+            else source_records[source]["sha256"]
+            if source in source_records
+            else authority_records[source]["sha256"]
+            if source in authority_records
+            else migrated_sha
+        )
+        for source in sorted(
+            edge["from"]
+            for edge in _graph_edges_for(graph, "specification_bundle_manifest", "binds")
+        )
+    }
+    manifest = _fixture_authority_payload(
+        graph, "specification_bundle_manifest",
+        authority_id="fixture:bundle-manifest", status="READY_FOR_G3",
+        eligible_for_g3=True, target_commit=target_commit,
+        bundle_input_fingerprint_sha256=input_sha,
+        bound_authority_sha256s=bound_authorities,
+    )
+    manifest_sha = _fixture_write_authority(
+        repository, graph, "specification_bundle_manifest", manifest
+    )
+    aggregate = _fixture_authority_payload(
+        graph, "aggregate_review", authority_id="fixture:aggregate-review",
+        target_bundle_manifest_sha256=manifest_sha,
+        dependency_node_ids=[
+            "component_wire_review", "component_scientific_review",
+            "component_operations_review", "component_conformance_review",
+            "component_implementation_review", "migrated_finding_review",
+            "specification_bundle_manifest", "generated_traceability_manifest",
+        ],
+        decision="GO", p0_count=0, p1_count=0,
+    )
+    aggregate_sha = _fixture_write_authority(
+        repository, graph, "aggregate_review", aggregate
+    )
+    _fixture_git(repository, ["add", "."])
+    _fixture_git(repository, ["commit", "-qm", "fixture authority objects"])
+    _fixture_annotated_tag(
+        repository, G3_EXPECTED_FIELDS["phase_f_architecture_plan_tag"],
+        target_commit,
+        (
+            f"authority_node_id=architecture_approval\n"
+            f"authority_id=fixture:architecture-approval\n"
+            f"authority_sha256={arch_approval_sha}\n"
+            f"target_git_commit={target_commit}\n"
+            "schema_version=1\n"
+        ).encode("ascii"),
+    )
+    _fixture_annotated_tag(
+        repository, G3_EXPECTED_FIELDS["phase_f_f0_decisions_tag"],
+        target_commit,
+        (
+            f"authority_node_id=f0_approval\n"
+            f"authority_id=fixture:f0-approval\n"
+            f"authority_sha256={f0_approval_sha}\n"
+            f"target_git_commit={target_commit}\n"
+            "schema_version=1\n"
+        ).encode("ascii"),
+    )
+    g3_body = (
+        G3_FIXTURE_BODY.replace(b"0" * 64, manifest_sha.encode(), 1)
+        .replace(b"1" * 64, aggregate_sha.encode(), 1)
+    )
+    _fixture_annotated_tag(repository, G3_TAG_NAME, target_commit, g3_body)
+    return temporary, repository, target_commit, g3_body
 
 
 def run_regression_self_tests() -> None:
@@ -2131,6 +3320,23 @@ def run_regression_self_tests() -> None:
         mutate(mutant)
         reject_value_error(label, lambda: validate_r12_authority_graph(mutant))
 
+    def semantic_graph_reject(
+        label: str, audit_name: str, mutate: object
+    ) -> None:
+        mutant = deepcopy(graph)
+        mutate(mutant)
+        nodes = _graph_nodes(mutant)
+        edges = _graph_edges(mutant, nodes)
+        order = _topological_order(nodes, edges)
+        audit = next(
+            item
+            for item in _semantic_graph_audits(mutant, nodes, edges, order)
+            if item["name"] == audit_name
+        )
+        if audit["passed"] or not audit["violation_path"]:
+            raise AssertionError(f"semantic audit did not change: {label}: {audit}")
+        reject_value_error(label, lambda: validate_r12_authority_graph(mutant))
+
     graph_reject(
         "unknown graph node",
         lambda value: value["edges"][0].update({"to": "unknown_node"}),
@@ -2138,6 +3344,26 @@ def run_regression_self_tests() -> None:
     graph_reject(
         "unknown graph edge type",
         lambda value: value["edges"][0].update({"type": "unknown_edge"}),
+    )
+    graph_reject(
+        "graph valid-type wrong-semantic binding",
+        lambda value: next(
+            edge
+            for edge in value["edges"]
+            if edge["from"] == "architecture_approval"
+            and edge["to"] == "specification_bundle_inputs"
+        ).update({"type": "requires"}),
+    )
+    graph_reject(
+        "graph missing required typed edge",
+        lambda value: value["edges"].remove(
+            next(
+                edge
+                for edge in value["edges"]
+                if edge["from"] == "architecture_approval"
+                and edge["to"] == "specification_bundle_inputs"
+            )
+        ),
     )
     graph_reject(
         "duplicate graph node",
@@ -2211,8 +3437,72 @@ def run_regression_self_tests() -> None:
             {"from": "g3_approval_tag", "to": "aggregate_review", "type": "requires"}
         ),
     )
+    graph_reject(
+        "graph typed edge contract",
+        lambda value: value["typed_edge_contract"].pop(),
+    )
+    graph_reject(
+        "graph identity rule contract",
+        lambda value: value["identity_rule_contract"]["repository_file_sha256"][
+            "required_fields"
+        ].append("unmodeled_identity_field"),
+    )
+    semantic_graph_reject(
+        "graph semantic self-Git audit",
+        "self_git_cycle",
+        lambda value: value["node_identity_rules"].update(
+            {
+                "g3_approval_tag": {
+                    "type": "git_commit_identity",
+                    "commit_source": "self",
+                }
+            }
+        ),
+    )
+    semantic_graph_reject(
+        "graph semantic hash-cycle audit",
+        "hash_cycle",
+        lambda value: (
+            value["node_identity_rules"]["migration_ledger"].update(
+                {"identity_dependencies": ["normative_traceability_matrix"]}
+            ),
+            value["node_identity_rules"]["normative_traceability_matrix"].update(
+                {"identity_dependencies": ["migration_ledger"]}
+            ),
+        ),
+    )
+    semantic_graph_reject(
+        "graph semantic review-target audit",
+        "review_target_cycle",
+        lambda value: value["node_identity_rules"]["component_wire_review"].update(
+            {"review_target_node": "aggregate_review"}
+        ),
+    )
+    semantic_graph_reject(
+        "graph semantic future-object audit",
+        "future_object",
+        lambda value: value["node_identity_rules"]["component_wire_review"].update(
+            {"identity_dependencies": ["aggregate_review"]}
+        ),
+    )
+    semantic_graph_reject(
+        "graph semantic self-reference audit",
+        "self_reference",
+        lambda value: value["node_identity_rules"]["component_wire_review"].update(
+            {"self_reference": True}
+        ),
+    )
+    graph_reject(
+        "graph serialized binding equality",
+        lambda value: value["serialized_binding_fields"][
+            "specification_bundle_manifest"
+        ].update({"binds": {}}),
+    )
 
     synthetic = make_synthetic_context()
+    graph_positive = validate_r12_authority_graph(graph)
+    if any(not audit["passed"] for audit in graph_positive["audits"]):
+        raise AssertionError(f"graph positive audit failed: {graph_positive['audits']}")
     positive = validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, synthetic)
     if positive != G3_EXPECTED_FIELDS:
         raise AssertionError(f"synthetic G3 authority positive result: {positive}")
@@ -2239,6 +3529,180 @@ def run_regression_self_tests() -> None:
         "migrated review incomplete disposition",
         lambda context: context.objects["migrated_finding_review"]["finding_dispositions"].pop("F-PLAN-R11-P1-01"),
     )
+    g3_reject(
+        "migrated review open disposition",
+        lambda context: context.objects["migrated_finding_review"][
+            "finding_dispositions"
+        ].__setitem__("F-PLAN-R11-P1-01", "OPEN"),
+    )
+    g3_reject(
+        "migrated review pending P1 disposition",
+        lambda context: context.objects["migrated_finding_review"][
+            "finding_dispositions"
+        ].__setitem__("F-PLAN-R11-P1-01", "PENDING"),
+    )
+    g3_reject(
+        "migrated review partially closed P1 disposition",
+        lambda context: context.objects["migrated_finding_review"][
+            "finding_dispositions"
+        ].__setitem__("F-PLAN-R11-P1-01", "PARTIALLY_CLOSED"),
+    )
+    g3_reject(
+        "migrated review count mismatch",
+        lambda context: context.objects["migrated_finding_review"].update(
+            {"p1_count": 1}
+        ),
+    )
+    g3_reject(
+        "migrated review unknown disposition",
+        lambda context: context.objects["migrated_finding_review"][
+            "finding_dispositions"
+        ].__setitem__("F-PLAN-R11-P1-01", "CLOSED"),
+    )
+    g3_reject(
+        "migrated review missing finding",
+        lambda context: context.objects["migrated_finding_review"][
+            "finding_dispositions"
+        ].pop("F-PLAN-R11-P1-01"),
+    )
+    g3_reject(
+        "migrated review duplicate finding",
+        lambda context: context.objects["migrated_finding_review"][
+            "reviewed_finding_ids"
+        ].append("F-PLAN-R11-P1-01"),
+    )
+    g3_reject(
+        "migrated review unknown finding",
+        lambda context: context.objects["migrated_finding_review"][
+            "finding_dispositions"
+        ].__setitem__("F-PLAN-UNKNOWN", "TECHNICALLY_CLOSED"),
+    )
+    g3_reject(
+        "migrated review decision mismatch",
+        lambda context: context.objects["migrated_finding_review"].update(
+            {"decision": "NO-GO"}
+        ),
+    )
+    g3_reject(
+        "migrated review normative input mismatch",
+        lambda context: context.objects["migrated_finding_review"].update(
+            {"reviewed_normative_traceability_matrix_sha256": "f" * 64}
+        ),
+    )
+    g3_reject(
+        "migrated review records missing",
+        lambda context: context.objects["migrated_finding_review"].update(
+            {"review_records": []}
+        ),
+    )
+    g3_reject(
+        "migrated review records duplicate role",
+        lambda context: context.objects["migrated_finding_review"][
+            "review_records"
+        ][1].update(
+            {
+                "role": context.objects["migrated_finding_review"][
+                    "review_records"
+                ][0]["role"]
+            }
+        ),
+    )
+    g3_reject(
+        "migrated review missing role",
+        lambda context: context.objects["migrated_finding_review"][
+            "review_records"
+        ].pop(),
+    )
+    g3_reject(
+        "migrated review independence mismatch",
+        lambda context: context.objects["migrated_finding_review"][
+            "review_records"
+        ][0].update({"independence_relation": {"type": "same_reviewer"}}),
+    )
+    g3_reject(
+        "migrated review record target mismatch",
+        lambda context: context.objects["migrated_finding_review"][
+            "review_records"
+        ][0].update({"reviewed_target": "e" * 64}),
+    )
+    g3_reject(
+        "migrated review record hash mismatch",
+        lambda context: context.objects["migrated_finding_review"][
+            "review_records"
+        ][0].update({"review_sha256": "e" * 64}),
+    )
+    g3_reject(
+        "migrated review fingerprint mismatch",
+        lambda context: context.objects["migrated_finding_review"].update(
+            {"review_input_fingerprint": "e" * 64}
+        ),
+    )
+    g3_reject(
+        "migrated review architecture approval ID stale",
+        lambda context: context.objects["architecture_approval"].update(
+            {"authority_id": "synthetic:replacement-architecture-approval"}
+        ),
+    )
+    g3_reject(
+        "migrated review architecture approval digest stale",
+        lambda context: context.objects["architecture_approval"].update(
+            {"sha256": "e" * 64}
+        ),
+    )
+    g3_reject(
+        "migrated review architecture approval target stale",
+        lambda context: context.objects["architecture_approval"].update(
+            {"target_sha256": "e" * 64}
+        ),
+    )
+    g3_reject(
+        "migrated review F0 approval ID stale",
+        lambda context: context.objects["f0_approval"].update(
+            {"authority_id": "synthetic:replacement-f0-approval"}
+        ),
+    )
+    g3_reject(
+        "migrated review F0 approval digest stale",
+        lambda context: context.objects["f0_approval"].update(
+            {"sha256": "e" * 64}
+        ),
+    )
+    g3_reject(
+        "migrated review F0 approval target stale",
+        lambda context: context.objects["f0_approval"].update(
+            {"target_sha256": "e" * 64}
+        ),
+    )
+    g3_reject(
+        "migrated review component specification stale",
+        lambda context: context.objects["component_wire_spec"].update(
+            {"sha256": "e" * 64}
+        ),
+    )
+    g3_reject(
+        "migrated review component review stale",
+        lambda context: context.objects["component_wire_review"].update(
+            {"sha256": "e" * 64}
+        ),
+    )
+    g3_reject(
+        "migrated review ledger stale",
+        lambda context: context.objects["migration_ledger"].update(
+            {"sha256": "e" * 64}
+        ),
+    )
+    g3_reject(
+        "migrated review normative matrix stale",
+        lambda context: context.objects["normative_traceability_matrix"].update(
+            {"sha256": "e" * 64}
+        ),
+    )
+    g3_reject(
+        "migrated review traceability manifest stale",
+        lambda context: context.objects["generated_traceability_manifest"].update(
+            {"sha256": "e" * 64}
+        ),
+    )
     g3_reject("migrated review stale", lambda context: context.objects["migrated_finding_review"].update({"stale": True}))
     g3_reject("migrated review superseded", lambda context: context.objects["migrated_finding_review"].update({"superseded_by": "new-review"}))
     g3_reject("migrated review non-independent", lambda context: context.objects["migrated_finding_review"].update({"producer": "remediation_agent"}))
@@ -2252,13 +3716,336 @@ def run_regression_self_tests() -> None:
     real_context = make_repository_context()
     real_body = G3_FIXTURE_BODY.replace(
         b"specification_bundle_manifest_sha256=" + b"0" * 64,
-        b"specification_bundle_manifest_sha256=" + real_context.bundle_manifest_sha256.encode(),
+        b"specification_bundle_manifest_sha256="
+        + (real_context.bundle_manifest_sha256 or "0" * 64).encode(),
         1,
     )
     reject_value_error(
         "missing real G3 prerequisites",
         lambda: validate_g3_tag(G3_TAG_NAME, real_body, real_context),
     )
+    fixture_temporary, fixture_repository, fixture_target, fixture_body = _isolated_real_fixture()
+    try:
+        fixture_context = make_repository_context(fixture_repository, fixture_target)
+        if fixture_context.resolution["errors"] or fixture_context.resolution["missing"]:
+            raise AssertionError(
+                f"real fixture resolution failed: {fixture_context.resolution}"
+            )
+        fixture_positive = validate_g3_tag(
+            G3_TAG_NAME, fixture_body, fixture_context
+        )
+        if fixture_positive["approval_decision"] != "GO":
+            raise AssertionError(f"real fixture positive result: {fixture_positive}")
+        if any(
+            value.get("authority_id", "").startswith("synthetic:")
+            for value in fixture_context.objects.values()
+            if isinstance(value.get("authority_id"), str)
+        ):
+            raise AssertionError("real fixture resolved a synthetic authority identity")
+
+        def real_reject(label: str, mutate: object) -> None:
+            mutant = deepcopy(fixture_context)
+            mutate(mutant)
+            reject_value_error(
+                label,
+                lambda: validate_g3_tag(G3_TAG_NAME, fixture_body, mutant),
+            )
+
+        real_reject(
+            "real missing authority object",
+            lambda context: context.objects.pop("architecture_approval"),
+        )
+        real_reject(
+            "real malformed authority object",
+            lambda context: context.objects["component_wire_review"].update(
+                {"canonical_object": {"malformed": True}}
+            ),
+        )
+        real_reject(
+            "real noncanonical authority object",
+            lambda context: context.objects["component_wire_review"].update(
+                {"canonical_object": {"node_id": "component_wire_review"}}
+            ),
+        )
+        real_reject(
+            "real wrong authority digest",
+            lambda context: context.objects["architecture_approval"].update(
+                {"sha256": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real stale architecture approval",
+            lambda context: context.objects["architecture_approval"].update(
+                {"stale": True}
+            ),
+        )
+        real_reject(
+            "real wrong architecture target",
+            lambda context: context.objects["architecture_approval"].update(
+                {"target_sha256": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real missing component review",
+            lambda context: context.objects.pop("component_wire_review"),
+        )
+        real_reject(
+            "real wrong component target",
+            lambda context: context.objects["component_wire_review"].update(
+                {"target_sha256": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real stale component review",
+            lambda context: context.objects["component_wire_review"].update(
+                {"stale": True}
+            ),
+        )
+        real_reject(
+            "real superseded F0 approval",
+            lambda context: context.objects["f0_approval"].update(
+                {"superseded_by": "fixture:replacement"}
+            ),
+        )
+        real_reject(
+            "real stale F0 approval",
+            lambda context: context.objects["f0_approval"].update(
+                {"stale": True}
+            ),
+        )
+        real_reject(
+            "real wrong F0 target",
+            lambda context: context.objects["f0_approval"].update(
+                {"target_sha256": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real wrong F0 digest",
+            lambda context: context.objects["f0_approval"].update(
+                {"sha256": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real invalidated aggregate review",
+            lambda context: context.objects["aggregate_review"].update(
+                {"invalidated": True}
+            ),
+        )
+        real_reject(
+            "real migrated unresolved disposition",
+            lambda context: context.objects["migrated_finding_review"][
+                "finding_dispositions"
+            ].update({"F-PLAN-R11-P1-01": "OPEN"}),
+        )
+        real_reject(
+            "real migrated review row missing",
+            lambda context: context.objects["migrated_finding_review"].update(
+                {"review_records": []}
+            ),
+        )
+        real_reject(
+            "real missing migrated review",
+            lambda context: context.objects.pop("migrated_finding_review"),
+        )
+        real_reject(
+            "real migrated target wrong",
+            lambda context: context.objects["migrated_finding_review"].update(
+                {"target_bundle_inputs_sha256": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real migrated digest wrong",
+            lambda context: context.objects["migrated_finding_review"].update(
+                {"sha256": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real migrated review identity duplicate",
+            lambda context: context.objects["migrated_finding_review"][
+                "review_records"
+            ][1].update(
+                {
+                    "reviewer_authority_id": context.objects[
+                        "migrated_finding_review"
+                    ]["review_records"][0]["reviewer_authority_id"]
+                }
+            ),
+        )
+        real_reject(
+            "real migrated review target stale",
+            lambda context: context.objects["migrated_finding_review"][
+                "review_records"
+            ][0].update({"reviewed_target": "e" * 64}),
+        )
+        real_reject(
+            "real migrated review fingerprint stale",
+            lambda context: context.objects["migrated_finding_review"].update(
+                {"review_input_fingerprint": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real migrated review target commit wrong",
+            lambda context: context.objects["migrated_finding_review"].update(
+                {"target_git_commit": "e" * 40}
+            ),
+        )
+        real_reject(
+            "real specification input binding missing",
+            lambda context: context.objects["specification_bundle_inputs"][
+                "authority_bindings"
+            ].pop("architecture_approval"),
+        )
+        real_reject(
+            "real specification input binding substituted",
+            lambda context: context.objects["specification_bundle_inputs"][
+                "authority_bindings"
+            ]["architecture_approval"].update({"sha256": "e" * 64}),
+        )
+        real_reject(
+            "real generated-source binding mismatch",
+            lambda context: context.objects["generated_traceability_manifest"][
+                "generated_source_sha256s"
+            ].update({"architecture_plan": "e" * 64}),
+        )
+        real_reject(
+            "real manifest bound-authority mismatch",
+            lambda context: context.objects["specification_bundle_manifest"][
+                "bound_authority_sha256s"
+            ].update({"migrated_finding_review": "e" * 64}),
+        )
+        real_reject(
+            "real aggregate target mismatch",
+            lambda context: context.objects["aggregate_review"].update(
+                {"target_bundle_manifest_sha256": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real manifest wrong hash",
+            lambda context: context.objects["specification_bundle_manifest"].update(
+                {"sha256": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real manifest changed bytes",
+            lambda context: context.objects["specification_bundle_manifest"].update(
+                {"content_unchanged": False}
+            ),
+        )
+        real_reject(
+            "real manifest wrong target",
+            lambda context: context.objects["specification_bundle_manifest"].update(
+                {"target_commit": "e" * 40}
+            ),
+        )
+        real_reject(
+            "real stale bundle inputs",
+            lambda context: context.objects["specification_bundle_inputs"].update(
+                {"sha256": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real missing aggregate review",
+            lambda context: context.objects.pop("aggregate_review"),
+        )
+        real_reject(
+            "real stale aggregate review",
+            lambda context: context.objects["aggregate_review"].update(
+                {"stale": True}
+            ),
+        )
+        real_reject(
+            "real aggregate wrong digest",
+            lambda context: context.objects["aggregate_review"].update(
+                {"sha256": "e" * 64}
+            ),
+        )
+        real_reject(
+            "real G3 tag peel mismatch",
+            lambda context: context.tag.update({"peeled_commit": "e" * 40}),
+        )
+        real_reject(
+            "real G3 tag message mismatch",
+            lambda context: context.tag.update({"message": b"wrong\n"}),
+        )
+        real_reject(
+            "real G3 lightweight tag",
+            lambda context: context.tag.update(
+                {"annotated": False, "object_type": "commit"}
+            ),
+        )
+
+        def resolver_reject(
+            label: str, relative_path: str, replacement: bytes | None
+        ) -> None:
+            path = fixture_repository / relative_path
+            original = path.read_bytes() if path.exists() else None
+            if replacement is None:
+                path.unlink()
+            else:
+                path.write_bytes(replacement)
+            try:
+                resolved = make_repository_context(fixture_repository, fixture_target)
+                if not resolved.resolution["errors"]:
+                    raise AssertionError(f"real resolver accepted mutation: {label}")
+            finally:
+                if original is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    path.write_bytes(original)
+
+        resolver_reject(
+            "real resolver missing authority file",
+            ".phase_f_authority/architecture_review.json",
+            None,
+        )
+        resolver_reject(
+            "real resolver malformed authority file",
+            ".phase_f_authority/f0_review.json",
+            b"{\n",
+        )
+        resolver_reject(
+            "real resolver noncanonical authority file",
+            ".phase_f_authority/component_wire_review.json",
+            b"{ "
+            + (
+                fixture_repository / ".phase_f_authority/component_wire_review.json"
+            ).read_bytes()[1:],
+        )
+        resolver_reject(
+            "real resolver schema mismatch",
+            ".phase_f_authority/aggregate_review.json",
+            canonical_json_bytes(
+                {
+                    key: value
+                    for key, value in fixture_context.objects["aggregate_review"][
+                        "canonical_object"
+                    ].items()
+                    if key != "decision"
+                }
+            ),
+        )
+
+        def resolver_tag_reject(label: str, tag_name: str) -> None:
+            ref = f"refs/tags/{tag_name}"
+            original = _git_output(fixture_repository, ["rev-parse", ref]).decode().strip()
+            _fixture_git(fixture_repository, ["update-ref", "-d", ref])
+            try:
+                resolved = make_repository_context(fixture_repository, fixture_target)
+                if not resolved.resolution["errors"]:
+                    raise AssertionError(f"real resolver accepted mutation: {label}")
+            finally:
+                _fixture_git(fixture_repository, ["update-ref", ref, original])
+
+        resolver_tag_reject(
+            "real resolver missing architecture tag",
+            G3_EXPECTED_FIELDS["phase_f_architecture_plan_tag"],
+        )
+        resolver_tag_reject(
+            "real resolver missing F0 tag",
+            G3_EXPECTED_FIELDS["phase_f_f0_decisions_tag"],
+        )
+    finally:
+        fixture_temporary.cleanup()
     g3_reject(
         "synthetic context cannot authorize real",
         lambda context: context.__setattr__("real_authority_requested", True),

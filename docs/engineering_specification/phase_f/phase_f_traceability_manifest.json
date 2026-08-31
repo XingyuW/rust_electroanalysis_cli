@@ -2,6 +2,57 @@
   "artifact_kind": "phase_f_derived_traceability_manifest",
   "authority_graph": {
     "audit": {
+      "audits": [
+        {
+          "checked_edges": 76,
+          "checked_nodes": 28,
+          "name": "hash_cycle",
+          "passed": true,
+          "violation_path": []
+        },
+        {
+          "checked_edges": 76,
+          "checked_nodes": 28,
+          "name": "self_git_cycle",
+          "passed": true,
+          "violation_path": []
+        },
+        {
+          "checked_edges": 76,
+          "checked_nodes": 28,
+          "name": "review_target_cycle",
+          "passed": true,
+          "violation_path": []
+        },
+        {
+          "checked_edges": 76,
+          "checked_nodes": 28,
+          "name": "future_object",
+          "passed": true,
+          "violation_path": []
+        },
+        {
+          "checked_edges": 76,
+          "checked_nodes": 28,
+          "name": "self_reference",
+          "passed": true,
+          "violation_path": []
+        },
+        {
+          "checked_edges": 76,
+          "checked_nodes": 28,
+          "name": "g3_bypass",
+          "passed": true,
+          "violation_path": []
+        },
+        {
+          "checked_edges": 76,
+          "checked_nodes": 28,
+          "name": "implementation_bypass",
+          "passed": true,
+          "violation_path": []
+        }
+      ],
       "edge_count": 76,
       "edge_types": [
         "approves",
@@ -54,13 +105,23 @@
       ]
     },
     "path": "docs/engineering_specification/phase_f/phase_f_r12_authority_graph.json",
-    "sha256": "e6f479fc5a4f4ace97443dfcfb76f8571a6ebccaa42449da845e6489396a24f5"
+    "sha256": "0e7da12de7ae4d58462c5c205de412b094ceb76ff61480772db445d15822d1fc"
+  },
+  "generated_source_sha256s": {
+    "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
+    "component_conformance_spec": "62cd89b5c4886d7c7001f31a01d60e257ed40625b48053c6a1aec14e6b1623eb",
+    "component_implementation_spec": "465e8b8c5d261f5012b56d4c0e8f55126a096092ec4b6b9a08623e79f01f40d5",
+    "component_operations_spec": "5ceaf042e5904e78c757e1fd227b9162c1331bce246901aab415c6afab02a78a",
+    "component_scientific_spec": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
+    "component_wire_spec": "4f6a8d885b93bc518fa817166b595201d8692243d909ebb8822cdabeab57c6d7",
+    "migration_ledger": "f48282cbca6a8c18a3de71dc4ac3487024e98d0f88a67e3b4f92d6789ae2aa14",
+    "normative_traceability_matrix": "fa8eb6fb6ae2ff77c35ec8c0f1d0e2444cff1007b4895c4f391cca019bba82e8"
   },
   "generation_rule": "docs/engineering_specification/phase_f/generate_phase_f_manifests.py",
   "normative_matrix": {
     "path": "docs/engineering_specification/phase_f/phase_f_r12_normative_traceability_matrix.json",
     "requirement_count": 64,
-    "sha256": "33d1d7b9af0b166d7e865cf140bcb15689ca3634a07508432021b1b624791b30"
+    "sha256": "fa8eb6fb6ae2ff77c35ec8c0f1d0e2444cff1007b4895c4f391cca019bba82e8"
   },
   "reference_catalogs": {
     "future_real_evidence": {
@@ -68,7 +129,7 @@
       "source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md"
     },
     "tests": {
-      "count": 77,
+      "count": 111,
       "r11_source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md",
       "r12_source": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md"
     }
@@ -952,7 +1013,41 @@
         "R12-DAG-REVIEW-CYCLE",
         "R12-DAG-SELF-GIT",
         "R12-DAG-ALTERNATIVE-BYPASS",
-        "R12-DAG-G3-BEFORE-AGGREGATE"
+        "R12-DAG-G3-BEFORE-AGGREGATE",
+        "R12-G3-MIGRATED-DISPOSITION-ENUM",
+        "R12-G3-MIGRATED-REVIEW-RECORDS",
+        "R12-G3-MIGRATED-INPUT-FINGERPRINT",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+        "R12-DAG-TYPED-EDGE-CONTRACT",
+        "R12-DAG-IDENTITY-RULE-CONTRACT",
+        "R12-DAG-SEMANTIC-AUDITS",
+        "R12-DAG-BINDING-EQUALITY",
+        "R12-G3-MIGRATED-PENDING-P1",
+        "R12-G3-MIGRATED-OPEN-P1",
+        "R12-G3-MIGRATED-PARTIALLY-CLOSED-P1",
+        "R12-G3-MIGRATED-COUNT-MISMATCH",
+        "R12-G3-MIGRATED-MISSING-FINDING",
+        "R12-G3-MIGRATED-DUPLICATE-FINDING",
+        "R12-G3-MIGRATED-UNKNOWN-FINDING",
+        "R12-G3-MIGRATED-MISSING-ROLE",
+        "R12-G3-MIGRATED-DUPLICATE-ROLE",
+        "R12-G3-MIGRATED-INDEPENDENCE",
+        "R12-G3-MIGRATED-WRONG-REVIEW-TARGET",
+        "R12-G3-MIGRATED-WRONG-REVIEW-HASH",
+        "R12-G3-MIGRATED-WRONG-BUNDLE-FINGERPRINT",
+        "R12-G3-MIGRATED-ARCH-APPROVAL-ID",
+        "R12-G3-MIGRATED-ARCH-APPROVAL-DIGEST",
+        "R12-G3-MIGRATED-ARCH-APPROVAL-TARGET",
+        "R12-G3-MIGRATED-F0-APPROVAL-ID",
+        "R12-G3-MIGRATED-F0-APPROVAL-DIGEST",
+        "R12-G3-MIGRATED-F0-APPROVAL-TARGET",
+        "R12-G3-MIGRATED-COMPONENT-SPEC-HASH",
+        "R12-G3-MIGRATED-COMPONENT-REVIEW-ID",
+        "R12-G3-MIGRATED-LEDGER-HASH",
+        "R12-G3-MIGRATED-NORMATIVE-HASH",
+        "R12-G3-MIGRATED-TRACEABILITY-HASH",
+        "R12-G3-MIGRATED-TARGET-COMMIT"
       ],
       "downstream_child_requirements": [],
       "expected_lifecycle_stage": "G2",
@@ -1002,7 +1097,41 @@
         "R12-DAG-REVIEW-CYCLE",
         "R12-DAG-SELF-GIT",
         "R12-DAG-ALTERNATIVE-BYPASS",
-        "R12-DAG-G3-BEFORE-AGGREGATE"
+        "R12-DAG-G3-BEFORE-AGGREGATE",
+        "R12-G3-MIGRATED-DISPOSITION-ENUM",
+        "R12-G3-MIGRATED-REVIEW-RECORDS",
+        "R12-G3-MIGRATED-INPUT-FINGERPRINT",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+        "R12-DAG-TYPED-EDGE-CONTRACT",
+        "R12-DAG-IDENTITY-RULE-CONTRACT",
+        "R12-DAG-SEMANTIC-AUDITS",
+        "R12-DAG-BINDING-EQUALITY",
+        "R12-G3-MIGRATED-PENDING-P1",
+        "R12-G3-MIGRATED-OPEN-P1",
+        "R12-G3-MIGRATED-PARTIALLY-CLOSED-P1",
+        "R12-G3-MIGRATED-COUNT-MISMATCH",
+        "R12-G3-MIGRATED-MISSING-FINDING",
+        "R12-G3-MIGRATED-DUPLICATE-FINDING",
+        "R12-G3-MIGRATED-UNKNOWN-FINDING",
+        "R12-G3-MIGRATED-MISSING-ROLE",
+        "R12-G3-MIGRATED-DUPLICATE-ROLE",
+        "R12-G3-MIGRATED-INDEPENDENCE",
+        "R12-G3-MIGRATED-WRONG-REVIEW-TARGET",
+        "R12-G3-MIGRATED-WRONG-REVIEW-HASH",
+        "R12-G3-MIGRATED-WRONG-BUNDLE-FINGERPRINT",
+        "R12-G3-MIGRATED-ARCH-APPROVAL-ID",
+        "R12-G3-MIGRATED-ARCH-APPROVAL-DIGEST",
+        "R12-G3-MIGRATED-ARCH-APPROVAL-TARGET",
+        "R12-G3-MIGRATED-F0-APPROVAL-ID",
+        "R12-G3-MIGRATED-F0-APPROVAL-DIGEST",
+        "R12-G3-MIGRATED-F0-APPROVAL-TARGET",
+        "R12-G3-MIGRATED-COMPONENT-SPEC-HASH",
+        "R12-G3-MIGRATED-COMPONENT-REVIEW-ID",
+        "R12-G3-MIGRATED-LEDGER-HASH",
+        "R12-G3-MIGRATED-NORMATIVE-HASH",
+        "R12-G3-MIGRATED-TRACEABILITY-HASH",
+        "R12-G3-MIGRATED-TARGET-COMMIT"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-017",
