@@ -143,16 +143,19 @@ remain unresolved and derive the severity count. Counts are non-negative
 integers and are derived from the disposition map, so `decision` is exactly
 `NO-GO` for unresolved findings, `GO_WITH_DOCUMENTED_NON_BLOCKING_DEBT` for
 P2 debt, and `GO` only when all five findings are technically closed.
-`reviewer_roles` is exactly
-the five roles `scientific_metrology`, `architecture_data`, `security`,
-`compatibility`, and `operations_governance`. `review_records` contains exactly
-one concrete row per role with the closed fields `role`,
-`reviewer_authority_id`, `reviewed_target`, `review_artifact_id`, `decision`,
-`review_sha256`, `lifecycle`, and `independence_relation`; reviewer and
-artifact identities are unique, active, distinct from the remediation agent,
-target the exact `review_input_fingerprint`, and hash their canonical row
-content. The producer is an independent review panel and never the
-remediation agent.
+`reviewer_roles` is exactly the five roles `scientific_metrology`,
+`architecture_data`, `security`, `compatibility`, and
+`operations_governance`. `review_records` contains exactly one concrete row per
+role with the closed fields `role`, `reviewer_authority_id`,
+`reviewed_target`, `review_artifact_id`, `decision`, `review_sha256`,
+`lifecycle`, and `independence_relation`; reviewer and artifact identities are
+unique, active, distinct, target the exact `review_input_fingerprint`, and
+hash their canonical row content. A `GO` migrated review requires every row to
+have `decision=GO`; a row with `NO-GO` makes the derived migrated decision
+`NO-GO`, regardless of the finding dispositions. The serialized `decision` is
+accepted only when it equals the decision derived from both the finding
+dispositions and the complete five-row state. The producer is an independent
+review panel and never the remediation agent.
 
 The only valid lifecycle is `ACTIVE` with `stale=false`, `invalidated=false`,
 and `superseded_by=null`. A changed target commit, architecture plan, F0
@@ -165,22 +168,35 @@ coverage, counts, decision, lifecycle, and staleness. A missing or malformed
 object is not an intentional null success: it leaves the checked-in bundle
 `DRAFT_NO_AUTHORITY` and blocks G3.
 
-The real resolver discovers this closure from the typed authority graph. Source
+The real resolver discovers this closure from the exact authority graph. Source
 specification, matrix, ledger, and generated-manifest nodes are read from the
 target commit; external authority objects are canonical UTF-8 JSON under
 `.phase_f_authority/{node_id}.json`; architecture and F0 approvals additionally
 require the graph-declared annotated tags and exact five-line tag-message
-bindings. The resolver reports every requested, resolved, missing, and
-malformed node in a structured resolution record. Synthetic records are
-accepted only by the conformance KAT and can never authorize the real mode.
+bindings. Each migrated-review `reviewer_authority_id` is a 64-character
+lowercase SHA-256 identity that resolves to the graph-declared
+`.phase_f_authority/reviewer_identities/{reviewer_authority_id}.json` object.
+Each `review_artifact_id` similarly resolves to a canonical
+`.phase_f_authority/review_artifacts/{review_artifact_id}.json` object. These
+objects have closed schemas, canonical identities, active lifecycle, exact
+role/reviewer/target/decision bindings, and role permission. The validation
+context resolves the explicit canonical remediation-author identity from
+`.phase_f_authority/remediation_authority.json` and compares its actor digest
+with each reviewer actor digest; no name or prefix convention is authority.
+Synthetic records are accepted only by the conformance KAT and can never
+authorize the real mode. The resolver reports every requested, resolved,
+missing, and malformed reference in a structured resolution record.
 
 `PhaseFSpecificationBundleInputsV1.authority_bindings` and the manifest's
 `bound_authority_sha256s` are exact maps of the graph's `binds` edges. Every
 `reviews`, `targets`, `approves`, `requires`, and `generated_from` edge with a
 declared serialized field has one exact source identity binding; extra, missing,
-or substituted fields reject. The graph also carries the closed typed
-source-kind/relation/destination-kind contract and closed per-node identity
-rules used by the resolver.
+or substituted fields reject. The graph's `edge_contract` is the normative
+closed set of complete `(from node ID, relation, to node ID)` tuples, and the
+serialized `edges` set must equal it exactly. The graph also carries the closed
+typed source-kind/relation/destination-kind contract and closed per-node
+identity rules used by the resolver. Exact graph membership, rather than
+kind-level admissibility, determines cardinality and authority.
 
 The bundle binds the object through the typed nullable reference
 `migrated_finding_review`, whose `schema`, `authority_id`, `sha256`,

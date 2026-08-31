@@ -65,7 +65,7 @@ real approval or an `F-EV`.
 | R12-G3-MISSING-REAL-PREREQUISITES | constructive_plan_audit | real_repository_authority | current repository with no actual approvals | canonical body | `validate_g3_tag(...)` | REJECT | missing real G3 authority | 0 |
 | R12-G3-SYNTHETIC-CANNOT-AUTHORIZE-REAL | constructive_plan_audit | authority_isolation | synthetic context marked as real-authority request | same as positive | `validate_g3_tag(...)` | REJECT | synthetic authority isolation | 0 |
 | R12-G3-MIGRATED-DISPOSITION-ENUM | constructive_plan_audit | migrated_review_authority | complete synthetic context with an unresolved or unknown finding disposition | same as positive | `validate_g3_tag(...)` | REJECT | closed disposition/count/decision mismatch | 0 |
-| R12-G3-MIGRATED-REVIEW-RECORDS | constructive_plan_audit | migrated_review_authority | complete synthetic context with a missing, duplicate, stale, or non-independent review row | same as positive | `validate_g3_tag(...)` | REJECT | review-record closure or independence mismatch | 0 |
+| R12-G3-MIGRATED-REVIEW-RECORDS | constructive_plan_audit | migrated_review_authority | complete synthetic and real contexts with missing, duplicate, stale, role-mismatched, unresolved, non-independent, or non-GO review rows; exhaustive five-role state and identity probes | same as positive | `validate_g3_tag(...)` | REJECT | review-record closure, identity, or unanimous decision mismatch | 0 |
 | R12-G3-MIGRATED-INPUT-FINGERPRINT | constructive_plan_audit | migrated_review_authority | complete synthetic context with a stale derived review-input fingerprint | same as positive | `validate_g3_tag(...)` | REJECT | review-input fingerprint mismatch | 0 |
 | R12-G3-REAL-FORMAT-POSITIVE | constructive_plan_audit | isolated_real_repository_authority | isolated repository with canonical authority JSON, annotated tags, and real Git target | real-format fixture | `make_repository_context(...); validate_g3_tag(...)` | PASS | resolved real authority closure | 0 |
 | R12-G3-REAL-FORMAT-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | real-format fixture mutated across missing, malformed, stale, wrong-target, wrong-hash, and tag cases | real-format fixture mutation matrix | `make_repository_context(...); validate_g3_tag(...)` | REJECT | every real-format mutation rejected | 0 |
@@ -94,10 +94,10 @@ real approval or an `F-EV`.
 | R12-G3-MIGRATED-NORMATIVE-HASH | constructive_plan_audit | authority_staleness | normative-matrix identity changes | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
 | R12-G3-MIGRATED-TRACEABILITY-HASH | constructive_plan_audit | authority_staleness | generated-traceability identity changes | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
 | R12-G3-MIGRATED-TARGET-COMMIT | constructive_plan_audit | authority_staleness | reviewed target commit changes | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review input | 0 |
-| R12-DAG-TYPED-EDGE-CONTRACT | constructive_plan_audit | r12_artifact_authority_graph | typed source-kind/relation/destination-kind tuple changed or omitted | graph mutation | R12 artifact DAG audit | REJECT | typed-edge contract mismatch | 0 |
+| R12-DAG-TYPED-EDGE-CONTRACT | constructive_plan_audit | r12_artifact_authority_graph | typed source-kind/relation/destination-kind tuple changed or omitted, or exact node-edge tuple is not authorized | graph mutation | R12 artifact DAG audit | REJECT | typed or exact node-edge contract mismatch | 0 |
 | R12-DAG-IDENTITY-RULE-CONTRACT | constructive_plan_audit | r12_artifact_authority_graph | identity rule type or required/optional field closure changed | graph mutation | R12 artifact DAG audit | REJECT | identity-rule contract mismatch | 0 |
 | R12-DAG-SEMANTIC-AUDITS | constructive_plan_audit | r12_artifact_authority_graph | computed hash, self-Git, review-target, future-object, and bypass audits mutated | graph mutation | R12 artifact DAG audit | REJECT | semantic audit violation path | 0 |
-| R12-DAG-BINDING-EQUALITY | constructive_plan_audit | r12_artifact_authority_graph | serialized binding field map no longer equals the typed graph edge set | graph mutation | R12 artifact DAG audit | REJECT | serialized binding equality mismatch | 0 |
+| R12-DAG-BINDING-EQUALITY | constructive_plan_audit | r12_artifact_authority_graph | serialized binding field map or graph edges no longer equals the exact node-level edge contract | graph mutation | R12 artifact DAG audit | REJECT | exact graph/binding equality mismatch | 0 |
 | R12-TRACE-SEMANTIC-SUBSTITUTION | constructive_plan_audit | normative_traceability | catalog-valid but wrong F-OPS-004 relationship | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
 | R12-TRACE-WRONG-KAT | constructive_plan_audit | normative_traceability | valid KAT substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
 | R12-TRACE-WRONG-EVIDENCE | constructive_plan_audit | normative_traceability | valid evidence substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
@@ -234,6 +234,21 @@ ledger, traceability manifest, and component content identities. Any absent,
 malformed, stale, superseded, mismatched, future, or contradictory object
 returns `REJECT`.
 
+The migrated-review decision is derived, never trusted from serialized input:
+
+```text
+finding closure
+AND exact five-role completeness
+AND unique/resolvable reviewer identities
+AND unique/resolvable review-artifact identities
+AND reviewer role/target/decision/lifecycle bindings
+AND reviewer independence from the explicit remediation-author identity
+```
+
+must hold before `GO` is possible. The only five-row decision vector that can
+produce `GO` is `(GO, GO, GO, GO, GO)`; any vector containing `NO-GO` produces
+`NO-GO`. The serialized decision must equal that derived result.
+
 The implementation's self-test exercises a complete synthetic PASS, every
 authority-prerequisite negative in the catalog, real checked-in repository
 NO-GO with absent approvals, and synthetic-to-real isolation. This is a
@@ -242,24 +257,32 @@ candidate bundle's fail-closed state.
 
 The self-test also constructs a disposable isolated Git repository containing
 the real-format source files, canonical external authority JSON objects under
-`.phase_f_authority/`, annotated architecture/F0/G3 tags, and a target commit.
-The positive path resolves that repository through `make_repository_context`
-and passes the same `validate_g3_tag` function used by the real path. Its
-negative matrix mutates missing objects, malformed/noncanonical objects,
-wrong digests, wrong targets, stale/superseded records, incomplete migrated
-dispositions, review-row identities/targets, serialized bindings, and
+`.phase_f_authority/`, five canonical reviewer identities, five immutable review
+artifacts, one explicit remediation-author identity, annotated architecture/F0/G3
+tags, and a target commit. The positive path resolves that repository through
+`make_repository_context` and passes the same `validate_g3_tag` function used by
+the real path. Its negative matrix mutates missing objects, malformed/noncanonical
+objects, wrong digests, wrong targets, stale/superseded records, incomplete
+migrated dispositions, all five row decisions, every missing role, every
+pairwise duplicate reviewer/artifact identity, every unresolved reviewer/artifact
+reference, author substitution, role mismatch, serialized bindings, and
 annotated-tag type/peel/message fields; every mutation must reject. The
 disposable fixture is never copied into the checked-in candidate and is
 removed after the self-test.
 
-The R12 authority graph is a typed contract, not only an edge-membership
-check. Each edge is closed by its source authority kind, relation, and
-destination authority kind; each node has one closed identity-rule schema;
-and serialized binding fields must equal the graph edge set. Computed audits
-emit named pass records and violation paths for hash cycles, self-Git cycles,
-review-target cycles, future-object dependencies, self-reference, G3 bypass,
-and implementation-readiness bypass. Mutations of any contract or audit
-input reject before an authority result can be returned.
+The R12 authority graph is a closed exact contract, not only an edge-membership
+check. `edge_contract` is the normative finite set of complete node-level
+`from|relation|to` tuples, and serialized `edges` must equal that set exactly;
+the typed source-kind/relation/destination-kind contract remains a general
+admissibility check. The self-test enumerates all 28-node, seven-relation,
+non-self candidate triples and requires zero accepted undeclared edges. It also
+proves every authorized edge by removal, retyping, and destination redirection
+mutations. Each node has one closed identity-rule schema and serialized binding
+fields must equal the exact graph edge set. Computed audits emit named pass
+records and violation paths for hash cycles, self-Git cycles, review-target
+cycles, future-object dependencies, self-reference, G3 bypass, and
+implementation-readiness bypass. Mutations of any contract or audit input
+reject before an authority result can be returned.
 
 ### 3.3 Normative semantic traceability and schema usage
 

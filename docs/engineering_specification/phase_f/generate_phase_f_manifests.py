@@ -179,21 +179,6 @@ EXPECTED_GRAPH_NODE_IDS = {
     "readiness_approval",
     "phase_f_implementation_gate",
 }
-EXPECTED_G3_REQUIRED_NODES = {
-    "architecture_approval",
-    "f0_approval",
-    "component_wire_review",
-    "component_scientific_review",
-    "component_operations_review",
-    "component_conformance_review",
-    "component_implementation_review",
-    "normative_traceability_matrix",
-    "generated_traceability_manifest",
-    "migration_ledger",
-    "migrated_finding_review",
-    "specification_bundle_manifest",
-    "aggregate_review",
-}
 EXPECTED_IDENTITY_CYCLE_RULES = {
     "self_file",
     "self_registry",
@@ -449,6 +434,10 @@ class G3AuthorityContext:
     architecture_plan_sha256: str
     f0_decisions_sha256: str | None
     real_authority_requested: bool = False
+    reviewer_authorities: dict[str, dict[str, Any]] = field(default_factory=dict)
+    review_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    remediation_authority_id: str | None = None
+    remediation_actor_identity_digest: str | None = None
     resolution: dict[str, Any] = field(default_factory=dict)
 
 
@@ -590,13 +579,96 @@ def _identity_rule_contract(graph: dict[str, Any]) -> dict[str, dict[str, set[st
     return result
 
 
-def _edge_contract(graph: dict[str, Any]) -> set[str]:
+def _typed_edge_contract(graph: dict[str, Any]) -> set[str]:
     contract = graph.get("typed_edge_contract")
     if not isinstance(contract, list) or len(contract) != len(set(contract)):
         raise ValueError("R12 typed-edge contract is malformed")
     if any(not isinstance(item, str) or item.count("|") != 2 for item in contract):
         raise ValueError("R12 typed-edge contract entry is malformed")
     return set(contract)
+
+
+def _node_edge_contract(
+    graph: dict[str, Any], nodes: dict[str, dict[str, Any]]
+) -> set[tuple[str, str, str]]:
+    contract = graph.get("edge_contract")
+    if not isinstance(contract, list):
+        raise ValueError("R12 exact node-edge contract is missing")
+    result: set[tuple[str, str, str]] = set()
+    for item in contract:
+        if not isinstance(item, str) or item.count("|") != 2:
+            raise ValueError("R12 exact node-edge contract entry is malformed")
+        source, edge_type, target = item.split("|")
+        if source not in nodes or target not in nodes or edge_type not in GRAPH_EDGE_TYPES:
+            raise ValueError("R12 exact node-edge contract references an invalid value")
+        key = (source, edge_type, target)
+        if key in result:
+            raise ValueError(f"duplicate R12 exact node-edge contract: {key}")
+        result.add(key)
+    return result
+
+
+REVIEW_REFERENCE_CONTRACT_SHAPE = {
+    "reviewer": {
+        "authority_path_template": ".phase_f_authority/reviewer_identities/{reviewer_authority_id}.json",
+        "authority_kind": "PhaseFReviewerIdentityV1",
+        "id_field": "reviewer_authority_id",
+        "digest_excluded_fields": ["reviewer_authority_id"],
+        "required_fields": [
+            "reviewer_authority_id",
+            "authority_kind",
+            "schema_version",
+            "actor_identity_digest",
+            "permitted_review_roles",
+            "lifecycle",
+            "stale",
+            "superseded_by",
+            "invalidated",
+        ],
+    },
+    "artifact": {
+        "authority_path_template": ".phase_f_authority/review_artifacts/{review_artifact_id}.json",
+        "authority_kind": "PhaseFReviewArtifactV1",
+        "id_field": "review_artifact_id",
+        "digest_excluded_fields": ["review_artifact_id"],
+        "required_fields": [
+            "review_artifact_id",
+            "authority_kind",
+            "schema_version",
+            "reviewer_authority_id",
+            "role",
+            "reviewed_target",
+            "decision",
+            "lifecycle",
+            "stale",
+            "superseded_by",
+            "invalidated",
+        ],
+    },
+    "remediation_author": {
+        "authority_path": ".phase_f_authority/remediation_authority.json",
+        "authority_kind": "PhaseFImplementationAuthorIdentityV1",
+        "id_field": "authority_id",
+        "digest_excluded_fields": ["authority_id"],
+        "required_fields": [
+            "authority_id",
+            "authority_kind",
+            "schema_version",
+            "actor_identity_digest",
+            "lifecycle",
+            "stale",
+            "superseded_by",
+            "invalidated",
+        ],
+    },
+}
+
+
+def _review_reference_contract(graph: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    contract = graph.get("review_reference_contract")
+    if contract != REVIEW_REFERENCE_CONTRACT_SHAPE:
+        raise ValueError("R12 review-reference contract is not closed")
+    return contract
 
 
 def _edge_key(edge: dict[str, str], nodes: dict[str, dict[str, Any]]) -> str:
@@ -794,12 +866,19 @@ def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
     if set(nodes) != EXPECTED_GRAPH_NODE_IDS:
         raise ValueError("R12 graph node catalog is not closed")
     edges = _graph_edges(graph, nodes)
-    typed_contract = _edge_contract(graph)
+    typed_contract = _typed_edge_contract(graph)
     actual_typed_edges = {_edge_key(edge, nodes) for edge in edges}
     if not actual_typed_edges.issubset(typed_contract):
         raise ValueError("R12 graph edge violates typed-edge contract")
     if actual_typed_edges != typed_contract:
         raise ValueError("R12 typed-edge contract has unused or missing tuple")
+    exact_edge_contract = _node_edge_contract(graph, nodes)
+    actual_node_edges = {
+        (edge["from"], edge["type"], edge["to"]) for edge in edges
+    }
+    if actual_node_edges != exact_edge_contract:
+        raise ValueError("R12 exact node-edge contract has unused or missing edge")
+    _review_reference_contract(graph)
     identity_contract = _identity_rule_contract(graph)
     node_identity_rules = graph.get("node_identity_rules")
     if not isinstance(node_identity_rules, dict) or set(node_identity_rules) != set(nodes):
@@ -836,14 +915,37 @@ def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
     required = graph.get("g3_required_nodes")
     if not isinstance(required, list) or len(required) != len(set(required)):
         raise ValueError("R12 G3 required-node list is malformed")
-    if set(required) != EXPECTED_G3_REQUIRED_NODES:
-        raise ValueError("R12 G3 required-node catalog is not closed")
     if any(node_id not in nodes for node_id in required):
         raise ValueError("R12 G3 required-node list references unknown node")
     required_inputs = graph.get("required_inputs")
     if not isinstance(required_inputs, dict) or set(required_inputs) != set(nodes):
         raise ValueError("R12 graph required-input closure is incomplete")
     edge_keys = {(edge["from"], edge["to"]) for edge in edges}
+    g3_edge_sources = {
+        edge["from"] for edge in edges if edge["to"] == g3_node
+    }
+    if set(required) != g3_edge_sources:
+        raise ValueError("R12 G3 required-node list does not match exact graph")
+    if set(required_inputs[g3_node]) != g3_edge_sources:
+        raise ValueError("R12 G3 required-input closure does not match exact graph")
+    aggregate_dependencies = graph.get("aggregate_review_dependency_nodes")
+    if (
+        not isinstance(aggregate_dependencies, list)
+        or any(not isinstance(node_id, str) for node_id in aggregate_dependencies)
+        or len(aggregate_dependencies) != len(set(aggregate_dependencies))
+        or any(node_id not in nodes for node_id in aggregate_dependencies)
+    ):
+        raise ValueError("R12 aggregate-review dependency contract is malformed")
+    expected_aggregate_dependencies = set(
+        edge["from"]
+        for edge in edges
+        if edge["to"] == g3_node
+        and edge["type"] == "requires"
+        and edge["from"].startswith("component_")
+        and edge["from"].endswith("_review")
+    ) | {"migrated_finding_review", "specification_bundle_manifest", "generated_traceability_manifest"}
+    if set(aggregate_dependencies) != expected_aggregate_dependencies:
+        raise ValueError("R12 aggregate-review dependency contract is not exact")
     for target, dependencies in required_inputs.items():
         if (
             not isinstance(dependencies, list)
@@ -854,8 +956,6 @@ def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"R12 graph required-input row is malformed: {target}")
         if any((dependency, target) not in edge_keys for dependency in dependencies):
             raise ValueError(f"R12 graph required-input edge is undeclared: {target}")
-    if set(required_inputs[g3_node]) != set(required):
-        raise ValueError("R12 G3 required-input closure does not match required nodes")
     g3_ancestors = _ancestors(g3_node, edges)
     missing = sorted(set(required) - g3_ancestors)
     if missing:
@@ -1090,6 +1190,108 @@ def _parse_json_without_duplicates(value: bytes) -> object:
     return json.loads(value.decode("utf-8"), object_pairs_hook=reject_duplicate_pairs)
 
 
+def _reference_identity_matches(
+    context: G3AuthorityContext,
+    reference_type: str,
+    record: dict[str, Any],
+) -> bool:
+    contract = _review_reference_contract(context.graph)[reference_type]
+    expected = record.get("sha256")
+    if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+        return False
+    if context.mode == "synthetic":
+        return (
+            record.get("digest_valid") is True
+            and record.get("expected_sha256") == expected
+            and record.get("content_unchanged", True) is True
+        )
+    if record.get("content_unchanged", True) is not True:
+        return False
+    canonical_object = record.get("canonical_object")
+    if not isinstance(canonical_object, dict):
+        return False
+    if record.get("bytes") != canonical_json_bytes(canonical_object):
+        return False
+    payload = {
+        key: value
+        for key, value in canonical_object.items()
+        if key not in contract["digest_excluded_fields"]
+    }
+    return sha256_bytes(canonical_json_bytes(payload)) == expected
+
+
+def _validate_review_reference(
+    context: G3AuthorityContext, row: dict[str, Any]
+) -> None:
+    role = row.get("role")
+    reviewer_id = row.get("reviewer_authority_id")
+    artifact_id = row.get("review_artifact_id")
+    if not isinstance(role, str) or role not in REVIEW_ROLES:
+        raise G3ValidationError("non_independent_migrated_review")
+    if not isinstance(reviewer_id, str) or not reviewer_id:
+        raise G3ValidationError("unresolved_reviewer_identity")
+    if not isinstance(artifact_id, str) or not artifact_id:
+        raise G3ValidationError("unresolved_review_artifact_identity")
+    reviewer = context.reviewer_authorities.get(reviewer_id)
+    artifact = context.review_artifacts.get(artifact_id)
+    if reviewer is None:
+        raise G3ValidationError("unresolved_reviewer_identity")
+    if artifact is None:
+        raise G3ValidationError("unresolved_review_artifact_identity")
+    reviewer_contract = _review_reference_contract(context.graph)["reviewer"]
+    artifact_contract = _review_reference_contract(context.graph)["artifact"]
+    if reviewer.get("authority_kind") != reviewer_contract["authority_kind"]:
+        raise G3ValidationError("wrong_reviewer_identity_kind")
+    if artifact.get("authority_kind") != artifact_contract["authority_kind"]:
+        raise G3ValidationError("wrong_review_artifact_kind")
+    if reviewer.get("reviewer_authority_id") != reviewer_id:
+        raise G3ValidationError("reviewer_identity_mismatch")
+    if artifact.get("review_artifact_id") != artifact_id:
+        raise G3ValidationError("review_artifact_identity_mismatch")
+    if reviewer.get("schema_version") != 1 or artifact.get("schema_version") != 1:
+        raise G3ValidationError("review_reference_schema_mismatch")
+    if not _reference_identity_matches(context, "reviewer", reviewer):
+        raise G3ValidationError("reviewer_identity_digest_mismatch")
+    if not _reference_identity_matches(context, "artifact", artifact):
+        raise G3ValidationError("review_artifact_digest_mismatch")
+    if (
+        reviewer.get("lifecycle") != "ACTIVE"
+        or reviewer.get("stale") is not False
+        or reviewer.get("superseded_by") is not None
+        or reviewer.get("invalidated") is not False
+        or artifact.get("lifecycle") != "ACTIVE"
+        or artifact.get("stale") is not False
+        or artifact.get("superseded_by") is not None
+        or artifact.get("invalidated") is not False
+    ):
+        raise G3ValidationError("stale_migrated_review_record")
+    permitted_roles = reviewer.get("permitted_review_roles")
+    if (
+        not isinstance(permitted_roles, list)
+        or any(not isinstance(value, str) or value not in REVIEW_ROLES for value in permitted_roles)
+        or len(permitted_roles) != len(set(permitted_roles))
+        or role not in permitted_roles
+    ):
+        raise G3ValidationError("reviewer_role_not_permitted")
+    if (
+        artifact.get("reviewer_authority_id") != reviewer_id
+        or artifact.get("role") != role
+        or artifact.get("reviewed_target") != row.get("reviewed_target")
+        or artifact.get("decision") != row.get("decision")
+    ):
+        raise G3ValidationError("review_artifact_binding_mismatch")
+    actor_digest = reviewer.get("actor_identity_digest")
+    if not isinstance(actor_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", actor_digest):
+        if context.mode == "real":
+            raise G3ValidationError("reviewer_identity_digest_malformed")
+    if (
+        context.mode == "real"
+        and context.remediation_actor_identity_digest is not None
+        and actor_digest == context.remediation_actor_identity_digest
+    ):
+        raise G3ValidationError("non_independent_migrated_review")
+
+
 def _object_digest_matches(context: G3AuthorityContext, record: dict[str, Any]) -> bool:
     expected = record.get("sha256")
     if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
@@ -1254,6 +1456,15 @@ def _validate_migrated_review(
             canonical_object.get(field) != record.get(field) for field in required_fields
         ):
             raise G3ValidationError("migrated_review_identity_mismatch")
+        if (
+            not isinstance(context.remediation_authority_id, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", context.remediation_authority_id)
+            or not isinstance(context.remediation_actor_identity_digest, str)
+            or not re.fullmatch(
+                r"[0-9a-f]{64}", context.remediation_actor_identity_digest
+            )
+        ):
+            raise G3ValidationError("unresolved_remediation_authority")
     if record.get("target_git_commit") != context.expected_target_commit:
         raise G3ValidationError("migrated_review_target_commit_mismatch")
     if record.get("target_bundle_inputs_sha256") != context.objects[
@@ -1300,14 +1511,21 @@ def _validate_migrated_review(
         raise G3ValidationError("migrated_review_review_record_schema_mismatch")
     roles = [row["role"] for row in review_records]
     reviewer_ids = [row["reviewer_authority_id"] for row in review_records]
+    artifact_ids = [row["review_artifact_id"] for row in review_records]
+    review_hashes = [row["review_sha256"] for row in review_records]
     if (
         sorted(roles) != sorted(REVIEW_ROLES)
         or len(set(roles)) != len(roles)
         or any(not isinstance(value, str) or not value for value in reviewer_ids)
         or len(set(reviewer_ids)) != len(reviewer_ids)
+        or any(not isinstance(value, str) or not value for value in artifact_ids)
+        or len(set(artifact_ids)) != len(artifact_ids)
+        or len(set(review_hashes)) != len(review_hashes)
         or record.get("reviewer_roles") != sorted(roles)
     ):
         raise G3ValidationError("non_independent_migrated_review")
+    reviewer_actor_digests: list[str] = []
+    artifact_digests: list[str] = []
     for row in review_records:
         if row["reviewed_target"] != record["review_input_fingerprint"]:
             raise G3ValidationError("migrated_review_review_target_mismatch")
@@ -1316,9 +1534,7 @@ def _validate_migrated_review(
         if row["lifecycle"] != "ACTIVE":
             raise G3ValidationError("stale_migrated_review_record")
         if (
-            not isinstance(row["review_artifact_id"], str)
-            or not row["review_artifact_id"]
-            or not isinstance(row["review_sha256"], str)
+            not isinstance(row["review_sha256"], str)
             or not re.fullmatch(r"[0-9a-f]{64}", row["review_sha256"])
             or row["independence_relation"]
             != {
@@ -1331,13 +1547,20 @@ def _validate_migrated_review(
         row_payload.pop("review_sha256")
         if sha256_bytes(canonical_json_bytes(row_payload)) != row["review_sha256"]:
             raise G3ValidationError("migrated_review_review_hash_mismatch")
-        if context.mode == "real" and (
-            row["reviewer_authority_id"].startswith("synthetic:")
-            or row["review_artifact_id"].startswith("synthetic:")
-        ):
-            raise G3ValidationError("synthetic_cannot_authorize_real")
-        if row["reviewer_authority_id"] in {"remediation_agent", "remediation-agent"}:
-            raise G3ValidationError("non_independent_migrated_review")
+        _validate_review_reference(context, row)
+        reviewer_actor_digests.append(
+            context.reviewer_authorities[row["reviewer_authority_id"]].get(
+                "actor_identity_digest"
+            )
+        )
+        artifact_digests.append(
+            context.review_artifacts[row["review_artifact_id"]].get("sha256")
+        )
+    if (
+        len(set(reviewer_actor_digests)) != len(reviewer_actor_digests)
+        or len(set(artifact_digests)) != len(artifact_digests)
+    ):
+        raise G3ValidationError("non_independent_migrated_review")
     if record.get("producer") != "independent_review_panel":
         raise G3ValidationError("non_independent_migrated_review")
     if any(not isinstance(record.get(name), int) or record[name] < 0 for name in ("p0_count", "p1_count", "p2_count")):
@@ -1345,14 +1568,16 @@ def _validate_migrated_review(
     expected_counts, unresolved = _disposition_counts(dispositions)
     if any(record[name] != value for name, value in expected_counts.items()):
         raise G3ValidationError("migrated_review_count_disposition_mismatch")
-    expected_decision = (
-        "NO-GO"
-        if unresolved or expected_counts["p0_count"] or expected_counts["p1_count"]
-        else (
-            "GO_WITH_DOCUMENTED_NON_BLOCKING_DEBT"
-            if expected_counts["p2_count"]
-            else "GO"
-        )
+    review_rows_go = all(row["decision"] == "GO" for row in review_records)
+    expected_decision = "NO-GO" if (
+        unresolved
+        or expected_counts["p0_count"]
+        or expected_counts["p1_count"]
+        or not review_rows_go
+    ) else (
+        "GO_WITH_DOCUMENTED_NON_BLOCKING_DEBT"
+        if expected_counts["p2_count"]
+        else "GO"
     )
     if record.get("decision") != expected_decision:
         raise G3ValidationError("migrated_review_not_go")
@@ -1362,12 +1587,16 @@ def _validate_review_collection(
     context: G3AuthorityContext, fields: dict[str, str]
 ) -> None:
     graph_nodes = _graph_nodes(context.graph)
+    graph_edges = _graph_edges(context.graph, graph_nodes)
     component_nodes = sorted(
-        node_id
-        for node_id in context.graph["g3_required_nodes"]
-        if node_id.startswith("component_") and node_id.endswith("_review")
+        edge["from"]
+        for edge in graph_edges
+        if edge["to"] == "g3_approval_tag"
+        and edge["type"] == "requires"
+        and edge["from"].startswith("component_")
+        and edge["from"].endswith("_review")
     )
-    if len(component_nodes) != 5:
+    if not component_nodes:
         raise G3ValidationError("component_review_set_mismatch")
     for node_id in component_nodes:
         record = _require_authority_object(context, node_id)
@@ -1379,18 +1608,27 @@ def _validate_review_collection(
 
     migrated = _require_authority_object(context, "migrated_finding_review")
     _validate_migrated_review(context, migrated)
+    if migrated.get("decision") != "GO":
+        raise G3ValidationError("migrated_review_not_go")
 
     aggregate = _require_authority_object(context, "aggregate_review")
     if aggregate.get("target_bundle_manifest_sha256") != fields[
         "specification_bundle_manifest_sha256"
     ]:
         raise G3ValidationError("aggregate_target_mismatch")
-    required_dependencies = set(component_nodes) | {
-        "migrated_finding_review",
-        "specification_bundle_manifest",
-        "generated_traceability_manifest",
-    }
-    if not required_dependencies.issubset(set(aggregate.get("dependency_node_ids", []))):
+    required_dependencies = context.graph.get("aggregate_review_dependency_nodes")
+    if (
+        not isinstance(required_dependencies, list)
+        or any(not isinstance(node_id, str) for node_id in required_dependencies)
+        or len(required_dependencies) != len(set(required_dependencies))
+        or any(node_id not in graph_nodes for node_id in required_dependencies)
+        or set(required_dependencies) != set(component_nodes) | {
+            "migrated_finding_review",
+            "specification_bundle_manifest",
+            "generated_traceability_manifest",
+        }
+        or set(aggregate.get("dependency_node_ids", [])) != set(required_dependencies)
+    ):
         raise G3ValidationError("aggregate_dependency_closure_incomplete")
     if aggregate.get("decision") != "GO" or aggregate.get("p0_count") != 0 or aggregate.get("p1_count") != 0:
         raise G3ValidationError("aggregate_review_not_go")
@@ -2394,6 +2632,50 @@ def _migrated_review_rows(target: str, synthetic: bool) -> list[dict[str, Any]]:
     return rows
 
 
+def _synthetic_review_references(
+    graph: dict[str, Any], rows: list[dict[str, Any]]
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    contract = _review_reference_contract(graph)
+    reviewers: dict[str, dict[str, Any]] = {}
+    artifacts: dict[str, dict[str, Any]] = {}
+    for index, row in enumerate(rows, start=1):
+        reviewer_id = row["reviewer_authority_id"]
+        artifact_id = row["review_artifact_id"]
+        reviewers[reviewer_id] = {
+            "reviewer_authority_id": reviewer_id,
+            "authority_kind": contract["reviewer"]["authority_kind"],
+            "schema_version": 1,
+            "actor_identity_digest": f"{index:064x}",
+            "permitted_review_roles": [row["role"]],
+            "lifecycle": "ACTIVE",
+            "stale": False,
+            "superseded_by": None,
+            "invalidated": False,
+            "sha256": f"{index + 100:064x}",
+            "expected_sha256": f"{index + 100:064x}",
+            "digest_valid": True,
+            "content_unchanged": True,
+        }
+        artifacts[artifact_id] = {
+            "review_artifact_id": artifact_id,
+            "authority_kind": contract["artifact"]["authority_kind"],
+            "schema_version": 1,
+            "reviewer_authority_id": reviewer_id,
+            "role": row["role"],
+            "reviewed_target": row["reviewed_target"],
+            "decision": row["decision"],
+            "lifecycle": "ACTIVE",
+            "stale": False,
+            "superseded_by": None,
+            "invalidated": False,
+            "sha256": f"{index + 200:064x}",
+            "expected_sha256": f"{index + 200:064x}",
+            "digest_valid": True,
+            "content_unchanged": True,
+        }
+    return reviewers, artifacts
+
+
 def _synthetic_record(
     graph: dict[str, Any], node_id: str, digest: str, **fields: Any
 ) -> dict[str, Any]:
@@ -2552,6 +2834,9 @@ def make_synthetic_context() -> G3AuthorityContext:
     migrated["review_records"] = _migrated_review_rows(
         migrated["review_input_fingerprint"], synthetic=True
     )
+    reviewer_authorities, review_artifacts = _synthetic_review_references(
+        graph, migrated["review_records"]
+    )
     objects["migrated_finding_review"] = migrated
     objects["specification_bundle_manifest"] = _synthetic_record(
         graph,
@@ -2609,6 +2894,10 @@ def make_synthetic_context() -> G3AuthorityContext:
         component_sha_by_node=component_sha_by_node,
         architecture_plan_sha256=sha256(ARCH),
         f0_decisions_sha256="9" * 64,
+        reviewer_authorities=reviewer_authorities,
+        review_artifacts=review_artifacts,
+        remediation_authority_id="synthetic:remediation-author",
+        remediation_actor_identity_digest="e" * 64,
     )
 
 
@@ -2745,9 +3034,188 @@ def _load_real_repository_file(
     return record
 
 
+def _load_real_reference_json(
+    repository: Path,
+    graph: dict[str, Any],
+    reference_type: str,
+    path: Path,
+    expected_id: str | None = None,
+) -> dict[str, Any]:
+    contract = _review_reference_contract(graph)[reference_type]
+    prefix = {
+        "reviewer": "reviewer_identity",
+        "artifact": "review_artifact_identity",
+        "remediation_author": "remediation_authority",
+    }[reference_type]
+    try:
+        raw = path.read_bytes()
+        decoded = _parse_json_without_duplicates(raw)
+    except FileNotFoundError as error:
+        raise G3ValidationError(f"missing_{prefix}") from error
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise G3ValidationError(f"malformed_{prefix}") from error
+    if not isinstance(decoded, dict) or canonical_json_bytes(decoded) != raw:
+        raise G3ValidationError(f"noncanonical_{prefix}")
+    if set(decoded) != set(contract["required_fields"]):
+        raise G3ValidationError(f"{prefix}_schema_mismatch")
+    id_field = contract["id_field"]
+    identifier = decoded.get(id_field)
+    if not isinstance(identifier, str) or not re.fullmatch(r"[0-9a-f]{64}", identifier):
+        raise G3ValidationError(f"malformed_{prefix}_id")
+    if expected_id is not None and identifier != expected_id:
+        raise G3ValidationError(f"{prefix}_id_mismatch")
+    identity_payload = {
+        key: value
+        for key, value in decoded.items()
+        if key not in contract["digest_excluded_fields"]
+    }
+    identity = sha256_bytes(canonical_json_bytes(identity_payload))
+    if identity != identifier:
+        raise G3ValidationError(f"{prefix}_digest_mismatch")
+    record = dict(decoded)
+    record.update(
+        {
+            "bytes": raw,
+            "canonical_object": decoded,
+            "sha256": identity,
+            "expected_sha256": identity,
+            "content_unchanged": True,
+        }
+    )
+    return record
+
+
+def _resolve_real_review_references(
+    repository: Path,
+    graph: dict[str, Any],
+    migrated: dict[str, Any] | None,
+    resolution: dict[str, Any],
+) -> tuple[
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    str | None,
+    str | None,
+]:
+    contract = _review_reference_contract(graph)
+    reviewers: dict[str, dict[str, Any]] = {}
+    artifacts: dict[str, dict[str, Any]] = {}
+    remediation_authority_id: str | None = None
+    remediation_actor_identity_digest: str | None = None
+
+    author_path = repository / contract["remediation_author"]["authority_path"]
+    try:
+        author = _load_real_reference_json(
+            repository, graph, "remediation_author", author_path
+        )
+    except G3ValidationError as error:
+        resolution["errors"].append(
+            {"node_id": "remediation_authority", "category": error.category}
+        )
+        if error.category.startswith("missing_"):
+            resolution["missing"].append(
+                {"node_id": "remediation_authority", "category": error.category}
+            )
+    else:
+        actor_identity_digest = author.get("actor_identity_digest")
+        if (
+            author.get("authority_kind")
+            != contract["remediation_author"]["authority_kind"]
+            or author.get("schema_version") != 1
+            or author.get("lifecycle") != "ACTIVE"
+            or author.get("stale") is not False
+            or author.get("superseded_by") is not None
+            or author.get("invalidated") is not False
+            or not isinstance(actor_identity_digest, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", actor_identity_digest)
+        ):
+            resolution["errors"].append(
+                {"node_id": "remediation_authority", "category": "invalid_remediation_authority"}
+            )
+        else:
+            remediation_authority_id = author[contract["remediation_author"]["id_field"]]
+            remediation_actor_identity_digest = actor_identity_digest
+            resolution["resolved_node_ids"].append("remediation_authority")
+
+    rows = migrated.get("review_records") if isinstance(migrated, dict) else None
+    if not isinstance(rows, list):
+        return reviewers, artifacts, remediation_authority_id, remediation_actor_identity_digest
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        reviewer_id = row.get("reviewer_authority_id")
+        artifact_id = row.get("review_artifact_id")
+        if not isinstance(reviewer_id, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", reviewer_id
+        ):
+            resolution["errors"].append(
+                {
+                    "node_id": f"reviewer_identity:{reviewer_id}",
+                    "category": "unresolved_reviewer_identity",
+                }
+            )
+        else:
+            reviewer_path = repository / contract["reviewer"]["authority_path_template"].replace(
+                "{reviewer_authority_id}", reviewer_id
+            )
+            if reviewer_id not in reviewers:
+                try:
+                    reviewers[reviewer_id] = _load_real_reference_json(
+                        repository, graph, "reviewer", reviewer_path, reviewer_id
+                    )
+                    resolution["resolved_node_ids"].append(
+                        f"reviewer_identity:{reviewer_id}"
+                    )
+                except G3ValidationError as error:
+                    resolution["errors"].append(
+                        {"node_id": f"reviewer_identity:{reviewer_id}", "category": error.category}
+                    )
+                    if error.category.startswith("missing_"):
+                        resolution["missing"].append(
+                            {"node_id": f"reviewer_identity:{reviewer_id}", "category": error.category}
+                        )
+        if not isinstance(artifact_id, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", artifact_id
+        ):
+            resolution["errors"].append(
+                {
+                    "node_id": f"review_artifact:{artifact_id}",
+                    "category": "unresolved_review_artifact_identity",
+                }
+            )
+        else:
+            artifact_path = repository / contract["artifact"]["authority_path_template"].replace(
+                "{review_artifact_id}", artifact_id
+            )
+            if artifact_id not in artifacts:
+                try:
+                    artifacts[artifact_id] = _load_real_reference_json(
+                        repository, graph, "artifact", artifact_path, artifact_id
+                    )
+                    resolution["resolved_node_ids"].append(
+                        f"review_artifact:{artifact_id}"
+                    )
+                except G3ValidationError as error:
+                    resolution["errors"].append(
+                        {"node_id": f"review_artifact:{artifact_id}", "category": error.category}
+                    )
+                    if error.category.startswith("missing_"):
+                        resolution["missing"].append(
+                            {"node_id": f"review_artifact:{artifact_id}", "category": error.category}
+                        )
+    return reviewers, artifacts, remediation_authority_id, remediation_actor_identity_digest
+
+
 def _resolve_real_authority(
     repository: Path, graph: dict[str, Any], target_commit: str
-) -> tuple[dict[str, dict[str, Any]], dict[str, Any], dict[str, Any]]:
+) -> tuple[
+    dict[str, dict[str, Any]],
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    str | None,
+    str | None,
+]:
     nodes = _graph_nodes(graph)
     edges = _graph_edges(graph, nodes)
     order = _topological_order(nodes, edges)
@@ -2794,6 +3262,9 @@ def _resolve_real_authority(
             continue
         objects[node_id] = record
         resolution["resolved_node_ids"].append(node_id)
+    reviewer_authorities, review_artifacts, remediation_authority_id, remediation_actor_identity_digest = _resolve_real_review_references(
+        repository, graph, objects.get("migrated_finding_review"), resolution
+    )
     g3_tag = _read_git_tag(repository, G3_TAG_NAME)
     resolution["authority_tags"] = {
         node_id: {
@@ -2825,7 +3296,15 @@ def _resolve_real_authority(
         resolution["errors"].append(
             {"node_id": "g3_approval_tag", "category": "g3_target_mismatch"}
         )
-    return objects, g3_tag, resolution
+    return (
+        objects,
+        g3_tag,
+        resolution,
+        reviewer_authorities,
+        review_artifacts,
+        remediation_authority_id,
+        remediation_actor_identity_digest,
+    )
 
 
 def make_repository_context(
@@ -2837,7 +3316,15 @@ def make_repository_context(
     graph_path = repository / graph_relative_path
     graph = json.loads(graph_path.read_text())
     validate_r12_authority_graph(graph)
-    objects, tag, resolution = _resolve_real_authority(repository, graph, target)
+    (
+        objects,
+        tag,
+        resolution,
+        reviewer_authorities,
+        review_artifacts,
+        remediation_authority_id,
+        remediation_actor_identity_digest,
+    ) = _resolve_real_authority(repository, graph, target)
     component_nodes = [
         component_node_id(prefix) for prefix in SPECS
     ]
@@ -2872,6 +3359,10 @@ def make_repository_context(
         component_sha_by_node=component_sha_by_node,
         architecture_plan_sha256=architecture_plan_sha256 or "",
         f0_decisions_sha256=f0_decisions_sha256,
+        reviewer_authorities=reviewer_authorities,
+        review_artifacts=review_artifacts,
+        remediation_authority_id=remediation_authority_id,
+        remediation_actor_identity_digest=remediation_actor_identity_digest,
         resolution=resolution,
     )
 
@@ -2918,6 +3409,33 @@ def _fixture_write_authority(
     return digest
 
 
+def _fixture_write_reference(
+    repository: Path,
+    graph: dict[str, Any],
+    reference_type: str,
+    payload: dict[str, Any],
+) -> str:
+    contract = _review_reference_contract(graph)[reference_type]
+    identity_payload = {
+        key: value
+        for key, value in payload.items()
+        if key not in contract["digest_excluded_fields"]
+    }
+    digest = sha256_bytes(canonical_json_bytes(identity_payload))
+    complete = {contract["id_field"]: digest, **payload}
+    path_template = contract.get("authority_path_template")
+    relative_path = (
+        path_template.replace("{reviewer_authority_id}", digest)
+        .replace("{review_artifact_id}", digest)
+        if isinstance(path_template, str)
+        else contract["authority_path"]
+    )
+    path = repository / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(canonical_json_bytes(complete))
+    return digest
+
+
 def _fixture_annotated_tag(
     repository: Path, tag_name: str, target_commit: str, message: bytes
 ) -> None:
@@ -2956,6 +3474,26 @@ def _isolated_real_fixture() -> tuple[tempfile.TemporaryDirectory[str], Path, st
     _fixture_git(repository, ["commit", "-qm", "fixture source input"])
     target_commit = _fixture_git(repository, ["rev-parse", "HEAD"]).decode().strip()
     nodes = _graph_nodes(graph)
+    lifecycle_fields = {
+        "lifecycle": "ACTIVE",
+        "stale": False,
+        "superseded_by": None,
+        "invalidated": False,
+    }
+    remediation_actor_identity_digest = sha256_bytes(
+        canonical_json_bytes({"fixture_actor": "remediation"})
+    )
+    remediation_authority_id = _fixture_write_reference(
+        repository,
+        graph,
+        "remediation_author",
+        {
+            "authority_kind": "PhaseFImplementationAuthorIdentityV1",
+            "schema_version": 1,
+            "actor_identity_digest": remediation_actor_identity_digest,
+            **lifecycle_fields,
+        },
+    )
 
     def source_digest(node_id: str) -> str:
         rule = graph["node_identity_rules"][node_id]
@@ -3066,6 +3604,22 @@ def _isolated_real_fixture() -> tuple[tempfile.TemporaryDirectory[str], Path, st
         component_review_sha[node_id] = _fixture_write_authority(
             repository, graph, node_id, payload
         )
+    reviewer_ids: dict[str, str] = {}
+    for role in sorted(REVIEW_ROLES):
+        reviewer_ids[role] = _fixture_write_reference(
+            repository,
+            graph,
+            "reviewer",
+            {
+                "authority_kind": "PhaseFReviewerIdentityV1",
+                "schema_version": 1,
+                "actor_identity_digest": sha256_bytes(
+                    canonical_json_bytes({"fixture_actor": role})
+                ),
+                "permitted_review_roles": [role],
+                **lifecycle_fields,
+            },
+        )
     migrated = _fixture_authority_payload(
         graph, "migrated_finding_review",
         target_git_commit=target_commit,
@@ -3087,9 +3641,39 @@ def _isolated_real_fixture() -> tuple[tempfile.TemporaryDirectory[str], Path, st
         validator="validate_migrated_finding_review",
     )
     migrated["review_input_fingerprint"] = _migrated_review_input_fingerprint(migrated)
-    migrated["review_records"] = _migrated_review_rows(
-        migrated["review_input_fingerprint"], synthetic=False
-    )
+    migrated["review_records"] = []
+    for role in sorted(REVIEW_ROLES):
+        artifact_id = _fixture_write_reference(
+            repository,
+            graph,
+            "artifact",
+            {
+                "authority_kind": "PhaseFReviewArtifactV1",
+                "schema_version": 1,
+                "reviewer_authority_id": reviewer_ids[role],
+                "role": role,
+                "reviewed_target": migrated["review_input_fingerprint"],
+                "decision": "GO",
+                **lifecycle_fields,
+            },
+        )
+        row: dict[str, Any] = {
+            "role": role,
+            "reviewer_authority_id": reviewer_ids[role],
+            "reviewed_target": migrated["review_input_fingerprint"],
+            "review_artifact_id": artifact_id,
+            "decision": "GO",
+            "review_sha256": "",
+            "lifecycle": "ACTIVE",
+            "independence_relation": {
+                "type": "distinct_reviewer_authority",
+                "reviewer_authority_id": reviewer_ids[role],
+            },
+        }
+        row_payload = dict(row)
+        row_payload.pop("review_sha256")
+        row["review_sha256"] = sha256_bytes(canonical_json_bytes(row_payload))
+        migrated["review_records"].append(row)
     migrated_sha = _fixture_write_authority(
         repository, graph, "migrated_finding_review", migrated
     )
@@ -3499,6 +4083,89 @@ def run_regression_self_tests() -> None:
         ].update({"binds": {}}),
     )
 
+    graph_nodes = _graph_nodes(graph)
+    graph_edges = _graph_edges(graph, graph_nodes)
+    authorized_node_edges = {
+        (edge["from"], edge["type"], edge["to"]) for edge in graph_edges
+    }
+    candidate_edges = [
+        (source, edge_type, target)
+        for source in sorted(graph_nodes)
+        for edge_type in sorted(GRAPH_EDGE_TYPES)
+        for target in sorted(graph_nodes)
+        if source != target
+    ]
+    unauthorized_candidates = [
+        candidate
+        for candidate in candidate_edges
+        if candidate not in authorized_node_edges
+    ]
+    accepted_unauthorized_edges = 0
+    for source, edge_type, target in unauthorized_candidates:
+        mutant = deepcopy(graph)
+        mutant["edges"].append(
+            {"from": source, "type": edge_type, "to": target}
+        )
+        try:
+            validate_r12_authority_graph(mutant)
+        except ValueError:
+            continue
+        accepted_unauthorized_edges += 1
+    if accepted_unauthorized_edges:
+        raise AssertionError(
+            f"exhaustive unauthorized-edge probe accepted {accepted_unauthorized_edges}"
+        )
+
+    authorized_edge_canonical_passes = 0
+    authorized_edge_removals_rejected = 0
+    authorized_edge_retypes_rejected = 0
+    authorized_edge_redirects_rejected = 0
+    for source, edge_type, target in sorted(authorized_node_edges):
+        validate_r12_authority_graph(graph)
+        authorized_edge_canonical_passes += 1
+        removal = deepcopy(graph)
+        removal["edges"].remove(
+            {"from": source, "type": edge_type, "to": target}
+        )
+        try:
+            validate_r12_authority_graph(removal)
+        except ValueError:
+            authorized_edge_removals_rejected += 1
+        for replacement in sorted(GRAPH_EDGE_TYPES - {edge_type}):
+            retyped = deepcopy(graph)
+            retyped["edges"].remove(
+                {"from": source, "type": edge_type, "to": target}
+            )
+            retyped["edges"].append(
+                {"from": source, "type": replacement, "to": target}
+            )
+            try:
+                validate_r12_authority_graph(retyped)
+            except ValueError:
+                authorized_edge_retypes_rejected += 1
+        for destination in sorted(graph_nodes):
+            if destination == target:
+                continue
+            redirected = deepcopy(graph)
+            redirected["edges"].remove(
+                {"from": source, "type": edge_type, "to": target}
+            )
+            redirected["edges"].append(
+                {"from": source, "type": edge_type, "to": destination}
+            )
+            try:
+                validate_r12_authority_graph(redirected)
+            except ValueError:
+                authorized_edge_redirects_rejected += 1
+    if authorized_edge_removals_rejected != len(authorized_node_edges):
+        raise AssertionError("authorized-edge removal mutation was accepted")
+    expected_retypes = len(authorized_node_edges) * (len(GRAPH_EDGE_TYPES) - 1)
+    if authorized_edge_retypes_rejected != expected_retypes:
+        raise AssertionError("authorized-edge retyping mutation was accepted")
+    expected_redirects = len(authorized_node_edges) * (len(graph_nodes) - 1)
+    if authorized_edge_redirects_rejected != expected_redirects:
+        raise AssertionError("authorized-edge redirection mutation was accepted")
+
     synthetic = make_synthetic_context()
     graph_positive = validate_r12_authority_graph(graph)
     if any(not audit["passed"] for audit in graph_positive["audits"]):
@@ -3513,6 +4180,158 @@ def run_regression_self_tests() -> None:
         reject_value_error(
             label, lambda: validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, mutant)
         )
+
+    def refresh_review_row_hash(row: dict[str, Any]) -> None:
+        row_payload = dict(row)
+        row_payload.pop("review_sha256")
+        row["review_sha256"] = sha256_bytes(canonical_json_bytes(row_payload))
+
+    decision_combinations_tested = 0
+    invalid_decision_combinations_accepted = 0
+    base_rows = synthetic.objects["migrated_finding_review"]["review_records"]
+    for mask in range(1 << len(base_rows)):
+        mutant = deepcopy(synthetic)
+        rows = mutant.objects["migrated_finding_review"]["review_records"]
+        for index, row in enumerate(rows):
+            row["decision"] = "NO-GO" if mask & (1 << index) else "GO"
+            refresh_review_row_hash(row)
+            mutant.review_artifacts[row["review_artifact_id"]]["decision"] = row[
+                "decision"
+            ]
+        mutant.objects["migrated_finding_review"]["decision"] = (
+            "GO" if mask == 0 else "NO-GO"
+        )
+        decision_combinations_tested += 1
+        try:
+            validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, mutant)
+        except ValueError:
+            if mask == 0:
+                raise AssertionError("all-GO migrated review vector was rejected")
+        else:
+            if mask != 0:
+                invalid_decision_combinations_accepted += 1
+    if decision_combinations_tested != 32 or invalid_decision_combinations_accepted:
+        raise AssertionError(
+            f"migrated decision enumeration: {decision_combinations_tested}/32, "
+            f"accepted invalid={invalid_decision_combinations_accepted}"
+        )
+
+    missing_role_cases_tested = 0
+    for index in range(len(base_rows)):
+        mutant = deepcopy(synthetic)
+        mutant.objects["migrated_finding_review"]["review_records"].pop(index)
+        missing_role_cases_tested += 1
+        reject_value_error(
+            f"missing migrated review role {index}",
+            lambda mutant=mutant: validate_g3_tag(
+                G3_TAG_NAME, G3_FIXTURE_BODY, mutant
+            ),
+        )
+
+    duplicate_artifact_cases_tested = 0
+    duplicate_reviewer_cases_tested = 0
+    for left in range(len(base_rows)):
+        for right in range(left + 1, len(base_rows)):
+            artifact_mutant = deepcopy(synthetic)
+            artifact_rows = artifact_mutant.objects["migrated_finding_review"][
+                "review_records"
+            ]
+            artifact_rows[right]["review_artifact_id"] = artifact_rows[left][
+                "review_artifact_id"
+            ]
+            refresh_review_row_hash(artifact_rows[right])
+            duplicate_artifact_cases_tested += 1
+            reject_value_error(
+                f"duplicate review artifact pair {left},{right}",
+                lambda mutant=artifact_mutant: validate_g3_tag(
+                    G3_TAG_NAME, G3_FIXTURE_BODY, mutant
+                ),
+            )
+
+            reviewer_mutant = deepcopy(synthetic)
+            reviewer_rows = reviewer_mutant.objects["migrated_finding_review"][
+                "review_records"
+            ]
+            reviewer_rows[right]["reviewer_authority_id"] = reviewer_rows[left][
+                "reviewer_authority_id"
+            ]
+            reviewer_rows[right]["independence_relation"] = {
+                "type": "distinct_reviewer_authority",
+                "reviewer_authority_id": reviewer_rows[left][
+                    "reviewer_authority_id"
+                ],
+            }
+            refresh_review_row_hash(reviewer_rows[right])
+            duplicate_reviewer_cases_tested += 1
+            reject_value_error(
+                f"duplicate reviewer pair {left},{right}",
+                lambda mutant=reviewer_mutant: validate_g3_tag(
+                    G3_TAG_NAME, G3_FIXTURE_BODY, mutant
+                ),
+            )
+    if duplicate_artifact_cases_tested != 10 or duplicate_reviewer_cases_tested != 10:
+        raise AssertionError("five-role pairwise enumeration is incomplete")
+
+    unresolved_reviewer_cases_tested = 0
+    unresolved_artifact_cases_tested = 0
+    role_mismatch_cases_tested = 0
+    for index, row_template in enumerate(base_rows):
+        unresolved_reviewer = deepcopy(synthetic)
+        unresolved_rows = unresolved_reviewer.objects["migrated_finding_review"][
+            "review_records"
+        ]
+        unresolved_rows[index]["reviewer_authority_id"] = "e" * 64
+        unresolved_rows[index]["independence_relation"] = {
+            "type": "distinct_reviewer_authority",
+            "reviewer_authority_id": "e" * 64,
+        }
+        refresh_review_row_hash(unresolved_rows[index])
+        unresolved_reviewer_cases_tested += 1
+        reject_value_error(
+            f"unresolved reviewer identity {index}",
+            lambda mutant=unresolved_reviewer: validate_g3_tag(
+                G3_TAG_NAME, G3_FIXTURE_BODY, mutant
+            ),
+        )
+
+        unresolved_artifact = deepcopy(synthetic)
+        unresolved_artifact_rows = unresolved_artifact.objects[
+            "migrated_finding_review"
+        ]["review_records"]
+        unresolved_artifact_rows[index]["review_artifact_id"] = "f" * 64
+        refresh_review_row_hash(unresolved_artifact_rows[index])
+        unresolved_artifact_cases_tested += 1
+        reject_value_error(
+            f"unresolved review artifact identity {index}",
+            lambda mutant=unresolved_artifact: validate_g3_tag(
+                G3_TAG_NAME, G3_FIXTURE_BODY, mutant
+            ),
+        )
+
+        role_mismatch = deepcopy(synthetic)
+        role_rows = role_mismatch.objects["migrated_finding_review"]["review_records"]
+        artifact = role_mismatch.review_artifacts[role_rows[index]["review_artifact_id"]]
+        artifact["role"] = sorted(REVIEW_ROLES - {row_template["role"]})[0]
+        role_mismatch_cases_tested += 1
+        reject_value_error(
+            f"review artifact role mismatch {index}",
+            lambda mutant=role_mismatch: validate_g3_tag(
+                G3_TAG_NAME, G3_FIXTURE_BODY, mutant
+            ),
+        )
+    if (
+        unresolved_reviewer_cases_tested != 5
+        or unresolved_artifact_cases_tested != 5
+        or role_mismatch_cases_tested != 5
+    ):
+        raise AssertionError("five-role identity enumeration is incomplete")
+
+    g3_reject(
+        "migrated review serialized decision contradicts derived GO",
+        lambda context: context.objects["migrated_finding_review"].update(
+            {"decision": "NO-GO"}
+        ),
+    )
 
     g3_reject("missing architecture approval", lambda context: context.objects.pop("architecture_approval"))
     g3_reject("stale architecture approval", lambda context: context.objects["architecture_approval"].update({"stale": True}))
@@ -3736,20 +4555,91 @@ def run_regression_self_tests() -> None:
         )
         if fixture_positive["approval_decision"] != "GO":
             raise AssertionError(f"real fixture positive result: {fixture_positive}")
-        if any(
-            value.get("authority_id", "").startswith("synthetic:")
-            for value in fixture_context.objects.values()
-            if isinstance(value.get("authority_id"), str)
+        if (
+            not fixture_context.remediation_authority_id
+            or not re.fullmatch(r"[0-9a-f]{64}", fixture_context.remediation_authority_id)
+            or any(
+                not re.fullmatch(r"[0-9a-f]{64}", identifier)
+                for identifier in fixture_context.reviewer_authorities
+            )
+            or any(
+                not re.fullmatch(r"[0-9a-f]{64}", identifier)
+                for identifier in fixture_context.review_artifacts
+            )
         ):
-            raise AssertionError("real fixture resolved a synthetic authority identity")
+            raise AssertionError("real fixture resolved a non-canonical authority identity")
+
+        real_negative_cases_tested = 0
 
         def real_reject(label: str, mutate: object) -> None:
+            nonlocal real_negative_cases_tested
             mutant = deepcopy(fixture_context)
             mutate(mutant)
             reject_value_error(
                 label,
                 lambda: validate_g3_tag(G3_TAG_NAME, fixture_body, mutant),
             )
+            real_negative_cases_tested += 1
+
+        def real_reviewer_actor_mutation(
+            context: G3AuthorityContext, row_index: int
+        ) -> None:
+            migrated_record = context.objects["migrated_finding_review"]
+            row = migrated_record["review_records"][row_index]
+            original = context.reviewer_authorities[row["reviewer_authority_id"]]
+            canonical = deepcopy(original["canonical_object"])
+            canonical["actor_identity_digest"] = context.remediation_actor_identity_digest
+            identity_payload = {
+                key: value
+                for key, value in canonical.items()
+                if key != "reviewer_authority_id"
+            }
+            replacement_id = sha256_bytes(canonical_json_bytes(identity_payload))
+            canonical["reviewer_authority_id"] = replacement_id
+            raw = canonical_json_bytes(canonical)
+            replacement = dict(canonical)
+            replacement.update(
+                {
+                    "bytes": raw,
+                    "canonical_object": canonical,
+                    "sha256": replacement_id,
+                    "expected_sha256": replacement_id,
+                    "content_unchanged": True,
+                }
+            )
+            context.reviewer_authorities[replacement_id] = replacement
+            original_artifact_id = row["review_artifact_id"]
+            artifact = context.review_artifacts.pop(original_artifact_id)
+            artifact_canonical = deepcopy(artifact["canonical_object"])
+            artifact_canonical["reviewer_authority_id"] = replacement_id
+            artifact_identity_payload = {
+                key: value
+                for key, value in artifact_canonical.items()
+                if key != "review_artifact_id"
+            }
+            replacement_artifact_id = sha256_bytes(
+                canonical_json_bytes(artifact_identity_payload)
+            )
+            artifact_canonical["review_artifact_id"] = replacement_artifact_id
+            artifact_raw = canonical_json_bytes(artifact_canonical)
+            replacement_artifact = dict(artifact_canonical)
+            replacement_artifact.update(
+                {
+                    "bytes": artifact_raw,
+                    "canonical_object": artifact_canonical,
+                    "sha256": replacement_artifact_id,
+                    "expected_sha256": replacement_artifact_id,
+                    "content_unchanged": True,
+                }
+            )
+            context.review_artifacts[replacement_artifact_id] = replacement_artifact
+            row["reviewer_authority_id"] = replacement_id
+            row["review_artifact_id"] = replacement_artifact_id
+            row["independence_relation"] = {
+                "type": "distinct_reviewer_authority",
+                "reviewer_authority_id": replacement_id,
+            }
+            refresh_review_row_hash(row)
 
         real_reject(
             "real missing authority object",
@@ -3870,6 +4760,93 @@ def run_regression_self_tests() -> None:
                     ]["review_records"][0]["reviewer_authority_id"]
                 }
             ),
+        )
+        real_reject(
+            "real migrated review artifact identity duplicate",
+            lambda context: (
+                context.objects["migrated_finding_review"]["review_records"][1].update(
+                    {
+                        "review_artifact_id": context.objects[
+                            "migrated_finding_review"
+                        ]["review_records"][0]["review_artifact_id"]
+                    }
+                ),
+                refresh_review_row_hash(
+                    context.objects["migrated_finding_review"]["review_records"][1]
+                ),
+            ),
+        )
+        real_reject(
+            "real unresolved reviewer identity",
+            lambda context: (
+                context.objects["migrated_finding_review"]["review_records"][0].update(
+                    {
+                        "reviewer_authority_id": "e" * 64,
+                        "independence_relation": {
+                            "type": "distinct_reviewer_authority",
+                            "reviewer_authority_id": "e" * 64,
+                        },
+                    }
+                ),
+                refresh_review_row_hash(
+                    context.objects["migrated_finding_review"]["review_records"][0]
+                ),
+            ),
+        )
+        real_reject(
+            "real unresolved review artifact identity",
+            lambda context: (
+                context.objects["migrated_finding_review"]["review_records"][0].update(
+                    {"review_artifact_id": "f" * 64}
+                ),
+                refresh_review_row_hash(
+                    context.objects["migrated_finding_review"]["review_records"][0]
+                ),
+            ),
+        )
+        real_reject(
+            "real implementation author substituted as reviewer",
+            lambda context: real_reviewer_actor_mutation(context, 0),
+        )
+        real_reject(
+            "real review artifact decision NO-GO",
+            lambda context: (
+                context.review_artifacts[
+                    context.objects["migrated_finding_review"]["review_records"][0][
+                        "review_artifact_id"
+                    ]
+                ].update({"decision": "NO-GO"}),
+                context.objects["migrated_finding_review"]["review_records"][0].update(
+                    {"decision": "NO-GO"}
+                ),
+                refresh_review_row_hash(
+                    context.objects["migrated_finding_review"]["review_records"][0]
+                ),
+            ),
+        )
+        real_reject(
+            "real review artifact role mismatch",
+            lambda context: context.review_artifacts[
+                context.objects["migrated_finding_review"]["review_records"][0][
+                    "review_artifact_id"
+                ]
+            ].update({"role": "security"}),
+        )
+        real_reject(
+            "real stale review artifact",
+            lambda context: context.review_artifacts[
+                context.objects["migrated_finding_review"]["review_records"][0][
+                    "review_artifact_id"
+                ]
+            ].update({"stale": True}),
+        )
+        real_reject(
+            "real review artifact wrong target",
+            lambda context: context.review_artifacts[
+                context.objects["migrated_finding_review"]["review_records"][0][
+                    "review_artifact_id"
+                ]
+            ].update({"reviewed_target": "e" * 64}),
         )
         real_reject(
             "real migrated review target stale",
@@ -4024,6 +5001,11 @@ def run_regression_self_tests() -> None:
                 }
             ),
         )
+        resolver_reject(
+            "real resolver missing remediation author",
+            ".phase_f_authority/remediation_authority.json",
+            None,
+        )
 
         def resolver_tag_reject(label: str, tag_name: str) -> None:
             ref = f"refs/tags/{tag_name}"
@@ -4063,7 +5045,16 @@ def run_regression_self_tests() -> None:
         "PHASE_F_SELF_TEST_PASS "
         f"requirements={len(entries)} tests={len(test_catalog)} evidence={len(evidence_catalog)} "
         f"g3_mutations={len(G3_KAT_MUTATIONS)} g3_authority_tests={len(R12_G3_TEST_IDS)} "
-        f"traceability_tests={len(R12_TRACE_TEST_IDS)} dag_tests={len(R12_DAG_TEST_IDS)}"
+        f"traceability_tests={len(R12_TRACE_TEST_IDS)} dag_tests={len(R12_DAG_TEST_IDS)} "
+        f"decision_vectors={decision_combinations_tested} invalid_decision_vectors={invalid_decision_combinations_accepted} "
+        f"missing_roles={missing_role_cases_tested} duplicate_artifacts={duplicate_artifact_cases_tested} "
+        f"duplicate_reviewers={duplicate_reviewer_cases_tested} unresolved_reviewers={unresolved_reviewer_cases_tested} "
+        f"unresolved_artifacts={unresolved_artifact_cases_tested} role_mismatches={role_mismatch_cases_tested} "
+        f"graph_candidates={len(candidate_edges)} graph_authorized={len(authorized_node_edges)} "
+        f"graph_unauthorized={len(unauthorized_candidates)} graph_accepted_unauthorized={accepted_unauthorized_edges} "
+        f"edge_canonical_passes={authorized_edge_canonical_passes} edge_removals_rejected={authorized_edge_removals_rejected} "
+        f"edge_retypes_rejected={authorized_edge_retypes_rejected} edge_redirects_rejected={authorized_edge_redirects_rejected} "
+        f"real_negative_cases={real_negative_cases_tested}"
     )
 
 
