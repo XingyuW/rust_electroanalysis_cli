@@ -30,7 +30,7 @@ expected results, and mutations in §§44–46 and §§53.2–53.6 remain test
 authority here. Historical §§16–52 are provenance only except where a current
 §53 row explicitly adopts a literal value.
 
-The current catalog is the 28 adopted R11 rows plus the one R12 row below. The
+The current catalog is the 28 adopted R11 rows plus the complete R12 catalog below. The
 generator parses the adopted R11 table from the preserved source and this R12
 row from this document, then rejects every reference outside that closed
 catalog. `R12-POS-SPEC-BUNDLE-TAG` is a literal KAT and its fixture is never a
@@ -39,6 +39,54 @@ real approval or an `F-EV`.
 | test_id | kat_class | fixture_scope | prevalidated_inputs | literal_inputs | operation | expected_result | negative_mutation | UNBOUND_REQUIRED_INPUT_COUNT |
 |---|---|---|---|---|---|---|---|---:|
 | R12-POS-SPEC-BUNDLE-TAG | literal_kat | g3_specification_bundle_tag | none | exact tag name, exact 379-byte body, body SHA-256, decoded six fields | `validate_g3_tag(tag_name, body_bytes, synthetic_context)` | PASS with exact decoded fields | the individually defined `R12-NEG-G3-*` rows below | 0 |
+| R12-G3-AUTHORITY-CONTEXT-POS | literal_kat | synthetic_complete_g3_authority | complete synthetic R12 graph and prerequisite objects | exact canonical tag body plus all prerequisite identities | `validate_g3_tag(tag_name, body_bytes, synthetic_context)` | PASS | none | 0 |
+| R12-G3-MISSING-ARCH-APPROVAL | constructive_plan_audit | g3_prerequisite | complete synthetic context with architecture approval removed | same as positive | `validate_g3_tag(...)` | REJECT | missing architecture approval | 0 |
+| R12-G3-STALE-ARCH-APPROVAL | constructive_plan_audit | g3_prerequisite | complete synthetic context with stale architecture approval | same as positive | `validate_g3_tag(...)` | REJECT | stale architecture approval | 0 |
+| R12-G3-MISSING-F0-APPROVAL | constructive_plan_audit | g3_prerequisite | complete synthetic context with F0 approval removed | same as positive | `validate_g3_tag(...)` | REJECT | missing F0 approval | 0 |
+| R12-G3-WRONG-F0-TARGET | constructive_plan_audit | g3_prerequisite | complete synthetic context with wrong F0 target | same as positive | `validate_g3_tag(...)` | REJECT | wrong F0 target | 0 |
+| R12-G3-MISSING-COMPONENT-REVIEW | constructive_plan_audit | g3_prerequisite | complete synthetic context with one component review removed | same as positive | `validate_g3_tag(...)` | REJECT | missing component review | 0 |
+| R12-G3-STALE-COMPONENT-REVIEW | constructive_plan_audit | g3_prerequisite | complete synthetic context with stale component review | same as positive | `validate_g3_tag(...)` | REJECT | stale component review | 0 |
+| R12-G3-MISSING-MIGRATED-REVIEW | constructive_plan_audit | g3_prerequisite | complete synthetic context with migrated review removed | same as positive | `validate_g3_tag(...)` | REJECT | missing migrated review | 0 |
+| R12-G3-MIGRATED-WRONG-BUNDLE | constructive_plan_audit | g3_prerequisite | migrated review targets another bundle-input fingerprint | same as positive | `validate_g3_tag(...)` | REJECT | migrated review target mismatch | 0 |
+| R12-G3-MIGRATED-WRONG-LEDGER | constructive_plan_audit | g3_prerequisite | migrated review names another migration-ledger digest | same as positive | `validate_g3_tag(...)` | REJECT | migrated review ledger mismatch | 0 |
+| R12-G3-MIGRATED-WRONG-COMMIT | constructive_plan_audit | g3_prerequisite | migrated review targets another Git commit | same as positive | `validate_g3_tag(...)` | REJECT | migrated review target commit mismatch | 0 |
+| R12-G3-MIGRATED-HASH-MISMATCH | constructive_plan_audit | g3_prerequisite | migrated review identity does not match its exact bytes | same as positive | `validate_g3_tag(...)` | REJECT | migrated review hash mismatch | 0 |
+| R12-G3-MIGRATED-INCOMPLETE-DISPOSITION | constructive_plan_audit | g3_prerequisite | one required migrated finding disposition removed | same as positive | `validate_g3_tag(...)` | REJECT | incomplete migrated finding coverage | 0 |
+| R12-G3-MIGRATED-STALE | constructive_plan_audit | g3_prerequisite | migrated review is marked stale | same as positive | `validate_g3_tag(...)` | REJECT | stale migrated review | 0 |
+| R12-G3-MIGRATED-SUPERSEDED | constructive_plan_audit | g3_prerequisite | migrated review has a superseding authority | same as positive | `validate_g3_tag(...)` | REJECT | superseded migrated review | 0 |
+| R12-G3-MIGRATED-NON-INDEPENDENT | constructive_plan_audit | g3_prerequisite | migrated review uses a non-independent producer | same as positive | `validate_g3_tag(...)` | REJECT | non-independent migrated review | 0 |
+| R12-G3-MISSING-AGGREGATE | constructive_plan_audit | g3_prerequisite | complete synthetic context with aggregate review removed | same as positive | `validate_g3_tag(...)` | REJECT | missing aggregate review | 0 |
+| R12-G3-AGGREGATE-WRONG-BUNDLE | constructive_plan_audit | g3_prerequisite | aggregate review targets another manifest | same as positive | `validate_g3_tag(...)` | REJECT | aggregate target mismatch | 0 |
+| R12-G3-AGGREGATE-HASH-MISMATCH | constructive_plan_audit | g3_prerequisite | aggregate review identity does not match its exact bytes | same as positive | `validate_g3_tag(...)` | REJECT | aggregate hash mismatch | 0 |
+| R12-G3-MANIFEST-HASH-MISMATCH | constructive_plan_audit | g3_prerequisite | manifest identity does not match its exact bytes | same as positive | `validate_g3_tag(...)` | REJECT | manifest hash mismatch | 0 |
+| R12-G3-MANIFEST-CHANGED | constructive_plan_audit | g3_prerequisite | manifest bytes changed after aggregate review | same as positive | `validate_g3_tag(...)` | REJECT | stale manifest | 0 |
+| R12-G3-WRONG-COMMIT | constructive_plan_audit | g3_git_authority | annotated tag peels to another commit | same as positive | `validate_g3_tag(...)` | REJECT | target mismatch | 0 |
+| R12-G3-LIGHTWEIGHT-TAG | constructive_plan_audit | g3_git_authority | lightweight tag supplied where annotated tag is required | same as positive | `validate_g3_tag(...)` | REJECT | lightweight tag | 0 |
+| R12-G3-MISSING-REAL-PREREQUISITES | constructive_plan_audit | real_repository_authority | current repository with no actual approvals | canonical body | `validate_g3_tag(...)` | REJECT | missing real G3 authority | 0 |
+| R12-G3-SYNTHETIC-CANNOT-AUTHORIZE-REAL | constructive_plan_audit | authority_isolation | synthetic context marked as real-authority request | same as positive | `validate_g3_tag(...)` | REJECT | synthetic authority isolation | 0 |
+| R12-TRACE-SEMANTIC-SUBSTITUTION | constructive_plan_audit | normative_traceability | catalog-valid but wrong F-OPS-004 relationship | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
+| R12-TRACE-WRONG-KAT | constructive_plan_audit | normative_traceability | valid KAT substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
+| R12-TRACE-WRONG-EVIDENCE | constructive_plan_audit | normative_traceability | valid evidence substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
+| R12-TRACE-WRONG-AUDIT | constructive_plan_audit | normative_traceability | valid constructive audit substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
+| R12-TRACE-WRONG-CATEGORY | constructive_plan_audit | normative_traceability | valid test moved to the wrong KAT/audit/property category | matrix mutation | normative matrix category audit | REJECT | test category partition mismatch | 0 |
+| R12-TRACE-CROSS-REQUIREMENT | constructive_plan_audit | normative_traceability | two requirement mappings swapped | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
+| R12-TRACE-EXTRA-MAPPING | constructive_plan_audit | normative_traceability | extra relationship added to generated output | manifest mutation | normative matrix equality audit | REJECT | extra mapping | 0 |
+| R12-TRACE-MISSING-MAPPING | constructive_plan_audit | normative_traceability | required relationship removed from generated output | manifest mutation | normative matrix equality audit | REJECT | missing mapping | 0 |
+| R12-TRACE-SCHEMA-INVERSE | constructive_plan_audit | normative_schema_usage | schema-to-requirement inverse changed | matrix mutation | schema usage equality audit | REJECT | schema inverse mismatch | 0 |
+| R12-DAG-VALID | constructive_plan_audit | r12_artifact_authority_graph | complete typed R12 graph | graph JSON | R12 artifact DAG audit | PASS | none | 0 |
+| R12-DAG-UNKNOWN-NODE | constructive_plan_audit | r12_artifact_authority_graph | unknown node added | graph mutation | R12 artifact DAG audit | REJECT | unknown node | 0 |
+| R12-DAG-UNKNOWN-EDGE | constructive_plan_audit | r12_artifact_authority_graph | unknown edge type added | graph mutation | R12 artifact DAG audit | REJECT | unknown edge type | 0 |
+| R12-DAG-DUPLICATE-NODE | constructive_plan_audit | r12_artifact_authority_graph | duplicate node added | graph mutation | R12 artifact DAG audit | REJECT | duplicate node | 0 |
+| R12-DAG-SELF-EDGE | constructive_plan_audit | r12_artifact_authority_graph | self edge added | graph mutation | R12 artifact DAG audit | REJECT | self edge | 0 |
+| R12-DAG-PREREQUISITE-CYCLE | constructive_plan_audit | r12_artifact_authority_graph | prerequisite cycle added | graph mutation | R12 artifact DAG audit | REJECT | prerequisite cycle | 0 |
+| R12-DAG-HASH-CYCLE | constructive_plan_audit | r12_artifact_authority_graph | hash cycle added | graph mutation | R12 artifact DAG audit | REJECT | hash cycle | 0 |
+| R12-DAG-FUTURE-OBJECT | constructive_plan_audit | r12_artifact_authority_graph | dependent points to later-created object | graph mutation | R12 artifact DAG audit | REJECT | future object | 0 |
+| R12-DAG-G3-BYPASS | constructive_plan_audit | r12_artifact_authority_graph | direct bypass omits mandatory G3 predecessor | graph mutation | R12 artifact DAG audit | REJECT | G3 bypass | 0 |
+| R12-DAG-IMPLEMENTATION-BYPASS | constructive_plan_audit | r12_artifact_authority_graph | implementation gate disconnected from G3 | graph mutation | R12 artifact DAG audit | REJECT | implementation bypass | 0 |
+| R12-DAG-REVIEW-CYCLE | constructive_plan_audit | r12_artifact_authority_graph | review target cycle added | graph mutation | R12 artifact DAG audit | REJECT | review cycle | 0 |
+| R12-DAG-SELF-GIT | constructive_plan_audit | r12_artifact_authority_graph | self-Git identity edge added | graph mutation | R12 artifact DAG audit | REJECT | self-Git cycle | 0 |
+| R12-DAG-ALTERNATIVE-BYPASS | constructive_plan_audit | r12_artifact_authority_graph | alternative path omits a mandatory G3 predecessor | graph mutation | R12 artifact DAG audit | REJECT | G3 bypass | 0 |
+| R12-DAG-G3-BEFORE-AGGREGATE | constructive_plan_audit | r12_artifact_authority_graph | G3 construction precedes aggregate review | graph mutation | R12 artifact DAG audit | REJECT | future object | 0 |
 
 ### 3.1 Executable R12 G3 KAT
 
@@ -117,7 +165,65 @@ The checker rejects CR, blank lines, alternate order, duplicate keys, omitted
 keys, additional keys, legacy keys, malformed values, and bytes after the final
 required LF before any authority prerequisite is considered. Real Git tag
 type, peel, reachability, manifest, review, and upstream-authority checks are
-separate predicates and are not fabricated by this synthetic KAT.
+part of the same reusable validator and are exercised by the prerequisite
+catalog below; the synthetic KAT supplies synthetic equivalents for those
+predicates and never creates real authority.
+
+### 3.2 Canonical G3 authority validator
+
+The normative operation is the single reusable function
+`validate_g3_tag(tag_name, body_bytes, context)`. `parse_g3_tag(...)` is only
+the wire-validation layer called by that function; `check_g3_kat(...)` is a
+reporting adapter that supplies a synthetic context and catches the same
+typed validation errors. Real repository validation supplies a real context.
+The validator obtains its mandatory prerequisite list from
+`phase_f_r12_authority_graph.json`; it does not maintain a second hard-coded
+G3 prerequisite list.
+
+The context has two closed modes. `synthetic` resolves complete synthetic
+objects through the same object, target, lifecycle, digest, graph, and
+staleness interfaces as `real`, but its prevalidated digest records are
+explicitly test-only. `real` resolves exact repository bytes and Git objects.
+A synthetic context marked for real-authority authorization rejects before
+any approval result is returned.
+
+Validation order is fail-closed: exact six-field wire grammar; real annotated
+tag object type, exact peeled commit, and exact message bytes; parsed graph
+closure; exact manifest bytes/hash/target/status; architecture and F0 approval
+objects; all five component review objects; the complete immutable migrated-
+finding review; and the aggregate review object targeting the exact final
+manifest. Every object must have the expected kind, identity, bound target,
+ACTIVE lifecycle, no stale/superseded/invalidated state, and exact dependency
+closure. The migrated review must cover all five migrated findings with one
+disposition each and bind the exact bundle-input fingerprint, migration
+ledger, traceability manifest, and component content identities. Any absent,
+malformed, stale, superseded, mismatched, future, or contradictory object
+returns `REJECT`.
+
+The implementation's self-test exercises a complete synthetic PASS, every
+authority-prerequisite negative in the catalog, real checked-in repository
+NO-GO with absent approvals, and synthetic-to-real isolation. This is a
+conformance path only; it does not create an approval tag or change the
+candidate bundle's fail-closed state.
+
+### 3.3 Normative semantic traceability and schema usage
+
+`phase_f_r12_normative_traceability_matrix.json` is the single parseable
+authority for the 64 R12 requirement-to-validation relationships. Every row
+contains the exact requirement/anchor, dependencies, test IDs, KAT IDs,
+constructive-audit IDs, property-test IDs, future-real-evidence IDs, expected
+stage, validation category, and schema IDs. Empty arrays are explicit
+intentional absence. The generator derives the traceability manifest from
+these rows and verifies exact bidirectional set equality; it never chooses a
+mapping from a requirement-number switch. It also derives schema-to-
+requirement and requirement-to-schema projections from the same `schema_ids`
+cells and verifies both directions against the 93-schema catalog.
+
+Catalog-valid but semantically wrong substitutions, including replacing the
+`F-OPS-004` mapping with `R11-CAT` and `EV11-01`, are rejected because the
+generated relationship no longer equals the normative row. Valid wrong KAT,
+evidence, audit, cross-requirement, extra, missing, category, and schema
+inverse mutations are covered by the R12 constructive audit IDs.
 
 ## 4. Review gate
 

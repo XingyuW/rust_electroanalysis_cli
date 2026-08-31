@@ -23,17 +23,17 @@ remains provenance and is not silently promoted to a second current authority.
 | R11-05 | Exact release retention composition | Operations `F-OPS-006`; Conformance `F-CNF-002` | unchanged | none | PENDING |
 | R11-06 | Exact campaign membership, static protocol separation | Operations `F-OPS-006`; Conformance `F-CNF-002` | unchanged | none | PENDING |
 | R11-07 | Complete 15-metric KAT or narrow property only | Operations `F-OPS-003`; Conformance `F-CNF-003` | unchanged | none | PENDING |
-| R11-08 | Explicit constructive authority DAG | Architecture `F-ARCH-017`; Conformance `F-CNF-005`; Implementation `F-IMPL-007` | refined for G3 | add G3 nodes/edges | PENDING |
+| R11-08 | Explicit constructive authority DAG | Architecture `F-ARCH-017`; Conformance `F-CNF-005`; Implementation `F-IMPL-007` | refined for G3 | authoritative typed R12 graph with topological, hash, self-reference, future-object, target, and bypass audits | PENDING |
 | R11-09 | One anchor and catalog row per identifier | Wire `F-WIRE-008`; Conformance `F-CNF-005` | refined | add bundle-tag schema | PENDING |
 | R11-10 | Exhaustive nested usage rows | Wire `F-WIRE-008`; Conformance `F-CNF-005` | unchanged | reconcile new schema use | PENDING |
 | R11-11 | Exact catalog metadata | Wire `F-WIRE-008`; Conformance `F-CNF-005` | unchanged | add new row | PENDING |
-| R11-12 | Traceability only from derived inverse | Architecture `F-ARCH-022`; Conformance `F-CNF-005` | refined to JSON manifest | mechanical reconciliation | PENDING |
+| R11-12 | Traceability only from derived inverse | Architecture `F-ARCH-022`; Conformance `F-CNF-005` | refined to JSON normative matrix plus derived manifest | exact bidirectional semantic and schema-usage reconciliation | PENDING |
 | R11-13 | Complete literal inputs; honest result class | Conformance `F-CNF-003,F-CNF-006` | unchanged | none | PENDING |
 | R11-14 | No KAT/evidence/claim promotion | Architecture `F-ARCH-002,F-ARCH-017`; Scientific `F-SCI-009`; Conformance `F-CNF-007` | unchanged | none | PENDING |
 | R11-15 | Campaign/static terminology | Operations `F-OPS-006`; Conformance `F-CNF-002` | unchanged | none | PENDING |
 | R11-16 | Structurally valid Markdown | Conformance `F-CNF-005` | unchanged | run across all current docs | PENDING |
 | R11-17 | Preserve closed safety/science/Phase-E/P2 | Architecture `F-ARCH-003,F-ARCH-013..017`; Conformance `F-CNF-008`; Implementation `F-IMPL-006` | unchanged | regression replay | PENDING |
-| R11-18 | Exact schema set/inverse coverage | Wire `F-WIRE-008`; Conformance `F-CNF-005` | forward-refined | expected set becomes 92 | PENDING |
+| R11-18 | Exact schema set/inverse coverage | Wire `F-WIRE-008`; Conformance `F-CNF-005` | forward-refined | expected set becomes 93 and is invertible through the R12 matrix `schema_ids` cells | PENDING |
 | R11-19 | Future F-EV only real; KATs only tests | Scientific `F-SCI-010`; Conformance `F-CNF-007` | unchanged | none | PENDING |
 | R11-20 | Exactly 20 owner decisions | Architecture `F-ARCH-006`; Wire `F-WIRE-004`; Conformance `F-CNF-005` | unchanged | none | PENDING |
 
@@ -69,3 +69,14 @@ Rows with multiple refining documents have one semantic owner and one or more
 verification/implementation consumers; that is traceability, not conflicting
 normative ownership. Independent reviews remain PENDING, so G2 and G3 are not
 approved.
+
+## 5. R12 authority-closure remediation
+
+The current R12 closure adds no approval result. The immutable
+`PhaseFMigratedFindingReviewV1` schema is a future independent-review object;
+the five migrated findings remain pending fresh independent disposition. The
+bundle binds a typed nullable reference to that object and stays fail closed
+until a genuine external review exists. The exact R12 artifact-level graph,
+semantic traceability matrix, shared G3 validator, and all lifecycle/staleness
+checks are defined as planning contracts only. This remediation does not
+fabricate a review artifact for its own work.

@@ -13,7 +13,9 @@ import re
 import subprocess
 import sys
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -31,11 +33,15 @@ TRACE_PATH = PHASE_F / "phase_f_traceability_manifest.json"
 BUNDLE_PATH = PHASE_F / "phase_f_specification_bundle_manifest.json"
 R11_SOURCE = PHASE_F / "phase_f_r11_normative_source.md"
 MIGRATION_LEDGER = PHASE_F / "phase_f_r11_to_r12_migration_ledger.md"
+NORMATIVE_MATRIX_PATH = PHASE_F / "phase_f_r12_normative_traceability_matrix.json"
+AUTHORITY_GRAPH_PATH = PHASE_F / "phase_f_r12_authority_graph.json"
 
 REQUIRED_FILENAMES = {
     *(path.name for path in SPECS.values()),
     R11_SOURCE.name,
     MIGRATION_LEDGER.name,
+    NORMATIVE_MATRIX_PATH.name,
+    AUTHORITY_GRAPH_PATH.name,
     Path(__file__).name,
 }
 GENERATED_FILENAMES = {TRACE_PATH.name, BUNDLE_PATH.name}
@@ -62,7 +68,168 @@ EXPECTED_R11_SHA256 = "987bc6e06a5c43873b844f864cb1f858c6b57c40c18dd0d4ed4a4edcf
 EXPECTED_R11_GIT_BLOB = "34ab62d094c4cb0bb31a40dc7a192ed304faf981"
 EXPECTED_R11_TEST_COUNT = 28
 EXPECTED_R11_EVIDENCE_COUNT = 20
-EXPECTED_R12_SCHEMA_COUNT = 92
+EXPECTED_R12_SCHEMA_COUNT = 93
+R12_SCHEMA_IDS = {
+    "PhaseFSpecificationBundleApprovalV1",
+    "PhaseFMigratedFindingReviewV1",
+}
+EXPECTED_R12_REQUIREMENT_COUNT = 64
+EXPECTED_MIGRATED_FINDINGS = {
+    "F-PLAN-R11-P1-01",
+    "F-PLAN-R11-P1-02",
+    "F-PLAN-R11-P1-03",
+    "F-PLAN-R11-P1-04",
+    "F-PLAN-R11-P3-01",
+}
+REVIEW_ROLES = {
+    "scientific_metrology",
+    "architecture_data",
+    "security",
+    "compatibility",
+    "operations_governance",
+}
+GRAPH_EDGE_TYPES = {
+    "approves",
+    "binds",
+    "generated_from",
+    "hashes",
+    "requires",
+    "reviews",
+    "targets",
+}
+GRAPH_STAGE_NAMES = {
+    0: "architecture",
+    1: "architecture_review",
+    2: "architecture_approval",
+    3: "f0_bundle",
+    4: "f0_review",
+    5: "f0_approval",
+    6: "specification_inputs",
+    7: "component_review",
+    8: "derived_traceability",
+    9: "bundle_inputs",
+    10: "migrated_review",
+    11: "bundle_manifest",
+    12: "aggregate_review",
+    13: "g3",
+    14: "readiness_specification",
+    15: "readiness_review",
+    16: "readiness_approval",
+    17: "implementation_gate",
+}
+EXPECTED_GRAPH_NODE_IDS = {
+    "architecture_plan",
+    "architecture_review",
+    "architecture_approval",
+    "f0_decision_bundle",
+    "f0_review",
+    "f0_approval",
+    "component_wire_spec",
+    "component_scientific_spec",
+    "component_operations_spec",
+    "component_conformance_spec",
+    "component_implementation_spec",
+    "component_wire_review",
+    "component_scientific_review",
+    "component_operations_review",
+    "component_conformance_review",
+    "component_implementation_review",
+    "normative_traceability_matrix",
+    "migration_ledger",
+    "generated_traceability_manifest",
+    "specification_bundle_inputs",
+    "migrated_finding_review",
+    "specification_bundle_manifest",
+    "aggregate_review",
+    "g3_approval_tag",
+    "implementation_readiness_specification",
+    "readiness_review",
+    "readiness_approval",
+    "phase_f_implementation_gate",
+}
+EXPECTED_G3_REQUIRED_NODES = {
+    "architecture_approval",
+    "f0_approval",
+    "component_wire_review",
+    "component_scientific_review",
+    "component_operations_review",
+    "component_conformance_review",
+    "component_implementation_review",
+    "normative_traceability_matrix",
+    "generated_traceability_manifest",
+    "migration_ledger",
+    "migrated_finding_review",
+    "specification_bundle_manifest",
+    "aggregate_review",
+}
+EXPECTED_IDENTITY_CYCLE_RULES = {
+    "self_file",
+    "self_registry",
+    "self_git_commit",
+    "self_release_record",
+    "self_review_object",
+    "self_bundle",
+}
+R12_G3_TEST_IDS = [
+    "R12-G3-AUTHORITY-CONTEXT-POS",
+    "R12-G3-MISSING-ARCH-APPROVAL",
+    "R12-G3-STALE-ARCH-APPROVAL",
+    "R12-G3-MISSING-F0-APPROVAL",
+    "R12-G3-WRONG-F0-TARGET",
+    "R12-G3-MISSING-COMPONENT-REVIEW",
+    "R12-G3-STALE-COMPONENT-REVIEW",
+    "R12-G3-MISSING-MIGRATED-REVIEW",
+    "R12-G3-MIGRATED-WRONG-BUNDLE",
+    "R12-G3-MIGRATED-WRONG-LEDGER",
+    "R12-G3-MIGRATED-WRONG-COMMIT",
+    "R12-G3-MIGRATED-HASH-MISMATCH",
+    "R12-G3-MIGRATED-INCOMPLETE-DISPOSITION",
+    "R12-G3-MIGRATED-STALE",
+    "R12-G3-MIGRATED-SUPERSEDED",
+    "R12-G3-MIGRATED-NON-INDEPENDENT",
+    "R12-G3-MISSING-AGGREGATE",
+    "R12-G3-AGGREGATE-WRONG-BUNDLE",
+    "R12-G3-AGGREGATE-HASH-MISMATCH",
+    "R12-G3-MANIFEST-HASH-MISMATCH",
+    "R12-G3-MANIFEST-CHANGED",
+    "R12-G3-WRONG-COMMIT",
+    "R12-G3-LIGHTWEIGHT-TAG",
+    "R12-G3-MISSING-REAL-PREREQUISITES",
+    "R12-G3-SYNTHETIC-CANNOT-AUTHORIZE-REAL",
+]
+R12_TRACE_TEST_IDS = [
+    "R12-TRACE-SEMANTIC-SUBSTITUTION",
+    "R12-TRACE-WRONG-KAT",
+    "R12-TRACE-WRONG-EVIDENCE",
+    "R12-TRACE-WRONG-AUDIT",
+    "R12-TRACE-WRONG-CATEGORY",
+    "R12-TRACE-CROSS-REQUIREMENT",
+    "R12-TRACE-EXTRA-MAPPING",
+    "R12-TRACE-MISSING-MAPPING",
+    "R12-TRACE-SCHEMA-INVERSE",
+]
+R12_DAG_TEST_IDS = [
+    "R12-DAG-VALID",
+    "R12-DAG-UNKNOWN-NODE",
+    "R12-DAG-UNKNOWN-EDGE",
+    "R12-DAG-DUPLICATE-NODE",
+    "R12-DAG-SELF-EDGE",
+    "R12-DAG-PREREQUISITE-CYCLE",
+    "R12-DAG-HASH-CYCLE",
+    "R12-DAG-FUTURE-OBJECT",
+    "R12-DAG-G3-BYPASS",
+    "R12-DAG-IMPLEMENTATION-BYPASS",
+    "R12-DAG-REVIEW-CYCLE",
+    "R12-DAG-SELF-GIT",
+    "R12-DAG-ALTERNATIVE-BYPASS",
+    "R12-DAG-G3-BEFORE-AGGREGATE",
+]
+EXPECTED_R12_TEST_CATALOG_IDS = {
+    "R12-POS-SPEC-BUNDLE-TAG",
+    *R12_G3_TEST_IDS,
+    *R12_TRACE_TEST_IDS,
+    *R12_DAG_TEST_IDS,
+}
 
 G3_TAG_NAME = "ism-mechanism-health-v1-f-specification-bundle-approved"
 G3_TAG_FIELDS = (
@@ -193,11 +360,230 @@ G3_KAT_MUTATIONS = (
 
 
 class G3ValidationError(ValueError):
-    """A deterministic failure category for the synthetic G3 checker."""
+    """A deterministic failure category for the G3 authority validator."""
 
     def __init__(self, category: str):
         self.category = category
         super().__init__(category)
+
+
+@dataclass
+class G3AuthorityContext:
+    """The common prerequisite interface for synthetic and real G3 checks."""
+
+    mode: str
+    graph: dict[str, Any]
+    objects: dict[str, dict[str, Any]]
+    bundle_manifest_sha256: str
+    aggregate_review_sha256: str
+    expected_target_commit: str
+    tag: dict[str, Any]
+    component_sha256s: list[str]
+    component_sha_by_node: dict[str, str]
+    architecture_plan_sha256: str
+    f0_decisions_sha256: str
+    real_authority_requested: bool = False
+
+
+def canonical_json_bytes(value: object) -> bytes:
+    return (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode(
+        "utf-8"
+    )
+
+
+def _graph_nodes(graph: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    nodes = graph.get("nodes")
+    if not isinstance(nodes, list):
+        raise ValueError("R12 graph nodes must be an array")
+    by_id: dict[str, dict[str, Any]] = {}
+    for node in nodes:
+        if not isinstance(node, dict) or not isinstance(node.get("id"), str):
+            raise ValueError("R12 graph node is malformed")
+        node_id = node["id"]
+        if node_id in by_id:
+            raise ValueError(f"duplicate R12 graph node: {node_id}")
+        if not isinstance(node.get("authority_kind"), str) or not node["authority_kind"]:
+            raise ValueError(f"R12 graph node kind missing: {node_id}")
+        stage = node.get("creation_stage")
+        if not isinstance(stage, int) or stage not in GRAPH_STAGE_NAMES:
+            raise ValueError(f"invalid R12 graph creation stage: {node_id}")
+        by_id[node_id] = node
+    return by_id
+
+
+def _graph_edges(
+    graph: dict[str, Any], nodes: dict[str, dict[str, Any]]
+) -> list[dict[str, str]]:
+    edges = graph.get("edges")
+    if not isinstance(edges, list):
+        raise ValueError("R12 graph edges must be an array")
+    seen: set[tuple[str, str, str]] = set()
+    result: list[dict[str, str]] = []
+    for edge in edges:
+        if not isinstance(edge, dict):
+            raise ValueError("R12 graph edge is malformed")
+        source, target, edge_type = (
+            edge.get("from"),
+            edge.get("to"),
+            edge.get("type"),
+        )
+        if not all(isinstance(value, str) for value in (source, target, edge_type)):
+            raise ValueError("R12 graph edge fields are malformed")
+        if source not in nodes or target not in nodes:
+            raise ValueError(f"R12 graph edge references unknown node: {source}->{target}")
+        if edge_type not in GRAPH_EDGE_TYPES:
+            raise ValueError(f"unknown R12 graph edge type: {edge_type}")
+        if source == target:
+            raise ValueError(f"R12 graph self edge: {source}")
+        key = (source, target, edge_type)
+        if key in seen:
+            raise ValueError(f"duplicate R12 graph edge: {key}")
+        seen.add(key)
+        result.append({"from": source, "to": target, "type": edge_type})
+    return result
+
+
+def _topological_order(
+    nodes: dict[str, dict[str, Any]], edges: list[dict[str, str]]
+) -> list[str]:
+    outgoing: dict[str, list[str]] = {node_id: [] for node_id in nodes}
+    indegree = {node_id: 0 for node_id in nodes}
+    for edge in edges:
+        outgoing[edge["from"]].append(edge["to"])
+        indegree[edge["to"]] += 1
+    ready = [node_id for node_id in nodes if indegree[node_id] == 0]
+    ready.sort(key=lambda node_id: (nodes[node_id]["creation_stage"], node_id))
+    order: list[str] = []
+    while ready:
+        node_id = ready.pop(0)
+        order.append(node_id)
+        for child in sorted(outgoing[node_id]):
+            indegree[child] -= 1
+            if indegree[child] == 0:
+                ready.append(child)
+        ready.sort(key=lambda candidate: (nodes[candidate]["creation_stage"], candidate))
+    if len(order) != len(nodes):
+        raise ValueError("R12 artifact prerequisite cycle")
+    return order
+
+
+def _ancestors(
+    node_id: str, edges: list[dict[str, str]], excluded: set[str] | None = None
+) -> set[str]:
+    excluded = excluded or set()
+    reverse: dict[str, list[str]] = {}
+    for edge in edges:
+        if edge["from"] in excluded or edge["to"] in excluded:
+            continue
+        reverse.setdefault(edge["to"], []).append(edge["from"])
+    found: set[str] = set()
+    stack = list(reverse.get(node_id, []))
+    while stack:
+        current = stack.pop()
+        if current in found or current in excluded:
+            continue
+        found.add(current)
+        stack.extend(reverse.get(current, []))
+    return found
+
+
+def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
+    if graph.get("schema_version") != 1:
+        raise ValueError("R12 graph schema version mismatch")
+    if graph.get("edge_direction") != "from_existing_prerequisite_to_constructed_dependent":
+        raise ValueError("R12 graph edge direction mismatch")
+    semantics = graph.get("edge_type_semantics")
+    if not isinstance(semantics, dict) or set(semantics) != GRAPH_EDGE_TYPES:
+        raise ValueError("R12 graph edge semantics are not closed")
+    identity_rules = graph.get("identity_cycle_rules")
+    if not isinstance(identity_rules, dict) or set(identity_rules) != EXPECTED_IDENTITY_CYCLE_RULES:
+        raise ValueError("R12 identity-cycle rules are not closed")
+    if any(not isinstance(rule, str) or not rule for rule in identity_rules.values()):
+        raise ValueError("R12 identity-cycle rule is blank")
+    nodes = _graph_nodes(graph)
+    if set(nodes) != EXPECTED_GRAPH_NODE_IDS:
+        raise ValueError("R12 graph node catalog is not closed")
+    edges = _graph_edges(graph, nodes)
+    order = _topological_order(nodes, edges)
+
+    for edge in edges:
+        if nodes[edge["from"]]["creation_stage"] > nodes[edge["to"]]["creation_stage"]:
+            raise ValueError(f"R12 future-object dependency: {edge}")
+
+    digest_edges = [
+        edge for edge in edges if edge["type"] in {"hashes", "binds"}
+    ]
+    _topological_order(nodes, digest_edges)
+
+    g3_node = "g3_approval_tag"
+    implementation_node = graph.get("implementation_gate_node")
+    if g3_node not in nodes or not isinstance(implementation_node, str):
+        raise ValueError("R12 graph gate nodes are missing")
+    if implementation_node != "phase_f_implementation_gate" or implementation_node not in nodes:
+        raise ValueError("R12 implementation gate node is unknown")
+    required = graph.get("g3_required_nodes")
+    if not isinstance(required, list) or len(required) != len(set(required)):
+        raise ValueError("R12 G3 required-node list is malformed")
+    if set(required) != EXPECTED_G3_REQUIRED_NODES:
+        raise ValueError("R12 G3 required-node catalog is not closed")
+    if any(node_id not in nodes for node_id in required):
+        raise ValueError("R12 G3 required-node list references unknown node")
+    required_inputs = graph.get("required_inputs")
+    if not isinstance(required_inputs, dict) or set(required_inputs) != set(nodes):
+        raise ValueError("R12 graph required-input closure is incomplete")
+    edge_keys = {(edge["from"], edge["to"]) for edge in edges}
+    for target, dependencies in required_inputs.items():
+        if (
+            not isinstance(dependencies, list)
+            or len(dependencies) != len(set(dependencies))
+            or any(dependency not in nodes for dependency in dependencies)
+            or target in dependencies
+        ):
+            raise ValueError(f"R12 graph required-input row is malformed: {target}")
+        if any((dependency, target) not in edge_keys for dependency in dependencies):
+            raise ValueError(f"R12 graph required-input edge is undeclared: {target}")
+    if set(required_inputs[g3_node]) != set(required):
+        raise ValueError("R12 G3 required-input closure does not match required nodes")
+    g3_ancestors = _ancestors(g3_node, edges)
+    missing = sorted(set(required) - g3_ancestors)
+    if missing:
+        raise ValueError(f"R12 G3 mandatory predecessor missing: {missing}")
+
+    def required_closure(node_id: str, seen: set[str] | None = None) -> set[str]:
+        seen = set() if seen is None else seen
+        if node_id in seen:
+            raise ValueError(f"R12 required-input cycle at {node_id}")
+        seen.add(node_id)
+        result = {node_id}
+        for dependency in required_inputs[node_id]:
+            result.update(required_closure(dependency, seen))
+        seen.remove(node_id)
+        return result
+
+    g3_required_closure = required_closure(g3_node)
+    if not set(required).issubset(g3_required_closure):
+        raise ValueError("R12 G3 bypass path")
+    implementation_closure = required_closure(implementation_node)
+    if g3_node not in implementation_closure:
+        raise ValueError("R12 implementation-readiness bypasses G3")
+    if implementation_node not in implementation_closure or not required_inputs["implementation_readiness_specification"] == [g3_node]:
+        raise ValueError("R12 implementation gate remains reachable without G3")
+
+    return {
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "edge_types": sorted({edge["type"] for edge in edges}),
+        "topological_order": order,
+        "g3_ancestor_count": len(g3_ancestors),
+        "g3_required_count": len(required),
+        "hash_cycle": False,
+        "self_reference": False,
+        "self_git_cycle": False,
+        "review_target_cycle": False,
+        "future_object": False,
+        "g3_bypass": False,
+        "implementation_bypass": False,
+    }
 
 
 def sha256(path: Path) -> str:
@@ -290,19 +676,228 @@ def parse_g3_tag(tag_name: str, body: bytes) -> dict[str, str]:
     return fields
 
 
-def check_g3_kat(tag_name: str, body: bytes) -> dict[str, object]:
-    try:
-        fields = parse_g3_tag(tag_name, body)
-    except G3ValidationError as error:
-        return {"result": "REJECT", "category": error.category}
-    if fields["specification_bundle_manifest_sha256"] != G3_EXPECTED_FIELDS[
+def _object_digest_matches(context: G3AuthorityContext, record: dict[str, Any]) -> bool:
+    expected = record.get("sha256")
+    if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+        return False
+    if context.mode == "synthetic":
+        return (
+            record.get("digest_valid") is True
+            and record.get("expected_sha256") == expected
+            and record.get("content_unchanged", True) is True
+        )
+    canonical_object = record.get("canonical_object")
+    if isinstance(canonical_object, dict):
+        payload = dict(canonical_object)
+        payload.pop("migrated_finding_review_id", None)
+        return sha256_bytes(canonical_json_bytes(payload)) == expected
+    value = record.get("bytes")
+    return isinstance(value, bytes) and sha256_bytes(value) == expected
+
+
+def _require_authority_object(
+    context: G3AuthorityContext, node_id: str
+) -> dict[str, Any]:
+    record = context.objects.get(node_id)
+    if record is None:
+        raise G3ValidationError(f"missing_{node_id}")
+    nodes = _graph_nodes(context.graph)
+    expected_kind = nodes[node_id]["authority_kind"]
+    if record.get("node_id") != node_id or record.get("authority_kind") != expected_kind:
+        raise G3ValidationError(f"wrong_{node_id}_kind")
+    if record.get("schema_version") != 1 or not _object_digest_matches(context, record):
+        raise G3ValidationError(f"{node_id}_hash_mismatch")
+    if record.get("lifecycle") != "ACTIVE" or record.get("stale") is not False:
+        raise G3ValidationError(f"stale_{node_id}")
+    if record.get("invalidated") is not False or record.get("superseded_by") is not None:
+        raise G3ValidationError(f"superseded_{node_id}")
+    return record
+
+
+def _validate_migrated_review(
+    context: G3AuthorityContext, record: dict[str, Any]
+) -> None:
+    required_fields = {
+        "migrated_finding_review_id",
+        "target_git_commit",
+        "target_bundle_inputs_sha256",
+        "reviewed_migration_ledger_sha256",
+        "reviewed_traceability_manifest_sha256",
+        "reviewed_component_sha256s",
+        "reviewed_finding_ids",
+        "finding_dispositions",
+        "reviewer_roles",
+        "p0_count",
+        "p1_count",
+        "p2_count",
+        "decision",
+        "created_stage",
+        "producer",
+        "validator",
+        "lifecycle",
+        "stale",
+        "superseded_by",
+        "invalidated",
+    }
+    if any(field not in record for field in required_fields):
+        raise G3ValidationError("migrated_review_schema_incomplete")
+    if (
+        record.get("migrated_finding_review_id") != record.get("sha256")
+        or record.get("validator") != "validate_migrated_finding_review"
+        or record.get("created_stage") != 10
+    ):
+        raise G3ValidationError("migrated_review_schema_mismatch")
+    if context.mode == "real":
+        canonical_object = record.get("canonical_object")
+        if not isinstance(canonical_object, dict) or any(
+            canonical_object.get(field) != record.get(field) for field in required_fields
+        ):
+            raise G3ValidationError("migrated_review_identity_mismatch")
+    if record.get("target_git_commit") != context.expected_target_commit:
+        raise G3ValidationError("migrated_review_target_commit_mismatch")
+    if record.get("target_bundle_inputs_sha256") != context.objects[
+        "specification_bundle_inputs"
+    ].get("sha256"):
+        raise G3ValidationError("migrated_review_target_mismatch")
+    if record.get("reviewed_migration_ledger_sha256") != context.objects[
+        "migration_ledger"
+    ].get("sha256"):
+        raise G3ValidationError("migrated_review_ledger_mismatch")
+    if record.get("reviewed_traceability_manifest_sha256") != context.objects[
+        "generated_traceability_manifest"
+    ].get("sha256"):
+        raise G3ValidationError("migrated_review_traceability_mismatch")
+    if record.get("reviewed_component_sha256s") != sorted(context.component_sha256s):
+        raise G3ValidationError("migrated_review_component_mismatch")
+    if record.get("reviewed_finding_ids") != sorted(EXPECTED_MIGRATED_FINDINGS):
+        raise G3ValidationError("incomplete_migrated_finding_coverage")
+    dispositions = record.get("finding_dispositions")
+    if (
+        not isinstance(dispositions, dict)
+        or set(dispositions) != EXPECTED_MIGRATED_FINDINGS
+        or any(not isinstance(value, str) or not value for value in dispositions.values())
+    ):
+        raise G3ValidationError("incomplete_migrated_finding_coverage")
+    if record.get("reviewer_roles") != sorted(REVIEW_ROLES):
+        raise G3ValidationError("non_independent_migrated_review")
+    if record.get("producer") != "independent_review_panel":
+        raise G3ValidationError("non_independent_migrated_review")
+    if any(not isinstance(record.get(name), int) or record[name] < 0 for name in ("p0_count", "p1_count", "p2_count")):
+        raise G3ValidationError("malformed_migrated_review_counts")
+    if record.get("decision") != "GO" or record["p0_count"] != 0 or record["p1_count"] != 0:
+        raise G3ValidationError("migrated_review_not_go")
+
+
+def _validate_review_collection(
+    context: G3AuthorityContext, fields: dict[str, str]
+) -> None:
+    graph_nodes = _graph_nodes(context.graph)
+    component_nodes = sorted(
+        node_id
+        for node_id in context.graph["g3_required_nodes"]
+        if node_id.startswith("component_") and node_id.endswith("_review")
+    )
+    if len(component_nodes) != 5:
+        raise G3ValidationError("component_review_set_mismatch")
+    for node_id in component_nodes:
+        record = _require_authority_object(context, node_id)
+        if record.get("decision") != "GO" or record.get("p0_count") != 0 or record.get("p1_count") != 0:
+            raise G3ValidationError(f"{node_id}_not_go")
+        spec_node = node_id.removesuffix("_review") + "_spec"
+        if spec_node not in graph_nodes or record.get("target_sha256") != context.component_sha_by_node[spec_node]:
+            raise G3ValidationError(f"wrong_{node_id}_target")
+
+    migrated = _require_authority_object(context, "migrated_finding_review")
+    _validate_migrated_review(context, migrated)
+
+    aggregate = _require_authority_object(context, "aggregate_review")
+    if aggregate.get("target_bundle_manifest_sha256") != fields[
         "specification_bundle_manifest_sha256"
     ]:
-        return {"result": "REJECT", "category": "wrong_bundle_hash"}
-    if fields["aggregate_review_bundle_sha256"] != G3_EXPECTED_FIELDS[
-        "aggregate_review_bundle_sha256"
-    ]:
-        return {"result": "REJECT", "category": "wrong_aggregate_review_hash"}
+        raise G3ValidationError("aggregate_target_mismatch")
+    required_dependencies = set(component_nodes) | {
+        "migrated_finding_review",
+        "specification_bundle_manifest",
+        "generated_traceability_manifest",
+    }
+    if not required_dependencies.issubset(set(aggregate.get("dependency_node_ids", []))):
+        raise G3ValidationError("aggregate_dependency_closure_incomplete")
+    if aggregate.get("decision") != "GO" or aggregate.get("p0_count") != 0 or aggregate.get("p1_count") != 0:
+        raise G3ValidationError("aggregate_review_not_go")
+    if aggregate.get("sha256") != fields["aggregate_review_bundle_sha256"]:
+        raise G3ValidationError("aggregate_hash_mismatch")
+
+
+def validate_g3_tag(
+    tag_name: str, body_bytes: bytes, context: G3AuthorityContext
+) -> dict[str, str]:
+    """Validate G3 wire bytes and the complete real/synthetic authority closure."""
+
+    fields = parse_g3_tag(tag_name, body_bytes)
+    if not isinstance(context, G3AuthorityContext):
+        raise G3ValidationError("invalid_validation_context")
+    if context.mode not in {"synthetic", "real"}:
+        raise G3ValidationError("invalid_validation_context_mode")
+    if context.mode == "synthetic" and context.real_authority_requested:
+        raise G3ValidationError("synthetic_cannot_authorize_real")
+    if fields["specification_bundle_manifest_sha256"] != context.bundle_manifest_sha256:
+        raise G3ValidationError("wrong_bundle_hash")
+    if fields["aggregate_review_bundle_sha256"] != context.aggregate_review_sha256:
+        raise G3ValidationError("wrong_aggregate_review_hash")
+
+    tag = context.tag
+    if tag.get("exists") is not True:
+        raise G3ValidationError("missing_real_g3_tag")
+    if tag.get("annotated") is not True or tag.get("object_type") != "tag":
+        raise G3ValidationError("lightweight_tag")
+    if tag.get("peeled_commit") != context.expected_target_commit:
+        raise G3ValidationError("g3_target_mismatch")
+    if tag.get("message") != body_bytes:
+        raise G3ValidationError("g3_message_mismatch")
+
+    try:
+        graph_audit = validate_r12_authority_graph(context.graph)
+    except ValueError as error:
+        raise G3ValidationError("invalid_authority_graph") from error
+    if graph_audit["g3_required_count"] != len(context.graph["g3_required_nodes"]):
+        raise G3ValidationError("invalid_authority_graph")
+    for node_id in context.graph["g3_required_nodes"]:
+        _require_authority_object(context, node_id)
+
+    bundle_inputs = _require_authority_object(context, "specification_bundle_inputs")
+    manifest = _require_authority_object(context, "specification_bundle_manifest")
+    if manifest.get("sha256") != fields["specification_bundle_manifest_sha256"]:
+        raise G3ValidationError("wrong_bundle_hash")
+    if manifest.get("status") != "READY_FOR_G3" or manifest.get("eligible_for_g3") is not True:
+        raise G3ValidationError("manifest_not_eligible")
+    if manifest.get("target_commit") != context.expected_target_commit:
+        raise G3ValidationError("manifest_target_mismatch")
+    if manifest.get("bundle_input_fingerprint_sha256") != bundle_inputs.get("sha256"):
+        raise G3ValidationError("manifest_input_binding_mismatch")
+
+    architecture = _require_authority_object(context, "architecture_approval")
+    if architecture.get("decision") != "GO" or architecture.get("p0_count") != 0 or architecture.get("p1_count") != 0:
+        raise G3ValidationError("architecture_approval_not_go")
+    if architecture.get("tag_name") != fields["phase_f_architecture_plan_tag"]:
+        raise G3ValidationError("wrong_architecture_plan_binding")
+    if architecture.get("target_sha256") != context.architecture_plan_sha256:
+        raise G3ValidationError("wrong_architecture_plan_target")
+    f0 = _require_authority_object(context, "f0_approval")
+    if f0.get("decision") != "GO" or f0.get("p0_count") != 0 or f0.get("p1_count") != 0:
+        raise G3ValidationError("f0_approval_not_go")
+    if f0.get("tag_name") != fields["phase_f_f0_decisions_tag"]:
+        raise G3ValidationError("wrong_f0_decisions_binding")
+    if f0.get("target_sha256") != context.f0_decisions_sha256:
+        raise G3ValidationError("wrong_f0_target")
+    _validate_review_collection(context, fields)
+    return fields
+
+
+def check_g3_kat(tag_name: str, body: bytes) -> dict[str, object]:
+    try:
+        fields = validate_g3_tag(tag_name, body, make_synthetic_context())
+    except G3ValidationError as error:
+        return {"result": "REJECT", "category": error.category}
     return {"result": "PASS", "category": "valid", "decoded_fields": fields}
 
 
@@ -437,8 +1032,8 @@ def parse_r11_evidence_catalog() -> dict[str, dict[str, str]]:
     return catalog
 
 
-def parse_r12_test_catalog() -> dict[str, dict[str, str]]:
-    text = SPECS["F-CNF"].read_text()
+def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]:
+    text = SPECS["F-CNF"].read_text() if text is None else text
     section = text.split("## 3. Current executable catalog", 1)[1].split(
         "### 3.1", 1
     )[0]
@@ -459,7 +1054,7 @@ def parse_r12_test_catalog() -> dict[str, dict[str, str]]:
             "fixture_scope": cells[2],
             "expected_result": cells[6],
         }
-    if set(catalog) != {"R12-POS-SPEC-BUNDLE-TAG"}:
+    if set(catalog) != EXPECTED_R12_TEST_CATALOG_IDS:
         raise ValueError(f"R12 test catalog set: {sorted(catalog)}")
     row = catalog["R12-POS-SPEC-BUNDLE-TAG"]
     if row != {
@@ -468,6 +1063,12 @@ def parse_r12_test_catalog() -> dict[str, dict[str, str]]:
         "expected_result": "PASS with exact decoded fields",
     }:
         raise ValueError(f"R12 test catalog metadata: {row}")
+    literal_ids = {"R12-POS-SPEC-BUNDLE-TAG", "R12-G3-AUTHORITY-CONTEXT-POS"}
+    for test_id in EXPECTED_R12_TEST_CATALOG_IDS - literal_ids:
+        if catalog[test_id]["kat_class"] != "constructive_plan_audit":
+            raise ValueError(f"R12 constructive test category: {test_id}")
+        if catalog[test_id]["expected_result"] != "REJECT" and test_id not in {"R12-DAG-VALID"}:
+            raise ValueError(f"R12 constructive test result: {test_id}")
     return catalog
 
 
@@ -479,6 +1080,58 @@ def load_reference_catalogs() -> tuple[dict[str, dict[str, str]], dict[str, dict
     tests.update(r12_tests)
     evidence = parse_r11_evidence_catalog()
     return tests, evidence
+
+
+def load_normative_matrix() -> list[dict[str, Any]]:
+    try:
+        matrix = json.loads(NORMATIVE_MATRIX_PATH.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("R12 normative traceability matrix is unreadable") from error
+    if (
+        matrix.get("schema_version") != 1
+        or matrix.get("artifact_kind") != "phase_f_r12_normative_traceability_matrix"
+        or matrix.get("authority_status") != "NORMATIVE_CANDIDATE"
+    ):
+        raise ValueError("R12 normative traceability matrix metadata mismatch")
+    rows = matrix.get("requirements")
+    if not isinstance(rows, list) or len(rows) != EXPECTED_R12_REQUIREMENT_COUNT:
+        raise ValueError("R12 normative matrix requirement count mismatch")
+    required_fields = {
+        "requirement_id",
+        "authority_document",
+        "authority_anchor",
+        "upstream_requirement_ids",
+        "f0_decision_dependencies",
+        "validation_category",
+        "expected_lifecycle_stage",
+        "test_ids",
+        "kat_ids",
+        "constructive_audit_ids",
+        "property_test_ids",
+        "future_real_evidence_ids",
+        "schema_ids",
+    }
+    ids: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != required_fields:
+            raise ValueError("R12 normative matrix row closure mismatch")
+        requirement_id = row["requirement_id"]
+        if not isinstance(requirement_id, str) or requirement_id in ids:
+            raise ValueError(f"duplicate R12 normative matrix requirement: {requirement_id}")
+        ids.add(requirement_id)
+        for field in required_fields - {"requirement_id", "authority_document", "authority_anchor", "validation_category", "expected_lifecycle_stage"}:
+            value = row[field]
+            if not isinstance(value, list) or len(value) != len(set(value)) or any(not isinstance(item, str) or not item for item in value):
+                raise ValueError(f"R12 normative matrix list closure: {requirement_id}/{field}")
+        partition = set(row["kat_ids"]) | set(row["constructive_audit_ids"]) | set(row["property_test_ids"])
+        if set(row["test_ids"]) != partition or len(partition) != len(row["test_ids"]):
+            raise ValueError(f"R12 normative matrix test partition mismatch: {requirement_id}")
+    expected_ids = set(EXPECTED_ARCHITECTURE_IDS) | {
+        requirement_id for ids_for_prefix in EXPECTED_SPEC_IDS.values() for requirement_id in ids_for_prefix
+    }
+    if ids != expected_ids:
+        raise ValueError(f"R12 normative matrix ID set mismatch: {sorted(ids)}")
+    return rows
 
 
 def validate_wire_catalog() -> None:
@@ -497,7 +1150,7 @@ def validate_wire_catalog() -> None:
         raise ValueError("G3 grammar is missing or duplicated")
 
     section = wire_text.split("## 4. Current R12 schema catalog closure", 1)[1].split(
-        "## 5. Review gate", 1
+        "## 6. Review gate", 1
     )[0]
     rows = {}
     for line in section.splitlines():
@@ -514,8 +1167,8 @@ def validate_wire_catalog() -> None:
         rows[identifier] = cells
 
     inherited = parse_schema_catalog_ids(R11_SOURCE.read_text())
-    expected = set(inherited) | {"PhaseFSpecificationBundleApprovalV1"}
-    if len(inherited) != 91 or set(rows) != {"PhaseFSpecificationBundleApprovalV1"}:
+    expected = set(inherited) | R12_SCHEMA_IDS
+    if len(inherited) != 91 or set(rows) != R12_SCHEMA_IDS:
         raise ValueError(
             f"R12 schema catalog delta mismatch: inherited={len(inherited)}, rows={sorted(rows)}"
         )
@@ -537,6 +1190,22 @@ def validate_wire_catalog() -> None:
     anchor = '<a id="schema-def-PhaseFSpecificationBundleApprovalV1"></a>'
     if wire_text.count(anchor) != 1:
         raise ValueError("R12 schema definition anchor missing or duplicated")
+    migrated_row = rows["PhaseFMigratedFindingReviewV1"]
+    if migrated_row != [
+        "PhaseFMigratedFindingReviewV1",
+        "TOP_LEVEL_WIRE",
+        "#schema-def-PhaseFMigratedFindingReviewV1",
+        "no registry subject before G3; SHA-256 of the complete canonical review object excluding its own ID field",
+        "independent migrated-finding review panel",
+        "strict migrated-review schema, exact bundle-input target, five-role independence, finding disposition, lifecycle, staleness, and hash validator",
+        "G2 review prerequisite for the specification bundle",
+        "external authority object; registry publication is prohibited before later gate authority",
+        "INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMigratedFindingReviewV1)",
+    ]:
+        raise ValueError("migrated-finding schema catalog metadata mismatch")
+    migrated_anchor = '<a id="schema-def-PhaseFMigratedFindingReviewV1"></a>'
+    if wire_text.count(migrated_anchor) != 1:
+        raise ValueError("migrated-finding schema definition anchor missing or duplicated")
 
 
 def parse_schema_catalog_ids(text: str) -> list[str]:
@@ -598,10 +1267,12 @@ def validate_reference_catalogs(
     test_catalog: dict[str, dict[str, str]],
     evidence_catalog: dict[str, dict[str, str]],
 ) -> None:
-    if len(test_catalog) != EXPECTED_R11_TEST_COUNT + 1:
+    if len(test_catalog) != EXPECTED_R11_TEST_COUNT + len(EXPECTED_R12_TEST_CATALOG_IDS):
         raise ValueError(f"test catalog count: {len(test_catalog)}")
     if len(evidence_catalog) != EXPECTED_R11_EVIDENCE_COUNT:
         raise ValueError(f"evidence catalog count: {len(evidence_catalog)}")
+    referenced_tests: set[str] = set()
+    referenced_evidence: set[str] = set()
     for entry in entries:
         test_ids = list(entry["test_ids"])
         evidence_ids = list(entry["future_real_evidence_ids"])
@@ -616,11 +1287,25 @@ def validate_reference_catalogs(
                 f"undefined traceability reference for {entry['requirement_id']}; "
                 f"tests={unknown_tests}, evidence={unknown_evidence}"
             )
+        referenced_tests.update(test_ids)
+        referenced_evidence.update(evidence_ids)
         for test_id in test_ids:
-            if test_id.startswith("R12-") and test_catalog[test_id]["kat_class"] != "literal_kat":
-                raise ValueError(f"R12 KAT has wrong catalog category: {test_id}")
+            if test_id.startswith("R12-") and test_catalog[test_id]["kat_class"] not in {
+                "literal_kat",
+                "constructive_plan_audit",
+                "property_test",
+            }:
+                raise ValueError(f"R12 test has wrong catalog category: {test_id}")
         if set(test_ids).intersection(evidence_ids):
             raise ValueError(f"test/evidence identifier collision in {entry['requirement_id']}")
+    if referenced_tests != set(test_catalog):
+        raise ValueError(
+            f"orphan or unreferenced test catalog IDs: {sorted(set(test_catalog) - referenced_tests)}"
+        )
+    if referenced_evidence != set(evidence_catalog):
+        raise ValueError(
+            f"orphan or unreferenced evidence IDs: {sorted(set(evidence_catalog) - referenced_evidence)}"
+        )
 
 
 def expand_refs(value: str) -> list[str]:
@@ -699,7 +1384,7 @@ def parse_architecture() -> list[dict[str, object]]:
                 "f0_decision_dependencies": [],
                 "downstream_child_requirements": [],
                 "verification_gate": "G0",
-                "test_ids": ["R11-DAG-AUDIT", "R11-TRACE", "R11-CX-08"],
+                "test_ids": [],
                 "future_real_evidence_ids": [],
             }
         )
@@ -707,49 +1392,6 @@ def parse_architecture() -> list[dict[str, object]]:
     if actual_ids != EXPECTED_ARCHITECTURE_IDS:
         raise ValueError(f"architecture requirement set mismatch: {actual_ids}")
     return entries
-
-
-def verification(prefix: str, number: int) -> tuple[list[str], list[str]]:
-    if prefix == "F-WIRE":
-        tests = ["R11-CAT", "R11-TRACE", "R11-CX-10", "R11-CX-11", "R11-CX-12", "R11-CX-13"]
-        if number in (3, 7):
-            tests.extend(["R11-POS-PLAN", "R11-POS-TRUST", "R12-POS-SPEC-BUNDLE-TAG"])
-        return tests, []
-    if prefix == "F-SCI":
-        evidence = {
-            1: ["EV11-17", "EV11-19"], 2: ["EV11-17"],
-            3: ["EV11-17"], 4: ["EV11-17"], 5: ["EV11-17"],
-            6: ["EV11-17"], 7: ["EV11-17"], 8: ["EV11-05", "EV11-06", "EV11-17"],
-            9: ["EV11-14", "EV11-19"], 10: ["EV11-01", "EV11-02", "EV11-03", "EV11-04", "EV11-05", "EV11-06", "EV11-07", "EV11-08", "EV11-17", "EV11-19", "EV11-20"],
-        }[number]
-        return ["R11-TRACE", "R11-CX-08", "R11-CX-18"], evidence
-    if prefix == "F-OPS":
-        tests = {
-            1: ["R11-DAG-AUDIT", "R11-CX-08"],
-            2: ["R11-DAG-AUDIT", "R11-CX-08"],
-            3: ["R11-PROP-MONITORING", "R11-CX-18"],
-            4: ["R11-KAT-INCIDENT", "R11-CX-03", "R11-CX-04"],
-            5: ["R11-DAG-AUDIT", "R11-CX-08"],
-            6: ["R11-KAT-RETENTION-COPY", "R11-CX-14", "R11-CX-15"],
-            7: ["R11-KAT-RETENTION-COPY", "R11-CX-01", "R11-CX-02"],
-            8: ["R11-DAG-AUDIT", "R11-CX-08", "R11-CX-18"],
-        }[number]
-        return tests, [f"EV11-{n:02d}" for n in ({1: 17, 2: 17, 3: 7, 4: 4, 5: 17, 6: 5, 7: 3, 8: 17}[number],)]
-    if prefix == "F-CNF":
-        tests = {
-            1: ["R11-KAT-INCIDENT", "R11-POS-PLAN", "R11-POS-TRUST", "R11-CX-04"],
-            2: ["R11-KAT-RETENTION-COPY", "R11-CX-01", "R11-CX-02", "R11-CX-14", "R11-CX-15"],
-            3: ["R11-PROP-MONITORING", "R11-CX-06", "R11-CX-07", "R11-CX-18"],
-            4: ["R11-POS-PLAN", "R11-POS-TRUST", "R12-POS-SPEC-BUNDLE-TAG"],
-            5: ["R11-DAG-AUDIT", "R11-CAT", "R11-TRACE", "R11-CX-08", "R11-CX-10", "R11-CX-11", "R11-CX-12", "R11-CX-13", "R11-CX-19", "R11-CX-20"],
-            6: ["R11-CX-05", "R11-CX-06", "R11-CX-07"],
-            7: ["R11-CX-01", "R11-CX-02", "R11-CX-04"],
-            8: ["R11-CX-08", "R11-CX-18"],
-        }[number]
-        return tests, []
-    if prefix == "F-IMPL":
-        return ["R11-DAG-AUDIT", "R11-TRACE", "R11-CX-08", "R11-CX-18"], ["EV11-08", "EV11-17"]
-    raise AssertionError(prefix)
 
 
 def parse_spec(prefix: str, path: Path) -> list[dict[str, object]]:
@@ -763,9 +1405,7 @@ def parse_spec(prefix: str, path: Path) -> list[dict[str, object]]:
         if not id_match or not anchor_match:
             raise ValueError(f"invalid requirement row: {line}")
         requirement_id = id_match.group(1)
-        number = int(id_match.group(2))
         refs = expand_refs(cells[1])
-        tests, evidence = verification(prefix, number)
         entries.append(
             {
                 "requirement_id": requirement_id,
@@ -775,8 +1415,8 @@ def parse_spec(prefix: str, path: Path) -> list[dict[str, object]]:
                 "f0_decision_dependencies": [r for r in refs if r.startswith("F-OD-")],
                 "downstream_child_requirements": [],
                 "verification_gate": "G2",
-                "test_ids": tests,
-                "future_real_evidence_ids": evidence,
+                "test_ids": [],
+                "future_real_evidence_ids": [],
             }
         )
     actual_ids = [entry["requirement_id"] for entry in entries]
@@ -850,14 +1490,114 @@ def validate_traceability(entries: list[dict[str, object]]) -> None:
         visit(requirement_id)
 
 
+def validate_semantic_traceability(
+    entries: list[dict[str, Any]], matrix: list[dict[str, Any]], test_catalog: dict[str, dict[str, str]], evidence_catalog: dict[str, dict[str, str]]
+) -> dict[str, dict[str, list[str]]]:
+    normative = {row["requirement_id"]: row for row in matrix}
+    generated = {row["requirement_id"]: row for row in entries}
+    if set(normative) != set(generated):
+        raise ValueError("normative/generated traceability requirement set mismatch")
+    mapping: dict[str, dict[str, list[str]]] = {}
+    for requirement_id in sorted(normative):
+        expected = normative[requirement_id]
+        actual = generated[requirement_id]
+        for field in (
+            "test_ids",
+            "kat_ids",
+            "constructive_audit_ids",
+            "property_test_ids",
+            "future_real_evidence_ids",
+            "schema_ids",
+        ):
+            if actual.get(field) != expected[field]:
+                raise ValueError(
+                    f"semantic traceability mismatch for {requirement_id}/{field}"
+                )
+        test_ids = list(expected["test_ids"])
+        if set(test_ids) != set(expected["kat_ids"]) | set(expected["constructive_audit_ids"]) | set(expected["property_test_ids"]):
+            raise ValueError(f"test category partition mismatch for {requirement_id}")
+        for test_id in test_ids:
+            if test_id not in test_catalog:
+                raise ValueError(f"undefined normative test ID: {test_id}")
+        for evidence_id in expected["future_real_evidence_ids"]:
+            if evidence_id not in evidence_catalog:
+                raise ValueError(f"undefined normative evidence ID: {evidence_id}")
+        mapping[requirement_id] = {
+            "test_ids": test_ids,
+            "future_real_evidence_ids": list(expected["future_real_evidence_ids"]),
+            "schema_ids": list(expected["schema_ids"]),
+        }
+    return mapping
+
+
+def validate_schema_usage(matrix: list[dict[str, Any]]) -> dict[str, list[str]]:
+    inherited = set(parse_schema_catalog_ids(R11_SOURCE.read_text()))
+    schema_ids = inherited | R12_SCHEMA_IDS
+    forward: dict[str, set[str]] = {}
+    inverse: dict[str, set[str]] = {schema_id: set() for schema_id in schema_ids}
+    for row in matrix:
+        requirement_id = row["requirement_id"]
+        listed = row["schema_ids"]
+        unknown = sorted(set(listed) - schema_ids)
+        if unknown:
+            raise ValueError(f"unknown schema usage for {requirement_id}: {unknown}")
+        forward[requirement_id] = set(listed)
+        for schema_id in listed:
+            inverse[schema_id].add(requirement_id)
+    orphaned = sorted(schema_id for schema_id, requirements in inverse.items() if not requirements)
+    if orphaned:
+        raise ValueError(f"orphan schema usage: {orphaned}")
+    result = {
+        schema_id: sorted(requirements) for schema_id, requirements in sorted(inverse.items())
+    }
+    # Re-projecting the inverse must recover every forward relationship.
+    for requirement_id, listed in forward.items():
+        recovered = {
+            schema_id for schema_id, requirements in result.items() if requirement_id in requirements
+        }
+        if recovered != listed:
+            raise ValueError(f"schema usage inverse mismatch for {requirement_id}")
+    return result
+
+
+def load_r12_authority_graph() -> tuple[dict[str, Any], dict[str, Any]]:
+    try:
+        graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("R12 authority graph is unreadable") from error
+    return graph, validate_r12_authority_graph(graph)
+
+
 def load_phase_f_entries() -> tuple[
     list[dict[str, object]], dict[str, dict[str, str]], dict[str, dict[str, str]]
 ]:
+    matrix = load_normative_matrix()
     entries = parse_architecture()
     for prefix, path in SPECS.items():
         entries.extend(parse_spec(prefix, path))
     test_catalog, evidence_catalog = load_reference_catalogs()
+    matrix_by_id = {row["requirement_id"]: row for row in matrix}
+    for entry in entries:
+        requirement_id = entry["requirement_id"]
+        row = matrix_by_id[requirement_id]
+        for field in ("authority_document", "authority_anchor", "upstream_requirement_ids", "f0_decision_dependencies"):
+            if entry[field] != row[field]:
+                raise ValueError(f"normative matrix document binding mismatch: {requirement_id}/{field}")
+        entry.update(
+            {
+                "validation_category": row["validation_category"],
+                "expected_lifecycle_stage": row["expected_lifecycle_stage"],
+                "test_ids": list(row["test_ids"]),
+                "kat_ids": list(row["kat_ids"]),
+                "constructive_audit_ids": list(row["constructive_audit_ids"]),
+                "property_test_ids": list(row["property_test_ids"]),
+                "future_real_evidence_ids": list(row["future_real_evidence_ids"]),
+                "schema_ids": list(row["schema_ids"]),
+            }
+        )
     validate_traceability(entries)
+    validate_semantic_traceability(entries, matrix, test_catalog, evidence_catalog)
+    validate_schema_usage(matrix)
     validate_reference_catalogs(entries, test_catalog, evidence_catalog)
     return entries, test_catalog, evidence_catalog
 
@@ -868,6 +1608,7 @@ def build_traceability() -> dict[str, object]:
     validate_f0_decisions()
     validate_wire_catalog()
     validate_kat_spec()
+    graph, graph_audit = load_r12_authority_graph()
     entries, test_catalog, evidence_catalog = load_phase_f_entries()
     by_id = {entry["requirement_id"]: entry for entry in entries}
     for child in entries:
@@ -893,11 +1634,51 @@ def build_traceability() -> dict[str, object]:
                 "count": len(evidence_catalog),
             },
         },
+        "normative_matrix": {
+            "path": str(NORMATIVE_MATRIX_PATH.relative_to(ROOT)),
+            "sha256": sha256(NORMATIVE_MATRIX_PATH),
+            "requirement_count": EXPECTED_R12_REQUIREMENT_COUNT,
+        },
+        "authority_graph": {
+            "path": str(AUTHORITY_GRAPH_PATH.relative_to(ROOT)),
+            "sha256": sha256(AUTHORITY_GRAPH_PATH),
+            "audit": graph_audit,
+        },
+        "schema_usage": validate_schema_usage(load_normative_matrix()),
         "requirements": sorted(entries, key=lambda row: row["requirement_id"]),
     }
 
 
+def build_bundle_inputs(trace_sha: str) -> dict[str, object]:
+    input_paths = {
+        "architecture_plan": ARCH,
+        "wire_specification": SPECS["F-WIRE"],
+        "scientific_specification": SPECS["F-SCI"],
+        "operations_specification": SPECS["F-OPS"],
+        "conformance_specification": SPECS["F-CNF"],
+        "implementation_readiness_specification": SPECS["F-IMPL"],
+        "migration_ledger": MIGRATION_LEDGER,
+        "normative_traceability_matrix": NORMATIVE_MATRIX_PATH,
+        "authority_graph": AUTHORITY_GRAPH_PATH,
+    }
+    source_sha256s = {
+        name: sha256(path) for name, path in sorted(input_paths.items())
+    }
+    source_sha256s["generated_traceability_manifest"] = trace_sha
+    payload = {
+        "schema_version": 1,
+        "artifact_kind": "phase_f_specification_bundle_inputs",
+        "source_sha256s": source_sha256s,
+    }
+    return {
+        **payload,
+        "sha256": sha256_bytes(canonical_json_bytes(payload)),
+    }
+
+
 def build_bundle(trace_sha: str) -> dict[str, object]:
+    bundle_inputs = build_bundle_inputs(trace_sha)
+    input_fingerprint = str(bundle_inputs["sha256"])
     components = []
     for path in SPECS.values():
         components.append(
@@ -923,6 +1704,7 @@ def build_bundle(trace_sha: str) -> dict[str, object]:
             "approved_tag": None,
         },
         "f0_decisions": {"approved_tag": None, "decision_bundle_sha256": None},
+        "bundle_inputs": bundle_inputs,
         "component_specifications": components,
         "traceability_manifest": {
             "path": str(TRACE_PATH.relative_to(ROOT)),
@@ -931,6 +1713,28 @@ def build_bundle(trace_sha: str) -> dict[str, object]:
         "migration_ledger": {
             "path": str(MIGRATION_LEDGER.relative_to(ROOT)),
             "sha256": sha256(MIGRATION_LEDGER),
+        },
+        "normative_traceability_matrix": {
+            "path": str(NORMATIVE_MATRIX_PATH.relative_to(ROOT)),
+            "sha256": sha256(NORMATIVE_MATRIX_PATH),
+        },
+        "authority_graph": {
+            "path": str(AUTHORITY_GRAPH_PATH.relative_to(ROOT)),
+            "sha256": sha256(AUTHORITY_GRAPH_PATH),
+        },
+        "target_revision": {
+            "type": "source_input_fingerprint",
+            "sha256": input_fingerprint,
+        },
+        "migrated_finding_review": {
+            "schema": "PhaseFMigratedFindingReviewV1",
+            "authority_id": None,
+            "sha256": None,
+            "target_git_commit": None,
+            "target_bundle_inputs_sha256": None,
+            "reviewed_migration_ledger_sha256": None,
+            "reviewed_traceability_manifest_sha256": None,
+            "review_status": "ABSENT",
         },
         "aggregate_specification_bundle_review_sha256": None,
         "approval_decision": "NO-GO",
@@ -944,19 +1748,254 @@ def build_bundle(trace_sha: str) -> dict[str, object]:
     }
 
 
+def component_node_id(prefix: str) -> str:
+    return {
+        "F-WIRE": "component_wire_spec",
+        "F-SCI": "component_scientific_spec",
+        "F-OPS": "component_operations_spec",
+        "F-CNF": "component_conformance_spec",
+        "F-IMPL": "component_implementation_spec",
+    }[prefix]
+
+
+def _synthetic_record(
+    graph: dict[str, Any], node_id: str, digest: str, **fields: Any
+) -> dict[str, Any]:
+    return {
+        "node_id": node_id,
+        "authority_kind": _graph_nodes(graph)[node_id]["authority_kind"],
+        "schema_version": 1,
+        "sha256": digest,
+        "expected_sha256": digest,
+        "digest_valid": True,
+        "content_unchanged": True,
+        "lifecycle": "ACTIVE",
+        "stale": False,
+        "superseded_by": None,
+        "invalidated": False,
+        **fields,
+    }
+
+
+def make_synthetic_context() -> G3AuthorityContext:
+    graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
+    validate_r12_authority_graph(graph)
+    component_paths = list(SPECS.values())
+    component_sha256s = [sha256(path) for path in component_paths]
+    component_sha_by_node = {
+        component_node_id(prefix): sha256(path) for prefix, path in SPECS.items()
+    }
+    target = "synthetic-g3-target-commit"
+    bundle_inputs_sha = "2" * 64
+    trace_sha = "4" * 64
+    migration_sha = "5" * 64
+    matrix_sha = "3" * 64
+    objects: dict[str, dict[str, Any]] = {
+        "architecture_approval": _synthetic_record(
+            graph,
+            "architecture_approval",
+            "a" * 64,
+            tag_name=G3_EXPECTED_FIELDS["phase_f_architecture_plan_tag"],
+            target_sha256=sha256(ARCH),
+            decision="GO",
+            p0_count=0,
+            p1_count=0,
+        ),
+        "f0_approval": _synthetic_record(
+            graph,
+            "f0_approval",
+            "b" * 64,
+            tag_name=G3_EXPECTED_FIELDS["phase_f_f0_decisions_tag"],
+            target_sha256="b" * 64,
+            decision="GO",
+            p0_count=0,
+            p1_count=0,
+        ),
+        "normative_traceability_matrix": _synthetic_record(
+            graph, "normative_traceability_matrix", matrix_sha
+        ),
+        "migration_ledger": _synthetic_record(
+            graph, "migration_ledger", migration_sha
+        ),
+        "generated_traceability_manifest": _synthetic_record(
+            graph, "generated_traceability_manifest", trace_sha
+        ),
+        "specification_bundle_inputs": _synthetic_record(
+            graph,
+            "specification_bundle_inputs",
+            bundle_inputs_sha,
+            source_sha256s={
+                "normative_traceability_matrix": matrix_sha,
+                "migration_ledger": migration_sha,
+                "generated_traceability_manifest": trace_sha,
+            },
+        ),
+    }
+    for index, node_id in enumerate(
+        [
+            "component_wire_review",
+            "component_scientific_review",
+            "component_operations_review",
+            "component_conformance_review",
+            "component_implementation_review",
+        ],
+        start=1,
+    ):
+        objects[node_id] = _synthetic_record(
+            graph,
+            node_id,
+            f"{index + 10:064x}",
+            decision="GO",
+            p0_count=0,
+            p1_count=0,
+            target_sha256=component_sha256s[index - 1],
+        )
+    objects["migrated_finding_review"] = _synthetic_record(
+        graph,
+        "migrated_finding_review",
+        "d" * 64,
+        migrated_finding_review_id="d" * 64,
+        target_git_commit=target,
+        target_bundle_inputs_sha256=bundle_inputs_sha,
+        reviewed_migration_ledger_sha256=migration_sha,
+        reviewed_traceability_manifest_sha256=trace_sha,
+        reviewed_component_sha256s=sorted(component_sha256s),
+        reviewed_finding_ids=sorted(EXPECTED_MIGRATED_FINDINGS),
+        finding_dispositions={
+            finding_id: "PENDING_FRESH_INDEPENDENT_REREVIEW"
+            for finding_id in sorted(EXPECTED_MIGRATED_FINDINGS)
+        },
+        reviewer_roles=sorted(REVIEW_ROLES),
+        p0_count=0,
+        p1_count=0,
+        p2_count=0,
+        decision="GO",
+        created_stage=10,
+        producer="independent_review_panel",
+        validator="validate_migrated_finding_review",
+    )
+    objects["specification_bundle_manifest"] = _synthetic_record(
+        graph,
+        "specification_bundle_manifest",
+        "0" * 64,
+        status="READY_FOR_G3",
+        eligible_for_g3=True,
+        target_commit=target,
+        bundle_input_fingerprint_sha256=bundle_inputs_sha,
+        bytes=b"synthetic-complete-bundle-manifest",
+    )
+    objects["aggregate_review"] = _synthetic_record(
+        graph,
+        "aggregate_review",
+        "1" * 64,
+        target_bundle_manifest_sha256="0" * 64,
+        dependency_node_ids=[
+            "component_wire_review",
+            "component_scientific_review",
+            "component_operations_review",
+            "component_conformance_review",
+            "component_implementation_review",
+            "migrated_finding_review",
+            "specification_bundle_manifest",
+            "generated_traceability_manifest",
+        ],
+        decision="GO",
+        p0_count=0,
+        p1_count=0,
+        bytes=b"synthetic-complete-aggregate-review",
+    )
+    return G3AuthorityContext(
+        mode="synthetic",
+        graph=graph,
+        objects=objects,
+        bundle_manifest_sha256="0" * 64,
+        aggregate_review_sha256="1" * 64,
+        expected_target_commit=target,
+        tag={
+            "exists": True,
+            "annotated": True,
+            "object_type": "tag",
+            "peeled_commit": target,
+            "message": G3_FIXTURE_BODY,
+        },
+        component_sha256s=component_sha256s,
+        component_sha_by_node=component_sha_by_node,
+        architecture_plan_sha256=sha256(ARCH),
+        f0_decisions_sha256="b" * 64,
+    )
+
+
+def make_repository_context() -> G3AuthorityContext:
+    graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
+    target = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    tag_ref = f"refs/tags/{G3_TAG_NAME}"
+    tag: dict[str, Any] = {
+        "exists": False,
+        "annotated": False,
+        "object_type": None,
+        "peeled_commit": None,
+        "message": None,
+    }
+    try:
+        object_type = subprocess.check_output(
+            ["git", "cat-file", "-t", tag_ref],
+            cwd=ROOT,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except subprocess.CalledProcessError:
+        object_type = None
+    if object_type is not None:
+        tag["exists"] = True
+        tag["object_type"] = object_type
+        tag["annotated"] = object_type == "tag"
+        if tag["annotated"]:
+            tag["peeled_commit"] = subprocess.check_output(
+                ["git", "rev-parse", f"{tag_ref}^{{commit}}"], cwd=ROOT, text=True
+            ).strip()
+            raw_tag = subprocess.check_output(
+                ["git", "cat-file", "tag", tag_ref], cwd=ROOT
+            )
+            tag["message"] = raw_tag.split(b"\n\n", 1)[1]
+    component_sha256s = [sha256(path) for path in SPECS.values()]
+    return G3AuthorityContext(
+        mode="real",
+        graph=graph,
+        objects={},
+        bundle_manifest_sha256=sha256(BUNDLE_PATH),
+        aggregate_review_sha256="1" * 64,
+        expected_target_commit=target,
+        tag=tag,
+        component_sha256s=component_sha256s,
+        component_sha_by_node={
+            component_node_id(prefix): sha256(path) for prefix, path in SPECS.items()
+        },
+        architecture_plan_sha256=sha256(ARCH),
+        f0_decisions_sha256="b" * 64,
+    )
+
+
 def run_regression_self_tests() -> None:
     trace = build_traceability()
     entries = trace["requirements"]
+    matrix = load_normative_matrix()
     test_catalog, evidence_catalog = load_reference_catalogs()
+    graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
+
+    def reject_value_error(label: str, operation: object) -> None:
+        try:
+            operation()
+        except ValueError:
+            return
+        raise AssertionError(f"regression did not reject: {label}")
 
     def must_reject(label: str, mutate: object) -> None:
         mutant = deepcopy(entries)
         mutate(mutant)
-        try:
-            validate_reference_catalogs(mutant, test_catalog, evidence_catalog)
-        except ValueError:
-            return
-        raise AssertionError(f"undefined-reference regression did not reject: {label}")
+        reject_value_error(
+            label,
+            lambda: validate_reference_catalogs(mutant, test_catalog, evidence_catalog),
+        )
 
     must_reject(
         "undefined test ID",
@@ -966,16 +2005,264 @@ def run_regression_self_tests() -> None:
         "undefined KAT/fixture ID",
         lambda rows: rows[0]["test_ids"].append("R12-UNDEFINED-KAT"),
     )
-    scientific_row = next(row for row in entries if row["requirement_id"] == "F-SCI-001")
-    scientific_index = entries.index(scientific_row)
-    mutant = deepcopy(entries)
-    mutant[scientific_index]["future_real_evidence_ids"].append("EV11-UNDEFINED")
-    try:
-        validate_reference_catalogs(mutant, test_catalog, evidence_catalog)
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("undefined evidence regression did not reject")
+    must_reject(
+        "undefined evidence ID",
+        lambda rows: next(
+            row for row in rows if row["requirement_id"] == "F-SCI-001"
+        )["future_real_evidence_ids"].append("EV11-UNDEFINED"),
+    )
+
+    r12_text = SPECS["F-CNF"].read_text()
+    catalog_row = next(
+        line for line in r12_text.splitlines() if line.startswith("| R12-")
+    )
+    reject_value_error(
+        "duplicate R12 catalog ID",
+        lambda: parse_r12_test_catalog(
+            r12_text.replace(catalog_row, f"{catalog_row}\n{catalog_row}", 1)
+        ),
+    )
+
+    def semantic_reject(label: str, mutate: object) -> None:
+        mutant = deepcopy(entries)
+        mutate(mutant)
+        reject_value_error(
+            label,
+            lambda: validate_semantic_traceability(
+                mutant, matrix, test_catalog, evidence_catalog
+            ),
+        )
+
+    semantic_reject(
+        "catalog-valid semantic substitution",
+        lambda rows: next(
+            row for row in rows if row["requirement_id"] == "F-OPS-004"
+        ).update(
+            {
+                "test_ids": ["R11-CAT"],
+                "kat_ids": [],
+                "constructive_audit_ids": ["R11-CAT"],
+                "property_test_ids": [],
+                "future_real_evidence_ids": ["EV11-01"],
+            }
+        ),
+    )
+    semantic_reject(
+        "wrong KAT mapping",
+        lambda rows: next(
+            row for row in rows if row["requirement_id"] == "F-CNF-004"
+        )["kat_ids"].__setitem__(0, "R11-POS-TRUST"),
+    )
+    semantic_reject(
+        "wrong evidence mapping",
+        lambda rows: next(
+            row for row in rows if row["requirement_id"] == "F-SCI-001"
+        ).update({"future_real_evidence_ids": ["EV11-01"]}),
+    )
+    semantic_reject(
+        "wrong audit mapping",
+        lambda rows: next(
+            row for row in rows if row["requirement_id"] == "F-CNF-005"
+        ).update({"constructive_audit_ids": ["R11-CX-01"]}),
+    )
+    semantic_reject(
+        "wrong test category",
+        lambda rows: next(
+            row for row in rows if row["requirement_id"] == "F-OPS-003"
+        ).update(
+            {
+                "kat_ids": list(
+                    next(
+                        row
+                        for row in rows
+                        if row["requirement_id"] == "F-OPS-003"
+                    )["property_test_ids"]
+                ),
+                "property_test_ids": [],
+            }
+        ),
+    )
+
+    def swap_requirement_mapping(rows: list[dict[str, Any]]) -> None:
+        left = next(row for row in rows if row["requirement_id"] == "F-OPS-003")
+        right = next(row for row in rows if row["requirement_id"] == "F-OPS-004")
+        for field in (
+            "test_ids",
+            "kat_ids",
+            "constructive_audit_ids",
+            "property_test_ids",
+            "future_real_evidence_ids",
+            "schema_ids",
+        ):
+            left[field], right[field] = deepcopy(right[field]), deepcopy(left[field])
+
+    semantic_reject("cross-requirement mapping swap", swap_requirement_mapping)
+
+    def add_extra_mapping(rows: list[dict[str, Any]]) -> None:
+        row = next(row for row in rows if row["requirement_id"] == "F-ARCH-001")
+        extra_id = next(test_id for test_id in sorted(test_catalog) if test_id not in row["test_ids"])
+        row["test_ids"].append(extra_id)
+        row["constructive_audit_ids"].append(extra_id)
+
+    semantic_reject("extra mapping", add_extra_mapping)
+
+    def remove_mapping(rows: list[dict[str, Any]]) -> None:
+        row = next(row for row in rows if row["requirement_id"] == "F-ARCH-001")
+        removed = row["test_ids"].pop()
+        for field in ("kat_ids", "constructive_audit_ids", "property_test_ids"):
+            if removed in row[field]:
+                row[field].remove(removed)
+
+    semantic_reject("missing mapping", remove_mapping)
+
+    schema_mutant = deepcopy(matrix)
+    for schema_row in schema_mutant:
+        schema_row["schema_ids"] = [
+            schema_id
+            for schema_id in schema_row["schema_ids"]
+            if schema_id != "PhaseFMigratedFindingReviewV1"
+        ]
+    reject_value_error("schema inverse omission", lambda: validate_schema_usage(schema_mutant))
+
+    validate_r12_authority_graph(graph)
+
+    def graph_reject(label: str, mutate: object) -> None:
+        mutant = deepcopy(graph)
+        mutate(mutant)
+        reject_value_error(label, lambda: validate_r12_authority_graph(mutant))
+
+    graph_reject(
+        "unknown graph node",
+        lambda value: value["edges"][0].update({"to": "unknown_node"}),
+    )
+    graph_reject(
+        "unknown graph edge type",
+        lambda value: value["edges"][0].update({"type": "unknown_edge"}),
+    )
+    graph_reject(
+        "duplicate graph node",
+        lambda value: value["nodes"].append(deepcopy(value["nodes"][0])),
+    )
+    graph_reject(
+        "graph self edge",
+        lambda value: value["edges"].append(
+            {"from": "architecture_plan", "to": "architecture_plan", "type": "requires"}
+        ),
+    )
+    graph_reject(
+        "graph prerequisite cycle",
+        lambda value: value["edges"].extend(
+            [
+                {"from": "component_wire_spec", "to": "component_scientific_spec", "type": "requires"},
+                {"from": "component_scientific_spec", "to": "component_wire_spec", "type": "requires"},
+            ]
+        ),
+    )
+    graph_reject(
+        "graph hash cycle",
+        lambda value: value["edges"].extend(
+            [
+                {"from": "component_wire_review", "to": "component_scientific_review", "type": "hashes"},
+                {"from": "component_scientific_review", "to": "component_wire_review", "type": "hashes"},
+            ]
+        ),
+    )
+    graph_reject(
+        "graph future-object dependency",
+        lambda value: value["edges"].append(
+            {"from": "g3_approval_tag", "to": "specification_bundle_manifest", "type": "requires"}
+        ),
+    )
+    graph_reject(
+        "graph G3 bypass",
+        lambda value: (
+            value["g3_required_nodes"].remove("aggregate_review"),
+            value["required_inputs"]["g3_approval_tag"].remove("aggregate_review"),
+        ),
+    )
+    graph_reject(
+        "graph implementation bypass",
+        lambda value: value["required_inputs"].update(
+            {"implementation_readiness_specification": []}
+        ),
+    )
+    graph_reject(
+        "graph review target cycle",
+        lambda value: value["edges"].extend(
+            [
+                {"from": "component_wire_review", "to": "component_scientific_review", "type": "reviews"},
+                {"from": "component_scientific_review", "to": "component_wire_review", "type": "targets"},
+            ]
+        ),
+    )
+    graph_reject(
+        "graph self-Git identity cycle",
+        lambda value: value["edges"].append(
+            {"from": "g3_approval_tag", "to": "g3_approval_tag", "type": "hashes"}
+        ),
+    )
+    graph_reject(
+        "graph alternative bypass",
+        lambda value: value["g3_required_nodes"].remove("migrated_finding_review"),
+    )
+    graph_reject(
+        "graph G3-before-aggregate ordering",
+        lambda value: value["edges"].append(
+            {"from": "g3_approval_tag", "to": "aggregate_review", "type": "requires"}
+        ),
+    )
+
+    synthetic = make_synthetic_context()
+    positive = validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, synthetic)
+    if positive != G3_EXPECTED_FIELDS:
+        raise AssertionError(f"synthetic G3 authority positive result: {positive}")
+
+    def g3_reject(label: str, mutate: object) -> None:
+        mutant = deepcopy(synthetic)
+        mutate(mutant)
+        reject_value_error(
+            label, lambda: validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, mutant)
+        )
+
+    g3_reject("missing architecture approval", lambda context: context.objects.pop("architecture_approval"))
+    g3_reject("stale architecture approval", lambda context: context.objects["architecture_approval"].update({"stale": True}))
+    g3_reject("missing F0 approval", lambda context: context.objects.pop("f0_approval"))
+    g3_reject("wrong F0 target", lambda context: context.objects["f0_approval"].update({"target_sha256": "c" * 64}))
+    g3_reject("missing component review", lambda context: context.objects.pop("component_wire_review"))
+    g3_reject("stale component review", lambda context: context.objects["component_wire_review"].update({"stale": True}))
+    g3_reject("missing migrated review", lambda context: context.objects.pop("migrated_finding_review"))
+    g3_reject("migrated review wrong bundle", lambda context: context.objects["migrated_finding_review"].update({"target_bundle_inputs_sha256": "f" * 64}))
+    g3_reject("migrated review wrong ledger", lambda context: context.objects["migrated_finding_review"].update({"reviewed_migration_ledger_sha256": "f" * 64}))
+    g3_reject("migrated review wrong commit", lambda context: context.objects["migrated_finding_review"].update({"target_git_commit": "wrong-target"}))
+    g3_reject("migrated review hash mismatch", lambda context: context.objects["migrated_finding_review"].update({"expected_sha256": "e" * 64}))
+    g3_reject(
+        "migrated review incomplete disposition",
+        lambda context: context.objects["migrated_finding_review"]["finding_dispositions"].pop("F-PLAN-R11-P1-01"),
+    )
+    g3_reject("migrated review stale", lambda context: context.objects["migrated_finding_review"].update({"stale": True}))
+    g3_reject("migrated review superseded", lambda context: context.objects["migrated_finding_review"].update({"superseded_by": "new-review"}))
+    g3_reject("migrated review non-independent", lambda context: context.objects["migrated_finding_review"].update({"producer": "remediation_agent"}))
+    g3_reject("missing aggregate review", lambda context: context.objects.pop("aggregate_review"))
+    g3_reject("aggregate review wrong bundle", lambda context: context.objects["aggregate_review"].update({"target_bundle_manifest_sha256": "f" * 64}))
+    g3_reject("aggregate review hash mismatch", lambda context: context.objects["aggregate_review"].update({"sha256": "e" * 64}))
+    g3_reject("manifest hash mismatch", lambda context: context.objects["specification_bundle_manifest"].update({"sha256": "e" * 64}))
+    g3_reject("manifest changed", lambda context: context.objects["specification_bundle_manifest"].update({"content_unchanged": False}))
+    g3_reject("wrong G3 target commit", lambda context: context.tag.update({"peeled_commit": "wrong-target"}))
+    g3_reject("lightweight G3 tag", lambda context: context.tag.update({"annotated": False, "object_type": "commit"}))
+    real_context = make_repository_context()
+    real_body = G3_FIXTURE_BODY.replace(
+        b"specification_bundle_manifest_sha256=" + b"0" * 64,
+        b"specification_bundle_manifest_sha256=" + real_context.bundle_manifest_sha256.encode(),
+        1,
+    )
+    reject_value_error(
+        "missing real G3 prerequisites",
+        lambda: validate_g3_tag(G3_TAG_NAME, real_body, real_context),
+    )
+    g3_reject(
+        "synthetic context cannot authorize real",
+        lambda context: context.__setattr__("real_authority_requested", True),
+    )
 
     anchor_mutant = deepcopy(entries)
     anchor_mutant[0]["authority_anchor"] = "#undefined-anchor"
@@ -988,7 +2275,8 @@ def run_regression_self_tests() -> None:
     print(
         "PHASE_F_SELF_TEST_PASS "
         f"requirements={len(entries)} tests={len(test_catalog)} evidence={len(evidence_catalog)} "
-        f"g3_mutations={len(G3_KAT_MUTATIONS)}"
+        f"g3_mutations={len(G3_KAT_MUTATIONS)} g3_authority_tests={len(R12_G3_TEST_IDS)} "
+        f"traceability_tests={len(R12_TRACE_TEST_IDS)} dag_tests={len(R12_DAG_TEST_IDS)}"
     )
 
 

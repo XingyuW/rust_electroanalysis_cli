@@ -49,8 +49,9 @@ mandatory. Any Phase-E change requires an explicit upstream reopening.
 1. this Architecture Plan;
 2. the approved F0 bundle containing exactly `F-OD-01..20`;
 3. the five independently reviewed specifications below;
-4. the derived traceability manifest and specification-bundle manifest;
-5. implementation/readiness, enrollment, scientific authority, trust, release,
+4. the authoritative R12 traceability matrix and artifact-authority graph;
+5. the derived traceability manifest and specification-bundle manifest;
+6. implementation/readiness, enrollment, scientific authority, trust, release,
    and live operations artifacts in gate order.
 
 | Document | Requirement namespace | Exclusive responsibility |
@@ -254,11 +255,42 @@ currentness. No link is optional.
 
 <a id="f-arch-022"></a>
 `F-ARCH-022` The R11-to-R12 ledger is authoritative for migration completeness;
-the traceability manifest is derived and contains no unique normative prose.
-The specification bundle is GO only with zero aggregate P0/P1 across all five
-specs, traceability integrity, and migrated-finding review.
+the R12 normative traceability matrix is authoritative for requirement-to-
+validation and schema-usage relationships; the traceability manifest is
+derived and contains no unique normative prose. The R12 artifact-authority
+graph is authoritative for typed construction, hash, review, target, and gate
+relationships. The specification bundle is GO only with zero aggregate P0/P1
+across all five specs, exact matrix/manifest closure, a valid migrated-finding
+review authority, and a valid aggregate review.
 
 Current state: all new documents and manifests are review candidates only.
 Architecture approval, F0 approval, individual spec approvals, and G3 approval
 are absent. Therefore implementation, keys, enrollment, evidence, claims, and
 release remain prohibited and `READY_FOR_PHASE_F_IMPLEMENTATION=NO`.
+
+## 12. R12 authority-graph closure
+
+The machine-readable
+[`phase_f/phase_f_r12_authority_graph.json`](phase_f/phase_f_r12_authority_graph.json)
+is the sole current R12 artifact-level adjacency list. Its edge direction is
+from an existing prerequisite to the dependent object, and every edge has one
+of the declared `requires`, `reviews`, `approves`, `targets`, `hashes`,
+`binds`, or `generated_from` meanings. The generator parses this graph and
+rejects unknown nodes or edge types, duplicate/self edges, precedence or hash
+cycles, future-object dependencies, review-target cycles, and paths that reach
+G3 without every node in `g3_required_nodes`. The same graph supplies the
+mandatory G3 prerequisite closure consumed by `validate_g3_tag(...)`.
+The graph also declares the six self-identity rules covering file, registry,
+Git-commit, release-record, review-object, and bundle identities; those rules
+are closed metadata rather than an undocumented validator-side exception list.
+
+`PhaseFSpecificationBundleInputsV1` is the acyclic revision fingerprint of
+the architecture/F0/component/matrix/ledger/derived-traceability inputs. A
+future migrated-finding review targets that exact fingerprint; the final
+bundle manifest binds the review identity and may therefore be constructed
+after the review without a hash cycle. The G3 tag hashes the completed bundle
+manifest and aggregate review only after the latter has reviewed that manifest.
+
+The graph and all authority objects remain planning contracts. This
+remediation creates no review, approval, tag, key, registry record, or
+implementation authority. A missing real prerequisite is a hard NO-GO.

@@ -23,7 +23,7 @@ unless the architecture plan explicitly retains ownership.
 | <a id="F-WIRE-005"></a>`F-WIRE-005` | `F-ARCH-015,F-ARCH-017,F-OD-04,F-OD-13,F-OD-14,F-OD-15,F-OD-16` | Ed25519 keys/signatures, enrollment, trust bindings, registry record/head, object/record/relation kinds, subject hashes, relation ordering, genesis, sequence, resolver, compromise, and emergency wire are exact and fail closed. | §§5.2, 8, 9, 15 emergency wire, 53.7 anchors |
 | <a id="F-WIRE-006"></a>`F-WIRE-006` | `F-ARCH-012..016,F-ARCH-021` | Retrieval, package, dependency, physical identity/custody, power, metrology, cohort, release, claim-state, monitoring, incident, resolution, and retention schema field closures are exact; scientific/operational interpretation remains with its owning spec. | §§10–15, 53.7 anchors |
 | <a id="F-WIRE-007"></a>`F-WIRE-007` | `F-ARCH-008,F-ARCH-009,F-ARCH-010` | Every durable tag is annotated and uses exact target/body/prerequisite validation. Add `ism-mechanism-health-v1-f-specification-bundle-approved` with the exact ordered body fields `phase_f_architecture_plan_tag`, `phase_f_f0_decisions_tag`, `specification_bundle_manifest_sha256`, `aggregate_review_bundle_sha256`, `approval_decision`, `schema_version`; their exact values and byte grammar are defined in §3, and `approval_decision` is `GO`. | §6 plus this row |
-| <a id="F-WIRE-008"></a>`F-WIRE-008` | `F-ARCH-004,F-ARCH-005,F-ARCH-017` | The current schema set has exactly the 91 R11 identifiers plus `PhaseFSpecificationBundleApprovalV1`; every schema has one definition anchor, category, exact field closure, identity/hash rule, producer, validator, stage, registry behavior, and exhaustive nested usage rows. | §§53.7, 53.12 |
+| <a id="F-WIRE-008"></a>`F-WIRE-008` | `F-ARCH-004,F-ARCH-005,F-ARCH-017` | The current schema set has exactly the 91 R11 identifiers plus `PhaseFSpecificationBundleApprovalV1` and `PhaseFMigratedFindingReviewV1`; every schema has one definition anchor, category, exact field closure, identity/hash rule, producer, validator, stage, registry behavior, and exhaustive nested usage rows. | §§53.7, 53.12 |
 | <a id="F-WIRE-009"></a>`F-WIRE-009` | `F-ARCH-017,F-ARCH-021` | `PhaseFCheckerBuildEvidenceV1` and `PhaseFCheckerReadinessEvidenceV1` each add required `specification_bundle_approval_tag:RUNTIME_CANONICAL_TEXT_V1` and `specification_bundle_manifest_sha256:SHA256_V1` fields. Enrollment binds readiness, and every later authority binds that chain transitively. A missing or mismatched G3 binding invalidates readiness and every descendant. | New R12 closure |
 
 ## 3. Specification-bundle tag grammar
@@ -63,8 +63,9 @@ approval, review, tag, or implementation authority.
 
 The 91 R11 catalog rows in the preserved source's §53.12 remain the inherited
 baseline. The current R12 schema set is exactly those 91 identifiers plus the
-single row below. The generator checks this set equality and validates the
-new row's anchor and every non-empty catalog dimension; there is no wildcard or
+`PhaseFSpecificationBundleApprovalV1` and `PhaseFMigratedFindingReviewV1`
+rows below. The generator checks this set equality and validates every new
+row's anchor and every non-empty catalog dimension; there is no wildcard or
 parallel approval catalog.
 
 <a id="schema-def-PhaseFSpecificationBundleApprovalV1"></a>
@@ -74,9 +75,17 @@ specified there, and have no nullable, unknown, omitted, duplicate, or
 additional-member form. Its complete identity is the SHA-256 of the exact tag
 message bytes; it has no JSON semantic ID and no complete-file JSON hash.
 
+<a id="schema-def-PhaseFMigratedFindingReviewV1"></a>
+`SCHEMA_DEF[PhaseFMigratedFindingReviewV1]` is the exact top-level object
+defined in §5. It has no omitted or additional member form. Its complete-file
+identity is computed only after all bound inputs and five finding dispositions
+are complete; the identity field is excluded from that computation. The
+review object is not a G3 approval and cannot be produced by this remediation.
+
 | identifier | category | exact field-closure pointer | semantic identity / complete-file hash meaning | concrete producer | actual validator | exact stage/set | exact registry behavior | traceability |
 |---|---|---|---|---|---|---|---|---|
 | PhaseFSpecificationBundleApprovalV1 | TAG_BODY | #schema-def-PhaseFSpecificationBundleApprovalV1 | no JSON semantic ID; SHA-256 of the exact six-line annotated tag-message bytes including the final LF | independent five-role specification-bundle approval gate | exact §3 tag-name/body parser plus target, architecture approval, F0 approval, five component-review, traceability, migrated-finding, aggregate-review, and `approval_decision=GO` validator | G3 specification-bundle approval, after architecture/F0 approvals and all five component reviews | TAG_BODY; Git annotated-tag message only; no registry subject and no registry record | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFSpecificationBundleApprovalV1) |
+| PhaseFMigratedFindingReviewV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFMigratedFindingReviewV1 | no registry subject before G3; SHA-256 of the complete canonical review object excluding its own ID field | independent migrated-finding review panel | strict migrated-review schema, exact bundle-input target, five-role independence, finding disposition, lifecycle, staleness, and hash validator | G2 review prerequisite for the specification bundle | external authority object; registry publication is prohibited before later gate authority | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMigratedFindingReviewV1) |
 
 The approval object binds the exact architecture-plan tag, F0-decisions tag,
 specification-bundle manifest SHA, aggregate review-bundle SHA, and all five
@@ -94,7 +103,63 @@ upstream tag, manifest, review bundle, component review, or migrated-finding
 review invalidates the candidate and requires a forward bundle revision. The
 R11 approval bodies and all Phase-D/Phase-E bindings remain unchanged.
 
-## 5. Review gate
+## 5. Migrated-finding review authority
+
+`PhaseFMigratedFindingReviewV1` is the R12 authority object used by
+`F-ARCH-022`. It reuses the generic five-role review-row contract from
+`PhaseFIndependentReviewBundleV1` but adds the migrated-finding-specific
+payload that the generic bundle does not own. Its exact top-level fields are:
+
+```text
+schema_version,migrated_finding_review_id,target_git_commit,
+target_bundle_inputs_sha256,
+reviewed_migration_ledger_sha256,reviewed_traceability_manifest_sha256,
+reviewed_component_sha256s,reviewed_finding_ids,finding_dispositions,
+reviewer_roles,p0_count,p1_count,p2_count,decision,created_stage,producer,
+validator,lifecycle,stale,superseded_by,invalidated
+```
+
+The ID is the SHA-256 of the complete canonical object with the
+`migrated_finding_review_id` value excluded. The target is the exact
+target Git commit plus the exact `PhaseFSpecificationBundleInputsV1`
+fingerprint, not the final bundle manifest, so the review can exist before the
+bundle binds its own review hash.
+`reviewed_migration_ledger_sha256`,
+`reviewed_traceability_manifest_sha256`, and the sorted five-entry
+`reviewed_component_sha256s` must equal the inputs used to compute that
+fingerprint. `reviewed_finding_ids` is exactly
+`F-PLAN-R11-P1-01`, `F-PLAN-R11-P1-02`, `F-PLAN-R11-P1-03`,
+`F-PLAN-R11-P1-04`, and `F-PLAN-R11-P3-01`; `finding_dispositions` contains
+exactly one non-empty disposition for each of those IDs. Counts are
+non-negative integers, and `decision=GO` requires `p0_count=0`, `p1_count=0`,
+all five roles, and complete finding coverage. `reviewer_roles` is exactly
+the five roles `scientific_metrology`, `architecture_data`, `security`,
+`compatibility`, and `operations_governance`; the producer is an independent
+review panel and never the remediation agent.
+
+The only valid lifecycle is `ACTIVE` with `stale=false`, `invalidated=false`,
+and `superseded_by=null`. A changed target commit, architecture plan, F0
+authority, component specification, normative matrix, generated traceability
+manifest, migration ledger, or bundle-input fingerprint makes the object
+stale. Supersession or invalidation is terminal and cannot be repaired in
+place; the next bundle requires a new review object and exact hash. The
+generator validates identity, target, bound inputs, role independence,
+coverage, counts, decision, lifecycle, and staleness. A missing or malformed
+object is not an intentional null success: it leaves the checked-in bundle
+`DRAFT_NO_AUTHORITY` and blocks G3.
+
+The bundle binds the object through the typed nullable reference
+`migrated_finding_review`, whose `schema`, `authority_id`, `sha256`,
+`target_git_commit`,
+`target_bundle_inputs_sha256`, `reviewed_migration_ledger_sha256`,
+`reviewed_traceability_manifest_sha256`, and `review_status` fields are all
+required. A future complete bundle must populate every field from one
+immutable review object; the present candidate keeps them null/`ABSENT`.
+The aggregate review targets the final bundle manifest and must include the
+migrated-review identity in its dependency closure. G3 validates both
+relationships through the R12 authority graph.
+
+## 6. Review gate
 
 P0/P1 must both be zero. Ambiguous schema/hash/ID/relation/tag grammar, missing
 usage row, conflicting closure, or an absent upstream bundle binding is P1.
