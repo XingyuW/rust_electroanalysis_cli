@@ -12,11 +12,11 @@ satisfy an `F-EV` oracle.
 
 | ID | derived_from | Normative requirement | Adopted R11 clauses |
 |---|---|---|---|
-| <a id="F-CNF-001"></a>`F-CNF-001` | `F-ARCH-017,F-WIRE-001..009` | Production-schema KATs use complete schema-valid bytes and verify parsing, JCS, semantic IDs, complete-file SHA, signatures, registry order/relations, field closure, and negative mutations. | §§44, 49, 53.4–53.5, 53.9–53.10 |
+| <a id="F-CNF-001"></a>`F-CNF-001` | `F-ARCH-017,F-WIRE-001..009` | Production-schema KATs use complete schema-valid bytes and verify parsing, JCS, semantic IDs, complete-file SHA, signatures, registry order/relations, field closure, and negative mutations, including the enrolled-key signature and stable-subject derivation of `PhaseFReviewerActorAttestationV1`. | §§44, 49, 53.4–53.5, 53.9–53.10 |
 | <a id="F-CNF-002"></a>`F-CNF-002` | `F-ARCH-017,F-OPS-006,F-OPS-007` | Storage-copy KATs test opaque bytes only after prevalidated kind/SHA identity and test URI, length, availability, freshness, distinctness, count, and exact membership. They never assert production-schema validity. | §§53.2–53.4, R11-KAT-RETENTION-COPY |
 | <a id="F-CNF-003"></a>`F-CNF-003` | `F-ARCH-017,F-OPS-003,F-SCI-002..008` | Properties cover quantified and nonliteral behavior, including complete monitoring mapping, independence, pseudoreplication, power, claim ceilings, retention counts, and cycle freedom. A property cannot claim fixture PASS. | §§20, 53.6, 53.9–53.10 |
 | <a id="F-CNF-004"></a>`F-CNF-004` | `F-ARCH-008..010,F-WIRE-007` | Literal parser KATs cover every approval tag including the new specification-bundle tag; the R12 vector uses the strict `(tag_name,body_bytes)` checker below, while separate real-Git properties verify annotated type, peel target, reachability, and upstream tag resolution. | §§53.5, 53.9–53.10 plus R12 tag grammar |
-| <a id="F-CNF-005"></a>`F-CNF-005` | `F-ARCH-017,F-ARCH-022,F-WIRE-008` | Constructive audits verify the explicit authority DAG, no future/self/reference cycles, schema/anchor/catalog equality, exhaustive usage matrix, traceability inverse, closed test/evidence/KAT catalogs, owner-decision union, Markdown structure, and no duplicate current traceability graph. | §§53.6–53.13 |
+| <a id="F-CNF-005"></a>`F-CNF-005` | `F-ARCH-017,F-ARCH-022,F-WIRE-008` | Constructive audits verify the explicit authority DAG, no future/self/reference cycles, schema/anchor/catalog equality, exhaustive usage matrix, traceability inverse, closed test/evidence/KAT catalogs, owner-decision union, Markdown structure, no duplicate current traceability graph, and REAL reviewer actor attestation resolution/independence. | §§53.6–53.13 |
 | <a id="F-CNF-006"></a>`F-CNF-006` | `F-ARCH-017` | Every literal KAT declares all required inputs, exact fixture bytes, semantic IDs, SHA-256, byte length, URI when applicable, operation, expected result, decoded fields where applicable, and individually executable negative mutations. Missing data or an incomplete PASS is P1. | §§53.9–53.10 |
 | <a id="F-CNF-007"></a>`F-CNF-007` | `F-ARCH-002,F-ARCH-012,F-ARCH-017,F-SCI-009..010` | Automated isolation checks prove zero KAT/test/synthetic/constructed-to-real-evidence promotion paths and preserve every future-real-evidence oracle. | §§53.8 R11-14/R11-19, 53.11 |
 | <a id="F-CNF-008"></a>`F-CNF-008` | `F-ARCH-003,F-ARCH-017,F-IMPL-006` | Regression checks preserve frozen Phase-E behavior, the P2 gate, production runner order, and all previously closed safety contracts. | §§19–20, 53.8 R11-17 |
@@ -73,6 +73,8 @@ real approval or an `F-EV`.
 | R12-G3-MIGRATED-INPUT-FINGERPRINT | constructive_plan_audit | migrated_review_authority | complete synthetic context with a stale derived review-input fingerprint | same as positive | `validate_g3_tag(...)` | REJECT | review-input fingerprint mismatch | 0 |
 | R12-G3-REAL-FORMAT-POSITIVE | constructive_plan_audit | isolated_real_repository_authority | isolated repository with canonical authority JSON, annotated tags, and real Git target | real-format fixture | `make_repository_context(...); validate_g3_tag(...)` | PASS | resolved real authority closure | 0 |
 | R12-G3-REAL-FORMAT-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | real-format fixture mutated across missing, malformed, stale, wrong-target, wrong-hash, and tag cases | real-format fixture mutation matrix | `make_repository_context(...); validate_g3_tag(...)` | REJECT | every real-format mutation rejected | 0 |
+| R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE | constructive_plan_audit | isolated_real_repository_authority | enrolled R11 authority enrollment plus five distinct natural-person subjects, domain-separated actor digests, complete-file references, and valid registry-key signatures | real-format actor-attestation fixture | `make_repository_context(...); validate_g3_tag(...)` | PASS | five verified attestation subjects resolve and authorize the test-only fixture | 0 |
+| R12-G3-REAL-ACTOR-ATTESTATION-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | REAL resolver mutations cover arbitrary/malformed/missing/fake/cross-wired attestations, wrong role, stale/revoked/superseded state, enrollment/key mismatch, invalid signature, self-declaration, remediation-author alias, and five-key/same-subject aliasing | actor-attestation mutation matrix | `make_repository_context(...); validate_g3_tag(...)` | REJECT | every actor-identity and attestation mutation rejected | 0 |
 | R12-G3-MIGRATED-PENDING-P1 | constructive_plan_audit | migrated_review_authority | one P1 finding is pending | same as positive | `validate_g3_tag(...)` | REJECT | pending P1 | 0 |
 | R12-G3-MIGRATED-OPEN-P1 | constructive_plan_audit | migrated_review_authority | one P1 finding is open | same as positive | `validate_g3_tag(...)` | REJECT | open P1 | 0 |
 | R12-G3-MIGRATED-PARTIALLY-CLOSED-P1 | constructive_plan_audit | migrated_review_authority | one P1 finding is partially closed | same as positive | `validate_g3_tag(...)` | REJECT | partially closed P1 | 0 |
@@ -306,7 +308,46 @@ cycles, self-Git cycles, review-target cycles, future-object dependencies,
 self-reference, G3 bypass, and implementation-readiness bypass. Mutations of
 any contract or audit input reject before an authority result can be returned.
 
-### 3.3 Normative semantic traceability and schema usage
+### 3.3 REAL reviewer actor attestation mutation matrix
+
+The REAL-format fixture materializes an R11-exact
+`PhaseFAuthorityEnrollmentV1`, five signed
+`PhaseFReviewerActorAttestationV1` objects, five reviewer support records, and
+their immutable references. The registry public key is the only signature
+verifier root. The positive case proves that five distinct natural-person
+subjects resolve, that each carried reviewer digest equals the exact
+domain-separated subject derivation, that each attestation binds the complete
+enrollment file and one permitted role, and that all five actor digests remain
+distinct. The fixture is explicitly `real_test`; it is not a real approval or
+review artifact.
+
+The negative matrix must reject each mutation independently:
+
+- arbitrary, malformed, omitted, or self-declared `actor_identity_digest`;
+- missing, fake, malformed, noncanonical, invalidly signed, or
+  cross-wired attestation/reference;
+- wrong actor class, role, verifier, enrollment ID/hash/key, or evidence
+  binding;
+- stale, revoked, superseded, or invalidated attestation/enrollment state;
+- one actor represented by different reviewer IDs, different keys, different
+  attestations, or different enrollment records;
+- remediation-author aliasing, actor-signed/self-issued material, and a
+  materializer-created authority record; and
+- TEST_ONLY material presented to REAL mode.
+
+REAL mode also rejects when the existing R11 registry resolver has not
+supplied the required currentness/chain/revocation/compromise proof. The
+isolated fixture supplies this proof only through explicit `real_test`
+conformance mode; it does not represent production authority.
+
+The checker must use the existing strict Ed25519 verifier and the existing
+R11 enrollment/registry currentness, approval, chain, revocation, compromise,
+and supersession rules. A structurally valid JSON file without those proofs is
+not a positive case. This matrix proves the identity boundary, not the
+legitimacy of any actual person; real onboarding still requires a separately
+authorized external enrollment and independently reviewed/published revision.
+
+### 3.4 Normative semantic traceability and schema usage
 
 `phase_f_r12_normative_traceability_matrix.json` is the single parseable
 authority for the 64 R12 requirement-to-validation relationships. Every row

@@ -71,10 +71,11 @@ EXPECTED_R11_LINE_COUNT = 6188
 EXPECTED_R11_BYTE_COUNT = 653370
 EXPECTED_R11_TEST_COUNT = 28
 EXPECTED_R11_EVIDENCE_COUNT = 20
-EXPECTED_R12_SCHEMA_COUNT = 93
+EXPECTED_R12_SCHEMA_COUNT = 94
 R12_SCHEMA_IDS = {
     "PhaseFSpecificationBundleApprovalV1",
     "PhaseFMigratedFindingReviewV1",
+    "PhaseFReviewerActorAttestationV1",
 }
 EXPECTED_R12_REQUIREMENT_COUNT = 64
 EXPECTED_MIGRATED_FINDINGS = {
@@ -219,6 +220,20 @@ REVIEW_ROW_FIELDS = {
 }
 CANONICAL_UNSIGNED_INTEGER_PATTERN = r"0|[1-9][0-9]*"
 REVIEW_ARTIFACT_URI_PREFIX = "phase-f-authority://review-artifacts/"
+REVIEWER_ACTOR_ATTESTATION_URI_PREFIX = (
+    "phase-f-authority://reviewer-actor-attestations/"
+)
+ACTOR_IDENTITY_DIGEST_DOMAIN = b"mhi_phase_f_reviewer_actor_identity_v1\0"
+REVIEWER_ACTOR_ATTESTATION_DOMAIN = (
+    b"mhi_phase_f_reviewer_actor_attestation_v1\0"
+)
+AUTHORITY_ENROLLMENT_DOMAIN = b"mhi_phase_f_authority_enrollment_v1\0"
+RUNTIME_STABLE_ID_PATTERN = r"[A-Za-z0-9][A-Za-z0-9._:-]*"
+UTC_SECOND_TIMESTAMP_PATTERN = (
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"
+)
+ED25519_PUBLIC_KEY_PATTERN = r"[0-9a-f]{64}"
+ED25519_SIGNATURE_PATTERN = r"[0-9a-f]{128}"
 REVIEW_ARTIFACT_FIELDS = {
     "review_artifact_id",
     "authority_kind",
@@ -404,6 +419,8 @@ R12_G3_TEST_IDS = [
     "R12-G3-MIGRATED-INPUT-FINGERPRINT",
     "R12-G3-REAL-FORMAT-POSITIVE",
     "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+    "R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE",
+    "R12-G3-REAL-ACTOR-ATTESTATION-NEGATIVE-MATRIX",
     "R12-G3-MIGRATED-PENDING-P1",
     "R12-G3-MIGRATED-OPEN-P1",
     "R12-G3-MIGRATED-PARTIALLY-CLOSED-P1",
@@ -496,6 +513,22 @@ G3_FIXTURE_BODY = (
 G3_FIXTURE_BYTE_LENGTH = 379
 G3_FIXTURE_SHA256 = "af3f94a1a5ae85f2e62d8a0ad54e66b3bd985cd150805a5750528befa15027b6"
 G3_LEGACY_FIELDS = {"architecture_plan_tag", "f0_decisions_tag"}
+AUTHORITY_ENROLLMENT_APPROVAL_TAG = (
+    "ism-mechanism-health-v1-f-authority-enrollment-approved"
+)
+AUTHORITY_ENROLLMENT_APPROVAL_FIELDS = (
+    "phase_f_plan_tag",
+    "f0_decisions_tag",
+    "readiness_tag",
+    "readiness_main_sha",
+    "enrollment_sha256",
+    "owner_authority_id",
+    "registry_authority_id",
+    "owner_public_key_fingerprint",
+    "registry_public_key_fingerprint",
+    "review_bundle_sha256",
+    "approval_decision",
+)
 
 G3_KAT_MUTATIONS = (
     {
@@ -622,8 +655,11 @@ class G3AuthorityContext:
     authority_graph_sha256: str
     authority_graph_bytes: bytes
     real_authority_requested: bool = False
+    r11_currentness_verified: bool = False
     reviewer_authorities: dict[str, dict[str, Any]] = field(default_factory=dict)
     review_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    authority_enrollment: dict[str, Any] | None = None
+    reviewer_actor_attestations: dict[str, dict[str, Any]] = field(default_factory=dict)
     remediation_authority_id: str | None = None
     remediation_actor_identity_digest: str | None = None
     allow_test_only_authority: bool = False
@@ -642,6 +678,35 @@ def canonical_jcs_bytes(value: object) -> bytes:
     return json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
+
+
+def reviewer_actor_identity_digest(actor_subject_id: str) -> str:
+    """Derive the stable reviewer identity from the authority-issued subject."""
+
+    return sha256_bytes(
+        ACTOR_IDENTITY_DIGEST_DOMAIN
+        + canonical_jcs_bytes({"actor_subject_id": actor_subject_id})
+    )
+
+
+def reviewer_actor_attestation_id(attestation: dict[str, Any]) -> str:
+    payload = {
+        key: value
+        for key, value in attestation.items()
+        if key not in {"attestation_id", "signature"}
+    }
+    return "sha256:" + sha256_bytes(
+        REVIEWER_ACTOR_ATTESTATION_DOMAIN + canonical_jcs_bytes(payload)
+    )
+
+
+def authority_enrollment_id(enrollment: dict[str, Any]) -> str:
+    payload = {
+        key: value for key, value in enrollment.items() if key != "enrollment_id"
+    }
+    return "sha256:" + sha256_bytes(
+        AUTHORITY_ENROLLMENT_DOMAIN + canonical_jcs_bytes(payload)
+    )
 
 
 def independent_review_bundle_id(bundle: dict[str, Any]) -> str:
@@ -1315,6 +1380,7 @@ def derive_serialized_binding_contract(
 
 REVIEW_REFERENCE_CONTRACT_SHAPE = {
     "artifact_uri_prefix": REVIEW_ARTIFACT_URI_PREFIX,
+    "actor_attestation_uri_prefix": REVIEWER_ACTOR_ATTESTATION_URI_PREFIX,
     "bundle_schema": {
         "authority_kind": "PhaseFIndependentReviewBundleV1",
         "fields": sorted(INDEPENDENT_REVIEW_BUNDLE_FIELDS),
@@ -1331,11 +1397,64 @@ REVIEW_REFERENCE_CONTRACT_SHAPE = {
             "schema_version",
             "authority_class",
             "actor_identity_digest",
+            "actor_attestation_id",
+            "actor_attestation_reference",
             "permitted_review_roles",
             "lifecycle",
             "stale",
             "superseded_by",
             "invalidated",
+        ],
+    },
+    "actor_attestation": {
+        "authority_path_template": ".phase_f_authority/reviewer_actor_attestations/{attestation_id}.json",
+        "authority_kind": "PhaseFReviewerActorAttestationV1",
+        "id_field": "attestation_id",
+        "digest_excluded_fields": ["attestation_id", "signature"],
+        "required_fields": [
+            "attestation_id",
+            "authority_kind",
+            "schema_version",
+            "actor_subject_id",
+            "actor_class",
+            "actor_identity_evidence_sha256",
+            "authority_enrollment_id",
+            "authority_enrollment_sha256",
+            "eligible_role",
+            "role_eligibility_evidence_sha256",
+            "independence_evidence_sha256",
+            "independence_excluded_actor_identity_digest",
+            "eligibility_verifier_authority_id",
+            "independence_verifier_authority_id",
+            "created_at",
+            "lifecycle",
+            "stale",
+            "superseded_by",
+            "invalidated",
+            "signature",
+        ],
+    },
+    "authority_enrollment": {
+        "authority_path": ".phase_f_authority/authority_enrollment.json",
+        "authority_kind": "PhaseFAuthorityEnrollmentV1",
+        "id_field": "enrollment_id",
+        "digest_excluded_fields": ["enrollment_id"],
+        "required_fields": [
+            "schema_version",
+            "enrollment_id",
+            "phase_f_plan_tag",
+            "f0_decisions_tag",
+            "readiness_tag",
+            "owner_authority_id",
+            "registry_authority_id",
+            "owner_public_key",
+            "registry_public_key",
+            "owner_public_key_fingerprint",
+            "registry_public_key_fingerprint",
+            "owner_authority_document",
+            "registry_authority_document",
+            "custody_policy_sha256",
+            "created_at",
         ],
     },
     "artifact": {
@@ -1720,6 +1839,125 @@ def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+# The authoritative checker uses ed25519-dalek's strict verifier.  The
+# generator keeps a dependency-free verifier for REAL reference resolution so
+# a structurally plausible signature cannot stand in for a cryptographic one.
+_ED25519_P = 2**255 - 19
+_ED25519_Q = 2**252 + 27742317777372353535851937790883648493
+_ED25519_D = (-121665 * pow(121666, _ED25519_P - 2, _ED25519_P)) % _ED25519_P
+_ED25519_I = pow(2, (_ED25519_P - 1) // 4, _ED25519_P)
+_ED25519_IDENTITY = (0, 1)
+_ED25519_B_Y = (4 * pow(5, _ED25519_P - 2, _ED25519_P)) % _ED25519_P
+
+
+def _ed25519_xrecover(y: int) -> int:
+    xx = ((y * y - 1) * pow(_ED25519_D * y * y + 1, _ED25519_P - 2, _ED25519_P)) % _ED25519_P
+    x = pow(xx, (_ED25519_P + 3) // 8, _ED25519_P)
+    if (x * x - xx) % _ED25519_P != 0:
+        x = (x * _ED25519_I) % _ED25519_P
+    if (x * x - xx) % _ED25519_P != 0:
+        raise ValueError("invalid ed25519 point")
+    return _ED25519_P - x if x & 1 else x
+
+
+def _ed25519_decode_point(encoded: bytes) -> tuple[int, int]:
+    if len(encoded) != 32:
+        raise ValueError("invalid ed25519 point length")
+    value = int.from_bytes(encoded, "little")
+    sign = value >> 255
+    y = value & ((1 << 255) - 1)
+    if y >= _ED25519_P:
+        raise ValueError("noncanonical ed25519 point")
+    x = _ed25519_xrecover(y)
+    if x == 0 and sign:
+        raise ValueError("invalid ed25519 point sign")
+    if (x & 1) != sign:
+        x = _ED25519_P - x
+    point = (x, y)
+    if _ed25519_scalarmult(point, 8) == _ED25519_IDENTITY:
+        raise ValueError("weak ed25519 point")
+    return point
+
+
+def _ed25519_encode_point(point: tuple[int, int]) -> bytes:
+    x, y = point
+    return (y | ((x & 1) << 255)).to_bytes(32, "little")
+
+
+def _ed25519_add(left: tuple[int, int], right: tuple[int, int]) -> tuple[int, int]:
+    x1, y1 = left
+    x2, y2 = right
+    product = (_ED25519_D * x1 * x2 * y1 * y2) % _ED25519_P
+    x3 = ((x1 * y2 + x2 * y1) * pow(1 + product, _ED25519_P - 2, _ED25519_P)) % _ED25519_P
+    y3 = ((y1 * y2 + x1 * x2) * pow(1 - product, _ED25519_P - 2, _ED25519_P)) % _ED25519_P
+    return x3, y3
+
+
+def _ed25519_scalarmult(point: tuple[int, int], scalar: int) -> tuple[int, int]:
+    result = _ED25519_IDENTITY
+    addend = point
+    while scalar:
+        if scalar & 1:
+            result = _ed25519_add(result, addend)
+        addend = _ed25519_add(addend, addend)
+        scalar >>= 1
+    return result
+
+
+_ED25519_B = (_ed25519_xrecover(_ED25519_B_Y), _ED25519_B_Y)
+
+
+def verify_ed25519_strict(
+    public_key_hex: str, signature_hex: str, message: bytes
+) -> bool:
+    try:
+        public_key = bytes.fromhex(public_key_hex)
+        signature = bytes.fromhex(signature_hex)
+        if len(public_key) != 32 or len(signature) != 64:
+            return False
+        public_point = _ed25519_decode_point(public_key)
+        r_point = _ed25519_decode_point(signature[:32])
+        scalar = int.from_bytes(signature[32:], "little")
+        if scalar >= _ED25519_Q:
+            return False
+        challenge = int.from_bytes(
+            hashlib.sha512(signature[:32] + public_key + message).digest(), "little"
+        ) % _ED25519_Q
+        expected = _ed25519_add(r_point, _ed25519_scalarmult(public_point, challenge))
+        actual = _ed25519_scalarmult(_ED25519_B, scalar)
+        return actual == expected
+    except (ValueError, OverflowError):
+        return False
+
+
+def _fixture_ed25519_keypair(seed: bytes) -> tuple[str, str]:
+    digest = hashlib.sha512(seed).digest()
+    scalar_bytes = bytearray(digest[:32])
+    scalar_bytes[0] &= 248
+    scalar_bytes[31] &= 63
+    scalar_bytes[31] |= 64
+    scalar = int.from_bytes(scalar_bytes, "little")
+    public_key = _ed25519_encode_point(_ed25519_scalarmult(_ED25519_B, scalar))
+    return public_key.hex(), digest[32:].hex()
+
+
+def _fixture_ed25519_sign(seed: bytes, message: bytes) -> str:
+    digest = hashlib.sha512(seed).digest()
+    scalar_bytes = bytearray(digest[:32])
+    scalar_bytes[0] &= 248
+    scalar_bytes[31] &= 63
+    scalar_bytes[31] |= 64
+    scalar = int.from_bytes(scalar_bytes, "little")
+    public_key = _ed25519_encode_point(_ed25519_scalarmult(_ED25519_B, scalar))
+    nonce = int.from_bytes(hashlib.sha512(digest[32:] + message).digest(), "little") % _ED25519_Q
+    encoded_nonce = _ed25519_encode_point(_ed25519_scalarmult(_ED25519_B, nonce))
+    challenge = int.from_bytes(
+        hashlib.sha512(encoded_nonce + public_key + message).digest(), "little"
+    ) % _ED25519_Q
+    response = (nonce + challenge * scalar) % _ED25519_Q
+    return (encoded_nonce + response.to_bytes(32, "little")).hex()
+
+
 def git_blob(path: Path) -> str:
     return subprocess.check_output(
         ["git", "hash-object", str(path)], cwd=ROOT, text=True
@@ -1927,6 +2165,87 @@ def _reference_identity_matches(
     return sha256_bytes(canonical_json_bytes(payload)) == expected
 
 
+def _validate_reviewer_actor_binding(
+    context: G3AuthorityContext, reviewer: dict[str, Any], role: str
+) -> None:
+    if context.mode not in {"real", "real_test"}:
+        return
+    contract = _review_reference_contract(context.graph)
+    attestation_id = reviewer.get("actor_attestation_id")
+    reference = reviewer.get("actor_attestation_reference")
+    if not isinstance(attestation_id, str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", attestation_id
+    ):
+        raise G3ValidationError("reviewer_actor_attestation_id_malformed")
+    if not isinstance(reference, dict) or set(reference) != {
+        "immutable_uri", "sha256", "byte_length"
+    }:
+        raise G3ValidationError("reviewer_actor_attestation_reference_schema_mismatch")
+    if (
+        reference.get("immutable_uri")
+        != f"{REVIEWER_ACTOR_ATTESTATION_URI_PREFIX}{attestation_id}"
+        or not isinstance(reference.get("sha256"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", reference["sha256"])
+        or not isinstance(reference.get("byte_length"), str)
+        or not re.fullmatch(CANONICAL_UNSIGNED_INTEGER_PATTERN, reference["byte_length"])
+    ):
+        raise G3ValidationError("reviewer_actor_attestation_reference_malformed")
+    attestation = context.reviewer_actor_attestations.get(attestation_id)
+    if attestation is None:
+        raise G3ValidationError("unresolved_reviewer_actor_attestation")
+    if attestation.get("authority_kind") != contract["actor_attestation"]["authority_kind"]:
+        raise G3ValidationError("wrong_reviewer_actor_attestation_kind")
+    if attestation.get("attestation_id") != attestation_id:
+        raise G3ValidationError("reviewer_actor_attestation_identity_mismatch")
+    if attestation.get("signature_verified") is not True:
+        raise G3ValidationError("invalid_reviewer_actor_attestation_signature")
+    if (
+        not isinstance(attestation.get("bytes"), bytes)
+        or reference["sha256"] != attestation.get("complete_file_sha256")
+        or reference["sha256"] != sha256_bytes(attestation["bytes"])
+        or reference["byte_length"] != str(len(attestation["bytes"]))
+    ):
+        raise G3ValidationError("reviewer_actor_attestation_reference_mismatch")
+    if (
+        attestation.get("schema_version") != 1
+        or attestation.get("actor_class") != "natural_person"
+        or attestation.get("eligible_role") != role
+        or attestation.get("lifecycle") != "ACTIVE"
+        or attestation.get("stale") is not False
+        or attestation.get("superseded_by") is not None
+        or attestation.get("invalidated") is not False
+    ):
+        raise G3ValidationError("stale_reviewer_actor_attestation")
+    enrollment = context.authority_enrollment
+    if context.mode == "real" and context.r11_currentness_verified is not True:
+        raise G3ValidationError("unverified_r11_authority_currentness")
+    if not isinstance(enrollment, dict) or (
+        attestation.get("authority_enrollment_id") != enrollment.get("enrollment_id")
+        or attestation.get("authority_enrollment_sha256")
+        != enrollment.get("complete_file_sha256")
+        or attestation.get("eligibility_verifier_authority_id")
+        != enrollment.get("registry_authority_id")
+        or attestation.get("independence_verifier_authority_id")
+        != enrollment.get("registry_authority_id")
+    ):
+        raise G3ValidationError("reviewer_actor_attestation_enrollment_mismatch")
+    actor_subject_id = attestation.get("actor_subject_id")
+    if not isinstance(actor_subject_id, str) or not re.fullmatch(
+        RUNTIME_STABLE_ID_PATTERN, actor_subject_id
+    ):
+        raise G3ValidationError("malformed_reviewer_actor_subject")
+    actor_digest = reviewer.get("actor_identity_digest")
+    if actor_digest != reviewer_actor_identity_digest(actor_subject_id):
+        raise G3ValidationError("reviewer_identity_digest_mismatch")
+    if (
+        context.remediation_actor_identity_digest is None
+        or attestation.get("independence_excluded_actor_identity_digest")
+        != context.remediation_actor_identity_digest
+        or actor_digest == context.remediation_actor_identity_digest
+    ):
+        raise G3ValidationError("non_independent_migrated_review")
+
+
 def _validate_review_reference(
     context: G3AuthorityContext, row: dict[str, Any]
 ) -> None:
@@ -2008,6 +2327,7 @@ def _validate_review_reference(
         and actor_digest == context.remediation_actor_identity_digest
     ):
         raise G3ValidationError("non_independent_migrated_review")
+    _validate_reviewer_actor_binding(context, reviewer, role)
 
 
 def _require_distinct_reviewer_actor_digests(
@@ -2220,6 +2540,7 @@ def _validate_independent_review_bundle(
             raise G3ValidationError("stale_reviewer_identity")
         if reviewer.get("superseded_by") is not None or reviewer.get("invalidated") is not False:
             raise G3ValidationError("superseded_reviewer_identity")
+        _validate_reviewer_actor_binding(context, reviewer, row["role"])
         if not isinstance(reviewer_id, str) or not re.fullmatch(r"[0-9a-f]{64}", reviewer_id):
             raise G3ValidationError("reviewer_identity_malformed")
         reviewer_ids.append(reviewer_id)
@@ -2825,6 +3146,7 @@ def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]
         "R12-G3-ARCHITECTURE-REVIEW-BUNDLE-POSITIVE",
         "R12-G3-REVIEW-START-GIT-PUBLISHED",
         "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE",
         "R12-DAG-VALID",
     }
     for test_id in EXPECTED_R12_TEST_CATALOG_IDS - positive_ids:
@@ -2969,6 +3291,22 @@ def validate_wire_catalog() -> None:
     migrated_anchor = '<a id="schema-def-PhaseFMigratedFindingReviewV1"></a>'
     if wire_text.count(migrated_anchor) != 1:
         raise ValueError("migrated-finding schema definition anchor missing or duplicated")
+    actor_row = rows["PhaseFReviewerActorAttestationV1"]
+    if actor_row != [
+        "PhaseFReviewerActorAttestationV1",
+        "SIGNED_EXTERNAL_AUTHORITY",
+        "#schema-def-PhaseFReviewerActorAttestationV1",
+        "sha256:<lowercase_hex>; SHA-256 of the domain-separated JCS semantic payload excluding attestation_id and signature; complete-file SHA-256 covers every field including signature",
+        "registry-authority-issued natural-person reviewer actor eligibility and independence attestation",
+        "strict schema, domain-separated identity derivation, enrollment binding, role evidence, anti-alias evidence, lifecycle, and strict Ed25519 signature verification",
+        "REAL reviewer identity prerequisite for every five-role review bundle",
+        "external signed authority object; not an R11 registry record and no reviewer back-pointer is permitted",
+        "INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerActorAttestationV1)",
+    ]:
+        raise ValueError("reviewer actor attestation schema catalog metadata mismatch")
+    actor_anchor = '<a id="schema-def-PhaseFReviewerActorAttestationV1"></a>'
+    if wire_text.count(actor_anchor) != 1:
+        raise ValueError("reviewer actor attestation definition anchor missing or duplicated")
 
 
 def parse_schema_catalog_ids(text: str) -> list[str]:
@@ -4195,6 +4533,63 @@ def _parse_authority_tag(
         raise G3ValidationError(f"{node_id}_message_mismatch")
 
 
+def _validate_authority_enrollment_approval_tag(
+    tag: dict[str, Any], enrollment: dict[str, Any]
+) -> None:
+    if tag.get("exists") is not True:
+        raise G3ValidationError("missing_authority_enrollment_approval_tag")
+    if tag.get("annotated") is not True or tag.get("object_type") != "tag":
+        raise G3ValidationError("lightweight_authority_enrollment_approval_tag")
+    message = tag.get("message")
+    if not isinstance(message, bytes) or not message.endswith(b"\n"):
+        raise G3ValidationError("malformed_authority_enrollment_approval_tag")
+    if b"\r" in message or any(byte > 0x7F for byte in message):
+        raise G3ValidationError("malformed_authority_enrollment_approval_tag")
+    lines = message[:-1].split(b"\n")
+    if len(lines) != len(AUTHORITY_ENROLLMENT_APPROVAL_FIELDS):
+        raise G3ValidationError("malformed_authority_enrollment_approval_tag")
+    fields: dict[str, str] = {}
+    for expected_name, line in zip(AUTHORITY_ENROLLMENT_APPROVAL_FIELDS, lines):
+        if not line or b"=" not in line:
+            raise G3ValidationError("malformed_authority_enrollment_approval_tag")
+        raw_name, raw_value = line.split(b"=", 1)
+        try:
+            name = raw_name.decode("ascii")
+            value = raw_value.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise G3ValidationError(
+                "malformed_authority_enrollment_approval_tag"
+            ) from error
+        if (
+            name != expected_name
+            or name in fields
+            or not value
+            or value != value.strip()
+            or "=" in value
+        ):
+            raise G3ValidationError("malformed_authority_enrollment_approval_tag")
+        fields[name] = value
+    if (
+        fields["phase_f_plan_tag"]
+        != G3_EXPECTED_FIELDS["phase_f_architecture_plan_tag"]
+        or fields["f0_decisions_tag"]
+        != G3_EXPECTED_FIELDS["phase_f_f0_decisions_tag"]
+        or fields["readiness_tag"] != "ism-mechanism-health-v1-f-readiness-approved"
+        or not re.fullmatch(r"[0-9a-f]{40}", fields["readiness_main_sha"])
+        or fields["enrollment_sha256"] != enrollment["complete_file_sha256"]
+        or fields["owner_authority_id"] != enrollment["owner_authority_id"]
+        or fields["registry_authority_id"] != enrollment["registry_authority_id"]
+        or fields["owner_public_key_fingerprint"]
+        != enrollment["owner_public_key_fingerprint"]
+        or fields["registry_public_key_fingerprint"]
+        != enrollment["registry_public_key_fingerprint"]
+        or not re.fullmatch(r"[0-9a-f]{64}", fields["review_bundle_sha256"])
+        or fields["approval_decision"] != "GO"
+        or tag.get("peeled_commit") != fields["readiness_main_sha"]
+    ):
+        raise G3ValidationError("authority_enrollment_approval_binding_mismatch")
+
+
 def _load_real_json_authority(
     repository: Path, graph: dict[str, Any], node_id: str, path: Path
 ) -> dict[str, Any]:
@@ -4232,6 +4627,196 @@ def _load_real_json_authority(
             "stale": False,
             "superseded_by": None,
             "invalidated": False,
+        }
+    )
+    return record
+
+
+def _load_real_authority_enrollment(
+    repository: Path, graph: dict[str, Any], allow_test_only: bool
+) -> dict[str, Any]:
+    """Load the inherited unsigned R11 enrollment as the attestation trust root."""
+
+    del allow_test_only  # R11 enrollment has no authority-class field.
+    contract = _review_reference_contract(graph)["authority_enrollment"]
+    path = repository / contract["authority_path"]
+    try:
+        raw = path.read_bytes()
+        decoded = _parse_json_without_duplicates(raw)
+    except FileNotFoundError as error:
+        raise G3ValidationError("missing_authority_enrollment") from error
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise G3ValidationError("malformed_authority_enrollment") from error
+    if not isinstance(decoded, dict) or canonical_json_bytes(decoded) != raw:
+        raise G3ValidationError("noncanonical_authority_enrollment")
+    if set(decoded) != set(contract["required_fields"]):
+        raise G3ValidationError("authority_enrollment_schema_mismatch")
+    if decoded.get("schema_version") != 1:
+        raise G3ValidationError("authority_enrollment_schema_mismatch")
+    enrollment_id = decoded.get("enrollment_id")
+    if not isinstance(enrollment_id, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", enrollment_id):
+        raise G3ValidationError("malformed_authority_enrollment_id")
+    if authority_enrollment_id(decoded) != enrollment_id:
+        raise G3ValidationError("authority_enrollment_digest_mismatch")
+    for field_name in ("owner_authority_id", "registry_authority_id"):
+        if not isinstance(decoded.get(field_name), str) or not re.fullmatch(
+            RUNTIME_STABLE_ID_PATTERN, decoded[field_name]
+        ):
+            raise G3ValidationError("malformed_authority_enrollment_authority_id")
+    if (
+        decoded.get("phase_f_plan_tag")
+        != G3_EXPECTED_FIELDS["phase_f_architecture_plan_tag"]
+        or decoded.get("f0_decisions_tag")
+        != G3_EXPECTED_FIELDS["phase_f_f0_decisions_tag"]
+        or decoded.get("readiness_tag")
+        != "ism-mechanism-health-v1-f-readiness-approved"
+    ):
+        raise G3ValidationError("authority_enrollment_tag_binding_mismatch")
+    for field_name in ("owner_public_key", "registry_public_key"):
+        if not isinstance(decoded.get(field_name), str) or not re.fullmatch(
+            ED25519_PUBLIC_KEY_PATTERN, decoded[field_name]
+        ):
+            raise G3ValidationError("malformed_authority_enrollment_public_key")
+    for key_field, fingerprint_field in (
+        ("owner_public_key", "owner_public_key_fingerprint"),
+        ("registry_public_key", "registry_public_key_fingerprint"),
+    ):
+        fingerprint = decoded.get(fingerprint_field)
+        if not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+            raise G3ValidationError("malformed_authority_enrollment_fingerprint")
+        if sha256_bytes(bytes.fromhex(decoded[key_field])) != fingerprint:
+            raise G3ValidationError("authority_enrollment_fingerprint_mismatch")
+    for field_name in (
+        "owner_authority_document",
+        "registry_authority_document",
+    ):
+        reference = decoded.get(field_name)
+        if not isinstance(reference, dict) or set(reference) != {
+            "immutable_uri", "sha256", "byte_length"
+        }:
+            raise G3ValidationError("authority_enrollment_reference_schema_mismatch")
+        if (
+            not isinstance(reference["immutable_uri"], str)
+            or not reference["immutable_uri"]
+            or not isinstance(reference["sha256"], str)
+            or not re.fullmatch(r"[0-9a-f]{64}", reference["sha256"])
+            or not isinstance(reference["byte_length"], str)
+            or not re.fullmatch(CANONICAL_UNSIGNED_INTEGER_PATTERN, reference["byte_length"])
+        ):
+            raise G3ValidationError("authority_enrollment_reference_malformed")
+    if not isinstance(decoded.get("custody_policy_sha256"), str) or not re.fullmatch(
+        r"[0-9a-f]{64}", decoded["custody_policy_sha256"]
+    ):
+        raise G3ValidationError("malformed_authority_enrollment_custody_policy")
+    if not isinstance(decoded.get("created_at"), str) or not re.fullmatch(
+        UTC_SECOND_TIMESTAMP_PATTERN, decoded["created_at"]
+    ):
+        raise G3ValidationError("malformed_authority_enrollment_timestamp")
+    record = dict(decoded)
+    record.update(
+        {
+            "bytes": raw,
+            "canonical_object": decoded,
+            "complete_file_sha256": sha256_bytes(raw),
+            "content_unchanged": True,
+        }
+    )
+    approval_tag = _read_git_tag(repository, AUTHORITY_ENROLLMENT_APPROVAL_TAG)
+    _validate_authority_enrollment_approval_tag(approval_tag, record)
+    record["enrollment_approval_tag"] = approval_tag
+    return record
+
+
+def _load_real_reviewer_actor_attestation(
+    repository: Path,
+    graph: dict[str, Any],
+    path: Path,
+    expected_id: str,
+    enrollment: dict[str, Any],
+) -> dict[str, Any]:
+    contract = _review_reference_contract(graph)["actor_attestation"]
+    try:
+        raw = path.read_bytes()
+        decoded = _parse_json_without_duplicates(raw)
+    except FileNotFoundError as error:
+        raise G3ValidationError("missing_reviewer_actor_attestation") from error
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise G3ValidationError("malformed_reviewer_actor_attestation") from error
+    if not isinstance(decoded, dict) or canonical_json_bytes(decoded) != raw:
+        raise G3ValidationError("noncanonical_reviewer_actor_attestation")
+    if set(decoded) != set(contract["required_fields"]):
+        raise G3ValidationError("reviewer_actor_attestation_schema_mismatch")
+    attestation_id = decoded.get("attestation_id")
+    if (
+        not isinstance(attestation_id, str)
+        or not re.fullmatch(r"sha256:[0-9a-f]{64}", attestation_id)
+        or attestation_id != expected_id
+        or reviewer_actor_attestation_id(decoded) != attestation_id
+    ):
+        raise G3ValidationError("reviewer_actor_attestation_digest_mismatch")
+    if decoded.get("authority_kind") != contract["authority_kind"] or decoded.get("schema_version") != 1:
+        raise G3ValidationError("reviewer_actor_attestation_schema_mismatch")
+    if not isinstance(decoded.get("actor_subject_id"), str) or not re.fullmatch(
+        RUNTIME_STABLE_ID_PATTERN, decoded["actor_subject_id"]
+    ):
+        raise G3ValidationError("malformed_reviewer_actor_subject")
+    if decoded.get("actor_class") != "natural_person":
+        raise G3ValidationError("ineligible_reviewer_actor_class")
+    for field_name in (
+        "actor_identity_evidence_sha256",
+        "authority_enrollment_sha256",
+        "role_eligibility_evidence_sha256",
+        "independence_evidence_sha256",
+        "independence_excluded_actor_identity_digest",
+    ):
+        if not isinstance(decoded.get(field_name), str) or not re.fullmatch(
+            r"[0-9a-f]{64}", decoded[field_name]
+        ):
+            raise G3ValidationError("malformed_reviewer_actor_evidence")
+    if not isinstance(decoded.get("authority_enrollment_id"), str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", decoded["authority_enrollment_id"]
+    ):
+        raise G3ValidationError("malformed_reviewer_actor_enrollment")
+    if (
+        decoded["authority_enrollment_id"] != enrollment["enrollment_id"]
+        or decoded["authority_enrollment_sha256"] != enrollment["complete_file_sha256"]
+        or not isinstance(decoded.get("eligible_role"), str)
+        or decoded.get("eligible_role") not in REVIEW_ROLES
+        or decoded.get("eligibility_verifier_authority_id")
+        != enrollment["registry_authority_id"]
+        or decoded.get("independence_verifier_authority_id")
+        != enrollment["registry_authority_id"]
+    ):
+        raise G3ValidationError("reviewer_actor_attestation_enrollment_mismatch")
+    if not isinstance(decoded.get("created_at"), str) or not re.fullmatch(
+        UTC_SECOND_TIMESTAMP_PATTERN, decoded["created_at"]
+    ):
+        raise G3ValidationError("malformed_reviewer_actor_attestation_timestamp")
+    if (
+        decoded.get("lifecycle") != "ACTIVE"
+        or decoded.get("stale") is not False
+        or decoded.get("superseded_by") is not None
+        or decoded.get("invalidated") is not False
+    ):
+        raise G3ValidationError("stale_reviewer_actor_attestation")
+    signature = decoded.get("signature")
+    if not isinstance(signature, str) or not re.fullmatch(ED25519_SIGNATURE_PATTERN, signature):
+        raise G3ValidationError("malformed_reviewer_actor_attestation_signature")
+    signing_payload = {key: value for key, value in decoded.items() if key != "signature"}
+    if not verify_ed25519_strict(
+        enrollment["registry_public_key"],
+        signature,
+        REVIEWER_ACTOR_ATTESTATION_DOMAIN + canonical_jcs_bytes(signing_payload),
+    ):
+        raise G3ValidationError("invalid_reviewer_actor_attestation_signature")
+    record = dict(decoded)
+    record.update(
+        {
+            "bytes": raw,
+            "canonical_object": decoded,
+            "complete_file_sha256": sha256_bytes(raw),
+            "content_unchanged": True,
+            "signature_verified": True,
         }
     )
     return record
@@ -4337,14 +4922,33 @@ def _resolve_real_review_references(
 ) -> tuple[
     dict[str, dict[str, Any]],
     dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    dict[str, Any] | None,
     str | None,
     str | None,
 ]:
     contract = _review_reference_contract(graph)
     reviewers: dict[str, dict[str, Any]] = {}
     artifacts: dict[str, dict[str, Any]] = {}
+    reviewer_actor_attestations: dict[str, dict[str, Any]] = {}
+    authority_enrollment: dict[str, Any] | None = None
     remediation_authority_id: str | None = None
     remediation_actor_identity_digest: str | None = None
+
+    try:
+        authority_enrollment = _load_real_authority_enrollment(
+            repository, graph, allow_test_only
+        )
+    except G3ValidationError as error:
+        resolution["errors"].append(
+            {"node_id": "authority_enrollment", "category": error.category}
+        )
+        if error.category.startswith("missing_"):
+            resolution["missing"].append(
+                {"node_id": "authority_enrollment", "category": error.category}
+            )
+    else:
+        resolution["resolved_node_ids"].append("authority_enrollment")
 
     author_path = repository / contract["remediation_author"]["authority_path"]
     try:
@@ -4415,6 +5019,51 @@ def _resolve_real_review_references(
         reviewers[reviewer_id] = reviewer
         reject_test_only(f"reviewer_identity:{reviewer_id}", reviewer)
         resolution["resolved_node_ids"].append(f"reviewer_identity:{reviewer_id}")
+        attestation_id = reviewer.get("actor_attestation_id")
+        if (
+            authority_enrollment is None
+            or not isinstance(attestation_id, str)
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", attestation_id)
+        ):
+            resolution["errors"].append(
+                {
+                    "node_id": f"reviewer_identity:{reviewer_id}",
+                    "category": "unresolved_reviewer_actor_attestation",
+                }
+            )
+            return
+        if attestation_id in reviewer_actor_attestations:
+            return
+        attestation_path = repository / contract["actor_attestation"][
+            "authority_path_template"
+        ].replace("{attestation_id}", attestation_id)
+        try:
+            attestation = _load_real_reviewer_actor_attestation(
+                repository,
+                graph,
+                attestation_path,
+                attestation_id,
+                authority_enrollment,
+            )
+        except G3ValidationError as error:
+            resolution["errors"].append(
+                {
+                    "node_id": f"reviewer_actor_attestation:{attestation_id}",
+                    "category": error.category,
+                }
+            )
+            if error.category.startswith("missing_"):
+                resolution["missing"].append(
+                    {
+                        "node_id": f"reviewer_actor_attestation:{attestation_id}",
+                        "category": error.category,
+                    }
+                )
+            return
+        reviewer_actor_attestations[attestation_id] = attestation
+        resolution["resolved_node_ids"].append(
+            f"reviewer_actor_attestation:{attestation_id}"
+        )
 
     def load_artifact(artifact_id: object, reference: dict[str, Any] | None = None) -> None:
         if not isinstance(artifact_id, str) or not re.fullmatch(r"[0-9a-f]{64}", artifact_id):
@@ -4491,7 +5140,26 @@ def _resolve_real_review_references(
             artifact_id = row.get("review_artifact_id")
             load_artifact(artifact_id)
             load_reviewer(row.get("reviewer_authority_id"))
-    return reviewers, artifacts, remediation_authority_id, remediation_actor_identity_digest
+    for attestation_id, attestation in reviewer_actor_attestations.items():
+        if (
+            remediation_actor_identity_digest is None
+            or attestation.get("independence_excluded_actor_identity_digest")
+            != remediation_actor_identity_digest
+        ):
+            resolution["errors"].append(
+                {
+                    "node_id": f"reviewer_actor_attestation:{attestation_id}",
+                    "category": "reviewer_actor_independence_evidence_mismatch",
+                }
+            )
+    return (
+        reviewers,
+        artifacts,
+        reviewer_actor_attestations,
+        authority_enrollment,
+        remediation_authority_id,
+        remediation_actor_identity_digest,
+    )
 
 
 def _resolve_real_authority(
@@ -4505,6 +5173,8 @@ def _resolve_real_authority(
     dict[str, Any],
     dict[str, dict[str, Any]],
     dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    dict[str, Any] | None,
     str | None,
     str | None,
 ]:
@@ -4554,7 +5224,14 @@ def _resolve_real_authority(
             continue
         objects[node_id] = record
         resolution["resolved_node_ids"].append(node_id)
-    reviewer_authorities, review_artifacts, remediation_authority_id, remediation_actor_identity_digest = _resolve_real_review_references(
+    (
+        reviewer_authorities,
+        review_artifacts,
+        reviewer_actor_attestations,
+        authority_enrollment,
+        remediation_authority_id,
+        remediation_actor_identity_digest,
+    ) = _resolve_real_review_references(
         repository,
         graph,
         objects.get("migrated_finding_review"),
@@ -4599,6 +5276,8 @@ def _resolve_real_authority(
         resolution,
         reviewer_authorities,
         review_artifacts,
+        reviewer_actor_attestations,
+        authority_enrollment,
         remediation_authority_id,
         remediation_actor_identity_digest,
     )
@@ -4623,6 +5302,8 @@ def make_repository_context(
         resolution,
         reviewer_authorities,
         review_artifacts,
+        reviewer_actor_attestations,
+        authority_enrollment,
         remediation_authority_id,
         remediation_actor_identity_digest,
     ) = _resolve_real_authority(repository, graph, target, allow_test_only)
@@ -4663,8 +5344,11 @@ def make_repository_context(
         authority_graph_sha256=sha256_bytes(graph_bytes),
         authority_graph_bytes=graph_bytes,
         allow_test_only_authority=allow_test_only,
+        r11_currentness_verified=allow_test_only,
         reviewer_authorities=reviewer_authorities,
         review_artifacts=review_artifacts,
+        authority_enrollment=authority_enrollment,
+        reviewer_actor_attestations=reviewer_actor_attestations,
         remediation_authority_id=remediation_authority_id,
         remediation_actor_identity_digest=remediation_actor_identity_digest,
         resolution=resolution,
@@ -4797,8 +5481,8 @@ def _isolated_real_fixture(
         "superseded_by": None,
         "invalidated": False,
     }
-    remediation_actor_identity_digest = sha256_bytes(
-        canonical_json_bytes({"fixture_actor": "remediation"})
+    remediation_actor_identity_digest = reviewer_actor_identity_digest(
+        "fixture-remediation-author"
     )
     remediation_authority_id = _fixture_write_reference(
         repository,
@@ -4812,6 +5496,91 @@ def _isolated_real_fixture(
             **lifecycle_fields,
         },
     )
+
+    owner_seed = b"phase-f-r12-fixture-owner-seed-0001"
+    registry_seed = b"phase-f-r12-fixture-registry-seed-01"
+    owner_public_key, _ = _fixture_ed25519_keypair(owner_seed)
+    registry_public_key, _ = _fixture_ed25519_keypair(registry_seed)
+    enrollment_payload = {
+        "schema_version": 1,
+        "enrollment_id": "",
+        "phase_f_plan_tag": G3_EXPECTED_FIELDS["phase_f_architecture_plan_tag"],
+        "f0_decisions_tag": G3_EXPECTED_FIELDS["phase_f_f0_decisions_tag"],
+        "readiness_tag": "ism-mechanism-health-v1-f-readiness-approved",
+        "owner_authority_id": "fixture-owner",
+        "registry_authority_id": "fixture-registry",
+        "owner_public_key": owner_public_key,
+        "registry_public_key": registry_public_key,
+        "owner_public_key_fingerprint": sha256_bytes(bytes.fromhex(owner_public_key)),
+        "registry_public_key_fingerprint": sha256_bytes(bytes.fromhex(registry_public_key)),
+        "owner_authority_document": {
+            "immutable_uri": "phase-f-test://owner-document",
+            "sha256": "d" * 64,
+            "byte_length": "0",
+        },
+        "registry_authority_document": {
+            "immutable_uri": "phase-f-test://registry-document",
+            "sha256": "e" * 64,
+            "byte_length": "0",
+        },
+        "custody_policy_sha256": "f" * 64,
+        "created_at": "2026-01-01T00:00:00Z",
+    }
+    enrollment_payload["enrollment_id"] = authority_enrollment_id(enrollment_payload)
+    enrollment_path = repository / ".phase_f_authority/authority_enrollment.json"
+    enrollment_path.parent.mkdir(parents=True, exist_ok=True)
+    enrollment_path.write_bytes(canonical_json_bytes(enrollment_payload))
+    enrollment_file_sha256 = sha256_bytes(enrollment_path.read_bytes())
+
+    actor_attestation_ids: dict[str, str] = {}
+    actor_attestation_references: dict[str, dict[str, str]] = {}
+    for index, role in enumerate(REVIEW_ROLE_ORDER, start=1):
+        attestation = {
+            "attestation_id": "",
+            "authority_kind": "PhaseFReviewerActorAttestationV1",
+            "schema_version": 1,
+            "actor_subject_id": f"fixture-natural-person-{index}",
+            "actor_class": "natural_person",
+            "actor_identity_evidence_sha256": sha256_bytes(
+                f"fixture-identity-evidence-{index}".encode()
+            ),
+            "authority_enrollment_id": enrollment_payload["enrollment_id"],
+            "authority_enrollment_sha256": enrollment_file_sha256,
+            "eligible_role": role,
+            "role_eligibility_evidence_sha256": sha256_bytes(
+                f"fixture-role-evidence-{role}".encode()
+            ),
+            "independence_evidence_sha256": sha256_bytes(
+                f"fixture-independence-evidence-{index}".encode()
+            ),
+            "independence_excluded_actor_identity_digest": remediation_actor_identity_digest,
+            "eligibility_verifier_authority_id": "fixture-registry",
+            "independence_verifier_authority_id": "fixture-registry",
+            "created_at": "2026-01-01T00:00:00Z",
+            **lifecycle_fields,
+            "signature": "",
+        }
+        attestation["attestation_id"] = reviewer_actor_attestation_id(attestation)
+        signing_payload = {
+            key: value for key, value in attestation.items() if key != "signature"
+        }
+        attestation["signature"] = _fixture_ed25519_sign(
+            registry_seed,
+            REVIEWER_ACTOR_ATTESTATION_DOMAIN + canonical_jcs_bytes(signing_payload),
+        )
+        attestation_path = repository / ".phase_f_authority/reviewer_actor_attestations" / (
+            f"{attestation['attestation_id']}.json"
+        )
+        attestation_path.parent.mkdir(parents=True, exist_ok=True)
+        attestation_path.write_bytes(canonical_json_bytes(attestation))
+        attestation_id = attestation["attestation_id"]
+        actor_attestation_ids[role] = attestation_id
+        attestation_bytes = attestation_path.read_bytes()
+        actor_attestation_references[role] = {
+            "immutable_uri": f"{REVIEWER_ACTOR_ATTESTATION_URI_PREFIX}{attestation_id}",
+            "sha256": sha256_bytes(attestation_bytes),
+            "byte_length": str(len(attestation_bytes)),
+        }
 
     def source_digest(node_id: str) -> str:
         rule = graph["node_identity_rules"][node_id]
@@ -4839,9 +5608,11 @@ def _isolated_real_fixture(
                 "authority_kind": "PhaseFReviewerIdentityV1",
                 "schema_version": 1,
                 "authority_class": "TEST_ONLY",
-                "actor_identity_digest": sha256_bytes(
-                    canonical_json_bytes({"fixture_actor": role})
+                "actor_identity_digest": reviewer_actor_identity_digest(
+                    f"fixture-natural-person-{list(REVIEW_ROLE_ORDER).index(role) + 1}"
                 ),
+                "actor_attestation_id": actor_attestation_ids[role],
+                "actor_attestation_reference": actor_attestation_references[role],
                 "permitted_review_roles": [role],
                 **lifecycle_fields,
             },
@@ -5111,6 +5882,24 @@ def _isolated_real_fixture(
             f"authority_sha256={f0_approval_sha}\n"
             f"target_git_commit={target_commit}\n"
             "schema_version=1\n"
+        ).encode("ascii"),
+    )
+    _fixture_annotated_tag(
+        repository,
+        AUTHORITY_ENROLLMENT_APPROVAL_TAG,
+        target_commit,
+        (
+            f"phase_f_plan_tag={enrollment_payload['phase_f_plan_tag']}\n"
+            f"f0_decisions_tag={enrollment_payload['f0_decisions_tag']}\n"
+            f"readiness_tag={enrollment_payload['readiness_tag']}\n"
+            f"readiness_main_sha={target_commit}\n"
+            f"enrollment_sha256={enrollment_file_sha256}\n"
+            f"owner_authority_id={enrollment_payload['owner_authority_id']}\n"
+            f"registry_authority_id={enrollment_payload['registry_authority_id']}\n"
+            f"owner_public_key_fingerprint={enrollment_payload['owner_public_key_fingerprint']}\n"
+            f"registry_public_key_fingerprint={enrollment_payload['registry_public_key_fingerprint']}\n"
+            f"review_bundle_sha256={'a' * 64}\n"
+            "approval_decision=GO\n"
         ).encode("ascii"),
     )
     g3_body = (
@@ -7517,8 +8306,14 @@ def run_regression_self_tests() -> None:
                 not re.fullmatch(r"[0-9a-f]{64}", identifier)
                 for identifier in fixture_context.review_artifacts
             )
+            or len(fixture_context.reviewer_actor_attestations) != len(REVIEW_ROLES)
+            or any(
+                record.get("signature_verified") is not True
+                for record in fixture_context.reviewer_actor_attestations.values()
+            )
+            or fixture_context.authority_enrollment is None
         ):
-            raise AssertionError("real fixture resolved a non-canonical authority identity")
+            raise AssertionError("real fixture resolved an incomplete actor authority chain")
 
         fixture_graph_nodes = _graph_nodes(fixture_context.graph)
         direct_target_matrix_tests += 1
@@ -7743,6 +8538,8 @@ def run_regression_self_tests() -> None:
         root_change_staleness_tests += 1
 
         real_negative_cases_tested = 0
+        real_actor_positive_tests = 1
+        real_actor_negative_tests = 0
 
         def real_reject(label: str, mutate: object) -> None:
             nonlocal real_negative_cases_tested
@@ -7813,6 +8610,146 @@ def run_regression_self_tests() -> None:
                 "reviewer_authority_id": replacement_id,
             }
             refresh_review_row_hash(row)
+
+        def migrated_reviewer_and_attestation(
+            context: G3AuthorityContext, row_index: int = 0
+        ) -> tuple[dict[str, Any], dict[str, Any]]:
+            row = context.objects["migrated_finding_review"]["review_records"][row_index]
+            reviewer = context.reviewer_authorities[row["reviewer_authority_id"]]
+            attestation = context.reviewer_actor_attestations[
+                reviewer["actor_attestation_id"]
+            ]
+            return reviewer, attestation
+
+        def actor_reject(label: str, mutate: object) -> None:
+            nonlocal real_actor_negative_tests
+            real_reject(label, mutate)
+            real_actor_negative_tests += 1
+
+        actor_reject(
+            "real arbitrary actor digest",
+            lambda context: migrated_reviewer_and_attestation(context)[0].update(
+                {"actor_identity_digest": "a" * 64}
+            ),
+        )
+        actor_reject(
+            "real missing actor attestation",
+            lambda context: context.reviewer_actor_attestations.pop(
+                migrated_reviewer_and_attestation(context)[0]["actor_attestation_id"]
+            ),
+        )
+        actor_reject(
+            "real fake enrollment",
+            lambda context: context.__setattr__("authority_enrollment", None),
+        )
+        actor_reject(
+            "real enrollment cross-wire",
+            lambda context: migrated_reviewer_and_attestation(context)[1].update(
+                {"authority_enrollment_id": "sha256:" + "e" * 64}
+            ),
+        )
+        actor_reject(
+            "real invalid actor attestation signature",
+            lambda context: migrated_reviewer_and_attestation(context)[1].update(
+                {"signature_verified": False}
+            ),
+        )
+        actor_reject(
+            "real wrong role eligibility",
+            lambda context: migrated_reviewer_and_attestation(context)[1].update(
+                {"eligible_role": "security"}
+            ),
+        )
+        actor_reject(
+            "real stale actor attestation",
+            lambda context: migrated_reviewer_and_attestation(context)[1].update(
+                {"stale": True}
+            ),
+        )
+        actor_reject(
+            "real superseded actor attestation",
+            lambda context: migrated_reviewer_and_attestation(context)[1].update(
+                {"superseded_by": "sha256:" + "e" * 64}
+            ),
+        )
+        actor_reject(
+            "real invalidated actor attestation",
+            lambda context: migrated_reviewer_and_attestation(context)[1].update(
+                {"invalidated": True}
+            ),
+        )
+        actor_reject(
+            "real actor enrollment hash cross-wire",
+            lambda context: migrated_reviewer_and_attestation(context)[1].update(
+                {"authority_enrollment_sha256": "e" * 64}
+            ),
+        )
+        actor_reject(
+            "real actor/remediation alias",
+            lambda context: migrated_reviewer_and_attestation(context)[1].update(
+                {
+                    "independence_excluded_actor_identity_digest": "e" * 64,
+                }
+            ),
+        )
+        actor_reject(
+            "real reviewer/attestation cross-wire",
+            lambda context: migrated_reviewer_and_attestation(context)[0].update(
+                {
+                    "actor_attestation_id": context.reviewer_authorities[
+                        context.objects["migrated_finding_review"]["review_records"][1][
+                            "reviewer_authority_id"
+                        ]
+                    ]["actor_attestation_id"],
+                }
+            ),
+        )
+
+        def mutate_same_subject_multiple_enrollments(
+            context: G3AuthorityContext,
+        ) -> None:
+            rows = context.objects["migrated_finding_review"]["review_records"]
+            first_reviewer = context.reviewer_authorities[rows[0]["reviewer_authority_id"]]
+            first_attestation = context.reviewer_actor_attestations[
+                first_reviewer["actor_attestation_id"]
+            ]
+            subject = first_attestation["actor_subject_id"]
+            digest = first_reviewer["actor_identity_digest"]
+            for row in rows[1:]:
+                reviewer = context.reviewer_authorities[row["reviewer_authority_id"]]
+                attestation = context.reviewer_actor_attestations[
+                    reviewer["actor_attestation_id"]
+                ]
+                attestation["actor_subject_id"] = subject
+                reviewer["actor_identity_digest"] = digest
+
+        actor_reject(
+            "real same-subject multiple-enrollment alias",
+            mutate_same_subject_multiple_enrollments,
+        )
+        actor_reject(
+            "real same-subject five-key alias",
+            lambda context: [
+                context.reviewer_authorities[row["reviewer_authority_id"]].update(
+                    {
+                        "actor_identity_digest": context.reviewer_authorities[
+                            context.objects["migrated_finding_review"]["review_records"][0][
+                                "reviewer_authority_id"
+                            ]
+                        ]["actor_identity_digest"]
+                    }
+                )
+                for row in context.objects["migrated_finding_review"]["review_records"][1:]
+            ],
+        )
+        actor_reject(
+            "real R11 currentness proof unavailable",
+            lambda context: (
+                context.__setattr__("mode", "real"),
+                context.__setattr__("allow_test_only_authority", False),
+                context.__setattr__("r11_currentness_verified", False),
+            ),
+        )
 
         def remove_real_binding(
             context: G3AuthorityContext, target: str, relation: str, source: str
@@ -8297,6 +9234,8 @@ def run_regression_self_tests() -> None:
         f"direct_actor_pair_tests={direct_actor_pair_tests} "
         f"available_direct_review_entrypoint_negative_tests={available_direct_review_entrypoint_negative_tests} "
         f"real_direct_actor_pair_tests={real_direct_actor_pair_tests} "
+        f"real_actor_positive_tests={real_actor_positive_tests} "
+        f"real_actor_negative_tests={real_actor_negative_tests} "
         f"graph_candidates={len(candidate_edges)} graph_authorized={len(authorized_node_edges)} "
         f"graph_unauthorized={len(unauthorized_candidates)} graph_accepted_unauthorized={accepted_unauthorized_edges} "
         f"edge_canonical_passes={authorized_edge_canonical_passes} edge_removals_rejected={authorized_edge_removals_rejected} "

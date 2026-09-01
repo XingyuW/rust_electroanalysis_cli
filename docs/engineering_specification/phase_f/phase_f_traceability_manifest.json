@@ -105,23 +105,23 @@
       ]
     },
     "path": "docs/engineering_specification/phase_f/phase_f_r12_authority_graph.json",
-    "sha256": "45b9a2516ed63f793b8b27e03f8d6ca1b11cf05c620f85909f76c27367c8eebb"
+    "sha256": "e562859c3742bacd0b8fce605650784043e0e722c5f754e44c98c566a39fb368"
   },
   "generated_source_sha256s": {
     "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
-    "component_conformance_spec": "3306a294be72dbf8165f1776029a5ddc5f40b28358750c95f8524b84b475e86d",
-    "component_implementation_spec": "1ea39ac57b0c3a9255e2883988f2e7c2941f830f1119478c4deb2ca331b12c4f",
+    "component_conformance_spec": "01d573f1a3c7490b9df379952c7ad21ad5c323518653f1e41344be8ee3c542eb",
+    "component_implementation_spec": "424ae0870701c1902fb98cb4f47344f99afee5d586ae6c330978784dade60cf4",
     "component_operations_spec": "5ceaf042e5904e78c757e1fd227b9162c1331bce246901aab415c6afab02a78a",
     "component_scientific_spec": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
-    "component_wire_spec": "007ed5c479c0d7b07a3a644588dd03d085af478cda8cbaf9374b1f19b9f02a03",
-    "migration_ledger": "100ad5cce0e29f1d512e39466b0676efeb4fbfea6e127b1ee2c7089bcc4162ac",
-    "normative_traceability_matrix": "2ff752794924823a0844a7e8c442316b379c8e9aadce866df11b7efcf46e9fa1"
+    "component_wire_spec": "37ccff2927b41650741b93a5209c64bd467ae5fef2130e9e0856a331695ec949",
+    "migration_ledger": "be9974957a7cb496cebc3252b1cf5ef3e9518af5b5a974c6cc47095af077b698",
+    "normative_traceability_matrix": "62e3a5eeddb50d5c541039e95e4cb025d0ab908eb0ed96fec6abc8f50a211575"
   },
   "generation_rule": "docs/engineering_specification/phase_f/generate_phase_f_manifests.py",
   "normative_matrix": {
     "path": "docs/engineering_specification/phase_f/phase_f_r12_normative_traceability_matrix.json",
     "requirement_count": 64,
-    "sha256": "2ff752794924823a0844a7e8c442316b379c8e9aadce866df11b7efcf46e9fa1"
+    "sha256": "62e3a5eeddb50d5c541039e95e4cb025d0ab908eb0ed96fec6abc8f50a211575"
   },
   "reference_catalogs": {
     "future_real_evidence": {
@@ -129,7 +129,7 @@
       "source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md"
     },
     "tests": {
-      "count": 115,
+      "count": 117,
       "r11_source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md",
       "r12_source": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md"
     }
@@ -807,7 +807,9 @@
       ],
       "property_test_ids": [],
       "requirement_id": "F-CNF-001",
-      "schema_ids": [],
+      "schema_ids": [
+        "PhaseFReviewerActorAttestationV1"
+      ],
       "test_ids": [
         "R11-KAT-INCIDENT",
         "R11-POS-PLAN",
@@ -1029,6 +1031,8 @@
         "R12-G3-MIGRATED-INPUT-FINGERPRINT",
         "R12-G3-REAL-FORMAT-POSITIVE",
         "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+        "R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE",
+        "R12-G3-REAL-ACTOR-ATTESTATION-NEGATIVE-MATRIX",
         "R12-DAG-TYPED-EDGE-CONTRACT",
         "R12-DAG-IDENTITY-RULE-CONTRACT",
         "R12-DAG-SEMANTIC-AUDITS",
@@ -1071,6 +1075,7 @@
       "property_test_ids": [],
       "requirement_id": "F-CNF-005",
       "schema_ids": [
+        "PhaseFReviewerActorAttestationV1",
         "PhaseFSpecificationBundleApprovalV1"
       ],
       "test_ids": [
@@ -1113,6 +1118,8 @@
         "R12-G3-MIGRATED-INPUT-FINGERPRINT",
         "R12-G3-REAL-FORMAT-POSITIVE",
         "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+        "R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE",
+        "R12-G3-REAL-ACTOR-ATTESTATION-NEGATIVE-MATRIX",
         "R12-DAG-TYPED-EDGE-CONTRACT",
         "R12-DAG-IDENTITY-RULE-CONTRACT",
         "R12-DAG-SEMANTIC-AUDITS",
@@ -1502,6 +1509,7 @@
       ],
       "requirement_id": "F-IMPL-007",
       "schema_ids": [
+        "PhaseFReviewerActorAttestationV1",
         "PhaseFSpecificationBundleApprovalV1"
       ],
       "test_ids": [
@@ -2377,7 +2385,9 @@
       ],
       "property_test_ids": [],
       "requirement_id": "F-WIRE-005",
-      "schema_ids": [],
+      "schema_ids": [
+        "PhaseFReviewerActorAttestationV1"
+      ],
       "test_ids": [
         "R11-CAT",
         "R11-TRACE",
@@ -2642,7 +2652,8 @@
         "PhaseFUnitEntryV1",
         "PhaseFUnitRuleV1",
         "PhaseFSpecificationBundleApprovalV1",
-        "PhaseFMigratedFindingReviewV1"
+        "PhaseFMigratedFindingReviewV1",
+        "PhaseFReviewerActorAttestationV1"
       ],
       "test_ids": [
         "R11-CAT",
@@ -2953,6 +2964,13 @@
       "F-WIRE-008"
     ],
     "PhaseFReviewTargetV1": [
+      "F-WIRE-008"
+    ],
+    "PhaseFReviewerActorAttestationV1": [
+      "F-CNF-001",
+      "F-CNF-005",
+      "F-IMPL-007",
+      "F-WIRE-005",
       "F-WIRE-008"
     ],
     "PhaseFScientificAdmissibilityAuditV1": [

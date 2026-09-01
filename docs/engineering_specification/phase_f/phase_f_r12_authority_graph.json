@@ -431,6 +431,7 @@
   ],
   "review_reference_contract": {
     "artifact_uri_prefix": "phase-f-authority://review-artifacts/",
+    "actor_attestation_uri_prefix": "phase-f-authority://reviewer-actor-attestations/",
     "bundle_schema": {
       "authority_kind": "PhaseFIndependentReviewBundleV1",
       "fields": [
@@ -463,11 +464,69 @@
         "schema_version",
         "authority_class",
         "actor_identity_digest",
+        "actor_attestation_id",
+        "actor_attestation_reference",
         "permitted_review_roles",
         "lifecycle",
         "stale",
         "superseded_by",
         "invalidated"
+      ]
+    },
+    "actor_attestation": {
+      "authority_path_template": ".phase_f_authority/reviewer_actor_attestations/{attestation_id}.json",
+      "authority_kind": "PhaseFReviewerActorAttestationV1",
+      "id_field": "attestation_id",
+      "digest_excluded_fields": [
+        "attestation_id",
+        "signature"
+      ],
+      "required_fields": [
+        "attestation_id",
+        "authority_kind",
+        "schema_version",
+        "actor_subject_id",
+        "actor_class",
+        "actor_identity_evidence_sha256",
+        "authority_enrollment_id",
+        "authority_enrollment_sha256",
+        "eligible_role",
+        "role_eligibility_evidence_sha256",
+        "independence_evidence_sha256",
+        "independence_excluded_actor_identity_digest",
+        "eligibility_verifier_authority_id",
+        "independence_verifier_authority_id",
+        "created_at",
+        "lifecycle",
+        "stale",
+        "superseded_by",
+        "invalidated",
+        "signature"
+      ]
+    },
+    "authority_enrollment": {
+      "authority_path": ".phase_f_authority/authority_enrollment.json",
+      "authority_kind": "PhaseFAuthorityEnrollmentV1",
+      "id_field": "enrollment_id",
+      "digest_excluded_fields": [
+        "enrollment_id"
+      ],
+      "required_fields": [
+        "schema_version",
+        "enrollment_id",
+        "phase_f_plan_tag",
+        "f0_decisions_tag",
+        "readiness_tag",
+        "owner_authority_id",
+        "registry_authority_id",
+        "owner_public_key",
+        "registry_public_key",
+        "owner_public_key_fingerprint",
+        "registry_public_key_fingerprint",
+        "owner_authority_document",
+        "registry_authority_document",
+        "custody_policy_sha256",
+        "created_at"
       ]
     },
     "artifact": {

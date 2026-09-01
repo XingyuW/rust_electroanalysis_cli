@@ -542,7 +542,9 @@
       ],
       "property_test_ids": [],
       "requirement_id": "F-CNF-001",
-      "schema_ids": [],
+      "schema_ids": [
+        "PhaseFReviewerActorAttestationV1"
+      ],
       "test_ids": [
         "R11-KAT-INCIDENT",
         "R11-POS-PLAN",
@@ -757,6 +759,8 @@
         "R12-G3-MIGRATED-INPUT-FINGERPRINT",
         "R12-G3-REAL-FORMAT-POSITIVE",
         "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+        "R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE",
+        "R12-G3-REAL-ACTOR-ATTESTATION-NEGATIVE-MATRIX",
         "R12-DAG-TYPED-EDGE-CONTRACT",
         "R12-DAG-IDENTITY-RULE-CONTRACT",
         "R12-DAG-SEMANTIC-AUDITS",
@@ -798,6 +802,7 @@
       "property_test_ids": [],
       "requirement_id": "F-CNF-005",
       "schema_ids": [
+        "PhaseFReviewerActorAttestationV1",
         "PhaseFSpecificationBundleApprovalV1"
       ],
       "test_ids": [
@@ -840,6 +845,8 @@
         "R12-G3-MIGRATED-INPUT-FINGERPRINT",
         "R12-G3-REAL-FORMAT-POSITIVE",
         "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+        "R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE",
+        "R12-G3-REAL-ACTOR-ATTESTATION-NEGATIVE-MATRIX",
         "R12-DAG-TYPED-EDGE-CONTRACT",
         "R12-DAG-IDENTITY-RULE-CONTRACT",
         "R12-DAG-SEMANTIC-AUDITS",
@@ -1207,6 +1214,7 @@
       ],
       "requirement_id": "F-IMPL-007",
       "schema_ids": [
+        "PhaseFReviewerActorAttestationV1",
         "PhaseFSpecificationBundleApprovalV1"
       ],
       "test_ids": [
@@ -1970,7 +1978,9 @@
       "kat_ids": ["R11-CX-17"],
       "property_test_ids": [],
       "requirement_id": "F-WIRE-005",
-      "schema_ids": [],
+      "schema_ids": [
+        "PhaseFReviewerActorAttestationV1"
+      ],
       "test_ids": [
         "R11-CAT",
         "R11-TRACE",
@@ -2218,7 +2228,8 @@
         "PhaseFUnitEntryV1",
         "PhaseFUnitRuleV1",
         "PhaseFSpecificationBundleApprovalV1",
-        "PhaseFMigratedFindingReviewV1"
+        "PhaseFMigratedFindingReviewV1",
+        "PhaseFReviewerActorAttestationV1"
       ],
       "test_ids": [
         "R11-CAT",
