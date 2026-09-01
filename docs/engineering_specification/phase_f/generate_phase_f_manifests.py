@@ -489,6 +489,10 @@ def _graph_nodes(graph: dict[str, Any]) -> dict[str, dict[str, Any]]:
         stage = node.get("creation_stage")
         if not isinstance(stage, int) or stage not in GRAPH_STAGE_NAMES:
             raise ValueError(f"invalid R12 graph creation stage: {node_id}")
+        if set(node) != {"id", "authority_kind", "creation_stage", "binding_fields"}:
+            raise ValueError(f"R12 graph node field closure is not exact: {node_id}")
+        if not isinstance(node["binding_fields"], list):
+            raise ValueError(f"R12 graph node binding-field contract is malformed: {node_id}")
         by_id[node_id] = node
     return by_id
 
@@ -706,6 +710,133 @@ def _binding_semantics(
     return {edge_type: policies[edge_type]["serialized_binding"] for edge_type in GRAPH_EDGE_TYPES}, normalized
 
 
+def _semantic_rule_key(rule: dict[str, str]) -> tuple[str, str, str, str, str, str]:
+    return (
+        rule["target"],
+        rule["type"],
+        rule["source"],
+        rule["field"],
+        rule["category"],
+        rule["value"],
+    )
+
+
+def _canonical_semantic_rules(
+    rules: list[dict[str, str]],
+) -> list[tuple[str, str, str, str, str, str]]:
+    return sorted(_semantic_rule_key(rule) for rule in rules)
+
+
+def derive_required_semantic_rules(
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, str]],
+    object_field_contracts: dict[str, list[str]],
+) -> dict[str, Any]:
+    """Derive the complete binding-rule universe from upstream contracts only.
+
+    Node ``binding_fields`` are attached to the authoritative node/schema
+    contract. The mutable ``binding_semantics`` declaration, serialized mirror,
+    builder objects, and validator fields are deliberately not inputs here.
+    """
+
+    if not isinstance(object_field_contracts, dict):
+        raise ValueError("R12 object-field contract is malformed")
+    if any(target not in nodes for target in object_field_contracts):
+        raise ValueError("R12 object-field contract references an unknown node")
+    if any(
+        not isinstance(target, str)
+        or not isinstance(fields, list)
+        or len(fields) != len(set(fields))
+        or any(not isinstance(field_name, str) or not field_name for field_name in fields)
+        for target, fields in object_field_contracts.items()
+    ):
+        raise ValueError("R12 object-field contract is malformed")
+
+    rules: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for target, node in nodes.items():
+        binding_fields = node.get("binding_fields")
+        if not isinstance(binding_fields, list):
+            raise ValueError(f"R12 node binding-field contract is malformed: {target}")
+        for binding in binding_fields:
+            required = {"field", "type", "source", "category", "value"}
+            if not isinstance(binding, dict) or set(binding) != required:
+                raise ValueError(f"R12 node binding-field entry is malformed: {target}")
+            field_name = binding["field"]
+            edge_type = binding["type"]
+            source = binding["source"]
+            category = binding["category"]
+            value_source = binding["value"]
+            schema_fields = object_field_contracts.get(target)
+            if (
+                not isinstance(schema_fields, list)
+                or field_name not in schema_fields
+                or not isinstance(edge_type, str)
+                or edge_type not in GRAPH_EDGE_TYPES
+                or not isinstance(source, str)
+                or (source != "*" and source not in nodes)
+                or not isinstance(category, str)
+                or not isinstance(value_source, str)
+                or SERIALIZED_BINDING_FIELD_SEMANTICS.get(field_name)
+                != (category, value_source)
+            ):
+                raise ValueError(f"R12 node binding-field value is invalid: {target}")
+            key = (target, edge_type, source)
+            if key in seen:
+                raise ValueError(f"duplicate R12 node binding-field entry: {key}")
+            seen.add(key)
+            matching_edges = [
+                edge
+                for edge in edges
+                if edge["to"] == target
+                and edge["type"] == edge_type
+                and (source == "*" or edge["from"] == source)
+            ]
+            if not matching_edges:
+                raise ValueError(
+                    "R12 node binding-field entry has no matching edge: "
+                    f"{target}/{edge_type}/{source}"
+                )
+            rules.append(
+                {
+                    "target": target,
+                    "type": edge_type,
+                    "source": source,
+                    "field": field_name,
+                    "category": category,
+                    "value": value_source,
+                }
+            )
+
+    policies: dict[str, str] = {}
+    for edge_type in sorted(GRAPH_EDGE_TYPES):
+        typed_edges = [edge for edge in edges if edge["type"] == edge_type]
+        typed_rules = [rule for rule in rules if rule["type"] == edge_type]
+        if not typed_rules:
+            policies[edge_type] = "none"
+            continue
+        edge_match_counts = [
+            sum(
+                rule["target"] == edge["to"]
+                and (rule["source"] == "*" or rule["source"] == edge["from"])
+                for rule in typed_rules
+            )
+            for edge in typed_edges
+        ]
+        if any(count > 1 for count in edge_match_counts):
+            raise ValueError(f"R12 node binding-field entries overlap: {edge_type}")
+        if all(count == 1 for count in edge_match_counts):
+            policies[edge_type] = "all"
+        else:
+            if any(rule["source"] == "*" for rule in typed_rules):
+                raise ValueError(
+                    f"R12 wildcard node binding-field entry does not cover all edges: {edge_type}"
+                )
+            policies[edge_type] = "selected"
+
+    return {"relation_policies": policies, "serialized_rules": rules}
+
+
 def derive_required_inputs(
     nodes: dict[str, dict[str, Any]], edges: list[dict[str, str]]
 ) -> dict[str, list[str]]:
@@ -722,9 +853,22 @@ def derive_binding_projection(
     nodes: dict[str, dict[str, Any]],
     edges: list[dict[str, str]],
 ) -> list[dict[str, str]]:
-    """Derive concrete binding descriptors from graph edges and closed semantics."""
+    """Derive concrete bindings and compare the downstream declaration exactly."""
 
-    policies, rules = _binding_semantics(graph, nodes)
+    independent = derive_required_semantic_rules(
+        nodes, edges, graph.get("object_field_contracts")
+    )
+    declared_policies, declared_rules = _binding_semantics(graph, nodes)
+    if (
+        declared_policies != independent["relation_policies"]
+        or _canonical_semantic_rules(declared_rules)
+        != _canonical_semantic_rules(independent["serialized_rules"])
+    ):
+        raise ValueError(
+            "R12 declared binding semantics do not equal the independent semantic-rule projection"
+        )
+    policies = independent["relation_policies"]
+    rules = independent["serialized_rules"]
     projection: list[dict[str, str]] = []
     for rule in rules:
         matching_edges = [
@@ -786,7 +930,9 @@ def derive_serialized_binding_contract(
     """Project the independent binding descriptors into the checked-in mirror shape."""
 
     projection = derive_binding_projection(graph, nodes, edges)
-    _, rules = _binding_semantics(graph, nodes)
+    rules = derive_required_semantic_rules(
+        nodes, edges, graph.get("object_field_contracts")
+    )["serialized_rules"]
     derived: dict[str, dict[str, dict[str, str]]] = {}
     for rule in rules:
         if not any(
@@ -3919,6 +4065,8 @@ def _isolated_real_fixture() -> tuple[tempfile.TemporaryDirectory[str], Path, st
 
 
 def run_regression_self_tests() -> None:
+    global _validate_graph_object_bindings
+
     trace = build_traceability()
     entries = trace["requirements"]
     matrix = load_normative_matrix()
@@ -4255,6 +4403,39 @@ def run_regression_self_tests() -> None:
 
     graph_nodes = _graph_nodes(graph)
     graph_edges = _graph_edges(graph, graph_nodes)
+    independent_semantics = derive_required_semantic_rules(
+        graph_nodes, graph_edges, graph["object_field_contracts"]
+    )
+    independent_rules = independent_semantics["serialized_rules"]
+    selected_rules = [
+        rule
+        for rule in independent_rules
+        if independent_semantics["relation_policies"][rule["type"]] == "selected"
+    ]
+    semantic_rule_policy_counts = {
+        policy: sum(
+            value == policy for value in independent_semantics["relation_policies"].values()
+        )
+        for policy in sorted(SERIALIZED_BINDING_POLICIES)
+    }
+    selected_rule_relation_counts = {
+        relation: sum(rule["type"] == relation for rule in selected_rules)
+        for relation in sorted(GRAPH_EDGE_TYPES)
+        if any(rule["type"] == relation for rule in selected_rules)
+    }
+    selected_rule_target_counts = {
+        target: sum(rule["target"] == target for rule in selected_rules)
+        for target in sorted({rule["target"] for rule in selected_rules})
+    }
+    if len(independent_rules) != 20 or len(selected_rules) != 12:
+        raise AssertionError(
+            "independent semantic-rule inventory has unexpected cardinality: "
+            f"total={len(independent_rules)} selected={len(selected_rules)}"
+        )
+    if derive_required_semantic_rules(
+        graph_nodes, graph_edges, graph["object_field_contracts"]
+    ) != independent_semantics:
+        raise AssertionError("independent semantic-rule derivation is not deterministic")
     binding_projection = derive_binding_projection(graph, graph_nodes, graph_edges)
     binding_contract = derive_serialized_binding_contract(graph, graph_nodes, graph_edges)
     relation_map_entries = [
@@ -4272,7 +4453,16 @@ def run_regression_self_tests() -> None:
         "wrong_field": 0,
         "duplicate": 0,
     }
-    semantic_rule_mutations = 0
+    def remove_declared_rule_and_mirror(
+        value: dict[str, Any], rule: dict[str, str]
+    ) -> None:
+        value["binding_semantics"]["serialized_rules"].remove(rule)
+        relation_map = value["serialized_binding_fields"][rule["target"]][rule["type"]]
+        relation_map.pop(rule["source"])
+        if not relation_map:
+            value["serialized_binding_fields"][rule["target"]].pop(rule["type"])
+        if not value["serialized_binding_fields"][rule["target"]]:
+            value["serialized_binding_fields"].pop(rule["target"])
 
     def binding_graph_reject(label: str, mutate: object) -> None:
         mutant = deepcopy(graph)
@@ -4374,33 +4564,111 @@ def run_regression_self_tests() -> None:
         )
         relation_map_mutation_counts["duplicate"] += 1
 
-    for rule_index, semantic_rule in enumerate(graph["binding_semantics"]["serialized_rules"]):
-        replacement_category = next(
-            category
-            for category in sorted(SERIALIZED_BINDING_CATEGORIES)
-            if category != semantic_rule["category"]
+    selected_rule_deletions_tested = 0
+    selected_rule_deletion_accepted = 0
+    coordinated_rule_mirror_deletions_tested = 0
+    coordinated_rule_mirror_deletion_accepted = 0
+    for rule in selected_rules:
+        rule_only = deepcopy(graph)
+        rule_only["binding_semantics"]["serialized_rules"].remove(rule)
+        selected_rule_deletions_tested += 1
+        try:
+            validate_r12_authority_graph(rule_only)
+        except ValueError:
+            pass
+        else:
+            selected_rule_deletion_accepted += 1
+        coordinated = deepcopy(graph)
+        remove_declared_rule_and_mirror(coordinated, rule)
+        coordinated_rule_mirror_deletions_tested += 1
+        try:
+            validate_r12_authority_graph(coordinated)
+        except ValueError:
+            pass
+        else:
+            coordinated_rule_mirror_deletion_accepted += 1
+    if selected_rule_deletion_accepted or coordinated_rule_mirror_deletion_accepted:
+        raise AssertionError(
+            "semantic-rule deletion mutation was accepted: "
+            f"rule_only={selected_rule_deletion_accepted} "
+            f"rule_and_mirror={coordinated_rule_mirror_deletion_accepted}"
         )
-        binding_graph_reject(
-            f"wrong serialized binding category {rule_index}",
-            lambda value, rule_index=rule_index, replacement_category=replacement_category: value[
-                "binding_semantics"
-            ]["serialized_rules"][rule_index].__setitem__(
-                "category", replacement_category
+
+    semantic_rule_category_mutations = 0
+    semantic_rule_value_mutations = 0
+    semantic_rule_field_mutations = 0
+    semantic_rule_source_mutations = 0
+    semantic_rule_relation_mutations = 0
+    for rule_index, semantic_rule in enumerate(graph["binding_semantics"]["serialized_rules"]):
+        for replacement_category in sorted(SERIALIZED_BINDING_CATEGORIES - {semantic_rule["category"]}):
+            binding_graph_reject(
+                f"wrong serialized binding category {rule_index}/{replacement_category}",
+                lambda value, rule_index=rule_index, replacement_category=replacement_category: value[
+                    "binding_semantics"
+                ]["serialized_rules"][rule_index].__setitem__(
+                    "category", replacement_category
+                ),
+            )
+            semantic_rule_category_mutations += 1
+        for replacement_value in sorted(SERIALIZED_BINDING_VALUE_SOURCES - {semantic_rule["value"]}):
+            binding_graph_reject(
+                f"wrong serialized binding value semantics {rule_index}/{replacement_value}",
+                lambda value, rule_index=rule_index, replacement_value=replacement_value: value[
+                    "binding_semantics"
+                ]["serialized_rules"][rule_index].__setitem__("value", replacement_value),
+            )
+            semantic_rule_value_mutations += 1
+        target_fields = graph["object_field_contracts"].get(semantic_rule["target"], [])
+        replacement_field = next(
+            (
+                field_name
+                for field_name in target_fields
+                if field_name != semantic_rule["field"]
+                and field_name in SERIALIZED_BINDING_FIELD_SEMANTICS
+            ),
+            next(
+                field_name
+                for field_name in sorted(SERIALIZED_BINDING_FIELD_SEMANTICS)
+                if field_name != semantic_rule["field"]
             ),
         )
-        semantic_rule_mutations += 1
-        replacement_value = next(
-            value
-            for value in sorted(SERIALIZED_BINDING_VALUE_SOURCES)
-            if value != semantic_rule["value"]
+        binding_graph_reject(
+            f"wrong serialized binding field {rule_index}",
+            lambda value, rule_index=rule_index, replacement_field=replacement_field: value[
+                "binding_semantics"
+            ]["serialized_rules"][rule_index].__setitem__("field", replacement_field),
+        )
+        semantic_rule_field_mutations += 1
+        replacement_source = next(
+            node_id
+            for node_id in sorted(graph_nodes)
+            if node_id != semantic_rule["target"]
+            and node_id != semantic_rule["source"]
+            and node_id != "*"
         )
         binding_graph_reject(
-            f"wrong serialized binding value semantics {rule_index}",
-            lambda value, rule_index=rule_index, replacement_value=replacement_value: value[
+            f"wrong serialized binding source {rule_index}",
+            lambda value, rule_index=rule_index, replacement_source=replacement_source: value[
                 "binding_semantics"
-            ]["serialized_rules"][rule_index].__setitem__("value", replacement_value),
+            ]["serialized_rules"][rule_index].__setitem__(
+                "source", replacement_source
+            ),
         )
-        semantic_rule_mutations += 1
+        semantic_rule_source_mutations += 1
+        replacement_relation = next(
+            relation
+            for relation in sorted(GRAPH_EDGE_TYPES)
+            if relation != semantic_rule["type"]
+        )
+        binding_graph_reject(
+            f"wrong serialized binding relation {rule_index}",
+            lambda value, rule_index=rule_index, replacement_relation=replacement_relation: value[
+                "binding_semantics"
+            ]["serialized_rules"][rule_index].__setitem__(
+                "type", replacement_relation
+            ),
+        )
+        semantic_rule_relation_mutations += 1
 
     if binding_contract != graph["serialized_binding_fields"] or not binding_projection:
         raise AssertionError("independent binding projection does not match canonical mirror")
@@ -4493,8 +4761,12 @@ def run_regression_self_tests() -> None:
         "graph", "nodes", "edges"
     ) or tuple(inspect.signature(derive_required_inputs).parameters) != (
         "nodes", "edges"
+    ) or tuple(inspect.signature(derive_required_semantic_rules).parameters) != (
+        "nodes", "edges", "object_field_contracts"
     ):
-        raise AssertionError("binding/prerequisite derivation accepts mutable contract structures")
+        raise AssertionError("binding/prerequisite derivation accepts mutable downstream structures")
+    if "binding_semantics" in derive_required_semantic_rules.__code__.co_names:
+        raise AssertionError("independent semantic-rule derivation reads binding_semantics")
 
     class MutableContractAccessGuard(dict[str, Any]):
         def __getitem__(self, key: str) -> Any:
@@ -4510,6 +4782,77 @@ def run_regression_self_tests() -> None:
     guarded_graph = MutableContractAccessGuard(graph)
     derive_binding_projection(guarded_graph, graph_nodes, graph_edges)
     derive_serialized_binding_contract(guarded_graph, graph_nodes, graph_edges)
+
+    semantic_rule_candidates = []
+    for target, fields in sorted(graph["object_field_contracts"].items()):
+        for edge_type in sorted(GRAPH_EDGE_TYPES):
+            sources = sorted(
+                {
+                    edge["from"]
+                    for edge in graph_edges
+                    if edge["to"] == target and edge["type"] == edge_type
+                }
+            )
+            sources.append("*")
+            for source in sources:
+                for field_name in fields:
+                    semantics = SERIALIZED_BINDING_FIELD_SEMANTICS.get(field_name)
+                    if semantics is None:
+                        continue
+                    category, value_source = semantics
+                    semantic_rule_candidates.append(
+                        {
+                            "target": target,
+                            "type": edge_type,
+                            "source": source,
+                            "field": field_name,
+                            "category": category,
+                            "value": value_source,
+                        }
+                    )
+    independent_rule_keys = {
+        _semantic_rule_key(rule) for rule in independent_rules
+    }
+    unauthorized_semantic_rule_candidates = [
+        candidate
+        for candidate in semantic_rule_candidates
+        if _semantic_rule_key(candidate) not in independent_rule_keys
+    ]
+    accepted_unauthorized_semantic_rules = 0
+    for candidate in unauthorized_semantic_rule_candidates:
+        mutant = deepcopy(graph)
+        mutant["binding_semantics"]["serialized_rules"].append(candidate)
+        try:
+            validate_r12_authority_graph(mutant)
+        except ValueError:
+            continue
+        accepted_unauthorized_semantic_rules += 1
+    if accepted_unauthorized_semantic_rules:
+        raise AssertionError(
+            "exhaustive unauthorized semantic-rule probe accepted "
+            f"{accepted_unauthorized_semantic_rules}"
+        )
+
+    semantic_rule_policy_mutations = 0
+    accepted_semantic_rule_policy_mutations = 0
+    derived_policies = independent_semantics["relation_policies"]
+    for edge_type, policy in sorted(derived_policies.items()):
+        for replacement_policy in sorted(SERIALIZED_BINDING_POLICIES - {policy}):
+            mutant = deepcopy(graph)
+            mutant["binding_semantics"]["relation_policies"][edge_type][
+                "serialized_binding"
+            ] = replacement_policy
+            semantic_rule_policy_mutations += 1
+            try:
+                validate_r12_authority_graph(mutant)
+            except ValueError:
+                continue
+            accepted_semantic_rule_policy_mutations += 1
+    if accepted_semantic_rule_policy_mutations:
+        raise AssertionError(
+            "unauthorized semantic-rule policy mutation was accepted: "
+            f"{accepted_semantic_rule_policy_mutations}"
+        )
 
     authorized_node_edges = {
         (edge["from"], edge["type"], edge["to"]) for edge in graph_edges
@@ -4599,6 +4942,56 @@ def run_regression_self_tests() -> None:
     positive = validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, synthetic)
     if positive != G3_EXPECTED_FIELDS:
         raise AssertionError(f"synthetic G3 authority positive result: {positive}")
+
+    def remove_synthetic_binding_field(
+        context: G3AuthorityContext, rule: dict[str, str]
+    ) -> None:
+        actual = context.objects[rule["target"]].get(rule["field"])
+        if isinstance(actual, dict):
+            actual.pop(rule["source"], None)
+        else:
+            context.objects[rule["target"]].pop(rule["field"], None)
+
+    coordinated_rule_mirror_builder_deletions_tested = 0
+    coordinated_rule_mirror_builder_deletion_accepted = 0
+    coordinated_four_layer_deletions_tested = 0
+    coordinated_four_layer_deletion_accepted = 0
+    for rule in selected_rules:
+        mutant = deepcopy(synthetic)
+        remove_declared_rule_and_mirror(mutant.graph, rule)
+        remove_synthetic_binding_field(mutant, rule)
+        coordinated_rule_mirror_builder_deletions_tested += 1
+        try:
+            validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, mutant)
+        except ValueError:
+            pass
+        else:
+            coordinated_rule_mirror_builder_deletion_accepted += 1
+
+        mutant = deepcopy(synthetic)
+        remove_declared_rule_and_mirror(mutant.graph, rule)
+        remove_synthetic_binding_field(mutant, rule)
+        original_binding_validator = _validate_graph_object_bindings
+        _validate_graph_object_bindings = lambda context: None
+        coordinated_four_layer_deletions_tested += 1
+        try:
+            try:
+                validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, mutant)
+            except ValueError:
+                pass
+            else:
+                coordinated_four_layer_deletion_accepted += 1
+        finally:
+            _validate_graph_object_bindings = original_binding_validator
+    if (
+        coordinated_rule_mirror_builder_deletion_accepted
+        or coordinated_four_layer_deletion_accepted
+    ):
+        raise AssertionError(
+            "coordinated semantic-rule shrink mutation was accepted: "
+            f"three_layer={coordinated_rule_mirror_builder_deletion_accepted} "
+            f"four_layer={coordinated_four_layer_deletion_accepted}"
+        )
 
     serialized_binding_deletions_tested = 0
     serialized_binding_extra_tests = 0
@@ -5590,12 +5983,34 @@ def run_regression_self_tests() -> None:
         f"graph_unauthorized={len(unauthorized_candidates)} graph_accepted_unauthorized={accepted_unauthorized_edges} "
         f"edge_canonical_passes={authorized_edge_canonical_passes} edge_removals_rejected={authorized_edge_removals_rejected} "
         f"edge_retypes_rejected={authorized_edge_retypes_rejected} edge_redirects_rejected={authorized_edge_redirects_rejected} "
+        f"semantic_rules_derived={len(independent_rules)} semantic_rules_declared={len(graph['binding_semantics']['serialized_rules'])} "
+        f"selected_rules={len(selected_rules)} "
+        f"rules_all={semantic_rule_policy_counts['all']} rules_none={semantic_rule_policy_counts['none']} rules_selected={semantic_rule_policy_counts['selected']} "
+        f"selected_by_relation={','.join(f'{key}:{value}' for key, value in selected_rule_relation_counts.items())} "
+        f"selected_by_target={','.join(f'{key}:{value}' for key, value in selected_rule_target_counts.items())} "
+        f"selected_rule_deletions_tested={selected_rule_deletions_tested} "
+        f"selected_rule_deletion_accepted={selected_rule_deletion_accepted} "
+        f"coordinated_rule_mirror_deletions_tested={coordinated_rule_mirror_deletions_tested} "
+        f"coordinated_rule_mirror_deletion_accepted={coordinated_rule_mirror_deletion_accepted} "
+        f"coordinated_rule_mirror_builder_deletions_tested={coordinated_rule_mirror_builder_deletions_tested} "
+        f"coordinated_rule_mirror_builder_deletion_accepted={coordinated_rule_mirror_builder_deletion_accepted} "
+        f"coordinated_four_layer_deletions_tested={coordinated_four_layer_deletions_tested} "
+        f"coordinated_four_layer_deletion_accepted={coordinated_four_layer_deletion_accepted} "
+        f"unauthorized_semantic_rule_candidates={len(unauthorized_semantic_rule_candidates)} "
+        f"accepted_unauthorized_semantic_rules={accepted_unauthorized_semantic_rules} "
+        f"semantic_rule_category_mutations={semantic_rule_category_mutations} "
+        f"semantic_rule_value_mutations={semantic_rule_value_mutations} "
+        f"semantic_rule_field_mutations={semantic_rule_field_mutations} "
+        f"semantic_rule_source_mutations={semantic_rule_source_mutations} "
+        f"semantic_rule_relation_mutations={semantic_rule_relation_mutations} "
+        f"semantic_rule_policy_mutations={semantic_rule_policy_mutations} "
+        f"accepted_semantic_rule_policy_mutations={accepted_semantic_rule_policy_mutations} "
         f"serialized_relation_maps={len(relation_map_entries)} "
         f"serialized_relation_map_deletions={relation_map_mutation_counts['delete']} "
         f"serialized_relation_map_deletion_accepted=0 "
         f"serialized_relation_map_mutations={sum(relation_map_mutation_counts.values())} "
         f"serialized_relation_map_mutation_accepted=0 "
-        f"serialized_semantic_rule_mutations={semantic_rule_mutations} "
+        f"serialized_semantic_rule_mutations={semantic_rule_category_mutations + semantic_rule_value_mutations + semantic_rule_field_mutations + semantic_rule_source_mutations + semantic_rule_relation_mutations} "
         f"serialized_semantic_rule_mutation_accepted=0 "
         f"serialized_binding_entries={len(binding_projection)} "
         f"serialized_binding_deletions={serialized_binding_deletions_tested} "

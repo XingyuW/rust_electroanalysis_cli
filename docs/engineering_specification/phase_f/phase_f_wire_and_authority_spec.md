@@ -188,19 +188,26 @@ authorize the real mode. The resolver reports every requested, resolved,
 missing, and malformed reference in a structured resolution record.
 
 `PhaseFSpecificationBundleInputsV1.authority_bindings` and the manifest's
-`bound_authority_sha256s` are exact maps of the graph's `binds` edges. The
-graph's closed `binding_semantics` catalog independently derives the concrete
-binding descriptors (source node, relation, target node, schema field, binding
-category, and value semantics) from the exact edge inventory. The checked-in
-`serialized_binding_fields` map is only a mirror of that projection: exact
-equality is required, so removing a complete relation map or any source entry
-rejects. Every `reviews`, `targets`, `approves`, `requires`, and
-`generated_from` edge with a semantic serialized field has one exact source
-identity binding; extra, missing, or substituted fields reject. All seven edge
-relations remain prerequisite inputs, independently derived as the complete
-incoming-edge predecessor set; `hashes` is represented by the closed G3 tag
-wire fields rather than an authority-object binding map. The graph's
-`edge_contract` is the normative closed set of complete
+`bound_authority_sha256s` are exact maps of the graph's `binds` edges. Each
+authoritative graph node carries a closed `binding_fields` schema contract.
+That node-attached contract states the exact destination field, relation,
+source (including an explicit `*` only for complete relation coverage), binding
+category, and value semantics. The generator derives the complete semantic-rule
+universe and each relation's `all`/`selected`/`none` policy from those
+node-attached contracts, the exact edge inventory, and the object-field schema;
+it never derives expected membership from the mutable `binding_semantics`
+declaration. The declared `binding_semantics` catalog is a downstream exact
+mirror and must equal that independent projection, including exact rule
+membership and policy. The checked-in `serialized_binding_fields` map is only a
+second downstream mirror: exact equality is required, so removing a complete
+relation map or any source entry rejects. Every `reviews`, `targets`,
+`approves`, `requires`, and `generated_from` edge with a semantic serialized
+field has one exact source identity binding; extra, missing, or substituted
+fields reject. A `selected` relation must retain every node-attached selected
+rule even if its declared rule list is emptied. All seven edge relations remain
+prerequisite inputs, independently derived as the complete incoming-edge
+predecessor set; `hashes` is represented by the closed G3 tag wire fields
+rather than an authority-object binding map. The graph's `edge_contract` is the normative closed set of complete
 `(from node ID, relation, to node ID)` tuples, and the serialized `edges` set
 must equal it exactly. The graph also carries the closed typed
 source-kind/relation/destination-kind contract and closed per-node identity
