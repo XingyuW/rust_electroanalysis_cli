@@ -11,6 +11,39 @@
     "reviews": "The dependent review evaluates the exact complete prerequisite object.",
     "targets": "The dependent review target identifies the exact immutable prerequisite object."
   },
+  "binding_semantics": {
+    "relation_policies": {
+      "approves": {"required_input": true, "serialized_binding": "selected"},
+      "binds": {"required_input": true, "serialized_binding": "all"},
+      "generated_from": {"required_input": true, "serialized_binding": "all"},
+      "hashes": {"required_input": true, "serialized_binding": "none"},
+      "requires": {"required_input": true, "serialized_binding": "selected"},
+      "reviews": {"required_input": true, "serialized_binding": "selected"},
+      "targets": {"required_input": true, "serialized_binding": "all"}
+    },
+    "serialized_rules": [
+      {"target": "architecture_review", "type": "reviews", "source": "architecture_plan", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
+      {"target": "architecture_approval", "type": "approves", "source": "architecture_review", "field": "review_sha256", "category": "approval_review_binding", "value": "source_sha256"},
+      {"target": "f0_review", "type": "reviews", "source": "f0_decision_bundle", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
+      {"target": "f0_approval", "type": "approves", "source": "f0_review", "field": "review_sha256", "category": "approval_review_binding", "value": "source_sha256"},
+      {"target": "component_wire_review", "type": "reviews", "source": "component_wire_spec", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
+      {"target": "component_scientific_review", "type": "reviews", "source": "component_scientific_spec", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
+      {"target": "component_operations_review", "type": "reviews", "source": "component_operations_spec", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
+      {"target": "component_conformance_review", "type": "reviews", "source": "component_conformance_spec", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
+      {"target": "component_implementation_review", "type": "reviews", "source": "component_implementation_spec", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
+      {"target": "generated_traceability_manifest", "type": "generated_from", "source": "*", "field": "generated_source_sha256s", "category": "generated_source_binding", "value": "source_sha256"},
+      {"target": "specification_bundle_inputs", "type": "binds", "source": "*", "field": "authority_bindings", "category": "serialized_identity_binding", "value": "authority_descriptor"},
+      {"target": "migrated_finding_review", "type": "reviews", "source": "specification_bundle_inputs", "field": "target_bundle_inputs_sha256", "category": "review_target_binding", "value": "source_sha256"},
+      {"target": "migrated_finding_review", "type": "targets", "source": "specification_bundle_inputs", "field": "target_bundle_inputs_sha256", "category": "review_target_binding", "value": "source_sha256"},
+      {"target": "migrated_finding_review", "type": "binds", "source": "migration_ledger", "field": "reviewed_migration_ledger_sha256", "category": "serialized_digest_binding", "value": "source_sha256"},
+      {"target": "migrated_finding_review", "type": "binds", "source": "normative_traceability_matrix", "field": "reviewed_normative_traceability_matrix_sha256", "category": "serialized_digest_binding", "value": "source_sha256"},
+      {"target": "migrated_finding_review", "type": "binds", "source": "generated_traceability_manifest", "field": "reviewed_traceability_manifest_sha256", "category": "serialized_digest_binding", "value": "source_sha256"},
+      {"target": "specification_bundle_manifest", "type": "requires", "source": "specification_bundle_inputs", "field": "bundle_input_fingerprint_sha256", "category": "prerequisite_digest_binding", "value": "source_sha256"},
+      {"target": "specification_bundle_manifest", "type": "binds", "source": "*", "field": "bound_authority_sha256s", "category": "serialized_digest_binding", "value": "source_sha256"},
+      {"target": "aggregate_review", "type": "reviews", "source": "specification_bundle_manifest", "field": "target_bundle_manifest_sha256", "category": "review_target_binding", "value": "source_sha256"},
+      {"target": "aggregate_review", "type": "targets", "source": "specification_bundle_manifest", "field": "target_bundle_manifest_sha256", "category": "review_target_binding", "value": "source_sha256"}
+    ]
+  },
   "identity_cycle_rules": {
     "self_file": {"audit": "file_identity", "prohibited": true},
     "self_registry": {"audit": "registry_identity", "prohibited": true},

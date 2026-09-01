@@ -188,15 +188,24 @@ authorize the real mode. The resolver reports every requested, resolved,
 missing, and malformed reference in a structured resolution record.
 
 `PhaseFSpecificationBundleInputsV1.authority_bindings` and the manifest's
-`bound_authority_sha256s` are exact maps of the graph's `binds` edges. Every
-`reviews`, `targets`, `approves`, `requires`, and `generated_from` edge with a
-declared serialized field has one exact source identity binding; extra, missing,
-or substituted fields reject. The graph's `edge_contract` is the normative
-closed set of complete `(from node ID, relation, to node ID)` tuples, and the
-serialized `edges` set must equal it exactly. The graph also carries the closed
-typed source-kind/relation/destination-kind contract and closed per-node
-identity rules used by the resolver. Exact graph membership, rather than
-kind-level admissibility, determines cardinality and authority.
+`bound_authority_sha256s` are exact maps of the graph's `binds` edges. The
+graph's closed `binding_semantics` catalog independently derives the concrete
+binding descriptors (source node, relation, target node, schema field, binding
+category, and value semantics) from the exact edge inventory. The checked-in
+`serialized_binding_fields` map is only a mirror of that projection: exact
+equality is required, so removing a complete relation map or any source entry
+rejects. Every `reviews`, `targets`, `approves`, `requires`, and
+`generated_from` edge with a semantic serialized field has one exact source
+identity binding; extra, missing, or substituted fields reject. All seven edge
+relations remain prerequisite inputs, independently derived as the complete
+incoming-edge predecessor set; `hashes` is represented by the closed G3 tag
+wire fields rather than an authority-object binding map. The graph's
+`edge_contract` is the normative closed set of complete
+`(from node ID, relation, to node ID)` tuples, and the serialized `edges` set
+must equal it exactly. The graph also carries the closed typed
+source-kind/relation/destination-kind contract and closed per-node identity
+rules used by the resolver. Exact graph membership, rather than kind-level
+admissibility, determines cardinality and authority.
 
 The bundle binds the object through the typed nullable reference
 `migrated_finding_review`, whose `schema`, `authority_id`, `sha256`,

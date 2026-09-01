@@ -129,6 +129,32 @@ GRAPH_EDGE_TYPES = {
     "reviews",
     "targets",
 }
+SERIALIZED_BINDING_POLICIES = {"all", "selected", "none"}
+SERIALIZED_BINDING_CATEGORIES = {
+    "approval_review_binding",
+    "generated_source_binding",
+    "prerequisite_digest_binding",
+    "review_target_binding",
+    "serialized_digest_binding",
+    "serialized_identity_binding",
+}
+SERIALIZED_BINDING_VALUE_SOURCES = {"authority_descriptor", "source_sha256"}
+SERIALIZED_BINDING_FIELD_SEMANTICS = {
+    "authority_bindings": ("serialized_identity_binding", "authority_descriptor"),
+    "generated_source_sha256s": ("generated_source_binding", "source_sha256"),
+    "bound_authority_sha256s": ("serialized_digest_binding", "source_sha256"),
+    "review_sha256": ("approval_review_binding", "source_sha256"),
+    "target_sha256": ("review_target_binding", "source_sha256"),
+    "target_bundle_inputs_sha256": ("review_target_binding", "source_sha256"),
+    "reviewed_migration_ledger_sha256": ("serialized_digest_binding", "source_sha256"),
+    "reviewed_normative_traceability_matrix_sha256": (
+        "serialized_digest_binding",
+        "source_sha256",
+    ),
+    "reviewed_traceability_manifest_sha256": ("serialized_digest_binding", "source_sha256"),
+    "bundle_input_fingerprint_sha256": ("prerequisite_digest_binding", "source_sha256"),
+    "target_bundle_manifest_sha256": ("review_target_binding", "source_sha256"),
+}
 GRAPH_STAGE_NAMES = {
     0: "architecture",
     1: "architecture_review",
@@ -608,6 +634,177 @@ def _node_edge_contract(
     return result
 
 
+def _binding_semantics(
+    graph: dict[str, Any], nodes: dict[str, dict[str, Any]]
+) -> tuple[dict[str, str], list[dict[str, str]]]:
+    semantics = graph.get("binding_semantics")
+    if not isinstance(semantics, dict) or set(semantics) != {
+        "relation_policies", "serialized_rules"
+    }:
+        raise ValueError("R12 binding semantics are not closed")
+    policies = semantics["relation_policies"]
+    if not isinstance(policies, dict) or set(policies) != GRAPH_EDGE_TYPES:
+        raise ValueError("R12 binding relation-policy catalog is not closed")
+    for edge_type, policy in policies.items():
+        if (
+            not isinstance(policy, dict)
+            or set(policy) != {"required_input", "serialized_binding"}
+            or policy["required_input"] is not True
+            or policy["serialized_binding"] not in SERIALIZED_BINDING_POLICIES
+        ):
+            raise ValueError(f"R12 binding relation policy is malformed: {edge_type}")
+
+    rules = semantics["serialized_rules"]
+    if not isinstance(rules, list):
+        raise ValueError("R12 serialized binding semantic rules are malformed")
+    seen: set[tuple[str, str, str]] = set()
+    normalized: list[dict[str, str]] = []
+    for rule in rules:
+        required = {"target", "type", "source", "field", "category", "value"}
+        if not isinstance(rule, dict) or set(rule) != required:
+            raise ValueError("R12 serialized binding semantic rule is malformed")
+        target = rule["target"]
+        edge_type = rule["type"]
+        source = rule["source"]
+        field_name = rule["field"]
+        category = rule["category"]
+        value_source = rule["value"]
+        if (
+            not isinstance(target, str)
+            or target not in nodes
+            or not isinstance(edge_type, str)
+            or edge_type not in GRAPH_EDGE_TYPES
+            or not isinstance(source, str)
+            or (source != "*" and source not in nodes)
+            or not isinstance(field_name, str)
+            or not field_name
+            or not isinstance(category, str)
+            or category not in SERIALIZED_BINDING_CATEGORIES
+            or not isinstance(value_source, str)
+            or value_source not in SERIALIZED_BINDING_VALUE_SOURCES
+            or SERIALIZED_BINDING_FIELD_SEMANTICS.get(field_name)
+            != (category, value_source)
+        ):
+            raise ValueError("R12 serialized binding semantic rule value is invalid")
+        key = (target, edge_type, source)
+        if key in seen:
+            raise ValueError(f"duplicate R12 serialized binding semantic rule: {key}")
+        seen.add(key)
+        schema_fields = graph.get("object_field_contracts", {}).get(target)
+        if isinstance(schema_fields, list) and field_name not in schema_fields:
+            raise ValueError(f"R12 binding field is absent from object schema: {target}/{field_name}")
+        normalized.append(
+            {
+                "target": target,
+                "type": edge_type,
+                "source": source,
+                "field": field_name,
+                "category": category,
+                "value": value_source,
+            }
+        )
+    return {edge_type: policies[edge_type]["serialized_binding"] for edge_type in GRAPH_EDGE_TYPES}, normalized
+
+
+def derive_required_inputs(
+    nodes: dict[str, dict[str, Any]], edges: list[dict[str, str]]
+) -> dict[str, list[str]]:
+    """Derive every prerequisite row from the immutable graph edge inventory."""
+
+    return {
+        target: sorted({edge["from"] for edge in edges if edge["to"] == target})
+        for target in nodes
+    }
+
+
+def derive_binding_projection(
+    graph: dict[str, Any],
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    """Derive concrete binding descriptors from graph edges and closed semantics."""
+
+    policies, rules = _binding_semantics(graph, nodes)
+    projection: list[dict[str, str]] = []
+    for rule in rules:
+        matching_edges = [
+            edge
+            for edge in edges
+            if edge["to"] == rule["target"]
+            and edge["type"] == rule["type"]
+            and (rule["source"] == "*" or edge["from"] == rule["source"])
+        ]
+        if not matching_edges:
+            raise ValueError(
+                "R12 serialized binding semantic rule has no matching edge: "
+                f"{rule['target']}/{rule['type']}/{rule['source']}"
+            )
+        projection.extend(
+            {
+                "source": edge["from"],
+                "relation": edge["type"],
+                "target": edge["to"],
+                "field": rule["field"],
+                "category": rule["category"],
+                "value": rule["value"],
+            }
+            for edge in matching_edges
+        )
+
+    for edge_type, policy in policies.items():
+        typed_edges = [edge for edge in edges if edge["type"] == edge_type]
+        for edge in typed_edges:
+            matching_rules = [
+                rule
+                for rule in rules
+                if rule["target"] == edge["to"]
+                and rule["type"] == edge_type
+                and (rule["source"] == "*" or rule["source"] == edge["from"])
+            ]
+            if policy == "all" and len(matching_rules) != 1:
+                raise ValueError(
+                    "R12 serialized binding semantic coverage mismatch: "
+                    f"{edge['from']}/{edge_type}/{edge['to']}"
+                )
+            if policy == "none" and matching_rules:
+                raise ValueError(
+                    f"R12 non-serialized relation has a binding rule: {edge_type}"
+                )
+            if len(matching_rules) > 1:
+                raise ValueError(
+                    "R12 serialized binding semantic rule overlaps an edge: "
+                    f"{edge['from']}/{edge_type}/{edge['to']}"
+                )
+    return projection
+
+
+def derive_serialized_binding_contract(
+    graph: dict[str, Any],
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, str]],
+) -> dict[str, dict[str, dict[str, str]]]:
+    """Project the independent binding descriptors into the checked-in mirror shape."""
+
+    projection = derive_binding_projection(graph, nodes, edges)
+    _, rules = _binding_semantics(graph, nodes)
+    derived: dict[str, dict[str, dict[str, str]]] = {}
+    for rule in rules:
+        if not any(
+            descriptor["target"] == rule["target"]
+            and descriptor["relation"] == rule["type"]
+            and (rule["source"] == "*" or descriptor["source"] == rule["source"])
+            for descriptor in projection
+        ):
+            raise ValueError(
+                "R12 serialized binding semantic rule is not represented in projection: "
+                f"{rule['target']}/{rule['type']}/{rule['source']}"
+            )
+        derived.setdefault(rule["target"], {}).setdefault(rule["type"], {})[
+            rule["source"]
+        ] = rule["field"]
+    return derived
+
+
 REVIEW_REFERENCE_CONTRACT_SHAPE = {
     "reviewer": {
         "authority_path_template": ".phase_f_authority/reviewer_identities/{reviewer_authority_id}.json",
@@ -687,42 +884,11 @@ def _validate_serialized_binding_contract(
     contract = graph.get("serialized_binding_fields")
     if not isinstance(contract, dict):
         raise ValueError("R12 serialized binding contract is missing")
-    concrete_types = {
-        "approves", "binds", "generated_from", "reviews", "requires", "targets"
-    }
-    expected: dict[str, set[tuple[str, str]]] = {}
-    for target, relations in contract.items():
-        if not isinstance(relations, dict):
-            raise ValueError(f"R12 serialized binding relation map is malformed: {target}")
-        for edge in edges:
-            if edge["to"] == target and edge["type"] in relations:
-                expected.setdefault(target, set()).add((edge["type"], edge["from"]))
-    for target, relations in contract.items():
-        if target not in nodes or not isinstance(relations, dict):
-            raise ValueError(f"R12 serialized binding target is malformed: {target}")
-        actual: set[tuple[str, str]] = set()
-        for edge_type, sources in relations.items():
-            if edge_type not in concrete_types or not isinstance(sources, dict):
-                raise ValueError(f"R12 serialized binding relation is malformed: {target}/{edge_type}")
-            for source, field_name in sources.items():
-                if source != "*" and source not in nodes:
-                    raise ValueError(f"R12 serialized binding source is unknown: {source}")
-                if not isinstance(field_name, str) or not field_name:
-                    raise ValueError(f"R12 serialized binding field is malformed: {target}/{source}")
-                matching = {
-                    (edge_type, edge["from"])
-                    for edge in edges
-                    if edge["to"] == target
-                    and edge["type"] == edge_type
-                    and (source == "*" or edge["from"] == source)
-                }
-                if not matching:
-                    raise ValueError(f"R12 serialized binding has no matching edge: {target}/{source}")
-                actual.update(matching)
-        if actual != expected.get(target, set()):
-            raise ValueError(f"R12 serialized binding edge set mismatch: {target}")
-    if set(contract) != set(expected):
-        raise ValueError("R12 serialized binding target closure is incomplete")
+    expected = derive_serialized_binding_contract(graph, nodes, edges)
+    if contract != expected:
+        raise ValueError(
+            "R12 serialized binding contract does not equal the independent graph projection"
+        )
 
 
 def _find_identity_cycle(
@@ -818,7 +984,7 @@ def _semantic_graph_audits(
             break
     audits.append(_audit_record("self_reference", self_reference_path is None, len(nodes), len(edges), self_reference_path))
 
-    required_inputs = graph["required_inputs"]
+    required_inputs = derive_required_inputs(nodes, edges)
     g3 = "g3_approval_tag"
     implementation = graph["implementation_gate_node"]
 
@@ -920,6 +1086,7 @@ def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
     required_inputs = graph.get("required_inputs")
     if not isinstance(required_inputs, dict) or set(required_inputs) != set(nodes):
         raise ValueError("R12 graph required-input closure is incomplete")
+    derived_required_inputs = derive_required_inputs(nodes, edges)
     edge_keys = {(edge["from"], edge["to"]) for edge in edges}
     g3_edge_sources = {
         edge["from"] for edge in edges if edge["to"] == g3_node
@@ -956,6 +1123,8 @@ def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"R12 graph required-input row is malformed: {target}")
         if any((dependency, target) not in edge_keys for dependency in dependencies):
             raise ValueError(f"R12 graph required-input edge is undeclared: {target}")
+        if set(dependencies) != set(derived_required_inputs[target]):
+            raise ValueError(f"R12 graph required-input closure is not exact: {target}")
     g3_ancestors = _ancestors(g3_node, edges)
     missing = sorted(set(required) - g3_ancestors)
     if missing:
@@ -1133,9 +1302,9 @@ def _graph_edges_for(
 
 
 def _binding_field(
-    graph: dict[str, Any], target: str, edge_type: str, source: str
+    contract: dict[str, dict[str, dict[str, str]]], target: str, edge_type: str, source: str
 ) -> str | None:
-    target_contract = graph["serialized_binding_fields"].get(target, {})
+    target_contract = contract.get(target, {})
     relation = target_contract.get(edge_type, {})
     return relation.get(source) or relation.get("*")
 
@@ -1341,6 +1510,7 @@ def _validate_graph_object_bindings(context: G3AuthorityContext) -> None:
     graph = context.graph
     nodes = _graph_nodes(graph)
     edges = _graph_edges(graph, nodes)
+    binding_contract = derive_serialized_binding_contract(graph, nodes, edges)
 
     for target in nodes:
         record = context.objects.get(target)
@@ -1350,7 +1520,7 @@ def _validate_graph_object_bindings(context: G3AuthorityContext) -> None:
             incoming = [edge for edge in edges if edge["to"] == target and edge["type"] == edge_type]
             if not incoming:
                 continue
-            field_name = _binding_field(graph, target, edge_type, "*")
+            field_name = _binding_field(binding_contract, target, edge_type, "*")
             if field_name is None:
                 continue
             actual = record.get(field_name)
@@ -1375,7 +1545,7 @@ def _validate_graph_object_bindings(context: G3AuthorityContext) -> None:
                     if source_record is None or actual[source] != source_record.get("sha256"):
                         raise G3ValidationError(f"{target}_{source}_binding_mismatch")
 
-    for target, relations in graph["serialized_binding_fields"].items():
+    for target, relations in binding_contract.items():
         target_record = context.objects.get(target)
         if target_record is None:
             continue
@@ -1383,7 +1553,7 @@ def _validate_graph_object_bindings(context: G3AuthorityContext) -> None:
             for source in sources:
                 if source == "*" or edge_type in {"binds", "generated_from"}:
                     continue
-                field_name = _binding_field(graph, target, edge_type, source)
+                field_name = _binding_field(binding_contract, target, edge_type, source)
                 if field_name is None:
                     continue
                 source_record = context.objects.get(source)
@@ -1393,7 +1563,7 @@ def _validate_graph_object_bindings(context: G3AuthorityContext) -> None:
                 if target_record.get(field_name) != expected:
                     raise G3ValidationError(f"{target}_{source}_binding_mismatch")
 
-    for target, relation_types in graph["serialized_binding_fields"].items():
+    for target, relation_types in binding_contract.items():
         target_record = context.objects.get(target)
         if target_record is None:
             continue
@@ -1402,7 +1572,7 @@ def _validate_graph_object_bindings(context: G3AuthorityContext) -> None:
                 edge for edge in edges if edge["to"] == target and edge["type"] == edge_type
             ]
             for edge in incoming:
-                field_name = _binding_field(graph, target, edge_type, edge["from"])
+                field_name = _binding_field(binding_contract, target, edge_type, edge["from"])
                 if field_name is None:
                     continue
                 source_record = context.objects.get(edge["from"])
@@ -4085,6 +4255,262 @@ def run_regression_self_tests() -> None:
 
     graph_nodes = _graph_nodes(graph)
     graph_edges = _graph_edges(graph, graph_nodes)
+    binding_projection = derive_binding_projection(graph, graph_nodes, graph_edges)
+    binding_contract = derive_serialized_binding_contract(graph, graph_nodes, graph_edges)
+    relation_map_entries = [
+        (target, edge_type)
+        for target, relations in graph["serialized_binding_fields"].items()
+        for edge_type in relations
+    ]
+    relation_map_mutation_counts = {
+        "delete": 0,
+        "empty": 0,
+        "rename": 0,
+        "move": 0,
+        "extra_source": 0,
+        "remove_source": 0,
+        "wrong_field": 0,
+        "duplicate": 0,
+    }
+    semantic_rule_mutations = 0
+
+    def binding_graph_reject(label: str, mutate: object) -> None:
+        mutant = deepcopy(graph)
+        mutate(mutant)
+        reject_value_error(label, lambda: validate_r12_authority_graph(mutant))
+
+    for target, edge_type in relation_map_entries:
+        source_map = graph["serialized_binding_fields"][target][edge_type]
+        binding_graph_reject(
+            f"serialized binding relation deletion {target}/{edge_type}",
+            lambda value, target=target, edge_type=edge_type: value[
+                "serialized_binding_fields"
+            ][target].pop(edge_type),
+        )
+        relation_map_mutation_counts["delete"] += 1
+        binding_graph_reject(
+            f"empty serialized binding relation {target}/{edge_type}",
+            lambda value, target=target, edge_type=edge_type: value[
+                "serialized_binding_fields"
+            ][target].__setitem__(edge_type, {}),
+        )
+        relation_map_mutation_counts["empty"] += 1
+        replacement_relation = next(
+            candidate for candidate in sorted(GRAPH_EDGE_TYPES) if candidate != edge_type
+        )
+        binding_graph_reject(
+            f"renamed serialized binding relation {target}/{edge_type}",
+            lambda value, target=target, edge_type=edge_type, replacement_relation=replacement_relation: (
+                value["serialized_binding_fields"][target].__setitem__(
+                    replacement_relation,
+                    value["serialized_binding_fields"][target].pop(edge_type),
+                )
+            ),
+        )
+        relation_map_mutation_counts["rename"] += 1
+        moved_target = next(
+            candidate
+            for candidate in sorted(graph["serialized_binding_fields"])
+            if candidate != target and edge_type not in graph["serialized_binding_fields"][candidate]
+        )
+        binding_graph_reject(
+            f"moved serialized binding relation {target}/{edge_type}",
+            lambda value, target=target, edge_type=edge_type, moved_target=moved_target: value[
+                "serialized_binding_fields"
+            ].setdefault(moved_target, {}).__setitem__(
+                edge_type, value["serialized_binding_fields"][target].pop(edge_type)
+            ),
+        )
+        relation_map_mutation_counts["move"] += 1
+        nonmatching_source = next(
+            node_id
+            for node_id in sorted(graph_nodes)
+            if node_id != target
+            and not any(
+                edge["to"] == target
+                and edge["type"] == edge_type
+                and edge["from"] == node_id
+                for edge in graph_edges
+            )
+        )
+        first_field = next(iter(source_map.values()))
+        binding_graph_reject(
+            f"extra serialized binding source {target}/{edge_type}",
+            lambda value, target=target, edge_type=edge_type, nonmatching_source=nonmatching_source, first_field=first_field: value[
+                "serialized_binding_fields"
+            ][target][edge_type].__setitem__(nonmatching_source, first_field),
+        )
+        relation_map_mutation_counts["extra_source"] += 1
+        source_to_remove = next(iter(source_map))
+        binding_graph_reject(
+            f"removed serialized binding source {target}/{edge_type}",
+            lambda value, target=target, edge_type=edge_type, source_to_remove=source_to_remove: value[
+                "serialized_binding_fields"
+            ][target][edge_type].pop(source_to_remove),
+        )
+        relation_map_mutation_counts["remove_source"] += 1
+        replacement_field = (
+            "review_sha256" if first_field != "review_sha256" else "target_sha256"
+        )
+        binding_graph_reject(
+            f"wrong serialized binding field {target}/{edge_type}",
+            lambda value, target=target, edge_type=edge_type, source_to_remove=source_to_remove, replacement_field=replacement_field: value[
+                "serialized_binding_fields"
+            ][target][edge_type].__setitem__(source_to_remove, replacement_field),
+        )
+        relation_map_mutation_counts["wrong_field"] += 1
+        semantic_rule = next(
+            rule
+            for rule in graph["binding_semantics"]["serialized_rules"]
+            if rule["target"] == target
+            and rule["type"] == edge_type
+            and rule["source"] in source_map
+        )
+        binding_graph_reject(
+            f"duplicate serialized binding semantic rule {target}/{edge_type}",
+            lambda value, semantic_rule=semantic_rule: value[
+                "binding_semantics"
+            ]["serialized_rules"].append(deepcopy(semantic_rule)),
+        )
+        relation_map_mutation_counts["duplicate"] += 1
+
+    for rule_index, semantic_rule in enumerate(graph["binding_semantics"]["serialized_rules"]):
+        replacement_category = next(
+            category
+            for category in sorted(SERIALIZED_BINDING_CATEGORIES)
+            if category != semantic_rule["category"]
+        )
+        binding_graph_reject(
+            f"wrong serialized binding category {rule_index}",
+            lambda value, rule_index=rule_index, replacement_category=replacement_category: value[
+                "binding_semantics"
+            ]["serialized_rules"][rule_index].__setitem__(
+                "category", replacement_category
+            ),
+        )
+        semantic_rule_mutations += 1
+        replacement_value = next(
+            value
+            for value in sorted(SERIALIZED_BINDING_VALUE_SOURCES)
+            if value != semantic_rule["value"]
+        )
+        binding_graph_reject(
+            f"wrong serialized binding value semantics {rule_index}",
+            lambda value, rule_index=rule_index, replacement_value=replacement_value: value[
+                "binding_semantics"
+            ]["serialized_rules"][rule_index].__setitem__("value", replacement_value),
+        )
+        semantic_rule_mutations += 1
+
+    if binding_contract != graph["serialized_binding_fields"] or not binding_projection:
+        raise AssertionError("independent binding projection does not match canonical mirror")
+
+    required_inputs = graph["required_inputs"]
+    derived_inputs = derive_required_inputs(graph_nodes, graph_edges)
+    declared_input_count = sum(len(dependencies) for dependencies in required_inputs.values())
+    derived_input_count = sum(len(dependencies) for dependencies in derived_inputs.values())
+    if declared_input_count != derived_input_count or any(
+        set(required_inputs[target]) != set(derived_inputs[target]) for target in graph_nodes
+    ):
+        raise AssertionError("canonical required-input projection is not exact")
+    required_input_deletions_tested = 0
+    for target, dependencies in required_inputs.items():
+        for dependency in dependencies:
+            mutant = deepcopy(graph)
+            mutant["required_inputs"][target].remove(dependency)
+            required_input_deletions_tested += 1
+            reject_value_error(
+                f"required-input deletion {target}<-{dependency}",
+                lambda mutant=mutant: validate_r12_authority_graph(mutant),
+            )
+
+    required_input_extra_tests = 0
+    required_input_replacement_tests = 0
+    required_input_duplicate_tests = 0
+    required_input_whole_list_tests = 0
+    required_input_empty_tests = 0
+    for target, dependencies in required_inputs.items():
+        candidate = next(
+            node_id
+            for node_id in sorted(graph_nodes)
+            if node_id != target
+            and node_id not in dependencies
+            and any(
+                edge["from"] == node_id or edge["to"] == node_id
+                for edge in graph_edges
+            )
+        )
+        mutant = deepcopy(graph)
+        mutant["required_inputs"][target].append(candidate)
+        required_input_extra_tests += 1
+        reject_value_error(
+            f"unauthorized required input {target}<-{candidate}",
+            lambda mutant=mutant: validate_r12_authority_graph(mutant),
+        )
+        if dependencies:
+            replacement = next(
+                node_id
+                for node_id in sorted(graph_nodes)
+                if node_id != target and node_id not in dependencies
+            )
+            mutant = deepcopy(graph)
+            mutant["required_inputs"][target][0] = replacement
+            required_input_replacement_tests += 1
+            reject_value_error(
+                f"replaced required input {target}",
+                lambda mutant=mutant: validate_r12_authority_graph(mutant),
+            )
+            mutant = deepcopy(graph)
+            mutant["required_inputs"][target].append(dependencies[0])
+            required_input_duplicate_tests += 1
+            reject_value_error(
+                f"duplicate required input {target}",
+                lambda mutant=mutant: validate_r12_authority_graph(mutant),
+            )
+            mutant = deepcopy(graph)
+            mutant["required_inputs"][target] = []
+            required_input_empty_tests += 1
+            reject_value_error(
+                f"empty required-input list {target}",
+                lambda mutant=mutant: validate_r12_authority_graph(mutant),
+            )
+            mutant = deepcopy(graph)
+            mutant["required_inputs"].pop(target)
+            required_input_whole_list_tests += 1
+            reject_value_error(
+                f"removed required-input list {target}",
+                lambda mutant=mutant: validate_r12_authority_graph(mutant),
+            )
+
+    reordered = deepcopy(graph)
+    for dependencies in reordered["required_inputs"].values():
+        dependencies.reverse()
+    validate_r12_authority_graph(reordered)
+
+    import inspect
+
+    if tuple(inspect.signature(derive_binding_projection).parameters) != (
+        "graph", "nodes", "edges"
+    ) or tuple(inspect.signature(derive_required_inputs).parameters) != (
+        "nodes", "edges"
+    ):
+        raise AssertionError("binding/prerequisite derivation accepts mutable contract structures")
+
+    class MutableContractAccessGuard(dict[str, Any]):
+        def __getitem__(self, key: str) -> Any:
+            if key == "serialized_binding_fields":
+                raise AssertionError("independent binding projection read mutable mirror")
+            return super().__getitem__(key)
+
+        def get(self, key: str, default: Any = None) -> Any:
+            if key == "serialized_binding_fields":
+                raise AssertionError("independent binding projection read mutable mirror")
+            return super().get(key, default)
+
+    guarded_graph = MutableContractAccessGuard(graph)
+    derive_binding_projection(guarded_graph, graph_nodes, graph_edges)
+    derive_serialized_binding_contract(guarded_graph, graph_nodes, graph_edges)
+
     authorized_node_edges = {
         (edge["from"], edge["type"], edge["to"]) for edge in graph_edges
     }
@@ -4173,6 +4599,56 @@ def run_regression_self_tests() -> None:
     positive = validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, synthetic)
     if positive != G3_EXPECTED_FIELDS:
         raise AssertionError(f"synthetic G3 authority positive result: {positive}")
+
+    serialized_binding_deletions_tested = 0
+    serialized_binding_extra_tests = 0
+    for descriptor in binding_projection:
+        mutant = deepcopy(synthetic)
+        target = descriptor["target"]
+        field_name = descriptor["field"]
+        source = descriptor["source"]
+        actual = mutant.objects[target].get(field_name)
+        if isinstance(actual, dict):
+            if source not in actual:
+                raise AssertionError(f"synthetic binding builder omitted {target}/{source}")
+            actual.pop(source)
+        else:
+            mutant.objects[target].pop(field_name, None)
+        serialized_binding_deletions_tested += 1
+        reject_value_error(
+            f"serialized binding deletion {target}/{descriptor['relation']}/{source}",
+            lambda mutant=mutant: validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, mutant),
+        )
+
+    for target, relations in binding_contract.items():
+        for edge_type, sources in relations.items():
+            field_name = next(iter(sources.values()))
+            actual = synthetic.objects[target].get(field_name)
+            if not isinstance(actual, dict):
+                continue
+            expected_sources = {
+                edge["from"]
+                for edge in graph_edges
+                if edge["to"] == target
+                and edge["type"] == edge_type
+            }
+            extra_source = next(
+                node_id
+                for node_id in sorted(graph_nodes)
+                if node_id not in expected_sources and node_id != target
+            )
+            mutant = deepcopy(synthetic)
+            value = (
+                _authority_descriptor(mutant.objects[extra_source])
+                if field_name == "authority_bindings"
+                else mutant.objects[extra_source]["sha256"]
+            )
+            mutant.objects[target][field_name][extra_source] = value
+            serialized_binding_extra_tests += 1
+            reject_value_error(
+                f"extra serialized binding {target}/{edge_type}/{extra_source}",
+                lambda mutant=mutant: validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, mutant),
+            )
 
     def g3_reject(label: str, mutate: object) -> None:
         mutant = deepcopy(synthetic)
@@ -4641,6 +5117,66 @@ def run_regression_self_tests() -> None:
             }
             refresh_review_row_hash(row)
 
+        def remove_real_binding(
+            context: G3AuthorityContext, target: str, relation: str, source: str
+        ) -> None:
+            nodes = _graph_nodes(context.graph)
+            edges = _graph_edges(context.graph, nodes)
+            descriptor = next(
+                descriptor
+                for descriptor in derive_binding_projection(context.graph, nodes, edges)
+                if descriptor["target"] == target
+                and descriptor["relation"] == relation
+                and descriptor["source"] == source
+            )
+            field_name = descriptor["field"]
+            actual = context.objects[target].get(field_name)
+            if isinstance(actual, dict):
+                actual.pop(source, None)
+            else:
+                context.objects[target].pop(field_name, None)
+
+        real_reject(
+            "real missing architecture binding",
+            lambda context: remove_real_binding(
+                context, "specification_bundle_inputs", "binds", "architecture_approval"
+            ),
+        )
+        real_reject(
+            "real missing F0 binding",
+            lambda context: remove_real_binding(
+                context, "specification_bundle_inputs", "binds", "f0_approval"
+            ),
+        )
+        real_reject(
+            "real missing component binding",
+            lambda context: remove_real_binding(
+                context, "specification_bundle_manifest", "binds", "component_wire_review"
+            ),
+        )
+        real_reject(
+            "real missing migrated-review binding",
+            lambda context: remove_real_binding(
+                context, "specification_bundle_manifest", "binds", "migrated_finding_review"
+            ),
+        )
+        real_reject(
+            "real missing generated-source binding",
+            lambda context: remove_real_binding(
+                context, "generated_traceability_manifest", "generated_from", "architecture_plan"
+            ),
+        )
+        real_reject(
+            "real missing aggregate target binding",
+            lambda context: remove_real_binding(
+                context, "aggregate_review", "targets", "specification_bundle_manifest"
+            ),
+        )
+        real_reject(
+            "real missing G3-required prerequisite",
+            lambda context: context.objects.pop("normative_traceability_matrix"),
+        )
+
         real_reject(
             "real missing authority object",
             lambda context: context.objects.pop("architecture_approval"),
@@ -5054,6 +5590,25 @@ def run_regression_self_tests() -> None:
         f"graph_unauthorized={len(unauthorized_candidates)} graph_accepted_unauthorized={accepted_unauthorized_edges} "
         f"edge_canonical_passes={authorized_edge_canonical_passes} edge_removals_rejected={authorized_edge_removals_rejected} "
         f"edge_retypes_rejected={authorized_edge_retypes_rejected} edge_redirects_rejected={authorized_edge_redirects_rejected} "
+        f"serialized_relation_maps={len(relation_map_entries)} "
+        f"serialized_relation_map_deletions={relation_map_mutation_counts['delete']} "
+        f"serialized_relation_map_deletion_accepted=0 "
+        f"serialized_relation_map_mutations={sum(relation_map_mutation_counts.values())} "
+        f"serialized_relation_map_mutation_accepted=0 "
+        f"serialized_semantic_rule_mutations={semantic_rule_mutations} "
+        f"serialized_semantic_rule_mutation_accepted=0 "
+        f"serialized_binding_entries={len(binding_projection)} "
+        f"serialized_binding_deletions={serialized_binding_deletions_tested} "
+        f"serialized_binding_deletion_accepted=0 "
+        f"serialized_binding_extra_tests={serialized_binding_extra_tests} "
+        f"serialized_binding_extra_accepted=0 "
+        f"required_inputs_derived={derived_input_count} required_inputs_declared={declared_input_count} "
+        f"required_input_deletions={required_input_deletions_tested} required_input_deletion_accepted=0 "
+        f"required_input_extra_tests={required_input_extra_tests} required_input_extra_accepted=0 "
+        f"required_input_replacement_tests={required_input_replacement_tests} required_input_replacement_accepted=0 "
+        f"required_input_duplicate_tests={required_input_duplicate_tests} required_input_duplicate_accepted=0 "
+        f"required_input_whole_list_tests={required_input_whole_list_tests} required_input_whole_list_accepted=0 "
+        f"required_input_empty_tests={required_input_empty_tests} required_input_empty_accepted=0 "
         f"real_negative_cases={real_negative_cases_tested}"
     )
 
