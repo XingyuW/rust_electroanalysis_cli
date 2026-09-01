@@ -55,9 +55,9 @@
         "target": "architecture_review",
         "type": "reviews",
         "source": "architecture_plan",
-        "field": "target_sha256",
+        "field": "target",
         "category": "review_target_binding",
-        "value": "source_sha256",
+        "value": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       },
@@ -75,9 +75,9 @@
         "target": "f0_review",
         "type": "reviews",
         "source": "f0_decision_bundle",
-        "field": "target_sha256",
+        "field": "target",
         "category": "review_target_binding",
-        "value": "source_sha256",
+        "value": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       },
@@ -95,9 +95,9 @@
         "target": "component_wire_review",
         "type": "reviews",
         "source": "component_wire_spec",
-        "field": "target_sha256",
+        "field": "target",
         "category": "review_target_binding",
-        "value": "source_sha256",
+        "value": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       },
@@ -105,9 +105,9 @@
         "target": "component_scientific_review",
         "type": "reviews",
         "source": "component_scientific_spec",
-        "field": "target_sha256",
+        "field": "target",
         "category": "review_target_binding",
-        "value": "source_sha256",
+        "value": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       },
@@ -115,9 +115,9 @@
         "target": "component_operations_review",
         "type": "reviews",
         "source": "component_operations_spec",
-        "field": "target_sha256",
+        "field": "target",
         "category": "review_target_binding",
-        "value": "source_sha256",
+        "value": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       },
@@ -125,9 +125,9 @@
         "target": "component_conformance_review",
         "type": "reviews",
         "source": "component_conformance_spec",
-        "field": "target_sha256",
+        "field": "target",
         "category": "review_target_binding",
-        "value": "source_sha256",
+        "value": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       },
@@ -135,9 +135,9 @@
         "target": "component_implementation_review",
         "type": "reviews",
         "source": "component_implementation_spec",
-        "field": "target_sha256",
+        "field": "target",
         "category": "review_target_binding",
-        "value": "source_sha256",
+        "value": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       },
@@ -235,9 +235,9 @@
         "target": "aggregate_review",
         "type": "reviews",
         "source": "specification_bundle_manifest",
-        "field": "target_bundle_manifest_sha256",
+        "field": "target",
         "category": "review_target_binding",
-        "value": "source_sha256",
+        "value": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       },
@@ -245,9 +245,9 @@
         "target": "aggregate_review",
         "type": "targets",
         "source": "specification_bundle_manifest",
-        "field": "target_bundle_manifest_sha256",
+        "field": "target",
         "category": "review_target_binding",
-        "value": "source_sha256",
+        "value": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       }
@@ -430,6 +430,26 @@
     "readiness_approval|requires|phase_f_implementation_gate"
   ],
   "review_reference_contract": {
+    "artifact_uri_prefix": "phase-f-authority://review-artifacts/",
+    "bundle_schema": {
+      "authority_kind": "PhaseFIndependentReviewBundleV1",
+      "fields": [
+        "aggregate_decision",
+        "aggregate_p0_count",
+        "aggregate_p1_count",
+        "review_bundle_id",
+        "reviews",
+        "schema_version",
+        "target"
+      ],
+      "role_order": [
+        "scientific_metrology",
+        "architecture_data",
+        "security",
+        "compatibility",
+        "operations_governance"
+      ]
+    },
     "reviewer": {
       "authority_path_template": ".phase_f_authority/reviewer_identities/{reviewer_authority_id}.json",
       "authority_kind": "PhaseFReviewerIdentityV1",
@@ -441,6 +461,7 @@
         "reviewer_authority_id",
         "authority_kind",
         "schema_version",
+        "authority_class",
         "actor_identity_digest",
         "permitted_review_roles",
         "lifecycle",
@@ -460,10 +481,16 @@
         "review_artifact_id",
         "authority_kind",
         "schema_version",
+        "authority_class",
         "reviewer_authority_id",
         "role",
         "reviewed_target",
         "decision",
+        "p0_count",
+        "p1_count",
+        "p2_count",
+        "finding_ids",
+        "independence_relation",
         "lifecycle",
         "stale",
         "superseded_by",
@@ -481,6 +508,7 @@
         "authority_id",
         "authority_kind",
         "schema_version",
+        "authority_class",
         "actor_identity_digest",
         "lifecycle",
         "stale",
@@ -686,7 +714,7 @@
   "serialized_binding_fields": {
     "architecture_review": {
       "reviews": {
-        "architecture_plan": "target_sha256"
+        "architecture_plan": "target"
       }
     },
     "architecture_approval": {
@@ -696,7 +724,7 @@
     },
     "f0_review": {
       "reviews": {
-        "f0_decision_bundle": "target_sha256"
+        "f0_decision_bundle": "target"
       }
     },
     "f0_approval": {
@@ -706,27 +734,27 @@
     },
     "component_wire_review": {
       "reviews": {
-        "component_wire_spec": "target_sha256"
+        "component_wire_spec": "target"
       }
     },
     "component_scientific_review": {
       "reviews": {
-        "component_scientific_spec": "target_sha256"
+        "component_scientific_spec": "target"
       }
     },
     "component_operations_review": {
       "reviews": {
-        "component_operations_spec": "target_sha256"
+        "component_operations_spec": "target"
       }
     },
     "component_conformance_review": {
       "reviews": {
-        "component_conformance_spec": "target_sha256"
+        "component_conformance_spec": "target"
       }
     },
     "component_implementation_review": {
       "reviews": {
-        "component_implementation_spec": "target_sha256"
+        "component_implementation_spec": "target"
       }
     },
     "generated_traceability_manifest": {
@@ -762,27 +790,22 @@
     },
     "aggregate_review": {
       "reviews": {
-        "specification_bundle_manifest": "target_bundle_manifest_sha256"
+        "specification_bundle_manifest": "target"
       },
       "targets": {
-        "specification_bundle_manifest": "target_bundle_manifest_sha256"
+        "specification_bundle_manifest": "target"
       }
     }
   },
   "object_field_contracts": {
     "architecture_review": [
-      "node_id",
-      "authority_kind",
       "schema_version",
-      "authority_id",
-      "target_sha256",
-      "decision",
-      "p0_count",
-      "p1_count",
-      "lifecycle",
-      "stale",
-      "superseded_by",
-      "invalidated"
+      "review_bundle_id",
+      "target",
+      "reviews",
+      "aggregate_p0_count",
+      "aggregate_p1_count",
+      "aggregate_decision"
     ],
     "architecture_approval": [
       "node_id",
@@ -811,18 +834,13 @@
       "invalidated"
     ],
     "f0_review": [
-      "node_id",
-      "authority_kind",
       "schema_version",
-      "authority_id",
-      "target_sha256",
-      "decision",
-      "p0_count",
-      "p1_count",
-      "lifecycle",
-      "stale",
-      "superseded_by",
-      "invalidated"
+      "review_bundle_id",
+      "target",
+      "reviews",
+      "aggregate_p0_count",
+      "aggregate_p1_count",
+      "aggregate_decision"
     ],
     "f0_approval": [
       "node_id",
@@ -841,79 +859,49 @@
       "invalidated"
     ],
     "component_wire_review": [
-      "node_id",
-      "authority_kind",
       "schema_version",
-      "authority_id",
-      "reviewer_authority_id",
-      "target_sha256",
-      "decision",
-      "p0_count",
-      "p1_count",
-      "lifecycle",
-      "stale",
-      "superseded_by",
-      "invalidated"
+      "review_bundle_id",
+      "target",
+      "reviews",
+      "aggregate_p0_count",
+      "aggregate_p1_count",
+      "aggregate_decision"
     ],
     "component_scientific_review": [
-      "node_id",
-      "authority_kind",
       "schema_version",
-      "authority_id",
-      "reviewer_authority_id",
-      "target_sha256",
-      "decision",
-      "p0_count",
-      "p1_count",
-      "lifecycle",
-      "stale",
-      "superseded_by",
-      "invalidated"
+      "review_bundle_id",
+      "target",
+      "reviews",
+      "aggregate_p0_count",
+      "aggregate_p1_count",
+      "aggregate_decision"
     ],
     "component_operations_review": [
-      "node_id",
-      "authority_kind",
       "schema_version",
-      "authority_id",
-      "reviewer_authority_id",
-      "target_sha256",
-      "decision",
-      "p0_count",
-      "p1_count",
-      "lifecycle",
-      "stale",
-      "superseded_by",
-      "invalidated"
+      "review_bundle_id",
+      "target",
+      "reviews",
+      "aggregate_p0_count",
+      "aggregate_p1_count",
+      "aggregate_decision"
     ],
     "component_conformance_review": [
-      "node_id",
-      "authority_kind",
       "schema_version",
-      "authority_id",
-      "reviewer_authority_id",
-      "target_sha256",
-      "decision",
-      "p0_count",
-      "p1_count",
-      "lifecycle",
-      "stale",
-      "superseded_by",
-      "invalidated"
+      "review_bundle_id",
+      "target",
+      "reviews",
+      "aggregate_p0_count",
+      "aggregate_p1_count",
+      "aggregate_decision"
     ],
     "component_implementation_review": [
-      "node_id",
-      "authority_kind",
       "schema_version",
-      "authority_id",
-      "reviewer_authority_id",
-      "target_sha256",
-      "decision",
-      "p0_count",
-      "p1_count",
-      "lifecycle",
-      "stale",
-      "superseded_by",
-      "invalidated"
+      "review_bundle_id",
+      "target",
+      "reviews",
+      "aggregate_p0_count",
+      "aggregate_p1_count",
+      "aggregate_decision"
     ],
     "specification_bundle_inputs": [
       "node_id",
@@ -971,19 +959,13 @@
       "invalidated"
     ],
     "aggregate_review": [
-      "node_id",
-      "authority_kind",
       "schema_version",
-      "authority_id",
-      "target_bundle_manifest_sha256",
-      "dependency_node_ids",
-      "decision",
-      "p0_count",
-      "p1_count",
-      "lifecycle",
-      "stale",
-      "superseded_by",
-      "invalidated"
+      "review_bundle_id",
+      "target",
+      "reviews",
+      "aggregate_p0_count",
+      "aggregate_p1_count",
+      "aggregate_decision"
     ],
     "generated_traceability_manifest": [
       "schema_version",
@@ -996,6 +978,15 @@
       "schema_usage",
       "generated_source_sha256s",
       "requirements"
+    ],
+    "readiness_review": [
+      "schema_version",
+      "review_bundle_id",
+      "target",
+      "reviews",
+      "aggregate_p0_count",
+      "aggregate_p1_count",
+      "aggregate_decision"
     ]
   },
   "g3_required_nodes": [
@@ -1156,11 +1147,11 @@
       "creation_stage": 1,
       "binding_fields": [
         {
-          "field": "target_sha256",
+          "field": "target",
           "type": "reviews",
           "source": "architecture_plan",
           "category": "review_target_binding",
-          "value": "source_sha256",
+          "value": "review_target",
           "cardinality": "exactly_one",
           "target_object_kind": "PhaseFIndependentReviewBundleV1"
         }
@@ -1194,11 +1185,11 @@
       "creation_stage": 4,
       "binding_fields": [
         {
-          "field": "target_sha256",
+          "field": "target",
           "type": "reviews",
           "source": "f0_decision_bundle",
           "category": "review_target_binding",
-          "value": "source_sha256",
+          "value": "review_target",
           "cardinality": "exactly_one",
           "target_object_kind": "PhaseFIndependentReviewBundleV1"
         }
@@ -1256,11 +1247,11 @@
       "creation_stage": 7,
       "binding_fields": [
         {
-          "field": "target_sha256",
+          "field": "target",
           "type": "reviews",
           "source": "component_wire_spec",
           "category": "review_target_binding",
-          "value": "source_sha256",
+          "value": "review_target",
           "cardinality": "exactly_one",
           "target_object_kind": "PhaseFIndependentReviewBundleV1"
         }
@@ -1272,11 +1263,11 @@
       "creation_stage": 7,
       "binding_fields": [
         {
-          "field": "target_sha256",
+          "field": "target",
           "type": "reviews",
           "source": "component_scientific_spec",
           "category": "review_target_binding",
-          "value": "source_sha256",
+          "value": "review_target",
           "cardinality": "exactly_one",
           "target_object_kind": "PhaseFIndependentReviewBundleV1"
         }
@@ -1288,11 +1279,11 @@
       "creation_stage": 7,
       "binding_fields": [
         {
-          "field": "target_sha256",
+          "field": "target",
           "type": "reviews",
           "source": "component_operations_spec",
           "category": "review_target_binding",
-          "value": "source_sha256",
+          "value": "review_target",
           "cardinality": "exactly_one",
           "target_object_kind": "PhaseFIndependentReviewBundleV1"
         }
@@ -1304,11 +1295,11 @@
       "creation_stage": 7,
       "binding_fields": [
         {
-          "field": "target_sha256",
+          "field": "target",
           "type": "reviews",
           "source": "component_conformance_spec",
           "category": "review_target_binding",
-          "value": "source_sha256",
+          "value": "review_target",
           "cardinality": "exactly_one",
           "target_object_kind": "PhaseFIndependentReviewBundleV1"
         }
@@ -1320,11 +1311,11 @@
       "creation_stage": 7,
       "binding_fields": [
         {
-          "field": "target_sha256",
+          "field": "target",
           "type": "reviews",
           "source": "component_implementation_spec",
           "category": "review_target_binding",
-          "value": "source_sha256",
+          "value": "review_target",
           "cardinality": "exactly_one",
           "target_object_kind": "PhaseFIndependentReviewBundleV1"
         }
@@ -1457,20 +1448,20 @@
       "creation_stage": 12,
       "binding_fields": [
         {
-          "field": "target_bundle_manifest_sha256",
+          "field": "target",
           "type": "reviews",
           "source": "specification_bundle_manifest",
           "category": "review_target_binding",
-          "value": "source_sha256",
+          "value": "review_target",
           "cardinality": "exactly_one",
           "target_object_kind": "PhaseFIndependentReviewBundleV1"
         },
         {
-          "field": "target_bundle_manifest_sha256",
+          "field": "target",
           "type": "targets",
           "source": "specification_bundle_manifest",
           "category": "review_target_binding",
-          "value": "source_sha256",
+          "value": "review_target",
           "cardinality": "exactly_one",
           "target_object_kind": "PhaseFIndependentReviewBundleV1"
         }
@@ -1514,9 +1505,9 @@
       "type": "reviews",
       "binding_obligation": {
         "kind": "serialized_binding",
-        "destination_field": "target_sha256",
+        "destination_field": "target",
         "category": "review_target_binding",
-        "value_semantics": "source_sha256",
+        "value_semantics": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       }
@@ -1548,9 +1539,9 @@
       "type": "reviews",
       "binding_obligation": {
         "kind": "serialized_binding",
-        "destination_field": "target_sha256",
+        "destination_field": "target",
         "category": "review_target_binding",
-        "value_semantics": "source_sha256",
+        "value_semantics": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       }
@@ -1670,9 +1661,9 @@
       "type": "reviews",
       "binding_obligation": {
         "kind": "serialized_binding",
-        "destination_field": "target_sha256",
+        "destination_field": "target",
         "category": "review_target_binding",
-        "value_semantics": "source_sha256",
+        "value_semantics": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       }
@@ -1683,9 +1674,9 @@
       "type": "reviews",
       "binding_obligation": {
         "kind": "serialized_binding",
-        "destination_field": "target_sha256",
+        "destination_field": "target",
         "category": "review_target_binding",
-        "value_semantics": "source_sha256",
+        "value_semantics": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       }
@@ -1696,9 +1687,9 @@
       "type": "reviews",
       "binding_obligation": {
         "kind": "serialized_binding",
-        "destination_field": "target_sha256",
+        "destination_field": "target",
         "category": "review_target_binding",
-        "value_semantics": "source_sha256",
+        "value_semantics": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       }
@@ -1709,9 +1700,9 @@
       "type": "reviews",
       "binding_obligation": {
         "kind": "serialized_binding",
-        "destination_field": "target_sha256",
+        "destination_field": "target",
         "category": "review_target_binding",
-        "value_semantics": "source_sha256",
+        "value_semantics": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       }
@@ -1722,9 +1713,9 @@
       "type": "reviews",
       "binding_obligation": {
         "kind": "serialized_binding",
-        "destination_field": "target_sha256",
+        "destination_field": "target",
         "category": "review_target_binding",
-        "value_semantics": "source_sha256",
+        "value_semantics": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       }
@@ -2164,9 +2155,9 @@
       "type": "reviews",
       "binding_obligation": {
         "kind": "serialized_binding",
-        "destination_field": "target_bundle_manifest_sha256",
+        "destination_field": "target",
         "category": "review_target_binding",
-        "value_semantics": "source_sha256",
+        "value_semantics": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       }
@@ -2177,9 +2168,9 @@
       "type": "targets",
       "binding_obligation": {
         "kind": "serialized_binding",
-        "destination_field": "target_bundle_manifest_sha256",
+        "destination_field": "target",
         "category": "review_target_binding",
-        "value_semantics": "source_sha256",
+        "value_semantics": "review_target",
         "cardinality": "exactly_one",
         "target_object_kind": "PhaseFIndependentReviewBundleV1"
       }

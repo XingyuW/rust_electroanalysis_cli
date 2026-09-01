@@ -40,6 +40,10 @@ real approval or an `F-EV`.
 |---|---|---|---|---|---|---|---|---:|
 | R12-POS-SPEC-BUNDLE-TAG | literal_kat | g3_specification_bundle_tag | none | exact tag name, exact 379-byte body, body SHA-256, decoded six fields | `validate_g3_tag(tag_name, body_bytes, synthetic_context)` | PASS with exact decoded fields | the individually defined `R12-NEG-G3-*` rows below | 0 |
 | R12-G3-AUTHORITY-CONTEXT-POS | literal_kat | synthetic_complete_g3_authority | complete synthetic R12 graph and prerequisite objects | exact canonical tag body plus all prerequisite identities | `validate_g3_tag(tag_name, body_bytes, synthetic_context)` | PASS | none | 0 |
+| R12-G3-ARCHITECTURE-REVIEW-BUNDLE-POSITIVE | constructive_plan_audit | canonical_r11_review_bundle | all nine Phase F review nodes use the exact inherited R11 seven-field bundle, with five ordered role rows and resolved immutable artifacts | canonical direct review bundle fixture | `validate_g3_tag(...)` | PASS | none | 0 |
+| R12-G3-ARCHITECTURE-REVIEW-NEGATIVE-MATRIX | constructive_plan_audit | canonical_r11_review_bundle | exhaustive direct-bundle mutations cover missing/duplicate roles, reviewer and artifact identity/reference mismatches, stale state, wrong target, counts, fields, and TEST_ONLY classification | direct review-bundle mutation matrix | `validate_g3_tag(...)` | REJECT | every direct-bundle mutation | 0 |
+| R12-G3-REVIEW-START-GIT-PUBLISHED | constructive_plan_audit | review_start_git_state | review target equals HEAD, local `main`, `origin/main`, and independently supplied live remote `main` SHA | exact commit anchors | `validate_review_start_git_state(...)` | PASS | none | 0 |
+| R12-G3-REVIEW-START-GIT-MISMATCH | constructive_plan_audit | review_start_git_state | each of HEAD, local main, origin/main, and live remote main differs from the reviewed target | one-anchor mismatch at a time | `validate_review_start_git_state(...)` | REJECT | review-start anchor mismatch | 0 |
 | R12-G3-MISSING-ARCH-APPROVAL | constructive_plan_audit | g3_prerequisite | complete synthetic context with architecture approval removed | same as positive | `validate_g3_tag(...)` | REJECT | missing architecture approval | 0 |
 | R12-G3-STALE-ARCH-APPROVAL | constructive_plan_audit | g3_prerequisite | complete synthetic context with stale architecture approval | same as positive | `validate_g3_tag(...)` | REJECT | stale architecture approval | 0 |
 | R12-G3-MISSING-F0-APPROVAL | constructive_plan_audit | g3_prerequisite | complete synthetic context with F0 approval removed | same as positive | `validate_g3_tag(...)` | REJECT | missing F0 approval | 0 |
@@ -214,25 +218,26 @@ The validator obtains its mandatory prerequisite list from
 `phase_f_r12_authority_graph.json`; it does not maintain a second hard-coded
 G3 prerequisite list.
 
-The context has two closed modes. `synthetic` resolves complete synthetic
+The context has three closed modes. `synthetic` resolves complete synthetic
 objects through the same object, target, lifecycle, digest, graph, and
 staleness interfaces as `real`, but its prevalidated digest records are
-explicitly test-only. `real` resolves exact repository bytes and Git objects.
-A synthetic context marked for real-authority authorization rejects before
-any approval result is returned.
+explicitly test-only. `real` resolves exact repository bytes and Git objects;
+`real_test` is an explicit isolated-fixture mode that permits records marked
+`authority_class=TEST_ONLY`. A synthetic or `real_test` context marked for
+real-authority authorization rejects before any approval result is returned.
 
-Validation order is fail-closed: exact six-field wire grammar; real annotated
+Validation order is fail-closed: exact six-field tag grammar; real annotated
 tag object type, exact peeled commit, and exact message bytes; parsed graph
 closure; exact manifest bytes/hash/target/status; architecture and F0 approval
-objects; all five component review objects; the complete immutable migrated-
-finding review; and the aggregate review object targeting the exact final
-manifest. Every object must have the expected kind, identity, bound target,
-ACTIVE lifecycle, no stale/superseded/invalidated state, and exact dependency
-closure. The migrated review must cover all five migrated findings with one
-disposition each and bind the exact bundle-input fingerprint, migration
-ledger, traceability manifest, and component content identities. Any absent,
-malformed, stale, superseded, mismatched, future, or contradictory object
-returns `REJECT`.
+objects; all nine direct review bundles using the inherited seven-field R11
+wire; the complete immutable migrated-finding review; and the aggregate bundle
+whose graph-derived scope is the exact final manifest. Every object must have
+the expected kind, identity, bound target, ACTIVE lifecycle, no
+stale/superseded/invalidated state, and exact dependency closure. The migrated
+review must cover all five migrated findings with one disposition each and
+bind the exact bundle-input fingerprint, migration ledger, traceability
+manifest, and component content identities. Any absent, malformed, stale,
+superseded, mismatched, future, or contradictory object returns `REJECT`.
 
 The migrated-review decision is derived, never trusted from serialized input:
 
@@ -249,26 +254,31 @@ must hold before `GO` is possible. The only five-row decision vector that can
 produce `GO` is `(GO, GO, GO, GO, GO)`; any vector containing `NO-GO` produces
 `NO-GO`. The serialized decision must equal that derived result.
 
-The implementation's self-test exercises a complete synthetic PASS, every
+The implementation's self-test exercises a complete synthetic PASS, the exact
+direct R11 bundle positive path, the direct-bundle negative matrix, every
 authority-prerequisite negative in the catalog, real checked-in repository
-NO-GO with absent approvals, and synthetic-to-real isolation. This is a
-conformance path only; it does not create an approval tag or change the
-candidate bundle's fail-closed state.
+NO-GO with absent approvals, review-start Git-anchor equality/mismatch, and
+synthetic-to-real isolation. This is a conformance path only; it does not
+create an approval tag or change the candidate bundle's fail-closed state.
 
 The self-test also constructs a disposable isolated Git repository containing
-the real-format source files, canonical external authority JSON objects under
-`.phase_f_authority/`, five canonical reviewer identities, five immutable review
-artifacts, one explicit remediation-author identity, annotated architecture/F0/G3
-tags, and a target commit. The positive path resolves that repository through
-`make_repository_context` and passes the same `validate_g3_tag` function used by
-the real path. Its negative matrix mutates missing objects, malformed/noncanonical
-objects, wrong digests, wrong targets, stale/superseded records, incomplete
-migrated dispositions, all five row decisions, every missing role, every
-pairwise duplicate reviewer/artifact identity, every unresolved reviewer/artifact
-reference, author substitution, role mismatch, serialized bindings, and
-annotated-tag type/peel/message fields; every mutation must reject. The
-disposable fixture is never copied into the checked-in candidate and is
-removed after the self-test.
+the real-format source files, nine canonical direct R11 review bundles, five
+canonical reviewer identities reused across those bundles, their immutable
+review artifacts, five migrated-review artifacts, one explicit
+remediation-author identity, annotated architecture/F0/G3 tags, and a target
+commit. The positive path resolves that repository through
+`make_repository_context(..., allow_test_only=True)` and passes the same
+`validate_g3_tag` function used by the real path. Its negative matrix mutates
+missing objects, malformed/noncanonical objects, wrong digests, wrong targets,
+stale/superseded records, incomplete migrated dispositions, all five row
+decisions, every missing role, every pairwise duplicate reviewer/artifact
+identity, every unresolved reviewer/artifact reference, direct-bundle role and
+artifact mismatches, TEST_ONLY-in-real-mode classification, author
+substitution, serialized bindings, and annotated-tag type/peel/message fields;
+every mutation must reject. The review-start test independently requires the
+reviewed target to equal `HEAD`, local `main`, `origin/main`, and a supplied
+live remote-main SHA. The disposable fixture is never copied into the
+checked-in candidate and is removed after the self-test.
 
 The R12 authority graph is a closed exact contract, not only an edge-membership
 check. `edge_contract` is the normative finite set of complete node-level

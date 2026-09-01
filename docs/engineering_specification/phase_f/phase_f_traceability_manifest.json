@@ -105,23 +105,23 @@
       ]
     },
     "path": "docs/engineering_specification/phase_f/phase_f_r12_authority_graph.json",
-    "sha256": "0f837bdc721193dd14384fb9e9b599046dcd9368393d7b3d25ac955c4dc182bb"
+    "sha256": "45b9a2516ed63f793b8b27e03f8d6ca1b11cf05c620f85909f76c27367c8eebb"
   },
   "generated_source_sha256s": {
     "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
-    "component_conformance_spec": "f04e42a503008708456e1adaee017c30c2b21fe11b24058cb90da05cfed8297d",
+    "component_conformance_spec": "92248a0175109f100fbc95ad53d6f0da18bd9a2944ee1ccf6724977b630b1a48",
     "component_implementation_spec": "63b49e4d50cd425697a1428f853b5caa873fb5c828a6572a135fa6f5c13b260b",
     "component_operations_spec": "5ceaf042e5904e78c757e1fd227b9162c1331bce246901aab415c6afab02a78a",
     "component_scientific_spec": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
-    "component_wire_spec": "e1458905680e6fccf36c3838bdbd262a25112e3bba7f52b1957e3fd5d82790c2",
+    "component_wire_spec": "3cbad5f746978d3bfad58a7a988241c48a669a2311ae0048c8719e6bec801896",
     "migration_ledger": "100ad5cce0e29f1d512e39466b0676efeb4fbfea6e127b1ee2c7089bcc4162ac",
-    "normative_traceability_matrix": "4ac82e1241ac657fb861432137d16b32e6f1f829327a675ab8155008fddca7aa"
+    "normative_traceability_matrix": "2ff752794924823a0844a7e8c442316b379c8e9aadce866df11b7efcf46e9fa1"
   },
   "generation_rule": "docs/engineering_specification/phase_f/generate_phase_f_manifests.py",
   "normative_matrix": {
     "path": "docs/engineering_specification/phase_f/phase_f_r12_normative_traceability_matrix.json",
     "requirement_count": 64,
-    "sha256": "4ac82e1241ac657fb861432137d16b32e6f1f829327a675ab8155008fddca7aa"
+    "sha256": "2ff752794924823a0844a7e8c442316b379c8e9aadce866df11b7efcf46e9fa1"
   },
   "reference_catalogs": {
     "future_real_evidence": {
@@ -129,7 +129,7 @@
       "source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md"
     },
     "tests": {
-      "count": 111,
+      "count": 115,
       "r11_source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md",
       "r12_source": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md"
     }
@@ -306,7 +306,11 @@
       "constructive_audit_ids": [
         "R11-DAG-AUDIT",
         "R11-TRACE",
-        "R11-CX-08"
+        "R11-CX-08",
+        "R12-G3-ARCHITECTURE-REVIEW-BUNDLE-POSITIVE",
+        "R12-G3-ARCHITECTURE-REVIEW-NEGATIVE-MATRIX",
+        "R12-G3-REVIEW-START-GIT-PUBLISHED",
+        "R12-G3-REVIEW-START-GIT-MISMATCH"
       ],
       "downstream_child_requirements": [
         "F-WIRE-003"
@@ -321,7 +325,11 @@
       "test_ids": [
         "R11-DAG-AUDIT",
         "R11-TRACE",
-        "R11-CX-08"
+        "R11-CX-08",
+        "R12-G3-ARCHITECTURE-REVIEW-BUNDLE-POSITIVE",
+        "R12-G3-ARCHITECTURE-REVIEW-NEGATIVE-MATRIX",
+        "R12-G3-REVIEW-START-GIT-PUBLISHED",
+        "R12-G3-REVIEW-START-GIT-MISMATCH"
       ],
       "upstream_requirement_ids": [],
       "validation_category": "architecture",

@@ -155,7 +155,11 @@
       "constructive_audit_ids": [
         "R11-DAG-AUDIT",
         "R11-TRACE",
-        "R11-CX-08"
+        "R11-CX-08",
+        "R12-G3-ARCHITECTURE-REVIEW-BUNDLE-POSITIVE",
+        "R12-G3-ARCHITECTURE-REVIEW-NEGATIVE-MATRIX",
+        "R12-G3-REVIEW-START-GIT-PUBLISHED",
+        "R12-G3-REVIEW-START-GIT-MISMATCH"
       ],
       "expected_lifecycle_stage": "G0",
       "f0_decision_dependencies": [],
@@ -167,7 +171,11 @@
       "test_ids": [
         "R11-DAG-AUDIT",
         "R11-TRACE",
-        "R11-CX-08"
+        "R11-CX-08",
+        "R12-G3-ARCHITECTURE-REVIEW-BUNDLE-POSITIVE",
+        "R12-G3-ARCHITECTURE-REVIEW-NEGATIVE-MATRIX",
+        "R12-G3-REVIEW-START-GIT-PUBLISHED",
+        "R12-G3-REVIEW-START-GIT-MISMATCH"
       ],
       "upstream_requirement_ids": [],
       "validation_category": "architecture"

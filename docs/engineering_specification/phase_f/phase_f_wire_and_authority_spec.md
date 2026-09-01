@@ -10,7 +10,9 @@ values, or implementation layout.
 The exact R11 source bytes at `phase_f_r11_normative_source.md` are incorporated
 only through the clauses listed below. Their wire semantics remain unchanged;
 references to “plan authority” in those clauses now mean this specification
-unless the architecture plan explicitly retains ownership.
+unless the architecture plan explicitly retains ownership. R11 remains the
+immutable source of the independent-review bundle wire; this document records
+the R12 graph placement and resolver closure without redefining that wire.
 
 ## 2. Requirements
 
@@ -18,7 +20,7 @@ unless the architecture plan explicitly retains ownership.
 |---|---|---|---|
 | <a id="F-WIRE-001"></a>`F-WIRE-001` | `F-ARCH-004,F-ARCH-017` | External JSON uses UTF-8, RFC 8785 JCS, duplicate/unknown-member rejection, no omitted members, and the exact closed primitive/type registry. | §§2, 53.7 |
 | <a id="F-WIRE-002"></a>`F-WIRE-002` | `F-ARCH-017` | Every content-derived ID uses the unique NUL-terminated domain separator, complete semantic payload, exact exclusions, and no registry back pointer or future-object cycle. Complete-file SHA is computed after the file is complete. | §3 |
-| <a id="F-WIRE-003"></a>`F-WIRE-003` | `F-ARCH-007,F-ARCH-008` | Review targets, five rows, arithmetic aggregates, and bidirectional GO predicate use the exact review wire. Specification component and aggregate bundle reviews use the same rule. | §5 excluding F5 scientific meaning |
+| <a id="F-WIRE-003"></a>`F-WIRE-003` | `F-ARCH-007,F-ARCH-008` | Every R12 graph node claiming `PhaseFIndependentReviewBundleV1` uses the exact inherited R11 seven-field bundle: `schema_version`, `review_bundle_id`, `target`, `reviews`, `aggregate_p0_count`, `aggregate_p1_count`, and `aggregate_decision`. Its five rows are in canonical role order, use the exact R11 six-field row, and derive arithmetic aggregates and the GO predicate. | R11 §§3, 5 plus R12 graph/refinement |
 | <a id="F-WIRE-004"></a>`F-WIRE-004` | `F-ARCH-006,F-OD-01,F-OD-02,F-OD-03,F-OD-04,F-OD-05,F-OD-06,F-OD-07,F-OD-08,F-OD-09,F-OD-10,F-OD-11,F-OD-12,F-OD-13,F-OD-14,F-OD-15,F-OD-16,F-OD-17,F-OD-18,F-OD-19,F-OD-20` | `PhaseFDecisionBundleV1`, its 20 value variants, ordering, runtime projection wire, and no-future-F1-object rules are exact. | §4, §53.7 decision anchors |
 | <a id="F-WIRE-005"></a>`F-WIRE-005` | `F-ARCH-015,F-ARCH-017,F-OD-04,F-OD-13,F-OD-14,F-OD-15,F-OD-16` | Ed25519 keys/signatures, enrollment, trust bindings, registry record/head, object/record/relation kinds, subject hashes, relation ordering, genesis, sequence, resolver, compromise, and emergency wire are exact and fail closed. | §§5.2, 8, 9, 15 emergency wire, 53.7 anchors |
 | <a id="F-WIRE-006"></a>`F-WIRE-006` | `F-ARCH-012..016,F-ARCH-021` | Retrieval, package, dependency, physical identity/custody, power, metrology, cohort, release, claim-state, monitoring, incident, resolution, and retention schema field closures are exact; scientific/operational interpretation remains with its owning spec. | §§10–15, 53.7 anchors |
@@ -68,6 +70,53 @@ rows below. The generator checks this set equality and validates every new
 row's anchor and every non-empty catalog dimension; there is no wildcard or
 parallel approval catalog.
 
+### 4.1 Canonical independent-review bundle wire
+
+`PhaseFIndependentReviewBundleV1` is inherited from the immutable R11 source;
+it is not a new R12 schema identifier. Its complete top-level field set is
+exactly:
+
+```text
+schema_version,review_bundle_id,target,reviews,
+aggregate_p0_count,aggregate_p1_count,aggregate_decision
+```
+
+`schema_version` is `1`. `review_bundle_id` is the R11 semantic ID computed
+with domain `mhi_phase_f_review_bundle_v1\0` over the complete payload with its
+own ID excluded, using RFC 8785/JCS bytes. `target` is the exact R11 tagged
+union and, for the R12 review-start contract, is
+`{"type":"git_commit","git_sha":"<40 lowercase hex>"}`. `reviews` has
+exactly one row for each role, in this order: `scientific_metrology`,
+`architecture_data`, `security`, `compatibility`, `operations_governance`.
+Each row has exactly `role`, `decision`, `p0_count`, `p1_count`,
+`finding_ids`, and `review_artifact_reference`; the reference has exactly
+`immutable_uri`, `sha256`, and `byte_length`. Counts are canonical unsigned
+integer strings, finding IDs are sorted and unique, and the aggregate counts
+are arithmetic sums. `aggregate_decision` is `GO` exactly when every row is
+`GO` and both blocking aggregates are zero; otherwise it is `NO-GO`.
+
+The R12 nodes `architecture_review`, `f0_review`, all five component review
+nodes, `aggregate_review`, and `readiness_review` all claim this exact field
+contract. Their graph `reviews`/`targets` bindings serialize the same R11
+`target` commit object; the source-specific reviewed-object hash is carried by
+the resolved auxiliary artifact's `reviewed_target`, not by a parallel review
+schema. Bundle lifecycle, staleness, supersession, and invalidation are
+resolver-derived state and are intentionally not serialized in this R11 wire.
+
+The auxiliary resolver contracts are support records, not additions to the 93
+schema catalog. `PhaseFReviewerIdentityV1` is a canonical JSON record with
+`reviewer_authority_id`, `authority_kind`, `schema_version`,
+`authority_class` (`REAL` or `TEST_ONLY`), `actor_identity_digest`,
+`permitted_review_roles`, and derived lifecycle fields. `PhaseFReviewArtifactV1`
+has the corresponding identity/class fields plus `reviewer_authority_id`,
+`role`, `reviewed_target`, `decision`, canonical `p0_count`/`p1_count`/`p2_count`
+strings, `finding_ids`, and `independence_relation`. Both are canonical,
+content-addressed, active, and resolved through the graph-declared paths.
+`PhaseFImplementationAuthorIdentityV1` supplies the explicit remediation actor
+for independence checks. A `TEST_ONLY` record is accepted only by the
+explicitly opted-in `real_test` fixture mode and can never authorize real
+production mode.
+
 <a id="schema-def-PhaseFSpecificationBundleApprovalV1"></a>
 `SCHEMA_DEF[PhaseFSpecificationBundleApprovalV1]` is the exact six-line
 `TAG_BODY` in §3. All six fields are required, have the order and value rules
@@ -106,9 +155,10 @@ R11 approval bodies and all Phase-D/Phase-E bindings remain unchanged.
 ## 5. Migrated-finding review authority
 
 `PhaseFMigratedFindingReviewV1` is the R12 authority object used by
-`F-ARCH-022`. It reuses the generic five-role review-row contract from
-`PhaseFIndependentReviewBundleV1` but adds the migrated-finding-specific
-payload that the generic bundle does not own. Its exact top-level fields are:
+`F-ARCH-022`. It remains a specialized migration object with its own
+eight-field `review_records` rows; it does not redefine or replace the exact
+seven-field `PhaseFIndependentReviewBundleV1` wire used by the nine graph review
+nodes. Its exact top-level fields are:
 
 ```text
 schema_version,migrated_finding_review_id,target_git_commit,
@@ -170,22 +220,22 @@ object is not an intentional null success: it leaves the checked-in bundle
 
 The real resolver discovers this closure from the exact authority graph. Source
 specification, matrix, ledger, and generated-manifest nodes are read from the
-target commit; external authority objects are canonical UTF-8 JSON under
-`.phase_f_authority/{node_id}.json`; architecture and F0 approvals additionally
-require the graph-declared annotated tags and exact five-line tag-message
-bindings. Each migrated-review `reviewer_authority_id` is a 64-character
-lowercase SHA-256 identity that resolves to the graph-declared
-`.phase_f_authority/reviewer_identities/{reviewer_authority_id}.json` object.
-Each `review_artifact_id` similarly resolves to a canonical
-`.phase_f_authority/review_artifacts/{review_artifact_id}.json` object. These
-objects have closed schemas, canonical identities, active lifecycle, exact
-role/reviewer/target/decision bindings, and role permission. The validation
-context resolves the explicit canonical remediation-author identity from
+target commit; all nine direct review bundle files are canonical UTF-8 JSON
+under `.phase_f_authority/{node_id}.json` and must have the exact inherited
+seven-field wire. Each direct row's
+`phase-f-authority://review-artifacts/<64 lowercase hex>` reference resolves to
+the graph-declared `.phase_f_authority/review_artifacts/<id>.json` object, whose
+full bytes must match the reference SHA and byte length. Reviewer identities
+resolve from `.phase_f_authority/reviewer_identities/<id>.json`; every artifact
+must bind exactly one permitted role, reviewer, reviewed-target hash, decision,
+finding list, and independence relation. The validation context resolves the
+explicit canonical remediation-author identity from
 `.phase_f_authority/remediation_authority.json` and compares its actor digest
 with each reviewer actor digest; no name or prefix convention is authority.
-Synthetic records are accepted only by the conformance KAT and can never
-authorize the real mode. The resolver reports every requested, resolved,
-missing, and malformed reference in a structured resolution record.
+Synthetic records are accepted only by the conformance KAT or explicit
+`real_test` fixture opt-in and can never authorize the real mode. The resolver
+reports every requested, resolved, missing, and malformed reference in a
+structured resolution record.
 
 `PhaseFSpecificationBundleInputsV1.authority_bindings` and the manifest's
 `bound_authority_sha256s` are exact maps of the graph's `binds` edges. The
@@ -226,9 +276,12 @@ The bundle binds the object through the typed nullable reference
 `review_input_fingerprint`, and `review_status` fields are all required. A
 future complete bundle must populate every field from one immutable review
 object; the present candidate keeps them null/`ABSENT`.
-The aggregate review targets the final bundle manifest and must include the
-migrated-review identity in its dependency closure. G3 validates both
-relationships through the R12 authority graph.
+The aggregate review's R11 bundle target is the review-start Git commit; its
+source-specific manifest hash is bound through the graph-derived auxiliary
+artifact scope. The aggregate's required dependency closure, including the
+migrated-review identity, is derived from the graph rather than serialized as
+extra fields in the canonical R11 bundle. G3 validates these relationships
+through the R12 authority graph.
 
 ## 6. Review gate
 
