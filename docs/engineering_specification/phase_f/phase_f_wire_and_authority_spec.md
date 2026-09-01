@@ -84,24 +84,41 @@ aggregate_p0_count,aggregate_p1_count,aggregate_decision
 `schema_version` is `1`. `review_bundle_id` is the R11 semantic ID computed
 with domain `mhi_phase_f_review_bundle_v1\0` over the complete payload with its
 own ID excluded, using RFC 8785/JCS bytes. `target` is the exact R11 tagged
-union and, for the R12 review-start contract, is
-`{"type":"git_commit","git_sha":"<40 lowercase hex>"}`. `reviews` has
-exactly one row for each role, in this order: `scientific_metrology`,
-`architecture_data`, `security`, `compatibility`, `operations_governance`.
-Each row has exactly `role`, `decision`, `p0_count`, `p1_count`,
-`finding_ids`, and `review_artifact_reference`; the reference has exactly
-`immutable_uri`, `sha256`, and `byte_length`. Counts are canonical unsigned
-integer strings, finding IDs are sorted and unique, and the aggregate counts
-are arithmetic sums. `aggregate_decision` is `GO` exactly when every row is
-`GO` and both blocking aggregates are zero; otherwise it is `NO-GO`.
+union. A Git target is exactly
+`{"type":"git_commit","git_sha":"<40 lowercase hex>"}`. An external
+authority-object target is exactly
+`{"type":"external_object","object_kind":"<R11 enum>","object_sha256":"<64 lowercase hex>"}`;
+`object_sha256` is the complete canonical object digest defined by the
+immutable R11 source. `reviews` has exactly one row for each role, in this
+order: `scientific_metrology`, `architecture_data`, `security`,
+`compatibility`, `operations_governance`. Each row has exactly `role`,
+`decision`, `p0_count`, `p1_count`, `finding_ids`, and
+`review_artifact_reference`; the reference has exactly `immutable_uri`,
+`sha256`, and `byte_length`. Counts are canonical unsigned integer strings,
+finding IDs are sorted and unique, and the aggregate counts are arithmetic
+sums. `aggregate_decision` is `GO` exactly when every row is `GO` and both
+blocking aggregates are zero; otherwise it is `NO-GO`.
 
-The R12 nodes `architecture_review`, `f0_review`, all five component review
-nodes, `aggregate_review`, and `readiness_review` all claim this exact field
-contract. Their graph `reviews`/`targets` bindings serialize the same R11
-`target` commit object; the source-specific reviewed-object hash is carried by
-the resolved auxiliary artifact's `reviewed_target`, not by a parallel review
-schema. Bundle lifecycle, staleness, supersession, and invalidation are
+The target is derived from the graph's single incoming `reviews` edge, never
+from the review-node name and never from a global commit override. For the
+current graph, `architecture_review`, all five component review nodes,
+`aggregate_review`, and `readiness_review` review repository-owned revisions,
+so their target is the reviewed Git commit. `f0_review` reviews the external
+`PhaseFDecisionBundleV1` authority object, so its target is
+`{"type":"external_object","object_kind":"decision_bundle",
+"object_sha256":"<f0 decision-bundle SHA>"}`. The same rule applies to every
+future direct review whose graph predecessor is an R11 external authority
+object: use that predecessor's exact object kind and complete-object SHA;
+otherwise use the reviewed Git commit. The artifact's `reviewed_target` keeps
+the source-specific evidence binding and must equal the source object/file
+SHA. Bundle lifecycle, staleness, supersession, and invalidation are
 resolver-derived state and are intentionally not serialized in this R11 wire.
+
+The validator accepts only the exact two R11 target shapes, rejects nullable,
+extra, omitted, uppercase, wrong-kind, and wrong-digest forms, and compares
+the complete target object with the graph-derived expectation. This preserves
+R11 plan/repository semantics while preventing a direct external-object review
+from being silently retargeted to the review-start commit.
 
 The auxiliary resolver contracts are support records, not additions to the 93
 schema catalog. `PhaseFReviewerIdentityV1` is a canonical JSON record with
@@ -116,6 +133,15 @@ content-addressed, active, and resolved through the graph-declared paths.
 for independence checks. A `TEST_ONLY` record is accepted only by the
 explicitly opted-in `real_test` fixture mode and can never authorize real
 production mode.
+
+For every direct five-role bundle, the five `reviewer_authority_id` values,
+the five review-artifact IDs, and the five resolved `actor_identity_digest`
+values are each pairwise distinct. The reviewer IDs and artifact IDs prove
+separate authority records; actor-digest uniqueness proves that those records
+do not merely represent different IDs for the same underlying actor. A direct
+bundle is rejected if either uniqueness layer fails, even when all role,
+artifact, and aggregate fields otherwise validate. The migrated-review path
+uses the same actor-digest uniqueness predicate.
 
 <a id="schema-def-PhaseFSpecificationBundleApprovalV1"></a>
 `SCHEMA_DEF[PhaseFSpecificationBundleApprovalV1]` is the exact six-line

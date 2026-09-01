@@ -123,6 +123,83 @@ REVIEW_ROLE_ORDER = (
     "operations_governance",
 )
 REVIEW_ROLES = set(REVIEW_ROLE_ORDER)
+R11_REVIEW_OBJECT_KINDS = {
+    "decision_bundle",
+    "git_tag_message",
+    "authority_enrollment",
+    "registry_record",
+    "registry_head",
+    "registration_document",
+    "validation_manifest",
+    "protocol",
+    "power_method_interface",
+    "power_analysis",
+    "package_manifest",
+    "dependency_audit",
+    "physical_unit_ledger",
+    "identity_audit",
+    "location_ledger",
+    "chain_of_custody",
+    "deviation_ledger",
+    "metrology_policy",
+    "metrology_check_result",
+    "reference_source_descriptor",
+    "reference_result",
+    "scientific_admissibility_audit",
+    "cohort_lock",
+    "owner_approval",
+    "execution_record",
+    "release_record",
+    "claim_state",
+    "reinstatement_approval",
+    "monitoring_policy",
+    "monitoring_record",
+    "incident_record",
+    "monitoring_evidence",
+    "retention_audit",
+    "independent_review_bundle",
+    "incident_resolution",
+    "emergency_registry_compromise",
+    "checker_build_evidence",
+    "checker_readiness_evidence",
+    "f5_release_candidate",
+}
+R11_EXTERNAL_OBJECT_KIND_BY_AUTHORITY_KIND = {
+    "PhaseFDecisionBundleV1": "decision_bundle",
+    "PhaseFAuthorityEnrollmentV1": "authority_enrollment",
+    "PhaseFRegistryRecordV1": "registry_record",
+    "PhaseFRegistryHeadV1": "registry_head",
+    "PhaseFPackageManifestV1": "package_manifest",
+    "PhaseFDependencyAuditV1": "dependency_audit",
+    "PhaseFPhysicalUnitLedgerV1": "physical_unit_ledger",
+    "PhaseFPhysicalIdentityAuditV1": "identity_audit",
+    "PhaseFLocationLedgerV1": "location_ledger",
+    "PhaseFChainOfCustodyV1": "chain_of_custody",
+    "PhaseFDeviationLedgerRevisionV1": "deviation_ledger",
+    "PhaseFPowerMethodInterfaceV1": "power_method_interface",
+    "PhaseFPowerAnalysisRecordV1": "power_analysis",
+    "PhaseFMetrologyPolicyV1": "metrology_policy",
+    "PhaseFMetrologyCheckResultV1": "metrology_check_result",
+    "PhaseFReferenceSourceDescriptorV1": "reference_source_descriptor",
+    "PhaseFReferenceResultV1": "reference_result",
+    "PhaseFCohortLockRecordV1": "cohort_lock",
+    "PhaseFExecutionRecordV1": "execution_record",
+    "PhaseFReleaseRecordV1": "release_record",
+    "PhaseFClaimStateRecordV1": "claim_state",
+    "PhaseFReinstatementApprovalV1": "reinstatement_approval",
+    "PhaseFMonitoringPolicyV1": "monitoring_policy",
+    "PhaseFMonitoringRecordV1": "monitoring_record",
+    "PhaseFMonitoringEvidenceV1": "monitoring_evidence",
+    "PhaseFIncidentRecordV1": "incident_record",
+    "PhaseFIncidentResolutionV1": "incident_resolution",
+    "PhaseFRetentionAuditV1": "retention_audit",
+    "PhaseFScientificAdmissibilityAuditV1": "scientific_admissibility_audit",
+    "PhaseFRegistryCompromiseEmergencyV1": "emergency_registry_compromise",
+    "PhaseFCheckerBuildEvidenceV1": "checker_build_evidence",
+    "PhaseFCheckerReadinessEvidenceV1": "checker_readiness_evidence",
+    "PhaseFF5ReleaseCandidateV1": "f5_release_candidate",
+    "PhaseFIndependentReviewBundleV1": "independent_review_bundle",
+}
 INDEPENDENT_REVIEW_BUNDLE_FIELDS = {
     "schema_version",
     "review_bundle_id",
@@ -598,8 +675,68 @@ def _review_bundle_scope_sha(
     return value if isinstance(value, str) else None
 
 
-def _review_bundle_target(context: G3AuthorityContext) -> dict[str, str]:
-    return {"type": "git_commit", "git_sha": context.expected_target_commit}
+def _review_target_for_source(
+    source_authority_kind: str, target_commit: str, source_sha256: str | None
+) -> dict[str, str]:
+    object_kind = R11_EXTERNAL_OBJECT_KIND_BY_AUTHORITY_KIND.get(
+        source_authority_kind
+    )
+    if object_kind is None:
+        return {"type": "git_commit", "git_sha": target_commit}
+    if not isinstance(source_sha256, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", source_sha256
+    ):
+        raise G3ValidationError("review_target_source_digest_malformed")
+    return {
+        "type": "external_object",
+        "object_kind": object_kind,
+        "object_sha256": source_sha256,
+    }
+
+
+def _review_bundle_target(
+    context: G3AuthorityContext, node_id: str
+) -> dict[str, str]:
+    nodes = _graph_nodes(context.graph)
+    edges = _graph_edges(context.graph, nodes)
+    sources = [
+        edge["from"]
+        for edge in edges
+        if edge["to"] == node_id and edge["type"] == "reviews"
+    ]
+    if len(sources) != 1:
+        raise G3ValidationError(f"{node_id}_target_source_mismatch")
+    source_record = context.objects.get(sources[0])
+    if not isinstance(source_record, dict):
+        raise G3ValidationError(f"{node_id}_target_source_missing")
+    source_kind = nodes[sources[0]]["authority_kind"]
+    return _review_target_for_source(
+        source_kind, context.expected_target_commit, source_record.get("sha256")
+    )
+
+
+def _validate_review_target(
+    node_id: str, target: object, expected: dict[str, str]
+) -> None:
+    if not isinstance(target, dict):
+        raise G3ValidationError(f"{node_id}_target_mismatch")
+    target_type = target.get("type")
+    if target_type == "git_commit":
+        valid_shape = set(target) == {"type", "git_sha"} and isinstance(
+            target.get("git_sha"), str
+        ) and re.fullmatch(r"[0-9a-f]{40}", target["git_sha"]) is not None
+    elif target_type == "external_object":
+        valid_shape = (
+            set(target) == {"type", "object_kind", "object_sha256"}
+            and isinstance(target.get("object_kind"), str)
+            and target["object_kind"] in R11_REVIEW_OBJECT_KINDS
+            and isinstance(target.get("object_sha256"), str)
+            and re.fullmatch(r"[0-9a-f]{64}", target["object_sha256"]) is not None
+        )
+    else:
+        valid_shape = False
+    if not valid_shape or target != expected:
+        raise G3ValidationError(f"{node_id}_target_mismatch")
 
 
 def _graph_nodes(graph: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -1873,6 +2010,17 @@ def _validate_review_reference(
         raise G3ValidationError("non_independent_migrated_review")
 
 
+def _require_distinct_reviewer_actor_digests(
+    context: G3AuthorityContext, reviewer_ids: list[str], category: str
+) -> None:
+    actor_digests = [
+        context.reviewer_authorities[reviewer_id].get("actor_identity_digest")
+        for reviewer_id in reviewer_ids
+    ]
+    if len(set(actor_digests)) != len(actor_digests):
+        raise G3ValidationError(category)
+
+
 def _object_digest_matches(context: G3AuthorityContext, record: dict[str, Any]) -> bool:
     expected = record.get("sha256")
     if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
@@ -1957,15 +2105,7 @@ def _validate_independent_review_bundle(
         raise G3ValidationError(f"{node_id}_identity_mismatch")
 
     target = canonical_object.get("target")
-    if (
-        not isinstance(target, dict)
-        or set(target) != {"type", "git_sha"}
-        or target.get("type") != "git_commit"
-        or not isinstance(target.get("git_sha"), str)
-        or not re.fullmatch(r"[0-9a-f]{40}", target["git_sha"])
-        or target != _review_bundle_target(context)
-    ):
-        raise G3ValidationError(f"{node_id}_target_mismatch")
+    _validate_review_target(node_id, target, _review_bundle_target(context, node_id))
 
     rows = canonical_object.get("reviews")
     if not isinstance(rows, list) or len(rows) != len(REVIEW_ROLE_ORDER):
@@ -1975,6 +2115,7 @@ def _validate_independent_review_bundle(
 
     scope_sha = _review_bundle_scope_sha(context, node_id)
     reviewer_ids: list[str] = []
+    reviewer_actor_digests: list[str] = []
     artifact_ids: list[str] = []
     p0_total = 0
     p1_total = 0
@@ -2082,6 +2223,7 @@ def _validate_independent_review_bundle(
         if not isinstance(reviewer_id, str) or not re.fullmatch(r"[0-9a-f]{64}", reviewer_id):
             raise G3ValidationError("reviewer_identity_malformed")
         reviewer_ids.append(reviewer_id)
+        reviewer_actor_digests.append(actor_digest)
         artifact_ids.append(artifact_id)
         if context.mode == "synthetic":
             if reference["sha256"] != artifact.get("reference_sha256") or reference["byte_length"] != artifact.get("reference_byte_length"):
@@ -2093,7 +2235,11 @@ def _validate_independent_review_bundle(
         p0_total += int(row["p0_count"])
         p1_total += int(row["p1_count"])
 
-    if len(set(reviewer_ids)) != len(reviewer_ids) or len(set(artifact_ids)) != len(artifact_ids):
+    if (
+        len(set(reviewer_ids)) != len(reviewer_ids)
+        or len(set(reviewer_actor_digests)) != len(reviewer_actor_digests)
+        or len(set(artifact_ids)) != len(artifact_ids)
+    ):
         raise G3ValidationError("non_independent_review")
     if canonical_object["aggregate_p0_count"] != str(p0_total) or canonical_object["aggregate_p1_count"] != str(p1_total):
         raise G3ValidationError(f"{node_id}_aggregate_count_mismatch")
@@ -2160,7 +2306,7 @@ def _validate_graph_object_bindings(context: G3AuthorityContext) -> None:
                 if source_record is None:
                     raise G3ValidationError(f"missing_{source}")
                 if field_name == "target" and _is_independent_review_bundle(target_record):
-                    expected = _review_bundle_target(context)
+                    expected = _review_bundle_target(context, target)
                 else:
                     expected = source_record.get("sha256")
                 if target_record.get(field_name) != expected:
@@ -2182,13 +2328,24 @@ def _validate_graph_object_bindings(context: G3AuthorityContext) -> None:
                 if source_record is None:
                     raise G3ValidationError(f"missing_{edge['from']}")
                 if field_name == "target" and _is_independent_review_bundle(target_record):
-                    expected = _review_bundle_target(context)
+                    expected = _review_bundle_target(context, target)
                 else:
                     expected = source_record.get("sha256")
                 if target_record.get(field_name) != expected:
                     raise G3ValidationError(
                         f"{target}_{edge['from']}_{edge_type}_binding_mismatch"
                     )
+
+
+def _validate_available_direct_review_bundles(
+    context: G3AuthorityContext,
+) -> None:
+    """Validate every direct review bundle already resolved in this context."""
+
+    for node_id in sorted(REVIEW_BUNDLE_NODES):
+        record = context.objects.get(node_id)
+        if record is not None:
+            _validate_independent_review_bundle(context, node_id, record)
 
 
 def _validate_migrated_review(
@@ -2301,7 +2458,6 @@ def _validate_migrated_review(
         or record.get("reviewer_roles") != sorted(roles)
     ):
         raise G3ValidationError("non_independent_migrated_review")
-    reviewer_actor_digests: list[str] = []
     artifact_digests: list[str] = []
     for row in review_records:
         if row["reviewed_target"] != record["review_input_fingerprint"]:
@@ -2325,18 +2481,13 @@ def _validate_migrated_review(
         if sha256_bytes(canonical_json_bytes(row_payload)) != row["review_sha256"]:
             raise G3ValidationError("migrated_review_review_hash_mismatch")
         _validate_review_reference(context, row)
-        reviewer_actor_digests.append(
-            context.reviewer_authorities[row["reviewer_authority_id"]].get(
-                "actor_identity_digest"
-            )
-        )
         artifact_digests.append(
             context.review_artifacts[row["review_artifact_id"]].get("sha256")
         )
-    if (
-        len(set(reviewer_actor_digests)) != len(reviewer_actor_digests)
-        or len(set(artifact_digests)) != len(artifact_digests)
-    ):
+    _require_distinct_reviewer_actor_digests(
+        context, reviewer_ids, "non_independent_migrated_review"
+    )
+    if len(set(artifact_digests)) != len(artifact_digests):
         raise G3ValidationError("non_independent_migrated_review")
     if record.get("producer") != "independent_review_panel":
         raise G3ValidationError("non_independent_migrated_review")
@@ -2465,6 +2616,7 @@ def validate_g3_tag(
     for node_id in context.graph["g3_required_nodes"]:
         _require_authority_object(context, node_id)
     _validate_graph_object_bindings(context)
+    _validate_available_direct_review_bundles(context)
 
     bundle_inputs = _require_authority_object(context, "specification_bundle_inputs")
     manifest = _require_authority_object(context, "specification_bundle_manifest")
@@ -3488,6 +3640,7 @@ def _synthetic_independent_review_bundle(
     scope_sha: str | None,
     reviewer_authorities: dict[str, dict[str, Any]],
     review_artifacts: dict[str, dict[str, Any]],
+    review_target: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     identity_offset = len(reviewer_authorities) + 1
@@ -3556,7 +3709,7 @@ def _synthetic_independent_review_bundle(
     bundle = {
         "schema_version": 1,
         "review_bundle_id": "",
-        "target": {"type": "git_commit", "git_sha": target_commit},
+        "target": review_target or {"type": "git_commit", "git_sha": target_commit},
         "reviews": rows,
         "aggregate_p0_count": "0",
         "aggregate_p1_count": "0",
@@ -3670,6 +3823,12 @@ def make_synthetic_context() -> G3AuthorityContext:
         objects[node_id] = _synthetic_record(
             graph, node_id, sha256(path), bytes=path.read_bytes()
         )
+    objects["implementation_readiness_specification"] = _synthetic_record(
+        graph,
+        "implementation_readiness_specification",
+        sha256(SPECS["F-IMPL"]),
+        bytes=SPECS["F-IMPL"].read_bytes(),
+    )
     objects["architecture_review"] = _synthetic_independent_review_bundle(
         graph,
         "architecture_review",
@@ -3685,6 +3844,11 @@ def make_synthetic_context() -> G3AuthorityContext:
         "9" * 64,
         reviewer_authorities,
         review_artifacts,
+        review_target={
+            "type": "external_object",
+            "object_kind": "decision_bundle",
+            "object_sha256": "9" * 64,
+        },
     )
     for node_id, spec_node in (
         ("component_wire_review", "component_wire_spec"),
@@ -3767,6 +3931,14 @@ def make_synthetic_context() -> G3AuthorityContext:
         reviewer_authorities,
         review_artifacts,
     )
+    objects["readiness_review"] = _synthetic_independent_review_bundle(
+        graph,
+        "readiness_review",
+        target,
+        objects["implementation_readiness_specification"]["sha256"],
+        reviewer_authorities,
+        review_artifacts,
+    )
     objects["aggregate_review"]["sha256"] = "1" * 64
     objects["aggregate_review"]["expected_sha256"] = "1" * 64
     objects["specification_bundle_manifest"]["bound_authority_sha256s"] = {
@@ -3841,6 +4013,133 @@ def validate_review_start_git_state(
         for value in anchors.values()
     ):
         raise G3ValidationError("review_start_git_mismatch")
+    return anchors
+
+
+def _publication_ref_sha(repository: Path, ref: str) -> str:
+    try:
+        value = _git_output(repository, ["rev-parse", f"{ref}^{{commit}}"]).decode().strip()
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("publication_git_state_unverified") from error
+    if not re.fullmatch(r"[0-9a-f]{40}", value):
+        raise G3ValidationError("publication_git_state_unverified")
+    return value
+
+
+def _publication_is_ancestor(
+    repository: Path, ancestor: str, descendant: str
+) -> None:
+    try:
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+            cwd=repository,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("publication_non_fast_forward") from error
+
+
+def read_live_remote_main_sha(repository: Path, remote: str = "origin") -> str:
+    """Read the live remote main ref without relying on a stale tracking ref."""
+
+    try:
+        output = subprocess.check_output(
+            ["git", "ls-remote", "--heads", remote, "refs/heads/main"],
+            cwd=repository,
+            stderr=subprocess.PIPE,
+        ).decode("ascii")
+    except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("publication_live_state_unverified") from error
+    rows = [line.split() for line in output.splitlines() if line.strip()]
+    if len(rows) != 1 or len(rows[0]) != 2 or rows[0][1] != "refs/heads/main":
+        raise G3ValidationError("publication_live_state_unverified")
+    live_sha = rows[0][0]
+    if not re.fullmatch(r"[0-9a-f]{40}", live_sha):
+        raise G3ValidationError("publication_live_state_unverified")
+    return live_sha
+
+
+def validate_safe_publication_preflight(
+    repository: Path,
+    reviewed_sha: str,
+    expected_old_sha: str,
+    live_main_sha: str,
+) -> dict[str, str]:
+    """Validate the exact local, ancestry, and live-remote publication preconditions."""
+
+    sha_values = (reviewed_sha, expected_old_sha, live_main_sha)
+    if any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{40}", value) for value in sha_values):
+        raise G3ValidationError("publication_git_state_unverified")
+    try:
+        dirty = _git_output(
+            repository, ["status", "--porcelain=v1", "--untracked-files=all"]
+        ).decode("utf-8")
+    except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("publication_git_state_unverified") from error
+    if dirty:
+        raise G3ValidationError("publication_dirty_worktree")
+    anchors = {
+        "reviewed_sha": reviewed_sha,
+        "expected_old_sha": expected_old_sha,
+        "live_main_sha": live_main_sha,
+        "HEAD": _publication_ref_sha(repository, "HEAD"),
+        "local_main": _publication_ref_sha(repository, "main"),
+        "origin_main": _publication_ref_sha(repository, "origin/main"),
+    }
+    if anchors["HEAD"] != reviewed_sha or anchors["local_main"] != reviewed_sha:
+        raise G3ValidationError("publication_reviewed_sha_mismatch")
+    if live_main_sha != expected_old_sha:
+        raise G3ValidationError("publication_live_main_race")
+    _publication_is_ancestor(repository, anchors["origin_main"], reviewed_sha)
+    _publication_is_ancestor(repository, expected_old_sha, reviewed_sha)
+    return anchors
+
+
+def publish_reviewed_sha_with_lease(
+    repository: Path,
+    reviewed_sha: str,
+    expected_old_sha: str,
+    remote: str = "origin",
+) -> dict[str, str]:
+    """Publish one reviewed SHA through an exact remote compare-and-swap lease."""
+
+    live_before = read_live_remote_main_sha(repository, remote)
+    validate_safe_publication_preflight(
+        repository, reviewed_sha, expected_old_sha, live_before
+    )
+    try:
+        subprocess.run(
+            [
+                "git",
+                "push",
+                "--atomic",
+                f"--force-with-lease=refs/heads/main:{expected_old_sha}",
+                remote,
+                f"{reviewed_sha}:refs/heads/main",
+            ],
+            cwd=repository,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("publication_push_failed") from error
+    try:
+        _git_output(
+            repository,
+            ["fetch", "--quiet", remote, "refs/heads/main:refs/remotes/origin/main"],
+        )
+        live_after = read_live_remote_main_sha(repository, remote)
+        anchors = validate_review_start_git_state(repository, reviewed_sha, live_after)
+        dirty = _git_output(
+            repository, ["status", "--porcelain=v1", "--untracked-files=all"]
+        ).decode("utf-8")
+    except (OSError, UnicodeDecodeError, subprocess.CalledProcessError, G3ValidationError) as error:
+        raise G3ValidationError("publication_postcondition_unverified") from error
+    if dirty or live_after != reviewed_sha:
+        raise G3ValidationError("publication_postcondition_unverified")
     return anchors
 
 
@@ -4549,6 +4848,16 @@ def _isolated_real_fixture(
         )
 
     def write_review_bundle(node_id: str, scope_sha: str) -> str:
+        review_sources = [
+            edge["from"]
+            for edge in graph["edges"]
+            if edge["to"] == node_id and edge["type"] == "reviews"
+        ]
+        if len(review_sources) != 1:
+            raise AssertionError(f"fixture review target source mismatch: {node_id}")
+        review_target = _review_target_for_source(
+            nodes[review_sources[0]]["authority_kind"], target_commit, scope_sha
+        )
         rows: list[dict[str, Any]] = []
         for role in REVIEW_ROLE_ORDER:
             artifact_id = _fixture_write_reference(
@@ -4595,7 +4904,7 @@ def _isolated_real_fixture(
         bundle = {
             "schema_version": 1,
             "review_bundle_id": "",
-            "target": {"type": "git_commit", "git_sha": target_commit},
+            "target": review_target,
             "reviews": rows,
             "aggregate_p0_count": "0",
             "aggregate_p1_count": "0",
@@ -6271,7 +6580,7 @@ def run_regression_self_tests() -> None:
         source = descriptor["source"]
         actual = mutant.objects[target].get(field_name)
         if field_name == "target" and _is_independent_review_bundle(mutant.objects[target]):
-            if actual != _review_bundle_target(mutant):
+            if actual != _review_bundle_target(mutant, target):
                 raise AssertionError(f"synthetic binding builder omitted {target}/{source}")
             mutant.objects[target].pop(field_name, None)
         elif isinstance(actual, dict):
@@ -6469,6 +6778,10 @@ def run_regression_self_tests() -> None:
         raise AssertionError("five-role identity enumeration is incomplete")
 
     review_bundle_matrix_negative_tests = 0
+    direct_target_matrix_tests = 0
+    direct_target_matrix_negative_tests = 0
+    direct_actor_pair_tests = 0
+    available_direct_review_entrypoint_negative_tests = 0
 
     def direct_bundle_reject(label: str, mutate: object) -> None:
         nonlocal review_bundle_matrix_negative_tests
@@ -6488,6 +6801,134 @@ def run_regression_self_tests() -> None:
             REVIEW_ARTIFACT_URI_PREFIX
         )
         return mutant.review_artifacts[artifact_id]
+
+    direct_review_nodes = sorted(
+        node_id for node_id in REVIEW_BUNDLE_NODES if node_id in synthetic.objects
+    )
+    for node_id in direct_review_nodes:
+        bundle = synthetic.objects[node_id]["canonical_object"]
+        expected_target = _review_bundle_target(synthetic, node_id)
+        if bundle["target"] != expected_target:
+            raise AssertionError(
+                f"direct review target matrix mismatch for {node_id}: "
+                f"{bundle['target']} != {expected_target}"
+            )
+        _validate_independent_review_bundle(synthetic, node_id, synthetic.objects[node_id])
+        direct_target_matrix_tests += 1
+
+        opposite_target = (
+            {"type": "git_commit", "git_sha": "e" * 40}
+            if expected_target["type"] == "external_object"
+            else {
+                "type": "external_object",
+                "object_kind": "decision_bundle",
+                "object_sha256": "e" * 64,
+            }
+        )
+        mutant = deepcopy(synthetic)
+        mutant_bundle = mutant.objects[node_id]["canonical_object"]
+        mutant_bundle["target"] = opposite_target
+        mutant_bundle["review_bundle_id"] = independent_review_bundle_id(mutant_bundle)
+        direct_target_matrix_negative_tests += 1
+        reject_value_error(
+            f"direct review opposite target type {node_id}",
+            lambda mutant=mutant, node_id=node_id: _validate_independent_review_bundle(
+                mutant, node_id, mutant.objects[node_id]
+            ),
+        )
+
+        malformed_target = deepcopy(expected_target)
+        digest_field = "git_sha" if expected_target["type"] == "git_commit" else "object_sha256"
+        malformed_target[digest_field] = "A" * len(malformed_target[digest_field])
+        mutant = deepcopy(synthetic)
+        mutant_bundle = mutant.objects[node_id]["canonical_object"]
+        mutant_bundle["target"] = malformed_target
+        mutant_bundle["review_bundle_id"] = independent_review_bundle_id(mutant_bundle)
+        direct_target_matrix_negative_tests += 1
+        reject_value_error(
+            f"direct review malformed target digest {node_id}",
+            lambda mutant=mutant, node_id=node_id: _validate_independent_review_bundle(
+                mutant, node_id, mutant.objects[node_id]
+            ),
+        )
+
+        wrong_identity_target = deepcopy(expected_target)
+        wrong_identity_target[digest_field] = "e" * len(wrong_identity_target[digest_field])
+        mutant = deepcopy(synthetic)
+        mutant_bundle = mutant.objects[node_id]["canonical_object"]
+        mutant_bundle["target"] = wrong_identity_target
+        mutant_bundle["review_bundle_id"] = independent_review_bundle_id(mutant_bundle)
+        direct_target_matrix_negative_tests += 1
+        reject_value_error(
+            f"direct review wrong target identity {node_id}",
+            lambda mutant=mutant, node_id=node_id: _validate_independent_review_bundle(
+                mutant, node_id, mutant.objects[node_id]
+            ),
+        )
+
+        for left, right in ((left, right) for left in range(5) for right in range(left + 1, 5)):
+            mutant = deepcopy(synthetic)
+            mutant_rows = mutant.objects[node_id]["canonical_object"]["reviews"]
+            left_reviewer_id = direct_artifact(mutant, mutant_rows[left])["reviewer_authority_id"]
+            right_reviewer_id = direct_artifact(mutant, mutant_rows[right])["reviewer_authority_id"]
+            mutant.reviewer_authorities[right_reviewer_id]["actor_identity_digest"] = mutant.reviewer_authorities[left_reviewer_id]["actor_identity_digest"]
+            direct_actor_pair_tests += 1
+            reject_value_error(
+                f"direct review duplicate actor pair {node_id} {left},{right}",
+                lambda mutant=mutant, node_id=node_id: _validate_independent_review_bundle(
+                mutant, node_id, mutant.objects[node_id]
+            ),
+        )
+
+    readiness_entrypoint_target_mutant = deepcopy(synthetic)
+    readiness_entrypoint_bundle = readiness_entrypoint_target_mutant.objects[
+        "readiness_review"
+    ]["canonical_object"]
+    readiness_entrypoint_target = dict(
+        _review_bundle_target(readiness_entrypoint_target_mutant, "readiness_review")
+    )
+    readiness_entrypoint_digest_field = (
+        "git_sha"
+        if readiness_entrypoint_target["type"] == "git_commit"
+        else "object_sha256"
+    )
+    readiness_entrypoint_target[readiness_entrypoint_digest_field] = "e" * len(
+        readiness_entrypoint_target[readiness_entrypoint_digest_field]
+    )
+    readiness_entrypoint_bundle["target"] = readiness_entrypoint_target
+    readiness_entrypoint_bundle["review_bundle_id"] = independent_review_bundle_id(
+        readiness_entrypoint_bundle
+    )
+    available_direct_review_entrypoint_negative_tests += 1
+    reject_value_error(
+        "G3 entrypoint readiness target mutation",
+        lambda: validate_g3_tag(
+            G3_TAG_NAME, G3_FIXTURE_BODY, readiness_entrypoint_target_mutant
+        ),
+    )
+
+    readiness_entrypoint_actor_mutant = deepcopy(synthetic)
+    readiness_entrypoint_rows = readiness_entrypoint_actor_mutant.objects[
+        "readiness_review"
+    ]["canonical_object"]["reviews"]
+    left_reviewer_id = direct_artifact(
+        readiness_entrypoint_actor_mutant, readiness_entrypoint_rows[0]
+    )["reviewer_authority_id"]
+    right_reviewer_id = direct_artifact(
+        readiness_entrypoint_actor_mutant, readiness_entrypoint_rows[1]
+    )["reviewer_authority_id"]
+    readiness_entrypoint_actor_mutant.reviewer_authorities[right_reviewer_id][
+        "actor_identity_digest"
+    ] = readiness_entrypoint_actor_mutant.reviewer_authorities[left_reviewer_id][
+        "actor_identity_digest"
+    ]
+    available_direct_review_entrypoint_negative_tests += 1
+    reject_value_error(
+        "G3 entrypoint readiness actor mutation",
+        lambda: validate_g3_tag(
+            G3_TAG_NAME, G3_FIXTURE_BODY, readiness_entrypoint_actor_mutant
+        ),
+    )
 
     direct_bundle_reject(
         "architecture review missing role",
@@ -6888,6 +7329,150 @@ def run_regression_self_tests() -> None:
         review_start_git_negative_tests += 1
     finally:
         review_start_temporary.cleanup()
+    safe_publication_positive_tests = 0
+    safe_publication_negative_tests = 0
+    safe_publication_race_tests = 0
+    publication_temporary, publication_repository, publication_old_sha, _ = _isolated_real_fixture(
+        populate_authority=False
+    )
+    publication_sandbox = tempfile.TemporaryDirectory(
+        prefix="phase-f-publication-", dir=Path(publication_temporary.name).parent
+    )
+    try:
+        publication_root = Path(publication_sandbox.name)
+        publication_remote = publication_root / "remote.git"
+        _fixture_git(
+            publication_repository,
+            ["init", "--bare", "-q", str(publication_remote)],
+        )
+        _fixture_git(publication_repository, ["branch", "-M", "main"])
+        _fixture_git(
+            publication_repository,
+            ["remote", "add", "origin", str(publication_remote)],
+        )
+        _fixture_git(
+            publication_repository, ["push", "-q", "-u", "origin", "main"]
+        )
+        _fixture_git(
+            publication_repository,
+            ["--git-dir", str(publication_remote), "symbolic-ref", "HEAD", "refs/heads/main"],
+        )
+        candidate_sha = _fixture_git(
+            publication_repository,
+            ["commit", "--allow-empty", "-qm", "safe publication candidate"],
+        )
+        candidate_sha = _fixture_git(
+            publication_repository, ["rev-parse", "HEAD"]
+        ).decode().strip()
+        live_before = read_live_remote_main_sha(publication_repository)
+        if live_before != publication_old_sha:
+            raise AssertionError("publication fixture remote did not start at expected old SHA")
+        preflight = validate_safe_publication_preflight(
+            publication_repository, candidate_sha, publication_old_sha, live_before
+        )
+        if preflight["HEAD"] != candidate_sha or preflight["origin_main"] != publication_old_sha:
+            raise AssertionError(f"publication preflight anchors were wrong: {preflight}")
+        published = publish_reviewed_sha_with_lease(
+            publication_repository, candidate_sha, publication_old_sha
+        )
+        if any(value != candidate_sha for value in published.values()):
+            raise AssertionError(f"publication postcondition anchors were wrong: {published}")
+        safe_publication_positive_tests += 1
+
+        dirty_marker = publication_repository / "publication-dirty-marker"
+        dirty_marker.write_text("dirty\n")
+        safe_publication_negative_tests += 1
+        reject_value_error(
+            "safe publication dirty worktree",
+            lambda: validate_safe_publication_preflight(
+                publication_repository, candidate_sha, candidate_sha, candidate_sha
+            ),
+        )
+        dirty_marker.unlink()
+
+        next_candidate_sha = _fixture_git(
+            publication_repository,
+            ["commit", "--allow-empty", "-qm", "safe publication race candidate"],
+        )
+        next_candidate_sha = _fixture_git(
+            publication_repository, ["rev-parse", "HEAD"]
+        ).decode().strip()
+        peer_repository = publication_root / "peer"
+        _fixture_git(
+            publication_repository,
+            ["clone", "-q", str(publication_remote), str(peer_repository)],
+        )
+        _fixture_git(peer_repository, ["config", "user.name", "Phase F Peer Test"])
+        _fixture_git(
+            peer_repository,
+            ["config", "user.email", "phase-f-peer@example.invalid"],
+        )
+        _fixture_git(
+            peer_repository,
+            ["commit", "--allow-empty", "-qm", "remote race"],
+        )
+        race_sha = _fixture_git(peer_repository, ["rev-parse", "HEAD"]).decode().strip()
+        _fixture_git(peer_repository, ["push", "-q", "origin", "main"])
+        safe_publication_negative_tests += 1
+        safe_publication_race_tests += 1
+        reject_value_error(
+            "safe publication remote race",
+            lambda: publish_reviewed_sha_with_lease(
+                publication_repository, next_candidate_sha, candidate_sha
+            ),
+        )
+        if read_live_remote_main_sha(publication_repository) != race_sha:
+            raise AssertionError("remote race fixture was unexpectedly overwritten")
+
+        non_ff_remote = publication_root / "non-fast-forward.git"
+        _fixture_git(
+            publication_repository,
+            ["init", "--bare", "-q", str(non_ff_remote)],
+        )
+        _fixture_git(
+            publication_repository,
+            ["push", "-q", str(non_ff_remote), f"{publication_old_sha}:refs/heads/main"],
+        )
+        _fixture_git(
+            publication_repository,
+            ["--git-dir", str(non_ff_remote), "symbolic-ref", "HEAD", "refs/heads/main"],
+        )
+        non_ff_repository = publication_root / "non-ff"
+        _fixture_git(
+            publication_repository,
+            ["clone", "-q", str(non_ff_remote), str(non_ff_repository)],
+        )
+        _fixture_git(non_ff_repository, ["config", "user.name", "Phase F Non-FF Test"])
+        _fixture_git(
+            non_ff_repository,
+            ["config", "user.email", "phase-f-non-ff@example.invalid"],
+        )
+        _fixture_git(non_ff_repository, ["switch", "--orphan", "divergent"])
+        _fixture_git(
+            non_ff_repository,
+            ["commit", "--allow-empty", "-qm", "divergent candidate"],
+        )
+        divergent_sha = _fixture_git(
+            non_ff_repository, ["rev-parse", "HEAD"]
+        ).decode().strip()
+        _fixture_git(non_ff_repository, ["update-ref", "refs/heads/main", "HEAD"])
+        _fixture_git(non_ff_repository, ["symbolic-ref", "HEAD", "refs/heads/main"])
+        _fixture_git(non_ff_repository, ["branch", "-D", "divergent"])
+        safe_publication_negative_tests += 1
+        reject_value_error(
+            "safe publication non-fast-forward candidate",
+            lambda: validate_safe_publication_preflight(
+                non_ff_repository, divergent_sha, publication_old_sha, publication_old_sha
+            ),
+        )
+        safe_publication_negative_tests += 1
+        reject_value_error(
+            "safe publication live state unavailable",
+            lambda: read_live_remote_main_sha(publication_repository, "missing-remote"),
+        )
+    finally:
+        publication_sandbox.cleanup()
+        publication_temporary.cleanup()
     target_root_resolution_tests = 0
     root_change_staleness_tests = 0
     missing_temporary, missing_repository, missing_target, _ = _isolated_real_fixture(
@@ -6934,6 +7519,188 @@ def run_regression_self_tests() -> None:
             )
         ):
             raise AssertionError("real fixture resolved a non-canonical authority identity")
+
+        fixture_graph_nodes = _graph_nodes(fixture_context.graph)
+        direct_target_matrix_tests += 1
+        readiness_source = "implementation_readiness_specification"
+        readiness_source_rule = fixture_context.graph["node_identity_rules"][
+            readiness_source
+        ]
+        fixture_context.objects[readiness_source] = _load_real_repository_file(
+            fixture_repository,
+            fixture_target,
+            fixture_context.graph,
+            readiness_source,
+        )
+        readiness_sha = sha256(fixture_repository / readiness_source_rule["path"])
+        readiness_target = _review_target_for_source(
+            fixture_graph_nodes[readiness_source]["authority_kind"],
+            fixture_target,
+            readiness_sha,
+        )
+        readiness_rule = fixture_context.graph["node_identity_rules"]["readiness_review"]
+        readiness_record = _parse_json_without_duplicates(
+            (fixture_repository / readiness_rule["path"]).read_bytes()
+        )
+        if not isinstance(readiness_record, dict):
+            raise AssertionError("readiness review fixture was not an object")
+        fixture_context.objects["readiness_review"] = _load_real_json_authority(
+            fixture_repository,
+            fixture_context.graph,
+            "readiness_review",
+            fixture_repository / readiness_rule["path"],
+        )
+        readiness_bundle = fixture_context.objects["readiness_review"]["canonical_object"]
+        for readiness_row in readiness_bundle["reviews"]:
+            readiness_artifact_id = readiness_row["review_artifact_reference"][
+                "immutable_uri"
+            ].removeprefix(REVIEW_ARTIFACT_URI_PREFIX)
+            readiness_artifact_path = fixture_repository / fixture_context.graph[
+                "review_reference_contract"
+            ]["artifact"]["authority_path_template"].replace(
+                "{review_artifact_id}", readiness_artifact_id
+            )
+            fixture_context.review_artifacts[readiness_artifact_id] = _load_real_reference_json(
+                fixture_repository,
+                fixture_context.graph,
+                "artifact",
+                readiness_artifact_path,
+                readiness_artifact_id,
+            )
+        _validate_independent_review_bundle(
+            fixture_context,
+            "readiness_review",
+            fixture_context.objects["readiness_review"],
+        )
+        _validate_review_target(
+            "readiness_review", readiness_record.get("target"), readiness_target
+        )
+        reject_value_error(
+            "readiness review Git target substituted for external target",
+            lambda: _validate_review_target(
+                "readiness_review",
+                {"type": "external_object", "object_kind": "decision_bundle", "object_sha256": "e" * 64},
+                readiness_target,
+            ),
+        )
+        wrong_readiness_identity = dict(readiness_target)
+        readiness_digest_field = (
+            "git_sha"
+            if readiness_target["type"] == "git_commit"
+            else "object_sha256"
+        )
+        wrong_readiness_identity[readiness_digest_field] = "e" * len(
+            wrong_readiness_identity[readiness_digest_field]
+        )
+        reject_value_error(
+            "readiness review wrong target identity",
+            lambda: _validate_review_target(
+                "readiness_review",
+                wrong_readiness_identity,
+                readiness_target,
+            ),
+        )
+        direct_target_matrix_negative_tests += 1
+        direct_target_matrix_negative_tests += 1
+
+        def real_direct_duplicate_actor_mutation(
+            context: G3AuthorityContext, node_id: str, left: int, right: int
+        ) -> None:
+            bundle = context.objects[node_id]["canonical_object"]
+            rows = bundle["reviews"]
+            left_artifact_id = rows[left]["review_artifact_reference"][
+                "immutable_uri"
+            ].removeprefix(REVIEW_ARTIFACT_URI_PREFIX)
+            right_artifact_id = rows[right]["review_artifact_reference"][
+                "immutable_uri"
+            ].removeprefix(REVIEW_ARTIFACT_URI_PREFIX)
+            left_reviewer_id = context.review_artifacts[left_artifact_id][
+                "reviewer_authority_id"
+            ]
+            right_reviewer = deepcopy(
+                context.reviewer_authorities[
+                    context.review_artifacts[right_artifact_id][
+                        "reviewer_authority_id"
+                    ]
+                ]["canonical_object"]
+            )
+            right_reviewer["actor_identity_digest"] = context.reviewer_authorities[
+                left_reviewer_id
+            ]["actor_identity_digest"]
+            right_reviewer_id = sha256_bytes(
+                canonical_json_bytes(
+                    {
+                        key: value
+                        for key, value in right_reviewer.items()
+                        if key != "reviewer_authority_id"
+                    }
+                )
+            )
+            right_reviewer["reviewer_authority_id"] = right_reviewer_id
+            right_reviewer_bytes = canonical_json_bytes(right_reviewer)
+            right_reviewer_record = dict(right_reviewer)
+            right_reviewer_record.update(
+                {
+                    "bytes": right_reviewer_bytes,
+                    "canonical_object": right_reviewer,
+                    "sha256": right_reviewer_id,
+                    "expected_sha256": right_reviewer_id,
+                    "content_unchanged": True,
+                }
+            )
+            context.reviewer_authorities[right_reviewer_id] = right_reviewer_record
+
+            right_artifact = deepcopy(
+                context.review_artifacts[right_artifact_id]["canonical_object"]
+            )
+            right_artifact["reviewer_authority_id"] = right_reviewer_id
+            right_artifact_id = sha256_bytes(
+                canonical_json_bytes(
+                    {
+                        key: value
+                        for key, value in right_artifact.items()
+                        if key != "review_artifact_id"
+                    }
+                )
+            )
+            right_artifact["review_artifact_id"] = right_artifact_id
+            right_artifact_bytes = canonical_json_bytes(right_artifact)
+            right_artifact_record = dict(right_artifact)
+            right_artifact_record.update(
+                {
+                    "bytes": right_artifact_bytes,
+                    "canonical_object": right_artifact,
+                    "sha256": right_artifact_id,
+                    "expected_sha256": right_artifact_id,
+                    "content_unchanged": True,
+                }
+            )
+            context.review_artifacts[right_artifact_id] = right_artifact_record
+            rows[right]["review_artifact_reference"] = {
+                "immutable_uri": f"{REVIEW_ARTIFACT_URI_PREFIX}{right_artifact_id}",
+                "sha256": sha256_bytes(right_artifact_bytes),
+                "byte_length": str(len(right_artifact_bytes)),
+            }
+            bundle["review_bundle_id"] = independent_review_bundle_id(bundle)
+
+        real_direct_actor_pair_tests = 0
+        for review_node in ("architecture_review", "readiness_review"):
+            for left, right in (
+                (left, right) for left in range(5) for right in range(left + 1, 5)
+            ):
+                mutant = deepcopy(fixture_context)
+                real_direct_duplicate_actor_mutation(
+                    mutant, review_node, left, right
+                )
+                real_direct_actor_pair_tests += 1
+                reject_value_error(
+                    f"real direct duplicate actor pair {review_node} {left},{right}",
+                    lambda mutant=mutant, review_node=review_node: _validate_independent_review_bundle(
+                        mutant, review_node, mutant.objects[review_node]
+                    ),
+                )
+        if real_direct_actor_pair_tests != 20:
+            raise AssertionError("real-format direct actor pair enumeration is incomplete")
 
         fixture_graph_path = fixture_repository / AUTHORITY_GRAPH_PATH.relative_to(ROOT)
         original_fixture_graph_bytes = fixture_graph_path.read_bytes()
@@ -7525,6 +8292,11 @@ def run_regression_self_tests() -> None:
         f"duplicate_reviewers={duplicate_reviewer_cases_tested} unresolved_reviewers={unresolved_reviewer_cases_tested} "
         f"unresolved_artifacts={unresolved_artifact_cases_tested} role_mismatches={role_mismatch_cases_tested} "
         f"review_bundle_matrix_negative={review_bundle_matrix_negative_tests} "
+        f"direct_target_matrix={direct_target_matrix_tests} "
+        f"direct_target_matrix_negative={direct_target_matrix_negative_tests} "
+        f"direct_actor_pair_tests={direct_actor_pair_tests} "
+        f"available_direct_review_entrypoint_negative_tests={available_direct_review_entrypoint_negative_tests} "
+        f"real_direct_actor_pair_tests={real_direct_actor_pair_tests} "
         f"graph_candidates={len(candidate_edges)} graph_authorized={len(authorized_node_edges)} "
         f"graph_unauthorized={len(unauthorized_candidates)} graph_accepted_unauthorized={accepted_unauthorized_edges} "
         f"edge_canonical_passes={authorized_edge_canonical_passes} edge_removals_rejected={authorized_edge_removals_rejected} "
@@ -7546,6 +8318,9 @@ def run_regression_self_tests() -> None:
         f"explicit_g3_bypass_accepted={explicit_g3_bypass_accepted} "
         f"review_start_git_positive={review_start_git_positive_tests} "
         f"review_start_git_negative={review_start_git_negative_tests} "
+        f"safe_publication_positive={safe_publication_positive_tests} "
+        f"safe_publication_negative={safe_publication_negative_tests} "
+        f"safe_publication_race_tests={safe_publication_race_tests} "
         f"semantic_rules_derived={len(independent_rules)} semantic_rules_declared={len(graph['binding_semantics']['serialized_rules'])} "
         f"selected_rules={len(selected_rules)} "
         f"rules_all={semantic_rule_policy_counts['all']} rules_none={semantic_rule_policy_counts['none']} rules_selected={semantic_rule_policy_counts['selected']} "
