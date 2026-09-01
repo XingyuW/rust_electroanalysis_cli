@@ -97,7 +97,7 @@ real approval or an `F-EV`.
 | R12-DAG-TYPED-EDGE-CONTRACT | constructive_plan_audit | r12_artifact_authority_graph | typed source-kind/relation/destination-kind tuple changed or omitted, or exact node-edge tuple is not authorized | graph mutation | R12 artifact DAG audit | REJECT | typed or exact node-edge contract mismatch | 0 |
 | R12-DAG-IDENTITY-RULE-CONTRACT | constructive_plan_audit | r12_artifact_authority_graph | identity rule type or required/optional field closure changed | graph mutation | R12 artifact DAG audit | REJECT | identity-rule contract mismatch | 0 |
 | R12-DAG-SEMANTIC-AUDITS | constructive_plan_audit | r12_artifact_authority_graph | computed hash, self-Git, review-target, future-object, and bypass audits mutated | graph mutation | R12 artifact DAG audit | REJECT | semantic audit violation path | 0 |
-| R12-DAG-BINDING-EQUALITY | constructive_plan_audit | r12_artifact_authority_graph | node-attached binding-field contracts independently derive the exact semantic-rule universe and relation policies; declared semantic rules, serialized mirror, builder fields, validator fields, or prerequisites are incomplete, extra, or no longer equal to the exact node-level edge contract | graph/object mutation matrix, exhaustive semantic-rule shrink/insertion/retyping/policy matrix | R12 graph projection and G3 authority audit | REJECT | independent semantic-rule equality, exact graph/binding/prerequisite equality, or four-layer shrink mismatch | 0 |
+| R12-DAG-BINDING-EQUALITY | constructive_plan_audit | r12_artifact_authority_graph | every one of the 76 exact edges has a closed explicit `none` or `serialized_binding` obligation; edge obligations are the normative root and node fields, semantic rules, serialized maps, builder/validator expectations, and prerequisites are derived mirrors; root-fixed shrink, malformed-obligation, explicit-`none`, root-identity, and G3 staleness attacks reject | graph/object mutation matrix, exhaustive 44-binding-edge root/downstream closure, obligation-schema matrix, root-change/staleness fixture matrix | R12 graph projection and G3 authority audit | REJECT | missing/malformed edge obligation, downstream mirror shrink, unauthorized `none` binding, unchanged root/fingerprint, or stale-authority acceptance | 0 |
 | R12-TRACE-SEMANTIC-SUBSTITUTION | constructive_plan_audit | normative_traceability | catalog-valid but wrong F-OPS-004 relationship | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
 | R12-TRACE-WRONG-KAT | constructive_plan_audit | normative_traceability | valid KAT substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
 | R12-TRACE-WRONG-EVIDENCE | constructive_plan_audit | normative_traceability | valid evidence substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
@@ -277,12 +277,13 @@ the typed source-kind/relation/destination-kind contract remains a general
 admissibility check. The self-test enumerates all 28-node, seven-relation,
 non-self candidate triples and requires zero accepted undeclared edges. It also
 proves every authorized edge by removal, retyping, and destination redirection
-mutations. Each node has one closed identity-rule schema and serialized binding
-fields must equal the exact graph edge set. Computed audits emit named pass
-records and violation paths for hash cycles, self-Git cycles, review-target
-cycles, future-object dependencies, self-reference, G3 bypass, and
-implementation-readiness bypass. Mutations of any contract or audit input
-reject before an authority result can be returned.
+mutations. Every exact edge has one explicit binding obligation; the 44
+serialized obligations drive the derived node, semantic, serialized-map,
+builder, validator, and G3 projections, while 32 edges explicitly declare
+`none`. Computed audits emit named pass records and violation paths for hash
+cycles, self-Git cycles, review-target cycles, future-object dependencies,
+self-reference, G3 bypass, and implementation-readiness bypass. Mutations of
+any contract or audit input reject before an authority result can be returned.
 
 ### 3.3 Normative semantic traceability and schema usage
 

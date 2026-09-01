@@ -2,6 +2,14 @@
   "artifact_kind": "phase_f_r12_artifact_authority_graph",
   "authority_status": "NORMATIVE_CANDIDATE",
   "edge_direction": "from_existing_prerequisite_to_constructed_dependent",
+  "binding_root_contract": {
+    "root": "edges[].binding_obligation",
+    "edge_contract": "edge_contract",
+    "node_binding_fields": "DERIVED_NON_NORMATIVE",
+    "binding_semantics": "DERIVED_NON_NORMATIVE",
+    "serialized_binding_fields": "DERIVED_NON_NORMATIVE",
+    "relation_policies": "DERIVED_NON_NORMATIVE"
+  },
   "edge_type_semantics": {
     "approves": "A completed review authorizes construction of the dependent approval object.",
     "binds": "The dependent immutable authority records the exact identity of the prerequisite.",
@@ -13,44 +21,265 @@
   },
   "binding_semantics": {
     "relation_policies": {
-      "approves": {"required_input": true, "serialized_binding": "selected"},
-      "binds": {"required_input": true, "serialized_binding": "all"},
-      "generated_from": {"required_input": true, "serialized_binding": "all"},
-      "hashes": {"required_input": true, "serialized_binding": "none"},
-      "requires": {"required_input": true, "serialized_binding": "selected"},
-      "reviews": {"required_input": true, "serialized_binding": "selected"},
-      "targets": {"required_input": true, "serialized_binding": "all"}
+      "approves": {
+        "required_input": true,
+        "serialized_binding": "selected"
+      },
+      "binds": {
+        "required_input": true,
+        "serialized_binding": "all"
+      },
+      "generated_from": {
+        "required_input": true,
+        "serialized_binding": "all"
+      },
+      "hashes": {
+        "required_input": true,
+        "serialized_binding": "none"
+      },
+      "requires": {
+        "required_input": true,
+        "serialized_binding": "selected"
+      },
+      "reviews": {
+        "required_input": true,
+        "serialized_binding": "selected"
+      },
+      "targets": {
+        "required_input": true,
+        "serialized_binding": "all"
+      }
     },
     "serialized_rules": [
-      {"target": "architecture_review", "type": "reviews", "source": "architecture_plan", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
-      {"target": "architecture_approval", "type": "approves", "source": "architecture_review", "field": "review_sha256", "category": "approval_review_binding", "value": "source_sha256"},
-      {"target": "f0_review", "type": "reviews", "source": "f0_decision_bundle", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
-      {"target": "f0_approval", "type": "approves", "source": "f0_review", "field": "review_sha256", "category": "approval_review_binding", "value": "source_sha256"},
-      {"target": "component_wire_review", "type": "reviews", "source": "component_wire_spec", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
-      {"target": "component_scientific_review", "type": "reviews", "source": "component_scientific_spec", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
-      {"target": "component_operations_review", "type": "reviews", "source": "component_operations_spec", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
-      {"target": "component_conformance_review", "type": "reviews", "source": "component_conformance_spec", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
-      {"target": "component_implementation_review", "type": "reviews", "source": "component_implementation_spec", "field": "target_sha256", "category": "review_target_binding", "value": "source_sha256"},
-      {"target": "generated_traceability_manifest", "type": "generated_from", "source": "*", "field": "generated_source_sha256s", "category": "generated_source_binding", "value": "source_sha256"},
-      {"target": "specification_bundle_inputs", "type": "binds", "source": "*", "field": "authority_bindings", "category": "serialized_identity_binding", "value": "authority_descriptor"},
-      {"target": "migrated_finding_review", "type": "reviews", "source": "specification_bundle_inputs", "field": "target_bundle_inputs_sha256", "category": "review_target_binding", "value": "source_sha256"},
-      {"target": "migrated_finding_review", "type": "targets", "source": "specification_bundle_inputs", "field": "target_bundle_inputs_sha256", "category": "review_target_binding", "value": "source_sha256"},
-      {"target": "migrated_finding_review", "type": "binds", "source": "migration_ledger", "field": "reviewed_migration_ledger_sha256", "category": "serialized_digest_binding", "value": "source_sha256"},
-      {"target": "migrated_finding_review", "type": "binds", "source": "normative_traceability_matrix", "field": "reviewed_normative_traceability_matrix_sha256", "category": "serialized_digest_binding", "value": "source_sha256"},
-      {"target": "migrated_finding_review", "type": "binds", "source": "generated_traceability_manifest", "field": "reviewed_traceability_manifest_sha256", "category": "serialized_digest_binding", "value": "source_sha256"},
-      {"target": "specification_bundle_manifest", "type": "requires", "source": "specification_bundle_inputs", "field": "bundle_input_fingerprint_sha256", "category": "prerequisite_digest_binding", "value": "source_sha256"},
-      {"target": "specification_bundle_manifest", "type": "binds", "source": "*", "field": "bound_authority_sha256s", "category": "serialized_digest_binding", "value": "source_sha256"},
-      {"target": "aggregate_review", "type": "reviews", "source": "specification_bundle_manifest", "field": "target_bundle_manifest_sha256", "category": "review_target_binding", "value": "source_sha256"},
-      {"target": "aggregate_review", "type": "targets", "source": "specification_bundle_manifest", "field": "target_bundle_manifest_sha256", "category": "review_target_binding", "value": "source_sha256"}
-    ]
+      {
+        "target": "architecture_review",
+        "type": "reviews",
+        "source": "architecture_plan",
+        "field": "target_sha256",
+        "category": "review_target_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      },
+      {
+        "target": "architecture_approval",
+        "type": "approves",
+        "source": "architecture_review",
+        "field": "review_sha256",
+        "category": "approval_review_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFPlanApprovalV1"
+      },
+      {
+        "target": "f0_review",
+        "type": "reviews",
+        "source": "f0_decision_bundle",
+        "field": "target_sha256",
+        "category": "review_target_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      },
+      {
+        "target": "f0_approval",
+        "type": "approves",
+        "source": "f0_review",
+        "field": "review_sha256",
+        "category": "approval_review_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFDecisionApprovalV1"
+      },
+      {
+        "target": "component_wire_review",
+        "type": "reviews",
+        "source": "component_wire_spec",
+        "field": "target_sha256",
+        "category": "review_target_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      },
+      {
+        "target": "component_scientific_review",
+        "type": "reviews",
+        "source": "component_scientific_spec",
+        "field": "target_sha256",
+        "category": "review_target_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      },
+      {
+        "target": "component_operations_review",
+        "type": "reviews",
+        "source": "component_operations_spec",
+        "field": "target_sha256",
+        "category": "review_target_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      },
+      {
+        "target": "component_conformance_review",
+        "type": "reviews",
+        "source": "component_conformance_spec",
+        "field": "target_sha256",
+        "category": "review_target_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      },
+      {
+        "target": "component_implementation_review",
+        "type": "reviews",
+        "source": "component_implementation_spec",
+        "field": "target_sha256",
+        "category": "review_target_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      },
+      {
+        "target": "generated_traceability_manifest",
+        "type": "generated_from",
+        "source": "*",
+        "field": "generated_source_sha256s",
+        "category": "generated_source_binding",
+        "value": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_derived_traceability_manifest"
+      },
+      {
+        "target": "specification_bundle_inputs",
+        "type": "binds",
+        "source": "*",
+        "field": "authority_bindings",
+        "category": "serialized_identity_binding",
+        "value": "authority_descriptor",
+        "cardinality": "one_per_source",
+        "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+      },
+      {
+        "target": "migrated_finding_review",
+        "type": "reviews",
+        "source": "specification_bundle_inputs",
+        "field": "target_bundle_inputs_sha256",
+        "category": "review_target_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFMigratedFindingReviewV1"
+      },
+      {
+        "target": "migrated_finding_review",
+        "type": "targets",
+        "source": "specification_bundle_inputs",
+        "field": "target_bundle_inputs_sha256",
+        "category": "review_target_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFMigratedFindingReviewV1"
+      },
+      {
+        "target": "migrated_finding_review",
+        "type": "binds",
+        "source": "migration_ledger",
+        "field": "reviewed_migration_ledger_sha256",
+        "category": "serialized_digest_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFMigratedFindingReviewV1"
+      },
+      {
+        "target": "migrated_finding_review",
+        "type": "binds",
+        "source": "normative_traceability_matrix",
+        "field": "reviewed_normative_traceability_matrix_sha256",
+        "category": "serialized_digest_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFMigratedFindingReviewV1"
+      },
+      {
+        "target": "migrated_finding_review",
+        "type": "binds",
+        "source": "generated_traceability_manifest",
+        "field": "reviewed_traceability_manifest_sha256",
+        "category": "serialized_digest_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFMigratedFindingReviewV1"
+      },
+      {
+        "target": "specification_bundle_manifest",
+        "type": "requires",
+        "source": "specification_bundle_inputs",
+        "field": "bundle_input_fingerprint_sha256",
+        "category": "prerequisite_digest_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      },
+      {
+        "target": "specification_bundle_manifest",
+        "type": "binds",
+        "source": "*",
+        "field": "bound_authority_sha256s",
+        "category": "serialized_digest_binding",
+        "value": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      },
+      {
+        "target": "aggregate_review",
+        "type": "reviews",
+        "source": "specification_bundle_manifest",
+        "field": "target_bundle_manifest_sha256",
+        "category": "review_target_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      },
+      {
+        "target": "aggregate_review",
+        "type": "targets",
+        "source": "specification_bundle_manifest",
+        "field": "target_bundle_manifest_sha256",
+        "category": "review_target_binding",
+        "value": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      }
+    ],
+    "authority_status": "DERIVED_NON_NORMATIVE",
+    "derived_from": "edges[].binding_obligation"
   },
   "identity_cycle_rules": {
-    "self_file": {"audit": "file_identity", "prohibited": true},
-    "self_registry": {"audit": "registry_identity", "prohibited": true},
-    "self_git_commit": {"audit": "self_git_identity", "prohibited": true},
-    "self_release_record": {"audit": "release_identity", "prohibited": true},
-    "self_review_object": {"audit": "review_identity", "prohibited": true},
-    "self_bundle": {"audit": "bundle_identity", "prohibited": true}
+    "self_file": {
+      "audit": "file_identity",
+      "prohibited": true
+    },
+    "self_registry": {
+      "audit": "registry_identity",
+      "prohibited": true
+    },
+    "self_git_commit": {
+      "audit": "self_git_identity",
+      "prohibited": true
+    },
+    "self_release_record": {
+      "audit": "release_identity",
+      "prohibited": true
+    },
+    "self_review_object": {
+      "audit": "review_identity",
+      "prohibited": true
+    },
+    "self_bundle": {
+      "audit": "bundle_identity",
+      "prohibited": true
+    }
   },
   "typed_edge_contract": [
     "ArchitecturePlan|generated_from|phase_f_derived_traceability_manifest",
@@ -205,22 +434,59 @@
       "authority_path_template": ".phase_f_authority/reviewer_identities/{reviewer_authority_id}.json",
       "authority_kind": "PhaseFReviewerIdentityV1",
       "id_field": "reviewer_authority_id",
-      "digest_excluded_fields": ["reviewer_authority_id"],
-      "required_fields": ["reviewer_authority_id", "authority_kind", "schema_version", "actor_identity_digest", "permitted_review_roles", "lifecycle", "stale", "superseded_by", "invalidated"]
+      "digest_excluded_fields": [
+        "reviewer_authority_id"
+      ],
+      "required_fields": [
+        "reviewer_authority_id",
+        "authority_kind",
+        "schema_version",
+        "actor_identity_digest",
+        "permitted_review_roles",
+        "lifecycle",
+        "stale",
+        "superseded_by",
+        "invalidated"
+      ]
     },
     "artifact": {
       "authority_path_template": ".phase_f_authority/review_artifacts/{review_artifact_id}.json",
       "authority_kind": "PhaseFReviewArtifactV1",
       "id_field": "review_artifact_id",
-      "digest_excluded_fields": ["review_artifact_id"],
-      "required_fields": ["review_artifact_id", "authority_kind", "schema_version", "reviewer_authority_id", "role", "reviewed_target", "decision", "lifecycle", "stale", "superseded_by", "invalidated"]
+      "digest_excluded_fields": [
+        "review_artifact_id"
+      ],
+      "required_fields": [
+        "review_artifact_id",
+        "authority_kind",
+        "schema_version",
+        "reviewer_authority_id",
+        "role",
+        "reviewed_target",
+        "decision",
+        "lifecycle",
+        "stale",
+        "superseded_by",
+        "invalidated"
+      ]
     },
     "remediation_author": {
       "authority_path": ".phase_f_authority/remediation_authority.json",
       "authority_kind": "PhaseFImplementationAuthorIdentityV1",
       "id_field": "authority_id",
-      "digest_excluded_fields": ["authority_id"],
-      "required_fields": ["authority_id", "authority_kind", "schema_version", "actor_identity_digest", "lifecycle", "stale", "superseded_by", "invalidated"]
+      "digest_excluded_fields": [
+        "authority_id"
+      ],
+      "required_fields": [
+        "authority_id",
+        "authority_kind",
+        "schema_version",
+        "actor_identity_digest",
+        "lifecycle",
+        "stale",
+        "superseded_by",
+        "invalidated"
+      ]
     }
   },
   "aggregate_review_dependency_nodes": [
@@ -235,75 +501,251 @@
   ],
   "identity_rule_contract": {
     "repository_file_sha256": {
-      "required_fields": ["path"],
-      "optional_fields": ["identity_dependencies", "review_target_node", "self_reference"]
+      "required_fields": [
+        "path"
+      ],
+      "optional_fields": [
+        "identity_dependencies",
+        "review_target_node",
+        "self_reference"
+      ]
     },
     "authority_file_sha256": {
-      "required_fields": ["path"],
-      "optional_fields": ["identity_dependencies", "review_target_node", "self_reference"]
+      "required_fields": [
+        "path"
+      ],
+      "optional_fields": [
+        "identity_dependencies",
+        "review_target_node",
+        "self_reference"
+      ]
     },
     "canonical_object_sha256_excluding_field": {
-      "required_fields": ["path", "exclude_fields"],
-      "optional_fields": ["identity_dependencies", "review_target_node", "self_reference"]
+      "required_fields": [
+        "path",
+        "exclude_fields"
+      ],
+      "optional_fields": [
+        "identity_dependencies",
+        "review_target_node",
+        "self_reference"
+      ]
     },
     "annotated_tag_message_sha256": {
-      "required_fields": ["tag_name", "authority_path"],
-      "optional_fields": ["identity_dependencies", "review_target_node", "self_reference"]
+      "required_fields": [
+        "tag_name",
+        "authority_path"
+      ],
+      "optional_fields": [
+        "identity_dependencies",
+        "review_target_node",
+        "self_reference"
+      ]
     },
     "g3_annotated_tag_message_sha256": {
-      "required_fields": ["tag_name"],
-      "optional_fields": ["identity_dependencies", "review_target_node", "self_reference"]
+      "required_fields": [
+        "tag_name"
+      ],
+      "optional_fields": [
+        "identity_dependencies",
+        "review_target_node",
+        "self_reference"
+      ]
     },
     "git_commit_identity": {
-      "required_fields": ["commit_source"],
-      "optional_fields": ["identity_dependencies", "review_target_node", "self_reference", "self_referential"]
+      "required_fields": [
+        "commit_source"
+      ],
+      "optional_fields": [
+        "identity_dependencies",
+        "review_target_node",
+        "self_reference",
+        "self_referential"
+      ]
     }
   },
   "node_identity_rules": {
-    "architecture_plan": {"type": "repository_file_sha256", "path": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md"},
-    "architecture_review": {"type": "authority_file_sha256", "path": ".phase_f_authority/architecture_review.json"},
-    "architecture_approval": {"type": "annotated_tag_message_sha256", "tag_name": "ism-mechanism-health-v1-f-plan-approved", "authority_path": ".phase_f_authority/architecture_approval.json"},
-    "f0_decision_bundle": {"type": "authority_file_sha256", "path": ".phase_f_authority/f0_decision_bundle.json"},
-    "f0_review": {"type": "authority_file_sha256", "path": ".phase_f_authority/f0_review.json"},
-    "f0_approval": {"type": "annotated_tag_message_sha256", "tag_name": "ism-mechanism-health-v1-f-f0-decisions-approved", "authority_path": ".phase_f_authority/f0_approval.json"},
-    "component_wire_spec": {"type": "repository_file_sha256", "path": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md"},
-    "component_scientific_spec": {"type": "repository_file_sha256", "path": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md"},
-    "component_operations_spec": {"type": "repository_file_sha256", "path": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md"},
-    "component_conformance_spec": {"type": "repository_file_sha256", "path": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md"},
-    "component_implementation_spec": {"type": "repository_file_sha256", "path": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md"},
-    "component_wire_review": {"type": "authority_file_sha256", "path": ".phase_f_authority/component_wire_review.json"},
-    "component_scientific_review": {"type": "authority_file_sha256", "path": ".phase_f_authority/component_scientific_review.json"},
-    "component_operations_review": {"type": "authority_file_sha256", "path": ".phase_f_authority/component_operations_review.json"},
-    "component_conformance_review": {"type": "authority_file_sha256", "path": ".phase_f_authority/component_conformance_review.json"},
-    "component_implementation_review": {"type": "authority_file_sha256", "path": ".phase_f_authority/component_implementation_review.json"},
-    "normative_traceability_matrix": {"type": "repository_file_sha256", "path": "docs/engineering_specification/phase_f/phase_f_r12_normative_traceability_matrix.json"},
-    "migration_ledger": {"type": "repository_file_sha256", "path": "docs/engineering_specification/phase_f/phase_f_r11_to_r12_migration_ledger.md"},
-    "generated_traceability_manifest": {"type": "repository_file_sha256", "path": "docs/engineering_specification/phase_f/phase_f_traceability_manifest.json"},
-    "specification_bundle_inputs": {"type": "authority_file_sha256", "path": ".phase_f_authority/specification_bundle_inputs.json"},
-    "migrated_finding_review": {"type": "canonical_object_sha256_excluding_field", "path": ".phase_f_authority/migrated_finding_review.json", "exclude_fields": ["migrated_finding_review_id"]},
-    "specification_bundle_manifest": {"type": "authority_file_sha256", "path": ".phase_f_authority/specification_bundle_manifest.json"},
-    "aggregate_review": {"type": "authority_file_sha256", "path": ".phase_f_authority/aggregate_review.json"},
-    "g3_approval_tag": {"type": "g3_annotated_tag_message_sha256", "tag_name": "ism-mechanism-health-v1-f-specification-bundle-approved"},
-    "implementation_readiness_specification": {"type": "repository_file_sha256", "path": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md"},
-    "readiness_review": {"type": "authority_file_sha256", "path": ".phase_f_authority/readiness_review.json"},
-    "readiness_approval": {"type": "authority_file_sha256", "path": ".phase_f_authority/readiness_approval.json"},
-    "phase_f_implementation_gate": {"type": "authority_file_sha256", "path": ".phase_f_authority/phase_f_implementation_gate.json"}
+    "architecture_plan": {
+      "type": "repository_file_sha256",
+      "path": "docs/engineering_specification/phase_f_physical_evidence_and_production_validation_plan.md"
+    },
+    "architecture_review": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/architecture_review.json"
+    },
+    "architecture_approval": {
+      "type": "annotated_tag_message_sha256",
+      "tag_name": "ism-mechanism-health-v1-f-plan-approved",
+      "authority_path": ".phase_f_authority/architecture_approval.json"
+    },
+    "f0_decision_bundle": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/f0_decision_bundle.json"
+    },
+    "f0_review": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/f0_review.json"
+    },
+    "f0_approval": {
+      "type": "annotated_tag_message_sha256",
+      "tag_name": "ism-mechanism-health-v1-f-f0-decisions-approved",
+      "authority_path": ".phase_f_authority/f0_approval.json"
+    },
+    "component_wire_spec": {
+      "type": "repository_file_sha256",
+      "path": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md"
+    },
+    "component_scientific_spec": {
+      "type": "repository_file_sha256",
+      "path": "docs/engineering_specification/phase_f/phase_f_scientific_validation_spec.md"
+    },
+    "component_operations_spec": {
+      "type": "repository_file_sha256",
+      "path": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md"
+    },
+    "component_conformance_spec": {
+      "type": "repository_file_sha256",
+      "path": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md"
+    },
+    "component_implementation_spec": {
+      "type": "repository_file_sha256",
+      "path": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md"
+    },
+    "component_wire_review": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/component_wire_review.json"
+    },
+    "component_scientific_review": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/component_scientific_review.json"
+    },
+    "component_operations_review": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/component_operations_review.json"
+    },
+    "component_conformance_review": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/component_conformance_review.json"
+    },
+    "component_implementation_review": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/component_implementation_review.json"
+    },
+    "normative_traceability_matrix": {
+      "type": "repository_file_sha256",
+      "path": "docs/engineering_specification/phase_f/phase_f_r12_normative_traceability_matrix.json"
+    },
+    "migration_ledger": {
+      "type": "repository_file_sha256",
+      "path": "docs/engineering_specification/phase_f/phase_f_r11_to_r12_migration_ledger.md"
+    },
+    "generated_traceability_manifest": {
+      "type": "repository_file_sha256",
+      "path": "docs/engineering_specification/phase_f/phase_f_traceability_manifest.json"
+    },
+    "specification_bundle_inputs": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/specification_bundle_inputs.json"
+    },
+    "migrated_finding_review": {
+      "type": "canonical_object_sha256_excluding_field",
+      "path": ".phase_f_authority/migrated_finding_review.json",
+      "exclude_fields": [
+        "migrated_finding_review_id"
+      ]
+    },
+    "specification_bundle_manifest": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/specification_bundle_manifest.json"
+    },
+    "aggregate_review": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/aggregate_review.json"
+    },
+    "g3_approval_tag": {
+      "type": "g3_annotated_tag_message_sha256",
+      "tag_name": "ism-mechanism-health-v1-f-specification-bundle-approved"
+    },
+    "implementation_readiness_specification": {
+      "type": "repository_file_sha256",
+      "path": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md"
+    },
+    "readiness_review": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/readiness_review.json"
+    },
+    "readiness_approval": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/readiness_approval.json"
+    },
+    "phase_f_implementation_gate": {
+      "type": "authority_file_sha256",
+      "path": ".phase_f_authority/phase_f_implementation_gate.json"
+    }
   },
   "serialized_binding_fields": {
-    "architecture_review": {"reviews": {"architecture_plan": "target_sha256"}},
-    "architecture_approval": {"approves": {"architecture_review": "review_sha256"}},
-    "f0_review": {"reviews": {"f0_decision_bundle": "target_sha256"}},
-    "f0_approval": {"approves": {"f0_review": "review_sha256"}},
-    "component_wire_review": {"reviews": {"component_wire_spec": "target_sha256"}},
-    "component_scientific_review": {"reviews": {"component_scientific_spec": "target_sha256"}},
-    "component_operations_review": {"reviews": {"component_operations_spec": "target_sha256"}},
-    "component_conformance_review": {"reviews": {"component_conformance_spec": "target_sha256"}},
-    "component_implementation_review": {"reviews": {"component_implementation_spec": "target_sha256"}},
-    "generated_traceability_manifest": {"generated_from": {"*": "generated_source_sha256s"}},
-    "specification_bundle_inputs": {"binds": {"*": "authority_bindings"}},
+    "architecture_review": {
+      "reviews": {
+        "architecture_plan": "target_sha256"
+      }
+    },
+    "architecture_approval": {
+      "approves": {
+        "architecture_review": "review_sha256"
+      }
+    },
+    "f0_review": {
+      "reviews": {
+        "f0_decision_bundle": "target_sha256"
+      }
+    },
+    "f0_approval": {
+      "approves": {
+        "f0_review": "review_sha256"
+      }
+    },
+    "component_wire_review": {
+      "reviews": {
+        "component_wire_spec": "target_sha256"
+      }
+    },
+    "component_scientific_review": {
+      "reviews": {
+        "component_scientific_spec": "target_sha256"
+      }
+    },
+    "component_operations_review": {
+      "reviews": {
+        "component_operations_spec": "target_sha256"
+      }
+    },
+    "component_conformance_review": {
+      "reviews": {
+        "component_conformance_spec": "target_sha256"
+      }
+    },
+    "component_implementation_review": {
+      "reviews": {
+        "component_implementation_spec": "target_sha256"
+      }
+    },
+    "generated_traceability_manifest": {
+      "generated_from": {
+        "*": "generated_source_sha256s"
+      }
+    },
+    "specification_bundle_inputs": {
+      "binds": {
+        "*": "authority_bindings"
+      }
+    },
     "migrated_finding_review": {
-      "reviews": {"specification_bundle_inputs": "target_bundle_inputs_sha256"},
-      "targets": {"specification_bundle_inputs": "target_bundle_inputs_sha256"},
+      "reviews": {
+        "specification_bundle_inputs": "target_bundle_inputs_sha256"
+      },
+      "targets": {
+        "specification_bundle_inputs": "target_bundle_inputs_sha256"
+      },
       "binds": {
         "migration_ledger": "reviewed_migration_ledger_sha256",
         "normative_traceability_matrix": "reviewed_normative_traceability_matrix_sha256",
@@ -311,30 +753,250 @@
       }
     },
     "specification_bundle_manifest": {
-      "requires": {"specification_bundle_inputs": "bundle_input_fingerprint_sha256"},
-      "binds": {"*": "bound_authority_sha256s"}
+      "requires": {
+        "specification_bundle_inputs": "bundle_input_fingerprint_sha256"
+      },
+      "binds": {
+        "*": "bound_authority_sha256s"
+      }
     },
     "aggregate_review": {
-      "reviews": {"specification_bundle_manifest": "target_bundle_manifest_sha256"},
-      "targets": {"specification_bundle_manifest": "target_bundle_manifest_sha256"}
+      "reviews": {
+        "specification_bundle_manifest": "target_bundle_manifest_sha256"
+      },
+      "targets": {
+        "specification_bundle_manifest": "target_bundle_manifest_sha256"
+      }
     }
   },
   "object_field_contracts": {
-    "architecture_review": ["node_id", "authority_kind", "schema_version", "authority_id", "target_sha256", "decision", "p0_count", "p1_count", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "architecture_approval": ["node_id", "authority_kind", "schema_version", "authority_id", "tag_name", "target_sha256", "review_sha256", "decision", "p0_count", "p1_count", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "f0_decision_bundle": ["node_id", "authority_kind", "schema_version", "authority_id", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "f0_review": ["node_id", "authority_kind", "schema_version", "authority_id", "target_sha256", "decision", "p0_count", "p1_count", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "f0_approval": ["node_id", "authority_kind", "schema_version", "authority_id", "tag_name", "target_sha256", "review_sha256", "decision", "p0_count", "p1_count", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "component_wire_review": ["node_id", "authority_kind", "schema_version", "authority_id", "reviewer_authority_id", "target_sha256", "decision", "p0_count", "p1_count", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "component_scientific_review": ["node_id", "authority_kind", "schema_version", "authority_id", "reviewer_authority_id", "target_sha256", "decision", "p0_count", "p1_count", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "component_operations_review": ["node_id", "authority_kind", "schema_version", "authority_id", "reviewer_authority_id", "target_sha256", "decision", "p0_count", "p1_count", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "component_conformance_review": ["node_id", "authority_kind", "schema_version", "authority_id", "reviewer_authority_id", "target_sha256", "decision", "p0_count", "p1_count", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "component_implementation_review": ["node_id", "authority_kind", "schema_version", "authority_id", "reviewer_authority_id", "target_sha256", "decision", "p0_count", "p1_count", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "specification_bundle_inputs": ["node_id", "authority_kind", "schema_version", "authority_id", "authority_bindings", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "migrated_finding_review": ["node_id", "authority_kind", "schema_version", "migrated_finding_review_id", "target_git_commit", "target_bundle_inputs_sha256", "reviewed_migration_ledger_sha256", "reviewed_normative_traceability_matrix_sha256", "reviewed_traceability_manifest_sha256", "reviewed_component_sha256s", "reviewed_finding_ids", "finding_dispositions", "reviewer_roles", "review_records", "review_input_fingerprint", "p0_count", "p1_count", "p2_count", "decision", "created_stage", "producer", "validator", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "specification_bundle_manifest": ["node_id", "authority_kind", "schema_version", "authority_id", "status", "eligible_for_g3", "target_commit", "bundle_input_fingerprint_sha256", "bound_authority_sha256s", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "aggregate_review": ["node_id", "authority_kind", "schema_version", "authority_id", "target_bundle_manifest_sha256", "dependency_node_ids", "decision", "p0_count", "p1_count", "lifecycle", "stale", "superseded_by", "invalidated"],
-    "generated_traceability_manifest": ["schema_version", "artifact_kind", "semantic_authority", "generation_rule", "reference_catalogs", "normative_matrix", "authority_graph", "schema_usage", "generated_source_sha256s", "requirements"]
+    "architecture_review": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "target_sha256",
+      "decision",
+      "p0_count",
+      "p1_count",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "architecture_approval": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "tag_name",
+      "target_sha256",
+      "review_sha256",
+      "decision",
+      "p0_count",
+      "p1_count",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "f0_decision_bundle": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "f0_review": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "target_sha256",
+      "decision",
+      "p0_count",
+      "p1_count",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "f0_approval": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "tag_name",
+      "target_sha256",
+      "review_sha256",
+      "decision",
+      "p0_count",
+      "p1_count",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "component_wire_review": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "reviewer_authority_id",
+      "target_sha256",
+      "decision",
+      "p0_count",
+      "p1_count",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "component_scientific_review": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "reviewer_authority_id",
+      "target_sha256",
+      "decision",
+      "p0_count",
+      "p1_count",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "component_operations_review": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "reviewer_authority_id",
+      "target_sha256",
+      "decision",
+      "p0_count",
+      "p1_count",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "component_conformance_review": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "reviewer_authority_id",
+      "target_sha256",
+      "decision",
+      "p0_count",
+      "p1_count",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "component_implementation_review": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "reviewer_authority_id",
+      "target_sha256",
+      "decision",
+      "p0_count",
+      "p1_count",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "specification_bundle_inputs": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "authority_bindings",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated",
+      "authority_graph_sha256"
+    ],
+    "migrated_finding_review": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "migrated_finding_review_id",
+      "target_git_commit",
+      "target_bundle_inputs_sha256",
+      "reviewed_migration_ledger_sha256",
+      "reviewed_normative_traceability_matrix_sha256",
+      "reviewed_traceability_manifest_sha256",
+      "reviewed_component_sha256s",
+      "reviewed_finding_ids",
+      "finding_dispositions",
+      "reviewer_roles",
+      "review_records",
+      "review_input_fingerprint",
+      "p0_count",
+      "p1_count",
+      "p2_count",
+      "decision",
+      "created_stage",
+      "producer",
+      "validator",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "specification_bundle_manifest": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "status",
+      "eligible_for_g3",
+      "target_commit",
+      "bundle_input_fingerprint_sha256",
+      "bound_authority_sha256s",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "aggregate_review": [
+      "node_id",
+      "authority_kind",
+      "schema_version",
+      "authority_id",
+      "target_bundle_manifest_sha256",
+      "dependency_node_ids",
+      "decision",
+      "p0_count",
+      "p1_count",
+      "lifecycle",
+      "stale",
+      "superseded_by",
+      "invalidated"
+    ],
+    "generated_traceability_manifest": [
+      "schema_version",
+      "artifact_kind",
+      "semantic_authority",
+      "generation_rule",
+      "reference_catalogs",
+      "normative_matrix",
+      "authority_graph",
+      "schema_usage",
+      "generated_source_sha256s",
+      "requirements"
+    ]
   },
   "g3_required_nodes": [
     "architecture_approval",
@@ -354,167 +1016,1326 @@
   "implementation_gate_node": "phase_f_implementation_gate",
   "required_inputs": {
     "architecture_plan": [],
-    "architecture_review": ["architecture_plan"],
-    "architecture_approval": ["architecture_review"],
-    "f0_decision_bundle": ["architecture_approval"],
-    "f0_review": ["f0_decision_bundle"],
-    "f0_approval": ["f0_review"],
-    "component_wire_spec": ["architecture_approval", "f0_approval"],
-    "component_scientific_spec": ["architecture_approval", "f0_approval"],
-    "component_operations_spec": ["architecture_approval", "f0_approval"],
-    "component_conformance_spec": ["architecture_approval", "f0_approval"],
-    "component_implementation_spec": ["architecture_approval", "f0_approval"],
-    "component_wire_review": ["component_wire_spec"],
-    "component_scientific_review": ["component_scientific_spec"],
-    "component_operations_review": ["component_operations_spec"],
-    "component_conformance_review": ["component_conformance_spec"],
-    "component_implementation_review": ["component_implementation_spec"],
-    "normative_traceability_matrix": ["architecture_plan"],
-    "migration_ledger": ["architecture_plan"],
+    "architecture_review": [
+      "architecture_plan"
+    ],
+    "architecture_approval": [
+      "architecture_review"
+    ],
+    "f0_decision_bundle": [
+      "architecture_approval"
+    ],
+    "f0_review": [
+      "f0_decision_bundle"
+    ],
+    "f0_approval": [
+      "f0_review"
+    ],
+    "component_wire_spec": [
+      "architecture_approval",
+      "f0_approval"
+    ],
+    "component_scientific_spec": [
+      "architecture_approval",
+      "f0_approval"
+    ],
+    "component_operations_spec": [
+      "architecture_approval",
+      "f0_approval"
+    ],
+    "component_conformance_spec": [
+      "architecture_approval",
+      "f0_approval"
+    ],
+    "component_implementation_spec": [
+      "architecture_approval",
+      "f0_approval"
+    ],
+    "component_wire_review": [
+      "component_wire_spec"
+    ],
+    "component_scientific_review": [
+      "component_scientific_spec"
+    ],
+    "component_operations_review": [
+      "component_operations_spec"
+    ],
+    "component_conformance_review": [
+      "component_conformance_spec"
+    ],
+    "component_implementation_review": [
+      "component_implementation_spec"
+    ],
+    "normative_traceability_matrix": [
+      "architecture_plan"
+    ],
+    "migration_ledger": [
+      "architecture_plan"
+    ],
     "generated_traceability_manifest": [
-      "architecture_plan", "normative_traceability_matrix", "migration_ledger",
-      "component_wire_spec", "component_scientific_spec",
-      "component_operations_spec", "component_conformance_spec",
+      "architecture_plan",
+      "normative_traceability_matrix",
+      "migration_ledger",
+      "component_wire_spec",
+      "component_scientific_spec",
+      "component_operations_spec",
+      "component_conformance_spec",
       "component_implementation_spec"
     ],
     "specification_bundle_inputs": [
-      "architecture_approval", "f0_approval", "normative_traceability_matrix",
-      "migration_ledger", "generated_traceability_manifest", "component_wire_spec",
-      "component_scientific_spec", "component_operations_spec",
-      "component_conformance_spec", "component_implementation_spec"
+      "architecture_approval",
+      "f0_approval",
+      "normative_traceability_matrix",
+      "migration_ledger",
+      "generated_traceability_manifest",
+      "component_wire_spec",
+      "component_scientific_spec",
+      "component_operations_spec",
+      "component_conformance_spec",
+      "component_implementation_spec"
     ],
     "migrated_finding_review": [
-      "specification_bundle_inputs", "migration_ledger",
-      "normative_traceability_matrix", "generated_traceability_manifest"
+      "specification_bundle_inputs",
+      "migration_ledger",
+      "normative_traceability_matrix",
+      "generated_traceability_manifest"
     ],
     "specification_bundle_manifest": [
-      "specification_bundle_inputs", "architecture_approval", "f0_approval",
-      "generated_traceability_manifest", "component_wire_review",
-      "component_scientific_review", "component_operations_review",
-      "component_conformance_review", "component_implementation_review",
+      "specification_bundle_inputs",
+      "architecture_approval",
+      "f0_approval",
+      "generated_traceability_manifest",
+      "component_wire_review",
+      "component_scientific_review",
+      "component_operations_review",
+      "component_conformance_review",
+      "component_implementation_review",
       "migrated_finding_review"
     ],
-    "aggregate_review": ["specification_bundle_manifest"],
+    "aggregate_review": [
+      "specification_bundle_manifest"
+    ],
     "g3_approval_tag": [
-      "architecture_approval", "f0_approval", "component_wire_review",
-      "component_scientific_review", "component_operations_review",
-      "component_conformance_review", "component_implementation_review",
-      "normative_traceability_matrix", "generated_traceability_manifest",
-      "migration_ledger", "migrated_finding_review", "specification_bundle_manifest",
+      "architecture_approval",
+      "f0_approval",
+      "component_wire_review",
+      "component_scientific_review",
+      "component_operations_review",
+      "component_conformance_review",
+      "component_implementation_review",
+      "normative_traceability_matrix",
+      "generated_traceability_manifest",
+      "migration_ledger",
+      "migrated_finding_review",
+      "specification_bundle_manifest",
       "aggregate_review"
     ],
-    "implementation_readiness_specification": ["g3_approval_tag"],
-    "readiness_review": ["implementation_readiness_specification"],
-    "readiness_approval": ["readiness_review"],
-    "phase_f_implementation_gate": ["readiness_approval"]
+    "implementation_readiness_specification": [
+      "g3_approval_tag"
+    ],
+    "readiness_review": [
+      "implementation_readiness_specification"
+    ],
+    "readiness_approval": [
+      "readiness_review"
+    ],
+    "phase_f_implementation_gate": [
+      "readiness_approval"
+    ]
   },
   "nodes": [
-    {"id": "architecture_plan", "authority_kind": "ArchitecturePlan", "creation_stage": 0, "binding_fields": []},
-    {"id": "architecture_review", "authority_kind": "PhaseFIndependentReviewBundleV1", "creation_stage": 1, "binding_fields": [{"field": "target_sha256", "type": "reviews", "source": "architecture_plan", "category": "review_target_binding", "value": "source_sha256"}]},
-    {"id": "architecture_approval", "authority_kind": "PhaseFPlanApprovalV1", "creation_stage": 2, "binding_fields": [{"field": "review_sha256", "type": "approves", "source": "architecture_review", "category": "approval_review_binding", "value": "source_sha256"}]},
-    {"id": "f0_decision_bundle", "authority_kind": "PhaseFDecisionBundleV1", "creation_stage": 3, "binding_fields": []},
-    {"id": "f0_review", "authority_kind": "PhaseFIndependentReviewBundleV1", "creation_stage": 4, "binding_fields": [{"field": "target_sha256", "type": "reviews", "source": "f0_decision_bundle", "category": "review_target_binding", "value": "source_sha256"}]},
-    {"id": "f0_approval", "authority_kind": "PhaseFDecisionApprovalV1", "creation_stage": 5, "binding_fields": [{"field": "review_sha256", "type": "approves", "source": "f0_review", "category": "approval_review_binding", "value": "source_sha256"}]},
-    {"id": "component_wire_spec", "authority_kind": "WireAndAuthoritySpecification", "creation_stage": 6, "binding_fields": []},
-    {"id": "component_scientific_spec", "authority_kind": "ScientificValidationSpecification", "creation_stage": 6, "binding_fields": []},
-    {"id": "component_operations_spec", "authority_kind": "OperationsLifecycleSpecification", "creation_stage": 6, "binding_fields": []},
-    {"id": "component_conformance_spec", "authority_kind": "ConformanceKATSpecification", "creation_stage": 6, "binding_fields": []},
-    {"id": "component_implementation_spec", "authority_kind": "ImplementationReadinessSpecification", "creation_stage": 6, "binding_fields": []},
-    {"id": "component_wire_review", "authority_kind": "PhaseFIndependentReviewBundleV1", "creation_stage": 7, "binding_fields": [{"field": "target_sha256", "type": "reviews", "source": "component_wire_spec", "category": "review_target_binding", "value": "source_sha256"}]},
-    {"id": "component_scientific_review", "authority_kind": "PhaseFIndependentReviewBundleV1", "creation_stage": 7, "binding_fields": [{"field": "target_sha256", "type": "reviews", "source": "component_scientific_spec", "category": "review_target_binding", "value": "source_sha256"}]},
-    {"id": "component_operations_review", "authority_kind": "PhaseFIndependentReviewBundleV1", "creation_stage": 7, "binding_fields": [{"field": "target_sha256", "type": "reviews", "source": "component_operations_spec", "category": "review_target_binding", "value": "source_sha256"}]},
-    {"id": "component_conformance_review", "authority_kind": "PhaseFIndependentReviewBundleV1", "creation_stage": 7, "binding_fields": [{"field": "target_sha256", "type": "reviews", "source": "component_conformance_spec", "category": "review_target_binding", "value": "source_sha256"}]},
-    {"id": "component_implementation_review", "authority_kind": "PhaseFIndependentReviewBundleV1", "creation_stage": 7, "binding_fields": [{"field": "target_sha256", "type": "reviews", "source": "component_implementation_spec", "category": "review_target_binding", "value": "source_sha256"}]},
-    {"id": "normative_traceability_matrix", "authority_kind": "PhaseFR12NormativeTraceabilityMatrixV1", "creation_stage": 6, "binding_fields": []},
-    {"id": "migration_ledger", "authority_kind": "PhaseFR11R12MigrationLedger", "creation_stage": 6, "binding_fields": []},
-    {"id": "generated_traceability_manifest", "authority_kind": "phase_f_derived_traceability_manifest", "creation_stage": 8, "binding_fields": [{"field": "generated_source_sha256s", "type": "generated_from", "source": "*", "category": "generated_source_binding", "value": "source_sha256"}]},
-    {"id": "specification_bundle_inputs", "authority_kind": "PhaseFSpecificationBundleInputsV1", "creation_stage": 9, "binding_fields": [{"field": "authority_bindings", "type": "binds", "source": "*", "category": "serialized_identity_binding", "value": "authority_descriptor"}]},
-    {"id": "migrated_finding_review", "authority_kind": "PhaseFMigratedFindingReviewV1", "creation_stage": 10, "binding_fields": [{"field": "target_bundle_inputs_sha256", "type": "reviews", "source": "specification_bundle_inputs", "category": "review_target_binding", "value": "source_sha256"}, {"field": "target_bundle_inputs_sha256", "type": "targets", "source": "specification_bundle_inputs", "category": "review_target_binding", "value": "source_sha256"}, {"field": "reviewed_migration_ledger_sha256", "type": "binds", "source": "migration_ledger", "category": "serialized_digest_binding", "value": "source_sha256"}, {"field": "reviewed_normative_traceability_matrix_sha256", "type": "binds", "source": "normative_traceability_matrix", "category": "serialized_digest_binding", "value": "source_sha256"}, {"field": "reviewed_traceability_manifest_sha256", "type": "binds", "source": "generated_traceability_manifest", "category": "serialized_digest_binding", "value": "source_sha256"}]},
-    {"id": "specification_bundle_manifest", "authority_kind": "phase_f_specification_bundle_manifest_candidate", "creation_stage": 11, "binding_fields": [{"field": "bundle_input_fingerprint_sha256", "type": "requires", "source": "specification_bundle_inputs", "category": "prerequisite_digest_binding", "value": "source_sha256"}, {"field": "bound_authority_sha256s", "type": "binds", "source": "*", "category": "serialized_digest_binding", "value": "source_sha256"}]},
-    {"id": "aggregate_review", "authority_kind": "PhaseFIndependentReviewBundleV1", "creation_stage": 12, "binding_fields": [{"field": "target_bundle_manifest_sha256", "type": "reviews", "source": "specification_bundle_manifest", "category": "review_target_binding", "value": "source_sha256"}, {"field": "target_bundle_manifest_sha256", "type": "targets", "source": "specification_bundle_manifest", "category": "review_target_binding", "value": "source_sha256"}]},
-    {"id": "g3_approval_tag", "authority_kind": "PhaseFSpecificationBundleApprovalV1", "creation_stage": 13, "binding_fields": []},
-    {"id": "implementation_readiness_specification", "authority_kind": "ImplementationReadinessSpecificationRevision", "creation_stage": 14, "binding_fields": []},
-    {"id": "readiness_review", "authority_kind": "PhaseFIndependentReviewBundleV1", "creation_stage": 15, "binding_fields": []},
-    {"id": "readiness_approval", "authority_kind": "PhaseFReadinessApprovalV1", "creation_stage": 16, "binding_fields": []},
-    {"id": "phase_f_implementation_gate", "authority_kind": "PhaseFImplementationGate", "creation_stage": 17, "binding_fields": []}
+    {
+      "id": "architecture_plan",
+      "authority_kind": "ArchitecturePlan",
+      "creation_stage": 0,
+      "binding_fields": []
+    },
+    {
+      "id": "architecture_review",
+      "authority_kind": "PhaseFIndependentReviewBundleV1",
+      "creation_stage": 1,
+      "binding_fields": [
+        {
+          "field": "target_sha256",
+          "type": "reviews",
+          "source": "architecture_plan",
+          "category": "review_target_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFIndependentReviewBundleV1"
+        }
+      ]
+    },
+    {
+      "id": "architecture_approval",
+      "authority_kind": "PhaseFPlanApprovalV1",
+      "creation_stage": 2,
+      "binding_fields": [
+        {
+          "field": "review_sha256",
+          "type": "approves",
+          "source": "architecture_review",
+          "category": "approval_review_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFPlanApprovalV1"
+        }
+      ]
+    },
+    {
+      "id": "f0_decision_bundle",
+      "authority_kind": "PhaseFDecisionBundleV1",
+      "creation_stage": 3,
+      "binding_fields": []
+    },
+    {
+      "id": "f0_review",
+      "authority_kind": "PhaseFIndependentReviewBundleV1",
+      "creation_stage": 4,
+      "binding_fields": [
+        {
+          "field": "target_sha256",
+          "type": "reviews",
+          "source": "f0_decision_bundle",
+          "category": "review_target_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFIndependentReviewBundleV1"
+        }
+      ]
+    },
+    {
+      "id": "f0_approval",
+      "authority_kind": "PhaseFDecisionApprovalV1",
+      "creation_stage": 5,
+      "binding_fields": [
+        {
+          "field": "review_sha256",
+          "type": "approves",
+          "source": "f0_review",
+          "category": "approval_review_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFDecisionApprovalV1"
+        }
+      ]
+    },
+    {
+      "id": "component_wire_spec",
+      "authority_kind": "WireAndAuthoritySpecification",
+      "creation_stage": 6,
+      "binding_fields": []
+    },
+    {
+      "id": "component_scientific_spec",
+      "authority_kind": "ScientificValidationSpecification",
+      "creation_stage": 6,
+      "binding_fields": []
+    },
+    {
+      "id": "component_operations_spec",
+      "authority_kind": "OperationsLifecycleSpecification",
+      "creation_stage": 6,
+      "binding_fields": []
+    },
+    {
+      "id": "component_conformance_spec",
+      "authority_kind": "ConformanceKATSpecification",
+      "creation_stage": 6,
+      "binding_fields": []
+    },
+    {
+      "id": "component_implementation_spec",
+      "authority_kind": "ImplementationReadinessSpecification",
+      "creation_stage": 6,
+      "binding_fields": []
+    },
+    {
+      "id": "component_wire_review",
+      "authority_kind": "PhaseFIndependentReviewBundleV1",
+      "creation_stage": 7,
+      "binding_fields": [
+        {
+          "field": "target_sha256",
+          "type": "reviews",
+          "source": "component_wire_spec",
+          "category": "review_target_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFIndependentReviewBundleV1"
+        }
+      ]
+    },
+    {
+      "id": "component_scientific_review",
+      "authority_kind": "PhaseFIndependentReviewBundleV1",
+      "creation_stage": 7,
+      "binding_fields": [
+        {
+          "field": "target_sha256",
+          "type": "reviews",
+          "source": "component_scientific_spec",
+          "category": "review_target_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFIndependentReviewBundleV1"
+        }
+      ]
+    },
+    {
+      "id": "component_operations_review",
+      "authority_kind": "PhaseFIndependentReviewBundleV1",
+      "creation_stage": 7,
+      "binding_fields": [
+        {
+          "field": "target_sha256",
+          "type": "reviews",
+          "source": "component_operations_spec",
+          "category": "review_target_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFIndependentReviewBundleV1"
+        }
+      ]
+    },
+    {
+      "id": "component_conformance_review",
+      "authority_kind": "PhaseFIndependentReviewBundleV1",
+      "creation_stage": 7,
+      "binding_fields": [
+        {
+          "field": "target_sha256",
+          "type": "reviews",
+          "source": "component_conformance_spec",
+          "category": "review_target_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFIndependentReviewBundleV1"
+        }
+      ]
+    },
+    {
+      "id": "component_implementation_review",
+      "authority_kind": "PhaseFIndependentReviewBundleV1",
+      "creation_stage": 7,
+      "binding_fields": [
+        {
+          "field": "target_sha256",
+          "type": "reviews",
+          "source": "component_implementation_spec",
+          "category": "review_target_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFIndependentReviewBundleV1"
+        }
+      ]
+    },
+    {
+      "id": "normative_traceability_matrix",
+      "authority_kind": "PhaseFR12NormativeTraceabilityMatrixV1",
+      "creation_stage": 6,
+      "binding_fields": []
+    },
+    {
+      "id": "migration_ledger",
+      "authority_kind": "PhaseFR11R12MigrationLedger",
+      "creation_stage": 6,
+      "binding_fields": []
+    },
+    {
+      "id": "generated_traceability_manifest",
+      "authority_kind": "phase_f_derived_traceability_manifest",
+      "creation_stage": 8,
+      "binding_fields": [
+        {
+          "field": "generated_source_sha256s",
+          "type": "generated_from",
+          "source": "*",
+          "category": "generated_source_binding",
+          "value": "source_sha256",
+          "cardinality": "one_per_source",
+          "target_object_kind": "phase_f_derived_traceability_manifest"
+        }
+      ]
+    },
+    {
+      "id": "specification_bundle_inputs",
+      "authority_kind": "PhaseFSpecificationBundleInputsV1",
+      "creation_stage": 9,
+      "binding_fields": [
+        {
+          "field": "authority_bindings",
+          "type": "binds",
+          "source": "*",
+          "category": "serialized_identity_binding",
+          "value": "authority_descriptor",
+          "cardinality": "one_per_source",
+          "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+        }
+      ]
+    },
+    {
+      "id": "migrated_finding_review",
+      "authority_kind": "PhaseFMigratedFindingReviewV1",
+      "creation_stage": 10,
+      "binding_fields": [
+        {
+          "field": "target_bundle_inputs_sha256",
+          "type": "reviews",
+          "source": "specification_bundle_inputs",
+          "category": "review_target_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFMigratedFindingReviewV1"
+        },
+        {
+          "field": "target_bundle_inputs_sha256",
+          "type": "targets",
+          "source": "specification_bundle_inputs",
+          "category": "review_target_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFMigratedFindingReviewV1"
+        },
+        {
+          "field": "reviewed_migration_ledger_sha256",
+          "type": "binds",
+          "source": "migration_ledger",
+          "category": "serialized_digest_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFMigratedFindingReviewV1"
+        },
+        {
+          "field": "reviewed_normative_traceability_matrix_sha256",
+          "type": "binds",
+          "source": "normative_traceability_matrix",
+          "category": "serialized_digest_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFMigratedFindingReviewV1"
+        },
+        {
+          "field": "reviewed_traceability_manifest_sha256",
+          "type": "binds",
+          "source": "generated_traceability_manifest",
+          "category": "serialized_digest_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFMigratedFindingReviewV1"
+        }
+      ]
+    },
+    {
+      "id": "specification_bundle_manifest",
+      "authority_kind": "phase_f_specification_bundle_manifest_candidate",
+      "creation_stage": 11,
+      "binding_fields": [
+        {
+          "field": "bundle_input_fingerprint_sha256",
+          "type": "requires",
+          "source": "specification_bundle_inputs",
+          "category": "prerequisite_digest_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+        },
+        {
+          "field": "bound_authority_sha256s",
+          "type": "binds",
+          "source": "*",
+          "category": "serialized_digest_binding",
+          "value": "source_sha256",
+          "cardinality": "one_per_source",
+          "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+        }
+      ]
+    },
+    {
+      "id": "aggregate_review",
+      "authority_kind": "PhaseFIndependentReviewBundleV1",
+      "creation_stage": 12,
+      "binding_fields": [
+        {
+          "field": "target_bundle_manifest_sha256",
+          "type": "reviews",
+          "source": "specification_bundle_manifest",
+          "category": "review_target_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFIndependentReviewBundleV1"
+        },
+        {
+          "field": "target_bundle_manifest_sha256",
+          "type": "targets",
+          "source": "specification_bundle_manifest",
+          "category": "review_target_binding",
+          "value": "source_sha256",
+          "cardinality": "exactly_one",
+          "target_object_kind": "PhaseFIndependentReviewBundleV1"
+        }
+      ]
+    },
+    {
+      "id": "g3_approval_tag",
+      "authority_kind": "PhaseFSpecificationBundleApprovalV1",
+      "creation_stage": 13,
+      "binding_fields": []
+    },
+    {
+      "id": "implementation_readiness_specification",
+      "authority_kind": "ImplementationReadinessSpecificationRevision",
+      "creation_stage": 14,
+      "binding_fields": []
+    },
+    {
+      "id": "readiness_review",
+      "authority_kind": "PhaseFIndependentReviewBundleV1",
+      "creation_stage": 15,
+      "binding_fields": []
+    },
+    {
+      "id": "readiness_approval",
+      "authority_kind": "PhaseFReadinessApprovalV1",
+      "creation_stage": 16,
+      "binding_fields": []
+    },
+    {
+      "id": "phase_f_implementation_gate",
+      "authority_kind": "PhaseFImplementationGate",
+      "creation_stage": 17,
+      "binding_fields": []
+    }
   ],
   "edges": [
-    {"from": "architecture_plan", "to": "architecture_review", "type": "reviews"},
-    {"from": "architecture_review", "to": "architecture_approval", "type": "approves"},
-    {"from": "architecture_approval", "to": "f0_decision_bundle", "type": "requires"},
-    {"from": "f0_decision_bundle", "to": "f0_review", "type": "reviews"},
-    {"from": "f0_review", "to": "f0_approval", "type": "approves"},
-    {"from": "architecture_plan", "to": "normative_traceability_matrix", "type": "requires"},
-    {"from": "architecture_plan", "to": "migration_ledger", "type": "requires"},
-    {"from": "architecture_approval", "to": "component_wire_spec", "type": "requires"},
-    {"from": "architecture_approval", "to": "component_scientific_spec", "type": "requires"},
-    {"from": "architecture_approval", "to": "component_operations_spec", "type": "requires"},
-    {"from": "architecture_approval", "to": "component_conformance_spec", "type": "requires"},
-    {"from": "architecture_approval", "to": "component_implementation_spec", "type": "requires"},
-    {"from": "f0_approval", "to": "component_wire_spec", "type": "requires"},
-    {"from": "f0_approval", "to": "component_scientific_spec", "type": "requires"},
-    {"from": "f0_approval", "to": "component_operations_spec", "type": "requires"},
-    {"from": "f0_approval", "to": "component_conformance_spec", "type": "requires"},
-    {"from": "f0_approval", "to": "component_implementation_spec", "type": "requires"},
-    {"from": "component_wire_spec", "to": "component_wire_review", "type": "reviews"},
-    {"from": "component_scientific_spec", "to": "component_scientific_review", "type": "reviews"},
-    {"from": "component_operations_spec", "to": "component_operations_review", "type": "reviews"},
-    {"from": "component_conformance_spec", "to": "component_conformance_review", "type": "reviews"},
-    {"from": "component_implementation_spec", "to": "component_implementation_review", "type": "reviews"},
-    {"from": "architecture_plan", "to": "generated_traceability_manifest", "type": "generated_from"},
-    {"from": "normative_traceability_matrix", "to": "generated_traceability_manifest", "type": "generated_from"},
-    {"from": "migration_ledger", "to": "generated_traceability_manifest", "type": "generated_from"},
-    {"from": "component_wire_spec", "to": "generated_traceability_manifest", "type": "generated_from"},
-    {"from": "component_scientific_spec", "to": "generated_traceability_manifest", "type": "generated_from"},
-    {"from": "component_operations_spec", "to": "generated_traceability_manifest", "type": "generated_from"},
-    {"from": "component_conformance_spec", "to": "generated_traceability_manifest", "type": "generated_from"},
-    {"from": "component_implementation_spec", "to": "generated_traceability_manifest", "type": "generated_from"},
-    {"from": "architecture_approval", "to": "specification_bundle_inputs", "type": "binds"},
-    {"from": "f0_approval", "to": "specification_bundle_inputs", "type": "binds"},
-    {"from": "normative_traceability_matrix", "to": "specification_bundle_inputs", "type": "binds"},
-    {"from": "generated_traceability_manifest", "to": "specification_bundle_inputs", "type": "binds"},
-    {"from": "migration_ledger", "to": "specification_bundle_inputs", "type": "binds"},
-    {"from": "component_wire_spec", "to": "specification_bundle_inputs", "type": "binds"},
-    {"from": "component_scientific_spec", "to": "specification_bundle_inputs", "type": "binds"},
-    {"from": "component_operations_spec", "to": "specification_bundle_inputs", "type": "binds"},
-    {"from": "component_conformance_spec", "to": "specification_bundle_inputs", "type": "binds"},
-    {"from": "component_implementation_spec", "to": "specification_bundle_inputs", "type": "binds"},
-    {"from": "specification_bundle_inputs", "to": "migrated_finding_review", "type": "reviews"},
-    {"from": "specification_bundle_inputs", "to": "migrated_finding_review", "type": "targets"},
-    {"from": "migration_ledger", "to": "migrated_finding_review", "type": "binds"},
-    {"from": "normative_traceability_matrix", "to": "migrated_finding_review", "type": "binds"},
-    {"from": "generated_traceability_manifest", "to": "migrated_finding_review", "type": "binds"},
-    {"from": "specification_bundle_inputs", "to": "specification_bundle_manifest", "type": "requires"},
-    {"from": "architecture_approval", "to": "specification_bundle_manifest", "type": "binds"},
-    {"from": "f0_approval", "to": "specification_bundle_manifest", "type": "binds"},
-    {"from": "generated_traceability_manifest", "to": "specification_bundle_manifest", "type": "binds"},
-    {"from": "component_wire_review", "to": "specification_bundle_manifest", "type": "binds"},
-    {"from": "component_scientific_review", "to": "specification_bundle_manifest", "type": "binds"},
-    {"from": "component_operations_review", "to": "specification_bundle_manifest", "type": "binds"},
-    {"from": "component_conformance_review", "to": "specification_bundle_manifest", "type": "binds"},
-    {"from": "component_implementation_review", "to": "specification_bundle_manifest", "type": "binds"},
-    {"from": "migrated_finding_review", "to": "specification_bundle_manifest", "type": "binds"},
-    {"from": "specification_bundle_manifest", "to": "aggregate_review", "type": "reviews"},
-    {"from": "specification_bundle_manifest", "to": "aggregate_review", "type": "targets"},
-    {"from": "aggregate_review", "to": "g3_approval_tag", "type": "approves"},
-    {"from": "specification_bundle_manifest", "to": "g3_approval_tag", "type": "hashes"},
-    {"from": "aggregate_review", "to": "g3_approval_tag", "type": "hashes"},
-    {"from": "architecture_approval", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "f0_approval", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "component_wire_review", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "component_scientific_review", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "component_operations_review", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "component_conformance_review", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "component_implementation_review", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "normative_traceability_matrix", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "generated_traceability_manifest", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "migration_ledger", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "migrated_finding_review", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "specification_bundle_manifest", "to": "g3_approval_tag", "type": "requires"},
-    {"from": "g3_approval_tag", "to": "implementation_readiness_specification", "type": "requires"},
-    {"from": "implementation_readiness_specification", "to": "readiness_review", "type": "reviews"},
-    {"from": "readiness_review", "to": "readiness_approval", "type": "approves"},
-    {"from": "readiness_approval", "to": "phase_f_implementation_gate", "type": "requires"}
+    {
+      "from": "architecture_plan",
+      "to": "architecture_review",
+      "type": "reviews",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "target_sha256",
+        "category": "review_target_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      }
+    },
+    {
+      "from": "architecture_review",
+      "to": "architecture_approval",
+      "type": "approves",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "review_sha256",
+        "category": "approval_review_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFPlanApprovalV1"
+      }
+    },
+    {
+      "from": "architecture_approval",
+      "to": "f0_decision_bundle",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "f0_decision_bundle",
+      "to": "f0_review",
+      "type": "reviews",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "target_sha256",
+        "category": "review_target_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      }
+    },
+    {
+      "from": "f0_review",
+      "to": "f0_approval",
+      "type": "approves",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "review_sha256",
+        "category": "approval_review_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFDecisionApprovalV1"
+      }
+    },
+    {
+      "from": "architecture_plan",
+      "to": "normative_traceability_matrix",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "architecture_plan",
+      "to": "migration_ledger",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "architecture_approval",
+      "to": "component_wire_spec",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "architecture_approval",
+      "to": "component_scientific_spec",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "architecture_approval",
+      "to": "component_operations_spec",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "architecture_approval",
+      "to": "component_conformance_spec",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "architecture_approval",
+      "to": "component_implementation_spec",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "f0_approval",
+      "to": "component_wire_spec",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "f0_approval",
+      "to": "component_scientific_spec",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "f0_approval",
+      "to": "component_operations_spec",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "f0_approval",
+      "to": "component_conformance_spec",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "f0_approval",
+      "to": "component_implementation_spec",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "component_wire_spec",
+      "to": "component_wire_review",
+      "type": "reviews",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "target_sha256",
+        "category": "review_target_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      }
+    },
+    {
+      "from": "component_scientific_spec",
+      "to": "component_scientific_review",
+      "type": "reviews",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "target_sha256",
+        "category": "review_target_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      }
+    },
+    {
+      "from": "component_operations_spec",
+      "to": "component_operations_review",
+      "type": "reviews",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "target_sha256",
+        "category": "review_target_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      }
+    },
+    {
+      "from": "component_conformance_spec",
+      "to": "component_conformance_review",
+      "type": "reviews",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "target_sha256",
+        "category": "review_target_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      }
+    },
+    {
+      "from": "component_implementation_spec",
+      "to": "component_implementation_review",
+      "type": "reviews",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "target_sha256",
+        "category": "review_target_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      }
+    },
+    {
+      "from": "architecture_plan",
+      "to": "generated_traceability_manifest",
+      "type": "generated_from",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "generated_source_sha256s",
+        "category": "generated_source_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_derived_traceability_manifest"
+      }
+    },
+    {
+      "from": "normative_traceability_matrix",
+      "to": "generated_traceability_manifest",
+      "type": "generated_from",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "generated_source_sha256s",
+        "category": "generated_source_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_derived_traceability_manifest"
+      }
+    },
+    {
+      "from": "migration_ledger",
+      "to": "generated_traceability_manifest",
+      "type": "generated_from",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "generated_source_sha256s",
+        "category": "generated_source_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_derived_traceability_manifest"
+      }
+    },
+    {
+      "from": "component_wire_spec",
+      "to": "generated_traceability_manifest",
+      "type": "generated_from",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "generated_source_sha256s",
+        "category": "generated_source_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_derived_traceability_manifest"
+      }
+    },
+    {
+      "from": "component_scientific_spec",
+      "to": "generated_traceability_manifest",
+      "type": "generated_from",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "generated_source_sha256s",
+        "category": "generated_source_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_derived_traceability_manifest"
+      }
+    },
+    {
+      "from": "component_operations_spec",
+      "to": "generated_traceability_manifest",
+      "type": "generated_from",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "generated_source_sha256s",
+        "category": "generated_source_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_derived_traceability_manifest"
+      }
+    },
+    {
+      "from": "component_conformance_spec",
+      "to": "generated_traceability_manifest",
+      "type": "generated_from",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "generated_source_sha256s",
+        "category": "generated_source_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_derived_traceability_manifest"
+      }
+    },
+    {
+      "from": "component_implementation_spec",
+      "to": "generated_traceability_manifest",
+      "type": "generated_from",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "generated_source_sha256s",
+        "category": "generated_source_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_derived_traceability_manifest"
+      }
+    },
+    {
+      "from": "architecture_approval",
+      "to": "specification_bundle_inputs",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "authority_bindings",
+        "category": "serialized_identity_binding",
+        "value_semantics": "authority_descriptor",
+        "cardinality": "one_per_source",
+        "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+      }
+    },
+    {
+      "from": "f0_approval",
+      "to": "specification_bundle_inputs",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "authority_bindings",
+        "category": "serialized_identity_binding",
+        "value_semantics": "authority_descriptor",
+        "cardinality": "one_per_source",
+        "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+      }
+    },
+    {
+      "from": "normative_traceability_matrix",
+      "to": "specification_bundle_inputs",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "authority_bindings",
+        "category": "serialized_identity_binding",
+        "value_semantics": "authority_descriptor",
+        "cardinality": "one_per_source",
+        "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+      }
+    },
+    {
+      "from": "generated_traceability_manifest",
+      "to": "specification_bundle_inputs",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "authority_bindings",
+        "category": "serialized_identity_binding",
+        "value_semantics": "authority_descriptor",
+        "cardinality": "one_per_source",
+        "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+      }
+    },
+    {
+      "from": "migration_ledger",
+      "to": "specification_bundle_inputs",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "authority_bindings",
+        "category": "serialized_identity_binding",
+        "value_semantics": "authority_descriptor",
+        "cardinality": "one_per_source",
+        "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+      }
+    },
+    {
+      "from": "component_wire_spec",
+      "to": "specification_bundle_inputs",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "authority_bindings",
+        "category": "serialized_identity_binding",
+        "value_semantics": "authority_descriptor",
+        "cardinality": "one_per_source",
+        "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+      }
+    },
+    {
+      "from": "component_scientific_spec",
+      "to": "specification_bundle_inputs",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "authority_bindings",
+        "category": "serialized_identity_binding",
+        "value_semantics": "authority_descriptor",
+        "cardinality": "one_per_source",
+        "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+      }
+    },
+    {
+      "from": "component_operations_spec",
+      "to": "specification_bundle_inputs",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "authority_bindings",
+        "category": "serialized_identity_binding",
+        "value_semantics": "authority_descriptor",
+        "cardinality": "one_per_source",
+        "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+      }
+    },
+    {
+      "from": "component_conformance_spec",
+      "to": "specification_bundle_inputs",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "authority_bindings",
+        "category": "serialized_identity_binding",
+        "value_semantics": "authority_descriptor",
+        "cardinality": "one_per_source",
+        "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+      }
+    },
+    {
+      "from": "component_implementation_spec",
+      "to": "specification_bundle_inputs",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "authority_bindings",
+        "category": "serialized_identity_binding",
+        "value_semantics": "authority_descriptor",
+        "cardinality": "one_per_source",
+        "target_object_kind": "PhaseFSpecificationBundleInputsV1"
+      }
+    },
+    {
+      "from": "specification_bundle_inputs",
+      "to": "migrated_finding_review",
+      "type": "reviews",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "target_bundle_inputs_sha256",
+        "category": "review_target_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFMigratedFindingReviewV1"
+      }
+    },
+    {
+      "from": "specification_bundle_inputs",
+      "to": "migrated_finding_review",
+      "type": "targets",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "target_bundle_inputs_sha256",
+        "category": "review_target_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFMigratedFindingReviewV1"
+      }
+    },
+    {
+      "from": "migration_ledger",
+      "to": "migrated_finding_review",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "reviewed_migration_ledger_sha256",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFMigratedFindingReviewV1"
+      }
+    },
+    {
+      "from": "normative_traceability_matrix",
+      "to": "migrated_finding_review",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "reviewed_normative_traceability_matrix_sha256",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFMigratedFindingReviewV1"
+      }
+    },
+    {
+      "from": "generated_traceability_manifest",
+      "to": "migrated_finding_review",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "reviewed_traceability_manifest_sha256",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFMigratedFindingReviewV1"
+      }
+    },
+    {
+      "from": "specification_bundle_inputs",
+      "to": "specification_bundle_manifest",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "bundle_input_fingerprint_sha256",
+        "category": "prerequisite_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      }
+    },
+    {
+      "from": "architecture_approval",
+      "to": "specification_bundle_manifest",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "bound_authority_sha256s",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      }
+    },
+    {
+      "from": "f0_approval",
+      "to": "specification_bundle_manifest",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "bound_authority_sha256s",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      }
+    },
+    {
+      "from": "generated_traceability_manifest",
+      "to": "specification_bundle_manifest",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "bound_authority_sha256s",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      }
+    },
+    {
+      "from": "component_wire_review",
+      "to": "specification_bundle_manifest",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "bound_authority_sha256s",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      }
+    },
+    {
+      "from": "component_scientific_review",
+      "to": "specification_bundle_manifest",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "bound_authority_sha256s",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      }
+    },
+    {
+      "from": "component_operations_review",
+      "to": "specification_bundle_manifest",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "bound_authority_sha256s",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      }
+    },
+    {
+      "from": "component_conformance_review",
+      "to": "specification_bundle_manifest",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "bound_authority_sha256s",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      }
+    },
+    {
+      "from": "component_implementation_review",
+      "to": "specification_bundle_manifest",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "bound_authority_sha256s",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      }
+    },
+    {
+      "from": "migrated_finding_review",
+      "to": "specification_bundle_manifest",
+      "type": "binds",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "bound_authority_sha256s",
+        "category": "serialized_digest_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "one_per_source",
+        "target_object_kind": "phase_f_specification_bundle_manifest_candidate"
+      }
+    },
+    {
+      "from": "specification_bundle_manifest",
+      "to": "aggregate_review",
+      "type": "reviews",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "target_bundle_manifest_sha256",
+        "category": "review_target_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      }
+    },
+    {
+      "from": "specification_bundle_manifest",
+      "to": "aggregate_review",
+      "type": "targets",
+      "binding_obligation": {
+        "kind": "serialized_binding",
+        "destination_field": "target_bundle_manifest_sha256",
+        "category": "review_target_binding",
+        "value_semantics": "source_sha256",
+        "cardinality": "exactly_one",
+        "target_object_kind": "PhaseFIndependentReviewBundleV1"
+      }
+    },
+    {
+      "from": "aggregate_review",
+      "to": "g3_approval_tag",
+      "type": "approves",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "specification_bundle_manifest",
+      "to": "g3_approval_tag",
+      "type": "hashes",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "aggregate_review",
+      "to": "g3_approval_tag",
+      "type": "hashes",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "architecture_approval",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "f0_approval",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "component_wire_review",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "component_scientific_review",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "component_operations_review",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "component_conformance_review",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "component_implementation_review",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "normative_traceability_matrix",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "generated_traceability_manifest",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "migration_ledger",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "migrated_finding_review",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "specification_bundle_manifest",
+      "to": "g3_approval_tag",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "g3_approval_tag",
+      "to": "implementation_readiness_specification",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "implementation_readiness_specification",
+      "to": "readiness_review",
+      "type": "reviews",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "readiness_review",
+      "to": "readiness_approval",
+      "type": "approves",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    },
+    {
+      "from": "readiness_approval",
+      "to": "phase_f_implementation_gate",
+      "type": "requires",
+      "binding_obligation": {
+        "kind": "none"
+      }
+    }
   ],
   "schema_version": 1
 }

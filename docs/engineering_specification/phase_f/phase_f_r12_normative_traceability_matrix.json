@@ -385,7 +385,8 @@
       "constructive_audit_ids": [
         "R11-DAG-AUDIT",
         "R11-TRACE",
-        "R11-CX-08"
+        "R11-CX-08",
+        "R12-DAG-BINDING-EQUALITY"
       ],
       "expected_lifecycle_stage": "G0",
       "f0_decision_dependencies": [],
@@ -397,7 +398,8 @@
       "test_ids": [
         "R11-DAG-AUDIT",
         "R11-TRACE",
-        "R11-CX-08"
+        "R11-CX-08",
+        "R12-DAG-BINDING-EQUALITY"
       ],
       "upstream_requirement_ids": [],
       "validation_category": "architecture"
@@ -1180,6 +1182,7 @@
         "R11-DAG-AUDIT",
         "R11-TRACE",
         "R11-CX-08",
+        "R12-DAG-BINDING-EQUALITY",
         "R12-DAG-VALID"
       ],
       "expected_lifecycle_stage": "G2",
@@ -1204,6 +1207,7 @@
         "R11-CX-08",
         "R11-CX-18",
         "R12-G3-AUTHORITY-CONTEXT-POS",
+        "R12-DAG-BINDING-EQUALITY",
         "R12-DAG-VALID"
       ],
       "upstream_requirement_ids": [

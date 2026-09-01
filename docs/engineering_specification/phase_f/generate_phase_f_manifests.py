@@ -155,6 +155,27 @@ SERIALIZED_BINDING_FIELD_SEMANTICS = {
     "bundle_input_fingerprint_sha256": ("prerequisite_digest_binding", "source_sha256"),
     "target_bundle_manifest_sha256": ("review_target_binding", "source_sha256"),
 }
+SERIALIZED_BINDING_CARDINALITIES = {
+    "authority_bindings": "one_per_source",
+    "generated_source_sha256s": "one_per_source",
+    "bound_authority_sha256s": "one_per_source",
+    "target_sha256": "exactly_one",
+    "review_sha256": "exactly_one",
+    "target_bundle_inputs_sha256": "exactly_one",
+    "reviewed_migration_ledger_sha256": "exactly_one",
+    "reviewed_normative_traceability_matrix_sha256": "exactly_one",
+    "reviewed_traceability_manifest_sha256": "exactly_one",
+    "bundle_input_fingerprint_sha256": "exactly_one",
+    "target_bundle_manifest_sha256": "exactly_one",
+}
+BINDING_ROOT_CONTRACT = {
+    "root": "edges[].binding_obligation",
+    "edge_contract": "edge_contract",
+    "node_binding_fields": "DERIVED_NON_NORMATIVE",
+    "binding_semantics": "DERIVED_NON_NORMATIVE",
+    "serialized_binding_fields": "DERIVED_NON_NORMATIVE",
+    "relation_policies": "DERIVED_NON_NORMATIVE",
+}
 GRAPH_STAGE_NAMES = {
     0: "architecture",
     1: "architecture_review",
@@ -459,6 +480,8 @@ class G3AuthorityContext:
     component_sha_by_node: dict[str, str]
     architecture_plan_sha256: str
     f0_decisions_sha256: str | None
+    authority_graph_sha256: str
+    authority_graph_bytes: bytes
     real_authority_requested: bool = False
     reviewer_authorities: dict[str, dict[str, Any]] = field(default_factory=dict)
     review_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -499,15 +522,17 @@ def _graph_nodes(graph: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def _graph_edges(
     graph: dict[str, Any], nodes: dict[str, dict[str, Any]]
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     edges = graph.get("edges")
     if not isinstance(edges, list):
         raise ValueError("R12 graph edges must be an array")
     seen: set[tuple[str, str, str]] = set()
-    result: list[dict[str, str]] = []
+    result: list[dict[str, Any]] = []
     for edge in edges:
         if not isinstance(edge, dict):
             raise ValueError("R12 graph edge is malformed")
+        if set(edge) != {"from", "to", "type", "binding_obligation"}:
+            raise ValueError("R12 graph edge field closure is not exact")
         source, target, edge_type = (
             edge.get("from"),
             edge.get("to"),
@@ -525,12 +550,61 @@ def _graph_edges(
         if key in seen:
             raise ValueError(f"duplicate R12 graph edge: {key}")
         seen.add(key)
-        result.append({"from": source, "to": target, "type": edge_type})
+        obligation = edge["binding_obligation"]
+        if not isinstance(obligation, dict):
+            raise ValueError(f"R12 edge binding obligation is malformed: {key}")
+        kind = obligation.get("kind")
+        if kind == "none":
+            if set(obligation) != {"kind"}:
+                raise ValueError(f"R12 none binding obligation is not closed: {key}")
+        elif kind == "serialized_binding":
+            required = {
+                "kind",
+                "destination_field",
+                "category",
+                "value_semantics",
+                "cardinality",
+                "target_object_kind",
+            }
+            if set(obligation) != required:
+                raise ValueError(f"R12 serialized binding obligation is not closed: {key}")
+            field_name = obligation["destination_field"]
+            category = obligation["category"]
+            value_semantics = obligation["value_semantics"]
+            cardinality = obligation["cardinality"]
+            target_kind = obligation["target_object_kind"]
+            if (
+                not isinstance(field_name, str)
+                or field_name not in SERIALIZED_BINDING_FIELD_SEMANTICS
+                or not isinstance(category, str)
+                or not isinstance(value_semantics, str)
+                or SERIALIZED_BINDING_FIELD_SEMANTICS[field_name]
+                != (category, value_semantics)
+                or not isinstance(cardinality, str)
+                or SERIALIZED_BINDING_CARDINALITIES.get(field_name) != cardinality
+                or target_kind != nodes[target]["authority_kind"]
+            ):
+                raise ValueError(f"R12 serialized binding obligation value is invalid: {key}")
+            object_fields = graph.get("object_field_contracts")
+            if not isinstance(object_fields, dict) or not isinstance(
+                object_fields.get(target), list
+            ) or field_name not in object_fields[target]:
+                raise ValueError(f"R12 binding field is absent from object schema: {key}")
+        else:
+            raise ValueError(f"R12 binding obligation kind is unknown: {key}")
+        result.append(
+            {
+                "from": source,
+                "to": target,
+                "type": edge_type,
+                "binding_obligation": deepcopy(obligation),
+            }
+        )
     return result
 
 
 def _topological_order(
-    nodes: dict[str, dict[str, Any]], edges: list[dict[str, str]]
+    nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]
 ) -> list[str]:
     outgoing: dict[str, list[str]] = {node_id: [] for node_id in nodes}
     indegree = {node_id: 0 for node_id in nodes}
@@ -554,7 +628,7 @@ def _topological_order(
 
 
 def _ancestors(
-    node_id: str, edges: list[dict[str, str]], excluded: set[str] | None = None
+    node_id: str, edges: list[dict[str, Any]], excluded: set[str] | None = None
 ) -> set[str]:
     excluded = excluded or set()
     reverse: dict[str, list[str]] = {}
@@ -643,9 +717,14 @@ def _binding_semantics(
 ) -> tuple[dict[str, str], list[dict[str, str]]]:
     semantics = graph.get("binding_semantics")
     if not isinstance(semantics, dict) or set(semantics) != {
-        "relation_policies", "serialized_rules"
+        "authority_status", "derived_from", "relation_policies", "serialized_rules"
     }:
         raise ValueError("R12 binding semantics are not closed")
+    if (
+        semantics["authority_status"] != "DERIVED_NON_NORMATIVE"
+        or semantics["derived_from"] != "edges[].binding_obligation"
+    ):
+        raise ValueError("R12 binding semantics are not marked as derived")
     policies = semantics["relation_policies"]
     if not isinstance(policies, dict) or set(policies) != GRAPH_EDGE_TYPES:
         raise ValueError("R12 binding relation-policy catalog is not closed")
@@ -664,7 +743,16 @@ def _binding_semantics(
     seen: set[tuple[str, str, str]] = set()
     normalized: list[dict[str, str]] = []
     for rule in rules:
-        required = {"target", "type", "source", "field", "category", "value"}
+        required = {
+            "target",
+            "type",
+            "source",
+            "field",
+            "category",
+            "value",
+            "cardinality",
+            "target_object_kind",
+        }
         if not isinstance(rule, dict) or set(rule) != required:
             raise ValueError("R12 serialized binding semantic rule is malformed")
         target = rule["target"]
@@ -673,6 +761,8 @@ def _binding_semantics(
         field_name = rule["field"]
         category = rule["category"]
         value_source = rule["value"]
+        cardinality = rule["cardinality"]
+        target_object_kind = rule["target_object_kind"]
         if (
             not isinstance(target, str)
             or target not in nodes
@@ -688,6 +778,8 @@ def _binding_semantics(
             or value_source not in SERIALIZED_BINDING_VALUE_SOURCES
             or SERIALIZED_BINDING_FIELD_SEMANTICS.get(field_name)
             != (category, value_source)
+            or SERIALIZED_BINDING_CARDINALITIES.get(field_name) != cardinality
+            or target_object_kind != nodes[target]["authority_kind"]
         ):
             raise ValueError("R12 serialized binding semantic rule value is invalid")
         key = (target, edge_type, source)
@@ -705,12 +797,14 @@ def _binding_semantics(
                 "field": field_name,
                 "category": category,
                 "value": value_source,
+                "cardinality": cardinality,
+                "target_object_kind": target_object_kind,
             }
         )
     return {edge_type: policies[edge_type]["serialized_binding"] for edge_type in GRAPH_EDGE_TYPES}, normalized
 
 
-def _semantic_rule_key(rule: dict[str, str]) -> tuple[str, str, str, str, str, str]:
+def _semantic_rule_key(rule: dict[str, str]) -> tuple[str, str, str, str, str, str, str, str]:
     return (
         rule["target"],
         rule["type"],
@@ -718,26 +812,112 @@ def _semantic_rule_key(rule: dict[str, str]) -> tuple[str, str, str, str, str, s
         rule["field"],
         rule["category"],
         rule["value"],
+        rule["cardinality"],
+        rule["target_object_kind"],
     )
 
 
 def _canonical_semantic_rules(
     rules: list[dict[str, str]],
-) -> list[tuple[str, str, str, str, str, str]]:
+) -> list[tuple[str, str, str, str, str, str, str, str]]:
     return sorted(_semantic_rule_key(rule) for rule in rules)
+
+
+def _edge_binding_rule(
+    edge: dict[str, Any], nodes: dict[str, dict[str, Any]]
+) -> dict[str, str] | None:
+    obligation = edge["binding_obligation"]
+    if obligation["kind"] == "none":
+        return None
+    return {
+        "target": edge["to"],
+        "type": edge["type"],
+        "source": edge["from"],
+        "field": obligation["destination_field"],
+        "category": obligation["category"],
+        "value": obligation["value_semantics"],
+        "cardinality": obligation["cardinality"],
+        "target_object_kind": nodes[edge["to"]]["authority_kind"],
+    }
+
+
+def _derived_binding_rules(
+    nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]
+) -> list[dict[str, str]]:
+    """Derive compact semantic rules from the complete edge obligations."""
+
+    grouped: dict[
+        tuple[str, str, str, str, str, str, str], list[str]
+    ] = {}
+    edge_counts: dict[tuple[str, str], int] = {}
+    for edge in edges:
+        key = (edge["to"], edge["type"])
+        edge_counts[key] = edge_counts.get(key, 0) + 1
+        rule = _edge_binding_rule(edge, nodes)
+        if rule is None:
+            continue
+        descriptor = (
+            rule["target"],
+            rule["type"],
+            rule["field"],
+            rule["category"],
+            rule["value"],
+            rule["cardinality"],
+            rule["target_object_kind"],
+        )
+        grouped.setdefault(descriptor, []).append(rule["source"])
+
+    result: list[dict[str, str]] = []
+    for descriptor, sources in grouped.items():
+        target, edge_type, field_name, category, value, cardinality, target_kind = descriptor
+        source_values = (
+            ["*"]
+            if len(sources) > 1 and len(sources) == edge_counts[(target, edge_type)]
+            else sorted(sources)
+        )
+        result.extend(
+            {
+                "target": target,
+                "type": edge_type,
+                "source": source,
+                "field": field_name,
+                "category": category,
+                "value": value,
+                "cardinality": cardinality,
+                "target_object_kind": target_kind,
+            }
+            for source in source_values
+        )
+    return result
+
+
+def derive_node_binding_fields(
+    nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]
+) -> dict[str, list[dict[str, str]]]:
+    """Project the edge root into the retained node-level compatibility mirror."""
+
+    derived = {node_id: [] for node_id in nodes}
+    for rule in _derived_binding_rules(nodes, edges):
+        derived[rule["target"]].append(
+            {
+                "field": rule["field"],
+                "type": rule["type"],
+                "source": rule["source"],
+                "category": rule["category"],
+                "value": rule["value"],
+                "cardinality": rule["cardinality"],
+                "target_object_kind": rule["target_object_kind"],
+            }
+        )
+    return derived
 
 
 def derive_required_semantic_rules(
     nodes: dict[str, dict[str, Any]],
-    edges: list[dict[str, str]],
+    edges: list[dict[str, Any]],
     object_field_contracts: dict[str, list[str]],
 ) -> dict[str, Any]:
-    """Derive the complete binding-rule universe from upstream contracts only.
-
-    Node ``binding_fields`` are attached to the authoritative node/schema
-    contract. The mutable ``binding_semantics`` declaration, serialized mirror,
-    builder objects, and validator fields are deliberately not inputs here.
-    """
+    """Derive the complete binding-rule universe from exact edge obligations."""
 
     if not isinstance(object_field_contracts, dict):
         raise ValueError("R12 object-field contract is malformed")
@@ -752,93 +932,32 @@ def derive_required_semantic_rules(
     ):
         raise ValueError("R12 object-field contract is malformed")
 
-    rules: list[dict[str, str]] = []
-    seen: set[tuple[str, str, str]] = set()
-    for target, node in nodes.items():
-        binding_fields = node.get("binding_fields")
-        if not isinstance(binding_fields, list):
-            raise ValueError(f"R12 node binding-field contract is malformed: {target}")
-        for binding in binding_fields:
-            required = {"field", "type", "source", "category", "value"}
-            if not isinstance(binding, dict) or set(binding) != required:
-                raise ValueError(f"R12 node binding-field entry is malformed: {target}")
-            field_name = binding["field"]
-            edge_type = binding["type"]
-            source = binding["source"]
-            category = binding["category"]
-            value_source = binding["value"]
-            schema_fields = object_field_contracts.get(target)
-            if (
-                not isinstance(schema_fields, list)
-                or field_name not in schema_fields
-                or not isinstance(edge_type, str)
-                or edge_type not in GRAPH_EDGE_TYPES
-                or not isinstance(source, str)
-                or (source != "*" and source not in nodes)
-                or not isinstance(category, str)
-                or not isinstance(value_source, str)
-                or SERIALIZED_BINDING_FIELD_SEMANTICS.get(field_name)
-                != (category, value_source)
-            ):
-                raise ValueError(f"R12 node binding-field value is invalid: {target}")
-            key = (target, edge_type, source)
-            if key in seen:
-                raise ValueError(f"duplicate R12 node binding-field entry: {key}")
-            seen.add(key)
-            matching_edges = [
-                edge
-                for edge in edges
-                if edge["to"] == target
-                and edge["type"] == edge_type
-                and (source == "*" or edge["from"] == source)
-            ]
-            if not matching_edges:
-                raise ValueError(
-                    "R12 node binding-field entry has no matching edge: "
-                    f"{target}/{edge_type}/{source}"
-                )
-            rules.append(
-                {
-                    "target": target,
-                    "type": edge_type,
-                    "source": source,
-                    "field": field_name,
-                    "category": category,
-                    "value": value_source,
-                }
+    rules = _derived_binding_rules(nodes, edges)
+    for rule in rules:
+        schema_fields = object_field_contracts.get(rule["target"])
+        if not isinstance(schema_fields, list) or rule["field"] not in schema_fields:
+            raise ValueError(
+                "R12 edge binding field is absent from object schema: "
+                f"{rule['target']}/{rule['field']}"
             )
-
     policies: dict[str, str] = {}
     for edge_type in sorted(GRAPH_EDGE_TYPES):
         typed_edges = [edge for edge in edges if edge["type"] == edge_type]
-        typed_rules = [rule for rule in rules if rule["type"] == edge_type]
-        if not typed_rules:
-            policies[edge_type] = "none"
-            continue
-        edge_match_counts = [
-            sum(
-                rule["target"] == edge["to"]
-                and (rule["source"] == "*" or rule["source"] == edge["from"])
-                for rule in typed_rules
-            )
-            for edge in typed_edges
+        serialized_edges = [
+            edge for edge in typed_edges if edge["binding_obligation"]["kind"] == "serialized_binding"
         ]
-        if any(count > 1 for count in edge_match_counts):
-            raise ValueError(f"R12 node binding-field entries overlap: {edge_type}")
-        if all(count == 1 for count in edge_match_counts):
+        if not serialized_edges:
+            policies[edge_type] = "none"
+        elif len(serialized_edges) == len(typed_edges):
             policies[edge_type] = "all"
         else:
-            if any(rule["source"] == "*" for rule in typed_rules):
-                raise ValueError(
-                    f"R12 wildcard node binding-field entry does not cover all edges: {edge_type}"
-                )
             policies[edge_type] = "selected"
 
     return {"relation_policies": policies, "serialized_rules": rules}
 
 
 def derive_required_inputs(
-    nodes: dict[str, dict[str, Any]], edges: list[dict[str, str]]
+    nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]
 ) -> dict[str, list[str]]:
     """Derive every prerequisite row from the immutable graph edge inventory."""
 
@@ -851,9 +970,9 @@ def derive_required_inputs(
 def derive_binding_projection(
     graph: dict[str, Any],
     nodes: dict[str, dict[str, Any]],
-    edges: list[dict[str, str]],
+    edges: list[dict[str, Any]],
 ) -> list[dict[str, str]]:
-    """Derive concrete bindings and compare the downstream declaration exactly."""
+    """Derive concrete bindings from edge obligations and compare mirrors exactly."""
 
     independent = derive_required_semantic_rules(
         nodes, edges, graph.get("object_field_contracts")
@@ -914,7 +1033,7 @@ def derive_binding_projection(
                 raise ValueError(
                     f"R12 non-serialized relation has a binding rule: {edge_type}"
                 )
-            if len(matching_rules) > 1:
+            if policy == "selected" and len(matching_rules) > 1:
                 raise ValueError(
                     "R12 serialized binding semantic rule overlaps an edge: "
                     f"{edge['from']}/{edge_type}/{edge['to']}"
@@ -925,7 +1044,7 @@ def derive_binding_projection(
 def derive_serialized_binding_contract(
     graph: dict[str, Any],
     nodes: dict[str, dict[str, Any]],
-    edges: list[dict[str, str]],
+    edges: list[dict[str, Any]],
 ) -> dict[str, dict[str, dict[str, str]]]:
     """Project the independent binding descriptors into the checked-in mirror shape."""
 
@@ -1014,7 +1133,7 @@ def _review_reference_contract(graph: dict[str, Any]) -> dict[str, dict[str, Any
     return contract
 
 
-def _edge_key(edge: dict[str, str], nodes: dict[str, dict[str, Any]]) -> str:
+def _edge_key(edge: dict[str, Any], nodes: dict[str, dict[str, Any]]) -> str:
     return "|".join(
         (
             nodes[edge["from"]]["authority_kind"],
@@ -1025,7 +1144,7 @@ def _edge_key(edge: dict[str, str], nodes: dict[str, dict[str, Any]]) -> str:
 
 
 def _validate_serialized_binding_contract(
-    graph: dict[str, Any], nodes: dict[str, dict[str, Any]], edges: list[dict[str, str]]
+    graph: dict[str, Any], nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]
 ) -> None:
     contract = graph.get("serialized_binding_fields")
     if not isinstance(contract, dict):
@@ -1035,6 +1154,18 @@ def _validate_serialized_binding_contract(
         raise ValueError(
             "R12 serialized binding contract does not equal the independent graph projection"
         )
+
+
+def _validate_node_binding_fields(
+    nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]
+) -> None:
+    expected = derive_node_binding_fields(nodes, edges)
+    for node_id, node in nodes.items():
+        if node.get("binding_fields") != expected[node_id]:
+            raise ValueError(
+                "R12 node binding-field mirror does not equal the edge-root projection: "
+                f"{node_id}"
+            )
 
 
 def _find_identity_cycle(
@@ -1073,7 +1204,7 @@ def _find_identity_cycle(
 
 
 def _semantic_graph_audits(
-    graph: dict[str, Any], nodes: dict[str, dict[str, Any]], edges: list[dict[str, str]], order: list[str]
+    graph: dict[str, Any], nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]], order: list[str]
 ) -> list[dict[str, Any]]:
     audits: list[dict[str, Any]] = []
     identity_cycle = _find_identity_cycle(graph, nodes)
@@ -1206,6 +1337,10 @@ def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"R12 identity-rule field closure mismatch: {node_id}")
         if any(not isinstance(dependency, str) or dependency not in nodes for dependency in rule.get("identity_dependencies", [])):
             raise ValueError(f"R12 identity-rule dependency is unknown: {node_id}")
+    binding_root = graph.get("binding_root_contract")
+    if binding_root != BINDING_ROOT_CONTRACT:
+        raise ValueError("R12 binding-root contract is not closed")
+    _validate_node_binding_fields(nodes, edges)
     _validate_serialized_binding_contract(graph, nodes, edges)
     order = _topological_order(nodes, edges)
 
@@ -1633,6 +1768,26 @@ def _object_digest_matches(context: G3AuthorityContext, record: dict[str, Any]) 
     return isinstance(value, bytes) and sha256_bytes(value) == expected
 
 
+def _validate_authority_graph_root(context: G3AuthorityContext) -> None:
+    if (
+        not isinstance(context.authority_graph_bytes, bytes)
+        or sha256_bytes(context.authority_graph_bytes) != context.authority_graph_sha256
+    ):
+        raise G3ValidationError("authority_graph_identity_mismatch")
+    try:
+        parsed = _parse_json_without_duplicates(context.authority_graph_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise G3ValidationError("authority_graph_bytes_malformed") from error
+    if parsed != context.graph:
+        raise G3ValidationError("authority_graph_identity_mismatch")
+    inputs = context.objects.get("specification_bundle_inputs")
+    if (
+        not isinstance(inputs, dict)
+        or inputs.get("authority_graph_sha256") != context.authority_graph_sha256
+    ):
+        raise G3ValidationError("authority_graph_binding_mismatch")
+
+
 def _require_authority_object(
     context: G3AuthorityContext, node_id: str
 ) -> dict[str, Any]:
@@ -1653,6 +1808,7 @@ def _require_authority_object(
 
 
 def _validate_graph_object_bindings(context: G3AuthorityContext) -> None:
+    """Validate builder/validator objects against the edge-root projection."""
     graph = context.graph
     nodes = _graph_nodes(graph)
     edges = _graph_edges(graph, nodes)
@@ -1964,6 +2120,8 @@ def validate_g3_tag(
         raise G3ValidationError("invalid_validation_context_mode")
     if context.mode == "synthetic" and context.real_authority_requested:
         raise G3ValidationError("synthetic_cannot_authorize_real")
+
+    _validate_authority_graph_root(context)
 
     tag = context.tag
     if tag.get("exists") is not True:
@@ -2829,6 +2987,7 @@ def build_bundle_inputs(trace_sha: str) -> dict[str, object]:
     payload = {
         "schema_version": 1,
         "artifact_kind": "phase_f_specification_bundle_inputs",
+        "authority_graph_sha256": sha256(AUTHORITY_GRAPH_PATH),
         "source_sha256s": source_sha256s,
         "authority_bindings": authority_bindings,
     }
@@ -3012,7 +3171,8 @@ def _synthetic_record(
 
 
 def make_synthetic_context() -> G3AuthorityContext:
-    graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
+    graph_bytes = AUTHORITY_GRAPH_PATH.read_bytes()
+    graph = json.loads(graph_bytes)
     validate_r12_authority_graph(graph)
     component_paths = list(SPECS.values())
     component_sha256s = [sha256(path) for path in component_paths]
@@ -3086,6 +3246,7 @@ def make_synthetic_context() -> G3AuthorityContext:
             "specification_bundle_inputs",
             bundle_inputs_sha,
             authority_id="synthetic:bundle-inputs",
+            authority_graph_sha256=sha256_bytes(graph_bytes),
         ),
     }
     for prefix, path in SPECS.items():
@@ -3210,6 +3371,8 @@ def make_synthetic_context() -> G3AuthorityContext:
         component_sha_by_node=component_sha_by_node,
         architecture_plan_sha256=sha256(ARCH),
         f0_decisions_sha256="9" * 64,
+        authority_graph_sha256=sha256_bytes(graph_bytes),
+        authority_graph_bytes=graph_bytes,
         reviewer_authorities=reviewer_authorities,
         review_artifacts=review_artifacts,
         remediation_authority_id="synthetic:remediation-author",
@@ -3629,8 +3792,10 @@ def make_repository_context(
     repository = ROOT if repository is None else Path(repository).resolve()
     target = _git_output(repository, ["rev-parse", target_ref]).decode().strip()
     graph_relative_path = str(AUTHORITY_GRAPH_PATH.relative_to(ROOT))
-    graph_path = repository / graph_relative_path
-    graph = json.loads(graph_path.read_text())
+    graph_bytes = _git_output(repository, ["show", f"{target}:{graph_relative_path}"])
+    graph = _parse_json_without_duplicates(graph_bytes)
+    if not isinstance(graph, dict):
+        raise G3ValidationError("authority_graph_bytes_malformed")
     validate_r12_authority_graph(graph)
     (
         objects,
@@ -3675,6 +3840,8 @@ def make_repository_context(
         component_sha_by_node=component_sha_by_node,
         architecture_plan_sha256=architecture_plan_sha256 or "",
         f0_decisions_sha256=f0_decisions_sha256,
+        authority_graph_sha256=sha256_bytes(graph_bytes),
+        authority_graph_bytes=graph_bytes,
         reviewer_authorities=reviewer_authorities,
         review_artifacts=review_artifacts,
         remediation_authority_id=remediation_authority_id,
@@ -3766,7 +3933,9 @@ def _fixture_annotated_tag(
     _fixture_git(repository, ["update-ref", f"refs/tags/{tag_name}", tag_object])
 
 
-def _isolated_real_fixture() -> tuple[tempfile.TemporaryDirectory[str], Path, str, bytes]:
+def _isolated_real_fixture(
+    populate_authority: bool = True,
+) -> tuple[tempfile.TemporaryDirectory[str], Path, str, bytes]:
     graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
     review_root = Path.home() / "Library" / "Caches" / "Codex" / "reviews" / "rust_electroanalysis_cli"
     review_root.mkdir(parents=True, exist_ok=True)
@@ -3789,6 +3958,8 @@ def _isolated_real_fixture() -> tuple[tempfile.TemporaryDirectory[str], Path, st
     _fixture_git(repository, ["add", "."])
     _fixture_git(repository, ["commit", "-qm", "fixture source input"])
     target_commit = _fixture_git(repository, ["rev-parse", "HEAD"]).decode().strip()
+    if not populate_authority:
+        return temporary, repository, target_commit, b""
     nodes = _graph_nodes(graph)
     lifecycle_fields = {
         "lifecycle": "ACTIVE",
@@ -3891,7 +4062,9 @@ def _isolated_real_fixture() -> tuple[tempfile.TemporaryDirectory[str], Path, st
         )
     input_payload = _fixture_authority_payload(
         graph, "specification_bundle_inputs",
-        authority_id="fixture:bundle-inputs", authority_bindings=input_bindings,
+        authority_id="fixture:bundle-inputs",
+        authority_graph_sha256=sha256(AUTHORITY_GRAPH_PATH),
+        authority_bindings=input_bindings,
     )
     input_sha = _fixture_write_authority(
         repository, graph, "specification_bundle_inputs", input_payload
@@ -4438,6 +4611,371 @@ def run_regression_self_tests() -> None:
         raise AssertionError("independent semantic-rule derivation is not deterministic")
     binding_projection = derive_binding_projection(graph, graph_nodes, graph_edges)
     binding_contract = derive_serialized_binding_contract(graph, graph_nodes, graph_edges)
+    binding_edges = [
+        edge
+        for edge in graph_edges
+        if edge["binding_obligation"]["kind"] == "serialized_binding"
+    ]
+    none_binding_edges = [
+        edge
+        for edge in graph_edges
+        if edge["binding_obligation"]["kind"] == "none"
+    ]
+    if len(binding_edges) != len(binding_projection) or len(graph_edges) != 76:
+        raise AssertionError(
+            "edge binding inventory is not exact: "
+            f"edges={len(graph_edges)} binding={len(binding_edges)} "
+            f"projection={len(binding_projection)}"
+        )
+
+    def raw_edge(value: dict[str, Any], edge: dict[str, Any]) -> dict[str, Any]:
+        return next(
+            candidate
+            for candidate in value["edges"]
+            if candidate["from"] == edge["from"]
+            and candidate["type"] == edge["type"]
+            and candidate["to"] == edge["to"]
+        )
+
+    def declared_rule_for_edge(
+        value: dict[str, Any], edge: dict[str, Any]
+    ) -> dict[str, str]:
+        obligation = edge["binding_obligation"]
+        return next(
+            rule
+            for rule in value["binding_semantics"]["serialized_rules"]
+            if rule["target"] == edge["to"]
+            and rule["type"] == edge["type"]
+            and rule["field"] == obligation["destination_field"]
+            and rule["category"] == obligation["category"]
+            and rule["value"] == obligation["value_semantics"]
+            and rule["cardinality"] == obligation["cardinality"]
+            and rule["target_object_kind"] == obligation["target_object_kind"]
+            and (rule["source"] == "*" or rule["source"] == edge["from"])
+        )
+
+    def node_binding_mirror(rule: dict[str, str]) -> dict[str, str]:
+        return {
+            "field": rule["field"],
+            "type": rule["type"],
+            "source": rule["source"],
+            "category": rule["category"],
+            "value": rule["value"],
+            "cardinality": rule["cardinality"],
+            "target_object_kind": rule["target_object_kind"],
+        }
+
+    binding_obligation_structural_deletion_tests = 0
+    binding_obligation_structural_malformed_tests = 0
+    for edge in binding_edges:
+        mutant = deepcopy(graph)
+        raw_edge(mutant, edge).pop("binding_obligation")
+        binding_obligation_structural_deletion_tests += 1
+        reject_value_error(
+            f"missing edge binding obligation {edge['from']}/{edge['type']}/{edge['to']}",
+            lambda mutant=mutant: validate_r12_authority_graph(mutant),
+        )
+        for malformed in (
+            None,
+            {},
+            {"kind": "unknown"},
+            {"kind": "serialized_binding"},
+        ):
+            mutant = deepcopy(graph)
+            raw_edge(mutant, edge)["binding_obligation"] = malformed
+            binding_obligation_structural_malformed_tests += 1
+            reject_value_error(
+                f"malformed edge binding obligation {edge['from']}/{edge['type']}/{edge['to']}",
+                lambda mutant=mutant: validate_r12_authority_graph(mutant),
+            )
+
+    node_mirror_downstream_tests = 0
+    schema_mirror_downstream_tests = 0
+    semantic_rule_downstream_tests = 0
+    full_root_fixed_downstream_tests = 0
+    for edge in binding_edges:
+        rule = declared_rule_for_edge(graph, edge)
+        mutant = deepcopy(graph)
+        node = next(node for node in mutant["nodes"] if node["id"] == edge["to"])
+        node["binding_fields"].remove(node_binding_mirror(rule))
+        node_mirror_downstream_tests += 1
+        reject_value_error(
+            f"root-fixed node mirror shrink {edge['from']}/{edge['type']}/{edge['to']}",
+            lambda mutant=mutant: validate_r12_authority_graph(mutant),
+        )
+
+        mutant = deepcopy(graph)
+        mutant["object_field_contracts"][edge["to"]].remove(rule["field"])
+        schema_mirror_downstream_tests += 1
+        reject_value_error(
+            f"root-fixed schema mirror shrink {edge['from']}/{edge['type']}/{edge['to']}",
+            lambda mutant=mutant: validate_r12_authority_graph(mutant),
+        )
+
+        mutant = deepcopy(graph)
+        mutant["binding_semantics"]["serialized_rules"].remove(rule)
+        semantic_rule_downstream_tests += 1
+        reject_value_error(
+            f"root-fixed semantic mirror shrink {edge['from']}/{edge['type']}/{edge['to']}",
+            lambda mutant=mutant: validate_r12_authority_graph(mutant),
+        )
+
+        mutant = deepcopy(graph)
+        target_relations = mutant["serialized_binding_fields"][rule["target"]][rule["type"]]
+        target_relations.pop(rule["source"])
+        if not target_relations:
+            mutant["serialized_binding_fields"][rule["target"]].pop(rule["type"])
+        if not mutant["serialized_binding_fields"][rule["target"]]:
+            mutant["serialized_binding_fields"].pop(rule["target"])
+        node = next(node for node in mutant["nodes"] if node["id"] == rule["target"])
+        node["binding_fields"].remove(node_binding_mirror(rule))
+        mutant["binding_semantics"]["serialized_rules"].remove(rule)
+        full_root_fixed_downstream_tests += 1
+        reject_value_error(
+            f"root-fixed full downstream shrink {edge['from']}/{edge['type']}/{edge['to']}",
+            lambda mutant=mutant: validate_r12_authority_graph(mutant),
+        )
+
+    def add_unauthorized_none_binding(value: dict[str, Any], edge: dict[str, Any]) -> None:
+        target = edge["to"]
+        field_name = "target_sha256"
+        value["object_field_contracts"].setdefault(target, [])
+        if field_name not in value["object_field_contracts"][target]:
+            value["object_field_contracts"][target].append(field_name)
+        node = next(node for node in value["nodes"] if node["id"] == target)
+        node["binding_fields"].append(
+            {
+                "field": field_name,
+                "type": edge["type"],
+                "source": edge["from"],
+                "category": "review_target_binding",
+                "value": "source_sha256",
+                "cardinality": "exactly_one",
+                "target_object_kind": node["authority_kind"],
+            }
+        )
+        value["binding_semantics"]["relation_policies"][edge["type"]][
+            "serialized_binding"
+        ] = "selected"
+        value["binding_semantics"]["serialized_rules"].append(
+            {
+                "target": target,
+                "type": edge["type"],
+                "source": edge["from"],
+                "field": field_name,
+                "category": "review_target_binding",
+                "value": "source_sha256",
+                "cardinality": "exactly_one",
+                "target_object_kind": node["authority_kind"],
+            }
+        )
+        value["serialized_binding_fields"].setdefault(target, {}).setdefault(
+            edge["type"], {}
+        )[edge["from"]] = field_name
+
+    unauthorized_none_downstream_tests = 0
+    for edge in none_binding_edges:
+        mutant = deepcopy(graph)
+        add_unauthorized_none_binding(mutant, edge)
+        unauthorized_none_downstream_tests += 1
+        reject_value_error(
+            f"unauthorized downstream binding on none edge {edge['from']}/{edge['type']}/{edge['to']}",
+            lambda mutant=mutant: validate_r12_authority_graph(mutant),
+        )
+
+    def valid_none_to_serialized_root_change(value: dict[str, Any]) -> None:
+        edge = raw_edge(
+            value,
+            {
+                "from": "architecture_plan",
+                "type": "requires",
+                "to": "normative_traceability_matrix",
+            },
+        )
+        edge["binding_obligation"] = {
+            "kind": "serialized_binding",
+            "destination_field": "reviewed_migration_ledger_sha256",
+            "category": "serialized_digest_binding",
+            "value_semantics": "source_sha256",
+            "cardinality": "exactly_one",
+            "target_object_kind": graph_nodes[edge["to"]]["authority_kind"],
+        }
+        value["object_field_contracts"].setdefault(edge["to"], []).append(
+            "reviewed_migration_ledger_sha256"
+        )
+        refresh_derived_binding_mirrors(value)
+
+    def valid_destination_root_change(value: dict[str, Any]) -> None:
+        edge = raw_edge(
+            value,
+            {
+                "from": "migration_ledger",
+                "type": "binds",
+                "to": "migrated_finding_review",
+            },
+        )
+        edge["binding_obligation"]["destination_field"] = (
+            "reviewed_normative_traceability_matrix_sha256"
+        )
+        refresh_derived_binding_mirrors(value)
+
+    def valid_kind_root_change(value: dict[str, Any]) -> None:
+        raw_edge(
+            value,
+            {
+                "from": "architecture_plan",
+                "type": "reviews",
+                "to": "architecture_review",
+            },
+        )["binding_obligation"] = {"kind": "none"}
+        refresh_derived_binding_mirrors(value)
+
+    root_property_mutators = [
+        ("obligation_kind", valid_kind_root_change, True),
+        ("destination_field", valid_destination_root_change, True),
+        (
+            "binding_category",
+            lambda value: raw_edge(
+                value,
+                {
+                    "from": "architecture_plan",
+                    "type": "reviews",
+                    "to": "architecture_review",
+                },
+            )["binding_obligation"].__setitem__(
+                "category", "serialized_digest_binding"
+            ),
+            False,
+        ),
+        (
+            "destination_field_invalid",
+            lambda value: raw_edge(
+                value,
+                {
+                    "from": "architecture_plan",
+                    "type": "reviews",
+                    "to": "architecture_review",
+                },
+            )["binding_obligation"].__setitem__("destination_field", "review_sha256"),
+            False,
+        ),
+        (
+            "value_semantics",
+            lambda value: raw_edge(
+                value,
+                {
+                    "from": "architecture_plan",
+                    "type": "reviews",
+                    "to": "architecture_review",
+                },
+            )["binding_obligation"].__setitem__(
+                "value_semantics", "authority_descriptor"
+            ),
+            False,
+        ),
+        (
+            "target_object_kind",
+            lambda value: raw_edge(
+                value,
+                {
+                    "from": "architecture_plan",
+                    "type": "reviews",
+                    "to": "architecture_review",
+                },
+            )["binding_obligation"].__setitem__(
+                "target_object_kind", "PhaseFPlanApprovalV1"
+            ),
+            False,
+        ),
+        (
+            "cardinality",
+            lambda value: raw_edge(
+                value,
+                {
+                    "from": "architecture_plan",
+                    "type": "reviews",
+                    "to": "architecture_review",
+                },
+            )["binding_obligation"].__setitem__("cardinality", "one_per_source"),
+            False,
+        ),
+        (
+            "unknown_property",
+            lambda value: raw_edge(
+                value,
+                {
+                    "from": "architecture_plan",
+                    "type": "reviews",
+                    "to": "architecture_review",
+                },
+            )["binding_obligation"].__setitem__("unexpected", True),
+            False,
+        ),
+    ]
+    root_identity_mutation_tests = 0
+    root_identity_mutations_changed = 0
+    valid_root_change_tests = 0
+    invalid_root_property_tests = 0
+
+    def refresh_derived_binding_mirrors(value: dict[str, Any]) -> None:
+        nodes = _graph_nodes(value)
+        edges = _graph_edges(value, nodes)
+        independent = derive_required_semantic_rules(
+            nodes, edges, value["object_field_contracts"]
+        )
+        value["binding_semantics"]["relation_policies"] = {
+            edge_type: {
+                "required_input": True,
+                "serialized_binding": policy,
+            }
+            for edge_type, policy in independent["relation_policies"].items()
+        }
+        value["binding_semantics"]["serialized_rules"] = deepcopy(
+            independent["serialized_rules"]
+        )
+        derived_nodes = derive_node_binding_fields(nodes, edges)
+        for node in value["nodes"]:
+            node["binding_fields"] = derived_nodes[node["id"]]
+        value["serialized_binding_fields"] = derive_serialized_binding_contract(
+            value, nodes, edges
+        )
+
+    old_root_sha256 = sha256_bytes(AUTHORITY_GRAPH_PATH.read_bytes())
+    for label, mutate, valid in root_property_mutators:
+        mutant = deepcopy(graph)
+        mutate(mutant)
+        root_sha256 = sha256_bytes(canonical_json_bytes(mutant))
+        root_identity_mutation_tests += 1
+        if root_sha256 == old_root_sha256:
+            raise AssertionError(f"binding root identity did not change: {label}")
+        root_identity_mutations_changed += 1
+        if valid:
+            validate_r12_authority_graph(mutant)
+            valid_root_change_tests += 1
+        else:
+            invalid_root_property_tests += 1
+            reject_value_error(
+                f"invalid binding-root property mutation {label}",
+                lambda mutant=mutant: validate_r12_authority_graph(mutant),
+            )
+    old_bundle_inputs = build_bundle_inputs("4" * 64)
+    new_bundle_payload = {
+        key: deepcopy(value)
+        for key, value in old_bundle_inputs.items()
+        if key != "sha256"
+    }
+    valid_root_graph = deepcopy(graph)
+    valid_none_to_serialized_root_change(valid_root_graph)
+    valid_root_bytes = canonical_json_bytes(valid_root_graph)
+    valid_root_sha256 = sha256_bytes(valid_root_bytes)
+    new_bundle_payload["authority_graph_sha256"] = valid_root_sha256
+    new_bundle_payload["source_sha256s"]["authority_graph"] = valid_root_sha256
+    new_bundle_inputs_sha256 = sha256_bytes(canonical_json_bytes(new_bundle_payload))
+    if (
+        valid_root_sha256 == old_root_sha256
+        or new_bundle_inputs_sha256 == old_bundle_inputs["sha256"]
+    ):
+        raise AssertionError("binding-root change did not change bundle/input identity")
     relation_map_entries = [
         (target, edge_type)
         for target, relations in graph["serialized_binding_fields"].items()
@@ -4463,6 +5001,18 @@ def run_regression_self_tests() -> None:
             value["serialized_binding_fields"][rule["target"]].pop(rule["type"])
         if not value["serialized_binding_fields"][rule["target"]]:
             value["serialized_binding_fields"].pop(rule["target"])
+        node = next(node for node in value["nodes"] if node["id"] == rule["target"])
+        node["binding_fields"].remove(
+            {
+                "field": rule["field"],
+                "type": rule["type"],
+                "source": rule["source"],
+                "category": rule["category"],
+                "value": rule["value"],
+                "cardinality": rule["cardinality"],
+                "target_object_kind": rule["target_object_kind"],
+            }
+        )
 
     def binding_graph_reject(label: str, mutate: object) -> None:
         mutant = deepcopy(graph)
@@ -4808,6 +5358,8 @@ def run_regression_self_tests() -> None:
                             "field": field_name,
                             "category": category,
                             "value": value_source,
+                            "cardinality": SERIALIZED_BINDING_CARDINALITIES[field_name],
+                            "target_object_kind": graph_nodes[target]["authority_kind"],
                         }
                     )
     independent_rule_keys = {
@@ -4894,7 +5446,12 @@ def run_regression_self_tests() -> None:
         authorized_edge_canonical_passes += 1
         removal = deepcopy(graph)
         removal["edges"].remove(
-            {"from": source, "type": edge_type, "to": target}
+            next(
+                edge for edge in removal["edges"]
+                if edge["from"] == source
+                and edge["type"] == edge_type
+                and edge["to"] == target
+            )
         )
         try:
             validate_r12_authority_graph(removal)
@@ -4903,7 +5460,12 @@ def run_regression_self_tests() -> None:
         for replacement in sorted(GRAPH_EDGE_TYPES - {edge_type}):
             retyped = deepcopy(graph)
             retyped["edges"].remove(
-                {"from": source, "type": edge_type, "to": target}
+                next(
+                    edge for edge in retyped["edges"]
+                    if edge["from"] == source
+                    and edge["type"] == edge_type
+                    and edge["to"] == target
+                )
             )
             retyped["edges"].append(
                 {"from": source, "type": replacement, "to": target}
@@ -4917,7 +5479,12 @@ def run_regression_self_tests() -> None:
                 continue
             redirected = deepcopy(graph)
             redirected["edges"].remove(
-                {"from": source, "type": edge_type, "to": target}
+                next(
+                    edge for edge in redirected["edges"]
+                    if edge["from"] == source
+                    and edge["type"] == edge_type
+                    and edge["to"] == target
+                )
             )
             redirected["edges"].append(
                 {"from": source, "type": edge_type, "to": destination}
@@ -4942,6 +5509,79 @@ def run_regression_self_tests() -> None:
     positive = validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, synthetic)
     if positive != G3_EXPECTED_FIELDS:
         raise AssertionError(f"synthetic G3 authority positive result: {positive}")
+
+    def synthetic_root_change_context() -> tuple[G3AuthorityContext, str, str]:
+        context = deepcopy(synthetic)
+        valid_kind_root_change(context.graph)
+        root_bytes = canonical_json_bytes(context.graph)
+        root_sha256 = sha256_bytes(root_bytes)
+        input_payload = {
+            key: deepcopy(value)
+            for key, value in old_bundle_inputs.items()
+            if key != "sha256"
+        }
+        input_payload["authority_graph_sha256"] = root_sha256
+        input_payload["source_sha256s"]["authority_graph"] = root_sha256
+        input_sha256 = sha256_bytes(canonical_json_bytes(input_payload))
+        context.authority_graph_bytes = root_bytes
+        context.authority_graph_sha256 = root_sha256
+        context.objects["specification_bundle_inputs"][
+            "authority_graph_sha256"
+        ] = root_sha256
+        context.objects["specification_bundle_inputs"]["sha256"] = input_sha256
+        context.objects["specification_bundle_inputs"]["expected_sha256"] = input_sha256
+        context.objects["specification_bundle_manifest"][
+            "bundle_input_fingerprint_sha256"
+        ] = input_sha256
+        return context, root_sha256, input_sha256
+
+    migrated_root_staleness_tests = 0
+    aggregate_root_staleness_tests = 0
+    migrated_stale_context, _, _ = synthetic_root_change_context()
+    migrated_root_staleness_tests += 1
+    reject_value_error(
+        "migrated review stale after normative binding-root change",
+        lambda: validate_g3_tag(
+            G3_TAG_NAME, G3_FIXTURE_BODY, migrated_stale_context
+        ),
+    )
+
+    aggregate_stale_context, _, changed_input_sha256 = synthetic_root_change_context()
+    migrated = aggregate_stale_context.objects["migrated_finding_review"]
+    migrated["target_bundle_inputs_sha256"] = changed_input_sha256
+    migrated["review_input_fingerprint"] = _migrated_review_input_fingerprint(migrated)
+    for row in migrated["review_records"]:
+        row["reviewed_target"] = migrated["review_input_fingerprint"]
+        aggregate_stale_context.review_artifacts[row["review_artifact_id"]][
+            "reviewed_target"
+        ] = migrated["review_input_fingerprint"]
+        refresh_row_payload = dict(row)
+        refresh_row_payload.pop("review_sha256")
+        row["review_sha256"] = sha256_bytes(
+            canonical_json_bytes(refresh_row_payload)
+        )
+    changed_manifest_sha256 = "a" * 64
+    aggregate_stale_context.objects["specification_bundle_manifest"][
+        "sha256"
+    ] = changed_manifest_sha256
+    aggregate_stale_context.objects["specification_bundle_manifest"][
+        "expected_sha256"
+    ] = changed_manifest_sha256
+    aggregate_stale_context.bundle_manifest_sha256 = changed_manifest_sha256
+    aggregate_body = G3_FIXTURE_BODY.replace(
+        b"specification_bundle_manifest_sha256=" + b"0" * 64,
+        b"specification_bundle_manifest_sha256="
+        + changed_manifest_sha256.encode(),
+        1,
+    )
+    aggregate_stale_context.tag["message"] = aggregate_body
+    aggregate_root_staleness_tests += 1
+    reject_value_error(
+        "aggregate review stale after normative binding-root change",
+        lambda: validate_g3_tag(
+            G3_TAG_NAME, aggregate_body, aggregate_stale_context
+        ),
+    )
 
     def remove_synthetic_binding_field(
         context: G3AuthorityContext, rule: dict[str, str]
@@ -4992,6 +5632,56 @@ def run_regression_self_tests() -> None:
             f"three_layer={coordinated_rule_mirror_builder_deletion_accepted} "
             f"four_layer={coordinated_four_layer_deletion_accepted}"
         )
+
+    coordinated_schema_downstream_deletions_tested = 0
+    coordinated_schema_downstream_deletion_accepted = 0
+    for rule in selected_rules:
+        mutant = deepcopy(synthetic)
+        mutant.graph["object_field_contracts"][rule["target"]].remove(rule["field"])
+        remove_declared_rule_and_mirror(mutant.graph, rule)
+        remove_synthetic_binding_field(mutant, rule)
+        coordinated_schema_downstream_deletions_tested += 1
+        try:
+            validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, mutant)
+        except ValueError:
+            pass
+        else:
+            coordinated_schema_downstream_deletion_accepted += 1
+    if coordinated_schema_downstream_deletion_accepted:
+        raise AssertionError(
+            "coordinated schema/node/downstream shrink mutation was accepted: "
+            f"{coordinated_schema_downstream_deletion_accepted}"
+        )
+
+    explicit_g3_bypass_cases = {
+        "architecture review target_sha256": (
+            "architecture_review", "target_sha256"
+        ),
+        "architecture approval review_sha256": (
+            "architecture_approval", "review_sha256"
+        ),
+        "F0 review target_sha256": ("f0_review", "target_sha256"),
+        "F0 approval review_sha256": ("f0_approval", "review_sha256"),
+    }
+    explicit_g3_bypass_tests = 0
+    explicit_g3_bypass_accepted = 0
+    for label, (target, field_name) in explicit_g3_bypass_cases.items():
+        rule = next(
+            rule
+            for rule in selected_rules
+            if rule["target"] == target and rule["field"] == field_name
+        )
+        mutant = deepcopy(synthetic)
+        remove_declared_rule_and_mirror(mutant.graph, rule)
+        remove_synthetic_binding_field(mutant, rule)
+        explicit_g3_bypass_tests += 1
+        try:
+            validate_g3_tag(G3_TAG_NAME, G3_FIXTURE_BODY, mutant)
+        except ValueError:
+            pass
+        else:
+            explicit_g3_bypass_accepted += 1
+            raise AssertionError(f"explicit G3 bypass accepted: {label}")
 
     serialized_binding_deletions_tested = 0
     serialized_binding_extra_tests = 0
@@ -5401,17 +6091,25 @@ def run_regression_self_tests() -> None:
     g3_reject("manifest changed", lambda context: context.objects["specification_bundle_manifest"].update({"content_unchanged": False}))
     g3_reject("wrong G3 target commit", lambda context: context.tag.update({"peeled_commit": "wrong-target"}))
     g3_reject("lightweight G3 tag", lambda context: context.tag.update({"annotated": False, "object_type": "commit"}))
-    real_context = make_repository_context()
-    real_body = G3_FIXTURE_BODY.replace(
-        b"specification_bundle_manifest_sha256=" + b"0" * 64,
-        b"specification_bundle_manifest_sha256="
-        + (real_context.bundle_manifest_sha256 or "0" * 64).encode(),
-        1,
+    target_root_resolution_tests = 0
+    root_change_staleness_tests = 0
+    missing_temporary, missing_repository, missing_target, _ = _isolated_real_fixture(
+        populate_authority=False
     )
-    reject_value_error(
-        "missing real G3 prerequisites",
-        lambda: validate_g3_tag(G3_TAG_NAME, real_body, real_context),
-    )
+    try:
+        real_context = make_repository_context(missing_repository, missing_target)
+        real_body = G3_FIXTURE_BODY.replace(
+            b"specification_bundle_manifest_sha256=" + b"0" * 64,
+            b"specification_bundle_manifest_sha256="
+            + (real_context.bundle_manifest_sha256 or "0" * 64).encode(),
+            1,
+        )
+        reject_value_error(
+            "missing real G3 prerequisites",
+            lambda: validate_g3_tag(G3_TAG_NAME, real_body, real_context),
+        )
+    finally:
+        missing_temporary.cleanup()
     fixture_temporary, fixture_repository, fixture_target, fixture_body = _isolated_real_fixture()
     try:
         fixture_context = make_repository_context(fixture_repository, fixture_target)
@@ -5437,6 +6135,44 @@ def run_regression_self_tests() -> None:
             )
         ):
             raise AssertionError("real fixture resolved a non-canonical authority identity")
+
+        fixture_graph_path = fixture_repository / AUTHORITY_GRAPH_PATH.relative_to(ROOT)
+        original_fixture_graph_bytes = fixture_graph_path.read_bytes()
+        fixture_graph_path.write_bytes(valid_root_bytes)
+        target_root_context = make_repository_context(fixture_repository, fixture_target)
+        if (
+            target_root_context.authority_graph_bytes != original_fixture_graph_bytes
+            or target_root_context.authority_graph_sha256
+            != sha256_bytes(original_fixture_graph_bytes)
+        ):
+            raise AssertionError(
+                "real resolver accepted a worktree graph in place of the selected target root"
+            )
+        target_root_resolution_tests += 1
+        fixture_graph_path.write_bytes(original_fixture_graph_bytes)
+        fixture_graph_path.write_bytes(valid_root_bytes)
+        _fixture_git(
+            fixture_repository,
+            ["add", str(fixture_graph_path.relative_to(fixture_repository))],
+        )
+        _fixture_git(
+            fixture_repository, ["commit", "-qm", "fixture normative binding-root change"]
+        )
+        changed_root_target = _fixture_git(
+            fixture_repository, ["rev-parse", "HEAD"]
+        ).decode().strip()
+        changed_root_context = make_repository_context(
+            fixture_repository, changed_root_target
+        )
+        if changed_root_context.authority_graph_sha256 != valid_root_sha256:
+            raise AssertionError("changed target did not resolve the changed graph root")
+        reject_value_error(
+            "stale authority after normative binding-root change",
+            lambda: validate_g3_tag(
+                G3_TAG_NAME, fixture_body, changed_root_context
+            ),
+        )
+        root_change_staleness_tests += 1
 
         real_negative_cases_tested = 0
 
@@ -5983,6 +6719,21 @@ def run_regression_self_tests() -> None:
         f"graph_unauthorized={len(unauthorized_candidates)} graph_accepted_unauthorized={accepted_unauthorized_edges} "
         f"edge_canonical_passes={authorized_edge_canonical_passes} edge_removals_rejected={authorized_edge_removals_rejected} "
         f"edge_retypes_rejected={authorized_edge_retypes_rejected} edge_redirects_rejected={authorized_edge_redirects_rejected} "
+        f"binding_edges={len(binding_edges)} none_binding_edges={len(none_binding_edges)} "
+        f"binding_obligation_structural_deletions={binding_obligation_structural_deletion_tests} "
+        f"binding_obligation_structural_deletion_accepted=0 "
+        f"binding_obligation_malformed_tests={binding_obligation_structural_malformed_tests} "
+        f"binding_obligation_malformed_accepted=0 "
+        f"node_mirror_downstream_tests={node_mirror_downstream_tests} node_mirror_downstream_accepted=0 "
+        f"schema_mirror_downstream_tests={schema_mirror_downstream_tests} schema_mirror_downstream_accepted=0 "
+        f"semantic_rule_downstream_tests={semantic_rule_downstream_tests} semantic_rule_downstream_accepted=0 "
+        f"full_root_fixed_downstream_tests={full_root_fixed_downstream_tests} full_root_fixed_downstream_accepted=0 "
+        f"unauthorized_none_downstream_tests={unauthorized_none_downstream_tests} unauthorized_none_downstream_accepted=0 "
+        f"root_property_mutations={root_identity_mutation_tests} root_property_hash_changes={root_identity_mutations_changed} "
+        f"valid_root_changes={valid_root_change_tests} invalid_root_property_tests={invalid_root_property_tests} "
+        f"bundle_root_fingerprint_changed=1 target_root_resolution_tests={target_root_resolution_tests} "
+        f"root_change_staleness_tests={root_change_staleness_tests} explicit_g3_bypass_tests={explicit_g3_bypass_tests} "
+        f"explicit_g3_bypass_accepted={explicit_g3_bypass_accepted} "
         f"semantic_rules_derived={len(independent_rules)} semantic_rules_declared={len(graph['binding_semantics']['serialized_rules'])} "
         f"selected_rules={len(selected_rules)} "
         f"rules_all={semantic_rule_policy_counts['all']} rules_none={semantic_rule_policy_counts['none']} rules_selected={semantic_rule_policy_counts['selected']} "
@@ -5996,6 +6747,10 @@ def run_regression_self_tests() -> None:
         f"coordinated_rule_mirror_builder_deletion_accepted={coordinated_rule_mirror_builder_deletion_accepted} "
         f"coordinated_four_layer_deletions_tested={coordinated_four_layer_deletions_tested} "
         f"coordinated_four_layer_deletion_accepted={coordinated_four_layer_deletion_accepted} "
+        f"coordinated_schema_downstream_deletions_tested={coordinated_schema_downstream_deletions_tested} "
+        f"coordinated_schema_downstream_deletion_accepted={coordinated_schema_downstream_deletion_accepted} "
+        f"migrated_root_staleness_tests={migrated_root_staleness_tests} "
+        f"aggregate_root_staleness_tests={aggregate_root_staleness_tests} "
         f"unauthorized_semantic_rule_candidates={len(unauthorized_semantic_rule_candidates)} "
         f"accepted_unauthorized_semantic_rules={accepted_unauthorized_semantic_rules} "
         f"semantic_rule_category_mutations={semantic_rule_category_mutations} "
