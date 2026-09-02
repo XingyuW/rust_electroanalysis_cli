@@ -543,7 +543,9 @@
       "property_test_ids": [],
       "requirement_id": "F-CNF-001",
       "schema_ids": [
-        "PhaseFReviewerActorAttestationV1"
+        "PhaseFReviewerActorAttestationV1",
+        "PhaseFReviewerBootstrapCurrentnessProofV1",
+        "PhaseFReviewerBootstrapTrustRootV1"
       ],
       "test_ids": [
         "R11-KAT-INCIDENT",
@@ -803,6 +805,8 @@
       "requirement_id": "F-CNF-005",
       "schema_ids": [
         "PhaseFReviewerActorAttestationV1",
+        "PhaseFReviewerBootstrapCurrentnessProofV1",
+        "PhaseFReviewerBootstrapTrustRootV1",
         "PhaseFSpecificationBundleApprovalV1"
       ],
       "test_ids": [
@@ -1215,6 +1219,8 @@
       "requirement_id": "F-IMPL-007",
       "schema_ids": [
         "PhaseFReviewerActorAttestationV1",
+        "PhaseFReviewerBootstrapCurrentnessProofV1",
+        "PhaseFReviewerBootstrapTrustRootV1",
         "PhaseFSpecificationBundleApprovalV1"
       ],
       "test_ids": [
@@ -1979,7 +1985,9 @@
       "property_test_ids": [],
       "requirement_id": "F-WIRE-005",
       "schema_ids": [
-        "PhaseFReviewerActorAttestationV1"
+        "PhaseFReviewerActorAttestationV1",
+        "PhaseFReviewerBootstrapCurrentnessProofV1",
+        "PhaseFReviewerBootstrapTrustRootV1"
       ],
       "test_ids": [
         "R11-CAT",
@@ -2229,7 +2237,9 @@
         "PhaseFUnitRuleV1",
         "PhaseFSpecificationBundleApprovalV1",
         "PhaseFMigratedFindingReviewV1",
-        "PhaseFReviewerActorAttestationV1"
+        "PhaseFReviewerActorAttestationV1",
+        "PhaseFReviewerBootstrapCurrentnessProofV1",
+        "PhaseFReviewerBootstrapTrustRootV1"
       ],
       "test_ids": [
         "R11-CAT",

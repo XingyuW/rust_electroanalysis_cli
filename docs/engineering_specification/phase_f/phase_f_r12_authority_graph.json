@@ -2,6 +2,62 @@
   "artifact_kind": "phase_f_r12_artifact_authority_graph",
   "authority_status": "NORMATIVE_CANDIDATE",
   "edge_direction": "from_existing_prerequisite_to_constructed_dependent",
+  "reviewer_bootstrap_trust_contract": {
+    "stage": "PRE_G0_REVIEWER_BOOTSTRAP",
+    "root_path": ".phase_f_authority/reviewer_bootstrap/trust_root.json",
+    "currentness_proof_path": ".phase_f_authority/reviewer_bootstrap/currentness_proof.json",
+    "root_authority_kind": "PhaseFReviewerBootstrapTrustRootV1",
+    "currentness_proof_authority_kind": "PhaseFReviewerBootstrapCurrentnessProofV1",
+    "root_id": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "root_public_key_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+    "allowed_purposes": [
+      "reviewer_actor_attestation",
+      "reviewer_currentness",
+      "reviewer_subject_registry"
+    ],
+    "transition_policy": "bootstrap_root_permanent_for_reviewer_identities",
+    "currentness_window_policy": "valid_from_le_validation_time_le_valid_until"
+  },
+  "external_trust_dependency_contract": {
+    "terminal_roots": [
+      "reviewer_bootstrap_root"
+    ],
+    "nodes": [
+      {"id": "reviewer_bootstrap_root", "stage": -2},
+      {"id": "reviewer_bootstrap_currentness_proof", "stage": -1},
+      {"id": "reviewer_actor_attestation", "stage": 0},
+      {"id": "reviewer_identity", "stage": 1},
+      {"id": "architecture_review", "stage": 2},
+      {"id": "architecture_approval", "stage": 3},
+      {"id": "f0_decision_bundle", "stage": 4},
+      {"id": "f0_review", "stage": 5},
+      {"id": "f0_approval", "stage": 6},
+      {"id": "g2_component_reviews", "stage": 8},
+      {"id": "g3_approval", "stage": 14},
+      {"id": "g4_readiness", "stage": 18},
+      {"id": "g5_enrollment_review", "stage": 19},
+      {"id": "normal_phase_f_authority_enrollment", "stage": 20},
+      {"id": "normal_phase_f_registry", "stage": 21}
+    ],
+    "edges": [
+      {"from": "reviewer_bootstrap_root", "to": "reviewer_bootstrap_currentness_proof"},
+      {"from": "reviewer_bootstrap_currentness_proof", "to": "reviewer_actor_attestation"},
+      {"from": "reviewer_actor_attestation", "to": "reviewer_identity"},
+      {"from": "reviewer_identity", "to": "architecture_review"},
+      {"from": "reviewer_identity", "to": "g2_component_reviews"},
+      {"from": "reviewer_identity", "to": "g5_enrollment_review"},
+      {"from": "architecture_review", "to": "architecture_approval"},
+      {"from": "architecture_approval", "to": "f0_decision_bundle"},
+      {"from": "f0_decision_bundle", "to": "f0_review"},
+      {"from": "f0_review", "to": "f0_approval"},
+      {"from": "f0_approval", "to": "g2_component_reviews"},
+      {"from": "g2_component_reviews", "to": "g3_approval"},
+      {"from": "g3_approval", "to": "g4_readiness"},
+      {"from": "g4_readiness", "to": "g5_enrollment_review"},
+      {"from": "g5_enrollment_review", "to": "normal_phase_f_authority_enrollment"},
+      {"from": "normal_phase_f_authority_enrollment", "to": "normal_phase_f_registry"}
+    ]
+  },
   "binding_root_contract": {
     "root": "edges[].binding_obligation",
     "edge_contract": "edge_contract",
@@ -488,8 +544,7 @@
         "actor_subject_id",
         "actor_class",
         "actor_identity_evidence_sha256",
-        "authority_enrollment_id",
-        "authority_enrollment_sha256",
+        "trust_source",
         "eligible_role",
         "role_eligibility_evidence_sha256",
         "independence_evidence_sha256",

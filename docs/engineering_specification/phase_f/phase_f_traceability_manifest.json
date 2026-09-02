@@ -51,6 +51,13 @@
           "name": "implementation_bypass",
           "passed": true,
           "violation_path": []
+        },
+        {
+          "checked_edges": 16,
+          "checked_nodes": 15,
+          "name": "external_trust_dependency_cycle",
+          "passed": true,
+          "violation_path": []
         }
       ],
       "edge_count": 76,
@@ -63,6 +70,7 @@
         "reviews",
         "targets"
       ],
+      "external_trust_dependency_cycle": false,
       "future_object": false,
       "g3_ancestor_count": 23,
       "g3_bypass": false,
@@ -105,23 +113,23 @@
       ]
     },
     "path": "docs/engineering_specification/phase_f/phase_f_r12_authority_graph.json",
-    "sha256": "e562859c3742bacd0b8fce605650784043e0e722c5f754e44c98c566a39fb368"
+    "sha256": "d429ed84f570e8248d78787a3abfc0bf641af06c10a10e6bbd64a4d1f4bfa74e"
   },
   "generated_source_sha256s": {
     "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
-    "component_conformance_spec": "01d573f1a3c7490b9df379952c7ad21ad5c323518653f1e41344be8ee3c542eb",
+    "component_conformance_spec": "b4a253668ab01eb0adb7b6afa1312b05b0e65434832b98a2a3cb7a2bab347e99",
     "component_implementation_spec": "424ae0870701c1902fb98cb4f47344f99afee5d586ae6c330978784dade60cf4",
     "component_operations_spec": "5ceaf042e5904e78c757e1fd227b9162c1331bce246901aab415c6afab02a78a",
     "component_scientific_spec": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
-    "component_wire_spec": "37ccff2927b41650741b93a5209c64bd467ae5fef2130e9e0856a331695ec949",
-    "migration_ledger": "be9974957a7cb496cebc3252b1cf5ef3e9518af5b5a974c6cc47095af077b698",
-    "normative_traceability_matrix": "62e3a5eeddb50d5c541039e95e4cb025d0ab908eb0ed96fec6abc8f50a211575"
+    "component_wire_spec": "f740421910f8cf5eec80df219e4f16a24f5de1f5cea93b868e9f7066a8019a52",
+    "migration_ledger": "c7996e255138e0d5e6705a6b3c4a86a7afafc3b764579e98c8efa98351685974",
+    "normative_traceability_matrix": "5f5a320fbc992e5153ac0252bb56e4c798d2d0e5bf48fff1feaf010efe5a7c21"
   },
   "generation_rule": "docs/engineering_specification/phase_f/generate_phase_f_manifests.py",
   "normative_matrix": {
     "path": "docs/engineering_specification/phase_f/phase_f_r12_normative_traceability_matrix.json",
     "requirement_count": 64,
-    "sha256": "62e3a5eeddb50d5c541039e95e4cb025d0ab908eb0ed96fec6abc8f50a211575"
+    "sha256": "5f5a320fbc992e5153ac0252bb56e4c798d2d0e5bf48fff1feaf010efe5a7c21"
   },
   "reference_catalogs": {
     "future_real_evidence": {
@@ -808,7 +816,9 @@
       "property_test_ids": [],
       "requirement_id": "F-CNF-001",
       "schema_ids": [
-        "PhaseFReviewerActorAttestationV1"
+        "PhaseFReviewerActorAttestationV1",
+        "PhaseFReviewerBootstrapCurrentnessProofV1",
+        "PhaseFReviewerBootstrapTrustRootV1"
       ],
       "test_ids": [
         "R11-KAT-INCIDENT",
@@ -1076,6 +1086,8 @@
       "requirement_id": "F-CNF-005",
       "schema_ids": [
         "PhaseFReviewerActorAttestationV1",
+        "PhaseFReviewerBootstrapCurrentnessProofV1",
+        "PhaseFReviewerBootstrapTrustRootV1",
         "PhaseFSpecificationBundleApprovalV1"
       ],
       "test_ids": [
@@ -1510,6 +1522,8 @@
       "requirement_id": "F-IMPL-007",
       "schema_ids": [
         "PhaseFReviewerActorAttestationV1",
+        "PhaseFReviewerBootstrapCurrentnessProofV1",
+        "PhaseFReviewerBootstrapTrustRootV1",
         "PhaseFSpecificationBundleApprovalV1"
       ],
       "test_ids": [
@@ -2386,7 +2400,9 @@
       "property_test_ids": [],
       "requirement_id": "F-WIRE-005",
       "schema_ids": [
-        "PhaseFReviewerActorAttestationV1"
+        "PhaseFReviewerActorAttestationV1",
+        "PhaseFReviewerBootstrapCurrentnessProofV1",
+        "PhaseFReviewerBootstrapTrustRootV1"
       ],
       "test_ids": [
         "R11-CAT",
@@ -2653,7 +2669,9 @@
         "PhaseFUnitRuleV1",
         "PhaseFSpecificationBundleApprovalV1",
         "PhaseFMigratedFindingReviewV1",
-        "PhaseFReviewerActorAttestationV1"
+        "PhaseFReviewerActorAttestationV1",
+        "PhaseFReviewerBootstrapCurrentnessProofV1",
+        "PhaseFReviewerBootstrapTrustRootV1"
       ],
       "test_ids": [
         "R11-CAT",
@@ -2967,6 +2985,20 @@
       "F-WIRE-008"
     ],
     "PhaseFReviewerActorAttestationV1": [
+      "F-CNF-001",
+      "F-CNF-005",
+      "F-IMPL-007",
+      "F-WIRE-005",
+      "F-WIRE-008"
+    ],
+    "PhaseFReviewerBootstrapCurrentnessProofV1": [
+      "F-CNF-001",
+      "F-CNF-005",
+      "F-IMPL-007",
+      "F-WIRE-005",
+      "F-WIRE-008"
+    ],
+    "PhaseFReviewerBootstrapTrustRootV1": [
       "F-CNF-001",
       "F-CNF-005",
       "F-IMPL-007",
