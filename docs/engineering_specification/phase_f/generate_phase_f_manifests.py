@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -72,13 +73,14 @@ EXPECTED_R11_LINE_COUNT = 6188
 EXPECTED_R11_BYTE_COUNT = 653370
 EXPECTED_R11_TEST_COUNT = 28
 EXPECTED_R11_EVIDENCE_COUNT = 20
-EXPECTED_R12_SCHEMA_COUNT = 96
+EXPECTED_R12_SCHEMA_COUNT = 97
 R12_SCHEMA_IDS = {
     "PhaseFSpecificationBundleApprovalV1",
     "PhaseFMigratedFindingReviewV1",
     "PhaseFReviewerActorAttestationV1",
     "PhaseFReviewerBootstrapTrustRootV1",
     "PhaseFReviewerBootstrapCurrentnessProofV1",
+    "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
 }
 EXPECTED_R12_REQUIREMENT_COUNT = 64
 EXPECTED_MIGRATED_FINDINGS = {
@@ -236,6 +238,9 @@ REVIEWER_BOOTSTRAP_ROOT_DOMAIN = (
 REVIEWER_BOOTSTRAP_CURRENTNESS_DOMAIN = (
     b"mhi_phase_f_reviewer_bootstrap_currentness_proof_v1\0"
 )
+REVIEWER_BOOTSTRAP_CHECKPOINT_DOMAIN = (
+    b"mhi_phase_f_reviewer_bootstrap_accepted_head_checkpoint_v1\0"
+)
 REVIEWER_BOOTSTRAP_SUBJECT_REGISTRY_DOMAIN = (
     b"mhi_phase_f_reviewer_bootstrap_subject_registry_v1\0"
 )
@@ -250,9 +255,13 @@ REVIEWER_BOOTSTRAP_TRUST_SOURCE = "reviewer_bootstrap"
 REVIEWER_BOOTSTRAP_TRUST_CONTRACT_KEYS = {
     "stage",
     "root_path",
+    "root_history_path",
     "currentness_proof_path",
+    "currentness_proof_history_path",
+    "accepted_head_checkpoint_path",
     "root_authority_kind",
     "currentness_proof_authority_kind",
+    "accepted_head_checkpoint_authority_kind",
     "root_id",
     "root_public_key_fingerprint",
     "allowed_purposes",
@@ -272,6 +281,13 @@ REVIEWER_BOOTSTRAP_ROOT_FIELDS = {
     "evidence_retention_policy",
     "rotation_policy",
     "compromise_policy",
+    "predecessor_root_id",
+    "predecessor_root_sha256",
+    "replacement_authority",
+    "effective_sequence",
+    "replacement_reason",
+    "replacement_status",
+    "replacement_signature",
     "lifecycle",
     "stale",
     "superseded_by",
@@ -287,6 +303,7 @@ REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS = {
     "root_sha256",
     "sequence",
     "previous_proof_id",
+    "previous_proof_sha256",
     "head_id",
     "current_verifier_authority_id",
     "current_verifier_public_key",
@@ -308,6 +325,23 @@ REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS = {
     "superseded_by",
     "invalidated",
     "signature",
+}
+REVIEWER_BOOTSTRAP_CHECKPOINT_FIELDS = {
+    "checkpoint_id",
+    "authority_kind",
+    "schema_version",
+    "authority_class",
+    "stage",
+    "root_id",
+    "current_proof_id",
+    "current_proof_sha256",
+    "current_sequence",
+    "current_subject_registry_head_sha256",
+    "accepted_at",
+    "lifecycle",
+    "stale",
+    "superseded_by",
+    "invalidated",
 }
 REVIEWER_BOOTSTRAP_TRUST_SOURCE_FIELDS = {
     "type",
@@ -472,6 +506,64 @@ EXPECTED_IDENTITY_CYCLE_RULES = {
     "self_review_object",
     "self_bundle",
 }
+
+# This is the production resolver's dependency declaration.  The external DAG
+# below is an auditable projection of this declaration; it is deliberately not
+# accepted as its own source of truth.
+EXTERNAL_PRODUCTION_NODE_STAGES = {
+    "published_normative_target": -3,
+    "reviewer_bootstrap_root": -2,
+    "reviewer_bootstrap_currentness_proof": -1,
+    "signed_subject_registry_state": 0,
+    "reviewer_bootstrap_accepted_head_checkpoint": 0,
+    "reviewer_actor_attestation": 1,
+    "reviewer_identity": 2,
+    "review_artifact": 3,
+    "architecture_review": 4,
+    "architecture_approval": 5,
+    "f0_decision_bundle": 6,
+    "f0_review": 7,
+    "f0_approval": 8,
+    "g2_component_reviews": 10,
+    "g3_approval": 14,
+    "g4_readiness": 18,
+    "g5_enrollment_review": 19,
+    "normal_phase_f_authority_enrollment": 20,
+    "normal_phase_f_registry": 21,
+}
+EXTERNAL_PRODUCTION_EDGES = (
+    ("published_normative_target", "reviewer_bootstrap_root"),
+    ("reviewer_bootstrap_root", "reviewer_bootstrap_currentness_proof"),
+    ("reviewer_bootstrap_currentness_proof", "signed_subject_registry_state"),
+    (
+        "reviewer_bootstrap_currentness_proof",
+        "reviewer_bootstrap_accepted_head_checkpoint",
+    ),
+    ("signed_subject_registry_state", "reviewer_actor_attestation"),
+    (
+        "reviewer_bootstrap_accepted_head_checkpoint",
+        "reviewer_actor_attestation",
+    ),
+    ("reviewer_actor_attestation", "reviewer_identity"),
+    ("reviewer_identity", "review_artifact"),
+    ("review_artifact", "architecture_review"),
+    ("review_artifact", "g2_component_reviews"),
+    ("review_artifact", "g5_enrollment_review"),
+    ("architecture_review", "architecture_approval"),
+    ("architecture_approval", "f0_decision_bundle"),
+    ("f0_decision_bundle", "f0_review"),
+    ("f0_review", "f0_approval"),
+    ("f0_approval", "g2_component_reviews"),
+    ("g2_component_reviews", "g3_approval"),
+    ("g3_approval", "g4_readiness"),
+    ("g4_readiness", "g5_enrollment_review"),
+    ("g5_enrollment_review", "normal_phase_f_authority_enrollment"),
+    (
+        "normal_phase_f_authority_enrollment",
+        "normal_phase_f_registry",
+    ),
+)
+EXTERNAL_PRODUCTION_TERMINAL_ROOTS = ("published_normative_target",)
 R12_G3_TEST_IDS = [
     "R12-G3-AUTHORITY-CONTEXT-POS",
     "R12-G3-ARCHITECTURE-REVIEW-BUNDLE-POSITIVE",
@@ -509,6 +601,10 @@ R12_G3_TEST_IDS = [
     "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
     "R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE",
     "R12-G3-REAL-ACTOR-ATTESTATION-NEGATIVE-MATRIX",
+    "R12-G3-REAL-CURRENTNESS-HISTORY",
+    "R12-G3-REAL-HISTORICAL-RESOLUTION",
+    "R12-G3-REAL-ROOT-ROTATION",
+    "R12-G3-REAL-DISTINCT-EVIDENCE-SAME-PERSON",
     "R12-G3-MIGRATED-PENDING-P1",
     "R12-G3-MIGRATED-OPEN-P1",
     "R12-G3-MIGRATED-PARTIALLY-CLOSED-P1",
@@ -565,6 +661,7 @@ R12_DAG_TEST_IDS = [
     "R12-DAG-IDENTITY-RULE-CONTRACT",
     "R12-DAG-SEMANTIC-AUDITS",
     "R12-DAG-BINDING-EQUALITY",
+    "R12-DAG-EXTERNAL-TRUST-CLOSURE",
 ]
 EXPECTED_R12_TEST_CATALOG_IDS = {
     "R12-POS-SPEC-BUNDLE-TAG",
@@ -748,6 +845,9 @@ class G3AuthorityContext:
     authority_enrollment: dict[str, Any] | None = None
     reviewer_bootstrap_root: dict[str, Any] | None = None
     reviewer_bootstrap_currentness: dict[str, Any] | None = None
+    reviewer_bootstrap_root_history: dict[str, dict[str, Any]] = field(default_factory=dict)
+    reviewer_bootstrap_proof_history: dict[str, dict[str, Any]] = field(default_factory=dict)
+    reviewer_bootstrap_accepted_head: dict[str, Any] | None = None
     reviewer_actor_attestations: dict[str, dict[str, Any]] = field(default_factory=dict)
     remediation_authority_id: str | None = None
     remediation_actor_identity_digest: str | None = None
@@ -796,7 +896,11 @@ def _reviewer_bootstrap_wire_object(value: dict[str, Any]) -> dict[str, Any]:
 
 def reviewer_bootstrap_root_id(root: dict[str, Any]) -> str:
     wire_object = _reviewer_bootstrap_wire_object(root)
-    payload = {key: value for key, value in wire_object.items() if key != "root_id"}
+    payload = {
+        key: value
+        for key, value in wire_object.items()
+        if key not in {"root_id", "replacement_signature"}
+    }
     return "sha256:" + sha256_bytes(
         REVIEWER_BOOTSTRAP_ROOT_DOMAIN + canonical_jcs_bytes(payload)
     )
@@ -834,6 +938,16 @@ def reviewer_bootstrap_currentness_proof_id(proof: dict[str, Any]) -> str:
     }
     return "sha256:" + sha256_bytes(
         REVIEWER_BOOTSTRAP_CURRENTNESS_DOMAIN + canonical_jcs_bytes(payload)
+    )
+
+
+def reviewer_bootstrap_checkpoint_id(checkpoint: dict[str, Any]) -> str:
+    checkpoint = _reviewer_bootstrap_wire_object(checkpoint)
+    payload = {
+        key: value for key, value in checkpoint.items() if key != "checkpoint_id"
+    }
+    return "sha256:" + sha256_bytes(
+        REVIEWER_BOOTSTRAP_CHECKPOINT_DOMAIN + canonical_jcs_bytes(payload)
     )
 
 
@@ -1721,19 +1835,28 @@ def _reviewer_bootstrap_trust_contract(graph: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("R12 reviewer bootstrap trust contract is not closed")
     if (
         contract["stage"] != REVIEWER_BOOTSTRAP_STAGE
-        or contract["root_path"] != ".phase_f_authority/reviewer_bootstrap/trust_root.json"
+        or contract["root_path"]
+        != ".phase_f_authority/reviewer_bootstrap/roots/{root_id}.json"
+        or contract["root_history_path"]
+        != ".phase_f_authority/reviewer_bootstrap/roots"
         or contract["currentness_proof_path"]
-        != ".phase_f_authority/reviewer_bootstrap/currentness_proof.json"
+        != ".phase_f_authority/reviewer_bootstrap/currentness_proofs/{currentness_proof_id}.json"
+        or contract["currentness_proof_history_path"]
+        != ".phase_f_authority/reviewer_bootstrap/currentness_proofs"
+        or contract["accepted_head_checkpoint_path"]
+        != "resolver_state://phase-f/reviewer-bootstrap/accepted-head-checkpoint.json"
         or contract["root_authority_kind"] != "PhaseFReviewerBootstrapTrustRootV1"
         or contract["currentness_proof_authority_kind"]
         != "PhaseFReviewerBootstrapCurrentnessProofV1"
+        or contract["accepted_head_checkpoint_authority_kind"]
+        != "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1"
         or not isinstance(contract["root_id"], str)
         or not re.fullmatch(r"sha256:[0-9a-f]{64}", contract["root_id"])
         or not isinstance(contract["root_public_key_fingerprint"], str)
         or not re.fullmatch(r"[0-9a-f]{64}", contract["root_public_key_fingerprint"])
         or contract["allowed_purposes"] != REVIEWER_BOOTSTRAP_SCOPE
         or contract["transition_policy"]
-        != "bootstrap_root_permanent_for_reviewer_identities"
+        != "forward_signed_replacement_with_resolver_checkpoint"
         or contract["currentness_window_policy"]
         != "valid_from_le_validation_time_le_valid_until"
     ):
@@ -1744,17 +1867,60 @@ def _reviewer_bootstrap_trust_contract(graph: dict[str, Any]) -> dict[str, Any]:
 def _external_trust_dependency_audit(
     graph: dict[str, Any]
 ) -> list[str] | None:
+    derived_nodes = [
+        {"id": node_id, "stage": stage}
+        for node_id, stage in EXTERNAL_PRODUCTION_NODE_STAGES.items()
+    ]
+    derived_edges = [
+        {"from": source, "to": target}
+        for source, target in EXTERNAL_PRODUCTION_EDGES
+    ]
+    derived_roots = list(EXTERNAL_PRODUCTION_TERMINAL_ROOTS)
     contract = graph.get("external_trust_dependency_contract")
-    if not isinstance(contract, dict) or set(contract) != {"nodes", "edges", "terminal_roots"}:
+    if not isinstance(contract, dict) or set(contract) != {
+        "nodes",
+        "edges",
+        "terminal_roots",
+    }:
         return ["external_trust_dependency_contract"]
     raw_nodes = contract["nodes"]
     raw_edges = contract["edges"]
     roots = contract["terminal_roots"]
+    if not isinstance(raw_nodes, list) or not isinstance(raw_edges, list) or not isinstance(roots, list):
+        return ["external_trust_dependency_contract"]
+    if raw_nodes != derived_nodes:
+        declared = {node.get("id") for node in raw_nodes if isinstance(node, dict)}
+        required = set(EXTERNAL_PRODUCTION_NODE_STAGES)
+        missing = sorted(required - declared)
+        extra = sorted(declared - required)
+        return [
+            "external_trust_dependency_contract",
+            "nodes",
+            *("missing:" + value for value in missing),
+            *("extra:" + value for value in extra),
+        ]
+    if raw_edges != derived_edges:
+        declared_edges = {
+            (edge.get("from"), edge.get("to"))
+            for edge in raw_edges
+            if isinstance(edge, dict)
+        }
+        required_edges = set(EXTERNAL_PRODUCTION_EDGES)
+        missing = sorted(required_edges - declared_edges)
+        extra = sorted(declared_edges - required_edges)
+        return [
+            "external_trust_dependency_contract",
+            "edges",
+            *("missing:" + ":".join(value) for value in missing),
+            *("extra:" + ":".join(value) for value in extra),
+        ]
+    if roots != derived_roots:
+        return [
+            "external_trust_dependency_contract",
+            "terminal_roots",
+        ]
     if (
-        not isinstance(raw_nodes, list)
-        or not isinstance(raw_edges, list)
-        or not isinstance(roots, list)
-        or len(raw_nodes) != len({node.get("id") for node in raw_nodes if isinstance(node, dict)})
+        len(raw_nodes) != len({node.get("id") for node in raw_nodes if isinstance(node, dict)})
         or any(
             not isinstance(node, dict)
             or set(node) != {"id", "stage"}
@@ -2408,8 +2574,34 @@ def _reference_identity_matches(
     return sha256_bytes(canonical_json_bytes(payload)) == expected
 
 
+def _resolve_historical_reviewer_bootstrap_proof(
+    context: G3AuthorityContext,
+    proof_id: object,
+    proof_sha256: object,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, dict[str, str]]]:
+    """Resolve immutable issuance provenance by exact ID and complete-file SHA."""
+
+    roots = _validate_reviewer_bootstrap_root_history(context)
+    proofs = _validate_reviewer_bootstrap_proof_history(context, roots)
+    if not isinstance(proof_id, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", proof_id):
+        raise G3ValidationError("reviewer_actor_attestation_issuance_proof_malformed")
+    proof = proofs.get(proof_id)
+    if proof is None or proof.get("complete_file_sha256") != proof_sha256:
+        raise G3ValidationError("reviewer_actor_attestation_issuance_proof_mismatch")
+    subject_index = _validate_reviewer_bootstrap_proof_object(
+        context, proof, roots, proofs, require_current_window=False
+    )
+    root = roots.get(proof.get("root_id"))
+    if root is None:
+        raise G3ValidationError("reviewer_actor_attestation_issuance_root_missing")
+    return root, proof, subject_index
+
+
 def _validate_reviewer_actor_binding(
-    context: G3AuthorityContext, reviewer: dict[str, Any], role: str
+    context: G3AuthorityContext,
+    reviewer: dict[str, Any],
+    role: str,
+    require_current_authorization: bool = True,
 ) -> None:
     if context.mode not in {"real", "real_test"}:
         return
@@ -2459,22 +2651,31 @@ def _validate_reviewer_actor_binding(
         or attestation.get("invalidated") is not False
     ):
         raise G3ValidationError("stale_reviewer_actor_attestation")
-    root, currentness, subject_index = _validate_reviewer_bootstrap_context(context)
+    if require_current_authorization:
+        _, _, current_subject_index = _validate_reviewer_bootstrap_context(context)
+    else:
+        current_subject_index = None
     trust_source = attestation.get("trust_source")
     if (
         not isinstance(trust_source, dict)
         or set(trust_source) != REVIEWER_BOOTSTRAP_TRUST_SOURCE_FIELDS
         or trust_source.get("type") != REVIEWER_BOOTSTRAP_TRUST_SOURCE
-        or trust_source.get("root_id") != root.get("root_id")
-        or trust_source.get("root_sha256") != root.get("complete_file_sha256")
-        or trust_source.get("currentness_proof_id")
-        != currentness.get("currentness_proof_id")
-        or trust_source.get("currentness_proof_sha256")
-        != currentness.get("complete_file_sha256")
+    ):
+        raise G3ValidationError("reviewer_actor_attestation_trust_source_mismatch")
+    issuance_root, issuance_proof, issuance_subject_index = (
+        _resolve_historical_reviewer_bootstrap_proof(
+            context,
+            trust_source.get("currentness_proof_id"),
+            trust_source.get("currentness_proof_sha256"),
+        )
+    )
+    if (
+        trust_source.get("root_id") != issuance_root.get("root_id")
+        or trust_source.get("root_sha256") != issuance_root.get("complete_file_sha256")
         or attestation.get("eligibility_verifier_authority_id")
-        != currentness.get("current_verifier_authority_id")
+        != issuance_proof.get("current_verifier_authority_id")
         or attestation.get("independence_verifier_authority_id")
-        != currentness.get("current_verifier_authority_id")
+        != issuance_proof.get("current_verifier_authority_id")
     ):
         raise G3ValidationError("reviewer_actor_attestation_trust_source_mismatch")
     actor_subject_id = attestation.get("actor_subject_id")
@@ -2483,7 +2684,7 @@ def _validate_reviewer_actor_binding(
     ):
         raise G3ValidationError("malformed_reviewer_actor_subject")
     identity_evidence = attestation.get("actor_identity_evidence_sha256")
-    subject_binding = subject_index.get(actor_subject_id)
+    subject_binding = issuance_subject_index.get(actor_subject_id)
     if (
         subject_binding is None
         or subject_binding.get("identity_evidence_sha256") != identity_evidence
@@ -2499,6 +2700,14 @@ def _validate_reviewer_actor_binding(
         or actor_digest == context.remediation_actor_identity_digest
     ):
         raise G3ValidationError("non_independent_migrated_review")
+    if require_current_authorization:
+        current_subject = current_subject_index.get(actor_subject_id)
+        if (
+            current_subject is None
+            or current_subject.get("identity_evidence_sha256") != identity_evidence
+            or current_subject.get("subject_status") != "ACTIVE"
+        ):
+            raise G3ValidationError("reviewer_actor_not_currently_authorized")
     signing_payload = {
         key: attestation[key]
         for key in context.graph["review_reference_contract"]["actor_attestation"][
@@ -2507,7 +2716,7 @@ def _validate_reviewer_actor_binding(
         if key != "signature"
     }
     if not verify_ed25519_strict(
-        currentness["current_verifier_public_key"],
+        issuance_proof["current_verifier_public_key"],
         attestation.get("signature", ""),
         REVIEWER_ACTOR_ATTESTATION_DOMAIN + canonical_jcs_bytes(signing_payload),
     ):
@@ -2598,6 +2807,72 @@ def _validate_review_reference(
     _validate_reviewer_actor_binding(context, reviewer, role)
 
 
+def validate_historical_review_artifact(
+    context: G3AuthorityContext, row: dict[str, Any]
+) -> dict[str, bool]:
+    """Verify immutable review evidence without substituting the current head.
+
+    This is the historical-audit path.  It validates the artifact, reviewer,
+    issuance proof, root lineage, and signature at issuance.  Callers that are
+    authorizing new work must use the ordinary review path, which additionally
+    requires current subject authorization.
+    """
+
+    reviewer_id = row.get("reviewer_authority_id")
+    artifact_id = row.get("review_artifact_id")
+    reviewer = context.reviewer_authorities.get(reviewer_id)
+    artifact = context.review_artifacts.get(artifact_id)
+    if not isinstance(reviewer, dict):
+        raise G3ValidationError("unresolved_reviewer_identity")
+    if not isinstance(artifact, dict):
+        raise G3ValidationError("unresolved_review_artifact_identity")
+    if not _reference_identity_matches(context, "reviewer", reviewer):
+        raise G3ValidationError("reviewer_identity_digest_mismatch")
+    if not _reference_identity_matches(context, "artifact", artifact):
+        raise G3ValidationError("review_artifact_digest_mismatch")
+    if (
+        artifact.get("reviewer_authority_id") != reviewer_id
+        or artifact.get("role") != row.get("role")
+        or artifact.get("reviewed_target") != row.get("reviewed_target")
+        or artifact.get("decision") != row.get("decision")
+    ):
+        raise G3ValidationError("review_artifact_binding_mismatch")
+    _validate_reviewer_actor_binding(
+        context, reviewer, row["role"], require_current_authorization=False
+    )
+    return {
+        "historical_cryptographic_validity": True,
+        "currently_authorized": _current_reviewer_actor_is_authorized(
+            context, reviewer
+        ),
+    }
+
+
+def _current_reviewer_actor_is_authorized(
+    context: G3AuthorityContext, reviewer: dict[str, Any]
+) -> bool:
+    try:
+        _, _, subject_index = _validate_reviewer_bootstrap_context(context)
+    except G3ValidationError:
+        return False
+    attestation = context.reviewer_actor_attestations.get(
+        reviewer.get("actor_attestation_id")
+    )
+    if not isinstance(attestation, dict):
+        return False
+    subject = subject_index.get(attestation.get("actor_subject_id"))
+    return bool(
+        isinstance(subject, dict)
+        and subject.get("subject_status") == "ACTIVE"
+        and subject.get("identity_evidence_sha256")
+        == attestation.get("actor_identity_evidence_sha256")
+        and reviewer.get("lifecycle") == "ACTIVE"
+        and reviewer.get("stale") is False
+        and reviewer.get("superseded_by") is None
+        and reviewer.get("invalidated") is False
+    )
+
+
 def _require_distinct_reviewer_actor_digests(
     context: G3AuthorityContext, reviewer_ids: list[str], category: str
 ) -> None:
@@ -2671,17 +2946,33 @@ def _bootstrap_subject_index(proof: dict[str, Any]) -> dict[str, dict[str, str]]
     return by_subject
 
 
-def _validate_reviewer_bootstrap_context(
+def _validate_fixture_same_person_distinct_evidence(
+    evidence_to_person: dict[str, str], evidence_to_subject: dict[str, str]
+) -> None:
+    """Apply the fixture verifier's out-of-band person/evidence equivalence."""
+
+    if set(evidence_to_person) != set(evidence_to_subject) or len(evidence_to_person) < 2:
+        raise G3ValidationError("fixture_evidence_package_setup_invalid")
+    subjects_by_person: dict[str, set[str]] = {}
+    for evidence_hash, person in evidence_to_person.items():
+        if not re.fullmatch(r"[0-9a-f]{64}", evidence_hash) or not person:
+            raise G3ValidationError("fixture_evidence_package_setup_invalid")
+        subjects_by_person.setdefault(person, set()).add(evidence_to_subject[evidence_hash])
+    if any(len(subjects) > 1 for subjects in subjects_by_person.values()):
+        raise G3ValidationError("bootstrap_subject_registry_alias_or_malformed")
+
+
+def _validate_reviewer_bootstrap_root_object(
+    root: dict[str, Any],
+    contract: dict[str, Any],
     context: G3AuthorityContext,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, dict[str, str]]]:
-    root = context.reviewer_bootstrap_root
-    proof = context.reviewer_bootstrap_currentness
-    contract = _reviewer_bootstrap_trust_contract(context.graph)
-    if not isinstance(root, dict) or not isinstance(proof, dict):
-        raise G3ValidationError("unresolved_reviewer_bootstrap_trust")
+    predecessor: dict[str, Any] | None = None,
+) -> None:
     if (
-        root.get("authority_kind") != contract["root_authority_kind"]
-        or root.get("root_id") != contract["root_id"]
+        set(root)
+        - {"bytes", "canonical_object", "complete_file_sha256", "content_unchanged"}
+        != REVIEWER_BOOTSTRAP_ROOT_FIELDS
+        or root.get("authority_kind") != contract["root_authority_kind"]
         or reviewer_bootstrap_root_id(root) != root.get("root_id")
         or root.get("stage") != REVIEWER_BOOTSTRAP_STAGE
         or root.get("schema_version") != 1
@@ -2691,7 +2982,8 @@ def _validate_reviewer_bootstrap_context(
         or root.get("subject_uniqueness_policy") != "one_natural_person_one_subject"
         or root.get("evidence_retention_policy")
         != "retain_external_identity_evidence_hash_binding"
-        or root.get("rotation_policy") != "forward_signed_replacement_only"
+        or root.get("rotation_policy")
+        != "forward_signed_replacement_with_predecessor_signature"
         or root.get("compromise_policy") != "immediate_reject"
         or root.get("lifecycle") != "ACTIVE"
         or root.get("stale") is not False
@@ -2699,36 +2991,183 @@ def _validate_reviewer_bootstrap_context(
         or root.get("invalidated") is not False
         or not isinstance(root.get("root_public_key"), str)
         or not re.fullmatch(ED25519_PUBLIC_KEY_PATTERN, root["root_public_key"])
-        or root.get("root_public_key_fingerprint")
-        != contract["root_public_key_fingerprint"]
         or sha256_bytes(bytes.fromhex(root["root_public_key"]))
         != root.get("root_public_key_fingerprint")
     ):
         raise G3ValidationError("invalid_reviewer_bootstrap_root")
     root_bytes = root.get("bytes")
-    if not isinstance(root_bytes, bytes) or root.get("complete_file_sha256") != sha256_bytes(root_bytes):
-        raise G3ValidationError("reviewer_bootstrap_root_hash_mismatch")
     if (
-        proof.get("authority_kind") != contract["currentness_proof_authority_kind"]
+        not isinstance(root_bytes, bytes)
+        or root.get("complete_file_sha256") != sha256_bytes(root_bytes)
+        or not isinstance(root.get("canonical_object"), dict)
+        or set(root["canonical_object"]) != REVIEWER_BOOTSTRAP_ROOT_FIELDS
+        or root_bytes != canonical_json_bytes(root["canonical_object"])
+    ):
+        raise G3ValidationError("reviewer_bootstrap_root_hash_mismatch")
+    predecessor_id = root.get("predecessor_root_id")
+    predecessor_sha = root.get("predecessor_root_sha256")
+    if predecessor_id is None:
+        if (
+            predecessor is not None
+            or predecessor_sha is not None
+            or root.get("replacement_authority") is not None
+            or root.get("effective_sequence") != 0
+            or root.get("replacement_reason") is not None
+            or root.get("replacement_status") != "GENESIS"
+            or root.get("replacement_signature") is not None
+            or root.get("root_id") != contract["root_id"]
+            or root.get("root_public_key_fingerprint")
+            != contract["root_public_key_fingerprint"]
+        ):
+            raise G3ValidationError("invalid_reviewer_bootstrap_genesis")
+        return
+    if (
+        predecessor is None
+        or not isinstance(predecessor_id, str)
+        or not re.fullmatch(r"sha256:[0-9a-f]{64}", predecessor_id)
+        or predecessor.get("root_id") != predecessor_id
+        or predecessor_sha != predecessor.get("complete_file_sha256")
+        or not isinstance(predecessor_sha, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", predecessor_sha)
+        or root.get("replacement_authority") != "predecessor_root"
+        or not isinstance(root.get("effective_sequence"), int)
+        or root["effective_sequence"] != predecessor.get("effective_sequence") + 1
+        or not isinstance(root.get("replacement_reason"), str)
+        or not root["replacement_reason"]
+        or root.get("replacement_status") != "ACTIVE_REPLACEMENT"
+        or not isinstance(root.get("replacement_signature"), str)
+        or not re.fullmatch(ED25519_SIGNATURE_PATTERN, root["replacement_signature"])
+    ):
+        raise G3ValidationError("invalid_reviewer_bootstrap_root_replacement")
+    replacement_payload = {
+        key: root[key]
+        for key in REVIEWER_BOOTSTRAP_ROOT_FIELDS
+        if key not in {"root_id", "replacement_signature"}
+    }
+    if not verify_ed25519_strict(
+        predecessor["root_public_key"],
+        root["replacement_signature"],
+        REVIEWER_BOOTSTRAP_ROOT_DOMAIN + canonical_jcs_bytes(replacement_payload),
+    ):
+        raise G3ValidationError("invalid_reviewer_bootstrap_root_replacement_signature")
+
+
+def _validate_reviewer_bootstrap_root_history(
+    context: G3AuthorityContext,
+) -> dict[str, dict[str, Any]]:
+    contract = _reviewer_bootstrap_trust_contract(context.graph)
+    roots = dict(context.reviewer_bootstrap_root_history)
+    if isinstance(context.reviewer_bootstrap_root, dict):
+        roots.setdefault(context.reviewer_bootstrap_root.get("root_id"), context.reviewer_bootstrap_root)
+    roots = {key: value for key, value in roots.items() if isinstance(key, str)}
+    if not roots:
+        raise G3ValidationError("missing_reviewer_bootstrap_root_history")
+    for root_id, root in roots.items():
+        if root.get("root_id") != root_id:
+            raise G3ValidationError("reviewer_bootstrap_root_history_id_mismatch")
+        predecessor = roots.get(root.get("predecessor_root_id"))
+        _validate_reviewer_bootstrap_root_object(root, contract, context, predecessor)
+    genesis = [root for root in roots.values() if root.get("predecessor_root_id") is None]
+    if len(genesis) != 1 or genesis[0].get("root_id") != contract["root_id"]:
+        raise G3ValidationError("reviewer_bootstrap_root_history_genesis_mismatch")
+    children: dict[str, list[str]] = {}
+    for root in roots.values():
+        predecessor_id = root.get("predecessor_root_id")
+        if predecessor_id is not None:
+            if predecessor_id not in roots:
+                raise G3ValidationError("missing_reviewer_bootstrap_root_predecessor")
+            children.setdefault(predecessor_id, []).append(root["root_id"])
+    if any(len(ids) != 1 for ids in children.values()):
+        raise G3ValidationError("reviewer_bootstrap_root_fork")
+    for root in roots.values():
+        cursor = root
+        seen: set[str] = set()
+        while cursor.get("predecessor_root_id") is not None:
+            root_id = cursor["root_id"]
+            if root_id in seen:
+                raise G3ValidationError("reviewer_bootstrap_root_cycle")
+            seen.add(root_id)
+            cursor = roots.get(cursor.get("predecessor_root_id"))
+            if cursor is None:
+                raise G3ValidationError("missing_reviewer_bootstrap_root_predecessor")
+        if cursor.get("root_id") != contract["root_id"]:
+            raise G3ValidationError("reviewer_bootstrap_root_disconnected")
+    return roots
+
+
+def _validate_reviewer_bootstrap_proof_object(
+    context: G3AuthorityContext,
+    proof: dict[str, Any],
+    roots: dict[str, dict[str, Any]],
+    proofs: dict[str, dict[str, Any]],
+    require_current_window: bool,
+) -> dict[str, dict[str, str]]:
+    contract = _reviewer_bootstrap_trust_contract(context.graph)
+    root = roots.get(proof.get("root_id"))
+    if (
+        set(proof)
+        - {"bytes", "canonical_object", "complete_file_sha256", "content_unchanged"}
+        != REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS
+        or root is None
+        or proof.get("authority_kind") != contract["currentness_proof_authority_kind"]
         or proof.get("authority_class") != root.get("authority_class")
         or proof.get("stage") != REVIEWER_BOOTSTRAP_STAGE
         or proof.get("schema_version") != 1
-        or proof.get("root_id") != root.get("root_id")
         or proof.get("root_sha256") != root.get("complete_file_sha256")
-        or proof.get("currentness_proof_id")
-        != reviewer_bootstrap_currentness_proof_id(proof)
+        or proof.get("currentness_proof_id") != reviewer_bootstrap_currentness_proof_id(proof)
         or proof.get("head_id") != reviewer_bootstrap_currentness_head_id(proof)
         or not isinstance(proof.get("sequence"), int)
         or proof.get("sequence") < 0
-        or (proof.get("sequence") == 0 and proof.get("previous_proof_id") is not None)
-        or (proof.get("sequence") > 0 and not isinstance(proof.get("previous_proof_id"), str))
         or not isinstance(proof.get("current_verifier_authority_id"), str)
         or not re.fullmatch(RUNTIME_STABLE_ID_PATTERN, proof["current_verifier_authority_id"])
         or not isinstance(proof.get("current_verifier_public_key"), str)
         or not re.fullmatch(ED25519_PUBLIC_KEY_PATTERN, proof["current_verifier_public_key"])
         or sha256_bytes(bytes.fromhex(proof["current_verifier_public_key"]))
         != proof.get("current_verifier_public_key_fingerprint")
-        or proof.get("root_lifecycle") != root.get("lifecycle")
+        or not isinstance(proof.get("root_lifecycle"), str)
+        or not isinstance(proof.get("root_revoked"), bool)
+        or not isinstance(proof.get("root_compromised"), bool)
+        or not (proof.get("root_superseded_by") is None or isinstance(proof.get("root_superseded_by"), str))
+        or not isinstance(proof.get("verifier_lifecycle"), str)
+        or not isinstance(proof.get("verifier_revoked"), bool)
+        or not isinstance(proof.get("verifier_compromised"), bool)
+        or not (proof.get("verifier_superseded_by") is None or isinstance(proof.get("verifier_superseded_by"), str))
+        or not isinstance(proof.get("lifecycle"), str)
+        or not isinstance(proof.get("stale"), bool)
+        or not (proof.get("superseded_by") is None or isinstance(proof.get("superseded_by"), str))
+        or not isinstance(proof.get("invalidated"), bool)
+    ):
+        raise G3ValidationError("invalid_reviewer_bootstrap_currentness")
+    sequence = proof["sequence"]
+    previous_id = proof.get("previous_proof_id")
+    previous_sha = proof.get("previous_proof_sha256")
+    if sequence == 0:
+        if previous_id is not None or previous_sha is not None:
+            raise G3ValidationError("invalid_reviewer_bootstrap_genesis_proof")
+    else:
+        previous = proofs.get(previous_id)
+        if (
+            not isinstance(previous_id, str)
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", previous_id)
+            or previous is None
+            or previous_id != previous.get("currentness_proof_id")
+            or previous_sha != previous.get("complete_file_sha256")
+            or previous.get("sequence") != sequence - 1
+        ):
+            raise G3ValidationError("invalid_reviewer_bootstrap_predecessor")
+        if (
+            root.get("effective_sequence", 0) > sequence
+            or (
+                previous.get("root_id") != proof.get("root_id")
+                and (
+                    root.get("predecessor_root_id") != previous.get("root_id")
+                    or root.get("effective_sequence") != sequence
+                )
+            )
+        ):
+            raise G3ValidationError("invalid_reviewer_bootstrap_root_transition")
+    if require_current_window and (
+        proof.get("root_lifecycle") != root.get("lifecycle")
         or proof.get("root_revoked") is not False
         or proof.get("root_compromised") is not False
         or proof.get("root_superseded_by") is not None
@@ -2756,31 +3195,147 @@ def _validate_reviewer_bootstrap_context(
         )
     except ValueError as error:
         raise G3ValidationError("malformed_reviewer_bootstrap_validity_window") from error
-    now = datetime.now(timezone.utc)
-    if not valid_from <= now <= valid_until:
+    if valid_from > valid_until:
+        raise G3ValidationError("malformed_reviewer_bootstrap_validity_window")
+    if require_current_window and not valid_from <= datetime.now(timezone.utc) <= valid_until:
         raise G3ValidationError("stale_reviewer_bootstrap_currentness")
     subject_index = _bootstrap_subject_index(proof)
     proof_bytes = proof.get("bytes")
-    if not isinstance(proof_bytes, bytes) or proof.get("complete_file_sha256") != sha256_bytes(proof_bytes):
+    if (
+        not isinstance(proof_bytes, bytes)
+        or proof.get("complete_file_sha256") != sha256_bytes(proof_bytes)
+        or not isinstance(proof.get("canonical_object"), dict)
+        or set(proof["canonical_object"]) != REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS
+        or proof_bytes != canonical_json_bytes(proof["canonical_object"])
+    ):
         raise G3ValidationError("reviewer_bootstrap_currentness_hash_mismatch")
-    signature = proof.get("signature")
     signing_payload = {
         key: proof[key]
         for key in REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS
         if key != "signature"
     }
-    if (
-        not isinstance(signature, str)
-        or not re.fullmatch(ED25519_SIGNATURE_PATTERN, signature)
-        or not verify_ed25519_strict(
-            root["root_public_key"],
-            signature,
-            REVIEWER_BOOTSTRAP_CURRENTNESS_DOMAIN
-            + canonical_jcs_bytes(signing_payload),
-        )
+    if not verify_ed25519_strict(
+        root["root_public_key"],
+        proof.get("signature", ""),
+        REVIEWER_BOOTSTRAP_CURRENTNESS_DOMAIN + canonical_jcs_bytes(signing_payload),
     ):
         raise G3ValidationError("invalid_reviewer_bootstrap_currentness_signature")
-    return root, proof, subject_index
+    return subject_index
+
+
+def _validate_reviewer_bootstrap_proof_history(
+    context: G3AuthorityContext,
+    roots: dict[str, dict[str, Any]],
+    require_current_window: bool = False,
+) -> dict[str, dict[str, Any]]:
+    proofs = dict(context.reviewer_bootstrap_proof_history)
+    if isinstance(context.reviewer_bootstrap_currentness, dict):
+        proof = context.reviewer_bootstrap_currentness
+        proofs.setdefault(proof.get("currentness_proof_id"), proof)
+    proofs = {key: value for key, value in proofs.items() if isinstance(key, str)}
+    if not proofs:
+        raise G3ValidationError("missing_reviewer_bootstrap_proof_history")
+    by_sequence: dict[int, str] = {}
+    children: dict[str, list[str]] = {}
+    for proof_id, proof in proofs.items():
+        if proof.get("currentness_proof_id") != proof_id:
+            raise G3ValidationError("reviewer_bootstrap_proof_history_id_mismatch")
+        _validate_reviewer_bootstrap_proof_object(
+            context, proof, roots, proofs, require_current_window=False
+        )
+        sequence = proof["sequence"]
+        if sequence in by_sequence and by_sequence[sequence] != proof_id:
+            raise G3ValidationError("reviewer_bootstrap_duplicate_sequence")
+        by_sequence[sequence] = proof_id
+        predecessor_id = proof.get("previous_proof_id")
+        if predecessor_id is not None:
+            children.setdefault(predecessor_id, []).append(proof_id)
+    if 0 not in by_sequence or any(
+        sequence not in by_sequence for sequence in range(max(by_sequence) + 1)
+    ):
+        raise G3ValidationError("reviewer_bootstrap_proof_sequence_gap")
+    if any(len(ids) != 1 for ids in children.values()):
+        raise G3ValidationError("reviewer_bootstrap_proof_fork")
+    for proof in proofs.values():
+        cursor = proof
+        seen: set[str] = set()
+        while cursor.get("previous_proof_id") is not None:
+            proof_id = cursor["currentness_proof_id"]
+            if proof_id in seen:
+                raise G3ValidationError("reviewer_bootstrap_proof_cycle")
+            seen.add(proof_id)
+            cursor = proofs.get(cursor.get("previous_proof_id"))
+            if cursor is None:
+                raise G3ValidationError("missing_reviewer_bootstrap_predecessor")
+        if cursor.get("sequence") != 0:
+            raise G3ValidationError("reviewer_bootstrap_proof_genesis_mismatch")
+    return proofs
+
+
+def _validate_reviewer_bootstrap_checkpoint(
+    context: G3AuthorityContext,
+    checkpoint: dict[str, Any],
+    current_proof: dict[str, Any],
+) -> None:
+    contract = _reviewer_bootstrap_trust_contract(context.graph)
+    if (
+        set(checkpoint)
+        - {"bytes", "canonical_object", "complete_file_sha256", "content_unchanged"}
+        != REVIEWER_BOOTSTRAP_CHECKPOINT_FIELDS
+        or checkpoint.get("authority_kind")
+        != contract["accepted_head_checkpoint_authority_kind"]
+        or checkpoint.get("schema_version") != 1
+        or checkpoint.get("authority_class") not in {"REAL", "TEST_ONLY"}
+        or (checkpoint.get("authority_class") == "TEST_ONLY" and context.mode == "real")
+        or checkpoint.get("stage") != REVIEWER_BOOTSTRAP_STAGE
+        or checkpoint.get("checkpoint_id") != reviewer_bootstrap_checkpoint_id(checkpoint)
+        or checkpoint.get("root_id") != current_proof.get("root_id")
+        or checkpoint.get("current_proof_id") != current_proof.get("currentness_proof_id")
+        or checkpoint.get("current_proof_sha256") != current_proof.get("complete_file_sha256")
+        or checkpoint.get("current_sequence") != current_proof.get("sequence")
+        or checkpoint.get("current_subject_registry_head_sha256")
+        != current_proof.get("subject_registry_head_sha256")
+        or not isinstance(checkpoint.get("accepted_at"), str)
+        or not re.fullmatch(UTC_SECOND_TIMESTAMP_PATTERN, checkpoint["accepted_at"])
+        or checkpoint.get("lifecycle") != "ACTIVE"
+        or checkpoint.get("stale") is not False
+        or checkpoint.get("superseded_by") is not None
+        or checkpoint.get("invalidated") is not False
+    ):
+        raise G3ValidationError("invalid_reviewer_bootstrap_accepted_head_checkpoint")
+    raw = checkpoint.get("bytes")
+    if (
+        not isinstance(raw, bytes)
+        or checkpoint.get("complete_file_sha256") != sha256_bytes(raw)
+        or not isinstance(checkpoint.get("canonical_object"), dict)
+        or set(checkpoint["canonical_object"]) != REVIEWER_BOOTSTRAP_CHECKPOINT_FIELDS
+        or raw != canonical_json_bytes(checkpoint["canonical_object"])
+    ):
+        raise G3ValidationError("reviewer_bootstrap_accepted_head_checkpoint_hash_mismatch")
+
+
+def _validate_reviewer_bootstrap_context(
+    context: G3AuthorityContext,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, dict[str, str]]]:
+    root = context.reviewer_bootstrap_root
+    proof = context.reviewer_bootstrap_currentness
+    if not isinstance(root, dict) or not isinstance(proof, dict):
+        raise G3ValidationError("unresolved_reviewer_bootstrap_trust")
+    roots = _validate_reviewer_bootstrap_root_history(context)
+    proofs = _validate_reviewer_bootstrap_proof_history(context, roots, require_current_window=True)
+    current_proof = proofs.get(proof.get("currentness_proof_id"))
+    if current_proof is not proof:
+        raise G3ValidationError("reviewer_bootstrap_current_head_mismatch")
+    if proof["sequence"] != max(item["sequence"] for item in proofs.values()):
+        raise G3ValidationError("reviewer_bootstrap_current_head_rollback")
+    _validate_reviewer_bootstrap_proof_object(context, proof, roots, proofs, True)
+    if roots.get(proof.get("root_id")) is not root:
+        raise G3ValidationError("reviewer_bootstrap_current_root_mismatch")
+    checkpoint = context.reviewer_bootstrap_accepted_head
+    if not isinstance(checkpoint, dict):
+        raise G3ValidationError("missing_reviewer_bootstrap_accepted_head_checkpoint")
+    _validate_reviewer_bootstrap_checkpoint(context, checkpoint, proof)
+    return root, proof, _bootstrap_subject_index(proof)
 
 
 def _validate_authority_graph_root(context: G3AuthorityContext) -> None:
@@ -3563,6 +4118,9 @@ def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]
         "R12-G3-REVIEW-START-GIT-PUBLISHED",
         "R12-G3-REAL-FORMAT-POSITIVE",
         "R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE",
+        "R12-G3-REAL-CURRENTNESS-HISTORY",
+        "R12-G3-REAL-HISTORICAL-RESOLUTION",
+        "R12-G3-REAL-ROOT-ROTATION",
         "R12-DAG-VALID",
     }
     for test_id in EXPECTED_R12_TEST_CATALOG_IDS - positive_ids:
@@ -3728,7 +4286,7 @@ def validate_wire_catalog() -> None:
         "PhaseFReviewerBootstrapTrustRootV1",
         "EXTERNAL_TRUST_ANCHOR",
         "#schema-def-PhaseFReviewerBootstrapTrustRootV1",
-        "sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding root_id; complete-file SHA-256 covers every field",
+        "sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding root_id and replacement_signature; complete-file SHA-256 covers every field",
         "normative terminal pre-G0 reviewer bootstrap trust root and subject-uniqueness policy",
         "strict schema, graph-pinned root identity and key fingerprint, narrow purpose scope, lifecycle, rotation, and compromise validation",
         "PRE_G0_REVIEWER_BOOTSTRAP; before G0 and every downstream review gate",
@@ -3755,6 +4313,22 @@ def validate_wire_catalog() -> None:
     bootstrap_currentness_anchor = '<a id="schema-def-PhaseFReviewerBootstrapCurrentnessProofV1"></a>'
     if wire_text.count(bootstrap_currentness_anchor) != 1:
         raise ValueError("reviewer bootstrap currentness definition anchor missing or duplicated")
+    bootstrap_checkpoint_row = rows["PhaseFReviewerBootstrapAcceptedHeadCheckpointV1"]
+    if bootstrap_checkpoint_row != [
+        "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
+        "RESOLVER_STATE",
+        "#schema-def-PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
+        "sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding checkpoint_id; complete-file SHA-256 covers every field",
+        "resolver-owned accepted currentness-head watermark",
+        "strict schema, checkpoint identity, root/proof/complete-file binding, monotonic sequence, fork detection, and atomic persistence validation",
+        "PRE_G0_REVIEWER_BOOTSTRAP; resolver state required before every REAL reviewer identity",
+        "resolver state outside the authority repository; never a registry subject and never an approval or signing authority",
+        "INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapAcceptedHeadCheckpointV1)",
+    ]:
+        raise ValueError("reviewer bootstrap accepted-head checkpoint schema catalog metadata mismatch")
+    bootstrap_checkpoint_anchor = '<a id="schema-def-PhaseFReviewerBootstrapAcceptedHeadCheckpointV1"></a>'
+    if wire_text.count(bootstrap_checkpoint_anchor) != 1:
+        raise ValueError("reviewer bootstrap accepted-head checkpoint definition anchor missing or duplicated")
 
 
 def parse_schema_catalog_ids(text: str) -> list[str]:
@@ -5175,10 +5749,102 @@ def _load_real_authority_enrollment(
     return record
 
 
+def _checkpoint_for_proof(
+    proof: dict[str, Any], root: dict[str, Any], allow_test_only: bool
+) -> dict[str, Any]:
+    checkpoint = {
+        "checkpoint_id": "",
+        "authority_kind": "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
+        "schema_version": 1,
+        "authority_class": root["authority_class"] if allow_test_only else "REAL",
+        "stage": REVIEWER_BOOTSTRAP_STAGE,
+        "root_id": proof["root_id"],
+        "current_proof_id": proof["currentness_proof_id"],
+        "current_proof_sha256": proof["complete_file_sha256"],
+        "current_sequence": proof["sequence"],
+        "current_subject_registry_head_sha256": proof[
+            "subject_registry_head_sha256"
+        ],
+        "accepted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "lifecycle": "ACTIVE",
+        "stale": False,
+        "superseded_by": None,
+        "invalidated": False,
+    }
+    checkpoint["checkpoint_id"] = reviewer_bootstrap_checkpoint_id(checkpoint)
+    return checkpoint
+
+
+def _reviewer_bootstrap_checkpoint_path(repository: Path) -> Path:
+    """Return resolver-owned state unique to the resolved repository."""
+
+    return (
+        repository.parent
+        / ".phase_f_authority_state"
+        / repository.name
+        / "reviewer_bootstrap_accepted_head_checkpoint.json"
+    )
+
+
+def _write_reviewer_bootstrap_checkpoint(
+    path: Path, checkpoint: dict[str, Any]
+) -> None:
+    """Atomically advance resolver state without permitting a lower head."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        try:
+            existing_raw = path.read_bytes()
+            existing = _parse_json_without_duplicates(existing_raw)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+            raise G3ValidationError("malformed_reviewer_bootstrap_accepted_head_checkpoint") from error
+        if not isinstance(existing, dict) or set(existing) != REVIEWER_BOOTSTRAP_CHECKPOINT_FIELDS:
+            raise G3ValidationError("invalid_reviewer_bootstrap_accepted_head_checkpoint")
+        if existing.get("current_sequence", -1) > checkpoint.get("current_sequence", -1):
+            raise G3ValidationError("reviewer_bootstrap_head_rollback")
+        if (
+            existing.get("current_sequence") == checkpoint.get("current_sequence")
+            and existing.get("current_proof_id") != checkpoint.get("current_proof_id")
+        ):
+            raise G3ValidationError("reviewer_bootstrap_head_fork")
+    raw = canonical_json_bytes(checkpoint)
+    checkpoint["bytes"] = raw
+    checkpoint["canonical_object"] = json.loads(raw)
+    checkpoint["complete_file_sha256"] = sha256_bytes(raw)
+    temporary = tempfile.NamedTemporaryFile(
+        mode="wb", prefix=f".{path.name}.", dir=path.parent, delete=False
+    )
+    temporary_path = Path(temporary.name)
+    try:
+        temporary.write(raw)
+        temporary.flush()
+        os.fsync(temporary.fileno())
+        temporary.close()
+        os.replace(temporary_path, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
 def _load_real_reviewer_bootstrap_trust(
     repository: Path, graph: dict[str, Any], allow_test_only: bool
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Resolve the pre-G0 terminal root and its signed currentness snapshot."""
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    dict[str, Any],
+]:
+    """Resolve and monotonically accept the complete pre-G0 trust history.
+
+    The checkpoint is resolver-owned state, stored outside the authority
+    repository.  A missing checkpoint is fail-closed; a signed proof is not
+    treated as current merely because it verifies cryptographically.
+    """
 
     contract = _reviewer_bootstrap_trust_contract(graph)
 
@@ -5205,21 +5871,45 @@ def _load_real_reviewer_bootstrap_trust(
         )
         return record
 
-    root = load(
-        repository / contract["root_path"],
-        REVIEWER_BOOTSTRAP_ROOT_FIELDS,
-        "reviewer_bootstrap_root",
-    )
-    proof = load(
-        repository / contract["currentness_proof_path"],
-        REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS,
-        "reviewer_bootstrap_currentness",
-    )
-    if root.get("authority_kind") != contract["root_authority_kind"]:
-        raise G3ValidationError("reviewer_bootstrap_root_schema_mismatch")
-    if proof.get("authority_kind") != contract["currentness_proof_authority_kind"]:
-        raise G3ValidationError("reviewer_bootstrap_currentness_schema_mismatch")
+    history_root = repository / contract["root_history_path"]
+    history_proof = repository / contract["currentness_proof_history_path"]
+    try:
+        root_paths = sorted(history_root.glob("*.json"))
+        proof_paths = sorted(history_proof.glob("*.json"))
+    except OSError as error:
+        raise G3ValidationError("unreadable_reviewer_bootstrap_history") from error
+    if not root_paths:
+        raise G3ValidationError("missing_reviewer_bootstrap_root_history")
+    if not proof_paths:
+        raise G3ValidationError("missing_reviewer_bootstrap_proof_history")
 
+    roots: dict[str, dict[str, Any]] = {}
+    for path in root_paths:
+        root = load(path, REVIEWER_BOOTSTRAP_ROOT_FIELDS, "reviewer_bootstrap_root")
+        root_id = root.get("root_id")
+        if not isinstance(root_id, str) or root_id in roots or path.stem != root_id.removeprefix("sha256:"):
+            raise G3ValidationError("reviewer_bootstrap_root_history_id_mismatch")
+        roots[root_id] = root
+    proofs: dict[str, dict[str, Any]] = {}
+    for path in proof_paths:
+        proof = load(
+            path,
+            REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS,
+            "reviewer_bootstrap_currentness",
+        )
+        proof_id = proof.get("currentness_proof_id")
+        if not isinstance(proof_id, str) or proof_id in proofs or path.stem != proof_id.removeprefix("sha256:"):
+            raise G3ValidationError("reviewer_bootstrap_proof_history_id_mismatch")
+        proofs[proof_id] = proof
+
+    checkpoint_path = _reviewer_bootstrap_checkpoint_path(repository)
+    if not checkpoint_path.is_file():
+        raise G3ValidationError("missing_reviewer_bootstrap_accepted_head_checkpoint")
+    checkpoint = load(
+        checkpoint_path,
+        REVIEWER_BOOTSTRAP_CHECKPOINT_FIELDS,
+        "reviewer_bootstrap_accepted_head_checkpoint",
+    )
     probe = G3AuthorityContext(
         mode="real_test" if allow_test_only else "real",
         graph=graph,
@@ -5234,11 +5924,44 @@ def _load_real_reviewer_bootstrap_trust(
         f0_decisions_sha256=None,
         authority_graph_sha256="",
         authority_graph_bytes=b"",
-        reviewer_bootstrap_root=root,
-        reviewer_bootstrap_currentness=proof,
+        reviewer_bootstrap_root_history=roots,
+        reviewer_bootstrap_proof_history=proofs,
+        reviewer_bootstrap_accepted_head=checkpoint,
     )
+    validated_roots = _validate_reviewer_bootstrap_root_history(probe)
+    _validate_reviewer_bootstrap_proof_history(probe, validated_roots)
+    current_id = checkpoint.get("current_proof_id")
+    current = proofs.get(current_id)
+    if current is None:
+        raise G3ValidationError("accepted_head_proof_missing")
+    if checkpoint.get("current_sequence") != current.get("sequence"):
+        raise G3ValidationError("accepted_head_sequence_mismatch")
+    candidates = sorted(proofs.values(), key=lambda item: item["sequence"])
+    candidate = candidates[-1]
+    if candidate["sequence"] < checkpoint["current_sequence"]:
+        raise G3ValidationError("reviewer_bootstrap_head_rollback")
+    if candidate["sequence"] == checkpoint["current_sequence"]:
+        if candidate["currentness_proof_id"] != checkpoint["current_proof_id"]:
+            raise G3ValidationError("reviewer_bootstrap_head_fork")
+    else:
+        _validate_reviewer_bootstrap_proof_object(
+            probe, candidate, validated_roots, proofs, require_current_window=True
+        )
+        checkpoint = _checkpoint_for_proof(candidate, validated_roots[candidate["root_id"]], allow_test_only)
+        _write_reviewer_bootstrap_checkpoint(checkpoint_path, checkpoint)
+        probe.reviewer_bootstrap_accepted_head = checkpoint
+    current = candidate
+    probe.reviewer_bootstrap_root = validated_roots[current["root_id"]]
+    probe.reviewer_bootstrap_currentness = current
+    probe.reviewer_bootstrap_accepted_head = checkpoint
     _validate_reviewer_bootstrap_context(probe)
-    return root, proof
+    return (
+        probe.reviewer_bootstrap_root,
+        probe.reviewer_bootstrap_currentness,
+        validated_roots,
+        proofs,
+        checkpoint,
+    )
 
 
 def _load_real_reviewer_actor_attestation(
@@ -5248,6 +5971,9 @@ def _load_real_reviewer_actor_attestation(
     expected_id: str,
     bootstrap_root: dict[str, Any],
     bootstrap_currentness: dict[str, Any],
+    bootstrap_root_history: dict[str, dict[str, Any]],
+    bootstrap_proof_history: dict[str, dict[str, Any]],
+    allow_test_only: bool,
 ) -> dict[str, Any]:
     contract = _review_reference_contract(graph)["actor_attestation"]
     try:
@@ -5292,18 +6018,39 @@ def _load_real_reviewer_actor_attestation(
         not isinstance(trust_source, dict)
         or set(trust_source) != REVIEWER_BOOTSTRAP_TRUST_SOURCE_FIELDS
         or trust_source.get("type") != REVIEWER_BOOTSTRAP_TRUST_SOURCE
-        or trust_source.get("root_id") != bootstrap_root.get("root_id")
-        or trust_source.get("root_sha256") != bootstrap_root.get("complete_file_sha256")
-        or trust_source.get("currentness_proof_id")
-        != bootstrap_currentness.get("currentness_proof_id")
-        or trust_source.get("currentness_proof_sha256")
-        != bootstrap_currentness.get("complete_file_sha256")
         or not isinstance(decoded.get("eligible_role"), str)
         or decoded.get("eligible_role") not in REVIEW_ROLES
+    ):
+        raise G3ValidationError("reviewer_actor_attestation_trust_source_mismatch")
+    historical_context = G3AuthorityContext(
+        mode="real_test" if allow_test_only else "real",
+        graph=graph,
+        objects={},
+        bundle_manifest_sha256=None,
+        aggregate_review_sha256=None,
+        expected_target_commit="",
+        tag={},
+        component_sha256s=[],
+        component_sha_by_node={},
+        architecture_plan_sha256="",
+        f0_decisions_sha256=None,
+        authority_graph_sha256="",
+        authority_graph_bytes=b"",
+        reviewer_bootstrap_root_history=bootstrap_root_history,
+        reviewer_bootstrap_proof_history=bootstrap_proof_history,
+    )
+    issuance_root, issuance_proof, _ = _resolve_historical_reviewer_bootstrap_proof(
+        historical_context,
+        trust_source.get("currentness_proof_id"),
+        trust_source.get("currentness_proof_sha256"),
+    )
+    if (
+        trust_source.get("root_id") != issuance_root.get("root_id")
+        or trust_source.get("root_sha256") != issuance_root.get("complete_file_sha256")
         or decoded.get("eligibility_verifier_authority_id")
-        != bootstrap_currentness.get("current_verifier_authority_id")
+        != issuance_proof.get("current_verifier_authority_id")
         or decoded.get("independence_verifier_authority_id")
-        != bootstrap_currentness.get("current_verifier_authority_id")
+        != issuance_proof.get("current_verifier_authority_id")
     ):
         raise G3ValidationError("reviewer_actor_attestation_trust_source_mismatch")
     if not isinstance(decoded.get("created_at"), str) or not re.fullmatch(
@@ -5322,7 +6069,7 @@ def _load_real_reviewer_actor_attestation(
         raise G3ValidationError("malformed_reviewer_actor_attestation_signature")
     signing_payload = {key: value for key, value in decoded.items() if key != "signature"}
     if not verify_ed25519_strict(
-        bootstrap_currentness["current_verifier_public_key"],
+        issuance_proof["current_verifier_public_key"],
         signature,
         REVIEWER_ACTOR_ATTESTATION_DOMAIN + canonical_jcs_bytes(signing_payload),
     ):
@@ -5444,6 +6191,9 @@ def _resolve_real_review_references(
     dict[str, Any] | None,
     dict[str, Any] | None,
     dict[str, Any] | None,
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    dict[str, Any] | None,
     str | None,
     str | None,
 ]:
@@ -5454,11 +6204,20 @@ def _resolve_real_review_references(
     authority_enrollment: dict[str, Any] | None = None
     reviewer_bootstrap_root: dict[str, Any] | None = None
     reviewer_bootstrap_currentness: dict[str, Any] | None = None
+    reviewer_bootstrap_root_history: dict[str, dict[str, Any]] = {}
+    reviewer_bootstrap_proof_history: dict[str, dict[str, Any]] = {}
+    reviewer_bootstrap_accepted_head: dict[str, Any] | None = None
     remediation_authority_id: str | None = None
     remediation_actor_identity_digest: str | None = None
 
     try:
-        reviewer_bootstrap_root, reviewer_bootstrap_currentness = (
+        (
+            reviewer_bootstrap_root,
+            reviewer_bootstrap_currentness,
+            reviewer_bootstrap_root_history,
+            reviewer_bootstrap_proof_history,
+            reviewer_bootstrap_accepted_head,
+        ) = (
             _load_real_reviewer_bootstrap_trust(repository, graph, allow_test_only)
         )
     except G3ValidationError as error:
@@ -5471,7 +6230,11 @@ def _resolve_real_review_references(
             )
     else:
         resolution["resolved_node_ids"].extend(
-            ["reviewer_bootstrap_root", "reviewer_bootstrap_currentness"]
+            [
+                "reviewer_bootstrap_root",
+                "reviewer_bootstrap_currentness",
+                "reviewer_bootstrap_accepted_head_checkpoint",
+            ]
         )
 
     author_path = repository / contract["remediation_author"]["authority_path"]
@@ -5570,6 +6333,9 @@ def _resolve_real_review_references(
                 attestation_id,
                 reviewer_bootstrap_root,
                 reviewer_bootstrap_currentness,
+                reviewer_bootstrap_root_history,
+                reviewer_bootstrap_proof_history,
+                allow_test_only,
             )
         except G3ValidationError as error:
             resolution["errors"].append(
@@ -5685,6 +6451,9 @@ def _resolve_real_review_references(
         authority_enrollment,
         reviewer_bootstrap_root,
         reviewer_bootstrap_currentness,
+        reviewer_bootstrap_root_history,
+        reviewer_bootstrap_proof_history,
+        reviewer_bootstrap_accepted_head,
         remediation_authority_id,
         remediation_actor_identity_digest,
     )
@@ -5704,6 +6473,9 @@ def _resolve_real_authority(
     dict[str, dict[str, Any]],
     dict[str, Any] | None,
     dict[str, Any] | None,
+    dict[str, Any] | None,
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
     dict[str, Any] | None,
     str | None,
     str | None,
@@ -5761,6 +6533,9 @@ def _resolve_real_authority(
         authority_enrollment,
         reviewer_bootstrap_root,
         reviewer_bootstrap_currentness,
+        reviewer_bootstrap_root_history,
+        reviewer_bootstrap_proof_history,
+        reviewer_bootstrap_accepted_head,
         remediation_authority_id,
         remediation_actor_identity_digest,
     ) = _resolve_real_review_references(
@@ -5812,6 +6587,9 @@ def _resolve_real_authority(
         authority_enrollment,
         reviewer_bootstrap_root,
         reviewer_bootstrap_currentness,
+        reviewer_bootstrap_root_history,
+        reviewer_bootstrap_proof_history,
+        reviewer_bootstrap_accepted_head,
         remediation_authority_id,
         remediation_actor_identity_digest,
     )
@@ -5840,6 +6618,9 @@ def make_repository_context(
         authority_enrollment,
         reviewer_bootstrap_root,
         reviewer_bootstrap_currentness,
+        reviewer_bootstrap_root_history,
+        reviewer_bootstrap_proof_history,
+        reviewer_bootstrap_accepted_head,
         remediation_authority_id,
         remediation_actor_identity_digest,
     ) = _resolve_real_authority(repository, graph, target, allow_test_only)
@@ -5885,6 +6666,9 @@ def make_repository_context(
         authority_enrollment=authority_enrollment,
         reviewer_bootstrap_root=reviewer_bootstrap_root,
         reviewer_bootstrap_currentness=reviewer_bootstrap_currentness,
+        reviewer_bootstrap_root_history=reviewer_bootstrap_root_history,
+        reviewer_bootstrap_proof_history=reviewer_bootstrap_proof_history,
+        reviewer_bootstrap_accepted_head=reviewer_bootstrap_accepted_head,
         reviewer_actor_attestations=reviewer_actor_attestations,
         remediation_authority_id=remediation_authority_id,
         remediation_actor_identity_digest=remediation_actor_identity_digest,
@@ -5984,6 +6768,149 @@ def _fixture_annotated_tag(
     _fixture_git(repository, ["update-ref", f"refs/tags/{tag_name}", tag_object])
 
 
+def _fixture_bootstrap_root_replacement(
+    predecessor: dict[str, Any],
+    predecessor_signing_seed: bytes,
+    replacement_signing_seed: bytes,
+    reason: str,
+) -> dict[str, Any]:
+    """Build a valid test-only forward root replacement."""
+
+    replacement_public_key, _ = _fixture_ed25519_keypair(replacement_signing_seed)
+    root = {
+        key: deepcopy(predecessor[key]) for key in REVIEWER_BOOTSTRAP_ROOT_FIELDS
+    }
+    root.update(
+        {
+            "root_id": "",
+            "root_public_key": replacement_public_key,
+            "root_public_key_fingerprint": sha256_bytes(
+                bytes.fromhex(replacement_public_key)
+            ),
+            "predecessor_root_id": predecessor["root_id"],
+            "predecessor_root_sha256": predecessor["complete_file_sha256"],
+            "replacement_authority": "predecessor_root",
+            "effective_sequence": predecessor["effective_sequence"] + 1,
+            "replacement_reason": reason,
+            "replacement_status": "ACTIVE_REPLACEMENT",
+            "replacement_signature": "",
+        }
+    )
+    root["root_id"] = reviewer_bootstrap_root_id(root)
+    replacement_payload = {
+        key: root[key]
+        for key in REVIEWER_BOOTSTRAP_ROOT_FIELDS
+        if key not in {"root_id", "replacement_signature"}
+    }
+    root["replacement_signature"] = _fixture_ed25519_sign(
+        predecessor_signing_seed,
+        REVIEWER_BOOTSTRAP_ROOT_DOMAIN + canonical_jcs_bytes(replacement_payload),
+    )
+    raw = canonical_json_bytes(root)
+    record = dict(root)
+    record.update(
+        {
+            "bytes": raw,
+            "canonical_object": root,
+            "complete_file_sha256": sha256_bytes(raw),
+            "content_unchanged": True,
+        }
+    )
+    return record
+
+
+def _fixture_bootstrap_proof(
+    predecessor: dict[str, Any],
+    root: dict[str, Any],
+    signing_seed: bytes,
+    sequence: int,
+    *,
+    verifier_seed: bytes | None = None,
+    verifier_authority_id: str | None = None,
+    predecessor_sha256: str | None = None,
+    subject_bindings: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Build a valid signed test-only proof from an immutable predecessor."""
+
+    proof = {
+        key: deepcopy(predecessor[key])
+        for key in REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS
+    }
+    proof.update(
+        {
+            "currentness_proof_id": "",
+            "root_id": root["root_id"],
+            "root_sha256": root["complete_file_sha256"],
+            "sequence": sequence,
+            "previous_proof_id": predecessor["currentness_proof_id"],
+            "previous_proof_sha256": (
+                predecessor_sha256
+                if predecessor_sha256 is not None
+                else predecessor["complete_file_sha256"]
+            ),
+            "head_id": "",
+            "signature": "",
+        }
+    )
+    if verifier_seed is not None:
+        verifier_public_key, _ = _fixture_ed25519_keypair(verifier_seed)
+        proof["current_verifier_authority_id"] = verifier_authority_id or (
+            f"fixture-bootstrap-verifier-{sequence}"
+        )
+        proof["current_verifier_public_key"] = verifier_public_key
+        proof["current_verifier_public_key_fingerprint"] = sha256_bytes(
+            bytes.fromhex(verifier_public_key)
+        )
+    if subject_bindings is not None:
+        proof["subject_bindings"] = deepcopy(subject_bindings)
+    proof["subject_registry_head_sha256"] = reviewer_bootstrap_subject_registry_head_sha256(
+        sequence, proof["subject_bindings"]
+    )
+    proof["head_id"] = reviewer_bootstrap_currentness_head_id(proof)
+    proof["currentness_proof_id"] = reviewer_bootstrap_currentness_proof_id(proof)
+    signing_payload = {
+        key: proof[key]
+        for key in REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS
+        if key != "signature"
+    }
+    proof["signature"] = _fixture_ed25519_sign(
+        signing_seed,
+        REVIEWER_BOOTSTRAP_CURRENTNESS_DOMAIN + canonical_jcs_bytes(signing_payload),
+    )
+    raw = canonical_json_bytes(proof)
+    record = dict(proof)
+    record.update(
+        {
+            "bytes": raw,
+            "canonical_object": proof,
+            "complete_file_sha256": sha256_bytes(raw),
+            "content_unchanged": True,
+        }
+    )
+    return record
+
+
+def _fixture_write_bootstrap_record(
+    repository: Path, record: dict[str, Any], directory_name: str
+) -> Path:
+    if "currentness_proof_id" in record:
+        identifier = record["currentness_proof_id"]
+        fields = REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS
+    else:
+        identifier = record["root_id"]
+        fields = REVIEWER_BOOTSTRAP_ROOT_FIELDS
+    path = (
+        repository
+        / ".phase_f_authority"
+        / "reviewer_bootstrap"
+        / directory_name
+        / f"{identifier.removeprefix('sha256:')}.json"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(canonical_json_bytes({key: record[key] for key in fields}))
+    return path
+
+
 def _isolated_real_fixture(
     populate_authority: bool = True,
     authority_class: str = "TEST_ONLY",
@@ -6008,8 +6935,15 @@ def _isolated_real_fixture(
         "authority_scope": REVIEWER_BOOTSTRAP_SCOPE,
         "subject_uniqueness_policy": "one_natural_person_one_subject",
         "evidence_retention_policy": "retain_external_identity_evidence_hash_binding",
-        "rotation_policy": "forward_signed_replacement_only",
+        "rotation_policy": "forward_signed_replacement_with_predecessor_signature",
         "compromise_policy": "immediate_reject",
+        "predecessor_root_id": None,
+        "predecessor_root_sha256": None,
+        "replacement_authority": None,
+        "effective_sequence": 0,
+        "replacement_reason": None,
+        "replacement_status": "GENESIS",
+        "replacement_signature": None,
         "lifecycle": "ACTIVE",
         "stale": False,
         "superseded_by": None,
@@ -6042,6 +6976,7 @@ def _isolated_real_fixture(
         "root_sha256": sha256_bytes(canonical_json_bytes(bootstrap_root)),
         "sequence": 0,
         "previous_proof_id": None,
+        "previous_proof_sha256": None,
         "head_id": "",
         "current_verifier_authority_id": "fixture-bootstrap-verifier",
         "current_verifier_public_key": bootstrap_verifier_public_key,
@@ -6111,11 +7046,37 @@ def _isolated_real_fixture(
     target_commit = _fixture_git(repository, ["rev-parse", "HEAD"]).decode().strip()
     if not populate_authority:
         return temporary, repository, target_commit, b""
-    bootstrap_root_path = repository / ".phase_f_authority/reviewer_bootstrap/trust_root.json"
-    bootstrap_currentness_path = repository / ".phase_f_authority/reviewer_bootstrap/currentness_proof.json"
+    bootstrap_root_path = repository / ".phase_f_authority/reviewer_bootstrap/roots" / (
+        f"{bootstrap_root['root_id'].removeprefix('sha256:')}.json"
+    )
+    bootstrap_currentness_path = repository / ".phase_f_authority/reviewer_bootstrap/currentness_proofs" / (
+        f"{bootstrap_currentness['currentness_proof_id'].removeprefix('sha256:')}.json"
+    )
     bootstrap_root_path.parent.mkdir(parents=True, exist_ok=True)
+    bootstrap_currentness_path.parent.mkdir(parents=True, exist_ok=True)
     bootstrap_root_path.write_bytes(bootstrap_root_bytes)
     bootstrap_currentness_path.write_bytes(bootstrap_currentness_bytes)
+    bootstrap_root_record = dict(bootstrap_root)
+    bootstrap_root_record.update(
+        {
+            "bytes": bootstrap_root_bytes,
+            "canonical_object": bootstrap_root,
+            "complete_file_sha256": sha256_bytes(bootstrap_root_bytes),
+        }
+    )
+    bootstrap_currentness_record = dict(bootstrap_currentness)
+    bootstrap_currentness_record.update(
+        {
+            "bytes": bootstrap_currentness_bytes,
+            "canonical_object": bootstrap_currentness,
+            "complete_file_sha256": sha256_bytes(bootstrap_currentness_bytes),
+        }
+    )
+    checkpoint_path = _reviewer_bootstrap_checkpoint_path(repository)
+    bootstrap_checkpoint = _checkpoint_for_proof(
+        bootstrap_currentness_record, bootstrap_root_record, True
+    )
+    _write_reviewer_bootstrap_checkpoint(checkpoint_path, bootstrap_checkpoint)
     nodes = _graph_nodes(graph)
     lifecycle_fields = {
         "lifecycle": "ACTIVE",
@@ -6722,6 +7683,54 @@ def run_regression_self_tests() -> None:
         mutant = deepcopy(graph)
         mutate(mutant)
         reject_value_error(label, lambda: validate_r12_authority_graph(mutant))
+
+    external_dependency_node_omission_tests = 0
+    external_dependency_edge_omission_tests = 0
+    for required_node in EXTERNAL_PRODUCTION_NODE_STAGES:
+        external_dependency_node_omission_tests += 1
+
+        def omit_external_node(
+            value: dict[str, Any], node_id: str = required_node
+        ) -> None:
+            contract = value["external_trust_dependency_contract"]
+            contract["nodes"] = [
+                node for node in contract["nodes"] if node["id"] != node_id
+            ]
+            contract["edges"] = [
+                edge
+                for edge in contract["edges"]
+                if edge["from"] != node_id and edge["to"] != node_id
+            ]
+
+        graph_reject(f"external dependency node omission {required_node}", omit_external_node)
+
+    for required_edge in EXTERNAL_PRODUCTION_EDGES:
+        external_dependency_edge_omission_tests += 1
+
+        def omit_external_edge(
+            value: dict[str, Any], edge_pair: tuple[str, str] = required_edge
+        ) -> None:
+            contract = value["external_trust_dependency_contract"]
+            contract["edges"] = [
+                edge
+                for edge in contract["edges"]
+                if (edge["from"], edge["to"]) != edge_pair
+            ]
+
+        graph_reject(f"external dependency edge omission {required_edge}", omit_external_edge)
+
+    graph_reject(
+        "external dependency unauthorized future edge",
+        lambda value: value["external_trust_dependency_contract"]["edges"].append(
+            {"from": "reviewer_identity", "to": "g4_readiness"}
+        ),
+    )
+    graph_reject(
+        "external dependency unauthorized node",
+        lambda value: value["external_trust_dependency_contract"]["nodes"].append(
+            {"id": "unauthorized_future_dependency", "stage": 22}
+        ),
+    )
 
     def semantic_graph_reject(
         label: str, audit_name: str, mutate: object
@@ -8919,6 +9928,10 @@ def run_regression_self_tests() -> None:
         publication_temporary.cleanup()
     target_root_resolution_tests = 0
     root_change_staleness_tests = 0
+    currentness_history_tests = 0
+    currentness_history_negative_tests = 0
+    historical_review_resolution_tests = 0
+    root_rotation_tests = 0
     missing_temporary, missing_repository, missing_target, _ = _isolated_real_fixture(
         populate_authority=False
     )
@@ -8997,6 +10010,393 @@ def run_regression_self_tests() -> None:
                 )
         finally:
             production_temporary.cleanup()
+
+        bootstrap_root_seed = b"phase-f-r12-fixture-bootstrap-root-01"
+
+        history_temporary, history_repository, history_target, history_body = (
+            _isolated_real_fixture()
+        )
+        try:
+            history_context = make_repository_context(
+                history_repository, history_target, allow_test_only=True
+            )
+            history_root = history_context.reviewer_bootstrap_root
+            history_proof_0 = history_context.reviewer_bootstrap_currentness
+            if history_root is None or history_proof_0 is None:
+                raise AssertionError("history fixture bootstrap genesis is incomplete")
+            history_proof_1 = _fixture_bootstrap_proof(
+                history_proof_0,
+                history_root,
+                bootstrap_root_seed,
+                1,
+            )
+            history_proof_2 = _fixture_bootstrap_proof(
+                history_proof_1,
+                history_root,
+                bootstrap_root_seed,
+                2,
+            )
+            _fixture_write_bootstrap_record(
+                history_repository, history_proof_1, "currentness_proofs"
+            )
+            _fixture_write_bootstrap_record(
+                history_repository, history_proof_2, "currentness_proofs"
+            )
+            advanced_context = make_repository_context(
+                history_repository, history_target, allow_test_only=True
+            )
+            if (
+                advanced_context.reviewer_bootstrap_currentness is None
+                or advanced_context.reviewer_bootstrap_currentness["sequence"] != 2
+                or advanced_context.reviewer_bootstrap_accepted_head is None
+                or advanced_context.reviewer_bootstrap_accepted_head["current_sequence"] != 2
+            ):
+                raise AssertionError("forward currentness advancement did not accept sequence 2")
+            currentness_history_tests += 1
+            historical_row = advanced_context.objects["migrated_finding_review"][
+                "review_records"
+            ][0]
+            historical_result = validate_historical_review_artifact(
+                advanced_context, historical_row
+            )
+            if historical_result != {
+                "historical_cryptographic_validity": True,
+                "currently_authorized": True,
+            }:
+                raise AssertionError(
+                    f"historical review resolution changed after proof advancement: {historical_result}"
+                )
+            if validate_g3_tag(G3_TAG_NAME, history_body, advanced_context)[
+                "approval_decision"
+            ] != "GO":
+                raise AssertionError("current review validation rejected an active historical attestation")
+            historical_review_resolution_tests += 1
+            rollback_checkpoint = _checkpoint_for_proof(
+                history_proof_0, history_root, True
+            )
+            reject_value_error(
+                "accepted-head checkpoint rollback to exact sequence zero",
+                lambda: _write_reviewer_bootstrap_checkpoint(
+                    _reviewer_bootstrap_checkpoint_path(history_repository),
+                    rollback_checkpoint,
+                ),
+            )
+            currentness_history_negative_tests += 1
+        finally:
+            history_temporary.cleanup()
+
+        authorization_temporary, authorization_repository, authorization_target, authorization_body = (
+            _isolated_real_fixture()
+        )
+        try:
+            authorization_context = make_repository_context(
+                authorization_repository, authorization_target, allow_test_only=True
+            )
+            authorization_root = authorization_context.reviewer_bootstrap_root
+            authorization_proof_0 = authorization_context.reviewer_bootstrap_currentness
+            if authorization_root is None or authorization_proof_0 is None:
+                raise AssertionError("authorization fixture bootstrap genesis is incomplete")
+            authorization_row = authorization_context.objects["migrated_finding_review"][
+                "review_records"
+            ][0]
+            authorization_reviewer = authorization_context.reviewer_authorities[
+                authorization_row["reviewer_authority_id"]
+            ]
+            authorization_attestation = authorization_context.reviewer_actor_attestations[
+                authorization_reviewer["actor_attestation_id"]
+            ]
+            removed_subject_id = authorization_attestation["actor_subject_id"]
+            authorization_proof_1 = _fixture_bootstrap_proof(
+                authorization_proof_0,
+                authorization_root,
+                bootstrap_root_seed,
+                1,
+                subject_bindings=[
+                    binding
+                    for binding in authorization_proof_0["subject_bindings"]
+                    if binding["actor_subject_id"] != removed_subject_id
+                ],
+            )
+            _fixture_write_bootstrap_record(
+                authorization_repository,
+                authorization_proof_1,
+                "currentness_proofs",
+            )
+            changed_authorization_context = make_repository_context(
+                authorization_repository, authorization_target, allow_test_only=True
+            )
+            if changed_authorization_context.resolution["errors"]:
+                raise AssertionError(
+                    f"current subject-state fixture did not resolve: {changed_authorization_context.resolution}"
+                )
+            historical_only_result = validate_historical_review_artifact(
+                changed_authorization_context, authorization_row
+            )
+            if historical_only_result != {
+                "historical_cryptographic_validity": True,
+                "currently_authorized": False,
+            }:
+                raise AssertionError(
+                    f"historical/current authorization separation failed: {historical_only_result}"
+                )
+            reject_value_error(
+                "new review after subject authorization removal",
+                lambda: validate_g3_tag(
+                    G3_TAG_NAME, authorization_body, changed_authorization_context
+                ),
+            )
+            historical_review_resolution_tests += 1
+            currentness_history_negative_tests += 1
+        finally:
+            authorization_temporary.cleanup()
+
+        def resolver_history_reject(
+            label: str, mutate: object, *, allow_test_only: bool = True
+        ) -> None:
+            nonlocal currentness_history_negative_tests
+            temporary, repository, target, _ = _isolated_real_fixture()
+            try:
+                context = make_repository_context(
+                    repository, target, allow_test_only=allow_test_only
+                )
+                root = context.reviewer_bootstrap_root
+                proof_0 = context.reviewer_bootstrap_currentness
+                if root is None or proof_0 is None:
+                    raise AssertionError("history mutation fixture bootstrap genesis is incomplete")
+                mutate(repository, root, proof_0)
+                resolved = make_repository_context(
+                    repository, target, allow_test_only=allow_test_only
+                )
+                if not resolved.resolution["errors"]:
+                    raise AssertionError(f"history resolver accepted mutation: {label}")
+                currentness_history_negative_tests += 1
+            finally:
+                temporary.cleanup()
+
+        resolver_history_reject(
+            "non-genesis proof with nonexistent predecessor",
+            lambda repository, root, proof_0: _fixture_write_bootstrap_record(
+                repository,
+                _fixture_bootstrap_proof(
+                    {
+                        **proof_0,
+                        "currentness_proof_id": "sha256:" + "a" * 64,
+                        "complete_file_sha256": "b" * 64,
+                    },
+                    root,
+                    bootstrap_root_seed,
+                    1,
+                ),
+                "currentness_proofs",
+            ),
+        )
+        resolver_history_reject(
+            "proof predecessor complete-file hash mismatch",
+            lambda repository, root, proof_0: _fixture_write_bootstrap_record(
+                repository,
+                _fixture_bootstrap_proof(
+                    proof_0,
+                    root,
+                    bootstrap_root_seed,
+                    1,
+                    predecessor_sha256="e" * 64,
+                ),
+                "currentness_proofs",
+            ),
+        )
+        resolver_history_reject(
+            "proof sequence gap",
+            lambda repository, root, proof_0: _fixture_write_bootstrap_record(
+                repository,
+                _fixture_bootstrap_proof(
+                    proof_0, root, bootstrap_root_seed, 2
+                ),
+                "currentness_proofs",
+            ),
+        )
+
+        def write_valid_proof_fork(
+            repository: Path, root: dict[str, Any], proof_0: dict[str, Any]
+        ) -> None:
+            _fixture_write_bootstrap_record(
+                repository,
+                _fixture_bootstrap_proof(proof_0, root, bootstrap_root_seed, 1),
+                "currentness_proofs",
+            )
+            _fixture_write_bootstrap_record(
+                repository,
+                _fixture_bootstrap_proof(
+                    proof_0,
+                    root,
+                    bootstrap_root_seed,
+                    1,
+                    verifier_seed=b"phase-f-r12-fixture-fork-verifier",
+                    verifier_authority_id="fixture-bootstrap-fork-verifier",
+                ),
+                "currentness_proofs",
+            )
+
+        resolver_history_reject("two valid children of one proof", write_valid_proof_fork)
+
+        def write_checkpoint_fork(
+            repository: Path, root: dict[str, Any], proof_0: dict[str, Any]
+        ) -> None:
+            proof_1 = _fixture_bootstrap_proof(
+                proof_0, root, bootstrap_root_seed, 1
+            )
+            proof_1_fork = _fixture_bootstrap_proof(
+                proof_0,
+                root,
+                bootstrap_root_seed,
+                1,
+                verifier_seed=b"phase-f-r12-fixture-fork-verifier",
+                verifier_authority_id="fixture-bootstrap-fork-verifier",
+            )
+            _fixture_write_bootstrap_record(repository, proof_1, "currentness_proofs")
+            accepted = make_repository_context(
+                repository, _git_output(repository, ["rev-parse", "HEAD"]).decode().strip(), allow_test_only=True
+            )
+            if accepted.reviewer_bootstrap_accepted_head is None:
+                raise AssertionError("checkpoint fork fixture did not initialize a checkpoint")
+            reject_value_error(
+                "same-sequence checkpoint fork",
+                lambda: _write_reviewer_bootstrap_checkpoint(
+                    _reviewer_bootstrap_checkpoint_path(repository),
+                    _checkpoint_for_proof(proof_1_fork, root, True),
+                ),
+            )
+            _fixture_write_bootstrap_record(
+                repository, proof_1_fork, "currentness_proofs"
+            )
+
+        resolver_history_reject("same-sequence accepted-head fork", write_checkpoint_fork)
+
+        def write_root_rotation(
+            repository: Path, root: dict[str, Any], proof_0: dict[str, Any]
+        ) -> None:
+            replacement = _fixture_bootstrap_root_replacement(
+                root,
+                bootstrap_root_seed,
+                b"phase-f-r12-fixture-replacement-root",
+                "scheduled bootstrap root rotation",
+            )
+            replacement_proof = _fixture_bootstrap_proof(
+                proof_0,
+                replacement,
+                b"phase-f-r12-fixture-replacement-root",
+                1,
+                verifier_seed=b"phase-f-r12-fixture-rotated-verifier",
+                verifier_authority_id="fixture-bootstrap-rotated-verifier",
+            )
+            _fixture_write_bootstrap_record(repository, replacement, "roots")
+            _fixture_write_bootstrap_record(
+                repository, replacement_proof, "currentness_proofs"
+            )
+
+        rotation_temporary, rotation_repository, rotation_target, rotation_body = (
+            _isolated_real_fixture()
+        )
+        try:
+            rotation_context = make_repository_context(
+                rotation_repository, rotation_target, allow_test_only=True
+            )
+            rotation_root = rotation_context.reviewer_bootstrap_root
+            rotation_proof_0 = rotation_context.reviewer_bootstrap_currentness
+            if rotation_root is None or rotation_proof_0 is None:
+                raise AssertionError("root rotation fixture bootstrap genesis is incomplete")
+            write_root_rotation(rotation_repository, rotation_root, rotation_proof_0)
+            rotated_context = make_repository_context(
+                rotation_repository, rotation_target, allow_test_only=True
+            )
+            if (
+                rotated_context.reviewer_bootstrap_root is None
+                or rotated_context.reviewer_bootstrap_root["root_id"]
+                == rotation_root["root_id"]
+                or rotated_context.reviewer_bootstrap_currentness is None
+                or rotated_context.reviewer_bootstrap_currentness["sequence"] != 1
+            ):
+                raise AssertionError("signed root replacement did not become the current root")
+            rotated_row = rotated_context.objects["migrated_finding_review"][
+                "review_records"
+            ][0]
+            rotated_history = validate_historical_review_artifact(
+                rotated_context, rotated_row
+            )
+            if rotated_history["historical_cryptographic_validity"] is not True:
+                raise AssertionError("old-root historical attestation was not resolvable")
+            root_rotation_tests += 1
+            historical_review_resolution_tests += 1
+            if validate_g3_tag(G3_TAG_NAME, rotation_body, rotated_context)[
+                "approval_decision"
+            ] != "GO":
+                raise AssertionError("root rotation invalidated an otherwise active historical review")
+        finally:
+            rotation_temporary.cleanup()
+
+        resolver_history_reject(
+            "competing root replacements",
+            lambda repository, root, proof_0: (
+                _fixture_write_bootstrap_record(
+                    repository,
+                    _fixture_bootstrap_root_replacement(
+                        root,
+                        bootstrap_root_seed,
+                        b"phase-f-r12-fixture-replacement-root-a",
+                        "rotation A",
+                    ),
+                    "roots",
+                ),
+                _fixture_write_bootstrap_record(
+                    repository,
+                    _fixture_bootstrap_root_replacement(
+                        root,
+                        bootstrap_root_seed,
+                        b"phase-f-r12-fixture-replacement-root-b",
+                        "rotation B",
+                    ),
+                    "roots",
+                ),
+            ),
+        )
+        resolver_history_reject(
+            "replacement signed by unauthorized root key",
+            lambda repository, root, proof_0: _fixture_write_bootstrap_record(
+                repository,
+                _fixture_bootstrap_root_replacement(
+                    root,
+                    b"phase-f-r12-fixture-wrong-signer",
+                    b"phase-f-r12-fixture-replacement-root-bad",
+                    "unauthorized rotation",
+                ),
+                "roots",
+            ),
+        )
+
+        def write_root_rollback(
+            repository: Path, root: dict[str, Any], proof_0: dict[str, Any]
+        ) -> None:
+            replacement = _fixture_bootstrap_root_replacement(
+                root,
+                bootstrap_root_seed,
+                b"phase-f-r12-fixture-replacement-root-rollback",
+                "rollback test rotation",
+            )
+            replacement_proof = _fixture_bootstrap_proof(
+                proof_0,
+                replacement,
+                b"phase-f-r12-fixture-replacement-root-rollback",
+                1,
+            )
+            replacement_path = _fixture_write_bootstrap_record(
+                repository, replacement, "roots"
+            )
+            _fixture_write_bootstrap_record(
+                repository, replacement_proof, "currentness_proofs"
+            )
+            make_repository_context(repository, _git_output(repository, ["rev-parse", "HEAD"]).decode().strip(), allow_test_only=True)
+            replacement_path.unlink()
+
+        resolver_history_reject("restored old root after accepted replacement", write_root_rollback)
 
         fixture_graph_nodes = _graph_nodes(fixture_context.graph)
         direct_target_matrix_tests += 1
@@ -9572,23 +10972,24 @@ def run_regression_self_tests() -> None:
             lambda context: context.__setattr__("mode", "real"),
         )
 
-        same_person_different_subject = deepcopy(
-            fixture_context.reviewer_bootstrap_currentness
-        )
-        same_person_different_subject["subject_bindings"][1][
-            "identity_evidence_sha256"
-        ] = same_person_different_subject["subject_bindings"][0][
-            "identity_evidence_sha256"
-        ]
-        same_person_different_subject["subject_registry_head_sha256"] = (
-            reviewer_bootstrap_subject_registry_head_sha256(
-                same_person_different_subject["sequence"],
-                same_person_different_subject["subject_bindings"],
+        distinct_evidence_same_person = {
+            sha256_bytes(b"fixture-person-alpha-government-id-v1"): "synthetic-person-alpha",
+            sha256_bytes(b"fixture-person-alpha-passport-v2"): "synthetic-person-alpha",
+        }
+        distinct_evidence_subjects = {
+            evidence_hash: subject_id
+            for evidence_hash, subject_id in zip(
+                distinct_evidence_same_person,
+                ("fixture-natural-person-1", "fixture-natural-person-2"),
             )
-        )
+        }
+        if len(distinct_evidence_same_person) != 2 or len(set(distinct_evidence_same_person)) != 2:
+            raise AssertionError("distinct-evidence fixture did not create two hashes")
         reject_value_error(
-            "bootstrap same-person different-subject alias",
-            lambda: _bootstrap_subject_index(same_person_different_subject),
+            "bootstrap same-person distinct-evidence different-subject alias",
+            lambda: _validate_fixture_same_person_distinct_evidence(
+                distinct_evidence_same_person, distinct_evidence_subjects
+            ),
         )
 
         def remove_real_binding(
@@ -10078,6 +11479,12 @@ def run_regression_self_tests() -> None:
         f"real_actor_negative_tests={real_actor_negative_tests} "
         f"graph_candidates={len(candidate_edges)} graph_authorized={len(authorized_node_edges)} "
         f"graph_unauthorized={len(unauthorized_candidates)} graph_accepted_unauthorized={accepted_unauthorized_edges} "
+        f"external_dependency_nodes={len(EXTERNAL_PRODUCTION_NODE_STAGES)} "
+        f"external_dependency_edges={len(EXTERNAL_PRODUCTION_EDGES)} "
+        f"external_node_omission_tests={external_dependency_node_omission_tests} "
+        f"external_node_omission_accepted=0 "
+        f"external_edge_omission_tests={external_dependency_edge_omission_tests} "
+        f"external_edge_omission_accepted=0 "
         f"edge_canonical_passes={authorized_edge_canonical_passes} edge_removals_rejected={authorized_edge_removals_rejected} "
         f"edge_retypes_rejected={authorized_edge_retypes_rejected} edge_redirects_rejected={authorized_edge_redirects_rejected} "
         f"binding_edges={len(binding_edges)} none_binding_edges={len(none_binding_edges)} "
@@ -10095,6 +11502,10 @@ def run_regression_self_tests() -> None:
         f"bundle_root_fingerprint_changed=1 target_root_resolution_tests={target_root_resolution_tests} "
         f"root_change_staleness_tests={root_change_staleness_tests} explicit_g3_bypass_tests={explicit_g3_bypass_tests} "
         f"explicit_g3_bypass_accepted={explicit_g3_bypass_accepted} "
+        f"currentness_history_tests={currentness_history_tests} "
+        f"currentness_history_negative_tests={currentness_history_negative_tests} "
+        f"historical_review_resolution_tests={historical_review_resolution_tests} "
+        f"root_rotation_tests={root_rotation_tests} "
         f"review_start_git_positive={review_start_git_positive_tests} "
         f"review_start_git_negative={review_start_git_negative_tests} "
         f"safe_publication_positive={safe_publication_positive_tests} "

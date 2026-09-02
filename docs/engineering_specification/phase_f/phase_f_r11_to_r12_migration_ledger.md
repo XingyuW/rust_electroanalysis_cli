@@ -33,7 +33,7 @@ remains provenance and is not silently promoted to a second current authority.
 | R11-15 | Campaign/static terminology | Operations `F-OPS-006`; Conformance `F-CNF-002` | unchanged | none | PENDING |
 | R11-16 | Structurally valid Markdown | Conformance `F-CNF-005` | unchanged | run across all current docs | PENDING |
 | R11-17 | Preserve closed safety/science/Phase-E/P2 | Architecture `F-ARCH-003,F-ARCH-013..017`; Conformance `F-CNF-008`; Implementation `F-IMPL-006` | unchanged | regression replay | PENDING |
-| R11-18 | Exact schema set/inverse coverage | Wire `F-WIRE-008`; Conformance `F-CNF-005` | forward-refined | R11 remains 91; the R12 expected set becomes 96 (91 inherited plus `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`, `PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`, and `PhaseFReviewerBootstrapCurrentnessProofV1`) and is invertible through the R12 matrix `schema_ids` cells | PENDING |
+| R11-18 | Exact schema set/inverse coverage | Wire `F-WIRE-008`; Conformance `F-CNF-005` | forward-refined | R11 remains 91; the R12 expected set becomes 97 (91 inherited plus `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`, `PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`, `PhaseFReviewerBootstrapCurrentnessProofV1`, and `PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`) and is invertible through the R12 matrix `schema_ids` cells | PENDING |
 | R11-19 | Future F-EV only real; KATs only tests | Scientific `F-SCI-010`; Conformance `F-CNF-007` | unchanged | none | PENDING |
 | R11-20 | Exactly 20 owner decisions | Architecture `F-ARCH-006`; Wire `F-WIRE-004`; Conformance `F-CNF-005` | unchanged | none | PENDING |
 
@@ -82,10 +82,12 @@ serialized binding checks, and all lifecycle/staleness checks are defined as
 planning contracts only. This remediation does not fabricate a review artifact
 for its own work. `PhaseFReviewerActorAttestationV1`,
 `PhaseFReviewerBootstrapTrustRootV1`, and
-`PhaseFReviewerBootstrapCurrentnessProofV1` are forward R12 additive schemas:
+`PhaseFReviewerBootstrapCurrentnessProofV1`, and
+`PhaseFReviewerBootstrapAcceptedHeadCheckpointV1` are forward R12 additive schemas:
 the bootstrap root and signed currentness proof establish the narrow pre-G0
-reviewer trust domain, and the attestation binds each REAL reviewer support
-record to that chain without changing R11 fields, registry record kinds,
+reviewer trust domain, the resolver checkpoint establishes monotonic accepted
+head state, and the attestation binds each REAL reviewer support record to that
+chain without changing R11 fields, registry record kinds,
 relation enums, or the authority graph. This remediation creates no real root,
 actor identity, enrollment, attestation, review, approval, or publication
 authority.

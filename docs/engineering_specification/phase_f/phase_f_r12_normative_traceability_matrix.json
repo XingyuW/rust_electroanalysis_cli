@@ -543,6 +543,7 @@
       "property_test_ids": [],
       "requirement_id": "F-CNF-001",
       "schema_ids": [
+        "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
         "PhaseFReviewerBootstrapTrustRootV1"
@@ -767,6 +768,11 @@
         "R12-DAG-IDENTITY-RULE-CONTRACT",
         "R12-DAG-SEMANTIC-AUDITS",
         "R12-DAG-BINDING-EQUALITY",
+        "R12-DAG-EXTERNAL-TRUST-CLOSURE",
+        "R12-G3-REAL-CURRENTNESS-HISTORY",
+        "R12-G3-REAL-HISTORICAL-RESOLUTION",
+        "R12-G3-REAL-ROOT-ROTATION",
+        "R12-G3-REAL-DISTINCT-EVIDENCE-SAME-PERSON",
         "R12-G3-MIGRATED-PENDING-P1",
         "R12-G3-MIGRATED-OPEN-P1",
         "R12-G3-MIGRATED-PARTIALLY-CLOSED-P1",
@@ -804,6 +810,7 @@
       "property_test_ids": [],
       "requirement_id": "F-CNF-005",
       "schema_ids": [
+        "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
         "PhaseFReviewerBootstrapTrustRootV1",
@@ -855,6 +862,11 @@
         "R12-DAG-IDENTITY-RULE-CONTRACT",
         "R12-DAG-SEMANTIC-AUDITS",
         "R12-DAG-BINDING-EQUALITY",
+        "R12-DAG-EXTERNAL-TRUST-CLOSURE",
+        "R12-G3-REAL-CURRENTNESS-HISTORY",
+        "R12-G3-REAL-HISTORICAL-RESOLUTION",
+        "R12-G3-REAL-ROOT-ROTATION",
+        "R12-G3-REAL-DISTINCT-EVIDENCE-SAME-PERSON",
         "R12-G3-MIGRATED-PENDING-P1",
         "R12-G3-MIGRATED-OPEN-P1",
         "R12-G3-MIGRATED-PARTIALLY-CLOSED-P1",
@@ -1218,6 +1230,7 @@
       ],
       "requirement_id": "F-IMPL-007",
       "schema_ids": [
+        "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
         "PhaseFReviewerBootstrapTrustRootV1",
@@ -1985,6 +1998,7 @@
       "property_test_ids": [],
       "requirement_id": "F-WIRE-005",
       "schema_ids": [
+        "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
         "PhaseFReviewerBootstrapTrustRootV1"
@@ -2239,7 +2253,8 @@
         "PhaseFMigratedFindingReviewV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
-        "PhaseFReviewerBootstrapTrustRootV1"
+        "PhaseFReviewerBootstrapTrustRootV1",
+        "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1"
       ],
       "test_ids": [
         "R11-CAT",

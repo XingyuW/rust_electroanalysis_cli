@@ -16,7 +16,7 @@ satisfy an `F-EV` oracle.
 | <a id="F-CNF-002"></a>`F-CNF-002` | `F-ARCH-017,F-OPS-006,F-OPS-007` | Storage-copy KATs test opaque bytes only after prevalidated kind/SHA identity and test URI, length, availability, freshness, distinctness, count, and exact membership. They never assert production-schema validity. | §§53.2–53.4, R11-KAT-RETENTION-COPY |
 | <a id="F-CNF-003"></a>`F-CNF-003` | `F-ARCH-017,F-OPS-003,F-SCI-002..008` | Properties cover quantified and nonliteral behavior, including complete monitoring mapping, independence, pseudoreplication, power, claim ceilings, retention counts, and cycle freedom. A property cannot claim fixture PASS. | §§20, 53.6, 53.9–53.10 |
 | <a id="F-CNF-004"></a>`F-CNF-004` | `F-ARCH-008..010,F-WIRE-007` | Literal parser KATs cover every approval tag including the new specification-bundle tag; the R12 vector uses the strict `(tag_name,body_bytes)` checker below, while separate real-Git properties verify annotated type, peel target, reachability, and upstream tag resolution. | §§53.5, 53.9–53.10 plus R12 tag grammar |
-| <a id="F-CNF-005"></a>`F-CNF-005` | `F-ARCH-017,F-ARCH-022,F-WIRE-008` | Constructive audits verify the explicit authority DAG, external reviewer-bootstrap trust dependency chain and no future/self/reference cycles, schema/anchor/catalog equality, exhaustive usage matrix, traceability inverse, closed test/evidence/KAT catalogs, owner-decision union, Markdown structure, no duplicate current traceability graph, and REAL reviewer actor attestation resolution/independence. | §§53.6–53.13 |
+| <a id="F-CNF-005"></a>`F-CNF-005` | `F-ARCH-017,F-ARCH-022,F-WIRE-008` | Constructive audits verify the explicit authority DAG, the exact production-derived external reviewer-bootstrap trust dependency set, immutable proof/root history and monotonic accepted-head checkpoint, historical issuance resolution versus current authorization, no future/self/reference cycles, schema/anchor/catalog equality, exhaustive usage matrix, traceability inverse, closed test/evidence/KAT catalogs, owner-decision union, Markdown structure, no duplicate current traceability graph, REAL reviewer actor attestation resolution/independence, and distinct-evidence anti-aliasing. | §§53.6–53.13 |
 | <a id="F-CNF-006"></a>`F-CNF-006` | `F-ARCH-017` | Every literal KAT declares all required inputs, exact fixture bytes, semantic IDs, SHA-256, byte length, URI when applicable, operation, expected result, decoded fields where applicable, and individually executable negative mutations. Missing data or an incomplete PASS is P1. | §§53.9–53.10 |
 | <a id="F-CNF-007"></a>`F-CNF-007` | `F-ARCH-002,F-ARCH-012,F-ARCH-017,F-SCI-009..010` | Automated isolation checks prove zero KAT/test/synthetic/constructed-to-real-evidence promotion paths and preserve every future-real-evidence oracle. | §§53.8 R11-14/R11-19, 53.11 |
 | <a id="F-CNF-008"></a>`F-CNF-008` | `F-ARCH-003,F-ARCH-017,F-IMPL-006` | Regression checks preserve frozen Phase-E behavior, the P2 gate, production runner order, and all previously closed safety contracts. | §§19–20, 53.8 R11-17 |
@@ -75,6 +75,10 @@ real approval or an `F-EV`.
 | R12-G3-REAL-FORMAT-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | real-format fixture mutated across missing, malformed, stale, wrong-target, wrong-hash, and tag cases | real-format fixture mutation matrix | `make_repository_context(...); validate_g3_tag(...)` | REJECT | every real-format mutation rejected | 0 |
 | R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE | constructive_plan_audit | isolated_real_repository_authority | graph-pinned pre-G0 bootstrap root plus root-signed currentness proof, five distinct natural-person subjects, domain-separated actor digests, complete-file references, and valid current-verifier signatures | real-format actor-attestation fixture | `make_repository_context(...); validate_g3_tag(...)` | PASS | five verified attestation subjects resolve and authorize the test-only fixture | 0 |
 | R12-G3-REAL-ACTOR-ATTESTATION-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | REAL resolver mutations cover arbitrary/malformed/missing/fake/cross-wired root/proof/attestations, wrong role/verifier/root/subject/head, stale/revoked/compromised/superseded state, invalid signature, self-declaration, remediation-author alias, and five-key/same-subject aliasing | bootstrap trust and actor-attestation mutation matrix | `make_repository_context(...); validate_g3_tag(...)` | REJECT | every bootstrap, actor-identity, and attestation mutation rejected | 0 |
+| R12-G3-REAL-CURRENTNESS-HISTORY | constructive_plan_audit | isolated_real_repository_authority | immutable proof history has authenticated predecessors, contiguous sequence, one canonical child, and resolver-owned accepted-head checkpoint | valid sequence 0→1→2 advancement plus missing-predecessor, predecessor-hash, sequence-gap, proof-fork, rollback, and same-sequence checkpoint-fork mutations | `make_repository_context(...); _write_reviewer_bootstrap_checkpoint(...)` | PASS for forward advancement; REJECT for every history/checkpoint mutation | no rollback, gap, orphan, or fork is accepted | 0 |
+| R12-G3-REAL-HISTORICAL-RESOLUTION | constructive_plan_audit | isolated_real_repository_authority | reviewer attestation and artifact retain exact issuance proof/root provenance after currentness advances | proof-0 attestation and review artifact resolved after proof-2 advancement, with current authorization evaluated separately | `validate_historical_review_artifact(...); validate_g3_tag(...)` | PASS with historical cryptographic validity and active current authorization | no current-head equality shortcut | 0 |
+| R12-G3-REAL-ROOT-ROTATION | constructive_plan_audit | isolated_real_repository_authority | root history uses predecessor-signed forward replacement with exact predecessor hash and effective sequence | valid root replacement plus competing, unauthorized-signer, and restored-old-root mutations | `make_repository_context(...); validate_historical_review_artifact(...)` | PASS for valid rotation; REJECT for every root-history mutation | old-root historical provenance remains resolvable | 0 |
+| R12-G3-REAL-DISTINCT-EVIDENCE-SAME-PERSON | constructive_plan_audit | isolated_real_repository_authority | trusted fixture equivalence maps two distinct retained evidence packages to one synthetic natural person | two different evidence hashes are assigned to two different subject IDs | `_validate_fixture_same_person_distinct_evidence(...)` | REJECT | second qualifying subject is rejected as an alias | 0 |
 | R12-G3-MIGRATED-PENDING-P1 | constructive_plan_audit | migrated_review_authority | one P1 finding is pending | same as positive | `validate_g3_tag(...)` | REJECT | pending P1 | 0 |
 | R12-G3-MIGRATED-OPEN-P1 | constructive_plan_audit | migrated_review_authority | one P1 finding is open | same as positive | `validate_g3_tag(...)` | REJECT | open P1 | 0 |
 | R12-G3-MIGRATED-PARTIALLY-CLOSED-P1 | constructive_plan_audit | migrated_review_authority | one P1 finding is partially closed | same as positive | `validate_g3_tag(...)` | REJECT | partially closed P1 | 0 |
@@ -104,6 +108,7 @@ real approval or an `F-EV`.
 | R12-DAG-IDENTITY-RULE-CONTRACT | constructive_plan_audit | r12_artifact_authority_graph | identity rule type or required/optional field closure changed | graph mutation | R12 artifact DAG audit | REJECT | identity-rule contract mismatch | 0 |
 | R12-DAG-SEMANTIC-AUDITS | constructive_plan_audit | r12_artifact_authority_graph | computed hash, self-Git, review-target, future-object, and bypass audits mutated | graph mutation | R12 artifact DAG audit | REJECT | semantic audit violation path | 0 |
 | R12-DAG-BINDING-EQUALITY | constructive_plan_audit | r12_artifact_authority_graph | every one of the 76 exact edges has a closed explicit `none` or `serialized_binding` obligation; edge obligations are the normative root and node fields, semantic rules, serialized maps, builder/validator expectations, and prerequisites are derived mirrors; root-fixed shrink, malformed-obligation, explicit-`none`, root-identity, and G3 staleness attacks reject | graph/object mutation matrix, exhaustive 44-binding-edge root/downstream closure, obligation-schema matrix, root-change/staleness fixture matrix | R12 graph projection and G3 authority audit | REJECT | missing/malformed edge obligation, downstream mirror shrink, unauthorized `none` binding, unchanged root/fingerprint, or stale-authority acceptance | 0 |
+| R12-DAG-EXTERNAL-TRUST-CLOSURE | constructive_plan_audit | external_trust_dependency_graph | production resolver dependency declarations derive the exact external node and edge set, including published normative target, signed subject-registry state, accepted-head checkpoint, reviewer identity, review artifact, and downstream gates | every required external node and edge omitted once, plus unauthorized future node/edge insertions | `_external_trust_dependency_audit(...)` | REJECT | zero accepted omissions or unauthorized dependencies; stage-monotonic acyclic graph remains required | 0 |
 | R12-TRACE-SEMANTIC-SUBSTITUTION | constructive_plan_audit | normative_traceability | catalog-valid but wrong F-OPS-004 relationship | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
 | R12-TRACE-WRONG-KAT | constructive_plan_audit | normative_traceability | valid KAT substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
 | R12-TRACE-WRONG-EVIDENCE | constructive_plan_audit | normative_traceability | valid evidence substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
@@ -307,12 +312,21 @@ builder, validator, and G3 projections, while 32 edges explicitly declare
 cycles, self-Git cycles, review-target cycles, future-object dependencies,
 self-reference, G3 bypass, and implementation-readiness bypass. Mutations of
 any contract or audit input reject before an authority result can be returned.
+The separate production-derived external trust-DAG audit requires exact
+equality for 19 nodes and 21 edges, including the published normative target,
+signed subject-registry state, immutable bootstrap history, accepted-head
+checkpoint, reviewer identity, review artifact, and downstream gates. Every
+required external node and edge is omitted once in the self-test, and each
+omission rejects; unauthorized future dependencies reject as well. R11-08
+closure therefore requires both the 28-node/76-edge core graph and this
+external trust-DAG closure.
 
 ### 3.3 REAL reviewer actor attestation mutation matrix
 
 The REAL-format fixture materializes a graph-pinned
 `PhaseFReviewerBootstrapTrustRootV1`, a root-signed
-`PhaseFReviewerBootstrapCurrentnessProofV1`, five signed
+immutable `PhaseFReviewerBootstrapCurrentnessProofV1` history, a resolver-owned
+accepted-head checkpoint, five signed
 `PhaseFReviewerActorAttestationV1` objects, five reviewer support records, and
 their immutable references. The positive case proves that five distinct
 natural-person subjects resolve from the signed subject registry, that each
@@ -337,13 +351,25 @@ The negative matrix must reject each mutation independently:
 - TEST_ONLY material presented to REAL mode.
 
 REAL mode also rejects when the graph-pinned bootstrap root or signed
-currentness proof is missing, arbitrary, stale, forked, head-inconsistent,
-outside its validity window, revoked, compromised, superseded, or signed by a
-different verifier. The isolated fixture supplies TEST_ONLY bootstrap objects
+currentness history/checkpoint is missing, arbitrary, stale, forked,
+head-inconsistent, outside its validity window, revoked, compromised,
+superseded, or signed by a different verifier. The isolated fixture supplies TEST_ONLY bootstrap objects
 only through explicit `real_test` conformance mode; it does not represent
 production authority. A production-format isolated fixture with `REAL`
 authority class exercises the same resolver path without creating or
 publishing a real authority.
+
+The history matrix accepts forward sequence `0→1→2` only after complete-chain
+validation and atomic checkpoint advancement. It rejects missing or wrong
+predecessors, gaps, duplicate sequence children, lower-sequence replay, and
+same-sequence checkpoint forks. A historical review artifact is then resolved
+through its exact issuance proof/root ID and complete-file hash; its historical
+cryptographic validity remains true while current subject authorization is
+checked separately. Root replacement is a predecessor-signed forward
+transition with immutable old-root resolution; competing, unauthorized, or
+restored roots reject. Two distinct synthetic evidence-package hashes mapped
+by trusted fixture knowledge to one natural person are rejected when assigned
+to different subject IDs.
 
 The checker must use the existing strict Ed25519 verifier and the signed
 bootstrap root/currentness/subject-registry proof. A structurally valid JSON

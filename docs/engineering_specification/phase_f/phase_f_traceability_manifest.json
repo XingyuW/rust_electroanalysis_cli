@@ -53,8 +53,8 @@
           "violation_path": []
         },
         {
-          "checked_edges": 16,
-          "checked_nodes": 15,
+          "checked_edges": 21,
+          "checked_nodes": 19,
           "name": "external_trust_dependency_cycle",
           "passed": true,
           "violation_path": []
@@ -113,23 +113,23 @@
       ]
     },
     "path": "docs/engineering_specification/phase_f/phase_f_r12_authority_graph.json",
-    "sha256": "d429ed84f570e8248d78787a3abfc0bf641af06c10a10e6bbd64a4d1f4bfa74e"
+    "sha256": "a78521e2c21ad1ff90028e75cbce7869578d0e086dd7417834e4bd209822081f"
   },
   "generated_source_sha256s": {
     "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
-    "component_conformance_spec": "b4a253668ab01eb0adb7b6afa1312b05b0e65434832b98a2a3cb7a2bab347e99",
-    "component_implementation_spec": "424ae0870701c1902fb98cb4f47344f99afee5d586ae6c330978784dade60cf4",
+    "component_conformance_spec": "7f113ec27026b2a98d7f7dfee0d1e276b066220dc5bce96cd82275270f35c3b9",
+    "component_implementation_spec": "f8c400a0db9f824a8565a165dc1e32a8ff1fd01e5c1c370bd1fb3e5413767b81",
     "component_operations_spec": "5ceaf042e5904e78c757e1fd227b9162c1331bce246901aab415c6afab02a78a",
     "component_scientific_spec": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
-    "component_wire_spec": "f740421910f8cf5eec80df219e4f16a24f5de1f5cea93b868e9f7066a8019a52",
-    "migration_ledger": "c7996e255138e0d5e6705a6b3c4a86a7afafc3b764579e98c8efa98351685974",
-    "normative_traceability_matrix": "5f5a320fbc992e5153ac0252bb56e4c798d2d0e5bf48fff1feaf010efe5a7c21"
+    "component_wire_spec": "7150131b47e62fca600b33938d0cb0ebc01b566afe226903748dd84b39b220fb",
+    "migration_ledger": "7b7b560558c4378c4f7f7b254fe33c7e53c14fa4c0c4a95baa7e1e3d0ccd1c8f",
+    "normative_traceability_matrix": "d556e3ff12dd1f68203ddd9522e3e137c4ac49e0acd43e8bfc843710e6cb9e88"
   },
   "generation_rule": "docs/engineering_specification/phase_f/generate_phase_f_manifests.py",
   "normative_matrix": {
     "path": "docs/engineering_specification/phase_f/phase_f_r12_normative_traceability_matrix.json",
     "requirement_count": 64,
-    "sha256": "5f5a320fbc992e5153ac0252bb56e4c798d2d0e5bf48fff1feaf010efe5a7c21"
+    "sha256": "d556e3ff12dd1f68203ddd9522e3e137c4ac49e0acd43e8bfc843710e6cb9e88"
   },
   "reference_catalogs": {
     "future_real_evidence": {
@@ -137,7 +137,7 @@
       "source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md"
     },
     "tests": {
-      "count": 117,
+      "count": 122,
       "r11_source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md",
       "r12_source": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md"
     }
@@ -816,6 +816,7 @@
       "property_test_ids": [],
       "requirement_id": "F-CNF-001",
       "schema_ids": [
+        "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
         "PhaseFReviewerBootstrapTrustRootV1"
@@ -1047,6 +1048,11 @@
         "R12-DAG-IDENTITY-RULE-CONTRACT",
         "R12-DAG-SEMANTIC-AUDITS",
         "R12-DAG-BINDING-EQUALITY",
+        "R12-DAG-EXTERNAL-TRUST-CLOSURE",
+        "R12-G3-REAL-CURRENTNESS-HISTORY",
+        "R12-G3-REAL-HISTORICAL-RESOLUTION",
+        "R12-G3-REAL-ROOT-ROTATION",
+        "R12-G3-REAL-DISTINCT-EVIDENCE-SAME-PERSON",
         "R12-G3-MIGRATED-PENDING-P1",
         "R12-G3-MIGRATED-OPEN-P1",
         "R12-G3-MIGRATED-PARTIALLY-CLOSED-P1",
@@ -1085,6 +1091,7 @@
       "property_test_ids": [],
       "requirement_id": "F-CNF-005",
       "schema_ids": [
+        "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
         "PhaseFReviewerBootstrapTrustRootV1",
@@ -1136,6 +1143,11 @@
         "R12-DAG-IDENTITY-RULE-CONTRACT",
         "R12-DAG-SEMANTIC-AUDITS",
         "R12-DAG-BINDING-EQUALITY",
+        "R12-DAG-EXTERNAL-TRUST-CLOSURE",
+        "R12-G3-REAL-CURRENTNESS-HISTORY",
+        "R12-G3-REAL-HISTORICAL-RESOLUTION",
+        "R12-G3-REAL-ROOT-ROTATION",
+        "R12-G3-REAL-DISTINCT-EVIDENCE-SAME-PERSON",
         "R12-G3-MIGRATED-PENDING-P1",
         "R12-G3-MIGRATED-OPEN-P1",
         "R12-G3-MIGRATED-PARTIALLY-CLOSED-P1",
@@ -1521,6 +1533,7 @@
       ],
       "requirement_id": "F-IMPL-007",
       "schema_ids": [
+        "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
         "PhaseFReviewerBootstrapTrustRootV1",
@@ -2400,6 +2413,7 @@
       "property_test_ids": [],
       "requirement_id": "F-WIRE-005",
       "schema_ids": [
+        "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
         "PhaseFReviewerBootstrapTrustRootV1"
@@ -2671,7 +2685,8 @@
         "PhaseFMigratedFindingReviewV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
-        "PhaseFReviewerBootstrapTrustRootV1"
+        "PhaseFReviewerBootstrapTrustRootV1",
+        "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1"
       ],
       "test_ids": [
         "R11-CAT",
@@ -2985,6 +3000,13 @@
       "F-WIRE-008"
     ],
     "PhaseFReviewerActorAttestationV1": [
+      "F-CNF-001",
+      "F-CNF-005",
+      "F-IMPL-007",
+      "F-WIRE-005",
+      "F-WIRE-008"
+    ],
+    "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1": [
       "F-CNF-001",
       "F-CNF-005",
       "F-IMPL-007",
