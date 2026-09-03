@@ -220,9 +220,28 @@ The production transport consumes the documented GitHub Rulesets API wire
 directly. A history page is a JSON list whose every entry has an integer
 `version_id`, an `actor` object, and an `updated_at` timestamp. `id` is never a
 legacy alias; an `id`-only entry is malformed. The authenticated transport
-follows GitHub's exact `Link: <...>; rel="next"` pagination relation and fails
-closed on malformed, looping, ambiguous, or unavailable traversal. It does not
-infer a version from list position or from an internal fixture representation.
+derives an immutable scope from the original repository identity and pinned
+ruleset ID before following GitHub's exact `Link: <...>; rel="next"`
+pagination relation. A continuation must be absolute HTTPS on the exact
+`api.github.com` origin, contain no userinfo, fragment, or explicit port, and
+have exactly the original raw `/repos/{owner}/{repo}/rulesets/{ruleset_id}/history`
+path. Percent-encoded path characters, dot segments, duplicate/trailing
+separators, case-mutated owner/repository paths, route substitutions, unknown
+query fields, and repeated/conflicting query fields fail closed; no path is
+silently normalized or repaired. The only allowed query fields are one
+canonical positive `page` and one optional canonical `per_page` in the
+documented 1--100 range. The initial request uses `per_page=100`, continuation
+pages must advance strictly, and page values above `2^31-1` are rejected.
+Malformed, looping, ambiguous, or unavailable traversal fails closed. It does
+not infer a version from list position or from an internal fixture
+representation.
+
+The `actor` object is validated only to its documented safe wire shape: its
+`id` is an integer and its `type` is a string, without requiring a positive ID
+or nonempty type because actor identity is not used in the immutable
+one-version proof. `updated_at` is validated as an RFC3339 date-time string;
+neither metadata field contributes to the protection digest. The strict
+security-critical field remains integer positive `version_id`.
 
 The individual endpoint is exactly
 `GET /repos/{owner}/{repo}/rulesets/{ruleset_id}/history/{version_id}`. Its raw
@@ -239,7 +258,10 @@ ID, repository full name, protected ref, ruleset ID, pinned `version_id`, and
 complete canonical ruleset state. Independent field checks remain in force in
 addition to this digest. A valid raw production-shaped fixture must pass;
 missing, string, legacy, duplicate, additional, wrong, malformed, or
-incompletely paginated version data must fail closed. The digest mutation
+incompletely paginated version data must fail closed. The self-test includes a
+successful two-page production-transport traversal plus wrong-owner,
+wrong-repository, wrong-ruleset, wrong-route, cross-origin, path-confusion,
+query-confusion, loop, and incomplete-pagination negatives. The digest mutation
 matrix changes repository ID, full name, provider/API identity, protected ref,
 ruleset ID, version ID, enforcement, conditions, deletion rule,
 non-fast-forward rule, and bypass actors one at a time and requires a changed

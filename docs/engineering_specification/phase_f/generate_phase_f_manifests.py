@@ -25,7 +25,7 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any, Callable, Protocol
 from urllib.error import HTTPError
-from urllib.parse import quote, urlsplit
+from urllib.parse import parse_qsl, quote, unquote, urlsplit
 from urllib.request import Request, urlopen
 
 try:
@@ -556,6 +556,8 @@ CANONICAL_GITHUB_REPOSITORY_IDENTITY = {
     "repository_id": 1273879958,
     "repository_full_name": "XingyuW/rust_electroanalysis_cli",
 }
+GITHUB_HISTORY_PAGE_SIZE = 100
+GITHUB_HISTORY_MAX_PAGE = 2**31 - 1
 EXTERNAL_MONOTONIC_HEAD_TRANSPORT = {
     "kind": "operator_ssh_push_only",
     "remote_name": "origin",
@@ -1273,10 +1275,13 @@ class GitHubApiTransport:
     def get_ruleset_history(
         self, identity: dict[str, Any], ruleset_id: int
     ) -> dict[str, Any]:
-        owner, name = identity["repository_full_name"].split("/", 1)
-        next_path: str | None = (
-            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/rulesets/{ruleset_id}/history?per_page=100"
+        api_origin, collection_path = _github_history_collection_scope(
+            identity, ruleset_id
         )
+        next_path: str | None = (
+            f"{collection_path}?per_page={GITHUB_HISTORY_PAGE_SIZE}"
+        )
+        current_page = 1
         visited_paths: set[str] = set()
         versions: list[dict[str, Any]] = []
         while next_path is not None:
@@ -1285,7 +1290,11 @@ class GitHubApiTransport:
             visited_paths.add(next_path)
             payload, link_header = self._get_json_response(next_path)
             versions.extend(_parse_github_ruleset_history_page(payload))
-            next_path = _github_next_page_path(link_header)
+            next_path = _github_next_page_path(
+                link_header, api_origin, collection_path, current_page
+            )
+            if next_path is not None:
+                current_page = _github_history_page_number(next_path)
         return {
             "versions": versions,
         }
@@ -1316,7 +1325,78 @@ class GitHubApiTransport:
         )
 
 
-def _github_next_page_path(link_header: str | None) -> str | None:
+def _github_history_collection_scope(
+    identity: dict[str, Any], ruleset_id: int
+) -> tuple[str, str]:
+    if (
+        identity.get("provider") != "github"
+        or identity.get("api_origin")
+        != CANONICAL_GITHUB_REPOSITORY_IDENTITY["api_origin"]
+    ):
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    if type(ruleset_id) is not int or ruleset_id <= 0:
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    try:
+        owner, name = identity["repository_full_name"].split("/", 1)
+    except (KeyError, AttributeError, ValueError) as error:
+        raise G3ValidationError("github_protection_pagination_uncertain") from error
+    if not owner or not name:
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    collection_path = (
+        f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/rulesets/"
+        f"{ruleset_id}/history"
+    )
+    return identity["api_origin"], collection_path
+
+
+def _github_history_pagination_query(
+    query: str, current_page: int
+) -> tuple[int, str]:
+    if not query or query.startswith("&") or query.endswith("&") or "&&" in query:
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    try:
+        pairs = parse_qsl(query, keep_blank_values=True, strict_parsing=True)
+    except ValueError as error:
+        raise G3ValidationError("github_protection_pagination_uncertain") from error
+    values: dict[str, str] = {}
+    for name, value in pairs:
+        if name not in {"page", "per_page"} or name in values:
+            raise G3ValidationError("github_protection_pagination_uncertain")
+        values[name] = value
+    raw_page = values.get("page")
+    if (
+        raw_page is None
+        or re.fullmatch(r"[1-9][0-9]*", raw_page) is None
+    ):
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    try:
+        page = int(raw_page)
+    except ValueError as error:
+        raise G3ValidationError("github_protection_pagination_uncertain") from error
+    if page <= current_page or page > GITHUB_HISTORY_MAX_PAGE:
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    raw_per_page = values.get("per_page")
+    if raw_per_page is not None:
+        if re.fullmatch(r"[1-9][0-9]*", raw_per_page) is None:
+            raise G3ValidationError("github_protection_pagination_uncertain")
+        try:
+            per_page = int(raw_per_page)
+        except ValueError as error:
+            raise G3ValidationError("github_protection_pagination_uncertain") from error
+        if per_page > GITHUB_HISTORY_PAGE_SIZE:
+            raise G3ValidationError("github_protection_pagination_uncertain")
+    canonical_query = f"page={page}"
+    if raw_per_page is not None:
+        canonical_query += f"&per_page={int(raw_per_page)}"
+    return page, canonical_query
+
+
+def _github_next_page_path(
+    link_header: str | None,
+    api_origin: str,
+    collection_path: str,
+    current_page: int,
+) -> str | None:
     """Parse GitHub's authenticated RFC 8288 Link header fail-closed."""
 
     if link_header is None or not link_header.strip():
@@ -1333,18 +1413,56 @@ def _github_next_page_path(link_header: str | None) -> str | None:
         raise G3ValidationError("github_protection_pagination_uncertain")
     if not next_urls:
         return None
-    parsed = urlsplit(next_urls[0])
-    expected = urlsplit(CANONICAL_GITHUB_REPOSITORY_IDENTITY["api_origin"])
+    next_url = next_urls[0]
+    if (
+        next_url != next_url.strip()
+        or any(ord(character) < 0x20 for character in next_url)
+        or "#" in next_url
+    ):
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    try:
+        parsed = urlsplit(next_url)
+        expected = urlsplit(api_origin)
+    except ValueError as error:
+        raise G3ValidationError("github_protection_pagination_uncertain") from error
     if (
         parsed.scheme != expected.scheme
         or parsed.netloc != expected.netloc
-        or not parsed.path.startswith("/repos/")
-        or parsed.fragment
         or parsed.username is not None
         or parsed.password is not None
+        or unquote(parsed.path) != parsed.path
+        or parsed.path != collection_path
     ):
         raise G3ValidationError("github_protection_pagination_uncertain")
-    return parsed.path + (f"?{parsed.query}" if parsed.query else "")
+    _, canonical_query = _github_history_pagination_query(
+        parsed.query, current_page
+    )
+    return f"{parsed.path}?{canonical_query}"
+
+
+def _github_history_page_number(path: str) -> int:
+    try:
+        pairs = parse_qsl(urlsplit(path).query, keep_blank_values=True, strict_parsing=True)
+    except ValueError as error:
+        raise G3ValidationError("github_protection_pagination_uncertain") from error
+    page_values = [value for name, value in pairs if name == "page"]
+    if len(page_values) != 1:
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    return int(page_values[0])
+
+
+def _is_rfc3339_timestamp(value: str) -> bool:
+    if re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
+        r"(?:\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})",
+        value,
+    ) is None:
+        return False
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return True
 
 
 def _validate_github_history_actor_and_timestamp(entry: dict[str, Any]) -> None:
@@ -1353,11 +1471,9 @@ def _validate_github_history_actor_and_timestamp(entry: dict[str, Any]) -> None:
     if (
         not isinstance(actor, dict)
         or type(actor.get("id")) is not int
-        or actor["id"] <= 0
         or not isinstance(actor.get("type"), str)
-        or not actor["type"]
         or not isinstance(updated_at, str)
-        or not updated_at
+        or not _is_rfc3339_timestamp(updated_at)
     ):
         raise G3ValidationError("github_protection_malformed_response")
 
@@ -12037,6 +12153,71 @@ def run_regression_self_tests() -> None:
             raise AssertionError("raw production transport did not resolve the external head")
         github_history_wire_positive_tests += 1
 
+        multi_page_transport = _raw_fixture_github_api_transport(
+            fixture_repository, external_graph
+        )
+        multi_page_history_path = next(
+            path
+            for path in multi_page_transport.responses
+            if path.endswith("/history?per_page=100")
+        )
+        multi_page_collection_path = multi_page_history_path.removesuffix(
+            "?per_page=100"
+        )
+        multi_page_path = f"{multi_page_collection_path}?page=2&per_page=100"
+        multi_page_transport.responses[multi_page_history_path] = [
+            {
+                "version_id": 1,
+                "actor": {"id": 1, "type": "User"},
+                "updated_at": "2026-01-01T00:00:00Z",
+            }
+        ]
+        multi_page_transport.responses[multi_page_path] = [
+            {
+                "version_id": 2,
+                "actor": {"id": 2, "type": "User"},
+                "updated_at": "2026-01-02T00:00:00Z",
+            }
+        ]
+        multi_page_transport.link_headers[multi_page_history_path] = (
+            f'<https://api.github.com{multi_page_collection_path}?per_page=100&page=2>; rel="next"'
+        )
+        multi_page_history = multi_page_transport.get_ruleset_history(raw_identity, 1)
+        if multi_page_history != {
+            "versions": [{"version_id": 1}, {"version_id": 2}]
+        }:
+            raise AssertionError(
+                f"canonical multi-page history did not normalize exactly: {multi_page_history}"
+            )
+        github_history_wire_positive_tests += 1
+
+        def raw_history_accept_actor_metadata(
+            label: str, actor: dict[str, Any]
+        ) -> None:
+            nonlocal github_history_wire_positive_tests
+            transport = _raw_fixture_github_api_transport(fixture_repository, external_graph)
+            history_path = next(
+                path for path in transport.responses if path.endswith("/history?per_page=100")
+            )
+            transport.responses[history_path] = [
+                {
+                    "version_id": 1,
+                    "actor": actor,
+                    "updated_at": "2026-01-01T00:00:00Z",
+                }
+            ]
+            normalized = transport.get_ruleset_history(raw_identity, 1)
+            if normalized != {"versions": [{"version_id": 1}]}:
+                raise AssertionError(f"{label} did not preserve version identity: {normalized}")
+            github_history_wire_positive_tests += 1
+
+        raw_history_accept_actor_metadata(
+            "non-positive actor ID", {"id": 0, "type": "User"}
+        )
+        raw_history_accept_actor_metadata(
+            "empty actor type", {"id": 1, "type": ""}
+        )
+
         def raw_history_reject(label: str, payload: Any, link_header: str | None = None) -> None:
             nonlocal github_history_wire_negative_tests
             transport = _raw_fixture_github_api_transport(fixture_repository, external_graph)
@@ -12058,6 +12239,18 @@ def run_regression_self_tests() -> None:
             [{"version_id": "1", "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
         )
         raw_history_reject(
+            "raw history version_id float",
+            [{"version_id": 1.0, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
+        )
+        raw_history_reject(
+            "raw history version_id null",
+            [{"version_id": None, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
+        )
+        raw_history_reject(
+            "raw history version_id nonpositive",
+            [{"version_id": 0, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
+        )
+        raw_history_reject(
             "raw history legacy id only",
             [{"id": 1}],
         )
@@ -12066,6 +12259,191 @@ def run_regression_self_tests() -> None:
             "raw history incomplete pagination",
             [{"version_id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
             '<https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2>; rel="next"',
+        )
+        for label, next_url in (
+            (
+                "raw history wrong owner pagination",
+                "https://api.github.com/repos/Other/rust_electroanalysis_cli/rulesets/1/history?page=2",
+            ),
+            (
+                "raw history wrong repository pagination",
+                "https://api.github.com/repos/Other/Repo/rulesets/1/history?page=2",
+            ),
+            (
+                "raw history wrong ruleset pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/999/history?page=2",
+            ),
+            (
+                "raw history wrong route pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1",
+            ),
+            (
+                "raw history individual endpoint pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history/1?page=2",
+            ),
+            (
+                "raw history cross-origin pagination",
+                "https://api.example.invalid/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2",
+            ),
+            (
+                "raw history cross-host pagination",
+                "https://api.github.com.attacker.example/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2",
+            ),
+            (
+                "raw history HTTP downgrade pagination",
+                "http://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2",
+            ),
+            (
+                "raw history unexpected-port pagination",
+                "https://api.github.com:8443/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2",
+            ),
+            (
+                "raw history userinfo pagination",
+                "https://user@api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2",
+            ),
+            (
+                "raw history fragment pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2#fragment",
+            ),
+            (
+                "raw history dot-segment pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/./history?page=2",
+            ),
+            (
+                "raw history encoded-path pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history%2F?page=2",
+            ),
+            (
+                "raw history encoded-owner pagination",
+                "https://api.github.com/repos/Xingyu%57/rust_electroanalysis_cli/rulesets/1/history?page=2",
+            ),
+            (
+                "raw history double-slash pagination",
+                "https://api.github.com/repos//XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2",
+            ),
+            (
+                "raw history trailing-slash pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history/?page=2",
+            ),
+            (
+                "raw history unknown-query pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2&foo=bar",
+            ),
+            (
+                "raw history security-query pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2&ruleset_id=999",
+            ),
+            (
+                "raw history unknown-owner-query pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2&owner=Other",
+            ),
+            (
+                "raw history oversized-per-page pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2&per_page=101",
+            ),
+            (
+                "raw history malformed-per-page pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2&per_page=0",
+            ),
+            (
+                "raw history zero-page pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=0",
+            ),
+            (
+                "raw history negative-page pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=-2",
+            ),
+            (
+                "raw history nonnumeric-page pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=two",
+            ),
+            (
+                "raw history repeated-page pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2&page=3",
+            ),
+            (
+                "raw history enormous-page pagination",
+                "https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2147483648",
+            ),
+        ):
+            raw_history_reject(
+                label,
+                [{"version_id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
+                f'<{next_url}>; rel="next"',
+            )
+        raw_history_reject(
+            "raw history malformed Link relation",
+            [{"version_id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
+            "<https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2>; rel=next",
+        )
+
+        loop_transport = _raw_fixture_github_api_transport(fixture_repository, external_graph)
+        loop_history_path = next(
+            path for path in loop_transport.responses if path.endswith("/history?per_page=100")
+        )
+        loop_collection_path = loop_history_path.removesuffix("?per_page=100")
+        loop_page_two_path = f"{loop_collection_path}?page=2"
+        loop_transport.responses[loop_page_two_path] = [
+            {"version_id": 2, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-02T00:00:00Z"}
+        ]
+        loop_transport.link_headers[loop_history_path] = (
+            f'<https://api.github.com{loop_page_two_path}>; rel="next"'
+        )
+        loop_transport.link_headers[loop_page_two_path] = (
+            f'<https://api.github.com{loop_page_two_path}>; rel="next"'
+        )
+        reject_value_error(
+            "raw history repeated next URL loop",
+            lambda: loop_transport.get_ruleset_history(raw_identity, 1),
+        )
+        github_history_wire_negative_tests += 1
+
+        backward_transport = _raw_fixture_github_api_transport(
+            fixture_repository, external_graph
+        )
+        backward_history_path = next(
+            path
+            for path in backward_transport.responses
+            if path.endswith("/history?per_page=100")
+        )
+        backward_collection_path = backward_history_path.removesuffix(
+            "?per_page=100"
+        )
+        backward_page_two_path = f"{backward_collection_path}?page=2"
+        backward_page_one_path = f"{backward_collection_path}?page=1"
+        backward_transport.responses[backward_page_two_path] = [
+            {
+                "version_id": 2,
+                "actor": {"id": 1, "type": "User"},
+                "updated_at": "2026-01-02T00:00:00Z",
+            }
+        ]
+        backward_transport.responses[backward_page_one_path] = [
+            {
+                "version_id": 3,
+                "actor": {"id": 1, "type": "User"},
+                "updated_at": "2026-01-03T00:00:00Z",
+            }
+        ]
+        backward_transport.link_headers[backward_history_path] = (
+            f'<https://api.github.com{backward_page_two_path}>; rel="next"'
+        )
+        backward_transport.link_headers[backward_page_two_path] = (
+            f'<https://api.github.com{backward_page_one_path}>; rel="next"'
+        )
+        reject_value_error(
+            "raw history backward pagination loop",
+            lambda: backward_transport.get_ruleset_history(raw_identity, 1),
+        )
+        github_history_wire_negative_tests += 1
+
+        raw_history_reject(
+            "raw history invalid timestamp",
+            [{"version_id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "not-a-date"}],
+        )
+        raw_history_reject(
+            "raw history actor field type mismatch",
+            [{"version_id": 1, "actor": {"id": "1", "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
         )
 
         def raw_protection_reject(
@@ -12120,8 +12498,28 @@ def run_regression_self_tests() -> None:
             {"version_id": 2, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z", "state": _fixture_github_protection_state()},
         )
         raw_version_reject(
+            "raw version version_id string",
+            {"version_id": "1", "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z", "state": _fixture_github_protection_state()},
+        )
+        raw_version_reject(
+            "raw version version_id float",
+            {"version_id": 1.0, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z", "state": _fixture_github_protection_state()},
+        )
+        raw_version_reject(
+            "raw version version_id null",
+            {"version_id": None, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z", "state": _fixture_github_protection_state()},
+        )
+        raw_version_reject(
+            "raw version version_id nonpositive",
+            {"version_id": 0, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z", "state": _fixture_github_protection_state()},
+        )
+        raw_version_reject(
             "raw version missing state",
             {"version_id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"},
+        )
+        raw_version_reject(
+            "raw version invalid timestamp",
+            {"version_id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "not-a-date", "state": _fixture_github_protection_state()},
         )
 
         digest_identity = raw_identity

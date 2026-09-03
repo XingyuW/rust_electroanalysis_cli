@@ -225,6 +225,32 @@ Rulesets API are terminal external assumptions; repository administrators are
 not treated as invisible cryptographic roots, and any observable protection
 change invalidates REAL authorization.
 
+For `get_ruleset_history`, the authenticated transport derives one immutable
+pagination scope from the original trusted repository identity and pinned
+ruleset ID. Its collection route is exactly
+`/repos/{owner}/{repo}/rulesets/{ruleset_id}/history`. Every server-supplied
+`Link: rel="next"` URL is untrusted metadata and is accepted only when it is
+an absolute HTTPS URL on the exact `api.github.com` origin, has no userinfo,
+fragment, or explicit port, and has exactly that raw collection path. The
+transport rejects percent-encoded path characters, dot segments, duplicate or
+trailing separators, case-mutated owner/repository paths, and all other path
+normalization or route substitution; it never silently repairs a path. The
+only permitted query fields are one canonical positive `page` value and one
+optional canonical `per_page` value in the documented range 1--100. The
+initial request fixes `per_page=100`; continuation pages must advance strictly
+from the prior page and remain within the transport bound of
+`2^31-1`. Unknown, repeated, malformed, conflicting, or security-irrelevant
+query fields fail closed. Thus pagination may change only the page position
+within the exact originally requested collection.
+
+History `actor` and `updated_at` are external wire metadata, not inputs to the
+immutable one-version protection proof or its digest. The actor must retain
+the documented object shape with an integer `id` and string `type`, but the
+transport does not impose a positive ID or nonempty type because those values
+are not security predicates here. `updated_at` must be a valid RFC3339
+date-time string. `version_id` remains the security-critical positive integer
+field and is still required to match the pinned individual-version response.
+
 <a id="schema-def-PhaseFReviewerBootstrapAcceptedHeadCheckpointV1"></a>
 `SCHEMA_DEF[PhaseFReviewerBootstrapAcceptedHeadCheckpointV1]` is the
 resolver-owned persistent accepted-head cache. Its exact fields are:
