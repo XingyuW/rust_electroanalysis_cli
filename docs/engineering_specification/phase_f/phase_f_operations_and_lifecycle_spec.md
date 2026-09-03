@@ -27,36 +27,75 @@ membership, compromise/recovery, transition, or currentness ambiguity is P1.
 
 ## 3.1 External reviewer-bootstrap anchor operations
 
-`PhaseFReviewerBootstrapExternalMonotonicHeadV1` is provisioned in one
-dedicated Git remote ref, `refs/heads/phase-f-reviewer-bootstrap-head`. The
-production resolver establishes the canonical GitHub repository identity
-through `https://api.github.com` and independently verifies the exact pinned
-ACTIVE ruleset before reading the ref. The graph-pinned `origin`/SSH alias is
-only an operator push transport; live reads do not consult its local
-configuration. Operators must establish the following before any REAL
-reviewer bootstrap is accepted:
+`PhaseFReviewerBootstrapExternalMonotonicHeadV1` is eventually provisioned in
+one dedicated Git remote ref, `refs/heads/phase-f-reviewer-bootstrap-head`.
+REAL protection pins are trusted only when embedded in an exact independently
+reviewed and published normative Git revision. The production resolver
+establishes the canonical GitHub repository identity through
+`https://api.github.com` and independently verifies the exact pinned ACTIVE
+ruleset before reading the ref. The graph-pinned `origin`/SSH alias is only an
+operator push transport; live reads do not consult its local configuration.
+The following sequence is normative and is required before any REAL reviewer
+bootstrap is accepted:
 
-1. Create the dedicated ref from a canonical sequence-zero head whose commit
-   has no parent and whose root/proof/subject hashes match the immutable
-   bootstrap history.
-2. Protect the ref server-side with one ACTIVE branch ruleset applying to the
-   exact ref, requiring `non_fast_forward` and `deletion`, with no bypass
-   actors. Verify the policy through an authenticated Rulesets API context with
-   sufficient privilege to observe bypass actors and ruleset history.
-3. Pin the exact ruleset ID, initial version ID, and canonical protection-state
-   digest through reviewed authority. A missing, unavailable, insufficiently
-   privileged, changed-during-read, or multiply-resolved protection/ref fails
-   closed.
-4. Advance only by publishing one canonical successor with exactly one Git
-   parent, `sequence + 1`, and predecessor commit/head/hash bindings. The
-   server-side fast-forward/CAS result is final; a caller-selected local SHA,
-   tracking ref, or checkpoint cannot authorize freshness.
-5. Keep the local accepted-head checkpoint outside the repository in an
-   owner-only state directory. It is a cache: a missing cache is reconstructed
-   from the live external head, a lower cache is repaired, and a fork or cache
-   ahead of the live head rejects. State paths use no-follow opens, ownership
-   and mode checks, and an interprocess exclusive lock around the
-   read/compare/write transaction.
+1. **Stage A — mechanism approval.** The current generic `UNPROVISIONED`
+   mechanism must receive fresh cumulative independent technical review with
+   `P0=0` and `P1=0`, and that exact generic mechanism SHA must be published.
+2. **Stage B — external ruleset creation.** Create and verify the real GitHub
+   ruleset using the approved policy. Do not create the monotonic genesis ref
+   yet. Through the canonical authenticated API, obtain the exact repository
+   identity, ruleset ID, initial `version_id`, complete canonical ruleset
+   state, and canonical state digest.
+3. **Stage C — forward normative pinning revision.** Create a NEW forward
+   normative Git commit replacing only the `UNPROVISIONED`/null pin values
+   with the exact observed ruleset ID, `version_id`, state digest, and other
+   required binding values. Regenerate every affected authority graph,
+   specification-bundle manifest, traceability manifest, normative
+   mirror/hash, and generated identity artifact. Run complete validation, but
+   do not trust the pins yet. Submit that exact pinning SHA for fresh cumulative
+   independent technical review; require `P0=0` and `P1=0`; then safely publish
+   exactly the independently reviewed pinning SHA.
+4. **Stage D — post-publication revalidation.** Re-query GitHub with the
+   canonical authenticated API and require the real ruleset to retain the same
+   repository identity, ruleset ID, `version_id`, complete digest, active
+   policy, and complete bypass visibility. If anything changed, stop and make
+   another forward pinning revision requiring fresh review and exact
+   republication.
+5. **Stage E — monotonic genesis.** Only after exact pinning-commit
+   publication and successful post-publication revalidation may the dedicated
+   monotonic ref/genesis head be created. Verify that it is protected by the
+   already pinned ruleset, then continue the existing bootstrap-root and
+   currentness ceremony.
+
+The pin-authority contract is explicit:
+
+```text
+PIN_AUTHORITY_MODEL=FORWARD_NORMATIVE_GIT_COMMIT
+PINNING_STAGE_A=INDEPENDENT_GO_PUBLISH_GENERIC_UNPROVISIONED_MECHANISM
+PINNING_STAGE_B=CREATE_VERIFY_REAL_GITHUB_RULESET_BEFORE_MONOTONIC_GENESIS
+PINNING_STAGE_C=NEW_FORWARD_COMMIT_REGENERATE_MIRRORS_FRESH_CUMULATIVE_REVIEW_PUBLISH_EXACT_SHA
+PINNING_GATE=P0=0,P1=0
+PINNING_STAGE_D=POST_PUBLICATION_REVALIDATE_SAME_ID_VERSION_DIGEST_POLICY_BYPASS_VISIBILITY
+PINNING_STAGE_E=ONLY_AFTER_PUBLICATION_AND_REVALIDATION_CREATE_MONOTONIC_GENESIS
+PIN_AUTHORITY_EQUALITY=LOCAL_REVIEWED_PINNING_SHA=PUBLISHED_MAIN_SHA=LIVE_REMOTE_MAIN_SHA
+PIN_TRUST_PROHIBITION=NO_LOCAL_ENV_UNCOMMITTED_RUNTIME_EXTERNAL_MUTATION
+```
+
+No local edit, environment variable, operator configuration, uncommitted graph
+change, runtime argument, or external mutable file may replace `UNPROVISIONED`
+pins and create REAL authority. The exact pinning commit is authoritative only
+when `local reviewed pinning SHA = published main SHA = live remote main SHA`
+under the existing safe-publication procedure. A caller-selected local SHA,
+tracking ref, or checkpoint cannot authorize freshness.
+
+After Stage E, advance only by publishing one canonical successor with exactly
+one Git parent, `sequence + 1`, and predecessor commit/head/hash bindings. The
+server-side fast-forward/CAS result is final. Keep the local accepted-head
+checkpoint outside the repository in an owner-only state directory. It is a
+cache: a missing cache is reconstructed from the live external head, a lower
+cache is repaired, and a fork or cache ahead of the live head rejects. State
+paths use no-follow opens, ownership and mode checks, and an interprocess
+exclusive lock around the read/compare/write transaction.
 
 The lifecycle is therefore `GENESIS → ACTIVE successor → ACTIVE successor` on
 the external ref. Deletion, rewind, force update, invalidation, protection

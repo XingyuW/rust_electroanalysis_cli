@@ -1215,7 +1215,9 @@
         "R11-TRACE",
         "R11-CX-08",
         "R12-DAG-BINDING-EQUALITY",
-        "R12-DAG-VALID"
+        "R12-DAG-VALID",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
       ],
       "expected_lifecycle_stage": "G2",
       "f0_decision_dependencies": [],
@@ -1244,7 +1246,9 @@
         "R11-CX-18",
         "R12-G3-AUTHORITY-CONTEXT-POS",
         "R12-DAG-BINDING-EQUALITY",
-        "R12-DAG-VALID"
+        "R12-DAG-VALID",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-010",
@@ -1463,7 +1467,9 @@
       "authority_document": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
       "constructive_audit_ids": [
         "R11-DAG-AUDIT",
-        "R11-CX-08"
+        "R11-CX-08",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
       ],
       "expected_lifecycle_stage": "G2",
       "f0_decision_dependencies": [
@@ -1484,7 +1490,9 @@
       "test_ids": [
         "R11-DAG-AUDIT",
         "R11-CX-08",
-        "R11-CX-18"
+        "R11-CX-18",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-016",

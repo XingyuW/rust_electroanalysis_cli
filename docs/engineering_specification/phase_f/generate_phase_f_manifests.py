@@ -25,7 +25,7 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any, Callable, Protocol
 from urllib.error import HTTPError
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 
 try:
@@ -569,6 +569,9 @@ EXTERNAL_MONOTONIC_HEAD_PROTECTION_POLICY = {
     "bypass_actors": [],
     "history_policy": "IMMUTABLE_PINNED_INITIAL_VERSION",
 }
+GITHUB_PROTECTION_STATE_DIGEST_DOMAIN = (
+    b"mhi_phase_f_github_protection_state_v1\0"
+)
 EXTERNAL_MONOTONIC_HEAD_PROTECTION_BINDING = {
     "provisioning_status": "UNPROVISIONED",
     "ruleset_id": None,
@@ -1041,6 +1044,17 @@ G3_FIXTURE_BODY = (
 G3_FIXTURE_BYTE_LENGTH = 379
 G3_FIXTURE_SHA256 = "af3f94a1a5ae85f2e62d8a0ad54e66b3bd985cd150805a5750528befa15027b6"
 G3_LEGACY_FIELDS = {"architecture_plan_tag", "f0_decisions_tag"}
+GITHUB_PROTECTION_PINNING_CEREMONY_ANCHORS = (
+    "PIN_AUTHORITY_MODEL=FORWARD_NORMATIVE_GIT_COMMIT",
+    "PINNING_STAGE_A=INDEPENDENT_GO_PUBLISH_GENERIC_UNPROVISIONED_MECHANISM",
+    "PINNING_STAGE_B=CREATE_VERIFY_REAL_GITHUB_RULESET_BEFORE_MONOTONIC_GENESIS",
+    "PINNING_STAGE_C=NEW_FORWARD_COMMIT_REGENERATE_MIRRORS_FRESH_CUMULATIVE_REVIEW_PUBLISH_EXACT_SHA",
+    "PINNING_GATE=P0=0,P1=0",
+    "PINNING_STAGE_D=POST_PUBLICATION_REVALIDATE_SAME_ID_VERSION_DIGEST_POLICY_BYPASS_VISIBILITY",
+    "PINNING_STAGE_E=ONLY_AFTER_PUBLICATION_AND_REVALIDATION_CREATE_MONOTONIC_GENESIS",
+    "PIN_AUTHORITY_EQUALITY=LOCAL_REVIEWED_PINNING_SHA=PUBLISHED_MAIN_SHA=LIVE_REMOTE_MAIN_SHA",
+    "PIN_TRUST_PROHIBITION=NO_LOCAL_ENV_UNCOMMITTED_RUNTIME_EXTERNAL_MUTATION",
+)
 AUTHORITY_ENROLLMENT_APPROVAL_TAG = (
     "ism-mechanism-health-v1-f-authority-enrollment-approved"
 )
@@ -1176,6 +1190,10 @@ class GitHubProtectionTransport(Protocol):
         self, identity: dict[str, Any], ruleset_id: int
     ) -> dict[str, Any] | list[dict[str, Any]]: ...
 
+    def get_ruleset_version(
+        self, identity: dict[str, Any], ruleset_id: int, version_id: int
+    ) -> dict[str, Any]: ...
+
     def get_ref(self, identity: dict[str, Any], ref: str) -> dict[str, Any]: ...
 
     def git_fetch_url(self, identity: dict[str, Any]) -> str: ...
@@ -1196,7 +1214,7 @@ class GitHubApiTransport:
     def _environment_credential() -> str | None:
         return os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
 
-    def _get_json(self, path: str) -> Any:
+    def _get_json_response(self, path: str) -> tuple[Any, str | None]:
         token = self._credential_provider()
         if not isinstance(token, str) or not token:
             raise G3ValidationError("github_protection_authentication_unavailable")
@@ -1212,6 +1230,8 @@ class GitHubApiTransport:
         try:
             with urlopen(request, timeout=self._timeout_seconds) as response:
                 decoded = json.loads(response.read().decode("utf-8"))
+                headers = getattr(response, "headers", None)
+                link_header = headers.get("Link") if headers is not None else None
         except HTTPError as error:
             if error.code in {401, 403}:
                 raise G3ValidationError(
@@ -1224,7 +1244,13 @@ class GitHubApiTransport:
             raise G3ValidationError("github_protection_api_unavailable") from error
         if not isinstance(decoded, (dict, list)):
             raise G3ValidationError("github_protection_malformed_response")
-        return decoded
+        if link_header is not None and not isinstance(link_header, str):
+            raise G3ValidationError("github_protection_pagination_uncertain")
+        return decoded, link_header
+
+    def _get_json(self, path: str) -> Any:
+        payload, _ = self._get_json_response(path)
+        return payload
 
     def get_repository(self, identity: dict[str, Any]) -> dict[str, Any]:
         owner, name = identity["repository_full_name"].split("/", 1)
@@ -1246,32 +1272,32 @@ class GitHubApiTransport:
 
     def get_ruleset_history(
         self, identity: dict[str, Any], ruleset_id: int
-    ) -> dict[str, Any] | list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         owner, name = identity["repository_full_name"].split("/", 1)
-        payload = self._get_json(
+        next_path: str | None = (
             f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/rulesets/{ruleset_id}/history?per_page=100"
         )
-        if isinstance(payload, dict):
-            return payload
-        if (
-            not payload
-            or len(payload) >= 100
-            or any(
-                not isinstance(version, dict) or not isinstance(version.get("id"), int)
-                for version in payload
-            )
-        ):
-            raise G3ValidationError("github_protection_pagination_uncertain")
+        visited_paths: set[str] = set()
+        versions: list[dict[str, Any]] = []
+        while next_path is not None:
+            if next_path in visited_paths:
+                raise G3ValidationError("github_protection_pagination_uncertain")
+            visited_paths.add(next_path)
+            payload, link_header = self._get_json_response(next_path)
+            versions.extend(_parse_github_ruleset_history_page(payload))
+            next_path = _github_next_page_path(link_header)
         return {
-            "current_version_id": payload[0]["id"],
-            "versions": [
-                {
-                    "version_id": version["id"],
-                    "state_digest": version.get("state_digest"),
-                }
-                for version in payload
-            ],
+            "versions": versions,
         }
+
+    def get_ruleset_version(
+        self, identity: dict[str, Any], ruleset_id: int, version_id: int
+    ) -> dict[str, Any]:
+        owner, name = identity["repository_full_name"].split("/", 1)
+        payload = self._get_json(
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/rulesets/{ruleset_id}/history/{version_id}"
+        )
+        return _parse_github_ruleset_version(payload, version_id)
 
     def get_ref(self, identity: dict[str, Any], ref: str) -> dict[str, Any]:
         owner, name = identity["repository_full_name"].split("/", 1)
@@ -1290,8 +1316,127 @@ class GitHubApiTransport:
         )
 
 
-def _github_protection_state_digest(state: dict[str, Any]) -> str:
-    return sha256_bytes(canonical_json_bytes(state))
+def _github_next_page_path(link_header: str | None) -> str | None:
+    """Parse GitHub's authenticated RFC 8288 Link header fail-closed."""
+
+    if link_header is None or not link_header.strip():
+        return None
+    next_urls: list[str] = []
+    for link in link_header.split(","):
+        match = re.fullmatch(r"\s*<([^<>]+)>\s*;\s*rel=\"([^\"]+)\"\s*", link)
+        if match is None:
+            raise G3ValidationError("github_protection_pagination_uncertain")
+        relations = match.group(2).split()
+        if "next" in relations:
+            next_urls.append(match.group(1))
+    if len(next_urls) > 1:
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    if not next_urls:
+        return None
+    parsed = urlsplit(next_urls[0])
+    expected = urlsplit(CANONICAL_GITHUB_REPOSITORY_IDENTITY["api_origin"])
+    if (
+        parsed.scheme != expected.scheme
+        or parsed.netloc != expected.netloc
+        or not parsed.path.startswith("/repos/")
+        or parsed.fragment
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    return parsed.path + (f"?{parsed.query}" if parsed.query else "")
+
+
+def _validate_github_history_actor_and_timestamp(entry: dict[str, Any]) -> None:
+    actor = entry.get("actor")
+    updated_at = entry.get("updated_at")
+    if (
+        not isinstance(actor, dict)
+        or type(actor.get("id")) is not int
+        or actor["id"] <= 0
+        or not isinstance(actor.get("type"), str)
+        or not actor["type"]
+        or not isinstance(updated_at, str)
+        or not updated_at
+    ):
+        raise G3ValidationError("github_protection_malformed_response")
+
+
+def _parse_github_ruleset_history_page(payload: Any) -> list[dict[str, Any]]:
+    """Convert one raw GitHub history page to the internal typed representation."""
+
+    if not isinstance(payload, list):
+        raise G3ValidationError("github_protection_malformed_response")
+    versions: list[dict[str, Any]] = []
+    for entry in payload:
+        if not isinstance(entry, dict) or type(entry.get("version_id")) is not int:
+            raise G3ValidationError("github_protection_malformed_response")
+        if entry["version_id"] <= 0:
+            raise G3ValidationError("github_protection_malformed_response")
+        if "id" in entry and entry["id"] != entry["version_id"]:
+            raise G3ValidationError("github_protection_version_mismatch")
+        _validate_github_history_actor_and_timestamp(entry)
+        versions.append({"version_id": entry["version_id"]})
+    return versions
+
+
+def _parse_github_ruleset_version(
+    payload: Any, expected_version_id: int | None = None
+) -> dict[str, Any]:
+    """Convert one raw GitHub ruleset-version object to the internal form."""
+
+    if not isinstance(payload, dict) or type(payload.get("version_id")) is not int:
+        raise G3ValidationError("github_protection_malformed_response")
+    if payload["version_id"] <= 0:
+        raise G3ValidationError("github_protection_malformed_response")
+    if (
+        expected_version_id is not None
+        and payload["version_id"] != expected_version_id
+    ):
+        raise G3ValidationError("github_protection_version_mismatch")
+    if "id" in payload and payload["id"] != payload["version_id"]:
+        raise G3ValidationError("github_protection_version_mismatch")
+    _validate_github_history_actor_and_timestamp(payload)
+    state = payload.get("state")
+    if not isinstance(state, dict):
+        raise G3ValidationError("github_protection_ruleset_version_state_missing")
+    return {"version_id": payload["version_id"], "state": state}
+
+
+def _github_protection_digest_preimage(
+    identity: dict[str, Any],
+    protected_ref: str,
+    ruleset_id: int,
+    version_id: int,
+    state: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "provider": identity["provider"],
+        "api_origin": identity["api_origin"],
+        "repository_id": identity["repository_id"],
+        "repository_full_name": identity["repository_full_name"],
+        "protected_ref": protected_ref,
+        "ruleset_id": ruleset_id,
+        "version_id": version_id,
+        "ruleset_state": state,
+    }
+
+
+def _github_protection_state_digest(
+    identity: dict[str, Any],
+    protected_ref: str,
+    ruleset_id: int,
+    version_id: int,
+    state: dict[str, Any],
+) -> str:
+    return sha256_bytes(
+        GITHUB_PROTECTION_STATE_DIGEST_DOMAIN
+        + canonical_jcs_bytes(
+            _github_protection_digest_preimage(
+                identity, protected_ref, ruleset_id, version_id, state
+            )
+        )
+    )
 
 
 def _verify_github_repository_identity(
@@ -1398,28 +1543,44 @@ def _verify_github_ruleset_protection(
     state = _canonical_ruleset_state(
         ruleset, identity, contract["ref"], contract["protection_policy"]
     )
-    state_digest = _github_protection_state_digest(state)
+    state_digest = _github_protection_state_digest(
+        identity, contract["ref"], binding["ruleset_id"], binding["version_id"], state
+    )
     if state_digest != binding["state_digest"]:
         raise G3ValidationError("github_protection_state_digest_mismatch")
     history = transport.get_ruleset_history(identity, binding["ruleset_id"])
     versions = history.get("versions") if isinstance(history, dict) else None
     if (
         not isinstance(history, dict)
-        or history.get("current_version_id") != binding["version_id"]
         or not isinstance(versions, list)
         or len(versions) != 1
     ):
         raise G3ValidationError("github_protection_history_changed")
     version = versions[0]
+    if not isinstance(version, dict) or type(version.get("version_id")) is not int:
+        raise G3ValidationError("github_protection_version_mismatch")
+    if version["version_id"] != binding["version_id"]:
+        raise G3ValidationError("github_protection_version_mismatch")
     if (
-        not isinstance(version, dict)
-        or version.get("version_id") != binding["version_id"]
-        or (
-            version.get("state_digest") is not None
-            and version.get("state_digest") != binding["state_digest"]
-        )
+        version.get("state_digest") is not None
+        and version.get("state_digest") != binding["state_digest"]
     ):
         raise G3ValidationError("github_protection_version_mismatch")
+    version_payload = transport.get_ruleset_version(
+        identity, binding["ruleset_id"], binding["version_id"]
+    )
+    if (
+        not isinstance(version_payload, dict)
+        or type(version_payload.get("version_id")) is not int
+        or version_payload["version_id"] != binding["version_id"]
+        or not isinstance(version_payload.get("state"), dict)
+    ):
+        raise G3ValidationError("github_protection_version_mismatch")
+    version_state = _canonical_ruleset_state(
+        version_payload["state"], identity, contract["ref"], contract["protection_policy"]
+    )
+    if version_state != state:
+        raise G3ValidationError("github_protection_version_state_mismatch")
     return {
         **identity_evidence,
         "permission_sufficient": True,
@@ -5016,9 +5177,9 @@ def validate_wire_catalog() -> None:
         "#schema-def-PhaseFReviewerBootstrapExternalMonotonicHeadV1",
         "sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding head_id; complete-file SHA-256 covers every field in the sole-file Git commit tree",
         "protected Git remote ref currentness head",
-        "strict schema, canonical GitHub repository identity, pinned immutable ruleset protection, exact ref identity, sole-file tree, parent/head predecessor, forward sequence, root/proof/subject binding, and canonical live-ref read validation",
+        "strict raw GitHub `version_id` history/version parsing, canonical repository identity, complete repository/ruleset/version/state protection digest, pinned immutable ruleset protection, exact ref identity, sole-file tree, parent/head predecessor, forward sequence, root/proof/subject binding, and canonical live-ref read validation",
         "PRE_G0_REVIEWER_BOOTSTRAP; terminal currentness source before every REAL reviewer identity",
-        "dedicated externally protected Git ref; authenticated GitHub Rulesets API evidence must prove ACTIVE exact-ref coverage, non-fast-forward and deletion rules, empty bypass actors, and unchanged pinned history; not a Phase F registry record",
+        "dedicated externally protected Git ref; authenticated GitHub Rulesets API evidence must prove ACTIVE exact-ref coverage, non-fast-forward and deletion rules, empty bypass actors, unchanged pinned history, and exact reviewed pinning publication; not a Phase F registry record",
         "INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapExternalMonotonicHeadV1)",
     ]:
         raise ValueError("external monotonic-head schema catalog metadata mismatch")
@@ -5079,6 +5240,13 @@ def validate_kat_spec() -> None:
         result = check_g3_kat(tag_name, body)
         if result != {"result": "REJECT", "category": mutation["expected_category"]}:
             raise ValueError(f"G3 mutation {mutation['id']} result: {result}")
+
+    operations_text = SPECS["F-OPS"].read_text()
+    if any(
+        operations_text.count(anchor) != 1
+        for anchor in GITHUB_PROTECTION_PINNING_CEREMONY_ANCHORS
+    ):
+        raise ValueError("GitHub protection pinning ceremony contract is incomplete")
 
 
 def validate_reference_catalogs(
@@ -8308,10 +8476,20 @@ class FixtureGitHubProtectionTransport:
                 {
                     "version_id": 1,
                     "state_digest": _github_protection_state_digest(
-                        _fixture_github_protection_state()
+                        CANONICAL_GITHUB_REPOSITORY_IDENTITY,
+                        EXTERNAL_MONOTONIC_HEAD_REF,
+                        1,
+                        1,
+                        _fixture_github_protection_state(),
                     ),
                 }
             ],
+        }
+        self.version_response: dict[str, Any] = {
+            "version_id": 1,
+            "actor": {"id": 1, "type": "User"},
+            "updated_at": "2026-01-01T00:00:00Z",
+            "state": _fixture_github_protection_state(),
         }
         self.failure_category: str | None = None
 
@@ -8332,6 +8510,12 @@ class FixtureGitHubProtectionTransport:
     ) -> dict[str, Any]:
         self._check()
         return deepcopy(self.history_response)
+
+    def get_ruleset_version(
+        self, identity: dict[str, Any], ruleset_id: int, version_id: int
+    ) -> dict[str, Any]:
+        self._check()
+        return deepcopy(self.version_response)
 
     def get_ref(self, identity: dict[str, Any], ref: str) -> dict[str, Any]:
         self._check()
@@ -8360,6 +8544,74 @@ def _fixture_github_api_transport(
     return FixtureGitHubProtectionTransport(
         Path(graph["external_monotonic_head_contract"]["transport"]["remote_url"])
     )
+
+
+class RawGitHubApiFixtureTransport(GitHubApiTransport):
+    """Raw documented GitHub responses routed through the production transport."""
+
+    def __init__(self, repository: Path, graph: dict[str, Any]) -> None:
+        super().__init__(credential_provider=lambda: "fixture-token")
+        identity = graph["external_monotonic_head_contract"]["repository_identity"]
+        owner, name = identity["repository_full_name"].split("/", 1)
+        contract = graph["external_monotonic_head_contract"]
+        self.remote = Path(contract["transport"]["remote_url"])
+        self.responses: dict[str, Any] = {
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}": {
+                "id": identity["repository_id"],
+                "name": name,
+                "full_name": identity["repository_full_name"],
+                "owner": {"login": owner},
+            },
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/rulesets/1": {
+                "id": 1,
+                **_fixture_github_protection_state(),
+            },
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/rulesets/1/history?per_page=100": [
+                {
+                    "version_id": 1,
+                    "actor": {"id": 1, "type": "User"},
+                    "updated_at": "2026-01-01T00:00:00Z",
+                }
+            ],
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/rulesets/1/history/1": {
+                "version_id": 1,
+                "actor": {"id": 1, "type": "User"},
+                "updated_at": "2026-01-01T00:00:00Z",
+                "state": _fixture_github_protection_state(),
+            },
+        }
+        try:
+            sha = subprocess.check_output(
+                ["git", "rev-parse", "--verify", contract["ref"]],
+                cwd=self.remote,
+                stderr=subprocess.PIPE,
+            ).decode("ascii").strip()
+        except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+            raise G3ValidationError("external_monotonic_head_missing") from error
+        self.responses[
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/git/ref/{quote(contract['ref'].removeprefix('refs/heads/'), safe='')}"
+        ] = {
+            "repository_full_name": identity["repository_full_name"],
+            "ref": contract["ref"],
+            "object": {"sha": sha, "type": "commit"},
+        }
+        self.link_headers: dict[str, str | None] = {}
+
+    def _get_json_response(self, path: str) -> tuple[Any, str | None]:
+        try:
+            payload = self.responses[path]
+        except KeyError as error:
+            raise G3ValidationError("github_protection_api_unavailable") from error
+        return deepcopy(payload), self.link_headers.get(path)
+
+    def git_fetch_url(self, identity: dict[str, Any]) -> str:
+        return str(self.remote)
+
+
+def _raw_fixture_github_api_transport(
+    repository: Path, graph: dict[str, Any]
+) -> RawGitHubApiFixtureTransport:
+    return RawGitHubApiFixtureTransport(repository, graph)
 
 
 def _fixture_external_head(
@@ -8666,7 +8918,11 @@ def _isolated_real_fixture(
         "ruleset_id": 1,
         "version_id": 1,
         "state_digest": _github_protection_state_digest(
-            _fixture_github_protection_state()
+            CANONICAL_GITHUB_REPOSITORY_IDENTITY,
+            EXTERNAL_MONOTONIC_HEAD_REF,
+            1,
+            1,
+            _fixture_github_protection_state(),
         ),
     }
     graph_destination = repository / AUTHORITY_GRAPH_PATH.relative_to(ROOT)
@@ -11684,6 +11940,11 @@ def run_regression_self_tests() -> None:
     external_head_negative_tests = 0
     external_head_cas_tests = 0
     local_checkpoint_lock_tests = 0
+    github_history_wire_positive_tests = 0
+    github_history_wire_negative_tests = 0
+    github_version_wire_positive_tests = 0
+    github_version_wire_negative_tests = 0
+    github_protection_digest_mutation_tests = 0
     bootstrap_root_seed = b"phase-f-r12-fixture-bootstrap-root-01"
     missing_temporary, missing_repository, missing_target, _ = _isolated_real_fixture(
         populate_authority=False
@@ -11746,6 +12007,166 @@ def run_regression_self_tests() -> None:
         transport_state_digest = external_graph["external_monotonic_head_contract"][
             "protection_binding"
         ]["state_digest"]
+
+        raw_transport = _raw_fixture_github_api_transport(
+            fixture_repository, external_graph
+        )
+        raw_identity = external_graph["external_monotonic_head_contract"][
+            "repository_identity"
+        ]
+        raw_history = raw_transport.get_ruleset_history(raw_identity, 1)
+        if raw_history != {"versions": [{"version_id": 1}]}:
+            raise AssertionError(f"documented raw history did not normalize exactly: {raw_history}")
+        github_history_wire_positive_tests += 1
+        raw_version = raw_transport.get_ruleset_version(raw_identity, 1, 1)
+        if (
+            raw_version.get("version_id") != 1
+            or raw_version.get("state") != _fixture_github_protection_state()
+        ):
+            raise AssertionError(f"documented raw version did not normalize exactly: {raw_version}")
+        github_version_wire_positive_tests += 1
+        raw_protection = _verify_github_ruleset_protection(
+            raw_transport, external_graph["external_monotonic_head_contract"]
+        )
+        if raw_protection["version_id"] != 1:
+            raise AssertionError(f"raw production protection evidence was wrong: {raw_protection}")
+        raw_head, raw_commit = _read_live_external_monotonic_head(
+            fixture_repository, external_graph, raw_transport
+        )
+        if raw_head["external_commit"] != raw_commit:
+            raise AssertionError("raw production transport did not resolve the external head")
+        github_history_wire_positive_tests += 1
+
+        def raw_history_reject(label: str, payload: Any, link_header: str | None = None) -> None:
+            nonlocal github_history_wire_negative_tests
+            transport = _raw_fixture_github_api_transport(fixture_repository, external_graph)
+            history_path = next(
+                path for path in transport.responses if path.endswith("/history?per_page=100")
+            )
+            transport.responses[history_path] = payload
+            if link_header is not None:
+                transport.link_headers[history_path] = link_header
+            reject_value_error(label, lambda: transport.get_ruleset_history(raw_identity, 1))
+            github_history_wire_negative_tests += 1
+
+        raw_history_reject(
+            "raw history missing version_id",
+            [{"id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
+        )
+        raw_history_reject(
+            "raw history version_id string",
+            [{"version_id": "1", "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
+        )
+        raw_history_reject(
+            "raw history legacy id only",
+            [{"id": 1}],
+        )
+        raw_history_reject("raw history malformed page", {"versions": []})
+        raw_history_reject(
+            "raw history incomplete pagination",
+            [{"version_id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
+            '<https://api.github.com/repos/XingyuW/rust_electroanalysis_cli/rulesets/1/history?page=2>; rel="next"',
+        )
+
+        def raw_protection_reject(
+            label: str, mutate: Callable[[RawGitHubApiFixtureTransport], None]
+        ) -> None:
+            nonlocal github_history_wire_negative_tests
+            transport = _raw_fixture_github_api_transport(fixture_repository, external_graph)
+            mutate(transport)
+            reject_value_error(
+                label,
+                lambda: _verify_github_ruleset_protection(
+                    transport, external_graph["external_monotonic_head_contract"]
+                ),
+            )
+            github_history_wire_negative_tests += 1
+
+        raw_protection_reject(
+            "raw history wrong version",
+            lambda transport: transport.responses[
+                next(path for path in transport.responses if path.endswith("/history?per_page=100"))
+            ].__setitem__(0, {"version_id": 2, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}),
+        )
+        raw_protection_reject(
+            "raw history duplicate version",
+            lambda transport: transport.responses.__setitem__(
+                next(path for path in transport.responses if path.endswith("/history?per_page=100")),
+                [{"version_id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}, {"version_id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
+            ),
+        )
+        raw_protection_reject(
+            "raw history additional version",
+            lambda transport: transport.responses.__setitem__(
+                next(path for path in transport.responses if path.endswith("/history?per_page=100")),
+                [{"version_id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}, {"version_id": 2, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"}],
+            ),
+        )
+
+        def raw_version_reject(label: str, payload: Any) -> None:
+            nonlocal github_version_wire_negative_tests
+            transport = _raw_fixture_github_api_transport(fixture_repository, external_graph)
+            version_path = next(path for path in transport.responses if path.endswith("/history/1"))
+            transport.responses[version_path] = payload
+            reject_value_error(label, lambda: transport.get_ruleset_version(raw_identity, 1, 1))
+            github_version_wire_negative_tests += 1
+
+        raw_version_reject(
+            "raw version missing version_id",
+            {"id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z", "state": _fixture_github_protection_state()},
+        )
+        raw_version_reject(
+            "raw version mismatched version_id",
+            {"version_id": 2, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z", "state": _fixture_github_protection_state()},
+        )
+        raw_version_reject(
+            "raw version missing state",
+            {"version_id": 1, "actor": {"id": 1, "type": "User"}, "updated_at": "2026-01-01T00:00:00Z"},
+        )
+
+        digest_identity = raw_identity
+        digest_ref = external_graph["external_monotonic_head_contract"]["ref"]
+        digest_state = _fixture_github_protection_state()
+        digest_base = _github_protection_state_digest(
+            digest_identity, digest_ref, 1, 1, digest_state
+        )
+        digest_mutations: tuple[str, Callable[[dict[str, Any], dict[str, Any]], None]] = (
+            ("repository_id", lambda identity, state: identity.update({"repository_id": 1})),
+            ("repository_full_name", lambda identity, state: identity.update({"repository_full_name": "attacker/repository"})),
+            ("provider", lambda identity, state: identity.update({"provider": "other"})),
+            ("api_origin", lambda identity, state: identity.update({"api_origin": "https://api.example.invalid"})),
+            ("protected_ref", lambda identity, state: None),
+            ("ruleset_id", lambda identity, state: None),
+            ("version_id", lambda identity, state: None),
+            ("enforcement", lambda identity, state: state.update({"enforcement": "disabled"})),
+            ("conditions", lambda identity, state: state["conditions"]["ref_name"].update({"include": ["refs/heads/other-ref"]})),
+            ("deletion_rule", lambda identity, state: state["rules"].__setitem__(0, {"type": "other", "parameters": None})),
+            ("non_fast_forward_rule", lambda identity, state: state["rules"].__setitem__(1, {"type": "other", "parameters": None})),
+            ("bypass_actors", lambda identity, state: state.update({"bypass_actors": [{"actor_type": "RepositoryRole"}]})),
+        )
+        for label, mutate in digest_mutations:
+            mutation_identity = deepcopy(digest_identity)
+            mutation_state = deepcopy(digest_state)
+            mutation_ref = digest_ref
+            mutation_ruleset_id = 1
+            mutation_version_id = 1
+            if label == "protected_ref":
+                mutation_ref = "refs/heads/other-ref"
+            elif label == "ruleset_id":
+                mutation_ruleset_id = 2
+            elif label == "version_id":
+                mutation_version_id = 2
+            mutate(mutation_identity, mutation_state)
+            mutation_digest = _github_protection_state_digest(
+                mutation_identity,
+                mutation_ref,
+                mutation_ruleset_id,
+                mutation_version_id,
+                mutation_state,
+            )
+            if mutation_digest == digest_base:
+                raise AssertionError(f"protection digest ignored mutation: {label}")
+            github_protection_digest_mutation_tests += 1
 
         def protection_read_reject(
             label: str, mutate: Callable[[FixtureGitHubProtectionTransport], None]
@@ -13632,6 +14053,11 @@ def run_regression_self_tests() -> None:
         f"external_head_cas_tests={external_head_cas_tests} "
         f"local_checkpoint_lock_tests={local_checkpoint_lock_tests} "
         f"external_registry_mutation_tests={external_registry_mutation_tests} "
+        f"github_history_wire_positive_tests={github_history_wire_positive_tests} "
+        f"github_history_wire_negative_tests={github_history_wire_negative_tests} "
+        f"github_version_wire_positive_tests={github_version_wire_positive_tests} "
+        f"github_version_wire_negative_tests={github_version_wire_negative_tests} "
+        f"github_protection_digest_mutation_tests={github_protection_digest_mutation_tests} "
         f"edge_canonical_passes={authorized_edge_canonical_passes} edge_removals_rejected={authorized_edge_removals_rejected} "
         f"edge_retypes_rejected={authorized_edge_retypes_rejected} edge_redirects_rejected={authorized_edge_redirects_rejected} "
         f"binding_edges={len(binding_edges)} none_binding_edges={len(none_binding_edges)} "

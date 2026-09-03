@@ -71,8 +71,8 @@ real approval or an `F-EV`.
 | R12-G3-MIGRATED-DISPOSITION-ENUM | constructive_plan_audit | migrated_review_authority | complete synthetic context with an unresolved or unknown finding disposition | same as positive | `validate_g3_tag(...)` | REJECT | closed disposition/count/decision mismatch | 0 |
 | R12-G3-MIGRATED-REVIEW-RECORDS | constructive_plan_audit | migrated_review_authority | complete synthetic and real contexts with missing, duplicate, stale, role-mismatched, unresolved, non-independent, or non-GO review rows; exhaustive five-role state and identity probes | same as positive | `validate_g3_tag(...)` | REJECT | review-record closure, identity, or unanimous decision mismatch | 0 |
 | R12-G3-MIGRATED-INPUT-FINGERPRINT | constructive_plan_audit | migrated_review_authority | complete synthetic context with a stale derived review-input fingerprint | same as positive | `validate_g3_tag(...)` | REJECT | review-input fingerprint mismatch | 0 |
-| R12-G3-REAL-FORMAT-POSITIVE | constructive_plan_audit | isolated_real_repository_authority | isolated repository with canonical authority JSON, annotated tags, and real Git target | real-format fixture | `make_repository_context(...); validate_g3_tag(...)` | PASS | resolved real authority closure | 0 |
-| R12-G3-REAL-FORMAT-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | real-format fixture mutated across missing, malformed, stale, wrong-target, wrong-hash, tag, canonical GitHub identity, ruleset protection/history, external-ref, and state-path cases | real-format fixture mutation matrix including unavailable/insufficient GitHub API, hidden/known bypass actors, missing required rules, disabled/wrong-ref/wrong-identity/wrong-version protection, history restoration, protected-ref force/delete attempts, and symlinked resolver state | `make_repository_context(...); resolve_external_dependency(...); validate_g3_tag(...); _write_reviewer_bootstrap_checkpoint(...)` | REJECT | every real-format, external-authority, protection, and state-path mutation rejected | 0 |
+| R12-G3-REAL-FORMAT-POSITIVE | constructive_plan_audit | isolated_real_repository_authority | isolated repository with canonical authority JSON, annotated tags, and real Git target; documented raw GitHub `version_id` history and individual-version responses routed through `GitHubApiTransport`; complete protection-digest preimage | raw production-shaped GitHub transport fixture plus real-format fixture | `GitHubApiTransport.get_ruleset_history(...); GitHubApiTransport.get_ruleset_version(...); make_repository_context(...); validate_g3_tag(...)` | PASS | documented raw wire reaches production parser and resolved real authority closure | 0 |
+| R12-G3-REAL-FORMAT-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | raw history/version mutations for missing/string/legacy/contradictory `version_id`, duplicate/additional versions, malformed/incomplete pagination, and mismatched version endpoint, plus real-format mutations across missing, stale, wrong-target, wrong-hash, tag, canonical identity, ruleset protection, external-ref, and state-path cases | raw production-shaped GitHub transport fixture and real-format mutation matrix including unavailable/insufficient API, hidden/known bypass actors, missing rules, disabled/wrong-ref/wrong-identity/wrong-version protection, history restoration, protected-ref force/delete attempts, and symlinked resolver state | `GitHubApiTransport.get_ruleset_history(...); GitHubApiTransport.get_ruleset_version(...); make_repository_context(...); resolve_external_dependency(...); validate_g3_tag(...); _write_reviewer_bootstrap_checkpoint(...)` | REJECT | every raw-wire, real-format, external-authority, protection, and state-path mutation rejected | 0 |
 | R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE | constructive_plan_audit | isolated_real_repository_authority | graph-pinned pre-G0 bootstrap root plus root-signed currentness proof, five distinct natural-person subjects, domain-separated actor digests, complete-file references, and valid current-verifier signatures | real-format actor-attestation fixture | `make_repository_context(...); validate_g3_tag(...)` | PASS | five verified attestation subjects resolve and authorize the test-only fixture | 0 |
 | R12-G3-REAL-ACTOR-ATTESTATION-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | REAL resolver mutations cover arbitrary/malformed/missing/fake/cross-wired root/proof/attestations, wrong role/verifier/root/subject/head, stale/revoked/compromised/superseded state, invalid signature, self-declaration, remediation-author alias, and five-key/same-subject aliasing | bootstrap trust and actor-attestation mutation matrix | `make_repository_context(...); validate_g3_tag(...)` | REJECT | every bootstrap, actor-identity, and attestation mutation rejected | 0 |
 | R12-G3-REAL-CURRENTNESS-HISTORY | constructive_plan_audit | isolated_real_repository_authority | immutable proof history has authenticated predecessors, contiguous sequence, one canonical child, graph-pinned external monotonic head, and resolver-owned accepted-head cache | valid external sequence 0→1→2 advancement, fresh-cache reconstruction, concurrent local/external races, plus missing-predecessor, predecessor-hash, sequence-gap, proof-fork, rollback, and same-sequence-checkpoint-fork mutations | `make_repository_context(...); read_live_external_monotonic_head(...); _write_reviewer_bootstrap_checkpoint(...)` | PASS for forward advancement, fresh reconstruction, and one CAS winner; REJECT for every history/checkpoint mutation | no rollback, gap, orphan, stale external read, or fork is accepted | 0 |
@@ -213,6 +213,37 @@ type, peel, reachability, manifest, review, and upstream-authority checks are
 part of the same reusable validator and are exercised by the prerequisite
 catalog below; the synthetic KAT supplies synthetic equivalents for those
 predicates and never creates real authority.
+
+### 3.1.1 Production-shaped GitHub protection wire
+
+The production transport consumes the documented GitHub Rulesets API wire
+directly. A history page is a JSON list whose every entry has an integer
+`version_id`, an `actor` object, and an `updated_at` timestamp. `id` is never a
+legacy alias; an `id`-only entry is malformed. The authenticated transport
+follows GitHub's exact `Link: <...>; rel="next"` pagination relation and fails
+closed on malformed, looping, ambiguous, or unavailable traversal. It does not
+infer a version from list position or from an internal fixture representation.
+
+The individual endpoint is exactly
+`GET /repos/{owner}/{repo}/rulesets/{ruleset_id}/history/{version_id}`. Its raw
+object must have integer top-level `version_id`, `actor`, `updated_at`, and a
+complete `state` object. The verifier requires the history to contain exactly
+the pinned initial version, requires both the history and individual response
+to match the pinned `version_id`, canonicalizes the current and historical
+states independently, and rejects any state or history change.
+
+The protection digest uses the exact domain
+`mhi_phase_f_github_protection_state_v1` followed by `0x00`, then the JCS bytes
+of one closed object containing provider, API origin, stable numeric repository
+ID, repository full name, protected ref, ruleset ID, pinned `version_id`, and
+complete canonical ruleset state. Independent field checks remain in force in
+addition to this digest. A valid raw production-shaped fixture must pass;
+missing, string, legacy, duplicate, additional, wrong, malformed, or
+incompletely paginated version data must fail closed. The digest mutation
+matrix changes repository ID, full name, provider/API identity, protected ref,
+ruleset ID, version ID, enforcement, conditions, deletion rule,
+non-fast-forward rule, and bypass actors one at a time and requires a changed
+digest for every protection-critical mutation.
 
 ### 3.2 Canonical G3 authority validator
 

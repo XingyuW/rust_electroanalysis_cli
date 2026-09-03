@@ -117,19 +117,19 @@
   },
   "generated_source_sha256s": {
     "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
-    "component_conformance_spec": "e92a474046a59c35dbce1a2c79ef497ba85d7deba1ce56dba27dbaef4748189b",
-    "component_implementation_spec": "afb25c37e16cc5dd1897ded602b8f4bd4c5c6131573fa66a9827ff604961a6b9",
-    "component_operations_spec": "7bb7ce6e558b0bc12ec5b9a2759a20e7fa4108e183abd09155f4d5c60c1eb7f6",
+    "component_conformance_spec": "a406e6544bf764bae38253170d019849fc6e72075d91ba55f2b95259d935a0bc",
+    "component_implementation_spec": "6a9e4bb9adae4d3039769ad71f34c7c96a5c1a78dd2e1f307602099b76a17524",
+    "component_operations_spec": "6e2e98cda614b8b8f446aedb174d863606d1aa7ee0c7b1d88abbbc3f944463d1",
     "component_scientific_spec": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
-    "component_wire_spec": "517f987dc1f4d952e1eb97b43953d19494032e845f2fa2eecf177cfcb0e19c30",
+    "component_wire_spec": "3d798d939b6c5ed93c5540cf44b68d7928669ce703f9a1e039e5cd646211b73e",
     "migration_ledger": "760180da3b5b3fb9b44493fb0326c5e2efeb14e39175cad157dfeee154ee716f",
-    "normative_traceability_matrix": "fa0b0bb96b25d6cafcd3daf82f1410642ae86d1c9de7493289378c506905667f"
+    "normative_traceability_matrix": "eb6b03be80b8a44bec46b77d78b4cbc56d3d7083ad38226726aa82b009fc1bc9"
   },
   "generation_rule": "docs/engineering_specification/phase_f/generate_phase_f_manifests.py",
   "normative_matrix": {
     "path": "docs/engineering_specification/phase_f/phase_f_r12_normative_traceability_matrix.json",
     "requirement_count": 64,
-    "sha256": "fa0b0bb96b25d6cafcd3daf82f1410642ae86d1c9de7493289378c506905667f"
+    "sha256": "eb6b03be80b8a44bec46b77d78b4cbc56d3d7083ad38226726aa82b009fc1bc9"
   },
   "reference_catalogs": {
     "future_real_evidence": {
@@ -1517,7 +1517,9 @@
         "R11-TRACE",
         "R11-CX-08",
         "R12-DAG-BINDING-EQUALITY",
-        "R12-DAG-VALID"
+        "R12-DAG-VALID",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
       ],
       "downstream_child_requirements": [],
       "expected_lifecycle_stage": "G2",
@@ -1547,7 +1549,9 @@
         "R11-CX-18",
         "R12-G3-AUTHORITY-CONTEXT-POS",
         "R12-DAG-BINDING-EQUALITY",
-        "R12-DAG-VALID"
+        "R12-DAG-VALID",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-010",
@@ -1798,7 +1802,9 @@
       "authority_document": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
       "constructive_audit_ids": [
         "R11-DAG-AUDIT",
-        "R11-CX-08"
+        "R11-CX-08",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
       ],
       "downstream_child_requirements": [
         "F-IMPL-002"
@@ -1822,7 +1828,9 @@
       "test_ids": [
         "R11-DAG-AUDIT",
         "R11-CX-08",
-        "R11-CX-18"
+        "R11-CX-18",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-016",

@@ -197,16 +197,33 @@ or user-selected URL cannot establish authority.
 The exact protection policy is an ACTIVE branch ruleset applying to this exact
 ref, with `non_fast_forward` and `deletion` rules and an empty
 `bypass_actors` set. The reviewed binding pins one ruleset ID, its initial
-version ID, and a canonical protection-state SHA-256. The candidate graph
-stores explicit `UNPROVISIONED` null placeholders, so REAL currentness remains
-unavailable until a later reviewed provisioning authority supplies those
-values. Missing or hidden bypass data, API identity mismatch, unavailable or
-insufficiently privileged API access, ruleset deletion/replacement, a changed
-history/version, disabled enforcement, a wrong ref condition, or any bypass
-actor fails closed. GitHub platform integrity and the authenticated Rulesets
-API are terminal external assumptions; repository administrators are not
-treated as invisible cryptographic roots, and any observable protection change
-invalidates REAL authorization.
+`version_id`, and a canonical protection-state SHA-256. That digest is
+domain-separated by the exact ASCII bytes
+`mhi_phase_f_github_protection_state_v1`, followed by `0x00`, and hashes the
+JCS bytes of this closed preimage object:
+
+```json
+{
+  "provider": "github",
+  "api_origin": "https://api.github.com",
+  "repository_id": 1273879958,
+  "repository_full_name": "XingyuW/rust_electroanalysis_cli",
+  "protected_ref": "refs/heads/phase-f-reviewer-bootstrap-head",
+  "ruleset_id": 123,
+  "version_id": 1,
+  "ruleset_state": { "...": "complete canonical protection state" }
+}
+```
+
+The real values replace the examples only in a future reviewed pinning
+revision; this candidate graph stores explicit `UNPROVISIONED` null
+placeholders. Missing or hidden bypass data, API identity mismatch, unavailable
+or insufficiently privileged API access, ruleset deletion/replacement, a
+changed history/version, disabled enforcement, a wrong ref condition, or any
+bypass actor fails closed. GitHub platform integrity and the authenticated
+Rulesets API are terminal external assumptions; repository administrators are
+not treated as invisible cryptographic roots, and any observable protection
+change invalidates REAL authorization.
 
 <a id="schema-def-PhaseFReviewerBootstrapAcceptedHeadCheckpointV1"></a>
 `SCHEMA_DEF[PhaseFReviewerBootstrapAcceptedHeadCheckpointV1]` is the
@@ -463,7 +480,7 @@ bootstrap-root/currentness requirements are exact.
 | PhaseFReviewerBootstrapTrustRootV1 | EXTERNAL_TRUST_ANCHOR | #schema-def-PhaseFReviewerBootstrapTrustRootV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding root_id and replacement_signature; complete-file SHA-256 covers every field | normative terminal pre-G0 reviewer bootstrap trust root and subject-uniqueness policy | strict schema, graph-pinned root identity and key fingerprint, narrow purpose scope, lifecycle, rotation, and compromise validation | PRE_G0_REVIEWER_BOOTSTRAP; before G0 and every downstream review gate | immutable external trust anchor; not a Phase F registry record and cannot authorize scientific, architecture, release, or unrelated registry mutations | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapTrustRootV1) |
 | PhaseFReviewerBootstrapCurrentnessProofV1 | SIGNED_EXTERNAL_AUTHORITY | #schema-def-PhaseFReviewerBootstrapCurrentnessProofV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding currentness_proof_id and signature; complete-file SHA-256 covers every field including signature | root-signed pre-G0 reviewer verifier, subject-registry, and currentness snapshot | strict schema, root signature, root binding, sequence/head, validity window, verifier key, subject-head uniqueness, revocation, compromise, and supersession validation | PRE_G0_REVIEWER_BOOTSTRAP; current proof required before every REAL reviewer identity | external signed authority object; bootstrap reviewer trust only and no architecture, release, or downstream approval authority | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapCurrentnessProofV1) |
 | PhaseFReviewerBootstrapAcceptedHeadCheckpointV1 | RESOLVER_STATE | #schema-def-PhaseFReviewerBootstrapAcceptedHeadCheckpointV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding checkpoint_id; complete-file SHA-256 covers every field | resolver-owned accepted currentness-head cache | strict schema, checkpoint identity, root/proof/complete-file binding, monotonic sequence, fork detection, and atomic persistence validation | PRE_G0_REVIEWER_BOOTSTRAP; resolver state required before every REAL reviewer identity | resolver state outside the authority repository; never a registry subject and never an approval or signing authority | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapAcceptedHeadCheckpointV1) |
-| PhaseFReviewerBootstrapExternalMonotonicHeadV1 | EXTERNAL_MONOTONIC_AUTHORITY | #schema-def-PhaseFReviewerBootstrapExternalMonotonicHeadV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding head_id; complete-file SHA-256 covers every field in the sole-file Git commit tree | protected Git remote ref currentness head | strict schema, canonical GitHub repository identity, pinned immutable ruleset protection, exact ref identity, sole-file tree, parent/head predecessor, forward sequence, root/proof/subject binding, and canonical live-ref read validation | PRE_G0_REVIEWER_BOOTSTRAP; terminal currentness source before every REAL reviewer identity | dedicated externally protected Git ref; authenticated GitHub Rulesets API evidence must prove ACTIVE exact-ref coverage, non-fast-forward and deletion rules, empty bypass actors, and unchanged pinned history; not a Phase F registry record | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapExternalMonotonicHeadV1) |
+| PhaseFReviewerBootstrapExternalMonotonicHeadV1 | EXTERNAL_MONOTONIC_AUTHORITY | #schema-def-PhaseFReviewerBootstrapExternalMonotonicHeadV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding head_id; complete-file SHA-256 covers every field in the sole-file Git commit tree | protected Git remote ref currentness head | strict raw GitHub `version_id` history/version parsing, canonical repository identity, complete repository/ruleset/version/state protection digest, pinned immutable ruleset protection, exact ref identity, sole-file tree, parent/head predecessor, forward sequence, root/proof/subject binding, and canonical live-ref read validation | PRE_G0_REVIEWER_BOOTSTRAP; terminal currentness source before every REAL reviewer identity | dedicated externally protected Git ref; authenticated GitHub Rulesets API evidence must prove ACTIVE exact-ref coverage, non-fast-forward and deletion rules, empty bypass actors, unchanged pinned history, and exact reviewed pinning publication; not a Phase F registry record | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapExternalMonotonicHeadV1) |
 
 The approval object binds the exact architecture-plan tag, F0-decisions tag,
 specification-bundle manifest SHA, aggregate review-bundle SHA, and all five
