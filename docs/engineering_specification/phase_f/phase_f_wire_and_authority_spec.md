@@ -235,13 +235,24 @@ fragment, or explicit port, and has exactly that raw collection path. The
 transport rejects percent-encoded path characters, dot segments, duplicate or
 trailing separators, case-mutated owner/repository paths, and all other path
 normalization or route substitution; it never silently repairs a path. The
-only permitted query fields are one canonical positive `page` value and one
-optional canonical `per_page` value in the documented range 1--100. The
-initial request fixes `per_page=100`; continuation pages must advance strictly
-from the prior page and remain within the transport bound of
-`2^31-1`. Unknown, repeated, malformed, conflicting, or security-irrelevant
-query fields fail closed. Thus pagination may change only the page position
-within the exact originally requested collection.
+only permitted raw query fields are literal ASCII `page` and one optional
+literal ASCII `per_page`, with canonical decimal integer values and no percent
+encoding. Duplicate fields, unknown fields, blank query items, blank values,
+leading zeroes, signs, non-decimal values, and encoded key/value aliases fail
+closed. Either raw parameter order is accepted, but it is normalized only
+after this raw grammar has passed; decoding is never used to establish query
+identity. The initial request is explicitly `?page=1&per_page=100`, binding
+the traversal to effective `per_page=100` (GitHub's documented default is 30
+and maximum is 100). Every continuation must repeat that effective page size
+and satisfy the exact completeness rule `next_page = current_page + 1`, with
+page values bounded by `2^31-1`; omitted or changed `per_page` is rejected.
+The traversal tracks visited canonical request URLs and rejects duplicates and
+loops. A missing `Link` header permits normal termination, while a present
+empty or whitespace-only `Link` header is malformed and fails closed. A
+nonempty syntactically valid header containing no `next` relation is a normal
+final page; more than one `next` relation is ambiguous and rejected. Thus
+pagination may change only the page position within the exact originally
+requested collection.
 
 History `actor` and `updated_at` are external wire metadata, not inputs to the
 immutable one-version protection proof or its digest. The actor must retain

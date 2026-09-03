@@ -117,11 +117,11 @@
   },
   "generated_source_sha256s": {
     "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
-    "component_conformance_spec": "a1dca37f0811c728ea801728cffc7442458e8407f5baf53c87b40ad8b65c2ba6",
+    "component_conformance_spec": "37c4c109ad902668e98342eb129a9960aba7821612e61e4635742000c2eb121a",
     "component_implementation_spec": "6a9e4bb9adae4d3039769ad71f34c7c96a5c1a78dd2e1f307602099b76a17524",
     "component_operations_spec": "6e2e98cda614b8b8f446aedb174d863606d1aa7ee0c7b1d88abbbc3f944463d1",
     "component_scientific_spec": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
-    "component_wire_spec": "ef9eaee206f99bb501f6ec1cee89b90c7d2399983ae4dc8c1f9e22d3d9361b4e",
+    "component_wire_spec": "4f43d8e2667c3566c337bdbf1b527bcd2bb3b421fe6db43c474cc1315466d763",
     "migration_ledger": "760180da3b5b3fb9b44493fb0326c5e2efeb14e39175cad157dfeee154ee716f",
     "normative_traceability_matrix": "eb6b03be80b8a44bec46b77d78b4cbc56d3d7083ad38226726aa82b009fc1bc9"
   },

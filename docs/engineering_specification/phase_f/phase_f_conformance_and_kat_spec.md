@@ -227,14 +227,21 @@ pagination relation. A continuation must be absolute HTTPS on the exact
 have exactly the original raw `/repos/{owner}/{repo}/rulesets/{ruleset_id}/history`
 path. Percent-encoded path characters, dot segments, duplicate/trailing
 separators, case-mutated owner/repository paths, route substitutions, unknown
-query fields, and repeated/conflicting query fields fail closed; no path is
-silently normalized or repaired. The only allowed query fields are one
-canonical positive `page` and one optional canonical `per_page` in the
-documented 1--100 range. The initial request uses `per_page=100`, continuation
-pages must advance strictly, and page values above `2^31-1` are rejected.
-Malformed, looping, ambiguous, or unavailable traversal fails closed. It does
-not infer a version from list position or from an internal fixture
-representation.
+query fields, repeated/conflicting query fields, blank query items, and
+percent-encoded key/value aliases fail closed; no path or query is silently
+normalized or repaired before validation. The raw query grammar allows only
+literal ASCII `page` and optional literal ASCII `per_page`, each exactly once,
+with canonical positive decimal values; either parameter order is valid, but
+normalization is allowed only after the raw grammar passes. The initial request
+is explicitly `?page=1&per_page=100`, binding effective `per_page=100` (the
+documented default is 30 and maximum is 100). Every continuation must repeat
+that value and satisfy `next_page = current_page + 1`; arbitrary forward jumps,
+backward movement, duplicates, and page values above `2^31-1` are rejected.
+An absent `Link` header permits normal termination; a present empty or
+whitespace-only header is malformed. A valid nonempty header without `next`
+is a deliberate final-page termination, while duplicate `next` relations,
+malformed, looping, or unavailable traversal fails closed. It does not infer a
+version from list position or from an internal fixture representation.
 
 The `actor` object is validated only to its documented safe wire shape: its
 `id` is an integer and its `type` is a string, without requiring a positive ID
@@ -258,8 +265,10 @@ ID, repository full name, protected ref, ruleset ID, pinned `version_id`, and
 complete canonical ruleset state. Independent field checks remain in force in
 addition to this digest. A valid raw production-shaped fixture must pass;
 missing, string, legacy, duplicate, additional, wrong, malformed, or
-incompletely paginated version data must fail closed. The self-test includes a
-successful two-page production-transport traversal plus wrong-owner,
+incompletely paginated version data must fail closed. The self-test includes
+successful contiguous two- and three-page production-transport traversals,
+sparse-page and page-size mutation negatives, absent-versus-present Link
+presence cases, encoded-query negatives, plus wrong-owner,
 wrong-repository, wrong-ruleset, wrong-route, cross-origin, path-confusion,
 query-confusion, loop, and incomplete-pagination negatives. The digest mutation
 matrix changes repository ID, full name, provider/API identity, protected ref,
