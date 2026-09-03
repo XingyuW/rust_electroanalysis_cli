@@ -11,14 +11,22 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
+import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - supported verifier platforms are POSIX.
+    fcntl = None
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -73,7 +81,7 @@ EXPECTED_R11_LINE_COUNT = 6188
 EXPECTED_R11_BYTE_COUNT = 653370
 EXPECTED_R11_TEST_COUNT = 28
 EXPECTED_R11_EVIDENCE_COUNT = 20
-EXPECTED_R12_SCHEMA_COUNT = 97
+EXPECTED_R12_SCHEMA_COUNT = 98
 R12_SCHEMA_IDS = {
     "PhaseFSpecificationBundleApprovalV1",
     "PhaseFMigratedFindingReviewV1",
@@ -81,6 +89,7 @@ R12_SCHEMA_IDS = {
     "PhaseFReviewerBootstrapTrustRootV1",
     "PhaseFReviewerBootstrapCurrentnessProofV1",
     "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
+    "PhaseFReviewerBootstrapExternalMonotonicHeadV1",
 }
 EXPECTED_R12_REQUIREMENT_COUNT = 64
 EXPECTED_MIGRATED_FINDINGS = {
@@ -343,6 +352,26 @@ REVIEWER_BOOTSTRAP_CHECKPOINT_FIELDS = {
     "superseded_by",
     "invalidated",
 }
+REVIEWER_BOOTSTRAP_EXTERNAL_HEAD_FIELDS = {
+    "head_id",
+    "authority_kind",
+    "schema_version",
+    "authority_class",
+    "stage",
+    "sequence",
+    "previous_head_commit",
+    "previous_head_id",
+    "previous_head_sha256",
+    "root_id",
+    "root_sha256",
+    "currentness_proof_id",
+    "currentness_proof_sha256",
+    "subject_registry_head_sha256",
+    "lifecycle",
+    "stale",
+    "superseded_by",
+    "invalidated",
+}
 REVIEWER_BOOTSTRAP_TRUST_SOURCE_FIELDS = {
     "type",
     "root_id",
@@ -507,63 +536,135 @@ EXPECTED_IDENTITY_CYCLE_RULES = {
     "self_bundle",
 }
 
-# This is the production resolver's dependency declaration.  The external DAG
-# below is an auditable projection of this declaration; it is deliberately not
-# accepted as its own source of truth.
-EXTERNAL_PRODUCTION_NODE_STAGES = {
-    "published_normative_target": -3,
-    "reviewer_bootstrap_root": -2,
-    "reviewer_bootstrap_currentness_proof": -1,
-    "signed_subject_registry_state": 0,
-    "reviewer_bootstrap_accepted_head_checkpoint": 0,
-    "reviewer_actor_attestation": 1,
-    "reviewer_identity": 2,
-    "review_artifact": 3,
-    "architecture_review": 4,
-    "architecture_approval": 5,
-    "f0_decision_bundle": 6,
-    "f0_review": 7,
-    "f0_approval": 8,
-    "g2_component_reviews": 10,
-    "g3_approval": 14,
-    "g4_readiness": 18,
-    "g5_enrollment_review": 19,
-    "normal_phase_f_authority_enrollment": 20,
-    "normal_phase_f_registry": 21,
+EXTERNAL_MONOTONIC_HEAD_DOMAIN = (
+    b"mhi_phase_f_reviewer_bootstrap_external_monotonic_head_v1\0"
+)
+EXTERNAL_MONOTONIC_HEAD_AUTHORITY_KIND = (
+    "PhaseFReviewerBootstrapExternalMonotonicHeadV1"
+)
+EXTERNAL_MONOTONIC_HEAD_REF = "refs/heads/phase-f-reviewer-bootstrap-head"
+EXTERNAL_MONOTONIC_HEAD_WIRE_PATH = "reviewer_bootstrap_monotonic_head.json"
+EXTERNAL_MONOTONIC_HEAD_REMOTE_NAME = "origin"
+EXTERNAL_MONOTONIC_HEAD_CONTRACT_KEYS = {
+    "authority_kind",
+    "schema_version",
+    "remote_name",
+    "remote_url",
+    "ref",
+    "wire_path",
+    "server_policy",
+    "read_policy",
+    "advance_policy",
 }
-EXTERNAL_PRODUCTION_EDGES = (
-    ("published_normative_target", "reviewer_bootstrap_root"),
-    ("reviewer_bootstrap_root", "reviewer_bootstrap_currentness_proof"),
-    ("reviewer_bootstrap_currentness_proof", "signed_subject_registry_state"),
-    (
-        "reviewer_bootstrap_currentness_proof",
-        "reviewer_bootstrap_accepted_head_checkpoint",
+EXTERNAL_MONOTONIC_HEAD_SERVER_POLICY = {
+    "deletion": "PROHIBITED",
+    "force_update": "PROHIBITED",
+    "non_fast_forward": "PROHIBITED",
+    "protection_validation": "EXTERNAL_PREREQUISITE",
+}
+EXTERNAL_MONOTONIC_HEAD_READ_POLICY = "LIVE_LS_REMOTE_THEN_EXACT_FETCH"
+EXTERNAL_MONOTONIC_HEAD_ADVANCE_POLICY = "FAST_FORWARD_SERVER_CAS"
+
+
+@dataclass(frozen=True)
+class ExternalTrustDependency:
+    """One production trust dependency and its resolver validation hook."""
+
+    identifier: str
+    stage: int
+    prerequisites: tuple[str, ...]
+    discovery: str
+    resolver_hook: str
+
+
+# This registry is the production dependency model. The normative external
+# DAG is derived from these objects; it is not a second maintained list.
+PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY: tuple[ExternalTrustDependency, ...] = (
+    ExternalTrustDependency("published_normative_target", -4, (), "git_target", "resolve_target_commit"),
+    ExternalTrustDependency(
+        "reviewer_bootstrap_external_monotonic_head", -3,
+        ("published_normative_target",), "git_remote_ref", "read_external_monotonic_head",
     ),
-    ("signed_subject_registry_state", "reviewer_actor_attestation"),
-    (
-        "reviewer_bootstrap_accepted_head_checkpoint",
-        "reviewer_actor_attestation",
+    ExternalTrustDependency(
+        "reviewer_bootstrap_root", -2,
+        ("reviewer_bootstrap_external_monotonic_head",), "immutable_root_history", "validate_root_history",
     ),
-    ("reviewer_actor_attestation", "reviewer_identity"),
-    ("reviewer_identity", "review_artifact"),
-    ("review_artifact", "architecture_review"),
-    ("review_artifact", "g2_component_reviews"),
-    ("review_artifact", "g5_enrollment_review"),
-    ("architecture_review", "architecture_approval"),
-    ("architecture_approval", "f0_decision_bundle"),
-    ("f0_decision_bundle", "f0_review"),
-    ("f0_review", "f0_approval"),
-    ("f0_approval", "g2_component_reviews"),
-    ("g2_component_reviews", "g3_approval"),
-    ("g3_approval", "g4_readiness"),
-    ("g4_readiness", "g5_enrollment_review"),
-    ("g5_enrollment_review", "normal_phase_f_authority_enrollment"),
-    (
-        "normal_phase_f_authority_enrollment",
-        "normal_phase_f_registry",
+    ExternalTrustDependency(
+        "reviewer_bootstrap_currentness_proof", -1,
+        ("reviewer_bootstrap_root",), "immutable_proof_history", "validate_proof_history",
+    ),
+    ExternalTrustDependency(
+        "signed_subject_registry_state", 0,
+        ("reviewer_bootstrap_currentness_proof",), "proof_subject_bindings", "validate_subject_registry",
+    ),
+    ExternalTrustDependency(
+        "reviewer_bootstrap_accepted_head_checkpoint", 0,
+        ("reviewer_bootstrap_external_monotonic_head", "reviewer_bootstrap_currentness_proof"),
+        "resolver_state_cache", "update_locked_local_cache",
+    ),
+    ExternalTrustDependency(
+        "reviewer_actor_attestation", 1,
+        ("signed_subject_registry_state", "reviewer_bootstrap_accepted_head_checkpoint"),
+        "immutable_attestation", "validate_actor_attestation",
+    ),
+    ExternalTrustDependency("reviewer_identity", 2, ("reviewer_actor_attestation",), "authority_record", "resolve_reviewer_identity"),
+    ExternalTrustDependency("review_artifact", 3, ("reviewer_identity",), "authority_record", "resolve_review_artifact"),
+    ExternalTrustDependency("architecture_review", 4, ("review_artifact",), "review_bundle", "validate_architecture_review"),
+    ExternalTrustDependency("architecture_approval", 5, ("architecture_review",), "authority_record", "validate_architecture_approval"),
+    ExternalTrustDependency("f0_decision_bundle", 6, ("architecture_approval",), "authority_record", "resolve_f0_bundle"),
+    ExternalTrustDependency("f0_review", 7, ("f0_decision_bundle",), "review_bundle", "validate_f0_review"),
+    ExternalTrustDependency("f0_approval", 8, ("f0_review",), "authority_record", "validate_f0_approval"),
+    ExternalTrustDependency(
+        "g2_component_reviews", 10, ("f0_approval", "review_artifact"),
+        "review_bundle", "validate_component_reviews",
+    ),
+    ExternalTrustDependency("g3_approval", 14, ("g2_component_reviews",), "g3_tag", "validate_g3_approval"),
+    ExternalTrustDependency("g4_readiness", 18, ("g3_approval",), "readiness_record", "validate_readiness"),
+    ExternalTrustDependency(
+        "g5_enrollment_review", 19, ("g4_readiness", "review_artifact"),
+        "review_bundle", "validate_enrollment_review",
+    ),
+    ExternalTrustDependency(
+        "normal_phase_f_authority_enrollment", 20,
+        ("g5_enrollment_review",), "authority_record", "validate_authority_enrollment",
+    ),
+    ExternalTrustDependency(
+        "normal_phase_f_registry", 21,
+        ("normal_phase_f_authority_enrollment",), "registry_record", "validate_phase_f_registry",
     ),
 )
-EXTERNAL_PRODUCTION_TERMINAL_ROOTS = ("published_normative_target",)
+
+
+def _production_external_trust_dependencies() -> tuple[ExternalTrustDependency, ...]:
+    """Return the live registrations consumed by resolver and audit."""
+
+    return PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY
+
+
+def _external_dependency_projection() -> tuple[list[dict[str, int | str]], list[dict[str, str]], list[str]]:
+    registrations = _production_external_trust_dependencies()
+    nodes = [
+        {"id": dependency.identifier, "stage": dependency.stage}
+        for dependency in registrations
+    ]
+    edges = [
+        {"from": prerequisite, "to": dependency.identifier}
+        for dependency in registrations
+        for prerequisite in dependency.prerequisites
+    ]
+    roots = [
+        dependency.identifier
+        for dependency in registrations
+        if not dependency.prerequisites
+    ]
+    return nodes, edges, roots
+
+
+def _require_external_dependency(identifier: str) -> ExternalTrustDependency:
+    for dependency in _production_external_trust_dependencies():
+        if dependency.identifier == identifier:
+            return dependency
+    raise G3ValidationError("external_trust_dependency_registration_missing")
 R12_G3_TEST_IDS = [
     "R12-G3-AUTHORITY-CONTEXT-POS",
     "R12-G3-ARCHITECTURE-REVIEW-BUNDLE-POSITIVE",
@@ -848,6 +949,7 @@ class G3AuthorityContext:
     reviewer_bootstrap_root_history: dict[str, dict[str, Any]] = field(default_factory=dict)
     reviewer_bootstrap_proof_history: dict[str, dict[str, Any]] = field(default_factory=dict)
     reviewer_bootstrap_accepted_head: dict[str, Any] | None = None
+    reviewer_bootstrap_external_head: dict[str, Any] | None = None
     reviewer_actor_attestations: dict[str, dict[str, Any]] = field(default_factory=dict)
     remediation_authority_id: str | None = None
     remediation_actor_identity_digest: str | None = None
@@ -948,6 +1050,16 @@ def reviewer_bootstrap_checkpoint_id(checkpoint: dict[str, Any]) -> str:
     }
     return "sha256:" + sha256_bytes(
         REVIEWER_BOOTSTRAP_CHECKPOINT_DOMAIN + canonical_jcs_bytes(payload)
+    )
+
+
+def reviewer_bootstrap_external_head_id(head: dict[str, Any]) -> str:
+    wire_object = _reviewer_bootstrap_wire_object(head)
+    payload = {
+        key: value for key, value in wire_object.items() if key != "head_id"
+    }
+    return "sha256:" + sha256_bytes(
+        EXTERNAL_MONOTONIC_HEAD_DOMAIN + canonical_jcs_bytes(payload)
     )
 
 
@@ -1864,18 +1976,30 @@ def _reviewer_bootstrap_trust_contract(graph: dict[str, Any]) -> dict[str, Any]:
     return contract
 
 
+def _external_monotonic_head_contract(graph: dict[str, Any]) -> dict[str, Any]:
+    contract = graph.get("external_monotonic_head_contract")
+    if not isinstance(contract, dict) or set(contract) != EXTERNAL_MONOTONIC_HEAD_CONTRACT_KEYS:
+        raise ValueError("external monotonic-head contract is not closed")
+    if (
+        contract["authority_kind"] != EXTERNAL_MONOTONIC_HEAD_AUTHORITY_KIND
+        or contract["schema_version"] != 1
+        or contract["remote_name"] != EXTERNAL_MONOTONIC_HEAD_REMOTE_NAME
+        or not isinstance(contract["remote_url"], str)
+        or not contract["remote_url"]
+        or contract["ref"] != EXTERNAL_MONOTONIC_HEAD_REF
+        or contract["wire_path"] != EXTERNAL_MONOTONIC_HEAD_WIRE_PATH
+        or contract["server_policy"] != EXTERNAL_MONOTONIC_HEAD_SERVER_POLICY
+        or contract["read_policy"] != EXTERNAL_MONOTONIC_HEAD_READ_POLICY
+        or contract["advance_policy"] != EXTERNAL_MONOTONIC_HEAD_ADVANCE_POLICY
+    ):
+        raise ValueError("external monotonic-head contract metadata mismatch")
+    return contract
+
+
 def _external_trust_dependency_audit(
     graph: dict[str, Any]
 ) -> list[str] | None:
-    derived_nodes = [
-        {"id": node_id, "stage": stage}
-        for node_id, stage in EXTERNAL_PRODUCTION_NODE_STAGES.items()
-    ]
-    derived_edges = [
-        {"from": source, "to": target}
-        for source, target in EXTERNAL_PRODUCTION_EDGES
-    ]
-    derived_roots = list(EXTERNAL_PRODUCTION_TERMINAL_ROOTS)
+    derived_nodes, derived_edges, derived_roots = _external_dependency_projection()
     contract = graph.get("external_trust_dependency_contract")
     if not isinstance(contract, dict) or set(contract) != {
         "nodes",
@@ -1890,7 +2014,7 @@ def _external_trust_dependency_audit(
         return ["external_trust_dependency_contract"]
     if raw_nodes != derived_nodes:
         declared = {node.get("id") for node in raw_nodes if isinstance(node, dict)}
-        required = set(EXTERNAL_PRODUCTION_NODE_STAGES)
+        required = {node["id"] for node in derived_nodes}
         missing = sorted(required - declared)
         extra = sorted(declared - required)
         return [
@@ -1905,7 +2029,9 @@ def _external_trust_dependency_audit(
             for edge in raw_edges
             if isinstance(edge, dict)
         }
-        required_edges = set(EXTERNAL_PRODUCTION_EDGES)
+        required_edges = {
+            (edge["from"], edge["to"]) for edge in derived_edges
+        }
         missing = sorted(required_edges - declared_edges)
         extra = sorted(declared_edges - required_edges)
         return [
@@ -2084,6 +2210,7 @@ def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
     ):
         raise ValueError("R12 identity-cycle rule is not typed")
     _reviewer_bootstrap_trust_contract(graph)
+    _external_monotonic_head_contract(graph)
     if not isinstance(graph.get("external_trust_dependency_contract"), dict):
         raise ValueError("R12 external trust dependency contract is missing")
     nodes = _graph_nodes(graph)
@@ -4319,7 +4446,7 @@ def validate_wire_catalog() -> None:
         "RESOLVER_STATE",
         "#schema-def-PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
         "sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding checkpoint_id; complete-file SHA-256 covers every field",
-        "resolver-owned accepted currentness-head watermark",
+        "resolver-owned accepted currentness-head cache",
         "strict schema, checkpoint identity, root/proof/complete-file binding, monotonic sequence, fork detection, and atomic persistence validation",
         "PRE_G0_REVIEWER_BOOTSTRAP; resolver state required before every REAL reviewer identity",
         "resolver state outside the authority repository; never a registry subject and never an approval or signing authority",
@@ -4329,6 +4456,22 @@ def validate_wire_catalog() -> None:
     bootstrap_checkpoint_anchor = '<a id="schema-def-PhaseFReviewerBootstrapAcceptedHeadCheckpointV1"></a>'
     if wire_text.count(bootstrap_checkpoint_anchor) != 1:
         raise ValueError("reviewer bootstrap accepted-head checkpoint definition anchor missing or duplicated")
+    bootstrap_external_head_row = rows["PhaseFReviewerBootstrapExternalMonotonicHeadV1"]
+    if bootstrap_external_head_row != [
+        "PhaseFReviewerBootstrapExternalMonotonicHeadV1",
+        "EXTERNAL_MONOTONIC_AUTHORITY",
+        "#schema-def-PhaseFReviewerBootstrapExternalMonotonicHeadV1",
+        "sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding head_id; complete-file SHA-256 covers every field in the sole-file Git commit tree",
+        "protected Git remote ref currentness head",
+        "strict schema, exact remote/ref identity, sole-file tree, parent/head predecessor, forward sequence, root/proof/subject binding, and live-ref read validation",
+        "PRE_G0_REVIEWER_BOOTSTRAP; terminal currentness source before every REAL reviewer identity",
+        "dedicated externally protected Git ref; server policy must prohibit deletion, force update, and non-fast-forward update; not a Phase F registry record",
+        "INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapExternalMonotonicHeadV1)",
+    ]:
+        raise ValueError("external monotonic-head schema catalog metadata mismatch")
+    bootstrap_external_head_anchor = '<a id="schema-def-PhaseFReviewerBootstrapExternalMonotonicHeadV1"></a>'
+    if wire_text.count(bootstrap_external_head_anchor) != 1:
+        raise ValueError("external monotonic-head schema definition anchor missing or duplicated")
 
 
 def parse_schema_catalog_ids(text: str) -> list[str]:
@@ -5775,6 +5918,476 @@ def _checkpoint_for_proof(
     return checkpoint
 
 
+def _validate_external_monotonic_head_object(
+    head: dict[str, Any], commit_sha: str, parents: list[str], graph: dict[str, Any]
+) -> dict[str, Any]:
+    contract = _external_monotonic_head_contract(graph)
+    if (
+        set(head)
+        - {
+            "bytes",
+            "canonical_object",
+            "complete_file_sha256",
+            "content_unchanged",
+            "external_commit",
+            "external_tree_blob_sha256",
+        }
+        != REVIEWER_BOOTSTRAP_EXTERNAL_HEAD_FIELDS
+        or head.get("head_id") != reviewer_bootstrap_external_head_id(head)
+        or head.get("authority_kind") != contract["authority_kind"]
+        or head.get("schema_version") != contract["schema_version"]
+        or head.get("authority_class") not in {"REAL", "TEST_ONLY"}
+        or head.get("stage") != REVIEWER_BOOTSTRAP_STAGE
+        or not isinstance(head.get("sequence"), int)
+        or head["sequence"] < 0
+        or not isinstance(head.get("root_id"), str)
+        or not re.fullmatch(r"sha256:[0-9a-f]{64}", head["root_id"])
+        or not isinstance(head.get("root_sha256"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", head["root_sha256"])
+        or not isinstance(head.get("currentness_proof_id"), str)
+        or not re.fullmatch(r"sha256:[0-9a-f]{64}", head["currentness_proof_id"])
+        or not isinstance(head.get("currentness_proof_sha256"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", head["currentness_proof_sha256"])
+        or not isinstance(head.get("subject_registry_head_sha256"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", head["subject_registry_head_sha256"])
+        or head.get("lifecycle") != "ACTIVE"
+        or head.get("stale") is not False
+        or head.get("superseded_by") is not None
+        or head.get("invalidated") is not False
+        or not re.fullmatch(r"[0-9a-f]{40}", commit_sha)
+        or any(not re.fullmatch(r"[0-9a-f]{40}", parent) for parent in parents)
+    ):
+        raise G3ValidationError("invalid_external_monotonic_head")
+    previous_commit = head.get("previous_head_commit")
+    previous_id = head.get("previous_head_id")
+    previous_sha = head.get("previous_head_sha256")
+    if head["sequence"] == 0:
+        if previous_commit is not None or previous_id is not None or previous_sha is not None or parents:
+            raise G3ValidationError("invalid_external_monotonic_genesis")
+    elif (
+        not isinstance(previous_commit, str)
+        or not re.fullmatch(r"[0-9a-f]{40}", previous_commit)
+        or not isinstance(previous_id, str)
+        or not re.fullmatch(r"sha256:[0-9a-f]{64}", previous_id)
+        or not isinstance(previous_sha, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", previous_sha)
+        or parents != [previous_commit]
+    ):
+        raise G3ValidationError("invalid_external_monotonic_predecessor")
+    raw = head.get("bytes")
+    if (
+        not isinstance(raw, bytes)
+        or head.get("complete_file_sha256") != sha256_bytes(raw)
+        or not isinstance(head.get("canonical_object"), dict)
+        or set(head["canonical_object"]) != REVIEWER_BOOTSTRAP_EXTERNAL_HEAD_FIELDS
+        or raw != canonical_json_bytes(head["canonical_object"])
+        or head.get("content_unchanged") is not True
+    ):
+        raise G3ValidationError("external_monotonic_head_hash_mismatch")
+    return head
+
+
+def _external_commit_parents(repository: Path, commit_sha: str) -> list[str]:
+    try:
+        raw = _git_output(repository, ["cat-file", "commit", commit_sha])
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("external_monotonic_head_commit_unavailable") from error
+    headers = raw.split(b"\n\n", 1)[0].splitlines()
+    try:
+        parents = [
+            line.split(b" ", 1)[1].decode("ascii")
+            for line in headers
+            if line.startswith(b"parent ")
+        ]
+    except (IndexError, UnicodeDecodeError) as error:
+        raise G3ValidationError("external_monotonic_head_commit_unavailable") from error
+    return parents
+
+
+def _read_external_monotonic_head_commit(
+    repository: Path, graph: dict[str, Any], commit_sha: str
+) -> dict[str, Any]:
+    contract = _external_monotonic_head_contract(graph)
+    try:
+        entries = _git_output(
+            repository, ["ls-tree", "-r", "--full-name", commit_sha]
+        ).decode("ascii").splitlines()
+        raw = _git_output(repository, ["show", f"{commit_sha}:{contract['wire_path']}"])
+    except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("invalid_external_monotonic_head_commit") from error
+    expected_entry_prefix = f"100644 blob "
+    if len(entries) != 1 or not entries[0].startswith(expected_entry_prefix):
+        raise G3ValidationError("external_monotonic_head_tree_mismatch")
+    try:
+        entry_sha, entry_path = entries[0][len(expected_entry_prefix):].split("\t", 1)
+    except ValueError as error:
+        raise G3ValidationError("external_monotonic_head_tree_mismatch") from error
+    try:
+        blob_sha = subprocess.check_output(
+            ["git", "hash-object", "--stdin"],
+            cwd=repository,
+            input=raw,
+            stderr=subprocess.PIPE,
+        ).decode("ascii").strip()
+    except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("invalid_external_monotonic_head_commit") from error
+    if entry_path != contract["wire_path"] or entry_sha != blob_sha:
+        raise G3ValidationError("external_monotonic_head_tree_mismatch")
+    try:
+        decoded = _parse_json_without_duplicates(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise G3ValidationError("malformed_external_monotonic_head") from error
+    if not isinstance(decoded, dict) or canonical_json_bytes(decoded) != raw:
+        raise G3ValidationError("noncanonical_external_monotonic_head")
+    record = dict(decoded)
+    record.update(
+        {
+            "bytes": raw,
+            "canonical_object": decoded,
+            "complete_file_sha256": sha256_bytes(raw),
+            "content_unchanged": True,
+            "external_commit": commit_sha,
+            "external_tree_blob_sha256": entry_sha,
+        }
+    )
+    return _validate_external_monotonic_head_object(
+        record, commit_sha, _external_commit_parents(repository, commit_sha), graph
+    )
+
+
+def _validate_external_monotonic_head_chain(
+    repository: Path, graph: dict[str, Any], head: dict[str, Any]
+) -> None:
+    """Validate every fetched anchor commit back to its Git genesis."""
+
+    current = head
+    visited: set[str] = set()
+    while current["sequence"] > 0:
+        predecessor_commit = current["previous_head_commit"]
+        if predecessor_commit in visited:
+            raise G3ValidationError("external_monotonic_head_predecessor_cycle")
+        visited.add(predecessor_commit)
+        predecessor = _read_external_monotonic_head_commit(
+            repository, graph, predecessor_commit
+        )
+        if (
+            predecessor["sequence"] != current["sequence"] - 1
+            or predecessor["head_id"] != current["previous_head_id"]
+            or predecessor["complete_file_sha256"] != current["previous_head_sha256"]
+        ):
+            raise G3ValidationError("external_monotonic_head_predecessor_mismatch")
+        current = predecessor
+
+
+def read_live_external_monotonic_head(
+    repository: Path, graph: dict[str, Any]
+) -> tuple[dict[str, Any], str]:
+    """Read the graph-pinned live ref, fetch its exact commit, and validate it."""
+
+    contract = _external_monotonic_head_contract(graph)
+    try:
+        configured_url = _git_output(
+            repository, ["config", "--get", f"remote.{contract['remote_name']}.url"]
+        ).decode("utf-8").strip()
+        if configured_url != contract["remote_url"]:
+            raise G3ValidationError("external_monotonic_head_identity_mismatch")
+        output = subprocess.check_output(
+            [
+                "git",
+                "ls-remote",
+                "--heads",
+                contract["remote_name"],
+                contract["ref"],
+            ],
+            cwd=repository,
+            stderr=subprocess.PIPE,
+        ).decode("ascii")
+        rows = [line.split() for line in output.splitlines() if line.strip()]
+        if len(rows) != 1 or len(rows[0]) != 2 or rows[0][1] != contract["ref"]:
+            raise G3ValidationError("external_monotonic_head_missing")
+        live_sha = rows[0][0]
+        if not re.fullmatch(r"[0-9a-f]{40}", live_sha):
+            raise G3ValidationError("external_monotonic_head_identity_mismatch")
+        subprocess.run(
+            ["git", "fetch", "--quiet", contract["remote_name"], contract["ref"]],
+            cwd=repository,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        output_after = subprocess.check_output(
+            [
+                "git",
+                "ls-remote",
+                "--heads",
+                contract["remote_name"],
+                contract["ref"],
+            ],
+            cwd=repository,
+            stderr=subprocess.PIPE,
+        ).decode("ascii")
+        after_rows = [line.split() for line in output_after.splitlines() if line.strip()]
+        if len(after_rows) != 1 or after_rows[0][0] != live_sha:
+            raise G3ValidationError("external_monotonic_head_changed_during_read")
+        head = _read_external_monotonic_head_commit(repository, graph, live_sha)
+        _validate_external_monotonic_head_chain(repository, graph, head)
+        return head, live_sha
+    except G3ValidationError:
+        raise
+    except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("external_monotonic_head_unavailable") from error
+
+
+def create_external_monotonic_head_commit(
+    repository: Path,
+    graph: dict[str, Any],
+    head: dict[str, Any],
+    expected_parent_commit: str | None,
+) -> str:
+    """Create an immutable candidate commit for the graph-pinned head ref.
+
+    This only creates a local Git object. It never updates a remote ref.
+    """
+
+    contract = _external_monotonic_head_contract(graph)
+    parents = [] if expected_parent_commit is None else [expected_parent_commit]
+    raw = canonical_json_bytes(head)
+    record = dict(head)
+    record.update(
+        {
+            "bytes": raw,
+            "canonical_object": head,
+            "complete_file_sha256": sha256_bytes(raw),
+            "content_unchanged": True,
+        }
+    )
+    _validate_external_monotonic_head_object(record, "0" * 40, parents, graph)
+    try:
+        blob_sha = subprocess.check_output(
+            ["git", "hash-object", "-w", "--stdin"],
+            cwd=repository,
+            input=raw,
+            stderr=subprocess.PIPE,
+        ).decode("ascii").strip()
+        tree_sha = subprocess.check_output(
+            ["git", "mktree"],
+            cwd=repository,
+            input=f"100644 blob {blob_sha}\t{contract['wire_path']}\n".encode("ascii"),
+            stderr=subprocess.PIPE,
+        ).decode("ascii").strip()
+        arguments = ["git", "commit-tree", tree_sha]
+        for parent in parents:
+            arguments.extend(["-p", parent])
+        return subprocess.check_output(
+            arguments,
+            cwd=repository,
+            input=b"Phase F reviewer bootstrap monotonic head\n",
+            stderr=subprocess.PIPE,
+        ).decode("ascii").strip()
+    except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("external_monotonic_head_candidate_creation_failed") from error
+
+
+def publish_external_monotonic_head_with_cas(
+    repository: Path,
+    graph: dict[str, Any],
+    candidate_commit: str,
+    expected_parent_commit: str,
+) -> dict[str, str]:
+    """Publish one exact child through server fast-forward/CAS semantics."""
+
+    _require_external_dependency("reviewer_bootstrap_external_monotonic_head")
+    contract = _external_monotonic_head_contract(graph)
+    current, current_commit = read_live_external_monotonic_head(repository, graph)
+    if current_commit != expected_parent_commit:
+        raise G3ValidationError("external_monotonic_head_stale_compare")
+    candidate = _read_external_monotonic_head_commit(
+        repository, graph, candidate_commit
+    )
+    if (
+        candidate.get("sequence") != current.get("sequence") + 1
+        or candidate.get("previous_head_commit") != expected_parent_commit
+        or candidate.get("previous_head_id") != current.get("head_id")
+        or candidate.get("previous_head_sha256") != current.get("complete_file_sha256")
+    ):
+        raise G3ValidationError("external_monotonic_head_candidate_not_successor")
+    try:
+        subprocess.run(
+            [
+                "git",
+                "push",
+                "--atomic",
+                contract["remote_name"],
+                f"{candidate_commit}:{contract['ref']}",
+            ],
+            cwd=repository,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("external_monotonic_head_cas_lost") from error
+    _, live_after = read_live_external_monotonic_head(repository, graph)
+    if live_after != candidate_commit:
+        raise G3ValidationError("external_monotonic_head_postcondition_unverified")
+    return {
+        "previous_commit": expected_parent_commit,
+        "published_commit": candidate_commit,
+        "head_id": candidate["head_id"],
+    }
+
+
+def _open_secure_state_directory(path: Path) -> int:
+    """Open resolver state without following a state-directory symlink."""
+
+    if fcntl is None:
+        raise G3ValidationError("local_interprocess_lock_unavailable")
+    state_root = path.parent.parent
+    base_fd = os.open(
+        state_root.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    )
+    try:
+        try:
+            os.mkdir(state_root.name, 0o700, dir_fd=base_fd)
+        except FileExistsError:
+            pass
+        root_fd = os.open(
+            state_root.name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+            dir_fd=base_fd,
+        )
+        try:
+            root_stat = os.fstat(root_fd)
+            if (
+                not stat.S_ISDIR(root_stat.st_mode)
+                or root_stat.st_uid != os.getuid()
+            ):
+                raise G3ValidationError("unsafe_reviewer_bootstrap_state_root")
+            if root_stat.st_mode & 0o077:
+                try:
+                    os.fchmod(root_fd, 0o700)
+                except OSError as error:
+                    raise G3ValidationError(
+                        "unsafe_reviewer_bootstrap_state_root"
+                    ) from error
+            try:
+                os.mkdir(path.parent.name, 0o700, dir_fd=root_fd)
+            except FileExistsError:
+                pass
+            state_fd = os.open(
+                path.parent.name,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=root_fd,
+            )
+        finally:
+            os.close(root_fd)
+    finally:
+        os.close(base_fd)
+    state = os.fstat(state_fd)
+    if (
+        not stat.S_ISDIR(state.st_mode)
+        or state.st_uid != os.getuid()
+        or state.st_mode & 0o077
+    ):
+        os.close(state_fd)
+        raise G3ValidationError("unsafe_reviewer_bootstrap_state_directory")
+    return state_fd
+
+
+@contextmanager
+def _locked_reviewer_bootstrap_state(path: Path):
+    state_fd = _open_secure_state_directory(path)
+    lock_name = f".{path.name}.lock"
+    try:
+        try:
+            lock_fd = os.open(
+                lock_name,
+                os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+                0o600,
+                dir_fd=state_fd,
+            )
+        except OSError as error:
+            raise G3ValidationError("unsafe_reviewer_bootstrap_lock") from error
+        try:
+            lock_stat = os.fstat(lock_fd)
+            if (
+                not stat.S_ISREG(lock_stat.st_mode)
+                or lock_stat.st_uid != os.getuid()
+                or lock_stat.st_mode & 0o077
+            ):
+                raise G3ValidationError("unsafe_reviewer_bootstrap_lock")
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            yield state_fd, path.name
+        finally:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            finally:
+                os.close(lock_fd)
+    finally:
+        os.close(state_fd)
+
+
+def _read_locked_state_file(state_fd: int, filename: str) -> bytes:
+    try:
+        file_fd = os.open(filename, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=state_fd)
+    except FileNotFoundError:
+        raise
+    except OSError as error:
+        raise G3ValidationError("unsafe_reviewer_bootstrap_checkpoint") from error
+    try:
+        file_stat = os.fstat(file_fd)
+        if (
+            not stat.S_ISREG(file_stat.st_mode)
+            or file_stat.st_uid != os.getuid()
+            or file_stat.st_mode & 0o077
+        ):
+            raise G3ValidationError("unsafe_reviewer_bootstrap_checkpoint")
+        chunks: list[bytes] = []
+        remaining = file_stat.st_size
+        while remaining:
+            chunk = os.read(file_fd, remaining)
+            if not chunk:
+                raise G3ValidationError("unsafe_reviewer_bootstrap_checkpoint")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(file_fd)
+
+
+def _write_locked_state_file(state_fd: int, filename: str, raw: bytes) -> None:
+    temporary_name = f".{filename}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+    try:
+        file_fd = os.open(
+            temporary_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=state_fd,
+        )
+        try:
+            offset = 0
+            while offset < len(raw):
+                written = os.write(file_fd, raw[offset:])
+                if written <= 0:
+                    raise OSError("short state-file write")
+                offset += written
+            os.fsync(file_fd)
+        finally:
+            os.close(file_fd)
+        os.replace(
+            temporary_name,
+            filename,
+            src_dir_fd=state_fd,
+            dst_dir_fd=state_fd,
+        )
+        os.fsync(state_fd)
+    finally:
+        try:
+            os.unlink(temporary_name, dir_fd=state_fd)
+        except FileNotFoundError:
+            pass
+
+
 def _reviewer_bootstrap_checkpoint_path(repository: Path) -> Path:
     """Return resolver-owned state unique to the resolved repository."""
 
@@ -5789,45 +6402,38 @@ def _reviewer_bootstrap_checkpoint_path(repository: Path) -> Path:
 def _write_reviewer_bootstrap_checkpoint(
     path: Path, checkpoint: dict[str, Any]
 ) -> None:
-    """Atomically advance resolver state without permitting a lower head."""
+    """Atomically advance a locked cache without permitting a lower head."""
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        try:
-            existing_raw = path.read_bytes()
-            existing = _parse_json_without_duplicates(existing_raw)
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
-            raise G3ValidationError("malformed_reviewer_bootstrap_accepted_head_checkpoint") from error
-        if not isinstance(existing, dict) or set(existing) != REVIEWER_BOOTSTRAP_CHECKPOINT_FIELDS:
-            raise G3ValidationError("invalid_reviewer_bootstrap_accepted_head_checkpoint")
-        if existing.get("current_sequence", -1) > checkpoint.get("current_sequence", -1):
-            raise G3ValidationError("reviewer_bootstrap_head_rollback")
-        if (
-            existing.get("current_sequence") == checkpoint.get("current_sequence")
-            and existing.get("current_proof_id") != checkpoint.get("current_proof_id")
-        ):
-            raise G3ValidationError("reviewer_bootstrap_head_fork")
-    raw = canonical_json_bytes(checkpoint)
-    checkpoint["bytes"] = raw
-    checkpoint["canonical_object"] = json.loads(raw)
-    checkpoint["complete_file_sha256"] = sha256_bytes(raw)
-    temporary = tempfile.NamedTemporaryFile(
-        mode="wb", prefix=f".{path.name}.", dir=path.parent, delete=False
-    )
-    temporary_path = Path(temporary.name)
     try:
-        temporary.write(raw)
-        temporary.flush()
-        os.fsync(temporary.fileno())
-        temporary.close()
-        os.replace(temporary_path, path)
-        directory_fd = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
-    finally:
-        temporary_path.unlink(missing_ok=True)
+        with _locked_reviewer_bootstrap_state(path) as (state_fd, filename):
+            try:
+                existing_raw = _read_locked_state_file(state_fd, filename)
+                existing = _parse_json_without_duplicates(existing_raw)
+            except FileNotFoundError:
+                existing = None
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+                raise G3ValidationError(
+                    "malformed_reviewer_bootstrap_accepted_head_checkpoint"
+                ) from error
+            if existing is not None:
+                if not isinstance(existing, dict) or set(existing) != REVIEWER_BOOTSTRAP_CHECKPOINT_FIELDS:
+                    raise G3ValidationError("invalid_reviewer_bootstrap_accepted_head_checkpoint")
+                if existing.get("current_sequence", -1) > checkpoint.get("current_sequence", -1):
+                    raise G3ValidationError("reviewer_bootstrap_head_rollback")
+                if (
+                    existing.get("current_sequence") == checkpoint.get("current_sequence")
+                    and existing.get("current_proof_id") != checkpoint.get("current_proof_id")
+                ):
+                    raise G3ValidationError("reviewer_bootstrap_head_fork")
+            raw = canonical_json_bytes(checkpoint)
+            checkpoint["bytes"] = raw
+            checkpoint["canonical_object"] = json.loads(raw)
+            checkpoint["complete_file_sha256"] = sha256_bytes(raw)
+            _write_locked_state_file(state_fd, filename, raw)
+    except G3ValidationError:
+        raise
+    except (OSError, UnicodeError, ValueError) as error:
+        raise G3ValidationError("unsafe_reviewer_bootstrap_checkpoint") from error
 
 
 def _load_real_reviewer_bootstrap_trust(
@@ -5838,15 +6444,28 @@ def _load_real_reviewer_bootstrap_trust(
     dict[str, dict[str, Any]],
     dict[str, dict[str, Any]],
     dict[str, Any],
+    dict[str, Any],
 ]:
-    """Resolve and monotonically accept the complete pre-G0 trust history.
+    """Resolve the complete trust history against the external current head.
 
-    The checkpoint is resolver-owned state, stored outside the authority
-    repository.  A missing checkpoint is fail-closed; a signed proof is not
-    treated as current merely because it verifies cryptographically.
+    The checkpoint is resolver-owned cache state, stored outside the authority
+    repository. It is never the terminal freshness authority: the graph-pinned
+    live Git ref is read and validated first, including its exact commit parent.
     """
 
     contract = _reviewer_bootstrap_trust_contract(graph)
+    for dependency_id in (
+        "reviewer_bootstrap_external_monotonic_head",
+        "reviewer_bootstrap_root",
+        "reviewer_bootstrap_currentness_proof",
+        "signed_subject_registry_state",
+        "reviewer_bootstrap_accepted_head_checkpoint",
+        "reviewer_actor_attestation",
+    ):
+        _require_external_dependency(dependency_id)
+    external_head, external_commit = read_live_external_monotonic_head(repository, graph)
+    if external_head.get("authority_class") == "TEST_ONLY" and not allow_test_only:
+        raise G3ValidationError("synthetic_external_monotonic_head_in_real_mode")
 
     def load(path: Path, fields: set[str], kind: str) -> dict[str, Any]:
         try:
@@ -5903,13 +6522,41 @@ def _load_real_reviewer_bootstrap_trust(
         proofs[proof_id] = proof
 
     checkpoint_path = _reviewer_bootstrap_checkpoint_path(repository)
-    if not checkpoint_path.is_file():
-        raise G3ValidationError("missing_reviewer_bootstrap_accepted_head_checkpoint")
-    checkpoint = load(
-        checkpoint_path,
-        REVIEWER_BOOTSTRAP_CHECKPOINT_FIELDS,
-        "reviewer_bootstrap_accepted_head_checkpoint",
-    )
+    try:
+        with _locked_reviewer_bootstrap_state(checkpoint_path) as (state_fd, filename):
+            checkpoint_raw = _read_locked_state_file(state_fd, filename)
+    except FileNotFoundError:
+        checkpoint_raw = None
+    except G3ValidationError:
+        raise
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise G3ValidationError(
+            "malformed_reviewer_bootstrap_accepted_head_checkpoint"
+        ) from error
+    if checkpoint_raw is None:
+        checkpoint = None
+    else:
+        try:
+            checkpoint_object = _parse_json_without_duplicates(checkpoint_raw)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+            raise G3ValidationError(
+                "malformed_reviewer_bootstrap_accepted_head_checkpoint"
+            ) from error
+        if (
+            not isinstance(checkpoint_object, dict)
+            or canonical_json_bytes(checkpoint_object) != checkpoint_raw
+            or set(checkpoint_object) != REVIEWER_BOOTSTRAP_CHECKPOINT_FIELDS
+        ):
+            raise G3ValidationError("invalid_reviewer_bootstrap_accepted_head_checkpoint")
+        checkpoint = dict(checkpoint_object)
+        checkpoint.update(
+            {
+                "bytes": checkpoint_raw,
+                "canonical_object": checkpoint_object,
+                "complete_file_sha256": sha256_bytes(checkpoint_raw),
+                "content_unchanged": True,
+            }
+        )
     probe = G3AuthorityContext(
         mode="real_test" if allow_test_only else "real",
         graph=graph,
@@ -5930,26 +6577,45 @@ def _load_real_reviewer_bootstrap_trust(
     )
     validated_roots = _validate_reviewer_bootstrap_root_history(probe)
     _validate_reviewer_bootstrap_proof_history(probe, validated_roots)
-    current_id = checkpoint.get("current_proof_id")
-    current = proofs.get(current_id)
-    if current is None:
-        raise G3ValidationError("accepted_head_proof_missing")
-    if checkpoint.get("current_sequence") != current.get("sequence"):
-        raise G3ValidationError("accepted_head_sequence_mismatch")
-    candidates = sorted(proofs.values(), key=lambda item: item["sequence"])
-    candidate = candidates[-1]
-    if candidate["sequence"] < checkpoint["current_sequence"]:
-        raise G3ValidationError("reviewer_bootstrap_head_rollback")
-    if candidate["sequence"] == checkpoint["current_sequence"]:
-        if candidate["currentness_proof_id"] != checkpoint["current_proof_id"]:
-            raise G3ValidationError("reviewer_bootstrap_head_fork")
-    else:
-        _validate_reviewer_bootstrap_proof_object(
-            probe, candidate, validated_roots, proofs, require_current_window=True
+    candidate = proofs.get(external_head.get("currentness_proof_id"))
+    if (
+        candidate is None
+        or candidate.get("complete_file_sha256") != external_head.get("currentness_proof_sha256")
+        or candidate.get("sequence") != external_head.get("sequence")
+        or candidate.get("root_id") != external_head.get("root_id")
+        or candidate.get("subject_registry_head_sha256")
+        != external_head.get("subject_registry_head_sha256")
+    ):
+        raise G3ValidationError("external_monotonic_head_evidence_missing")
+    if candidate.get("root_sha256") != external_head.get("root_sha256"):
+        raise G3ValidationError("external_monotonic_head_root_mismatch")
+    maximum_sequence = max(proof["sequence"] for proof in proofs.values())
+    if maximum_sequence != external_head["sequence"]:
+        raise G3ValidationError("local_proof_history_external_head_mismatch")
+    _validate_reviewer_bootstrap_proof_object(
+        probe, candidate, validated_roots, proofs, require_current_window=True
+    )
+    if checkpoint is None:
+        checkpoint = _checkpoint_for_proof(
+            candidate, validated_roots[candidate["root_id"]], allow_test_only
         )
-        checkpoint = _checkpoint_for_proof(candidate, validated_roots[candidate["root_id"]], allow_test_only)
         _write_reviewer_bootstrap_checkpoint(checkpoint_path, checkpoint)
-        probe.reviewer_bootstrap_accepted_head = checkpoint
+    else:
+        checkpoint_proof = proofs.get(checkpoint.get("current_proof_id"))
+        if checkpoint_proof is None:
+            raise G3ValidationError("accepted_head_proof_missing")
+        _validate_reviewer_bootstrap_checkpoint(probe, checkpoint, checkpoint_proof)
+        if checkpoint["current_sequence"] > external_head["sequence"]:
+            raise G3ValidationError("accepted_head_ahead_of_external_head")
+        if checkpoint["current_sequence"] == external_head["sequence"]:
+            if checkpoint["current_proof_id"] != external_head["currentness_proof_id"]:
+                raise G3ValidationError("external_monotonic_head_fork")
+        else:
+            checkpoint = _checkpoint_for_proof(
+                candidate, validated_roots[candidate["root_id"]], allow_test_only
+            )
+            _write_reviewer_bootstrap_checkpoint(checkpoint_path, checkpoint)
+    probe.reviewer_bootstrap_accepted_head = checkpoint
     current = candidate
     probe.reviewer_bootstrap_root = validated_roots[current["root_id"]]
     probe.reviewer_bootstrap_currentness = current
@@ -5961,6 +6627,7 @@ def _load_real_reviewer_bootstrap_trust(
         validated_roots,
         proofs,
         checkpoint,
+        external_head | {"external_commit": external_commit},
     )
 
 
@@ -6194,6 +6861,7 @@ def _resolve_real_review_references(
     dict[str, dict[str, Any]],
     dict[str, dict[str, Any]],
     dict[str, Any] | None,
+    dict[str, Any] | None,
     str | None,
     str | None,
 ]:
@@ -6207,6 +6875,7 @@ def _resolve_real_review_references(
     reviewer_bootstrap_root_history: dict[str, dict[str, Any]] = {}
     reviewer_bootstrap_proof_history: dict[str, dict[str, Any]] = {}
     reviewer_bootstrap_accepted_head: dict[str, Any] | None = None
+    reviewer_bootstrap_external_head: dict[str, Any] | None = None
     remediation_authority_id: str | None = None
     remediation_actor_identity_digest: str | None = None
 
@@ -6217,6 +6886,7 @@ def _resolve_real_review_references(
             reviewer_bootstrap_root_history,
             reviewer_bootstrap_proof_history,
             reviewer_bootstrap_accepted_head,
+            reviewer_bootstrap_external_head,
         ) = (
             _load_real_reviewer_bootstrap_trust(repository, graph, allow_test_only)
         )
@@ -6231,6 +6901,7 @@ def _resolve_real_review_references(
     else:
         resolution["resolved_node_ids"].extend(
             [
+                "reviewer_bootstrap_external_monotonic_head",
                 "reviewer_bootstrap_root",
                 "reviewer_bootstrap_currentness",
                 "reviewer_bootstrap_accepted_head_checkpoint",
@@ -6454,6 +7125,7 @@ def _resolve_real_review_references(
         reviewer_bootstrap_root_history,
         reviewer_bootstrap_proof_history,
         reviewer_bootstrap_accepted_head,
+        reviewer_bootstrap_external_head,
         remediation_authority_id,
         remediation_actor_identity_digest,
     )
@@ -6476,6 +7148,7 @@ def _resolve_real_authority(
     dict[str, Any] | None,
     dict[str, dict[str, Any]],
     dict[str, dict[str, Any]],
+    dict[str, Any] | None,
     dict[str, Any] | None,
     str | None,
     str | None,
@@ -6536,6 +7209,7 @@ def _resolve_real_authority(
         reviewer_bootstrap_root_history,
         reviewer_bootstrap_proof_history,
         reviewer_bootstrap_accepted_head,
+        reviewer_bootstrap_external_head,
         remediation_authority_id,
         remediation_actor_identity_digest,
     ) = _resolve_real_review_references(
@@ -6590,6 +7264,7 @@ def _resolve_real_authority(
         reviewer_bootstrap_root_history,
         reviewer_bootstrap_proof_history,
         reviewer_bootstrap_accepted_head,
+        reviewer_bootstrap_external_head,
         remediation_authority_id,
         remediation_actor_identity_digest,
     )
@@ -6621,6 +7296,7 @@ def make_repository_context(
         reviewer_bootstrap_root_history,
         reviewer_bootstrap_proof_history,
         reviewer_bootstrap_accepted_head,
+        reviewer_bootstrap_external_head,
         remediation_authority_id,
         remediation_actor_identity_digest,
     ) = _resolve_real_authority(repository, graph, target, allow_test_only)
@@ -6669,6 +7345,7 @@ def make_repository_context(
         reviewer_bootstrap_root_history=reviewer_bootstrap_root_history,
         reviewer_bootstrap_proof_history=reviewer_bootstrap_proof_history,
         reviewer_bootstrap_accepted_head=reviewer_bootstrap_accepted_head,
+        reviewer_bootstrap_external_head=reviewer_bootstrap_external_head,
         reviewer_actor_attestations=reviewer_actor_attestations,
         remediation_authority_id=remediation_authority_id,
         remediation_actor_identity_digest=remediation_actor_identity_digest,
@@ -6911,6 +7588,171 @@ def _fixture_write_bootstrap_record(
     return path
 
 
+def _fixture_external_source_path(remote: Path) -> Path:
+    return remote.with_name(remote.name.removesuffix(".git") + "-source")
+
+
+def _fixture_graph(repository: Path) -> dict[str, Any]:
+    return json.loads(
+        (repository / AUTHORITY_GRAPH_PATH.relative_to(ROOT)).read_text()
+    )
+
+
+def _fixture_external_head(
+    root: dict[str, Any],
+    proof: dict[str, Any],
+    authority_class: str,
+    previous: dict[str, Any] | None = None,
+    previous_commit: str | None = None,
+) -> dict[str, Any]:
+    sequence = proof["sequence"]
+    if sequence == 0:
+        previous_fields = {
+            "previous_head_commit": None,
+            "previous_head_id": None,
+            "previous_head_sha256": None,
+        }
+    else:
+        if previous is None or previous_commit is None:
+            raise AssertionError("fixture external successor is missing its predecessor")
+        previous_fields = {
+            "previous_head_commit": previous_commit,
+            "previous_head_id": previous["head_id"],
+            "previous_head_sha256": previous["complete_file_sha256"],
+        }
+    head = {
+        "head_id": "",
+        "authority_kind": EXTERNAL_MONOTONIC_HEAD_AUTHORITY_KIND,
+        "schema_version": 1,
+        "authority_class": authority_class,
+        "stage": REVIEWER_BOOTSTRAP_STAGE,
+        "sequence": sequence,
+        **previous_fields,
+        "root_id": root["root_id"],
+        "root_sha256": root["complete_file_sha256"],
+        "currentness_proof_id": proof["currentness_proof_id"],
+        "currentness_proof_sha256": proof["complete_file_sha256"],
+        "subject_registry_head_sha256": proof["subject_registry_head_sha256"],
+        "lifecycle": "ACTIVE",
+        "stale": False,
+        "superseded_by": None,
+        "invalidated": False,
+    }
+    head["head_id"] = reviewer_bootstrap_external_head_id(head)
+    return head
+
+
+def _fixture_initialize_external_head(
+    repository: Path,
+    graph: dict[str, Any],
+    root: dict[str, Any],
+    proof: dict[str, Any],
+    authority_class: str,
+) -> tuple[Path, Path, dict[str, Any], str]:
+    contract = _external_monotonic_head_contract(graph)
+    remote = Path(contract["remote_url"])
+    source = _fixture_external_source_path(remote)
+    _fixture_git(repository, ["init", "--bare", "-q", str(remote)])
+    _fixture_git(source.parent, ["init", "-q", str(source)])
+    _fixture_git(source, ["config", "user.name", "Phase F External Head Test"])
+    _fixture_git(
+        source, ["config", "user.email", "phase-f-external-head@example.invalid"]
+    )
+    _fixture_git(source, ["remote", "add", "origin", str(remote)])
+    _fixture_git(repository, ["remote", "add", contract["remote_name"], str(remote)])
+    _fixture_git(remote, ["config", "receive.denyDeletes", "true"])
+    _fixture_git(remote, ["config", "receive.denyNonFastForwards", "true"])
+    head = _fixture_external_head(root, proof, authority_class)
+    (source / EXTERNAL_MONOTONIC_HEAD_WIRE_PATH).write_bytes(
+        canonical_json_bytes(head)
+    )
+    _fixture_git(source, ["add", EXTERNAL_MONOTONIC_HEAD_WIRE_PATH])
+    _fixture_git(source, ["commit", "-qm", "fixture external monotonic genesis"])
+    commit_sha = _fixture_git(source, ["rev-parse", "HEAD"]).decode().strip()
+    _fixture_git(source, ["push", "-q", "origin", f"HEAD:{contract['ref']}"])
+    _fixture_git(
+        remote,
+        ["symbolic-ref", "HEAD", contract["ref"]],
+    )
+    return remote, source, head, commit_sha
+
+
+def _fixture_advance_external_head(
+    repository: Path,
+    graph: dict[str, Any],
+    root: dict[str, Any],
+    proof: dict[str, Any],
+) -> tuple[dict[str, Any], str]:
+    current, current_commit = read_live_external_monotonic_head(repository, graph)
+    source = _fixture_external_source_path(Path(_external_monotonic_head_contract(graph)["remote_url"]))
+    head = _fixture_external_head(
+        root,
+        proof,
+        current["authority_class"],
+        current,
+        current_commit,
+    )
+    (source / EXTERNAL_MONOTONIC_HEAD_WIRE_PATH).write_bytes(
+        canonical_json_bytes(head)
+    )
+    contract = _external_monotonic_head_contract(graph)
+    _fixture_git(source, ["add", EXTERNAL_MONOTONIC_HEAD_WIRE_PATH])
+    _fixture_git(source, ["commit", "-qm", f"fixture external sequence {proof['sequence']}"])
+    commit_sha = _fixture_git(source, ["rev-parse", "HEAD"]).decode().strip()
+    _fixture_git(source, ["push", "-q", "origin", f"HEAD:{contract['ref']}"])
+    return head, commit_sha
+
+
+def _fixture_run_two_process_race(
+    operations: tuple[Callable[[], str], Callable[[], str]],
+) -> list[str]:
+    """Run two inherited operations concurrently and return compact outcomes."""
+
+    start_read, start_write = os.pipe()
+    result_read, result_write = os.pipe()
+    children: list[int] = []
+    try:
+        for operation in operations:
+            child = os.fork()
+            if child == 0:
+                try:
+                    os.close(start_write)
+                    os.close(result_read)
+                    os.read(start_read, 1)
+                    try:
+                        value = "success:" + operation()
+                    except Exception as error:  # pragma: no cover - child reports parent assertion data.
+                        value = f"error:{type(error).__name__}:{error}"
+                    os.write(result_write, (value + "\n").encode("utf-8"))
+                finally:
+                    os.close(start_read)
+                    os.close(result_write)
+                    os._exit(0)
+            children.append(child)
+        os.close(start_read)
+        os.write(start_write, b"x" * len(children))
+        os.close(start_write)
+        os.close(result_write)
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(result_read, 4096)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        os.close(result_read)
+        for child in children:
+            _, status = os.waitpid(child, 0)
+            if not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0:
+                raise AssertionError(f"fixture race child failed: {child} status={status}")
+        return [line for line in b"".join(chunks).decode("utf-8").splitlines() if line]
+    finally:
+        for descriptor in (start_read, start_write, result_read, result_write):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
 def _isolated_real_fixture(
     populate_authority: bool = True,
     authority_class: str = "TEST_ONLY",
@@ -7031,6 +7873,8 @@ def _isolated_real_fixture(
     _fixture_git(repository, ["init", "-q"])
     _fixture_git(repository, ["config", "user.name", "Phase F Test"])
     _fixture_git(repository, ["config", "user.email", "phase-f-test@example.invalid"])
+    external_remote = repository.parent / f"{repository.name}-external-head.git"
+    graph["external_monotonic_head_contract"]["remote_url"] = str(external_remote)
     graph_destination = repository / AUTHORITY_GRAPH_PATH.relative_to(ROOT)
     graph_destination.parent.mkdir(parents=True, exist_ok=True)
     graph_bytes = canonical_json_bytes(graph)
@@ -7077,6 +7921,13 @@ def _isolated_real_fixture(
         bootstrap_currentness_record, bootstrap_root_record, True
     )
     _write_reviewer_bootstrap_checkpoint(checkpoint_path, bootstrap_checkpoint)
+    _fixture_initialize_external_head(
+        repository,
+        graph,
+        bootstrap_root_record,
+        bootstrap_currentness_record,
+        authority_class,
+    )
     nodes = _graph_nodes(graph)
     lifecycle_fields = {
         "lifecycle": "ACTIVE",
@@ -7527,13 +8378,14 @@ def _isolated_real_fixture(
 
 
 def run_regression_self_tests() -> None:
-    global _validate_graph_object_bindings
+    global _validate_graph_object_bindings, PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY
 
     trace = build_traceability()
     entries = trace["requirements"]
     matrix = load_normative_matrix()
     test_catalog, evidence_catalog = load_reference_catalogs()
     graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
+    external_registry_mutation_tests = 0
 
     def reject_value_error(label: str, operation: object) -> None:
         try:
@@ -7678,6 +8530,20 @@ def run_regression_self_tests() -> None:
     reject_value_error("schema inverse omission", lambda: validate_schema_usage(schema_mutant))
 
     validate_r12_authority_graph(graph)
+    registered_dependencies = PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY
+    PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY = tuple(
+        dependency
+        for dependency in registered_dependencies
+        if dependency.identifier != "reviewer_bootstrap_external_monotonic_head"
+    )
+    try:
+        reject_value_error(
+            "production external dependency registration omission",
+            lambda: validate_r12_authority_graph(graph),
+        )
+        external_registry_mutation_tests += 1
+    finally:
+        PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY = registered_dependencies
 
     def graph_reject(label: str, mutate: object) -> None:
         mutant = deepcopy(graph)
@@ -7686,7 +8552,8 @@ def run_regression_self_tests() -> None:
 
     external_dependency_node_omission_tests = 0
     external_dependency_edge_omission_tests = 0
-    for required_node in EXTERNAL_PRODUCTION_NODE_STAGES:
+    external_dependency_nodes, external_dependency_edges, _ = _external_dependency_projection()
+    for required_node in (node["id"] for node in external_dependency_nodes):
         external_dependency_node_omission_tests += 1
 
         def omit_external_node(
@@ -7704,7 +8571,9 @@ def run_regression_self_tests() -> None:
 
         graph_reject(f"external dependency node omission {required_node}", omit_external_node)
 
-    for required_edge in EXTERNAL_PRODUCTION_EDGES:
+    for required_edge in (
+        (edge["from"], edge["to"]) for edge in external_dependency_edges
+    ):
         external_dependency_edge_omission_tests += 1
 
         def omit_external_edge(
@@ -9932,6 +10801,11 @@ def run_regression_self_tests() -> None:
     currentness_history_negative_tests = 0
     historical_review_resolution_tests = 0
     root_rotation_tests = 0
+    external_head_positive_tests = 0
+    external_head_negative_tests = 0
+    external_head_cas_tests = 0
+    local_checkpoint_lock_tests = 0
+    bootstrap_root_seed = b"phase-f-r12-fixture-bootstrap-root-01"
     missing_temporary, missing_repository, missing_target, _ = _isolated_real_fixture(
         populate_authority=False
     )
@@ -9983,6 +10857,183 @@ def run_regression_self_tests() -> None:
             or fixture_context.reviewer_bootstrap_currentness is None
         ):
             raise AssertionError("real fixture resolved an incomplete actor authority chain")
+
+        external_root = fixture_context.reviewer_bootstrap_root
+        external_proof_0 = fixture_context.reviewer_bootstrap_currentness
+        external_head_0 = fixture_context.reviewer_bootstrap_external_head
+        if external_root is None or external_proof_0 is None or external_head_0 is None:
+            raise AssertionError("external-head fixture bootstrap genesis is incomplete")
+        external_graph = fixture_context.graph
+        lock_proof_a = _fixture_bootstrap_proof(
+            external_proof_0,
+            external_root,
+            bootstrap_root_seed,
+            1,
+            verifier_seed=b"phase-f-r12-fixture-lock-verifier-a",
+            verifier_authority_id="fixture-lock-verifier-a",
+        )
+        lock_proof_b = _fixture_bootstrap_proof(
+            external_proof_0,
+            external_root,
+            bootstrap_root_seed,
+            1,
+            verifier_seed=b"phase-f-r12-fixture-lock-verifier-b",
+            verifier_authority_id="fixture-lock-verifier-b",
+        )
+        lock_checkpoint_a = _checkpoint_for_proof(lock_proof_a, external_root, True)
+        lock_checkpoint_b = _checkpoint_for_proof(lock_proof_b, external_root, True)
+        lock_outcomes = _fixture_run_two_process_race(
+            (
+                lambda: (
+                    _write_reviewer_bootstrap_checkpoint(
+                        _reviewer_bootstrap_checkpoint_path(fixture_repository),
+                        lock_checkpoint_a,
+                    )
+                    or "a"
+                ),
+                lambda: (
+                    _write_reviewer_bootstrap_checkpoint(
+                        _reviewer_bootstrap_checkpoint_path(fixture_repository),
+                        lock_checkpoint_b,
+                    )
+                    or "b"
+                ),
+            )
+        )
+        if sum(outcome.startswith("success:") for outcome in lock_outcomes) != 1 or sum(
+            outcome.startswith("error:") and "reviewer_bootstrap_head_fork" in outcome
+            for outcome in lock_outcomes
+        ) != 1:
+            raise AssertionError(f"local checkpoint lock race was not serialized: {lock_outcomes}")
+        _reviewer_bootstrap_checkpoint_path(fixture_repository).unlink()
+        local_checkpoint_lock_tests += 1
+        symlink_state_sandbox = tempfile.TemporaryDirectory(
+            prefix="phase-f-r12-symlink-state-", dir=fixture_repository.parent
+        )
+        try:
+            symlink_root = Path(symlink_state_sandbox.name) / ".phase_f_authority_state"
+            symlink_root.mkdir(mode=0o700)
+            symlink_target = Path(symlink_state_sandbox.name) / "actual-state"
+            symlink_target.mkdir(mode=0o700)
+            (symlink_root / "symlinked").symlink_to(
+                symlink_target, target_is_directory=True
+            )
+            symlink_checkpoint = symlink_root / "symlinked" / "checkpoint.json"
+            reject_value_error(
+                "symlinked resolver state directory",
+                lambda: _write_reviewer_bootstrap_checkpoint(
+                    symlink_checkpoint, lock_checkpoint_a
+                ),
+            )
+            external_head_negative_tests += 1
+        finally:
+            symlink_state_sandbox.cleanup()
+
+        live_head_0, live_commit_0 = read_live_external_monotonic_head(
+            fixture_repository, external_graph
+        )
+        cas_proof_a = _fixture_bootstrap_proof(
+            external_proof_0,
+            external_root,
+            bootstrap_root_seed,
+            1,
+            verifier_seed=b"phase-f-r12-fixture-cas-verifier-a",
+            verifier_authority_id="fixture-cas-verifier-a",
+        )
+        cas_proof_b = _fixture_bootstrap_proof(
+            external_proof_0,
+            external_root,
+            bootstrap_root_seed,
+            1,
+            verifier_seed=b"phase-f-r12-fixture-cas-verifier-b",
+            verifier_authority_id="fixture-cas-verifier-b",
+        )
+        cas_head_a = _fixture_external_head(
+            external_root, cas_proof_a, "TEST_ONLY", live_head_0, live_commit_0
+        )
+        cas_head_b = _fixture_external_head(
+            external_root, cas_proof_b, "TEST_ONLY", live_head_0, live_commit_0
+        )
+        cas_commit_a = create_external_monotonic_head_commit(
+            fixture_repository, external_graph, cas_head_a, live_commit_0
+        )
+        cas_commit_b = create_external_monotonic_head_commit(
+            fixture_repository, external_graph, cas_head_b, live_commit_0
+        )
+        cas_outcomes = _fixture_run_two_process_race(
+            (
+                lambda: publish_external_monotonic_head_with_cas(
+                    fixture_repository, external_graph, cas_commit_a, live_commit_0
+                )["head_id"],
+                lambda: publish_external_monotonic_head_with_cas(
+                    fixture_repository, external_graph, cas_commit_b, live_commit_0
+                )["head_id"],
+            )
+        )
+        cas_successes = [
+            outcome.removeprefix("success:")
+            for outcome in cas_outcomes
+            if outcome.startswith("success:")
+        ]
+        if len(cas_successes) != 1 or len(cas_outcomes) != 2:
+            raise AssertionError(f"external CAS race did not produce one winner: {cas_outcomes}")
+        winner_proof = cas_proof_a if cas_successes[0] == cas_head_a["head_id"] else cas_proof_b
+        winner_commit = cas_commit_a if cas_successes[0] == cas_head_a["head_id"] else cas_commit_b
+        _fixture_write_bootstrap_record(
+            fixture_repository, winner_proof, "currentness_proofs"
+        )
+        cas_context = make_repository_context(
+            fixture_repository, fixture_target, allow_test_only=True
+        )
+        if (
+            cas_context.reviewer_bootstrap_currentness is None
+            or cas_context.reviewer_bootstrap_currentness["sequence"] != 1
+            or cas_context.reviewer_bootstrap_external_head is None
+            or cas_context.reviewer_bootstrap_external_head["external_commit"] != winner_commit
+        ):
+            raise AssertionError("external CAS winner was not the verified current head")
+        cas_source = _fixture_external_source_path(
+            Path(external_graph["external_monotonic_head_contract"]["remote_url"])
+        )
+        initial_external_commit = _fixture_git(
+            cas_source, ["rev-list", "--max-parents=0", "HEAD"]
+        ).decode().strip()
+        contract = external_graph["external_monotonic_head_contract"]
+        force_result = subprocess.run(
+            [
+                "git", "push", "--force", "origin",
+                f"{initial_external_commit}:{contract['ref']}",
+            ],
+            cwd=cas_source,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        delete_result = subprocess.run(
+            [
+                "git", "push", "origin", "--delete",
+                contract["ref"].removeprefix("refs/heads/"),
+            ],
+            cwd=cas_source,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if force_result.returncode == 0 or delete_result.returncode == 0:
+            raise AssertionError("external bare fixture accepted a force or delete update")
+        external_head_negative_tests += 2
+        checkpoint_path = _reviewer_bootstrap_checkpoint_path(fixture_repository)
+        checkpoint_path.unlink()
+        fresh_context = make_repository_context(
+            fixture_repository, fixture_target, allow_test_only=True
+        )
+        if (
+            fresh_context.reviewer_bootstrap_accepted_head is None
+            or fresh_context.reviewer_bootstrap_accepted_head["current_sequence"] != 1
+            or fresh_context.reviewer_bootstrap_external_head is None
+            or fresh_context.reviewer_bootstrap_external_head["sequence"] != 1
+        ):
+            raise AssertionError("fresh verifier did not reconstruct its local checkpoint cache")
+        external_head_positive_tests += 2
+        external_head_cas_tests += 1
 
         production_temporary, production_repository, production_target, production_body = (
             _isolated_real_fixture(authority_class="REAL")
@@ -10041,6 +11092,12 @@ def run_regression_self_tests() -> None:
             )
             _fixture_write_bootstrap_record(
                 history_repository, history_proof_2, "currentness_proofs"
+            )
+            _fixture_advance_external_head(
+                history_repository, history_context.graph, history_root, history_proof_1
+            )
+            _fixture_advance_external_head(
+                history_repository, history_context.graph, history_root, history_proof_2
             )
             advanced_context = make_repository_context(
                 history_repository, history_target, allow_test_only=True
@@ -10121,6 +11178,12 @@ def run_regression_self_tests() -> None:
                 authorization_repository,
                 authorization_proof_1,
                 "currentness_proofs",
+            )
+            _fixture_advance_external_head(
+                authorization_repository,
+                authorization_context.graph,
+                authorization_root,
+                authorization_proof_1,
             )
             changed_authorization_context = make_repository_context(
                 authorization_repository, authorization_target, allow_test_only=True
@@ -10253,6 +11316,7 @@ def run_regression_self_tests() -> None:
                 verifier_authority_id="fixture-bootstrap-fork-verifier",
             )
             _fixture_write_bootstrap_record(repository, proof_1, "currentness_proofs")
+            _fixture_advance_external_head(repository, _fixture_graph(repository), root, proof_1)
             accepted = make_repository_context(
                 repository, _git_output(repository, ["rev-parse", "HEAD"]).decode().strip(), allow_test_only=True
             )
@@ -10291,6 +11355,9 @@ def run_regression_self_tests() -> None:
             _fixture_write_bootstrap_record(repository, replacement, "roots")
             _fixture_write_bootstrap_record(
                 repository, replacement_proof, "currentness_proofs"
+            )
+            _fixture_advance_external_head(
+                repository, _fixture_graph(repository), replacement, replacement_proof
             )
 
         rotation_temporary, rotation_repository, rotation_target, rotation_body = (
@@ -11479,12 +12546,17 @@ def run_regression_self_tests() -> None:
         f"real_actor_negative_tests={real_actor_negative_tests} "
         f"graph_candidates={len(candidate_edges)} graph_authorized={len(authorized_node_edges)} "
         f"graph_unauthorized={len(unauthorized_candidates)} graph_accepted_unauthorized={accepted_unauthorized_edges} "
-        f"external_dependency_nodes={len(EXTERNAL_PRODUCTION_NODE_STAGES)} "
-        f"external_dependency_edges={len(EXTERNAL_PRODUCTION_EDGES)} "
+        f"external_dependency_nodes={len(external_dependency_nodes)} "
+        f"external_dependency_edges={len(external_dependency_edges)} "
         f"external_node_omission_tests={external_dependency_node_omission_tests} "
         f"external_node_omission_accepted=0 "
         f"external_edge_omission_tests={external_dependency_edge_omission_tests} "
         f"external_edge_omission_accepted=0 "
+        f"external_head_positive_tests={external_head_positive_tests} "
+        f"external_head_negative_tests={external_head_negative_tests} "
+        f"external_head_cas_tests={external_head_cas_tests} "
+        f"local_checkpoint_lock_tests={local_checkpoint_lock_tests} "
+        f"external_registry_mutation_tests={external_registry_mutation_tests} "
         f"edge_canonical_passes={authorized_edge_canonical_passes} edge_removals_rejected={authorized_edge_removals_rejected} "
         f"edge_retypes_rejected={authorized_edge_retypes_rejected} edge_redirects_rejected={authorized_edge_redirects_rejected} "
         f"binding_edges={len(binding_edges)} none_binding_edges={len(none_binding_edges)} "

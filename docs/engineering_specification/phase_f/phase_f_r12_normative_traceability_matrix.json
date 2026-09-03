@@ -546,7 +546,8 @@
         "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
-        "PhaseFReviewerBootstrapTrustRootV1"
+        "PhaseFReviewerBootstrapTrustRootV1",
+        "PhaseFReviewerBootstrapExternalMonotonicHeadV1"
       ],
       "test_ids": [
         "R11-KAT-INCIDENT",

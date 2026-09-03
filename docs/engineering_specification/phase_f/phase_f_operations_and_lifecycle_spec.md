@@ -18,9 +18,46 @@ Scientific authority.
 | <a id="F-OPS-005"></a>`F-OPS-005` | `F-ARCH-015,F-ARCH-016,F-OD-14,F-OD-15,F-OD-16` | Key compromise/revocation and registry compromise immediately remove affected authority. Emergency handling cannot bypass signatures, review, immutable Git publication, state consequences, or subsequent recovery/re-enrollment requirements. | §15 |
 | <a id="F-OPS-006"></a>`F-OPS-006` | `F-ARCH-016,F-OD-18,F-OD-19,F-OD-20` | Retention membership is exact-set equality. Campaign is manifest plus every package object; protocol and other static release authorities remain outside the campaign set. Release retention adds every bound static authority, accepted PASS monitoring through `audited_at`, and applicable incident/resolution records, de-duplicated by kind/SHA. | §§15, 53.2–53.6, R11-03..06/R11-15 |
 | <a id="F-OPS-007"></a>`F-OPS-007` | `F-ARCH-016,F-OD-20` | Every retained identity has the required primary plus backup copies, distinct immutable URIs, matching SHA/length, availability, freshness, access control, and authorized replacement. Failure suspends or blocks as applicable. | §§15, 44–46, 53.2–53.4 |
-| <a id="F-OPS-008"></a>`F-OPS-008` | `F-ARCH-016,F-ARCH-021,F-OD-17,F-OD-18,F-OD-19,F-OD-20` | Claim currentness continuously requires unexpired authority, live non-equivocating registry, monitoring PASS, no blocking incident/compromise, and valid retention. Loss of any prerequisite prevents ACTIVE use. | §§14–15 |
+| <a id="F-OPS-008"></a>`F-OPS-008` | `F-ARCH-016,F-ARCH-021,F-OD-17,F-OD-18,F-OD-19,F-OD-20` | Claim currentness continuously requires an unexpired authority, a live non-equivocating registry and protected external reviewer-bootstrap head, monitoring PASS, no blocking incident/compromise, and valid retention. Loss of any prerequisite prevents ACTIVE use. | §§14–15 |
 
 ## 3. Review gate
 
 P0/P1 must both be zero. Monitoring-result, incident progression, retention
 membership, compromise/recovery, transition, or currentness ambiguity is P1.
+
+## 3.1 External reviewer-bootstrap anchor operations
+
+`PhaseFReviewerBootstrapExternalMonotonicHeadV1` is provisioned in one
+dedicated Git remote ref, `refs/heads/phase-f-reviewer-bootstrap-head`. The
+production resolver reads the graph-pinned `origin` URL with live
+`ls-remote`, fetches that exact ref, and validates one canonical sole-file
+commit. Operators must establish the following before any REAL reviewer
+bootstrap is accepted:
+
+1. Create the dedicated ref from a canonical sequence-zero head whose commit
+   has no parent and whose root/proof/subject hashes match the immutable
+   bootstrap history.
+2. Protect the ref server-side against deletion, force update, and
+   non-fast-forward update, and verify the policy with an attempted negative
+   update in the isolated conformance fixture.
+3. Grant the resolver read access to the remote and exact ref; a missing,
+   unavailable, changed-during-read, or multiply-resolved ref fails closed.
+4. Advance only by publishing one canonical successor with exactly one Git
+   parent, `sequence + 1`, and predecessor commit/head/hash bindings. The
+   server-side fast-forward/CAS result is final; a caller-selected local SHA,
+   tracking ref, or checkpoint cannot authorize freshness.
+5. Keep the local accepted-head checkpoint outside the repository in an
+   owner-only state directory. It is a cache: a missing cache is reconstructed
+   from the live external head, a lower cache is repaired, and a fork or cache
+   ahead of the live head rejects. State paths use no-follow opens, ownership
+   and mode checks, and an interprocess exclusive lock around the
+   read/compare/write transaction.
+
+The lifecycle is therefore `GENESIS → ACTIVE successor → ACTIVE successor` on
+the external ref. Deletion, rewind, force update, invalidation, or server
+policy drift is an operational incident and blocks REAL resolution until the
+external authority is restored. Root rotation remains predecessor-signed and
+history-preserving; the external head advances to the replacement proof only
+after the replacement root and proof are present. TEST_ONLY fixtures may use
+an isolated bare remote with the same policy, but they never provision or
+publish production authority.

@@ -22,10 +22,10 @@ the R12 graph placement and resolver closure without redefining that wire.
 | <a id="F-WIRE-002"></a>`F-WIRE-002` | `F-ARCH-017` | Every content-derived ID uses the unique NUL-terminated domain separator, complete semantic payload, exact exclusions, and no registry back pointer or future-object cycle. Complete-file SHA is computed after the file is complete. | §3 |
 | <a id="F-WIRE-003"></a>`F-WIRE-003` | `F-ARCH-007,F-ARCH-008` | Every R12 graph node claiming `PhaseFIndependentReviewBundleV1` uses the exact inherited R11 seven-field bundle: `schema_version`, `review_bundle_id`, `target`, `reviews`, `aggregate_p0_count`, `aggregate_p1_count`, and `aggregate_decision`. Its five rows are in canonical role order, use the exact R11 six-field row, and derive arithmetic aggregates and the GO predicate. | R11 §§3, 5 plus R12 graph/refinement |
 | <a id="F-WIRE-004"></a>`F-WIRE-004` | `F-ARCH-006,F-OD-01,F-OD-02,F-OD-03,F-OD-04,F-OD-05,F-OD-06,F-OD-07,F-OD-08,F-OD-09,F-OD-10,F-OD-11,F-OD-12,F-OD-13,F-OD-14,F-OD-15,F-OD-16,F-OD-17,F-OD-18,F-OD-19,F-OD-20` | `PhaseFDecisionBundleV1`, its 20 value variants, ordering, runtime projection wire, and no-future-F1-object rules are exact. | §4, §53.7 decision anchors |
-| <a id="F-WIRE-005"></a>`F-WIRE-005` | `F-ARCH-015,F-ARCH-017,F-OD-04,F-OD-13,F-OD-14,F-OD-15,F-OD-16` | Ed25519 keys/signatures, enrollment, trust bindings, registry record/head, object/record/relation kinds, subject hashes, relation ordering, genesis, sequence, resolver, compromise, emergency wire, and the additive pre-G0 reviewer bootstrap root/currentness/subject-registry and verifier-issued actor-attestation contracts are exact and fail closed. | §§5.2, 8, 9, 15 emergency wire, 53.7 anchors |
+| <a id="F-WIRE-005"></a>`F-WIRE-005` | `F-ARCH-015,F-ARCH-017,F-OD-04,F-OD-13,F-OD-14,F-OD-15,F-OD-16` | Ed25519 keys/signatures, enrollment, trust bindings, registry record/head, object/record/relation kinds, subject hashes, relation ordering, genesis, sequence, resolver, compromise, emergency wire, and the additive pre-G0 reviewer bootstrap root/currentness/subject-registry, verifier-issued actor-attestation, and externally anchored monotonic-head contracts are exact and fail closed. | §§5.2, 8, 9, 15 emergency wire, 53.7 anchors |
 | <a id="F-WIRE-006"></a>`F-WIRE-006` | `F-ARCH-012..016,F-ARCH-021` | Retrieval, package, dependency, physical identity/custody, power, metrology, cohort, release, claim-state, monitoring, incident, resolution, and retention schema field closures are exact; scientific/operational interpretation remains with its owning spec. | §§10–15, 53.7 anchors |
 | <a id="F-WIRE-007"></a>`F-WIRE-007` | `F-ARCH-008,F-ARCH-009,F-ARCH-010` | Every durable tag is annotated and uses exact target/body/prerequisite validation. Add `ism-mechanism-health-v1-f-specification-bundle-approved` with the exact ordered body fields `phase_f_architecture_plan_tag`, `phase_f_f0_decisions_tag`, `specification_bundle_manifest_sha256`, `aggregate_review_bundle_sha256`, `approval_decision`, `schema_version`; their exact values and byte grammar are defined in §3, and `approval_decision` is `GO`. | §6 plus this row |
-| <a id="F-WIRE-008"></a>`F-WIRE-008` | `F-ARCH-004,F-ARCH-005,F-ARCH-017` | The current schema set has exactly the 91 R11 identifiers plus `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`, `PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`, `PhaseFReviewerBootstrapCurrentnessProofV1`, and `PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`; every schema has one definition anchor, category, exact field closure, identity/hash rule, producer, validator, stage, registry behavior, and exhaustive nested usage rows. | §§53.7, 53.12 |
+| <a id="F-WIRE-008"></a>`F-WIRE-008` | `F-ARCH-004,F-ARCH-005,F-ARCH-017` | The current schema set has exactly the 91 R11 identifiers plus `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`, `PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`, `PhaseFReviewerBootstrapCurrentnessProofV1`, `PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`, and `PhaseFReviewerBootstrapExternalMonotonicHeadV1`; every schema has one definition anchor, category, exact field closure, identity/hash rule, producer, validator, stage, registry behavior, and exhaustive nested usage rows. | §§53.7, 53.12 |
 | <a id="F-WIRE-009"></a>`F-WIRE-009` | `F-ARCH-017,F-ARCH-021` | `PhaseFCheckerBuildEvidenceV1` and `PhaseFCheckerReadinessEvidenceV1` each add required `specification_bundle_approval_tag:RUNTIME_CANONICAL_TEXT_V1` and `specification_bundle_manifest_sha256:SHA256_V1` fields. Enrollment binds readiness, and every later authority binds that chain transitively. A missing or mismatched G3 binding invalidates readiness and every descendant. | New R12 closure |
 
 ## 3. Specification-bundle tag grammar
@@ -66,11 +66,12 @@ approval, review, tag, or implementation authority.
 The 91 R11 catalog rows in the preserved source's §53.12 remain the inherited
 baseline. The current R12 schema set is exactly those 91 identifiers plus the
 `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`,
-`PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`, and
-`PhaseFReviewerBootstrapCurrentnessProofV1`, and
-`PhaseFReviewerBootstrapAcceptedHeadCheckpointV1` rows below. The generator checks this set
-equality and validates every new row's anchor and every non-empty catalog
-dimension; there is no wildcard or parallel approval catalog.
+`PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`,
+`PhaseFReviewerBootstrapCurrentnessProofV1`,
+`PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`, and
+`PhaseFReviewerBootstrapExternalMonotonicHeadV1` rows below. The generator
+checks this set equality and validates every new row's anchor and every
+non-empty catalog dimension; there is no wildcard or parallel approval catalog.
 
 ### 4.1 Pre-G0 reviewer bootstrap trust domain
 
@@ -146,8 +147,10 @@ subject-head hash is recomputed from the exact sorted bindings and sequence.
 `valid_from <= validation_time <= valid_until` is required for the current
 head. Root and verifier lifecycle, revocation, compromise, and supersession
 fields are signed state, not caller-provided booleans. A signed sequence is not
-itself freshness: the resolver-owned accepted-head checkpoint is required, is
-never lowered, and advances only after complete-history validation. A missing,
+itself freshness: the graph-pinned protected external monotonic head is the
+live terminal authority. The resolver-owned accepted-head checkpoint is only a
+locked cache: it is never lowered, a missing cache is reconstructed after
+external/history validation, and a lower cache is repaired. A missing,
 malformed, stale, forked, revoked,
 compromised, superseded, or incorrectly signed proof fails closed.
 
@@ -157,9 +160,33 @@ it cannot replace the trust source of an existing reviewer actor. Therefore
 historical review artifacts remain verifiable across normal-registry creation,
 bootstrap verifier rotation, or later authority enrollment.
 
+<a id="schema-def-PhaseFReviewerBootstrapExternalMonotonicHeadV1"></a>
+`SCHEMA_DEF[PhaseFReviewerBootstrapExternalMonotonicHeadV1]` is the exact
+wire object stored at the graph-pinned Git remote ref
+`refs/heads/phase-f-reviewer-bootstrap-head`. Its exact fields are:
+
+```text
+head_id,authority_kind,schema_version,authority_class,stage,sequence,
+previous_head_commit,previous_head_id,previous_head_sha256,root_id,root_sha256,
+currentness_proof_id,currentness_proof_sha256,subject_registry_head_sha256,
+lifecycle,stale,superseded_by,invalidated
+```
+
+`head_id` is the SHA-256 of the domain-separated JCS payload excluding
+`head_id`; the complete-file SHA-256 covers the canonical JSON bytes including
+all fields. The object is committed as the sole file
+`reviewer_bootstrap_monotonic_head.json` in each anchor commit. Genesis has
+`sequence=0`, no predecessor fields, and no commit parent. Every successor has
+exactly one Git parent equal to `previous_head_commit`, binds that parent's
+`head_id` and complete-file SHA, and increments `sequence` by one. The remote
+ref is the terminal freshness authority: the resolver reads it with live
+`ls-remote`, fetches the exact commit, verifies the sole-file tree and complete
+wire, and rejects a changed ref during the read. The anchor is not a signature
+or local cache and is never caller-selected.
+
 <a id="schema-def-PhaseFReviewerBootstrapAcceptedHeadCheckpointV1"></a>
 `SCHEMA_DEF[PhaseFReviewerBootstrapAcceptedHeadCheckpointV1]` is the
-resolver-owned persistent accepted-head watermark. Its exact fields are:
+resolver-owned persistent accepted-head cache. Its exact fields are:
 
 ```text
 checkpoint_id,authority_kind,schema_version,authority_class,stage,root_id,
@@ -171,11 +198,14 @@ superseded_by,invalidated
 The checkpoint ID is a domain-separated SHA-256 of the canonical payload
 excluding `checkpoint_id`; it binds the current root, proof, complete-file SHA,
 sequence, and subject-registry head. It is stored in resolver-controlled
-persistent state outside the authority repository and is advanced with an
-atomic same-directory replace after validation. Missing, malformed, lower, or
-same-sequence/different-proof checkpoints fail closed. A new verifier therefore
-requires explicit trusted checkpoint initialization; it never infers the
-present head from an old signed proof alone.
+persistent state outside the authority repository, protected by an owner-only
+state directory, `O_NOFOLLOW` path opens, and an interprocess exclusive lock.
+It is advanced with an atomic same-directory replace after validation. The
+external Git head, never this cache, decides freshness. A missing cache is
+reconstructed only after the live external head and all matching immutable
+history have been validated. A malformed, ahead, or same-sequence/different-
+proof cache fails closed; a lower cache is safely repaired from the external
+head.
 
 ### 4.2 REAL reviewer actor attestation and identity derivation
 
@@ -408,7 +438,8 @@ bootstrap-root/currentness requirements are exact.
 | PhaseFReviewerActorAttestationV1 | SIGNED_EXTERNAL_AUTHORITY | #schema-def-PhaseFReviewerActorAttestationV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated JCS semantic payload excluding attestation_id and signature; complete-file SHA-256 covers every field including signature | reviewer-bootstrap-verifier-issued natural-person reviewer actor eligibility and independence attestation | strict schema, domain-separated identity derivation, tagged trust-source binding, subject-registry anti-alias, role evidence, lifecycle, currentness, and strict Ed25519 signature verification | REAL reviewer identity prerequisite for every five-role review bundle | external signed authority object; rooted in the permanent pre-G0 bootstrap domain; no reviewer back-pointer or downstream registry enrollment is permitted | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerActorAttestationV1) |
 | PhaseFReviewerBootstrapTrustRootV1 | EXTERNAL_TRUST_ANCHOR | #schema-def-PhaseFReviewerBootstrapTrustRootV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding root_id and replacement_signature; complete-file SHA-256 covers every field | normative terminal pre-G0 reviewer bootstrap trust root and subject-uniqueness policy | strict schema, graph-pinned root identity and key fingerprint, narrow purpose scope, lifecycle, rotation, and compromise validation | PRE_G0_REVIEWER_BOOTSTRAP; before G0 and every downstream review gate | immutable external trust anchor; not a Phase F registry record and cannot authorize scientific, architecture, release, or unrelated registry mutations | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapTrustRootV1) |
 | PhaseFReviewerBootstrapCurrentnessProofV1 | SIGNED_EXTERNAL_AUTHORITY | #schema-def-PhaseFReviewerBootstrapCurrentnessProofV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding currentness_proof_id and signature; complete-file SHA-256 covers every field including signature | root-signed pre-G0 reviewer verifier, subject-registry, and currentness snapshot | strict schema, root signature, root binding, sequence/head, validity window, verifier key, subject-head uniqueness, revocation, compromise, and supersession validation | PRE_G0_REVIEWER_BOOTSTRAP; current proof required before every REAL reviewer identity | external signed authority object; bootstrap reviewer trust only and no architecture, release, or downstream approval authority | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapCurrentnessProofV1) |
-| PhaseFReviewerBootstrapAcceptedHeadCheckpointV1 | RESOLVER_STATE | #schema-def-PhaseFReviewerBootstrapAcceptedHeadCheckpointV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding checkpoint_id; complete-file SHA-256 covers every field | resolver-owned accepted currentness-head watermark | strict schema, checkpoint identity, root/proof/complete-file binding, monotonic sequence, fork detection, and atomic persistence validation | PRE_G0_REVIEWER_BOOTSTRAP; resolver state required before every REAL reviewer identity | resolver state outside the authority repository; never a registry subject and never an approval or signing authority | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapAcceptedHeadCheckpointV1) |
+| PhaseFReviewerBootstrapAcceptedHeadCheckpointV1 | RESOLVER_STATE | #schema-def-PhaseFReviewerBootstrapAcceptedHeadCheckpointV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding checkpoint_id; complete-file SHA-256 covers every field | resolver-owned accepted currentness-head cache | strict schema, checkpoint identity, root/proof/complete-file binding, monotonic sequence, fork detection, and atomic persistence validation | PRE_G0_REVIEWER_BOOTSTRAP; resolver state required before every REAL reviewer identity | resolver state outside the authority repository; never a registry subject and never an approval or signing authority | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapAcceptedHeadCheckpointV1) |
+| PhaseFReviewerBootstrapExternalMonotonicHeadV1 | EXTERNAL_MONOTONIC_AUTHORITY | #schema-def-PhaseFReviewerBootstrapExternalMonotonicHeadV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding head_id; complete-file SHA-256 covers every field in the sole-file Git commit tree | protected Git remote ref currentness head | strict schema, exact remote/ref identity, sole-file tree, parent/head predecessor, forward sequence, root/proof/subject binding, and live-ref read validation | PRE_G0_REVIEWER_BOOTSTRAP; terminal currentness source before every REAL reviewer identity | dedicated externally protected Git ref; server policy must prohibit deletion, force update, and non-fast-forward update; not a Phase F registry record | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapExternalMonotonicHeadV1) |
 
 The approval object binds the exact architecture-plan tag, F0-decisions tag,
 specification-bundle manifest SHA, aggregate review-bundle SHA, and all five

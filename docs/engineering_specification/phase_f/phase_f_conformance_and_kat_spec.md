@@ -72,10 +72,10 @@ real approval or an `F-EV`.
 | R12-G3-MIGRATED-REVIEW-RECORDS | constructive_plan_audit | migrated_review_authority | complete synthetic and real contexts with missing, duplicate, stale, role-mismatched, unresolved, non-independent, or non-GO review rows; exhaustive five-role state and identity probes | same as positive | `validate_g3_tag(...)` | REJECT | review-record closure, identity, or unanimous decision mismatch | 0 |
 | R12-G3-MIGRATED-INPUT-FINGERPRINT | constructive_plan_audit | migrated_review_authority | complete synthetic context with a stale derived review-input fingerprint | same as positive | `validate_g3_tag(...)` | REJECT | review-input fingerprint mismatch | 0 |
 | R12-G3-REAL-FORMAT-POSITIVE | constructive_plan_audit | isolated_real_repository_authority | isolated repository with canonical authority JSON, annotated tags, and real Git target | real-format fixture | `make_repository_context(...); validate_g3_tag(...)` | PASS | resolved real authority closure | 0 |
-| R12-G3-REAL-FORMAT-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | real-format fixture mutated across missing, malformed, stale, wrong-target, wrong-hash, and tag cases | real-format fixture mutation matrix | `make_repository_context(...); validate_g3_tag(...)` | REJECT | every real-format mutation rejected | 0 |
+| R12-G3-REAL-FORMAT-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | real-format fixture mutated across missing, malformed, stale, wrong-target, wrong-hash, tag, external-ref, and state-path cases | real-format fixture mutation matrix including unavailable/malformed external head, protected-ref force/delete attempts, and symlinked resolver state | `make_repository_context(...); validate_g3_tag(...); _write_reviewer_bootstrap_checkpoint(...)` | REJECT | every real-format, external-authority, and state-path mutation rejected | 0 |
 | R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE | constructive_plan_audit | isolated_real_repository_authority | graph-pinned pre-G0 bootstrap root plus root-signed currentness proof, five distinct natural-person subjects, domain-separated actor digests, complete-file references, and valid current-verifier signatures | real-format actor-attestation fixture | `make_repository_context(...); validate_g3_tag(...)` | PASS | five verified attestation subjects resolve and authorize the test-only fixture | 0 |
 | R12-G3-REAL-ACTOR-ATTESTATION-NEGATIVE-MATRIX | constructive_plan_audit | isolated_real_repository_authority | REAL resolver mutations cover arbitrary/malformed/missing/fake/cross-wired root/proof/attestations, wrong role/verifier/root/subject/head, stale/revoked/compromised/superseded state, invalid signature, self-declaration, remediation-author alias, and five-key/same-subject aliasing | bootstrap trust and actor-attestation mutation matrix | `make_repository_context(...); validate_g3_tag(...)` | REJECT | every bootstrap, actor-identity, and attestation mutation rejected | 0 |
-| R12-G3-REAL-CURRENTNESS-HISTORY | constructive_plan_audit | isolated_real_repository_authority | immutable proof history has authenticated predecessors, contiguous sequence, one canonical child, and resolver-owned accepted-head checkpoint | valid sequence 0→1→2 advancement plus missing-predecessor, predecessor-hash, sequence-gap, proof-fork, rollback, and same-sequence checkpoint-fork mutations | `make_repository_context(...); _write_reviewer_bootstrap_checkpoint(...)` | PASS for forward advancement; REJECT for every history/checkpoint mutation | no rollback, gap, orphan, or fork is accepted | 0 |
+| R12-G3-REAL-CURRENTNESS-HISTORY | constructive_plan_audit | isolated_real_repository_authority | immutable proof history has authenticated predecessors, contiguous sequence, one canonical child, graph-pinned external monotonic head, and resolver-owned accepted-head cache | valid external sequence 0→1→2 advancement, fresh-cache reconstruction, concurrent local/external races, plus missing-predecessor, predecessor-hash, sequence-gap, proof-fork, rollback, and same-sequence-checkpoint-fork mutations | `make_repository_context(...); read_live_external_monotonic_head(...); _write_reviewer_bootstrap_checkpoint(...)` | PASS for forward advancement, fresh reconstruction, and one CAS winner; REJECT for every history/checkpoint mutation | no rollback, gap, orphan, stale external read, or fork is accepted | 0 |
 | R12-G3-REAL-HISTORICAL-RESOLUTION | constructive_plan_audit | isolated_real_repository_authority | reviewer attestation and artifact retain exact issuance proof/root provenance after currentness advances | proof-0 attestation and review artifact resolved after proof-2 advancement, with current authorization evaluated separately | `validate_historical_review_artifact(...); validate_g3_tag(...)` | PASS with historical cryptographic validity and active current authorization | no current-head equality shortcut | 0 |
 | R12-G3-REAL-ROOT-ROTATION | constructive_plan_audit | isolated_real_repository_authority | root history uses predecessor-signed forward replacement with exact predecessor hash and effective sequence | valid root replacement plus competing, unauthorized-signer, and restored-old-root mutations | `make_repository_context(...); validate_historical_review_artifact(...)` | PASS for valid rotation; REJECT for every root-history mutation | old-root historical provenance remains resolvable | 0 |
 | R12-G3-REAL-DISTINCT-EVIDENCE-SAME-PERSON | constructive_plan_audit | isolated_real_repository_authority | trusted fixture equivalence maps two distinct retained evidence packages to one synthetic natural person | two different evidence hashes are assigned to two different subject IDs | `_validate_fixture_same_person_distinct_evidence(...)` | REJECT | second qualifying subject is rejected as an alias | 0 |
@@ -108,7 +108,7 @@ real approval or an `F-EV`.
 | R12-DAG-IDENTITY-RULE-CONTRACT | constructive_plan_audit | r12_artifact_authority_graph | identity rule type or required/optional field closure changed | graph mutation | R12 artifact DAG audit | REJECT | identity-rule contract mismatch | 0 |
 | R12-DAG-SEMANTIC-AUDITS | constructive_plan_audit | r12_artifact_authority_graph | computed hash, self-Git, review-target, future-object, and bypass audits mutated | graph mutation | R12 artifact DAG audit | REJECT | semantic audit violation path | 0 |
 | R12-DAG-BINDING-EQUALITY | constructive_plan_audit | r12_artifact_authority_graph | every one of the 76 exact edges has a closed explicit `none` or `serialized_binding` obligation; edge obligations are the normative root and node fields, semantic rules, serialized maps, builder/validator expectations, and prerequisites are derived mirrors; root-fixed shrink, malformed-obligation, explicit-`none`, root-identity, and G3 staleness attacks reject | graph/object mutation matrix, exhaustive 44-binding-edge root/downstream closure, obligation-schema matrix, root-change/staleness fixture matrix | R12 graph projection and G3 authority audit | REJECT | missing/malformed edge obligation, downstream mirror shrink, unauthorized `none` binding, unchanged root/fingerprint, or stale-authority acceptance | 0 |
-| R12-DAG-EXTERNAL-TRUST-CLOSURE | constructive_plan_audit | external_trust_dependency_graph | production resolver dependency declarations derive the exact external node and edge set, including published normative target, signed subject-registry state, accepted-head checkpoint, reviewer identity, review artifact, and downstream gates | every required external node and edge omitted once, plus unauthorized future node/edge insertions | `_external_trust_dependency_audit(...)` | REJECT | zero accepted omissions or unauthorized dependencies; stage-monotonic acyclic graph remains required | 0 |
+| R12-DAG-EXTERNAL-TRUST-CLOSURE | constructive_plan_audit | external_trust_dependency_graph | the single production resolver dependency registry derives the exact 20-node/23-edge external set, including published target, protected monotonic head, signed subject-registry state, accepted-head cache, reviewer identity, review artifact, and downstream gates | every required registered node and edge omitted once, registry omission, plus unauthorized future node/edge insertions | `_external_trust_dependency_audit(...); _require_external_dependency(...)` | REJECT | zero accepted omissions, registry drift, or unauthorized dependencies; stage-monotonic acyclic graph remains required | 0 |
 | R12-TRACE-SEMANTIC-SUBSTITUTION | constructive_plan_audit | normative_traceability | catalog-valid but wrong F-OPS-004 relationship | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
 | R12-TRACE-WRONG-KAT | constructive_plan_audit | normative_traceability | valid KAT substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
 | R12-TRACE-WRONG-EVIDENCE | constructive_plan_audit | normative_traceability | valid evidence substituted for a different requirement | matrix mutation | normative matrix equality audit | REJECT | semantic mapping mismatch | 0 |
@@ -313,13 +313,15 @@ cycles, self-Git cycles, review-target cycles, future-object dependencies,
 self-reference, G3 bypass, and implementation-readiness bypass. Mutations of
 any contract or audit input reject before an authority result can be returned.
 The separate production-derived external trust-DAG audit requires exact
-equality for 19 nodes and 21 edges, including the published normative target,
-signed subject-registry state, immutable bootstrap history, accepted-head
-checkpoint, reviewer identity, review artifact, and downstream gates. Every
-required external node and edge is omitted once in the self-test, and each
-omission rejects; unauthorized future dependencies reject as well. R11-08
-closure therefore requires both the 28-node/76-edge core graph and this
-external trust-DAG closure.
+equality for 20 nodes and 23 edges, including the published normative target,
+the protected external monotonic head, signed subject-registry state, immutable
+bootstrap history, accepted-head cache, reviewer identity, review artifact,
+and downstream gates. The production registration is the sole source for this
+projection; every required node and edge is omitted once in the self-test, the
+registration is independently mutation-tested, and each omission rejects.
+Unauthorized future dependencies reject as well. R11-08 closure therefore
+requires both the 28-node/76-edge core graph and this external trust-DAG
+closure.
 
 ### 3.3 REAL reviewer actor attestation mutation matrix
 
@@ -360,9 +362,15 @@ authority class exercises the same resolver path without creating or
 publishing a real authority.
 
 The history matrix accepts forward sequence `0→1→2` only after complete-chain
-validation and atomic checkpoint advancement. It rejects missing or wrong
-predecessors, gaps, duplicate sequence children, lower-sequence replay, and
-same-sequence checkpoint forks. A historical review artifact is then resolved
+validation, external-head advancement, and atomic checkpoint advancement. It
+rejects missing or wrong predecessors, gaps, duplicate sequence children,
+lower-sequence replay, and same-sequence checkpoint forks. It also proves that
+two concurrent local cache writers serialize through the owner-only lock and
+that two concurrent external successors produce exactly one remote CAS
+winner. A fresh verifier with its checkpoint removed reconstructs the cache
+from the live external ref; a missing/unavailable ref, attempted force/delete,
+symlinked state directory, or local proof history that does not match the
+external head rejects closed. A historical review artifact is then resolved
 through its exact issuance proof/root ID and complete-file hash; its historical
 cryptographic validity remains true while current subject authorization is
 checked separately. Root replacement is a predecessor-signed forward
@@ -389,7 +397,7 @@ intentional absence. The generator derives the traceability manifest from
 these rows and verifies exact bidirectional set equality; it never chooses a
 mapping from a requirement-number switch. It also derives schema-to-
 requirement and requirement-to-schema projections from the same `schema_ids`
-cells and verifies both directions against the 93-schema catalog.
+cells and verifies both directions against the 98-schema catalog.
 
 Catalog-valid but semantically wrong substitutions, including replacing the
 `F-OPS-004` mapping with `R11-CAT` and `EV11-01`, are rejected because the

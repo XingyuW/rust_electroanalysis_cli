@@ -23,7 +23,7 @@ remains provenance and is not silently promoted to a second current authority.
 | R11-05 | Exact release retention composition | Operations `F-OPS-006`; Conformance `F-CNF-002` | unchanged | none | PENDING |
 | R11-06 | Exact campaign membership, static protocol separation | Operations `F-OPS-006`; Conformance `F-CNF-002` | unchanged | none | PENDING |
 | R11-07 | Complete 15-metric KAT or narrow property only | Operations `F-OPS-003`; Conformance `F-CNF-003` | unchanged | none | PENDING |
-| R11-08 | Explicit constructive authority DAG | Architecture `F-ARCH-017`; Conformance `F-CNF-005`; Implementation `F-IMPL-007` | refined for G3 | authoritative typed R12 graph with exact source-kind/relation/destination-kind tuples, mandatory per-edge `none`/`serialized_binding` obligations, root SHA-256 binding into specification inputs, derived node/semantic/serialized/builder/validator projections, computed hash/self-Git/self-reference/future-object/target/bypass audits, and isolated root-change/real-format fixture coverage | PENDING |
+| R11-08 | Explicit constructive authority DAG | Architecture `F-ARCH-017`; Conformance `F-CNF-005`; Implementation `F-IMPL-007` | refined for G3 | authoritative typed R12 graph with exact source-kind/relation/destination-kind tuples, mandatory per-edge `none`/`serialized_binding` obligations, root SHA-256 binding into specification inputs, derived node/semantic/serialized/builder/validator projections, a production resolver dependency registry projected into the external trust DAG, computed hash/self-Git/self-reference/future-object/target/bypass audits, and isolated root-change/real-format/external-CAS fixture coverage | PENDING |
 | R11-09 | One anchor and catalog row per identifier | Wire `F-WIRE-008`; Conformance `F-CNF-005` | refined | add bundle-tag schema | PENDING |
 | R11-10 | Exhaustive nested usage rows | Wire `F-WIRE-008`; Conformance `F-CNF-005` | unchanged | reconcile new schema use | PENDING |
 | R11-11 | Exact catalog metadata | Wire `F-WIRE-008`; Conformance `F-CNF-005` | unchanged | add new row | PENDING |
@@ -33,7 +33,7 @@ remains provenance and is not silently promoted to a second current authority.
 | R11-15 | Campaign/static terminology | Operations `F-OPS-006`; Conformance `F-CNF-002` | unchanged | none | PENDING |
 | R11-16 | Structurally valid Markdown | Conformance `F-CNF-005` | unchanged | run across all current docs | PENDING |
 | R11-17 | Preserve closed safety/science/Phase-E/P2 | Architecture `F-ARCH-003,F-ARCH-013..017`; Conformance `F-CNF-008`; Implementation `F-IMPL-006` | unchanged | regression replay | PENDING |
-| R11-18 | Exact schema set/inverse coverage | Wire `F-WIRE-008`; Conformance `F-CNF-005` | forward-refined | R11 remains 91; the R12 expected set becomes 97 (91 inherited plus `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`, `PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`, `PhaseFReviewerBootstrapCurrentnessProofV1`, and `PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`) and is invertible through the R12 matrix `schema_ids` cells | PENDING |
+| R11-18 | Exact schema set/inverse coverage | Wire `F-WIRE-008`; Conformance `F-CNF-005` | forward-refined | R11 remains 91; the R12 expected set becomes 98 (91 inherited plus `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`, `PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`, `PhaseFReviewerBootstrapCurrentnessProofV1`, `PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`, and `PhaseFReviewerBootstrapExternalMonotonicHeadV1`) and is invertible through the R12 matrix `schema_ids` cells | PENDING |
 | R11-19 | Future F-EV only real; KATs only tests | Scientific `F-SCI-010`; Conformance `F-CNF-007` | unchanged | none | PENDING |
 | R11-20 | Exactly 20 owner decisions | Architecture `F-ARCH-006`; Wire `F-WIRE-004`; Conformance `F-CNF-005` | unchanged | none | PENDING |
 
@@ -83,10 +83,12 @@ planning contracts only. This remediation does not fabricate a review artifact
 for its own work. `PhaseFReviewerActorAttestationV1`,
 `PhaseFReviewerBootstrapTrustRootV1`, and
 `PhaseFReviewerBootstrapCurrentnessProofV1`, and
-`PhaseFReviewerBootstrapAcceptedHeadCheckpointV1` are forward R12 additive schemas:
+`PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`, and
+`PhaseFReviewerBootstrapExternalMonotonicHeadV1` are forward R12 additive schemas:
 the bootstrap root and signed currentness proof establish the narrow pre-G0
-reviewer trust domain, the resolver checkpoint establishes monotonic accepted
-head state, and the attestation binds each REAL reviewer support record to that
+reviewer trust domain, the protected Git external head establishes the live
+monotonic currentness source, the resolver checkpoint caches that accepted
+head, and the attestation binds each REAL reviewer support record to that
 chain without changing R11 fields, registry record kinds,
 relation enums, or the authority graph. This remediation creates no real root,
 actor identity, enrollment, attestation, review, approval, or publication

@@ -22,10 +22,27 @@
     "transition_policy": "forward_signed_replacement_with_resolver_checkpoint",
     "currentness_window_policy": "valid_from_le_validation_time_le_valid_until"
   },
+  "external_monotonic_head_contract": {
+    "authority_kind": "PhaseFReviewerBootstrapExternalMonotonicHeadV1",
+    "schema_version": 1,
+    "remote_name": "origin",
+    "remote_url": "git@github-personal:XingyuW/rust_electroanalysis_cli.git",
+    "ref": "refs/heads/phase-f-reviewer-bootstrap-head",
+    "wire_path": "reviewer_bootstrap_monotonic_head.json",
+    "server_policy": {
+      "deletion": "PROHIBITED",
+      "force_update": "PROHIBITED",
+      "non_fast_forward": "PROHIBITED",
+      "protection_validation": "EXTERNAL_PREREQUISITE"
+    },
+    "read_policy": "LIVE_LS_REMOTE_THEN_EXACT_FETCH",
+    "advance_policy": "FAST_FORWARD_SERVER_CAS"
+  },
   "external_trust_dependency_contract": {
     "terminal_roots": ["published_normative_target"],
     "nodes": [
-      {"id": "published_normative_target", "stage": -3},
+      {"id": "published_normative_target", "stage": -4},
+      {"id": "reviewer_bootstrap_external_monotonic_head", "stage": -3},
       {"id": "reviewer_bootstrap_root", "stage": -2},
       {"id": "reviewer_bootstrap_currentness_proof", "stage": -1},
       {"id": "signed_subject_registry_state", "stage": 0},
@@ -46,25 +63,27 @@
       {"id": "normal_phase_f_registry", "stage": 21}
     ],
     "edges": [
-      {"from": "published_normative_target", "to": "reviewer_bootstrap_root"},
+      {"from": "published_normative_target", "to": "reviewer_bootstrap_external_monotonic_head"},
+      {"from": "reviewer_bootstrap_external_monotonic_head", "to": "reviewer_bootstrap_root"},
       {"from": "reviewer_bootstrap_root", "to": "reviewer_bootstrap_currentness_proof"},
       {"from": "reviewer_bootstrap_currentness_proof", "to": "signed_subject_registry_state"},
+      {"from": "reviewer_bootstrap_external_monotonic_head", "to": "reviewer_bootstrap_accepted_head_checkpoint"},
       {"from": "reviewer_bootstrap_currentness_proof", "to": "reviewer_bootstrap_accepted_head_checkpoint"},
       {"from": "signed_subject_registry_state", "to": "reviewer_actor_attestation"},
       {"from": "reviewer_bootstrap_accepted_head_checkpoint", "to": "reviewer_actor_attestation"},
       {"from": "reviewer_actor_attestation", "to": "reviewer_identity"},
       {"from": "reviewer_identity", "to": "review_artifact"},
       {"from": "review_artifact", "to": "architecture_review"},
-      {"from": "review_artifact", "to": "g2_component_reviews"},
-      {"from": "review_artifact", "to": "g5_enrollment_review"},
       {"from": "architecture_review", "to": "architecture_approval"},
       {"from": "architecture_approval", "to": "f0_decision_bundle"},
       {"from": "f0_decision_bundle", "to": "f0_review"},
       {"from": "f0_review", "to": "f0_approval"},
       {"from": "f0_approval", "to": "g2_component_reviews"},
+      {"from": "review_artifact", "to": "g2_component_reviews"},
       {"from": "g2_component_reviews", "to": "g3_approval"},
       {"from": "g3_approval", "to": "g4_readiness"},
       {"from": "g4_readiness", "to": "g5_enrollment_review"},
+      {"from": "review_artifact", "to": "g5_enrollment_review"},
       {"from": "g5_enrollment_review", "to": "normal_phase_f_authority_enrollment"},
       {"from": "normal_phase_f_authority_enrollment", "to": "normal_phase_f_registry"}
     ]
