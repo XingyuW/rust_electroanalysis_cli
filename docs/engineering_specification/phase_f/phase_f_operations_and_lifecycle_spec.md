@@ -29,19 +29,24 @@ membership, compromise/recovery, transition, or currentness ambiguity is P1.
 
 `PhaseFReviewerBootstrapExternalMonotonicHeadV1` is provisioned in one
 dedicated Git remote ref, `refs/heads/phase-f-reviewer-bootstrap-head`. The
-production resolver reads the graph-pinned `origin` URL with live
-`ls-remote`, fetches that exact ref, and validates one canonical sole-file
-commit. Operators must establish the following before any REAL reviewer
-bootstrap is accepted:
+production resolver establishes the canonical GitHub repository identity
+through `https://api.github.com` and independently verifies the exact pinned
+ACTIVE ruleset before reading the ref. The graph-pinned `origin`/SSH alias is
+only an operator push transport; live reads do not consult its local
+configuration. Operators must establish the following before any REAL
+reviewer bootstrap is accepted:
 
 1. Create the dedicated ref from a canonical sequence-zero head whose commit
    has no parent and whose root/proof/subject hashes match the immutable
    bootstrap history.
-2. Protect the ref server-side against deletion, force update, and
-   non-fast-forward update, and verify the policy with an attempted negative
-   update in the isolated conformance fixture.
-3. Grant the resolver read access to the remote and exact ref; a missing,
-   unavailable, changed-during-read, or multiply-resolved ref fails closed.
+2. Protect the ref server-side with one ACTIVE branch ruleset applying to the
+   exact ref, requiring `non_fast_forward` and `deletion`, with no bypass
+   actors. Verify the policy through an authenticated Rulesets API context with
+   sufficient privilege to observe bypass actors and ruleset history.
+3. Pin the exact ruleset ID, initial version ID, and canonical protection-state
+   digest through reviewed authority. A missing, unavailable, insufficiently
+   privileged, changed-during-read, or multiply-resolved protection/ref fails
+   closed.
 4. Advance only by publishing one canonical successor with exactly one Git
    parent, `sequence + 1`, and predecessor commit/head/hash bindings. The
    server-side fast-forward/CAS result is final; a caller-selected local SHA,
@@ -54,10 +59,13 @@ bootstrap is accepted:
    read/compare/write transaction.
 
 The lifecycle is therefore `GENESIS → ACTIVE successor → ACTIVE successor` on
-the external ref. Deletion, rewind, force update, invalidation, or server
-policy drift is an operational incident and blocks REAL resolution until the
-external authority is restored. Root rotation remains predecessor-signed and
-history-preserving; the external head advances to the replacement proof only
-after the replacement root and proof are present. TEST_ONLY fixtures may use
+the external ref. Deletion, rewind, force update, invalidation, protection
+weakening, ruleset replacement, or server policy drift is an operational
+incident and blocks REAL resolution until the external authority is restored.
+Any ruleset history version after the pinned initial version invalidates trust,
+even if a later version restores the original visible rules. Root rotation
+remains predecessor-signed and history-preserving; the external head advances
+to the replacement proof only after the replacement root and proof are
+present. TEST_ONLY fixtures inject a deterministic API transport and may use
 an isolated bare remote with the same policy, but they never provision or
 publish production authority.

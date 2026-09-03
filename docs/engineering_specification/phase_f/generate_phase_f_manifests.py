@@ -19,9 +19,14 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from enum import Enum
+from fnmatch import fnmatchcase
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
+from urllib.error import HTTPError
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 try:
     import fcntl
@@ -544,15 +549,42 @@ EXTERNAL_MONOTONIC_HEAD_AUTHORITY_KIND = (
 )
 EXTERNAL_MONOTONIC_HEAD_REF = "refs/heads/phase-f-reviewer-bootstrap-head"
 EXTERNAL_MONOTONIC_HEAD_WIRE_PATH = "reviewer_bootstrap_monotonic_head.json"
-EXTERNAL_MONOTONIC_HEAD_REMOTE_NAME = "origin"
+CANONICAL_GITHUB_REPOSITORY_IDENTITY = {
+    "provider": "github",
+    "web_host": "github.com",
+    "api_origin": "https://api.github.com",
+    "repository_id": 1273879958,
+    "repository_full_name": "XingyuW/rust_electroanalysis_cli",
+}
+EXTERNAL_MONOTONIC_HEAD_TRANSPORT = {
+    "kind": "operator_ssh_push_only",
+    "remote_name": "origin",
+    "remote_url": "git@github-personal:XingyuW/rust_electroanalysis_cli.git",
+    "authority_role": "NON_AUTHORITATIVE",
+}
+EXTERNAL_MONOTONIC_HEAD_PROTECTION_POLICY = {
+    "target": "branch",
+    "enforcement": "active",
+    "required_rules": ["deletion", "non_fast_forward"],
+    "bypass_actors": [],
+    "history_policy": "IMMUTABLE_PINNED_INITIAL_VERSION",
+}
+EXTERNAL_MONOTONIC_HEAD_PROTECTION_BINDING = {
+    "provisioning_status": "UNPROVISIONED",
+    "ruleset_id": None,
+    "version_id": None,
+    "state_digest": None,
+}
 EXTERNAL_MONOTONIC_HEAD_CONTRACT_KEYS = {
     "authority_kind",
     "schema_version",
-    "remote_name",
-    "remote_url",
+    "repository_identity",
+    "transport",
     "ref",
     "wire_path",
     "server_policy",
+    "protection_policy",
+    "protection_binding",
     "read_policy",
     "advance_policy",
 }
@@ -560,77 +592,243 @@ EXTERNAL_MONOTONIC_HEAD_SERVER_POLICY = {
     "deletion": "PROHIBITED",
     "force_update": "PROHIBITED",
     "non_fast_forward": "PROHIBITED",
-    "protection_validation": "EXTERNAL_PREREQUISITE",
+    "protection_validation": "AUTHENTICATED_CANONICAL_GITHUB_RULESET_API",
 }
-EXTERNAL_MONOTONIC_HEAD_READ_POLICY = "LIVE_LS_REMOTE_THEN_EXACT_FETCH"
+EXTERNAL_MONOTONIC_HEAD_READ_POLICY = "LIVE_CANONICAL_GITHUB_REF_THEN_EXACT_FETCH"
 EXTERNAL_MONOTONIC_HEAD_ADVANCE_POLICY = "FAST_FORWARD_SERVER_CAS"
+
+
+class ExternalDiscovery(str, Enum):
+    """Closed discovery sources for production external dependencies."""
+
+    REPOSITORY_COMMIT = "repository_commit"
+    GITHUB_REPOSITORY = "github_repository"
+    GITHUB_RULESET = "github_ruleset"
+    GITHUB_REF = "github_ref"
+    IMMUTABLE_ROOT_HISTORY = "immutable_root_history"
+    IMMUTABLE_PROOF_HISTORY = "immutable_proof_history"
+    PROOF_SUBJECT_BINDINGS = "proof_subject_bindings"
+    RESOLVER_STATE_CACHE = "resolver_state_cache"
+    IMMUTABLE_ATTESTATION = "immutable_attestation"
+    AUTHORITY_RECORD = "authority_record"
+    REVIEW_BUNDLE = "review_bundle"
+    READINESS_RECORD = "readiness_record"
+    G3_TAG = "g3_tag"
+    REGISTRY_RECORD = "registry_record"
+
+
+class ExternalResolverHook(str, Enum):
+    """Closed resolver implementations; arbitrary function names are invalid."""
+
+    RESOLVE_TARGET_COMMIT = "resolve_target_commit"
+    VERIFY_GITHUB_REPOSITORY_IDENTITY = "verify_github_repository_identity"
+    VERIFY_GITHUB_RULESET_PROTECTION = "verify_github_ruleset_protection"
+    GITHUB_MONOTONIC_HEAD = "github_monotonic_head"
+    VALIDATE_ROOT_HISTORY = "validate_root_history"
+    VALIDATE_PROOF_HISTORY = "validate_proof_history"
+    VALIDATE_SUBJECT_REGISTRY = "validate_subject_registry"
+    UPDATE_LOCKED_LOCAL_CACHE = "update_locked_local_cache"
+    VALIDATE_ACTOR_ATTESTATION = "validate_actor_attestation"
+    RESOLVE_REVIEWER_IDENTITY = "resolve_reviewer_identity"
+    RESOLVE_REVIEW_ARTIFACT = "resolve_review_artifact"
+    VALIDATE_ARCHITECTURE_REVIEW = "validate_architecture_review"
+    VALIDATE_ARCHITECTURE_APPROVAL = "validate_architecture_approval"
+    RESOLVE_F0_BUNDLE = "resolve_f0_bundle"
+    VALIDATE_F0_REVIEW = "validate_f0_review"
+    VALIDATE_F0_APPROVAL = "validate_f0_approval"
+    VALIDATE_COMPONENT_REVIEWS = "validate_component_reviews"
+    VALIDATE_G3_APPROVAL = "validate_g3_approval"
+    VALIDATE_READINESS = "validate_readiness"
+    VALIDATE_ENROLLMENT_REVIEW = "validate_enrollment_review"
+    VALIDATE_AUTHORITY_ENROLLMENT = "validate_authority_enrollment"
+    VALIDATE_PHASE_F_REGISTRY = "validate_phase_f_registry"
+
+
+EXTERNAL_DISCOVERY_FIELD_CONTRACTS = {
+    ExternalDiscovery.REPOSITORY_COMMIT: {"target_ref": "resolver_target_ref"},
+    ExternalDiscovery.GITHUB_REPOSITORY: {
+        "identity": "external_monotonic_head_contract.repository_identity"
+    },
+    ExternalDiscovery.GITHUB_RULESET: {
+        "identity": "external_monotonic_head_contract.repository_identity",
+        "binding": "external_monotonic_head_contract.protection_binding",
+    },
+    ExternalDiscovery.GITHUB_REF: {
+        "identity": "external_monotonic_head_contract.repository_identity",
+        "ref": "external_monotonic_head_contract.ref",
+    },
+}
 
 
 @dataclass(frozen=True)
 class ExternalTrustDependency:
-    """One production trust dependency and its resolver validation hook."""
+    """One production trust dependency with typed discovery and dispatch."""
 
     identifier: str
     stage: int
     prerequisites: tuple[str, ...]
-    discovery: str
-    resolver_hook: str
+    discovery: ExternalDiscovery
+    resolver_hook: ExternalResolverHook
+    discovery_fields: tuple[tuple[str, str], ...]
+
+
+def _external_dependency(
+    identifier: str,
+    stage: int,
+    prerequisites: tuple[str, ...],
+    discovery: ExternalDiscovery,
+    resolver_hook: ExternalResolverHook,
+    discovery_fields: dict[str, str] | None = None,
+) -> ExternalTrustDependency:
+    fields = discovery_fields
+    if fields is None:
+        fields = {"record": f"external_trust_dependency_contract.{identifier}"}
+    return ExternalTrustDependency(
+        identifier,
+        stage,
+        prerequisites,
+        discovery,
+        resolver_hook,
+        tuple(sorted(fields.items())),
+    )
 
 
 # This registry is the production dependency model. The normative external
 # DAG is derived from these objects; it is not a second maintained list.
 PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY: tuple[ExternalTrustDependency, ...] = (
-    ExternalTrustDependency("published_normative_target", -4, (), "git_target", "resolve_target_commit"),
-    ExternalTrustDependency(
+    _external_dependency(
+        "published_normative_target", -6, (),
+        ExternalDiscovery.REPOSITORY_COMMIT,
+        ExternalResolverHook.RESOLVE_TARGET_COMMIT,
+        {"target_ref": "resolver_target_ref"},
+    ),
+    _external_dependency(
+        "canonical_github_repository_identity", -5,
+        ("published_normative_target",),
+        ExternalDiscovery.GITHUB_REPOSITORY,
+        ExternalResolverHook.VERIFY_GITHUB_REPOSITORY_IDENTITY,
+        {"identity": "external_monotonic_head_contract.repository_identity"},
+    ),
+    _external_dependency(
+        "github_ruleset_protection", -4,
+        ("canonical_github_repository_identity",),
+        ExternalDiscovery.GITHUB_RULESET,
+        ExternalResolverHook.VERIFY_GITHUB_RULESET_PROTECTION,
+        {
+            "identity": "external_monotonic_head_contract.repository_identity",
+            "binding": "external_monotonic_head_contract.protection_binding",
+        },
+    ),
+    _external_dependency(
         "reviewer_bootstrap_external_monotonic_head", -3,
-        ("published_normative_target",), "git_remote_ref", "read_external_monotonic_head",
+        (
+            "published_normative_target",
+            "canonical_github_repository_identity",
+            "github_ruleset_protection",
+        ),
+        ExternalDiscovery.GITHUB_REF,
+        ExternalResolverHook.GITHUB_MONOTONIC_HEAD,
+        {
+            "identity": "external_monotonic_head_contract.repository_identity",
+            "ref": "external_monotonic_head_contract.ref",
+        },
     ),
-    ExternalTrustDependency(
+    _external_dependency(
         "reviewer_bootstrap_root", -2,
-        ("reviewer_bootstrap_external_monotonic_head",), "immutable_root_history", "validate_root_history",
+        ("reviewer_bootstrap_external_monotonic_head",),
+        ExternalDiscovery.IMMUTABLE_ROOT_HISTORY,
+        ExternalResolverHook.VALIDATE_ROOT_HISTORY,
     ),
-    ExternalTrustDependency(
+    _external_dependency(
         "reviewer_bootstrap_currentness_proof", -1,
-        ("reviewer_bootstrap_root",), "immutable_proof_history", "validate_proof_history",
+        ("reviewer_bootstrap_root",),
+        ExternalDiscovery.IMMUTABLE_PROOF_HISTORY,
+        ExternalResolverHook.VALIDATE_PROOF_HISTORY,
     ),
-    ExternalTrustDependency(
+    _external_dependency(
         "signed_subject_registry_state", 0,
-        ("reviewer_bootstrap_currentness_proof",), "proof_subject_bindings", "validate_subject_registry",
+        ("reviewer_bootstrap_currentness_proof",),
+        ExternalDiscovery.PROOF_SUBJECT_BINDINGS,
+        ExternalResolverHook.VALIDATE_SUBJECT_REGISTRY,
     ),
-    ExternalTrustDependency(
+    _external_dependency(
         "reviewer_bootstrap_accepted_head_checkpoint", 0,
         ("reviewer_bootstrap_external_monotonic_head", "reviewer_bootstrap_currentness_proof"),
-        "resolver_state_cache", "update_locked_local_cache",
+        ExternalDiscovery.RESOLVER_STATE_CACHE,
+        ExternalResolverHook.UPDATE_LOCKED_LOCAL_CACHE,
     ),
-    ExternalTrustDependency(
+    _external_dependency(
         "reviewer_actor_attestation", 1,
         ("signed_subject_registry_state", "reviewer_bootstrap_accepted_head_checkpoint"),
-        "immutable_attestation", "validate_actor_attestation",
+        ExternalDiscovery.IMMUTABLE_ATTESTATION,
+        ExternalResolverHook.VALIDATE_ACTOR_ATTESTATION,
     ),
-    ExternalTrustDependency("reviewer_identity", 2, ("reviewer_actor_attestation",), "authority_record", "resolve_reviewer_identity"),
-    ExternalTrustDependency("review_artifact", 3, ("reviewer_identity",), "authority_record", "resolve_review_artifact"),
-    ExternalTrustDependency("architecture_review", 4, ("review_artifact",), "review_bundle", "validate_architecture_review"),
-    ExternalTrustDependency("architecture_approval", 5, ("architecture_review",), "authority_record", "validate_architecture_approval"),
-    ExternalTrustDependency("f0_decision_bundle", 6, ("architecture_approval",), "authority_record", "resolve_f0_bundle"),
-    ExternalTrustDependency("f0_review", 7, ("f0_decision_bundle",), "review_bundle", "validate_f0_review"),
-    ExternalTrustDependency("f0_approval", 8, ("f0_review",), "authority_record", "validate_f0_approval"),
-    ExternalTrustDependency(
+    _external_dependency(
+        "reviewer_identity", 2, ("reviewer_actor_attestation",),
+        ExternalDiscovery.AUTHORITY_RECORD,
+        ExternalResolverHook.RESOLVE_REVIEWER_IDENTITY,
+    ),
+    _external_dependency(
+        "review_artifact", 3, ("reviewer_identity",),
+        ExternalDiscovery.AUTHORITY_RECORD,
+        ExternalResolverHook.RESOLVE_REVIEW_ARTIFACT,
+    ),
+    _external_dependency(
+        "architecture_review", 4, ("review_artifact",),
+        ExternalDiscovery.REVIEW_BUNDLE,
+        ExternalResolverHook.VALIDATE_ARCHITECTURE_REVIEW,
+    ),
+    _external_dependency(
+        "architecture_approval", 5, ("architecture_review",),
+        ExternalDiscovery.AUTHORITY_RECORD,
+        ExternalResolverHook.VALIDATE_ARCHITECTURE_APPROVAL,
+    ),
+    _external_dependency(
+        "f0_decision_bundle", 6, ("architecture_approval",),
+        ExternalDiscovery.AUTHORITY_RECORD,
+        ExternalResolverHook.RESOLVE_F0_BUNDLE,
+    ),
+    _external_dependency(
+        "f0_review", 7, ("f0_decision_bundle",),
+        ExternalDiscovery.REVIEW_BUNDLE,
+        ExternalResolverHook.VALIDATE_F0_REVIEW,
+    ),
+    _external_dependency(
+        "f0_approval", 8, ("f0_review",),
+        ExternalDiscovery.AUTHORITY_RECORD,
+        ExternalResolverHook.VALIDATE_F0_APPROVAL,
+    ),
+    _external_dependency(
         "g2_component_reviews", 10, ("f0_approval", "review_artifact"),
-        "review_bundle", "validate_component_reviews",
+        ExternalDiscovery.REVIEW_BUNDLE,
+        ExternalResolverHook.VALIDATE_COMPONENT_REVIEWS,
     ),
-    ExternalTrustDependency("g3_approval", 14, ("g2_component_reviews",), "g3_tag", "validate_g3_approval"),
-    ExternalTrustDependency("g4_readiness", 18, ("g3_approval",), "readiness_record", "validate_readiness"),
-    ExternalTrustDependency(
+    _external_dependency(
+        "g3_approval", 14, ("g2_component_reviews",),
+        ExternalDiscovery.G3_TAG,
+        ExternalResolverHook.VALIDATE_G3_APPROVAL,
+    ),
+    _external_dependency(
+        "g4_readiness", 18, ("g3_approval",),
+        ExternalDiscovery.READINESS_RECORD,
+        ExternalResolverHook.VALIDATE_READINESS,
+    ),
+    _external_dependency(
         "g5_enrollment_review", 19, ("g4_readiness", "review_artifact"),
-        "review_bundle", "validate_enrollment_review",
+        ExternalDiscovery.REVIEW_BUNDLE,
+        ExternalResolverHook.VALIDATE_ENROLLMENT_REVIEW,
     ),
-    ExternalTrustDependency(
+    _external_dependency(
         "normal_phase_f_authority_enrollment", 20,
-        ("g5_enrollment_review",), "authority_record", "validate_authority_enrollment",
+        ("g5_enrollment_review",),
+        ExternalDiscovery.AUTHORITY_RECORD,
+        ExternalResolverHook.VALIDATE_AUTHORITY_ENROLLMENT,
     ),
-    ExternalTrustDependency(
+    _external_dependency(
         "normal_phase_f_registry", 21,
-        ("normal_phase_f_authority_enrollment",), "registry_record", "validate_phase_f_registry",
+        ("normal_phase_f_authority_enrollment",),
+        ExternalDiscovery.REGISTRY_RECORD,
+        ExternalResolverHook.VALIDATE_PHASE_F_REGISTRY,
     ),
 )
 
@@ -641,10 +839,53 @@ def _production_external_trust_dependencies() -> tuple[ExternalTrustDependency, 
     return PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY
 
 
-def _external_dependency_projection() -> tuple[list[dict[str, int | str]], list[dict[str, str]], list[str]]:
+def _validate_external_dependency_registry() -> None:
+    registrations = _production_external_trust_dependencies()
+    identifiers = [dependency.identifier for dependency in registrations]
+    if len(identifiers) != len(set(identifiers)):
+        raise ValueError("external trust dependency identifiers are not unique")
+    for dependency in registrations:
+        if not isinstance(dependency.identifier, str) or not dependency.identifier:
+            raise ValueError("external trust dependency identifier is malformed")
+        if not isinstance(dependency.stage, int):
+            raise ValueError(
+                f"external trust dependency stage is malformed: {dependency.identifier}"
+            )
+        if not isinstance(dependency.discovery, ExternalDiscovery):
+            raise ValueError(f"unknown external discovery: {dependency.identifier}")
+        if not isinstance(dependency.resolver_hook, ExternalResolverHook):
+            raise ValueError(
+                f"unknown external resolver hook: {dependency.identifier}"
+            )
+        if any(not isinstance(item, str) for item in dependency.prerequisites):
+            raise ValueError(
+                f"external trust dependency prerequisites are malformed: {dependency.identifier}"
+            )
+        fields = dict(dependency.discovery_fields)
+        expected = EXTERNAL_DISCOVERY_FIELD_CONTRACTS.get(dependency.discovery)
+        if expected is not None and fields != expected:
+            raise ValueError(
+                f"external discovery fields are not exact: {dependency.identifier}"
+            )
+        if expected is None and fields != {
+            "record": f"external_trust_dependency_contract.{dependency.identifier}"
+        }:
+            raise ValueError(
+                f"external discovery fields are not traceable: {dependency.identifier}"
+            )
+
+
+def _external_dependency_projection() -> tuple[list[dict[str, Any]], list[dict[str, str]], list[str]]:
+    _validate_external_dependency_registry()
     registrations = _production_external_trust_dependencies()
     nodes = [
-        {"id": dependency.identifier, "stage": dependency.stage}
+        {
+            "id": dependency.identifier,
+            "stage": dependency.stage,
+            "discovery": dependency.discovery.value,
+            "discovery_fields": dict(dependency.discovery_fields),
+            "resolver_hook": dependency.resolver_hook.value,
+        }
         for dependency in registrations
     ]
     edges = [
@@ -661,6 +902,7 @@ def _external_dependency_projection() -> tuple[list[dict[str, int | str]], list[
 
 
 def _require_external_dependency(identifier: str) -> ExternalTrustDependency:
+    _validate_external_dependency_registry()
     for dependency in _production_external_trust_dependencies():
         if dependency.identifier == identifier:
             return dependency
@@ -921,6 +1163,271 @@ class G3ValidationError(ValueError):
     def __init__(self, category: str):
         self.category = category
         super().__init__(category)
+
+
+class GitHubProtectionTransport(Protocol):
+    """Authenticated canonical GitHub reads, injectable for isolated tests."""
+
+    def get_repository(self, identity: dict[str, Any]) -> dict[str, Any]: ...
+
+    def get_ruleset(self, identity: dict[str, Any], ruleset_id: int) -> dict[str, Any]: ...
+
+    def get_ruleset_history(
+        self, identity: dict[str, Any], ruleset_id: int
+    ) -> dict[str, Any] | list[dict[str, Any]]: ...
+
+    def get_ref(self, identity: dict[str, Any], ref: str) -> dict[str, Any]: ...
+
+    def git_fetch_url(self, identity: dict[str, Any]) -> str: ...
+
+
+class GitHubApiTransport:
+    """Real HTTPS GitHub transport using an external credential provider."""
+
+    def __init__(
+        self,
+        credential_provider: Callable[[], str | None] | None = None,
+        timeout_seconds: float = 10.0,
+    ) -> None:
+        self._credential_provider = credential_provider or self._environment_credential
+        self._timeout_seconds = timeout_seconds
+
+    @staticmethod
+    def _environment_credential() -> str | None:
+        return os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+
+    def _get_json(self, path: str) -> Any:
+        token = self._credential_provider()
+        if not isinstance(token, str) or not token:
+            raise G3ValidationError("github_protection_authentication_unavailable")
+        request = Request(
+            CANONICAL_GITHUB_REPOSITORY_IDENTITY["api_origin"] + path,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {token}",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+            method="GET",
+        )
+        try:
+            with urlopen(request, timeout=self._timeout_seconds) as response:
+                decoded = json.loads(response.read().decode("utf-8"))
+        except HTTPError as error:
+            if error.code in {401, 403}:
+                raise G3ValidationError(
+                    "github_protection_permission_insufficient"
+                ) from error
+            if error.code == 404:
+                raise G3ValidationError("github_protection_resource_missing") from error
+            raise G3ValidationError("github_protection_api_unavailable") from error
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise G3ValidationError("github_protection_api_unavailable") from error
+        if not isinstance(decoded, (dict, list)):
+            raise G3ValidationError("github_protection_malformed_response")
+        return decoded
+
+    def get_repository(self, identity: dict[str, Any]) -> dict[str, Any]:
+        owner, name = identity["repository_full_name"].split("/", 1)
+        payload = self._get_json(
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}"
+        )
+        if not isinstance(payload, dict):
+            raise G3ValidationError("github_protection_malformed_response")
+        return payload
+
+    def get_ruleset(self, identity: dict[str, Any], ruleset_id: int) -> dict[str, Any]:
+        owner, name = identity["repository_full_name"].split("/", 1)
+        payload = self._get_json(
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/rulesets/{ruleset_id}"
+        )
+        if not isinstance(payload, dict):
+            raise G3ValidationError("github_protection_malformed_response")
+        return payload
+
+    def get_ruleset_history(
+        self, identity: dict[str, Any], ruleset_id: int
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        owner, name = identity["repository_full_name"].split("/", 1)
+        payload = self._get_json(
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/rulesets/{ruleset_id}/history?per_page=100"
+        )
+        if isinstance(payload, dict):
+            return payload
+        if (
+            not payload
+            or len(payload) >= 100
+            or any(
+                not isinstance(version, dict) or not isinstance(version.get("id"), int)
+                for version in payload
+            )
+        ):
+            raise G3ValidationError("github_protection_pagination_uncertain")
+        return {
+            "current_version_id": payload[0]["id"],
+            "versions": [
+                {
+                    "version_id": version["id"],
+                    "state_digest": version.get("state_digest"),
+                }
+                for version in payload
+            ],
+        }
+
+    def get_ref(self, identity: dict[str, Any], ref: str) -> dict[str, Any]:
+        owner, name = identity["repository_full_name"].split("/", 1)
+        branch = ref.removeprefix("refs/heads/")
+        payload = self._get_json(
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/git/ref/{quote(branch, safe='')}"
+        )
+        if not isinstance(payload, dict):
+            raise G3ValidationError("github_protection_malformed_response")
+        payload["repository_full_name"] = identity["repository_full_name"]
+        return payload
+
+    def git_fetch_url(self, identity: dict[str, Any]) -> str:
+        return (
+            f"https://{identity['web_host']}/{identity['repository_full_name']}.git"
+        )
+
+
+def _github_protection_state_digest(state: dict[str, Any]) -> str:
+    return sha256_bytes(canonical_json_bytes(state))
+
+
+def _verify_github_repository_identity(
+    transport: GitHubProtectionTransport,
+    identity: dict[str, Any],
+) -> dict[str, Any]:
+    payload = transport.get_repository(identity)
+    owner, name = identity["repository_full_name"].split("/", 1)
+    returned_owner = payload.get("owner")
+    if (
+        payload.get("id") != identity["repository_id"]
+        or payload.get("name") != name
+        or payload.get("full_name") != identity["repository_full_name"]
+        or not isinstance(returned_owner, dict)
+        or returned_owner.get("login") != owner
+    ):
+        raise G3ValidationError("github_repository_identity_mismatch")
+    return {
+        "authenticated": True,
+        "repository_id": payload["id"],
+        "repository_full_name": payload["full_name"],
+        "web_host": identity["web_host"],
+        "api_origin": identity["api_origin"],
+    }
+
+
+def _canonical_ruleset_state(
+    ruleset: dict[str, Any],
+    identity: dict[str, Any],
+    ref: str,
+    policy: dict[str, Any],
+) -> dict[str, Any]:
+    if (
+        ruleset.get("target") != policy["target"]
+        or ruleset.get("enforcement") != policy["enforcement"]
+        or ruleset.get("source_type") != "Repository"
+        or ruleset.get("source") != identity["repository_full_name"]
+    ):
+        raise G3ValidationError("github_protection_ruleset_scope_mismatch")
+    conditions = ruleset.get("conditions")
+    ref_name = conditions.get("ref_name") if isinstance(conditions, dict) else None
+    includes = ref_name.get("include") if isinstance(ref_name, dict) else None
+    excludes = ref_name.get("exclude") if isinstance(ref_name, dict) else None
+    if (
+        not isinstance(includes, list)
+        or ref not in includes
+        or not isinstance(excludes, list)
+        or any(
+            isinstance(pattern, str)
+            and (pattern == "~ALL" or fnmatchcase(ref, pattern))
+            for pattern in excludes
+        )
+    ):
+        raise G3ValidationError("github_protection_ref_condition_mismatch")
+    raw_rules = ruleset.get("rules")
+    if not isinstance(raw_rules, list):
+        raise G3ValidationError("github_protection_rules_malformed")
+    normalized_rules: list[dict[str, Any]] = []
+    for rule in raw_rules:
+        if not isinstance(rule, dict) or not isinstance(rule.get("type"), str):
+            raise G3ValidationError("github_protection_rules_malformed")
+        normalized_rules.append(
+            {
+                "type": rule["type"],
+                "parameters": rule.get("parameters"),
+            }
+        )
+    rule_types = {rule["type"] for rule in normalized_rules}
+    if not set(policy["required_rules"]).issubset(rule_types):
+        raise G3ValidationError("github_protection_required_rule_missing")
+    bypass_actors = ruleset.get("bypass_actors")
+    if not isinstance(bypass_actors, list):
+        raise G3ValidationError("github_protection_bypass_visibility_unavailable")
+    if bypass_actors != policy["bypass_actors"]:
+        raise G3ValidationError("github_protection_bypass_actor_present")
+    return {
+        "target": ruleset["target"],
+        "enforcement": ruleset["enforcement"],
+        "source_type": ruleset["source_type"],
+        "source": ruleset["source"],
+        "conditions": {
+            "ref_name": {
+                "include": list(includes),
+                "exclude": list(excludes),
+            }
+        },
+        "rules": sorted(normalized_rules, key=lambda rule: canonical_json_bytes(rule)),
+        "bypass_actors": list(bypass_actors),
+    }
+
+
+def _verify_github_ruleset_protection(
+    transport: GitHubProtectionTransport,
+    contract: dict[str, Any],
+) -> dict[str, Any]:
+    binding = contract["protection_binding"]
+    if binding["provisioning_status"] != "PINNED_BY_REVIEWED_AUTHORITY":
+        raise G3ValidationError("github_protection_unprovisioned")
+    identity = contract["repository_identity"]
+    identity_evidence = _verify_github_repository_identity(transport, identity)
+    ruleset = transport.get_ruleset(identity, binding["ruleset_id"])
+    if ruleset.get("id") != binding["ruleset_id"]:
+        raise G3ValidationError("github_protection_ruleset_identity_mismatch")
+    state = _canonical_ruleset_state(
+        ruleset, identity, contract["ref"], contract["protection_policy"]
+    )
+    state_digest = _github_protection_state_digest(state)
+    if state_digest != binding["state_digest"]:
+        raise G3ValidationError("github_protection_state_digest_mismatch")
+    history = transport.get_ruleset_history(identity, binding["ruleset_id"])
+    versions = history.get("versions") if isinstance(history, dict) else None
+    if (
+        not isinstance(history, dict)
+        or history.get("current_version_id") != binding["version_id"]
+        or not isinstance(versions, list)
+        or len(versions) != 1
+    ):
+        raise G3ValidationError("github_protection_history_changed")
+    version = versions[0]
+    if (
+        not isinstance(version, dict)
+        or version.get("version_id") != binding["version_id"]
+        or (
+            version.get("state_digest") is not None
+            and version.get("state_digest") != binding["state_digest"]
+        )
+    ):
+        raise G3ValidationError("github_protection_version_mismatch")
+    return {
+        **identity_evidence,
+        "permission_sufficient": True,
+        "ruleset_id": binding["ruleset_id"],
+        "version_id": binding["version_id"],
+        "state_digest": state_digest,
+        "bypass_actor_count": 0,
+    }
 
 
 @dataclass
@@ -1980,12 +2487,50 @@ def _external_monotonic_head_contract(graph: dict[str, Any]) -> dict[str, Any]:
     contract = graph.get("external_monotonic_head_contract")
     if not isinstance(contract, dict) or set(contract) != EXTERNAL_MONOTONIC_HEAD_CONTRACT_KEYS:
         raise ValueError("external monotonic-head contract is not closed")
+    identity = contract.get("repository_identity")
+    transport = contract.get("transport")
+    protection_policy = contract.get("protection_policy")
+    protection_binding = contract.get("protection_binding")
+    if (
+        identity != CANONICAL_GITHUB_REPOSITORY_IDENTITY
+        or not isinstance(transport, dict)
+        or set(transport) != set(EXTERNAL_MONOTONIC_HEAD_TRANSPORT)
+        or transport.get("authority_role") != "NON_AUTHORITATIVE"
+        or transport.get("remote_name") != "origin"
+        or not isinstance(transport.get("remote_url"), str)
+        or not transport["remote_url"]
+        or transport.get("kind") not in {
+            "operator_ssh_push_only",
+            "test_fixture_push_only",
+        }
+        or not isinstance(protection_policy, dict)
+        or protection_policy != EXTERNAL_MONOTONIC_HEAD_PROTECTION_POLICY
+        or not isinstance(protection_binding, dict)
+        or set(protection_binding) != set(EXTERNAL_MONOTONIC_HEAD_PROTECTION_BINDING)
+        or protection_binding.get("provisioning_status")
+        not in {"UNPROVISIONED", "PINNED_BY_REVIEWED_AUTHORITY"}
+    ):
+        raise ValueError("external monotonic-head canonical identity/protection mismatch")
+    if protection_binding["provisioning_status"] == "UNPROVISIONED":
+        if any(protection_binding[field] is not None for field in ("ruleset_id", "version_id", "state_digest")):
+            raise ValueError("unprovisioned protection binding contains pinned data")
+    elif (
+        not isinstance(protection_binding["ruleset_id"], int)
+        or protection_binding["ruleset_id"] <= 0
+        or not isinstance(protection_binding["version_id"], int)
+        or protection_binding["version_id"] <= 0
+        or not isinstance(protection_binding["state_digest"], str)
+        or not re.fullmatch(r"[0-9a-f]{64}", protection_binding["state_digest"])
+    ):
+        raise ValueError("pinned protection binding is malformed")
+    if (
+        transport["kind"] == "operator_ssh_push_only"
+        and transport != EXTERNAL_MONOTONIC_HEAD_TRANSPORT
+    ):
+        raise ValueError("operator SSH transport identity is not canonical")
     if (
         contract["authority_kind"] != EXTERNAL_MONOTONIC_HEAD_AUTHORITY_KIND
         or contract["schema_version"] != 1
-        or contract["remote_name"] != EXTERNAL_MONOTONIC_HEAD_REMOTE_NAME
-        or not isinstance(contract["remote_url"], str)
-        or not contract["remote_url"]
         or contract["ref"] != EXTERNAL_MONOTONIC_HEAD_REF
         or contract["wire_path"] != EXTERNAL_MONOTONIC_HEAD_WIRE_PATH
         or contract["server_policy"] != EXTERNAL_MONOTONIC_HEAD_SERVER_POLICY
@@ -2049,9 +2594,17 @@ def _external_trust_dependency_audit(
         len(raw_nodes) != len({node.get("id") for node in raw_nodes if isinstance(node, dict)})
         or any(
             not isinstance(node, dict)
-            or set(node) != {"id", "stage"}
+            or set(node)
+            != {"id", "stage", "discovery", "discovery_fields", "resolver_hook"}
             or not isinstance(node["id"], str)
             or not isinstance(node["stage"], int)
+            or not isinstance(node["discovery"], str)
+            or not isinstance(node["discovery_fields"], dict)
+            or any(
+                not isinstance(key, str) or not isinstance(value, str)
+                for key, value in node["discovery_fields"].items()
+            )
+            or not isinstance(node["resolver_hook"], str)
             for node in raw_nodes
         )
     ):
@@ -4463,9 +5016,9 @@ def validate_wire_catalog() -> None:
         "#schema-def-PhaseFReviewerBootstrapExternalMonotonicHeadV1",
         "sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding head_id; complete-file SHA-256 covers every field in the sole-file Git commit tree",
         "protected Git remote ref currentness head",
-        "strict schema, exact remote/ref identity, sole-file tree, parent/head predecessor, forward sequence, root/proof/subject binding, and live-ref read validation",
+        "strict schema, canonical GitHub repository identity, pinned immutable ruleset protection, exact ref identity, sole-file tree, parent/head predecessor, forward sequence, root/proof/subject binding, and canonical live-ref read validation",
         "PRE_G0_REVIEWER_BOOTSTRAP; terminal currentness source before every REAL reviewer identity",
-        "dedicated externally protected Git ref; server policy must prohibit deletion, force update, and non-fast-forward update; not a Phase F registry record",
+        "dedicated externally protected Git ref; authenticated GitHub Rulesets API evidence must prove ACTIVE exact-ref coverage, non-fast-forward and deletion rules, empty bypass actors, and unchanged pinned history; not a Phase F registry record",
         "INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapExternalMonotonicHeadV1)",
     ]:
         raise ValueError("external monotonic-head schema catalog metadata mismatch")
@@ -6079,63 +6632,151 @@ def _validate_external_monotonic_head_chain(
         current = predecessor
 
 
-def read_live_external_monotonic_head(
-    repository: Path, graph: dict[str, Any]
+def _read_live_external_monotonic_head(
+    repository: Path,
+    graph: dict[str, Any],
+    github_api_transport: GitHubProtectionTransport,
 ) -> tuple[dict[str, Any], str]:
-    """Read the graph-pinned live ref, fetch its exact commit, and validate it."""
+    """Read and validate the canonical GitHub ref after protection verification."""
 
     contract = _external_monotonic_head_contract(graph)
     try:
-        configured_url = _git_output(
-            repository, ["config", "--get", f"remote.{contract['remote_name']}.url"]
-        ).decode("utf-8").strip()
-        if configured_url != contract["remote_url"]:
+        protection_evidence = _verify_github_ruleset_protection(
+            github_api_transport, contract
+        )
+        ref_payload = github_api_transport.get_ref(
+            contract["repository_identity"], contract["ref"]
+        )
+        live_sha = ref_payload.get("object", {}).get("sha")
+        if (
+            ref_payload.get("repository_full_name")
+            != contract["repository_identity"]["repository_full_name"]
+            or ref_payload.get("ref") != contract["ref"]
+            or ref_payload.get("object", {}).get("type") != "commit"
+            or not isinstance(live_sha, str)
+            or not re.fullmatch(r"[0-9a-f]{40}", live_sha)
+        ):
             raise G3ValidationError("external_monotonic_head_identity_mismatch")
-        output = subprocess.check_output(
-            [
-                "git",
-                "ls-remote",
-                "--heads",
-                contract["remote_name"],
-                contract["ref"],
-            ],
-            cwd=repository,
-            stderr=subprocess.PIPE,
-        ).decode("ascii")
-        rows = [line.split() for line in output.splitlines() if line.strip()]
-        if len(rows) != 1 or len(rows[0]) != 2 or rows[0][1] != contract["ref"]:
-            raise G3ValidationError("external_monotonic_head_missing")
-        live_sha = rows[0][0]
-        if not re.fullmatch(r"[0-9a-f]{40}", live_sha):
-            raise G3ValidationError("external_monotonic_head_identity_mismatch")
+        fetch_url = github_api_transport.git_fetch_url(
+            contract["repository_identity"]
+        )
+        if not isinstance(fetch_url, str) or not fetch_url:
+            raise G3ValidationError("external_monotonic_head_transport_unavailable")
         subprocess.run(
-            ["git", "fetch", "--quiet", contract["remote_name"], contract["ref"]],
+            ["git", "fetch", "--quiet", fetch_url, contract["ref"]],
             cwd=repository,
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        output_after = subprocess.check_output(
-            [
-                "git",
-                "ls-remote",
-                "--heads",
-                contract["remote_name"],
-                contract["ref"],
-            ],
-            cwd=repository,
-            stderr=subprocess.PIPE,
-        ).decode("ascii")
-        after_rows = [line.split() for line in output_after.splitlines() if line.strip()]
-        if len(after_rows) != 1 or after_rows[0][0] != live_sha:
+        ref_payload_after = github_api_transport.get_ref(
+            contract["repository_identity"], contract["ref"]
+        )
+        if (
+            ref_payload_after.get("repository_full_name")
+            != contract["repository_identity"]["repository_full_name"]
+            or ref_payload_after.get("ref") != contract["ref"]
+            or ref_payload_after.get("object", {}).get("sha") != live_sha
+        ):
             raise G3ValidationError("external_monotonic_head_changed_during_read")
         head = _read_external_monotonic_head_commit(repository, graph, live_sha)
         _validate_external_monotonic_head_chain(repository, graph, head)
+        head["protection_evidence"] = protection_evidence
         return head, live_sha
     except G3ValidationError:
         raise
-    except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+    except (
+        KeyError,
+        TypeError,
+        OSError,
+        UnicodeDecodeError,
+        subprocess.CalledProcessError,
+    ) as error:
         raise G3ValidationError("external_monotonic_head_unavailable") from error
+
+
+def _resolve_repository_identity_dependency(
+    repository: Path,
+    graph: dict[str, Any],
+    transport: GitHubProtectionTransport,
+) -> dict[str, Any]:
+    del repository
+    return _verify_github_repository_identity(
+        transport, _external_monotonic_head_contract(graph)["repository_identity"]
+    )
+
+
+def _resolve_ruleset_protection_dependency(
+    repository: Path,
+    graph: dict[str, Any],
+    transport: GitHubProtectionTransport,
+) -> dict[str, Any]:
+    del repository
+    return _verify_github_ruleset_protection(
+        transport, _external_monotonic_head_contract(graph)
+    )
+
+
+def _resolve_monotonic_head_dependency(
+    repository: Path,
+    graph: dict[str, Any],
+    transport: GitHubProtectionTransport,
+) -> tuple[dict[str, Any], str]:
+    return _read_live_external_monotonic_head(repository, graph, transport)
+
+
+EXTERNAL_RESOLVER_DISPATCH: dict[
+    ExternalResolverHook,
+    tuple[ExternalDiscovery, Callable[[Path, dict[str, Any], GitHubProtectionTransport], Any]],
+] = {
+    ExternalResolverHook.VERIFY_GITHUB_REPOSITORY_IDENTITY: (
+        ExternalDiscovery.GITHUB_REPOSITORY,
+        _resolve_repository_identity_dependency,
+    ),
+    ExternalResolverHook.VERIFY_GITHUB_RULESET_PROTECTION: (
+        ExternalDiscovery.GITHUB_RULESET,
+        _resolve_ruleset_protection_dependency,
+    ),
+    ExternalResolverHook.GITHUB_MONOTONIC_HEAD: (
+        ExternalDiscovery.GITHUB_REF,
+        _resolve_monotonic_head_dependency,
+    ),
+}
+
+
+def resolve_external_dependency(
+    repository: Path,
+    graph: dict[str, Any],
+    dependency_id: str,
+    github_api_transport: GitHubProtectionTransport | None = None,
+) -> Any:
+    """Resolve one registered dependency through its typed production hook."""
+
+    dependency = _require_external_dependency(dependency_id)
+    dispatch = EXTERNAL_RESOLVER_DISPATCH.get(dependency.resolver_hook)
+    if dispatch is None or dependency.discovery != dispatch[0]:
+        raise G3ValidationError("external_dependency_dispatch_contract_mismatch")
+    transport = (
+        GitHubApiTransport()
+        if github_api_transport is None
+        else github_api_transport
+    )
+    return dispatch[1](repository, graph, transport)
+
+
+def read_live_external_monotonic_head(
+    repository: Path,
+    graph: dict[str, Any],
+    github_api_transport: GitHubProtectionTransport | None = None,
+) -> tuple[dict[str, Any], str]:
+    """Resolve the live head through the registry-owned GitHub dispatch hook."""
+
+    return resolve_external_dependency(
+        repository,
+        graph,
+        "reviewer_bootstrap_external_monotonic_head",
+        github_api_transport,
+    )
 
 
 def create_external_monotonic_head_commit(
@@ -6193,12 +6834,15 @@ def publish_external_monotonic_head_with_cas(
     graph: dict[str, Any],
     candidate_commit: str,
     expected_parent_commit: str,
+    github_api_transport: GitHubProtectionTransport | None = None,
 ) -> dict[str, str]:
     """Publish one exact child through server fast-forward/CAS semantics."""
 
     _require_external_dependency("reviewer_bootstrap_external_monotonic_head")
     contract = _external_monotonic_head_contract(graph)
-    current, current_commit = read_live_external_monotonic_head(repository, graph)
+    current, current_commit = read_live_external_monotonic_head(
+        repository, graph, github_api_transport
+    )
     if current_commit != expected_parent_commit:
         raise G3ValidationError("external_monotonic_head_stale_compare")
     candidate = _read_external_monotonic_head_commit(
@@ -6217,7 +6861,7 @@ def publish_external_monotonic_head_with_cas(
                 "git",
                 "push",
                 "--atomic",
-                contract["remote_name"],
+                contract["transport"]["remote_name"],
                 f"{candidate_commit}:{contract['ref']}",
             ],
             cwd=repository,
@@ -6227,7 +6871,9 @@ def publish_external_monotonic_head_with_cas(
         )
     except (OSError, subprocess.CalledProcessError) as error:
         raise G3ValidationError("external_monotonic_head_cas_lost") from error
-    _, live_after = read_live_external_monotonic_head(repository, graph)
+    _, live_after = read_live_external_monotonic_head(
+        repository, graph, github_api_transport
+    )
     if live_after != candidate_commit:
         raise G3ValidationError("external_monotonic_head_postcondition_unverified")
     return {
@@ -6437,7 +7083,10 @@ def _write_reviewer_bootstrap_checkpoint(
 
 
 def _load_real_reviewer_bootstrap_trust(
-    repository: Path, graph: dict[str, Any], allow_test_only: bool
+    repository: Path,
+    graph: dict[str, Any],
+    allow_test_only: bool,
+    github_api_transport: GitHubProtectionTransport | None = None,
 ) -> tuple[
     dict[str, Any],
     dict[str, Any],
@@ -6463,7 +7112,12 @@ def _load_real_reviewer_bootstrap_trust(
         "reviewer_actor_attestation",
     ):
         _require_external_dependency(dependency_id)
-    external_head, external_commit = read_live_external_monotonic_head(repository, graph)
+    external_head, external_commit = resolve_external_dependency(
+        repository,
+        graph,
+        "reviewer_bootstrap_external_monotonic_head",
+        github_api_transport,
+    )
     if external_head.get("authority_class") == "TEST_ONLY" and not allow_test_only:
         raise G3ValidationError("synthetic_external_monotonic_head_in_real_mode")
 
@@ -6851,6 +7505,7 @@ def _resolve_real_review_references(
     review_bundles: dict[str, dict[str, Any]],
     resolution: dict[str, Any],
     allow_test_only: bool,
+    github_api_transport: GitHubProtectionTransport | None = None,
 ) -> tuple[
     dict[str, dict[str, Any]],
     dict[str, dict[str, Any]],
@@ -6888,7 +7543,12 @@ def _resolve_real_review_references(
             reviewer_bootstrap_accepted_head,
             reviewer_bootstrap_external_head,
         ) = (
-            _load_real_reviewer_bootstrap_trust(repository, graph, allow_test_only)
+            _load_real_reviewer_bootstrap_trust(
+                repository,
+                graph,
+                allow_test_only,
+                github_api_transport,
+            )
         )
     except G3ValidationError as error:
         resolution["errors"].append(
@@ -7136,6 +7796,7 @@ def _resolve_real_authority(
     graph: dict[str, Any],
     target_commit: str,
     allow_test_only: bool,
+    github_api_transport: GitHubProtectionTransport | None = None,
 ) -> tuple[
     dict[str, dict[str, Any]],
     dict[str, Any],
@@ -7219,6 +7880,7 @@ def _resolve_real_authority(
         {node_id: objects[node_id] for node_id in REVIEW_BUNDLE_NODES if node_id in objects},
         resolution,
         allow_test_only,
+        github_api_transport,
     )
     g3_tag = _read_git_tag(repository, G3_TAG_NAME)
     resolution["authority_tags"] = {
@@ -7274,6 +7936,7 @@ def make_repository_context(
     repository: Path | None = None,
     target_ref: str = "HEAD",
     allow_test_only: bool = False,
+    github_api_transport: GitHubProtectionTransport | None = None,
 ) -> G3AuthorityContext:
     repository = ROOT if repository is None else Path(repository).resolve()
     target = _git_output(repository, ["rev-parse", target_ref]).decode().strip()
@@ -7299,7 +7962,13 @@ def make_repository_context(
         reviewer_bootstrap_external_head,
         remediation_authority_id,
         remediation_actor_identity_digest,
-    ) = _resolve_real_authority(repository, graph, target, allow_test_only)
+    ) = _resolve_real_authority(
+        repository,
+        graph,
+        target,
+        allow_test_only,
+        github_api_transport,
+    )
     component_nodes = [
         component_node_id(prefix) for prefix in SPECS
     ]
@@ -7598,6 +8267,101 @@ def _fixture_graph(repository: Path) -> dict[str, Any]:
     )
 
 
+def _fixture_github_protection_state() -> dict[str, Any]:
+    return {
+        "target": "branch",
+        "enforcement": "active",
+        "source_type": "Repository",
+        "source": CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_full_name"],
+        "conditions": {
+            "ref_name": {
+                "include": [EXTERNAL_MONOTONIC_HEAD_REF],
+                "exclude": [],
+            }
+        },
+        "rules": [
+            {"type": "deletion", "parameters": None},
+            {"type": "non_fast_forward", "parameters": None},
+        ],
+        "bypass_actors": [],
+    }
+
+
+class FixtureGitHubProtectionTransport:
+    """Deterministic isolated GitHub API responses; never used by production."""
+
+    def __init__(self, remote: Path) -> None:
+        self.remote = remote
+        self.repository_response: dict[str, Any] = {
+            "id": CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_id"],
+            "name": "rust_electroanalysis_cli",
+            "full_name": CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_full_name"],
+            "owner": {"login": "XingyuW"},
+        }
+        self.ruleset_response: dict[str, Any] = {
+            "id": 1,
+            **_fixture_github_protection_state(),
+        }
+        self.history_response: dict[str, Any] = {
+            "current_version_id": 1,
+            "versions": [
+                {
+                    "version_id": 1,
+                    "state_digest": _github_protection_state_digest(
+                        _fixture_github_protection_state()
+                    ),
+                }
+            ],
+        }
+        self.failure_category: str | None = None
+
+    def _check(self) -> None:
+        if self.failure_category is not None:
+            raise G3ValidationError(self.failure_category)
+
+    def get_repository(self, identity: dict[str, Any]) -> dict[str, Any]:
+        self._check()
+        return deepcopy(self.repository_response)
+
+    def get_ruleset(self, identity: dict[str, Any], ruleset_id: int) -> dict[str, Any]:
+        self._check()
+        return deepcopy(self.ruleset_response)
+
+    def get_ruleset_history(
+        self, identity: dict[str, Any], ruleset_id: int
+    ) -> dict[str, Any]:
+        self._check()
+        return deepcopy(self.history_response)
+
+    def get_ref(self, identity: dict[str, Any], ref: str) -> dict[str, Any]:
+        self._check()
+        try:
+            sha = subprocess.check_output(
+                ["git", "rev-parse", f"--verify", ref],
+                cwd=self.remote,
+                stderr=subprocess.PIPE,
+            ).decode("ascii").strip()
+        except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+            raise G3ValidationError("external_monotonic_head_missing") from error
+        return {
+            "repository_full_name": identity["repository_full_name"],
+            "ref": ref,
+            "object": {"sha": sha, "type": "commit"},
+        }
+
+    def git_fetch_url(self, identity: dict[str, Any]) -> str:
+        self._check()
+        return str(self.remote)
+
+
+def _fixture_github_api_transport(
+    repository: Path, graph: dict[str, Any]
+) -> FixtureGitHubProtectionTransport:
+    return FixtureGitHubProtectionTransport(
+        Path(graph["external_monotonic_head_contract"]["transport"]["remote_url"])
+    )
+
+
 def _fixture_external_head(
     root: dict[str, Any],
     proof: dict[str, Any],
@@ -7650,7 +8414,7 @@ def _fixture_initialize_external_head(
     authority_class: str,
 ) -> tuple[Path, Path, dict[str, Any], str]:
     contract = _external_monotonic_head_contract(graph)
-    remote = Path(contract["remote_url"])
+    remote = Path(contract["transport"]["remote_url"])
     source = _fixture_external_source_path(remote)
     _fixture_git(repository, ["init", "--bare", "-q", str(remote)])
     _fixture_git(source.parent, ["init", "-q", str(source)])
@@ -7659,7 +8423,10 @@ def _fixture_initialize_external_head(
         source, ["config", "user.email", "phase-f-external-head@example.invalid"]
     )
     _fixture_git(source, ["remote", "add", "origin", str(remote)])
-    _fixture_git(repository, ["remote", "add", contract["remote_name"], str(remote)])
+    _fixture_git(
+        repository,
+        ["remote", "add", contract["transport"]["remote_name"], str(remote)],
+    )
     _fixture_git(remote, ["config", "receive.denyDeletes", "true"])
     _fixture_git(remote, ["config", "receive.denyNonFastForwards", "true"])
     head = _fixture_external_head(root, proof, authority_class)
@@ -7683,8 +8450,12 @@ def _fixture_advance_external_head(
     root: dict[str, Any],
     proof: dict[str, Any],
 ) -> tuple[dict[str, Any], str]:
-    current, current_commit = read_live_external_monotonic_head(repository, graph)
-    source = _fixture_external_source_path(Path(_external_monotonic_head_contract(graph)["remote_url"]))
+    current, current_commit = read_live_external_monotonic_head(
+        repository, graph, _fixture_github_api_transport(repository, graph)
+    )
+    source = _fixture_external_source_path(
+        Path(_external_monotonic_head_contract(graph)["transport"]["remote_url"])
+    )
     head = _fixture_external_head(
         root,
         proof,
@@ -7699,7 +8470,15 @@ def _fixture_advance_external_head(
     _fixture_git(source, ["add", EXTERNAL_MONOTONIC_HEAD_WIRE_PATH])
     _fixture_git(source, ["commit", "-qm", f"fixture external sequence {proof['sequence']}"])
     commit_sha = _fixture_git(source, ["rev-parse", "HEAD"]).decode().strip()
-    _fixture_git(source, ["push", "-q", "origin", f"HEAD:{contract['ref']}"])
+    _fixture_git(
+        source,
+        [
+            "push",
+            "-q",
+            contract["transport"]["remote_name"],
+            f"HEAD:{contract['ref']}",
+        ],
+    )
     return head, commit_sha
 
 
@@ -7869,12 +8648,27 @@ def _isolated_real_fixture(
     temporary = tempfile.TemporaryDirectory(
         prefix="phase-f-r12-authority-", dir=review_root
     )
-    repository = Path(temporary.name)
+    fixture_root = Path(temporary.name)
+    repository = fixture_root / "repository"
+    repository.mkdir()
     _fixture_git(repository, ["init", "-q"])
     _fixture_git(repository, ["config", "user.name", "Phase F Test"])
     _fixture_git(repository, ["config", "user.email", "phase-f-test@example.invalid"])
     external_remote = repository.parent / f"{repository.name}-external-head.git"
-    graph["external_monotonic_head_contract"]["remote_url"] = str(external_remote)
+    graph["external_monotonic_head_contract"]["transport"] = {
+        "kind": "test_fixture_push_only",
+        "remote_name": "origin",
+        "remote_url": str(external_remote),
+        "authority_role": "NON_AUTHORITATIVE",
+    }
+    graph["external_monotonic_head_contract"]["protection_binding"] = {
+        "provisioning_status": "PINNED_BY_REVIEWED_AUTHORITY",
+        "ruleset_id": 1,
+        "version_id": 1,
+        "state_digest": _github_protection_state_digest(
+            _fixture_github_protection_state()
+        ),
+    }
     graph_destination = repository / AUTHORITY_GRAPH_PATH.relative_to(ROOT)
     graph_destination.parent.mkdir(parents=True, exist_ok=True)
     graph_bytes = canonical_json_bytes(graph)
@@ -8387,6 +9181,21 @@ def run_regression_self_tests() -> None:
     graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
     external_registry_mutation_tests = 0
 
+    def fixture_transport(repository: Path) -> FixtureGitHubProtectionTransport:
+        return _fixture_github_api_transport(repository, _fixture_graph(repository))
+
+    def load_fixture_context(
+        repository: Path,
+        target_ref: str,
+        allow_test_only: bool = False,
+    ) -> G3AuthorityContext:
+        return make_repository_context(
+            repository,
+            target_ref,
+            allow_test_only=allow_test_only,
+            github_api_transport=fixture_transport(repository),
+        )
+
     def reject_value_error(label: str, operation: object) -> None:
         try:
             operation()
@@ -8541,14 +9350,84 @@ def run_regression_self_tests() -> None:
             "production external dependency registration omission",
             lambda: validate_r12_authority_graph(graph),
         )
+        reject_value_error(
+            "production external dependency resolution omission",
+            lambda: resolve_external_dependency(
+                ROOT, graph, "reviewer_bootstrap_external_monotonic_head"
+            ),
+        )
         external_registry_mutation_tests += 1
     finally:
         PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY = registered_dependencies
+
+    def registry_mutation_reject(
+        label: str, mutate: Callable[[ExternalTrustDependency], ExternalTrustDependency]
+    ) -> None:
+        global PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY
+        nonlocal external_registry_mutation_tests
+        original = PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY
+        PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY = tuple(
+            mutate(dependency)
+            if dependency.identifier == "reviewer_bootstrap_external_monotonic_head"
+            else dependency
+            for dependency in original
+        )
+        try:
+            reject_value_error(label, lambda: validate_r12_authority_graph(graph))
+            reject_value_error(
+                label + " dispatch",
+                lambda: resolve_external_dependency(
+                    ROOT, graph, "reviewer_bootstrap_external_monotonic_head"
+                ),
+            )
+            external_registry_mutation_tests += 1
+        finally:
+            PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY = original
+
+    registry_mutation_reject(
+        "unknown external resolver hook",
+        lambda dependency: replace(dependency, resolver_hook="does_not_exist"),
+    )
+    registry_mutation_reject(
+        "wrong external discovery type",
+        lambda dependency: replace(
+            dependency, discovery=ExternalDiscovery.AUTHORITY_RECORD
+        ),
+    )
+    registry_mutation_reject(
+        "unknown external discovery type",
+        lambda dependency: replace(dependency, discovery="attacker_selected_source"),
+    )
 
     def graph_reject(label: str, mutate: object) -> None:
         mutant = deepcopy(graph)
         mutate(mutant)
         reject_value_error(label, lambda: validate_r12_authority_graph(mutant))
+
+    graph_reject(
+        "canonical GitHub repository ID mutation",
+        lambda value: value["external_monotonic_head_contract"][
+            "repository_identity"
+        ].update({"repository_id": 1}),
+    )
+    graph_reject(
+        "canonical GitHub owner/name mutation",
+        lambda value: value["external_monotonic_head_contract"][
+            "repository_identity"
+        ].update({"repository_full_name": "attacker/repository"}),
+    )
+    graph_reject(
+        "mutable SSH alias mutation",
+        lambda value: value["external_monotonic_head_contract"]["transport"].update(
+            {"remote_url": "git@github-attacker:attacker/repository.git"}
+        ),
+    )
+    graph_reject(
+        "protection-policy mutation",
+        lambda value: value["external_monotonic_head_contract"][
+            "protection_policy"
+        ]["bypass_actors"].append({"actor_type": "RepositoryRole"}),
+    )
 
     external_dependency_node_omission_tests = 0
     external_dependency_edge_omission_tests = 0
@@ -10810,7 +11689,7 @@ def run_regression_self_tests() -> None:
         populate_authority=False
     )
     try:
-        real_context = make_repository_context(missing_repository, missing_target)
+        real_context = load_fixture_context(missing_repository, missing_target)
         real_body = G3_FIXTURE_BODY.replace(
             b"specification_bundle_manifest_sha256=" + b"0" * 64,
             b"specification_bundle_manifest_sha256="
@@ -10825,7 +11704,7 @@ def run_regression_self_tests() -> None:
         missing_temporary.cleanup()
     fixture_temporary, fixture_repository, fixture_target, fixture_body = _isolated_real_fixture()
     try:
-        fixture_context = make_repository_context(
+        fixture_context = load_fixture_context(
             fixture_repository, fixture_target, allow_test_only=True
         )
         if fixture_context.resolution["errors"] or fixture_context.resolution["missing"]:
@@ -10864,6 +11743,177 @@ def run_regression_self_tests() -> None:
         if external_root is None or external_proof_0 is None or external_head_0 is None:
             raise AssertionError("external-head fixture bootstrap genesis is incomplete")
         external_graph = fixture_context.graph
+        transport_state_digest = external_graph["external_monotonic_head_contract"][
+            "protection_binding"
+        ]["state_digest"]
+
+        def protection_read_reject(
+            label: str, mutate: Callable[[FixtureGitHubProtectionTransport], None]
+        ) -> None:
+            nonlocal external_head_negative_tests
+            transport = fixture_transport(fixture_repository)
+            mutate(transport)
+            reject_value_error(
+                label,
+                lambda: read_live_external_monotonic_head(
+                    fixture_repository, external_graph, transport
+                ),
+            )
+            external_head_negative_tests += 1
+
+        protection_read_reject(
+            "missing qualifying protection",
+            lambda transport: transport.ruleset_response.pop("bypass_actors"),
+        )
+        protection_read_reject(
+            "missing non-fast-forward protection",
+            lambda transport: transport.ruleset_response.update(
+                {"rules": [{"type": "deletion", "parameters": None}]}
+            ),
+        )
+        protection_read_reject(
+            "missing deletion protection",
+            lambda transport: transport.ruleset_response.update(
+                {"rules": [{"type": "non_fast_forward", "parameters": None}]}
+            ),
+        )
+        for bypass_label, actor_type in (
+            ("administrator bypass", "RepositoryRole"),
+            ("GitHub App bypass", "Integration"),
+            ("deploy-key bypass", "DeployKey"),
+        ):
+            protection_read_reject(
+                bypass_label,
+                lambda transport, actor_type=actor_type: transport.ruleset_response.update(
+                    {
+                        "bypass_actors": [
+                            {"actor_type": actor_type, "bypass_mode": "always"}
+                        ]
+                    }
+                ),
+            )
+        protection_read_reject(
+            "disabled ruleset",
+            lambda transport: transport.ruleset_response.update(
+                {"enforcement": "disabled"}
+            ),
+        )
+        protection_read_reject(
+            "wrong dedicated-ref condition",
+            lambda transport: transport.ruleset_response["conditions"][
+                "ref_name"
+            ].update({"include": ["refs/heads/other-ref"]}),
+        )
+        protection_read_reject(
+            "wrong repository identity",
+            lambda transport: transport.repository_response.update(
+                {"id": 1}
+            ),
+        )
+        protection_read_reject(
+            "wrong ruleset identity",
+            lambda transport: transport.ruleset_response.update({"id": 2}),
+        )
+        protection_read_reject(
+            "wrong ruleset version",
+            lambda transport: transport.history_response.update(
+                {
+                    "current_version_id": 2,
+                    "versions": [
+                        {
+                            "version_id": 2,
+                            "state_digest": transport_state_digest,
+                        }
+                    ],
+                }
+            ),
+        )
+        protection_read_reject(
+            "ruleset history restored after weakening",
+            lambda transport: transport.history_response.update(
+                {
+                    "current_version_id": 1,
+                    "versions": [
+                        {
+                            "version_id": 1,
+                            "state_digest": transport_state_digest,
+                        },
+                        {
+                            "version_id": 2,
+                            "state_digest": "e" * 64,
+                        },
+                        {
+                            "version_id": 3,
+                            "state_digest": transport_state_digest,
+                        },
+                    ],
+                }
+            ),
+        )
+        protection_read_reject(
+            "ruleset deleted",
+            lambda transport: setattr(
+                transport,
+                "failure_category",
+                "github_protection_resource_missing",
+            ),
+        )
+        protection_read_reject(
+            "missing bypass visibility",
+            lambda transport: transport.ruleset_response.pop("bypass_actors"),
+        )
+        protection_read_reject(
+            "protection API unavailable",
+            lambda transport: setattr(
+                transport, "failure_category", "github_protection_api_unavailable"
+            ),
+        )
+        protection_read_reject(
+            "protection authentication failure",
+            lambda transport: setattr(
+                transport,
+                "failure_category",
+                "github_protection_authentication_unavailable",
+            ),
+        )
+        for graph_label, graph_mutation in (
+            (
+                "wrong canonical GitHub repository",
+                lambda value: value["external_monotonic_head_contract"][
+                    "repository_identity"
+                ].update({"repository_full_name": "attacker/repository"}),
+            ),
+            (
+                "wrong canonical GitHub ref",
+                lambda value: value["external_monotonic_head_contract"].update(
+                    {"ref": "refs/heads/other-ref"}
+                ),
+            ),
+            (
+                "unprovisioned protection binding",
+                lambda value: value["external_monotonic_head_contract"].update(
+                    {
+                        "protection_binding": {
+                            "provisioning_status": "UNPROVISIONED",
+                            "ruleset_id": None,
+                            "version_id": None,
+                            "state_digest": None,
+                        }
+                    }
+                ),
+            ),
+        ):
+            graph_mutant = deepcopy(external_graph)
+            graph_mutation(graph_mutant)
+            reject_value_error(
+                graph_label,
+                lambda graph_mutant=graph_mutant: read_live_external_monotonic_head(
+                    fixture_repository,
+                    graph_mutant,
+                    fixture_transport(fixture_repository),
+                ),
+            )
+            external_head_negative_tests += 1
         lock_proof_a = _fixture_bootstrap_proof(
             external_proof_0,
             external_root,
@@ -10930,7 +11980,9 @@ def run_regression_self_tests() -> None:
             symlink_state_sandbox.cleanup()
 
         live_head_0, live_commit_0 = read_live_external_monotonic_head(
-            fixture_repository, external_graph
+            fixture_repository,
+            external_graph,
+            fixture_transport(fixture_repository),
         )
         cas_proof_a = _fixture_bootstrap_proof(
             external_proof_0,
@@ -10963,10 +12015,18 @@ def run_regression_self_tests() -> None:
         cas_outcomes = _fixture_run_two_process_race(
             (
                 lambda: publish_external_monotonic_head_with_cas(
-                    fixture_repository, external_graph, cas_commit_a, live_commit_0
+                    fixture_repository,
+                    external_graph,
+                    cas_commit_a,
+                    live_commit_0,
+                    fixture_transport(fixture_repository),
                 )["head_id"],
                 lambda: publish_external_monotonic_head_with_cas(
-                    fixture_repository, external_graph, cas_commit_b, live_commit_0
+                    fixture_repository,
+                    external_graph,
+                    cas_commit_b,
+                    live_commit_0,
+                    fixture_transport(fixture_repository),
                 )["head_id"],
             )
         )
@@ -10982,7 +12042,7 @@ def run_regression_self_tests() -> None:
         _fixture_write_bootstrap_record(
             fixture_repository, winner_proof, "currentness_proofs"
         )
-        cas_context = make_repository_context(
+        cas_context = load_fixture_context(
             fixture_repository, fixture_target, allow_test_only=True
         )
         if (
@@ -10993,7 +12053,11 @@ def run_regression_self_tests() -> None:
         ):
             raise AssertionError("external CAS winner was not the verified current head")
         cas_source = _fixture_external_source_path(
-            Path(external_graph["external_monotonic_head_contract"]["remote_url"])
+            Path(
+                external_graph["external_monotonic_head_contract"]["transport"][
+                    "remote_url"
+                ]
+            )
         )
         initial_external_commit = _fixture_git(
             cas_source, ["rev-list", "--max-parents=0", "HEAD"]
@@ -11022,7 +12086,7 @@ def run_regression_self_tests() -> None:
         external_head_negative_tests += 2
         checkpoint_path = _reviewer_bootstrap_checkpoint_path(fixture_repository)
         checkpoint_path.unlink()
-        fresh_context = make_repository_context(
+        fresh_context = load_fixture_context(
             fixture_repository, fixture_target, allow_test_only=True
         )
         if (
@@ -11040,7 +12104,9 @@ def run_regression_self_tests() -> None:
         )
         try:
             production_context = make_repository_context(
-                production_repository, production_target
+                production_repository,
+                production_target,
+                github_api_transport=fixture_transport(production_repository),
             )
             if (
                 production_context.mode != "real"
@@ -11068,7 +12134,7 @@ def run_regression_self_tests() -> None:
             _isolated_real_fixture()
         )
         try:
-            history_context = make_repository_context(
+            history_context = load_fixture_context(
                 history_repository, history_target, allow_test_only=True
             )
             history_root = history_context.reviewer_bootstrap_root
@@ -11099,7 +12165,7 @@ def run_regression_self_tests() -> None:
             _fixture_advance_external_head(
                 history_repository, history_context.graph, history_root, history_proof_2
             )
-            advanced_context = make_repository_context(
+            advanced_context = load_fixture_context(
                 history_repository, history_target, allow_test_only=True
             )
             if (
@@ -11146,7 +12212,7 @@ def run_regression_self_tests() -> None:
             _isolated_real_fixture()
         )
         try:
-            authorization_context = make_repository_context(
+            authorization_context = load_fixture_context(
                 authorization_repository, authorization_target, allow_test_only=True
             )
             authorization_root = authorization_context.reviewer_bootstrap_root
@@ -11185,7 +12251,7 @@ def run_regression_self_tests() -> None:
                 authorization_root,
                 authorization_proof_1,
             )
-            changed_authorization_context = make_repository_context(
+            changed_authorization_context = load_fixture_context(
                 authorization_repository, authorization_target, allow_test_only=True
             )
             if changed_authorization_context.resolution["errors"]:
@@ -11219,7 +12285,7 @@ def run_regression_self_tests() -> None:
             nonlocal currentness_history_negative_tests
             temporary, repository, target, _ = _isolated_real_fixture()
             try:
-                context = make_repository_context(
+                context = load_fixture_context(
                     repository, target, allow_test_only=allow_test_only
                 )
                 root = context.reviewer_bootstrap_root
@@ -11227,7 +12293,7 @@ def run_regression_self_tests() -> None:
                 if root is None or proof_0 is None:
                     raise AssertionError("history mutation fixture bootstrap genesis is incomplete")
                 mutate(repository, root, proof_0)
-                resolved = make_repository_context(
+                resolved = load_fixture_context(
                     repository, target, allow_test_only=allow_test_only
                 )
                 if not resolved.resolution["errors"]:
@@ -11317,8 +12383,10 @@ def run_regression_self_tests() -> None:
             )
             _fixture_write_bootstrap_record(repository, proof_1, "currentness_proofs")
             _fixture_advance_external_head(repository, _fixture_graph(repository), root, proof_1)
-            accepted = make_repository_context(
-                repository, _git_output(repository, ["rev-parse", "HEAD"]).decode().strip(), allow_test_only=True
+            accepted = load_fixture_context(
+                repository,
+                _git_output(repository, ["rev-parse", "HEAD"]).decode().strip(),
+                allow_test_only=True,
             )
             if accepted.reviewer_bootstrap_accepted_head is None:
                 raise AssertionError("checkpoint fork fixture did not initialize a checkpoint")
@@ -11364,7 +12432,7 @@ def run_regression_self_tests() -> None:
             _isolated_real_fixture()
         )
         try:
-            rotation_context = make_repository_context(
+            rotation_context = load_fixture_context(
                 rotation_repository, rotation_target, allow_test_only=True
             )
             rotation_root = rotation_context.reviewer_bootstrap_root
@@ -11372,7 +12440,7 @@ def run_regression_self_tests() -> None:
             if rotation_root is None or rotation_proof_0 is None:
                 raise AssertionError("root rotation fixture bootstrap genesis is incomplete")
             write_root_rotation(rotation_repository, rotation_root, rotation_proof_0)
-            rotated_context = make_repository_context(
+            rotated_context = load_fixture_context(
                 rotation_repository, rotation_target, allow_test_only=True
             )
             if (
@@ -11460,7 +12528,11 @@ def run_regression_self_tests() -> None:
             _fixture_write_bootstrap_record(
                 repository, replacement_proof, "currentness_proofs"
             )
-            make_repository_context(repository, _git_output(repository, ["rev-parse", "HEAD"]).decode().strip(), allow_test_only=True)
+            load_fixture_context(
+                repository,
+                _git_output(repository, ["rev-parse", "HEAD"]).decode().strip(),
+                allow_test_only=True,
+            )
             replacement_path.unlink()
 
         resolver_history_reject("restored old root after accepted replacement", write_root_rollback)
@@ -11650,7 +12722,7 @@ def run_regression_self_tests() -> None:
         fixture_graph_path = fixture_repository / AUTHORITY_GRAPH_PATH.relative_to(ROOT)
         original_fixture_graph_bytes = fixture_graph_path.read_bytes()
         fixture_graph_path.write_bytes(valid_root_bytes)
-        target_root_context = make_repository_context(
+        target_root_context = load_fixture_context(
             fixture_repository, fixture_target, allow_test_only=True
         )
         if (
@@ -11674,7 +12746,7 @@ def run_regression_self_tests() -> None:
         changed_root_target = _fixture_git(
             fixture_repository, ["rev-parse", "HEAD"]
         ).decode().strip()
-        changed_root_context = make_repository_context(
+        changed_root_context = load_fixture_context(
             fixture_repository, changed_root_target
         )
         if changed_root_context.authority_graph_sha256 != valid_root_sha256:
@@ -12439,11 +13511,11 @@ def run_regression_self_tests() -> None:
             path = fixture_repository / relative_path
             original = path.read_bytes() if path.exists() else None
             if replacement is None:
-                path.unlink()
+                path.unlink(missing_ok=True)
             else:
                 path.write_bytes(replacement)
             try:
-                resolved = make_repository_context(
+                resolved = load_fixture_context(
                     fixture_repository, fixture_target, allow_test_only=True
                 )
                 if not resolved.resolution["errors"]:
@@ -12496,7 +13568,7 @@ def run_regression_self_tests() -> None:
             original = _git_output(fixture_repository, ["rev-parse", ref]).decode().strip()
             _fixture_git(fixture_repository, ["update-ref", "-d", ref])
             try:
-                resolved = make_repository_context(
+                resolved = load_fixture_context(
                     fixture_repository, fixture_target, allow_test_only=True
                 )
                 if not resolved.resolution["errors"]:
@@ -12513,7 +13585,10 @@ def run_regression_self_tests() -> None:
             G3_EXPECTED_FIELDS["phase_f_f0_decisions_tag"],
         )
     finally:
+        fixture_root = Path(fixture_temporary.name)
         fixture_temporary.cleanup()
+        if fixture_root.exists():
+            raise AssertionError("owned Phase F fixture root survived cleanup")
     g3_reject(
         "synthetic context cannot authorize real",
         lambda context: context.__setattr__("real_authority_requested", True),

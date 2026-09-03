@@ -53,8 +53,8 @@
           "violation_path": []
         },
         {
-          "checked_edges": 23,
-          "checked_nodes": 20,
+          "checked_edges": 27,
+          "checked_nodes": 22,
           "name": "external_trust_dependency_cycle",
           "passed": true,
           "violation_path": []
@@ -113,15 +113,15 @@
       ]
     },
     "path": "docs/engineering_specification/phase_f/phase_f_r12_authority_graph.json",
-    "sha256": "4e192ab6b729fc7403e6f8049369c8a44e28f564831b72fcc77cbc724e6c3dd0"
+    "sha256": "3e8ff7bee09c4f16f767d2f33ba6729fd2ab93830834d57b67fdf1b56a2c7955"
   },
   "generated_source_sha256s": {
     "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
-    "component_conformance_spec": "bc12c183d44388b0f7eaaefbcb4b06415c4a5ebdd4d47d69c0a8c75749c57f63",
+    "component_conformance_spec": "e92a474046a59c35dbce1a2c79ef497ba85d7deba1ce56dba27dbaef4748189b",
     "component_implementation_spec": "afb25c37e16cc5dd1897ded602b8f4bd4c5c6131573fa66a9827ff604961a6b9",
-    "component_operations_spec": "cd0d5971667ddc2ef10c2dfd7a11e8b107ee800fa2460ee6cd17460185edd892",
+    "component_operations_spec": "7bb7ce6e558b0bc12ec5b9a2759a20e7fa4108e183abd09155f4d5c60c1eb7f6",
     "component_scientific_spec": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
-    "component_wire_spec": "0f1a67c5190841c184974c587903ddbea68cca601ba7a473269aa461e47451a0",
+    "component_wire_spec": "517f987dc1f4d952e1eb97b43953d19494032e845f2fa2eecf177cfcb0e19c30",
     "migration_ledger": "760180da3b5b3fb9b44493fb0326c5e2efeb14e39175cad157dfeee154ee716f",
     "normative_traceability_matrix": "fa0b0bb96b25d6cafcd3daf82f1410642ae86d1c9de7493289378c506905667f"
   },
