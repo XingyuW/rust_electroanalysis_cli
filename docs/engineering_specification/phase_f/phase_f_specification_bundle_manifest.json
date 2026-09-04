@@ -10,7 +10,7 @@
   "artifact_kind": "phase_f_specification_bundle_manifest_candidate",
   "authority_graph": {
     "path": "docs/engineering_specification/phase_f/phase_f_r12_authority_graph.json",
-    "sha256": "24a68d97f99e9e50476029685c0c7f1b3062ef90ecc02aeb3b69fedc264297c3"
+    "sha256": "6a4e2cb59d0cc640bb97ba565bff7ea14731f824e92dd095190fcb095fe9bb8d"
   },
   "blocking_reasons": [
     "architecture_plan_tag_absent",
@@ -29,17 +29,17 @@
       },
       "component_conformance_spec": {
         "authority_id": null,
-        "sha256": "c90f23286c0756a86ccc1735f2f7d74f65236845889de24e667b97b1912c5413",
+        "sha256": "036486c599f1929ac3555af67e8f65047ffadcc851cd0ab19d35981cb667349f",
         "target": null
       },
       "component_implementation_spec": {
         "authority_id": null,
-        "sha256": "6a9e4bb9adae4d3039769ad71f34c7c96a5c1a78dd2e1f307602099b76a17524",
+        "sha256": "3f121b3f30c5780211525f9e4006dd972a3288a8a63ff27a5b68ffe303a8b56a",
         "target": null
       },
       "component_operations_spec": {
         "authority_id": null,
-        "sha256": "e4c3bc8d592541764c785511025d895e490abc738189e2e37481eb55e175c500",
+        "sha256": "e5e92558d6a224373b39d9ea9383ff3bf389e7038e3f03ba7a7d823a66c66f9f",
         "target": null
       },
       "component_scientific_spec": {
@@ -59,7 +59,7 @@
       },
       "generated_traceability_manifest": {
         "authority_id": null,
-        "sha256": "fb45baa3c1818a4bb57352c0b7134cf2aef569486b568d8ac5357d2028abe3a2",
+        "sha256": "c3a1aa3883e9c56380035c1b6cc97a9bcae1fee4d415dded40f78f2b3f794fc8",
         "target": null
       },
       "migration_ledger": {
@@ -73,18 +73,18 @@
         "target": null
       }
     },
-    "authority_graph_sha256": "24a68d97f99e9e50476029685c0c7f1b3062ef90ecc02aeb3b69fedc264297c3",
+    "authority_graph_sha256": "6a4e2cb59d0cc640bb97ba565bff7ea14731f824e92dd095190fcb095fe9bb8d",
     "schema_version": 1,
-    "sha256": "af334a66e1448e64f69b3ee16257aa5bcb03ad1445b91c747c9b4e1025f46a82",
+    "sha256": "f08572097a31217e7661d9eaf80d0f36be6cf05364da28cf844837c0f00feb08",
     "source_sha256s": {
       "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
-      "authority_graph": "24a68d97f99e9e50476029685c0c7f1b3062ef90ecc02aeb3b69fedc264297c3",
-      "conformance_specification": "c90f23286c0756a86ccc1735f2f7d74f65236845889de24e667b97b1912c5413",
-      "generated_traceability_manifest": "fb45baa3c1818a4bb57352c0b7134cf2aef569486b568d8ac5357d2028abe3a2",
-      "implementation_readiness_specification": "6a9e4bb9adae4d3039769ad71f34c7c96a5c1a78dd2e1f307602099b76a17524",
+      "authority_graph": "6a4e2cb59d0cc640bb97ba565bff7ea14731f824e92dd095190fcb095fe9bb8d",
+      "conformance_specification": "036486c599f1929ac3555af67e8f65047ffadcc851cd0ab19d35981cb667349f",
+      "generated_traceability_manifest": "c3a1aa3883e9c56380035c1b6cc97a9bcae1fee4d415dded40f78f2b3f794fc8",
+      "implementation_readiness_specification": "3f121b3f30c5780211525f9e4006dd972a3288a8a63ff27a5b68ffe303a8b56a",
       "migration_ledger": "760180da3b5b3fb9b44493fb0326c5e2efeb14e39175cad157dfeee154ee716f",
       "normative_traceability_matrix": "eb6b03be80b8a44bec46b77d78b4cbc56d3d7083ad38226726aa82b009fc1bc9",
-      "operations_specification": "e4c3bc8d592541764c785511025d895e490abc738189e2e37481eb55e175c500",
+      "operations_specification": "e5e92558d6a224373b39d9ea9383ff3bf389e7038e3f03ba7a7d823a66c66f9f",
       "scientific_specification": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
       "wire_specification": "4dd3dba3a6abe83c9c11133ac036d78f1f4d2463caa8c0ac696b6d86ee0d0acd"
     }
@@ -109,31 +109,31 @@
       "sha256": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3"
     },
     {
-      "git_blob": "ba219f1850855be7805c11d757a7f71af6e4f77d",
+      "git_blob": "a49bc0cc6316d8a55caf96175d69ba89b8bba957",
       "independent_review_bundle_sha256": null,
       "p0_count": null,
       "p1_count": null,
       "path": "docs/engineering_specification/phase_f/phase_f_operations_and_lifecycle_spec.md",
       "review_status": "PENDING",
-      "sha256": "e4c3bc8d592541764c785511025d895e490abc738189e2e37481eb55e175c500"
+      "sha256": "e5e92558d6a224373b39d9ea9383ff3bf389e7038e3f03ba7a7d823a66c66f9f"
     },
     {
-      "git_blob": "45a0d631c1af3f35268728116b22afee37ea4792",
+      "git_blob": "02b619b3931af1cbec93913905bc5c29ff278f70",
       "independent_review_bundle_sha256": null,
       "p0_count": null,
       "p1_count": null,
       "path": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
       "review_status": "PENDING",
-      "sha256": "c90f23286c0756a86ccc1735f2f7d74f65236845889de24e667b97b1912c5413"
+      "sha256": "036486c599f1929ac3555af67e8f65047ffadcc851cd0ab19d35981cb667349f"
     },
     {
-      "git_blob": "9ce27bc8ade90f7a00e933d942fc40c4e04a0209",
+      "git_blob": "5636fa4c2bfc6e0d887a16623a4eb4e5ec9f701b",
       "independent_review_bundle_sha256": null,
       "p0_count": null,
       "p1_count": null,
       "path": "docs/engineering_specification/phase_f/phase_f_implementation_readiness_spec.md",
       "review_status": "PENDING",
-      "sha256": "6a9e4bb9adae4d3039769ad71f34c7c96a5c1a78dd2e1f307602099b76a17524"
+      "sha256": "3f121b3f30c5780211525f9e4006dd972a3288a8a63ff27a5b68ffe303a8b56a"
     }
   ],
   "eligible_for_g3": false,
@@ -165,11 +165,11 @@
   "schema_version": 1,
   "status": "DRAFT_NO_AUTHORITY",
   "target_revision": {
-    "sha256": "af334a66e1448e64f69b3ee16257aa5bcb03ad1445b91c747c9b4e1025f46a82",
+    "sha256": "f08572097a31217e7661d9eaf80d0f36be6cf05364da28cf844837c0f00feb08",
     "type": "source_input_fingerprint"
   },
   "traceability_manifest": {
     "path": "docs/engineering_specification/phase_f/phase_f_traceability_manifest.json",
-    "sha256": "fb45baa3c1818a4bb57352c0b7134cf2aef569486b568d8ac5357d2028abe3a2"
+    "sha256": "c3a1aa3883e9c56380035c1b6cc97a9bcae1fee4d415dded40f78f2b3f794fc8"
   }
 }

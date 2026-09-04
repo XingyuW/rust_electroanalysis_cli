@@ -89,6 +89,34 @@ remote main SHA` under the existing safe-publication procedure. A
 caller-selected local SHA, tracking ref, or checkpoint cannot authorize
 freshness.
 
+### 3.1.1 Canonical publication identity gate
+
+Every production REAL resolution has an explicit purpose. For
+`CURRENT_AUTHORIZATION`, the production-derived `published_normative_target`
+resolver authenticates the fixed GitHub repository object
+`provider=github`, `api_origin=https://api.github.com`,
+`repository_id=1273879958`, and
+`repository_full_name=XingyuW/rust_electroanalysis_cli`, then reads exactly
+`refs/heads/main`. The selected normative target must equal that canonical
+head exactly; ancestry is insufficient. A missing/malformed ref, unavailable
+authentication/API, repository-identity mismatch, or unequal target fails
+closed. There is no fallback to local `HEAD`, local `main`, `origin/main`, an
+SSH alias, a remote URL, or a caller-declared publication SHA.
+
+The resolver binds the repository identity, publication ref, published SHA,
+selected SHA, and resolution purpose into the REAL runtime context. It reads
+canonical main once at resolution start and again immediately before current
+operational `GO`; the two heads and selected target must all be equal. A head
+change during resolution fails closed.
+
+`HISTORICAL_VALIDATION` is a separate non-authorizing purpose. It may validate
+an old target only when that exact commit is in the ancestry of a canonical
+main head fetched from the canonical repository transport. This permits a
+published `A` to remain historically verifiable after main advances `A -> B`,
+but never makes `A` current, returns operational `GO`, advances currentness,
+or establishes G3 eligibility. A historical context is rejected by the
+current-authorization entrypoint.
+
 After Stage E, advance only by publishing one canonical successor with exactly
 one Git parent, `sequence + 1`, and predecessor commit/head/hash bindings. The
 server-side fast-forward/CAS result is final. Keep the local accepted-head

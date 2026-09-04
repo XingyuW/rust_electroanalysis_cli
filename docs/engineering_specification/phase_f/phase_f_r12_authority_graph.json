@@ -63,10 +63,10 @@
     "advance_policy": "FAST_FORWARD_SERVER_CAS"
   },
   "external_trust_dependency_contract": {
-    "terminal_roots": ["published_normative_target"],
+    "terminal_roots": ["canonical_github_repository_identity"],
     "nodes": [
-      {"id": "published_normative_target", "stage": -6, "discovery": "repository_commit", "discovery_fields": {"target_ref": "resolver_target_ref"}, "resolver_hook": "resolve_target_commit"},
-      {"id": "canonical_github_repository_identity", "stage": -5, "discovery": "github_repository", "discovery_fields": {"identity": "external_monotonic_head_contract.repository_identity"}, "resolver_hook": "verify_github_repository_identity"},
+      {"id": "canonical_github_repository_identity", "stage": -6, "discovery": "github_repository", "discovery_fields": {"identity": "external_monotonic_head_contract.repository_identity"}, "resolver_hook": "verify_github_repository_identity"},
+      {"id": "published_normative_target", "stage": -5, "discovery": "github_ref", "discovery_fields": {"identity": "canonical_github_repository_identity", "ref": "refs/heads/main"}, "resolver_hook": "resolve_canonical_publication"},
       {"id": "github_ruleset_protection", "stage": -4, "discovery": "github_ruleset", "discovery_fields": {"binding": "external_monotonic_head_contract.protection_binding", "identity": "external_monotonic_head_contract.repository_identity"}, "resolver_hook": "verify_github_ruleset_protection"},
       {"id": "reviewer_bootstrap_external_monotonic_head", "stage": -3, "discovery": "github_ref", "discovery_fields": {"identity": "external_monotonic_head_contract.repository_identity", "ref": "external_monotonic_head_contract.ref"}, "resolver_hook": "github_monotonic_head"},
       {"id": "reviewer_bootstrap_root", "stage": -2, "discovery": "immutable_root_history", "discovery_fields": {"record": "external_trust_dependency_contract.reviewer_bootstrap_root"}, "resolver_hook": "validate_root_history"},
@@ -89,7 +89,7 @@
       {"id": "normal_phase_f_registry", "stage": 21, "discovery": "registry_record", "discovery_fields": {"record": "external_trust_dependency_contract.normal_phase_f_registry"}, "resolver_hook": "validate_phase_f_registry"}
     ],
     "edges": [
-      {"from": "published_normative_target", "to": "canonical_github_repository_identity"},
+      {"from": "canonical_github_repository_identity", "to": "published_normative_target"},
       {"from": "canonical_github_repository_identity", "to": "github_ruleset_protection"},
       {"from": "published_normative_target", "to": "reviewer_bootstrap_external_monotonic_head"},
       {"from": "canonical_github_repository_identity", "to": "reviewer_bootstrap_external_monotonic_head"},

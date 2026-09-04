@@ -549,6 +549,7 @@ EXTERNAL_MONOTONIC_HEAD_AUTHORITY_KIND = (
 )
 EXTERNAL_MONOTONIC_HEAD_REF = "refs/heads/phase-f-reviewer-bootstrap-head"
 EXTERNAL_MONOTONIC_HEAD_WIRE_PATH = "reviewer_bootstrap_monotonic_head.json"
+CANONICAL_PUBLICATION_REF = "refs/heads/main"
 CANONICAL_GITHUB_REPOSITORY_IDENTITY = {
     "provider": "github",
     "web_host": "github.com",
@@ -628,6 +629,7 @@ class ExternalResolverHook(str, Enum):
     """Closed resolver implementations; arbitrary function names are invalid."""
 
     RESOLVE_TARGET_COMMIT = "resolve_target_commit"
+    RESOLVE_CANONICAL_PUBLICATION = "resolve_canonical_publication"
     VERIFY_GITHUB_REPOSITORY_IDENTITY = "verify_github_repository_identity"
     VERIFY_GITHUB_RULESET_PROTECTION = "verify_github_ruleset_protection"
     GITHUB_MONOTONIC_HEAD = "github_monotonic_head"
@@ -704,17 +706,20 @@ def _external_dependency(
 # DAG is derived from these objects; it is not a second maintained list.
 PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY: tuple[ExternalTrustDependency, ...] = (
     _external_dependency(
-        "published_normative_target", -6, (),
-        ExternalDiscovery.REPOSITORY_COMMIT,
-        ExternalResolverHook.RESOLVE_TARGET_COMMIT,
-        {"target_ref": "resolver_target_ref"},
-    ),
-    _external_dependency(
-        "canonical_github_repository_identity", -5,
-        ("published_normative_target",),
+        "canonical_github_repository_identity", -6, (),
         ExternalDiscovery.GITHUB_REPOSITORY,
         ExternalResolverHook.VERIFY_GITHUB_REPOSITORY_IDENTITY,
         {"identity": "external_monotonic_head_contract.repository_identity"},
+    ),
+    _external_dependency(
+        "published_normative_target", -5,
+        ("canonical_github_repository_identity",),
+        ExternalDiscovery.GITHUB_REF,
+        ExternalResolverHook.RESOLVE_CANONICAL_PUBLICATION,
+        {
+            "identity": "canonical_github_repository_identity",
+            "ref": "refs/heads/main",
+        },
     ),
     _external_dependency(
         "github_ruleset_protection", -4,
@@ -870,6 +875,11 @@ def _validate_external_dependency_registry() -> None:
             )
         fields = dict(dependency.discovery_fields)
         expected = EXTERNAL_DISCOVERY_FIELD_CONTRACTS.get(dependency.discovery)
+        if dependency.resolver_hook == ExternalResolverHook.RESOLVE_CANONICAL_PUBLICATION:
+            expected = {
+                "identity": "canonical_github_repository_identity",
+                "ref": CANONICAL_PUBLICATION_REF,
+            }
         if expected is not None and fields != expected:
             raise ValueError(
                 f"external discovery fields are not exact: {dependency.identifier}"
@@ -1334,9 +1344,9 @@ class GitHubApiTransport:
 
     def get_ref(self, identity: dict[str, Any], ref: str) -> dict[str, Any]:
         owner, name = identity["repository_full_name"].split("/", 1)
-        branch = ref.removeprefix("refs/heads/")
+        ref_path = ref.removeprefix("refs/")
         payload = self._get_json(
-            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/git/ref/{quote(branch, safe='')}"
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/git/ref/{quote(ref_path, safe='/')}"
         )
         if not isinstance(payload, dict):
             raise G3ValidationError("github_protection_malformed_response")
@@ -1944,6 +1954,25 @@ def _verify_github_ruleset_protection(
     }
 
 
+class ResolutionPurpose(str, Enum):
+    """Separate operational authority from immutable historical validation."""
+
+    CURRENT_AUTHORIZATION = "CURRENT_AUTHORIZATION"
+    HISTORICAL_VALIDATION = "HISTORICAL_VALIDATION"
+
+
+@dataclass(frozen=True)
+class PublicationBinding:
+    """Runtime evidence derived from the canonical authenticated GitHub ref."""
+
+    repository_id: int
+    repository_full_name: str
+    publication_ref: str
+    published_sha: str
+    selected_target_sha: str
+    purpose: ResolutionPurpose
+
+
 @dataclass
 class G3AuthorityContext:
     """The common prerequisite interface for synthetic and real G3 checks."""
@@ -1976,6 +2005,12 @@ class G3AuthorityContext:
     remediation_actor_identity_digest: str | None = None
     allow_test_only_authority: bool = False
     resolution: dict[str, Any] = field(default_factory=dict)
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION
+    publication_binding: PublicationBinding | None = None
+    publication_error_category: str | None = None
+    publication_transport: GitHubProtectionTransport | None = field(
+        default=None, repr=False
+    )
 
 
 def canonical_json_bytes(value: object) -> bytes:
@@ -4012,6 +4047,15 @@ def validate_historical_review_artifact(
     requires current subject authorization.
     """
 
+    if context.resolution_purpose != ResolutionPurpose.HISTORICAL_VALIDATION:
+        raise G3ValidationError("historical_validation_purpose_required")
+    binding = context.publication_binding
+    if binding is None:
+        raise G3ValidationError(
+            context.publication_error_category or "historical_publication_proof_unavailable"
+        )
+    if binding.purpose != ResolutionPurpose.HISTORICAL_VALIDATION:
+        raise G3ValidationError("historical_validation_purpose_required")
     reviewer_id = row.get("reviewer_authority_id")
     artifact_id = row.get("review_artifact_id")
     reviewer = context.reviewer_authorities.get(reviewer_id)
@@ -5072,6 +5116,26 @@ def validate_g3_tag(
         raise G3ValidationError("invalid_validation_context_mode")
     if context.mode in {"synthetic", "real_test"} and context.real_authority_requested:
         raise G3ValidationError("synthetic_cannot_authorize_real")
+    publication: PublicationBinding | None = None
+    if context.mode in {"real", "real_test"}:
+        if context.resolution_purpose != ResolutionPurpose.CURRENT_AUTHORIZATION:
+            raise G3ValidationError("historical_validation_cannot_authorize_current")
+        publication = context.publication_binding
+        if publication is None:
+            raise G3ValidationError(
+                context.publication_error_category or "publication_evidence_missing"
+            )
+        if (
+            publication.repository_id
+            != CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_id"]
+            or publication.repository_full_name
+            != CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_full_name"]
+            or publication.publication_ref != CANONICAL_PUBLICATION_REF
+            or publication.selected_target_sha != context.expected_target_commit
+            or publication.published_sha != context.expected_target_commit
+            or publication.purpose != ResolutionPurpose.CURRENT_AUTHORIZATION
+        ):
+            raise G3ValidationError("publication_binding_mismatch")
 
     _validate_authority_graph_root(context)
 
@@ -5130,6 +5194,16 @@ def validate_g3_tag(
     if f0.get("target_sha256") != context.f0_decisions_sha256:
         raise G3ValidationError("wrong_f0_target")
     _validate_review_collection(context, fields)
+    if context.mode in {"real", "real_test"}:
+        if context.publication_transport is None or publication is None:
+            raise G3ValidationError("publication_transport_unavailable")
+        publication_head_end = _read_canonical_publication_head(
+            context.publication_transport
+        )
+        if publication_head_end != publication.published_sha:
+            raise G3ValidationError("publication_head_changed_during_resolution")
+        if publication_head_end != context.expected_target_commit:
+            raise G3ValidationError("publication_target_mismatch")
     return fields
 
 
@@ -7227,6 +7301,49 @@ def _resolve_repository_identity_dependency(
     )
 
 
+def _read_canonical_publication_head(
+    transport: GitHubProtectionTransport,
+) -> str:
+    """Read canonical GitHub main with no local-ref or remote-name fallback."""
+
+    identity = CANONICAL_GITHUB_REPOSITORY_IDENTITY
+    try:
+        _verify_github_repository_identity(transport, identity)
+        payload = transport.get_ref(identity, CANONICAL_PUBLICATION_REF)
+        published_sha = payload.get("object", {}).get("sha")
+        if (
+            payload.get("repository_full_name") != identity["repository_full_name"]
+            or payload.get("ref") != CANONICAL_PUBLICATION_REF
+            or payload.get("object", {}).get("type") != "commit"
+            or not isinstance(published_sha, str)
+            or re.fullmatch(r"[0-9a-f]{40}", published_sha) is None
+        ):
+            raise G3ValidationError("publication_identity_mismatch")
+        return published_sha
+    except G3ValidationError as error:
+        if error.category == "github_repository_identity_mismatch":
+            raise G3ValidationError("publication_repository_identity_mismatch") from error
+        if error.category in {
+            "github_protection_resource_missing",
+            "external_monotonic_head_missing",
+        }:
+            raise G3ValidationError("publication_main_missing") from error
+        if error.category.startswith("publication_"):
+            raise
+        raise G3ValidationError("publication_api_unavailable") from error
+    except (KeyError, TypeError, OSError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("publication_api_unavailable") from error
+
+
+def _resolve_publication_dependency(
+    repository: Path,
+    graph: dict[str, Any],
+    transport: GitHubProtectionTransport,
+) -> str:
+    del repository, graph
+    return _read_canonical_publication_head(transport)
+
+
 def _resolve_ruleset_protection_dependency(
     repository: Path,
     graph: dict[str, Any],
@@ -7250,6 +7367,10 @@ EXTERNAL_RESOLVER_DISPATCH: dict[
     ExternalResolverHook,
     tuple[ExternalDiscovery, Callable[[Path, dict[str, Any], GitHubProtectionTransport], Any]],
 ] = {
+    ExternalResolverHook.RESOLVE_CANONICAL_PUBLICATION: (
+        ExternalDiscovery.GITHUB_REF,
+        _resolve_publication_dependency,
+    ),
     ExternalResolverHook.VERIFY_GITHUB_REPOSITORY_IDENTITY: (
         ExternalDiscovery.GITHUB_REPOSITORY,
         _resolve_repository_identity_dependency,
@@ -7607,6 +7728,7 @@ def _load_real_reviewer_bootstrap_trust(
     repository: Path,
     graph: dict[str, Any],
     allow_test_only: bool,
+    advance_checkpoint: bool,
     github_api_transport: GitHubProtectionTransport | None = None,
 ) -> tuple[
     dict[str, Any],
@@ -7770,11 +7892,26 @@ def _load_real_reviewer_bootstrap_trust(
     _validate_reviewer_bootstrap_proof_object(
         probe, candidate, validated_roots, proofs, require_current_window=True
     )
+
+    def materialize_checkpoint_record(value: dict[str, Any]) -> None:
+        raw = canonical_json_bytes(value)
+        value.update(
+            {
+                "bytes": raw,
+                "canonical_object": json.loads(raw),
+                "complete_file_sha256": sha256_bytes(raw),
+                "content_unchanged": True,
+            }
+        )
+
     if checkpoint is None:
         checkpoint = _checkpoint_for_proof(
             candidate, validated_roots[candidate["root_id"]], allow_test_only
         )
-        _write_reviewer_bootstrap_checkpoint(checkpoint_path, checkpoint)
+        if advance_checkpoint:
+            _write_reviewer_bootstrap_checkpoint(checkpoint_path, checkpoint)
+        else:
+            materialize_checkpoint_record(checkpoint)
     else:
         checkpoint_proof = proofs.get(checkpoint.get("current_proof_id"))
         if checkpoint_proof is None:
@@ -7789,7 +7926,10 @@ def _load_real_reviewer_bootstrap_trust(
             checkpoint = _checkpoint_for_proof(
                 candidate, validated_roots[candidate["root_id"]], allow_test_only
             )
-            _write_reviewer_bootstrap_checkpoint(checkpoint_path, checkpoint)
+            if advance_checkpoint:
+                _write_reviewer_bootstrap_checkpoint(checkpoint_path, checkpoint)
+            else:
+                materialize_checkpoint_record(checkpoint)
     probe.reviewer_bootstrap_accepted_head = checkpoint
     current = candidate
     probe.reviewer_bootstrap_root = validated_roots[current["root_id"]]
@@ -8026,6 +8166,7 @@ def _resolve_real_review_references(
     review_bundles: dict[str, dict[str, Any]],
     resolution: dict[str, Any],
     allow_test_only: bool,
+    resolution_purpose: ResolutionPurpose,
     github_api_transport: GitHubProtectionTransport | None = None,
 ) -> tuple[
     dict[str, dict[str, Any]],
@@ -8068,6 +8209,7 @@ def _resolve_real_review_references(
                 repository,
                 graph,
                 allow_test_only,
+                resolution_purpose == ResolutionPurpose.CURRENT_AUTHORIZATION,
                 github_api_transport,
             )
         )
@@ -8312,11 +8454,59 @@ def _resolve_real_review_references(
     )
 
 
+def _verify_historical_publication_lineage(
+    repository: Path,
+    transport: GitHubProtectionTransport,
+    target_commit: str,
+    published_sha: str,
+) -> None:
+    """Prove an old target belongs to canonical main's fetched Git lineage."""
+
+    try:
+        fetch_url = transport.git_fetch_url(CANONICAL_GITHUB_REPOSITORY_IDENTITY)
+        if not isinstance(fetch_url, str) or not fetch_url:
+            raise G3ValidationError("publication_transport_unavailable")
+        subprocess.run(
+            [
+                "git",
+                "fetch",
+                "--quiet",
+                "--no-tags",
+                fetch_url,
+                CANONICAL_PUBLICATION_REF,
+            ],
+            cwd=repository,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        fetched_sha = _git_output(repository, ["rev-parse", "FETCH_HEAD"]).decode().strip()
+        if fetched_sha != published_sha:
+            raise G3ValidationError("publication_head_changed_during_resolution")
+        ancestry = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", target_commit, published_sha],
+            cwd=repository,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if ancestry.returncode == 1:
+            raise G3ValidationError("historical_target_not_published")
+        if ancestry.returncode != 0:
+            raise G3ValidationError("historical_publication_proof_unavailable")
+        if _read_canonical_publication_head(transport) != published_sha:
+            raise G3ValidationError("publication_head_changed_during_resolution")
+    except G3ValidationError:
+        raise
+    except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("historical_publication_proof_unavailable") from error
+
+
 def _resolve_real_authority(
     repository: Path,
     graph: dict[str, Any],
     target_commit: str,
     allow_test_only: bool,
+    resolution_purpose: ResolutionPurpose,
     github_api_transport: GitHubProtectionTransport | None = None,
 ) -> tuple[
     dict[str, dict[str, Any]],
@@ -8334,6 +8524,8 @@ def _resolve_real_authority(
     dict[str, Any] | None,
     str | None,
     str | None,
+    PublicationBinding | None,
+    str | None,
 ]:
     nodes = _graph_nodes(graph)
     edges = _graph_edges(graph, nodes)
@@ -8346,6 +8538,52 @@ def _resolve_real_authority(
         "missing": [],
         "errors": [],
     }
+    transport = (
+        GitHubApiTransport()
+        if github_api_transport is None
+        else github_api_transport
+    )
+    publication_binding: PublicationBinding | None = None
+    publication_error_category: str | None = None
+    try:
+        published_sha = resolve_external_dependency(
+            repository,
+            graph,
+            "published_normative_target",
+            transport,
+        )
+        if resolution_purpose == ResolutionPurpose.CURRENT_AUTHORIZATION:
+            if published_sha != target_commit:
+                raise G3ValidationError("publication_target_mismatch")
+        elif resolution_purpose == ResolutionPurpose.HISTORICAL_VALIDATION:
+            _verify_historical_publication_lineage(
+                repository, transport, target_commit, published_sha
+            )
+        else:
+            raise G3ValidationError("invalid_resolution_purpose")
+        publication_binding = PublicationBinding(
+            repository_id=CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_id"],
+            repository_full_name=CANONICAL_GITHUB_REPOSITORY_IDENTITY[
+                "repository_full_name"
+            ],
+            publication_ref=CANONICAL_PUBLICATION_REF,
+            published_sha=published_sha,
+            selected_target_sha=target_commit,
+            purpose=resolution_purpose,
+        )
+        resolution["resolved_node_ids"].append("published_normative_target")
+    except (G3ValidationError, ValueError) as error:
+        publication_error_category = (
+            error.category
+            if isinstance(error, G3ValidationError)
+            else "external_dependency_dispatch_contract_mismatch"
+        )
+        resolution["errors"].append(
+            {
+                "node_id": "published_normative_target",
+                "category": publication_error_category,
+            }
+        )
     tags: dict[str, dict[str, Any]] = {}
     for node_id in order:
         if node_id not in required_closure or node_id == "g3_approval_tag":
@@ -8401,7 +8639,8 @@ def _resolve_real_authority(
         {node_id: objects[node_id] for node_id in REVIEW_BUNDLE_NODES if node_id in objects},
         resolution,
         allow_test_only,
-        github_api_transport,
+        resolution_purpose,
+        transport,
     )
     g3_tag = _read_git_tag(repository, G3_TAG_NAME)
     resolution["authority_tags"] = {
@@ -8450,13 +8689,16 @@ def _resolve_real_authority(
         reviewer_bootstrap_external_head,
         remediation_authority_id,
         remediation_actor_identity_digest,
+        publication_binding,
+        publication_error_category,
     )
 
 
-def make_repository_context(
+def _make_repository_context_with_transport(
     repository: Path | None = None,
     target_ref: str = "HEAD",
     allow_test_only: bool = False,
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
     github_api_transport: GitHubProtectionTransport | None = None,
 ) -> G3AuthorityContext:
     repository = ROOT if repository is None else Path(repository).resolve()
@@ -8467,6 +8709,11 @@ def make_repository_context(
     if not isinstance(graph, dict):
         raise G3ValidationError("authority_graph_bytes_malformed")
     validate_r12_authority_graph(graph)
+    publication_transport = (
+        GitHubApiTransport()
+        if github_api_transport is None
+        else github_api_transport
+    )
     (
         objects,
         tag,
@@ -8483,12 +8730,15 @@ def make_repository_context(
         reviewer_bootstrap_external_head,
         remediation_authority_id,
         remediation_actor_identity_digest,
+        publication_binding,
+        publication_error_category,
     ) = _resolve_real_authority(
         repository,
         graph,
         target,
         allow_test_only,
-        github_api_transport,
+        resolution_purpose,
+        publication_transport,
     )
     component_nodes = [
         component_node_id(prefix) for prefix in SPECS
@@ -8540,6 +8790,27 @@ def make_repository_context(
         remediation_authority_id=remediation_authority_id,
         remediation_actor_identity_digest=remediation_actor_identity_digest,
         resolution=resolution,
+        resolution_purpose=resolution_purpose,
+        publication_binding=publication_binding,
+        publication_error_category=publication_error_category,
+        publication_transport=publication_transport,
+    )
+
+
+def make_repository_context(
+    repository: Path | None = None,
+    target_ref: str = "HEAD",
+    allow_test_only: bool = False,
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
+) -> G3AuthorityContext:
+    """Build a production REAL context using only canonical GitHub transport."""
+
+    return _make_repository_context_with_transport(
+        repository,
+        target_ref,
+        allow_test_only,
+        resolution_purpose,
+        GitHubApiTransport(),
     )
 
 
@@ -8942,11 +9213,26 @@ class RawGitHubApiFixtureTransport(GitHubApiTransport):
         except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
             raise G3ValidationError("external_monotonic_head_missing") from error
         self.responses[
-            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/git/ref/{quote(contract['ref'].removeprefix('refs/heads/'), safe='')}"
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/git/ref/{quote(contract['ref'].removeprefix('refs/'), safe='/')}"
         ] = {
             "repository_full_name": identity["repository_full_name"],
             "ref": contract["ref"],
             "object": {"sha": sha, "type": "commit"},
+        }
+        try:
+            publication_sha = subprocess.check_output(
+                ["git", "rev-parse", "--verify", CANONICAL_PUBLICATION_REF],
+                cwd=self.remote,
+                stderr=subprocess.PIPE,
+            ).decode("ascii").strip()
+        except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+            raise G3ValidationError("publication_main_missing") from error
+        self.responses[
+            f"/repos/{quote(owner, safe='')}/{quote(name, safe='')}/git/ref/{quote(CANONICAL_PUBLICATION_REF.removeprefix('refs/'), safe='/')}"
+        ] = {
+            "repository_full_name": identity["repository_full_name"],
+            "ref": CANONICAL_PUBLICATION_REF,
+            "object": {"sha": publication_sha, "type": "commit"},
         }
         self.link_headers: dict[str, str | None] = {}
         self.requested_paths: list[str] = []
@@ -9332,6 +9618,15 @@ def _isolated_real_fixture(
         bootstrap_root_record,
         bootstrap_currentness_record,
         authority_class,
+    )
+    _fixture_git(
+        repository,
+        [
+            "push",
+            "-q",
+            str(external_remote),
+            f"{target_commit}:{CANONICAL_PUBLICATION_REF}",
+        ],
     )
     nodes = _graph_nodes(graph)
     lifecycle_fields = {
@@ -9791,6 +10086,7 @@ def run_regression_self_tests() -> None:
     test_catalog, evidence_catalog = load_reference_catalogs()
     graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
     external_registry_mutation_tests = 0
+    publication_identity_tests = 0
 
     def fixture_transport(repository: Path) -> FixtureGitHubProtectionTransport:
         return _fixture_github_api_transport(repository, _fixture_graph(repository))
@@ -9799,11 +10095,13 @@ def run_regression_self_tests() -> None:
         repository: Path,
         target_ref: str,
         allow_test_only: bool = False,
+        resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
     ) -> G3AuthorityContext:
-        return make_repository_context(
+        return _make_repository_context_with_transport(
             repository,
             target_ref,
             allow_test_only=allow_test_only,
+            resolution_purpose=resolution_purpose,
             github_api_transport=fixture_transport(repository),
         )
 
@@ -10005,6 +10303,60 @@ def run_regression_self_tests() -> None:
             dependency, discovery=ExternalDiscovery.AUTHORITY_RECORD
         ),
     )
+    original_registry = PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY
+    PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY = tuple(
+        dependency
+        for dependency in original_registry
+        if dependency.identifier != "published_normative_target"
+    )
+    try:
+        reject_value_error(
+            "canonical publication resolver registration removed",
+            lambda: validate_r12_authority_graph(graph),
+        )
+        reject_value_error(
+            "canonical publication resolver dispatch removed",
+            lambda: resolve_external_dependency(
+                ROOT, graph, "published_normative_target"
+            ),
+        )
+        external_registry_mutation_tests += 1
+    finally:
+        PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY = original_registry
+    PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY = tuple(
+        replace(
+            dependency,
+            discovery=ExternalDiscovery.REPOSITORY_COMMIT,
+            resolver_hook=ExternalResolverHook.RESOLVE_TARGET_COMMIT,
+            discovery_fields=(("target_ref", "resolver_target_ref"),),
+        )
+        if dependency.identifier == "published_normative_target"
+        else dependency
+        for dependency in original_registry
+    )
+    try:
+        reject_value_error(
+            "caller-local publication resolver substituted",
+            lambda: validate_r12_authority_graph(graph),
+        )
+        external_registry_mutation_tests += 1
+    finally:
+        PRODUCTION_EXTERNAL_TRUST_DEPENDENCY_REGISTRY = original_registry
+    publication_dispatch = EXTERNAL_RESOLVER_DISPATCH.pop(
+        ExternalResolverHook.RESOLVE_CANONICAL_PUBLICATION
+    )
+    try:
+        reject_value_error(
+            "canonical publication production dispatch removed",
+            lambda: resolve_external_dependency(
+                ROOT, graph, "published_normative_target"
+            ),
+        )
+        external_registry_mutation_tests += 1
+    finally:
+        EXTERNAL_RESOLVER_DISPATCH[
+            ExternalResolverHook.RESOLVE_CANONICAL_PUBLICATION
+        ] = publication_dispatch
     registry_mutation_reject(
         "unknown external discovery type",
         lambda dependency: replace(dependency, discovery="attacker_selected_source"),
@@ -12399,6 +12751,15 @@ def run_regression_self_tests() -> None:
         )
         if raw_head["external_commit"] != raw_commit:
             raise AssertionError("raw production transport did not resolve the external head")
+        canonical_external_ref_path = (
+            f"/repos/{quote(raw_identity['repository_full_name'].split('/', 1)[0], safe='')}"
+            f"/{quote(raw_identity['repository_full_name'].split('/', 1)[1], safe='')}"
+            f"/git/ref/{quote(external_graph['external_monotonic_head_contract']['ref'].removeprefix('refs/'), safe='/')}"
+        )
+        if canonical_external_ref_path not in raw_transport.requested_paths:
+            raise AssertionError(
+                "raw production transport did not issue the canonical heads/<branch> ref request"
+            )
         github_history_wire_positive_tests += 1
 
         multi_page_transport = _raw_fixture_github_api_transport(
@@ -13503,7 +13864,13 @@ def run_regression_self_tests() -> None:
             _isolated_real_fixture(authority_class="REAL")
         )
         try:
-            production_context = make_repository_context(
+            production_graph = _fixture_graph(production_repository)
+            publication_remote = Path(
+                production_graph["external_monotonic_head_contract"]["transport"][
+                    "remote_url"
+                ]
+            )
+            production_context = _make_repository_context_with_transport(
                 production_repository,
                 production_target,
                 github_api_transport=fixture_transport(production_repository),
@@ -13525,6 +13892,219 @@ def run_regression_self_tests() -> None:
                 raise AssertionError(
                     f"production-format fixture positive result: {production_positive}"
                 )
+            publication_identity_tests += 1
+
+            def require_publication_reject(
+                context: G3AuthorityContext, category: str
+            ) -> None:
+                if context.publication_error_category != category:
+                    raise AssertionError(
+                        f"publication rejection mismatch: {context.publication_error_category} != {category}"
+                    )
+                try:
+                    validate_g3_tag(G3_TAG_NAME, production_body, context)
+                except G3ValidationError as error:
+                    if error.category != category:
+                        raise AssertionError(
+                            f"publication gate returned {error.category}, expected {category}"
+                        ) from error
+                else:
+                    raise AssertionError("publication mutation reached operational GO")
+
+            _fixture_git(
+                publication_remote,
+                ["update-ref", "-d", CANONICAL_PUBLICATION_REF],
+            )
+            missing_publication_context = _make_repository_context_with_transport(
+                production_repository,
+                production_target,
+                github_api_transport=fixture_transport(production_repository),
+            )
+            require_publication_reject(
+                missing_publication_context, "publication_main_missing"
+            )
+            _fixture_git(
+                publication_remote,
+                ["update-ref", CANONICAL_PUBLICATION_REF, production_target],
+            )
+            publication_identity_tests += 1
+
+            different_published_commit = _fixture_git(
+                publication_remote,
+                [
+                    "rev-parse",
+                    production_graph["external_monotonic_head_contract"]["ref"],
+                ],
+            ).decode().strip()
+            _fixture_git(
+                publication_remote,
+                [
+                    "update-ref",
+                    CANONICAL_PUBLICATION_REF,
+                    different_published_commit,
+                ],
+            )
+            mismatched_publication_context = _make_repository_context_with_transport(
+                production_repository,
+                production_target,
+                github_api_transport=fixture_transport(production_repository),
+            )
+            require_publication_reject(
+                mismatched_publication_context, "publication_target_mismatch"
+            )
+            _fixture_git(
+                publication_remote,
+                ["update-ref", CANONICAL_PUBLICATION_REF, production_target],
+            )
+            publication_identity_tests += 1
+
+            unavailable_transport = fixture_transport(production_repository)
+            unavailable_transport.failure_category = "github_protection_api_unavailable"
+            unavailable_context = _make_repository_context_with_transport(
+                production_repository,
+                production_target,
+                github_api_transport=unavailable_transport,
+            )
+            require_publication_reject(
+                unavailable_context, "publication_api_unavailable"
+            )
+            identity_transport = fixture_transport(production_repository)
+            identity_transport.repository_response["id"] = 1
+            identity_context = _make_repository_context_with_transport(
+                production_repository,
+                production_target,
+                github_api_transport=identity_transport,
+            )
+            require_publication_reject(
+                identity_context, "publication_repository_identity_mismatch"
+            )
+            publication_identity_tests += 2
+
+            class AdvancingPublicationTransport(FixtureGitHubProtectionTransport):
+                def __init__(self, remote: Path, changed_sha: str) -> None:
+                    super().__init__(remote)
+                    self.changed_sha = changed_sha
+                    self.publication_reads = 0
+
+                def get_ref(
+                    self, identity: dict[str, Any], ref: str
+                ) -> dict[str, Any]:
+                    payload = super().get_ref(identity, ref)
+                    if ref == CANONICAL_PUBLICATION_REF:
+                        self.publication_reads += 1
+                        if self.publication_reads > 1:
+                            payload["object"]["sha"] = self.changed_sha
+                    return payload
+
+            advancing_transport = AdvancingPublicationTransport(
+                publication_remote, different_published_commit
+            )
+            advancing_context = _make_repository_context_with_transport(
+                production_repository,
+                production_target,
+                github_api_transport=advancing_transport,
+            )
+            try:
+                validate_g3_tag(G3_TAG_NAME, production_body, advancing_context)
+            except G3ValidationError as error:
+                if error.category != "publication_head_changed_during_resolution":
+                    raise
+            else:
+                raise AssertionError("publication head race reached operational GO")
+            publication_identity_tests += 1
+
+            original_origin = _fixture_git(
+                production_repository, ["remote", "get-url", "origin"]
+            ).decode().strip()
+            _fixture_git(
+                production_repository,
+                ["remote", "set-url", "origin", "git@attacker:wrong/repository.git"],
+            )
+            remote_mutation_context = _make_repository_context_with_transport(
+                production_repository,
+                production_target,
+                github_api_transport=fixture_transport(production_repository),
+            )
+            if validate_g3_tag(
+                G3_TAG_NAME, production_body, remote_mutation_context
+            )["approval_decision"] != "GO":
+                raise AssertionError("local remote mutation changed publication result")
+            _fixture_git(
+                production_repository,
+                ["remote", "set-url", "origin", original_origin],
+            )
+            publication_identity_tests += 1
+
+            canonical_successor = _fixture_git(
+                production_repository, ["rev-parse", "HEAD"]
+            ).decode().strip()
+            if canonical_successor == production_target:
+                raise AssertionError("historical fixture has no canonical successor")
+            _fixture_git(
+                production_repository,
+                [
+                    "push",
+                    "-q",
+                    str(publication_remote),
+                    f"{canonical_successor}:{CANONICAL_PUBLICATION_REF}",
+                ],
+            )
+            stale_current_context = _make_repository_context_with_transport(
+                production_repository,
+                production_target,
+                github_api_transport=fixture_transport(production_repository),
+            )
+            require_publication_reject(
+                stale_current_context, "publication_target_mismatch"
+            )
+            historical_checkpoint_path = _reviewer_bootstrap_checkpoint_path(
+                production_repository
+            )
+            historical_checkpoint_path.unlink()
+            historical_context = _make_repository_context_with_transport(
+                production_repository,
+                production_target,
+                resolution_purpose=ResolutionPurpose.HISTORICAL_VALIDATION,
+                github_api_transport=fixture_transport(production_repository),
+            )
+            if historical_checkpoint_path.exists():
+                raise AssertionError(
+                    "historical validation created currentness checkpoint state"
+                )
+            historical_row = historical_context.objects["migrated_finding_review"][
+                "review_records"
+            ][0]
+            if validate_historical_review_artifact(
+                historical_context, historical_row
+            )["historical_cryptographic_validity"] is not True:
+                raise AssertionError("published historical target did not validate")
+            reject_value_error(
+                "historical context cannot authorize current GO",
+                lambda: validate_g3_tag(
+                    G3_TAG_NAME, production_body, historical_context
+                ),
+            )
+            _fixture_git(
+                publication_remote,
+                ["update-ref", CANONICAL_PUBLICATION_REF, production_target],
+            )
+            local_only_current_context = _make_repository_context_with_transport(
+                production_repository,
+                canonical_successor,
+                github_api_transport=fixture_transport(production_repository),
+            )
+            require_publication_reject(
+                local_only_current_context, "publication_target_mismatch"
+            )
+            local_only_context = _make_repository_context_with_transport(
+                production_repository,
+                canonical_successor,
+                resolution_purpose=ResolutionPurpose.HISTORICAL_VALIDATION,
+                github_api_transport=fixture_transport(production_repository),
+            )
+            if local_only_context.publication_error_category != "historical_target_not_published":
+                raise AssertionError("local-only historical target was accepted")
+            publication_identity_tests += 5
         finally:
             production_temporary.cleanup()
 
@@ -13579,8 +14159,14 @@ def run_regression_self_tests() -> None:
             historical_row = advanced_context.objects["migrated_finding_review"][
                 "review_records"
             ][0]
+            historical_context = load_fixture_context(
+                history_repository,
+                history_target,
+                allow_test_only=True,
+                resolution_purpose=ResolutionPurpose.HISTORICAL_VALIDATION,
+            )
             historical_result = validate_historical_review_artifact(
-                advanced_context, historical_row
+                historical_context, historical_row
             )
             if historical_result != {
                 "historical_cryptographic_validity": True,
@@ -13658,8 +14244,14 @@ def run_regression_self_tests() -> None:
                 raise AssertionError(
                     f"current subject-state fixture did not resolve: {changed_authorization_context.resolution}"
                 )
+            historical_authorization_context = load_fixture_context(
+                authorization_repository,
+                authorization_target,
+                allow_test_only=True,
+                resolution_purpose=ResolutionPurpose.HISTORICAL_VALIDATION,
+            )
             historical_only_result = validate_historical_review_artifact(
-                changed_authorization_context, authorization_row
+                historical_authorization_context, authorization_row
             )
             if historical_only_result != {
                 "historical_cryptographic_validity": True,
@@ -13854,8 +14446,14 @@ def run_regression_self_tests() -> None:
             rotated_row = rotated_context.objects["migrated_finding_review"][
                 "review_records"
             ][0]
+            rotated_historical_context = load_fixture_context(
+                rotation_repository,
+                rotation_target,
+                allow_test_only=True,
+                resolution_purpose=ResolutionPurpose.HISTORICAL_VALIDATION,
+            )
             rotated_history = validate_historical_review_artifact(
-                rotated_context, rotated_row
+                rotated_historical_context, rotated_row
             )
             if rotated_history["historical_cryptographic_validity"] is not True:
                 raise AssertionError("old-root historical attestation was not resolvable")
@@ -15032,6 +15630,7 @@ def run_regression_self_tests() -> None:
         f"external_head_cas_tests={external_head_cas_tests} "
         f"local_checkpoint_lock_tests={local_checkpoint_lock_tests} "
         f"external_registry_mutation_tests={external_registry_mutation_tests} "
+        f"publication_identity_tests={publication_identity_tests} "
         f"github_history_wire_positive_tests={github_history_wire_positive_tests} "
         f"github_history_wire_negative_tests={github_history_wire_negative_tests} "
         f"github_version_wire_positive_tests={github_version_wire_positive_tests} "
