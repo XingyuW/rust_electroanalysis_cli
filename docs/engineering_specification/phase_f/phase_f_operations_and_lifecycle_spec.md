@@ -82,11 +82,12 @@ PIN_TRUST_PROHIBITION=NO_LOCAL_ENV_UNCOMMITTED_RUNTIME_EXTERNAL_MUTATION
 ```
 
 No local edit, environment variable, operator configuration, uncommitted graph
-change, runtime argument, or external mutable file may replace `UNPROVISIONED`
-pins and create REAL authority. The exact pinning commit is authoritative only
-when `local reviewed pinning SHA = published main SHA = live remote main SHA`
-under the existing safe-publication procedure. A caller-selected local SHA,
-tracking ref, or checkpoint cannot authorize freshness.
+change, runtime argument, or external mutable file may make candidate pin
+values authoritative or create REAL authority. The exact pinning commit is
+authoritative only when `local reviewed pinning SHA = published main SHA = live
+remote main SHA` under the existing safe-publication procedure. A
+caller-selected local SHA, tracking ref, or checkpoint cannot authorize
+freshness.
 
 After Stage E, advance only by publishing one canonical successor with exactly
 one Git parent, `sequence + 1`, and predecessor commit/head/hash bindings. The

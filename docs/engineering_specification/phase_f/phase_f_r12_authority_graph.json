@@ -54,10 +54,10 @@
       "target": "branch"
     },
     "protection_binding": {
-      "provisioning_status": "UNPROVISIONED",
-      "ruleset_id": null,
-      "state_digest": null,
-      "version_id": null
+      "provisioning_status": "PINNED_BY_REVIEWED_AUTHORITY",
+      "ruleset_id": 22248481,
+      "state_digest": "7740d26753fa2aece88a3d01388fade840e08f23b29d55788bb8a3c0b8743ceb",
+      "version_id": 48649895
     },
     "read_policy": "LIVE_CANONICAL_GITHUB_REF_THEN_EXACT_FETCH",
     "advance_policy": "FAST_FORWARD_SERVER_CAS"

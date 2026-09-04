@@ -577,10 +577,10 @@ GITHUB_PROTECTION_STATE_DIGEST_DOMAIN = (
     b"mhi_phase_f_github_protection_state_v1\0"
 )
 EXTERNAL_MONOTONIC_HEAD_PROTECTION_BINDING = {
-    "provisioning_status": "UNPROVISIONED",
-    "ruleset_id": None,
-    "version_id": None,
-    "state_digest": None,
+    "provisioning_status": "PINNED_BY_REVIEWED_AUTHORITY",
+    "ruleset_id": 22248481,
+    "version_id": 48649895,
+    "state_digest": "7740d26753fa2aece88a3d01388fade840e08f23b29d55788bb8a3c0b8743ceb",
 }
 EXTERNAL_MONOTONIC_HEAD_CONTRACT_KEYS = {
     "authority_kind",

@@ -215,15 +215,21 @@ JCS bytes of this closed preimage object:
 }
 ```
 
-The real values replace the examples only in a future reviewed pinning
-revision; this candidate graph stores explicit `UNPROVISIONED` null
-placeholders. Missing or hidden bypass data, API identity mismatch, unavailable
-or insufficiently privileged API access, ruleset deletion/replacement, a
-changed history/version, disabled enforcement, a wrong ref condition, or any
-bypass actor fails closed. GitHub platform integrity and the authenticated
-Rulesets API are terminal external assumptions; repository administrators are
-not treated as invisible cryptographic roots, and any observable protection
-change invalidates REAL authorization.
+The candidate graph stores the observed Stage B binding with
+`provisioning_status=PINNED_BY_REVIEWED_AUTHORITY`, `ruleset_id=22248481`,
+`version_id=48649895`, and
+`state_digest=7740d26753fa2aece88a3d01388fade840e08f23b29d55788bb8a3c0b8743ceb`.
+These pins remain untrusted until this exact candidate receives fresh
+cumulative independent technical review with `P0=0` and `P1=0`, is published
+at the exact reviewed SHA, and passes post-publication revalidation; monotonic
+genesis remains prohibited until Stage D succeeds. Missing or hidden bypass
+data, API identity mismatch, unavailable or insufficiently privileged API
+access, ruleset deletion/replacement, a changed history/version, disabled
+enforcement, a wrong ref condition, or any bypass actor fails closed. GitHub
+platform integrity and the authenticated Rulesets API are terminal external
+assumptions; repository administrators are not treated as invisible
+cryptographic roots, and any observable protection change invalidates REAL
+authorization.
 
 For `get_ruleset_history`, the authenticated transport derives one immutable
 pagination scope from the original trusted repository identity and pinned
