@@ -29,7 +29,7 @@
       },
       "component_conformance_spec": {
         "authority_id": null,
-        "sha256": "37c4c109ad902668e98342eb129a9960aba7821612e61e4635742000c2eb121a",
+        "sha256": "c90f23286c0756a86ccc1735f2f7d74f65236845889de24e667b97b1912c5413",
         "target": null
       },
       "component_implementation_spec": {
@@ -49,7 +49,7 @@
       },
       "component_wire_spec": {
         "authority_id": null,
-        "sha256": "4f43d8e2667c3566c337bdbf1b527bcd2bb3b421fe6db43c474cc1315466d763",
+        "sha256": "fe0b1e504e04ef79ad975e57399a1e9241546be122734545b4393327fbc1e70d",
         "target": null
       },
       "f0_approval": {
@@ -59,7 +59,7 @@
       },
       "generated_traceability_manifest": {
         "authority_id": null,
-        "sha256": "a23615593255192327bcd6b62aa6ffb414a46612cb9900ea9e9f42b53c9204c4",
+        "sha256": "2ffc93d2df06c309597af75e605de067e648071457d1a3577c315fc0f30cb4ee",
         "target": null
       },
       "migration_ledger": {
@@ -75,29 +75,29 @@
     },
     "authority_graph_sha256": "3e8ff7bee09c4f16f767d2f33ba6729fd2ab93830834d57b67fdf1b56a2c7955",
     "schema_version": 1,
-    "sha256": "40de412e380bb751bb6cbaade62893f66b87c9492342b4c4d8db1f3603f0ad88",
+    "sha256": "923517c984eecbdded7081595f672ba044e1f3719f462ba4506dbed9fc26ca64",
     "source_sha256s": {
       "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
       "authority_graph": "3e8ff7bee09c4f16f767d2f33ba6729fd2ab93830834d57b67fdf1b56a2c7955",
-      "conformance_specification": "37c4c109ad902668e98342eb129a9960aba7821612e61e4635742000c2eb121a",
-      "generated_traceability_manifest": "a23615593255192327bcd6b62aa6ffb414a46612cb9900ea9e9f42b53c9204c4",
+      "conformance_specification": "c90f23286c0756a86ccc1735f2f7d74f65236845889de24e667b97b1912c5413",
+      "generated_traceability_manifest": "2ffc93d2df06c309597af75e605de067e648071457d1a3577c315fc0f30cb4ee",
       "implementation_readiness_specification": "6a9e4bb9adae4d3039769ad71f34c7c96a5c1a78dd2e1f307602099b76a17524",
       "migration_ledger": "760180da3b5b3fb9b44493fb0326c5e2efeb14e39175cad157dfeee154ee716f",
       "normative_traceability_matrix": "eb6b03be80b8a44bec46b77d78b4cbc56d3d7083ad38226726aa82b009fc1bc9",
       "operations_specification": "6e2e98cda614b8b8f446aedb174d863606d1aa7ee0c7b1d88abbbc3f944463d1",
       "scientific_specification": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
-      "wire_specification": "4f43d8e2667c3566c337bdbf1b527bcd2bb3b421fe6db43c474cc1315466d763"
+      "wire_specification": "fe0b1e504e04ef79ad975e57399a1e9241546be122734545b4393327fbc1e70d"
     }
   },
   "component_specifications": [
     {
-      "git_blob": "c1190ec64746b4c9c6ae0b791e3399f126d7f61e",
+      "git_blob": "bfb10e082b787ef23a4c782fcb8c6da6bf5ba662",
       "independent_review_bundle_sha256": null,
       "p0_count": null,
       "p1_count": null,
       "path": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
       "review_status": "PENDING",
-      "sha256": "4f43d8e2667c3566c337bdbf1b527bcd2bb3b421fe6db43c474cc1315466d763"
+      "sha256": "fe0b1e504e04ef79ad975e57399a1e9241546be122734545b4393327fbc1e70d"
     },
     {
       "git_blob": "4f65fa473572e1be067bab4e9c321cd0bde266cc",
@@ -118,13 +118,13 @@
       "sha256": "6e2e98cda614b8b8f446aedb174d863606d1aa7ee0c7b1d88abbbc3f944463d1"
     },
     {
-      "git_blob": "c2b113ab9c1955a7912bb5870f81f20736c4b802",
+      "git_blob": "45a0d631c1af3f35268728116b22afee37ea4792",
       "independent_review_bundle_sha256": null,
       "p0_count": null,
       "p1_count": null,
       "path": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
       "review_status": "PENDING",
-      "sha256": "37c4c109ad902668e98342eb129a9960aba7821612e61e4635742000c2eb121a"
+      "sha256": "c90f23286c0756a86ccc1735f2f7d74f65236845889de24e667b97b1912c5413"
     },
     {
       "git_blob": "9ce27bc8ade90f7a00e933d942fc40c4e04a0209",
@@ -165,11 +165,11 @@
   "schema_version": 1,
   "status": "DRAFT_NO_AUTHORITY",
   "target_revision": {
-    "sha256": "40de412e380bb751bb6cbaade62893f66b87c9492342b4c4d8db1f3603f0ad88",
+    "sha256": "923517c984eecbdded7081595f672ba044e1f3719f462ba4506dbed9fc26ca64",
     "type": "source_input_fingerprint"
   },
   "traceability_manifest": {
     "path": "docs/engineering_specification/phase_f/phase_f_traceability_manifest.json",
-    "sha256": "a23615593255192327bcd6b62aa6ffb414a46612cb9900ea9e9f42b53c9204c4"
+    "sha256": "2ffc93d2df06c309597af75e605de067e648071457d1a3577c315fc0f30cb4ee"
   }
 }

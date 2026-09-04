@@ -254,6 +254,37 @@ final page; more than one `next` relation is ambiguous and rejected. Thus
 pagination may change only the page position within the exact originally
 requested collection.
 
+The Link relation contract is RFC 8288 §§2.1.1, 3, and 3.3, with quoted-string
+processing from RFC 7230 §3.2.6. The transport parses the complete present
+header as RFC 8288 link-values and parses every link-value's parameters before
+interpreting pagination. Link-values are split only at commas outside URI
+references and quoted strings; parameters accept both token and quoted-string
+forms, and parameter names are compared case-insensitively. The first `rel`
+parameter in a link-value supplies its relation-value, as specified by RFC
+8288; later `rel` parameters are ignored for application interpretation but
+are still parsed and relation-grammar validated so malformed present metadata
+cannot become terminal success.
+
+After unquoting, a `rel` value must contain one or more registered relation
+types in the grammar `relation-type *( 1*SP relation-type )`. Literal SP is the
+only relation-list separator: multiple SP characters are valid, while leading
+or trailing SP and HTAB are invalid. Registered relation names use the ASCII
+grammar `LOALPHA *( LOALPHA / DIGIT / "." / "-" )` with the application
+accepting the case-insensitive wire spellings required by RFC 8288 and
+normalizing them with ASCII lowercase. Only an exact normalized relation token
+`next` is a pagination relation; substrings and extension URIs never qualify.
+Phase F selects the registered-only application policy for extension relation
+types: absolute-URI extension relations are unsupported and fail closed,
+rather than being accepted as unknown relations that could silently establish
+history completeness. An empty, whitespace-only, malformed, or otherwise
+invalid `rel` value, malformed link-value, or malformed parameter fails
+closed. Once the complete header has passed these checks, the normalized
+`next` occurrence count is authoritative: zero permits terminal pagination,
+exactly one continues through the existing target/page validator, and more
+than one is rejected as ambiguous. This count is over relation tokens across
+the complete header, including multiple tokens in one `rel` value and separate
+link-values.
+
 History `actor` and `updated_at` are external wire metadata, not inputs to the
 immutable one-version protection proof or its digest. The actor must retain
 the documented object shape with an integer `id` and string `type`, but the

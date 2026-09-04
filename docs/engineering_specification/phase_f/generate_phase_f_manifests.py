@@ -1421,6 +1421,181 @@ def _github_history_pagination_query(
     return page, f"page={page}&per_page={per_page}"
 
 
+def _github_is_http_token_character(character: str) -> bool:
+    """Return whether *character* is an RFC 7230 ``tchar``."""
+
+    return character.isascii() and (
+        character.isalnum() or character in "!#$%&'*+-.^_`|~"
+    )
+
+
+def _github_consume_ows(value: str, index: int) -> int:
+    while index < len(value) and value[index] in " \t":
+        index += 1
+    return index
+
+
+def _github_parse_quoted_string(value: str, index: int) -> tuple[str, int]:
+    """Parse one RFC 7230 quoted-string and return its unquoted value."""
+
+    if index >= len(value) or value[index] != '"':
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    index += 1
+    output: list[str] = []
+    while index < len(value):
+        character = value[index]
+        codepoint = ord(character)
+        if character == "\\":
+            index += 1
+            if index >= len(value):
+                raise G3ValidationError("github_protection_pagination_uncertain")
+            escaped = value[index]
+            escaped_codepoint = ord(escaped)
+            if not (
+                escaped_codepoint == 0x09
+                or 0x20 <= escaped_codepoint <= 0x7E
+                or 0x80 <= escaped_codepoint <= 0xFF
+            ):
+                raise G3ValidationError("github_protection_pagination_uncertain")
+            output.append(escaped)
+            index += 1
+            continue
+        if character == '"':
+            return "".join(output), index + 1
+        if not (
+            codepoint == 0x09
+            or 0x20 <= codepoint <= 0x21
+            or 0x23 <= codepoint <= 0x5B
+            or 0x5D <= codepoint <= 0x7E
+            or 0x80 <= codepoint <= 0xFF
+        ):
+            raise G3ValidationError("github_protection_pagination_uncertain")
+        output.append(character)
+        index += 1
+    raise G3ValidationError("github_protection_pagination_uncertain")
+
+
+def _github_split_link_values(link_header: str) -> list[str]:
+    """Split an RFC 8288 Link field without splitting URI/quoted delimiters."""
+
+    values: list[str] = []
+    start = 0
+    in_target = False
+    in_quote = False
+    escaped = False
+    for index, character in enumerate(link_header):
+        if in_quote:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_quote = False
+            continue
+        if in_target:
+            if character == ">":
+                in_target = False
+            continue
+        if character == "<":
+            in_target = True
+        elif character == '"':
+            in_quote = True
+        elif character == ",":
+            value = link_header[start:index]
+            if not value.strip(" \t"):
+                raise G3ValidationError("github_protection_pagination_uncertain")
+            values.append(value)
+            start = index + 1
+    if in_target or in_quote or escaped:
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    value = link_header[start:]
+    if not value.strip(" \t"):
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    values.append(value)
+    return values
+
+
+def _github_parse_link_value(
+    link_value: str,
+) -> tuple[str, list[tuple[str, str | None]]]:
+    """Parse one RFC 8288 link-value and its RFC 7230 link-params."""
+
+    index = _github_consume_ows(link_value, 0)
+    if index >= len(link_value) or link_value[index] != "<":
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    target_start = index + 1
+    target_end = link_value.find(">", target_start)
+    if (
+        target_end <= target_start
+        or "<" in link_value[target_start:target_end]
+    ):
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    target = link_value[target_start:target_end]
+    index = target_end + 1
+    parameters: list[tuple[str, str | None]] = []
+    while True:
+        index = _github_consume_ows(link_value, index)
+        if index == len(link_value):
+            return target, parameters
+        if link_value[index] != ";":
+            raise G3ValidationError("github_protection_pagination_uncertain")
+        index = _github_consume_ows(link_value, index + 1)
+        name_start = index
+        while index < len(link_value) and _github_is_http_token_character(
+            link_value[index]
+        ):
+            index += 1
+        if index == name_start:
+            raise G3ValidationError("github_protection_pagination_uncertain")
+        name = link_value[name_start:index].lower()
+        index = _github_consume_ows(link_value, index)
+        parameter_value: str | None = None
+        if index < len(link_value) and link_value[index] == "=":
+            index = _github_consume_ows(link_value, index + 1)
+            if index == len(link_value):
+                raise G3ValidationError("github_protection_pagination_uncertain")
+            if link_value[index] == '"':
+                parameter_value, index = _github_parse_quoted_string(
+                    link_value, index
+                )
+            else:
+                value_start = index
+                while index < len(link_value) and _github_is_http_token_character(
+                    link_value[index]
+                ):
+                    index += 1
+                if index == value_start:
+                    raise G3ValidationError("github_protection_pagination_uncertain")
+                parameter_value = link_value[value_start:index]
+            after_value = _github_consume_ows(link_value, index)
+            if after_value < len(link_value) and link_value[after_value] != ";":
+                raise G3ValidationError("github_protection_pagination_uncertain")
+            index = after_value
+        parameters.append((name, parameter_value))
+
+
+def _github_parse_relation_value(value: str | None) -> list[str]:
+    """Validate and normalize a supported RFC 8288 relation-value.
+
+    Phase F deliberately selects the registered-only application policy.  The
+    RFC extension-relation URI grammar is therefore unsupported by this
+    pagination application and fails closed rather than becoming an unknown
+    relation that could incorrectly establish history completeness.
+    """
+
+    if not isinstance(value, str) or not value:
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    if value[0] == " " or value[-1] == " " or "\t" in value:
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    relation_types = [relation_type for relation_type in value.split(" ") if relation_type]
+    normalized: list[str] = []
+    for relation_type in relation_types:
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9.-]*", relation_type) is None:
+            raise G3ValidationError("github_protection_pagination_uncertain")
+        normalized.append(relation_type.lower())
+    return normalized
+
+
 def _github_next_page_path(
     link_header: str | None,
     api_origin: str,
@@ -1434,27 +1609,40 @@ def _github_next_page_path(
         return None
     if not link_header.strip():
         raise G3ValidationError("github_protection_pagination_uncertain")
-    next_urls: list[str] = []
-    link_targets: list[str] = []
-    for link in link_header.split(","):
-        match = re.fullmatch(r"\s*<([^<>]+)>\s*;\s*rel=\"([^\"]+)\"\s*", link)
-        if match is None:
+    next_count = 0
+    next_target: tuple[int, str] | None = None
+    parsed_links: list[tuple[str, list[str]]] = []
+    for link in _github_split_link_values(link_header):
+        link_url, parameters = _github_parse_link_value(link)
+        relation_types: list[str] | None = None
+        for parameter_name, parameter_value in parameters:
+            if parameter_name != "rel":
+                continue
+            parsed_relation_types = _github_parse_relation_value(parameter_value)
+            if relation_types is None:
+                relation_types = parsed_relation_types
+        if relation_types is None:
             raise G3ValidationError("github_protection_pagination_uncertain")
-        link_url = match.group(1)
         if (
             link_url != link_url.strip()
             or any(ord(character) < 0x20 for character in link_url)
             or "#" in link_url
         ):
             raise G3ValidationError("github_protection_pagination_uncertain")
-        link_targets.append(link_url)
-        relations = match.group(2).split()
-        if "next" in relations:
-            next_urls.append(link_url)
-    if len(next_urls) > 1:
+        parsed_links.append((link_url, relation_types))
+        next_count += sum(relation == "next" for relation in relation_types)
+    if next_count > 1:
         raise G3ValidationError("github_protection_pagination_uncertain")
-    if not next_urls:
-        for link_url in link_targets:
+    for link_url, relation_types in parsed_links:
+        if "next" in relation_types:
+            next_target = _github_history_link_target(
+                link_url,
+                api_origin,
+                collection_path,
+                current_page=current_page,
+                effective_per_page=effective_per_page,
+            )
+        else:
             _github_history_link_target(
                 link_url,
                 api_origin,
@@ -1462,15 +1650,11 @@ def _github_next_page_path(
                 current_page=None,
                 effective_per_page=effective_per_page,
             )
+    if next_count == 0:
         return None
-
-    return _github_history_link_target(
-        next_urls[0],
-        api_origin,
-        collection_path,
-        current_page=current_page,
-        effective_per_page=effective_per_page,
-    )
+    if next_target is None:
+        raise G3ValidationError("github_protection_pagination_uncertain")
+    return next_target
 
 
 def _github_history_link_target(
@@ -12279,6 +12463,78 @@ def run_regression_self_tests() -> None:
             )
         github_history_wire_positive_tests += 1
 
+        def raw_history_follow_relation(label: str, relation_parameter: str) -> None:
+            nonlocal github_history_wire_positive_tests
+            transport = _raw_fixture_github_api_transport(fixture_repository, external_graph)
+            history_path = next(
+                path
+                for path in transport.responses
+                if path.endswith("/history?page=1&per_page=100")
+            )
+            collection_path = history_path.removesuffix("?page=1&per_page=100")
+            page_two_path = f"{collection_path}?page=2&per_page=100"
+            transport.responses[page_two_path] = [
+                {
+                    "version_id": 2,
+                    "actor": {"id": 2, "type": "User"},
+                    "updated_at": "2026-01-02T00:00:00Z",
+                }
+            ]
+            transport.link_headers[history_path] = (
+                f"<https://api.github.com{page_two_path}>; {relation_parameter}"
+            )
+            normalized = transport.get_ruleset_history(raw_identity, 1)
+            if normalized != {
+                "versions": [{"version_id": 1}, {"version_id": 2}]
+            }:
+                raise AssertionError(f"{label} did not follow exactly one next: {normalized}")
+            if transport.requested_paths != [history_path, page_two_path]:
+                raise AssertionError(f"{label} did not follow page 2 exactly")
+            github_history_wire_positive_tests += 1
+
+        for label, relation_parameter in (
+            ("raw history lowercase quoted next", 'rel="next"'),
+            ("raw history uppercase quoted NEXT", 'rel="NEXT"'),
+            ("raw history mixed-case quoted next", 'rel="NeXt"'),
+            ("raw history lowercase token next", "rel=next"),
+            ("raw history uppercase token NEXT", "rel=NEXT"),
+            ("raw history uppercase parameter and relation", 'REL="NEXT"'),
+            ("raw history next first relation list", 'rel="next first"'),
+            ("raw history first uppercase next last relation list", 'rel="first NEXT last"'),
+            ("raw history multiple-SP relation list", 'rel="next  first"'),
+            ("raw history next with comma-bearing title", 'rel="next"; title="a,b"'),
+            ("raw history first rel wins before next", 'rel="next"; rel="prev"'),
+        ):
+            raw_history_follow_relation(label, relation_parameter)
+
+        def raw_history_terminal_accept(label: str, relation_parameter: str) -> None:
+            nonlocal github_history_wire_positive_tests
+            transport = _raw_fixture_github_api_transport(fixture_repository, external_graph)
+            history_path = next(
+                path
+                for path in transport.responses
+                if path.endswith("/history?page=1&per_page=100")
+            )
+            collection_path = history_path.removesuffix("?page=1&per_page=100")
+            transport.link_headers[history_path] = (
+                f"<https://api.github.com{collection_path}?page=1&per_page=100>; "
+                f"{relation_parameter}"
+            )
+            normalized = transport.get_ruleset_history(raw_identity, 1)
+            if normalized != {"versions": [{"version_id": 1}]}:
+                raise AssertionError(f"{label} did not terminate exactly: {normalized}")
+            if transport.requested_paths != [history_path]:
+                raise AssertionError(f"{label} unexpectedly followed a page")
+            github_history_wire_positive_tests += 1
+
+        raw_history_terminal_accept("raw history first terminal relation", 'rel="first"')
+        raw_history_terminal_accept(
+            "raw history prev-first terminal relation", 'rel="prev first"'
+        )
+        raw_history_terminal_accept(
+            "raw history later duplicate rel ignored", 'rel="prev"; rel="next"'
+        )
+
         def raw_history_traversal_reject(
             label: str,
             link_headers: dict[str, str],
@@ -12424,6 +12680,67 @@ def run_regression_self_tests() -> None:
                 raw_history_initial_path: (
                     f'<https://api.github.com{sparse_page_two}>; rel="next", '
                     f'<https://api.github.com{history_page_path(multi_page_collection_path, 3)}>; rel="next"'
+                )
+            },
+        )
+        for label, relation_parameter in (
+            ("raw history empty rel", 'rel=""'),
+            ("raw history whitespace rel", 'rel=" "'),
+            ("raw history multiple whitespace rel", 'rel="   "'),
+            ("raw history leading-SP rel", 'rel=" next"'),
+            ("raw history trailing-SP rel", 'rel="next "'),
+            ("raw history HTAB relation separator", 'rel="next\tfirst"'),
+            ("raw history duplicate next in one rel", 'rel="next next"'),
+            ("raw history mixed-case duplicate next in one rel", 'rel="NEXT next"'),
+            (
+                "raw history escaped duplicate next in one rel",
+                f'rel="next{chr(92)} next"',
+            ),
+            ("raw history malformed underscore relation", 'rel="_next"'),
+            ("raw history malformed semicolon relation", 'rel="next;"'),
+            ("raw history malformed comma relation", 'rel="next,"'),
+            (
+                "raw history unsupported extension relation",
+                'rel="http://example.test/relation/next"',
+            ),
+            ("raw history unsupported URN extension relation", 'rel="urn:example:next"'),
+        ):
+            raw_history_traversal_reject(
+                label,
+                {raw_history_initial_path: (
+                    f"<https://api.github.com{multi_page_collection_path}?page=2&per_page=100>; "
+                    f"{relation_parameter}"
+                )},
+            )
+        raw_history_traversal_reject(
+            "raw history missing rel parameter",
+            {raw_history_initial_path: (
+                f"<https://api.github.com{multi_page_collection_path}?page=1&per_page=100>; "
+                'title="terminal"'
+            )},
+        )
+        raw_history_traversal_reject(
+            "raw history malformed second duplicate rel",
+            {raw_history_initial_path: (
+                f"<https://api.github.com{multi_page_collection_path}?page=1&per_page=100>; "
+                'rel="prev"; rel=""'
+            )},
+        )
+        raw_history_traversal_reject(
+            "raw history malformed trailing link-value",
+            {
+                raw_history_initial_path: (
+                    f"<https://api.github.com{multi_page_collection_path}?page=1&per_page=100>; rel=\"prev\", "
+                    "malformed"
+                )
+            },
+        )
+        raw_history_traversal_reject(
+            "raw history separate mixed-case next relations",
+            {
+                raw_history_initial_path: (
+                    f'<https://api.github.com{sparse_page_two}>; rel="next", '
+                    f'<https://api.github.com{history_page_path(multi_page_collection_path, 3)}>; rel="NEXT"'
                 )
             },
         )

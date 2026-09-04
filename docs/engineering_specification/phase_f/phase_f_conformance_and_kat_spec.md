@@ -243,6 +243,36 @@ is a deliberate final-page termination, while duplicate `next` relations,
 malformed, looping, or unavailable traversal fails closed. It does not infer a
 version from list position or from an internal fixture representation.
 
+The production relation conformance contract is RFC 8288 §§2.1.1, 3, and 3.3:
+the raw transport parses the complete header and every link-value before
+deciding whether `next` exists; link-values and parameters are scanned without
+splitting commas inside URI references or quoted strings; token and
+quoted-string parameter values are both accepted; parameter names and
+registered relation names are compared case-insensitively; quoted values are
+unescaped before relation grammar validation; and relation tokens are counted
+exactly, not by substring. A valid `rel` value is one or more registered
+relation types separated by one or more literal SP characters, with no leading
+or trailing separator and no HTAB substitution. Empty, whitespace-only,
+malformed, or otherwise invalid relation metadata fails closed. The first
+`rel` parameter in a link-value supplies the application relation list and
+later duplicate `rel` parameters are ignored for interpretation as RFC 8288
+specifies; this application nevertheless validates their syntax and relation
+grammar so malformed present metadata cannot establish completeness. Phase F
+selects the registered-only extension policy: an extension relation URI is
+unsupported and rejected, and can never impersonate registered `next`. After
+complete validation, zero effective `next` tokens is terminal-valid, one is a
+continuation candidate, and more than one is rejected across the whole header.
+
+The raw GitHub transport self-test covers lowercase, uppercase, and mixed-case
+registered relations; token and quoted forms; case-insensitive `REL`; mixed
+relation lists and multiple SP; comma-bearing quoted parameters; empty,
+whitespace, leading/trailing-SP, HTAB, duplicate-next, malformed-token,
+unsupported-extension, missing-`rel`, malformed-duplicate-`rel`, and malformed
+link-value negatives; first-duplicate-`rel` semantics; and duplicate `next`
+occurrences across separate link-values. These cases all traverse
+`RawGitHubApiFixtureTransport → GitHubApiTransport → Link parser → relation
+parser → next-cardinality decision → existing continuation validator`.
+
 The `actor` object is validated only to its documented safe wire shape: its
 `id` is an integer and its `type` is a string, without requiring a positive ID
 or nonempty type because actor identity is not used in the immutable
