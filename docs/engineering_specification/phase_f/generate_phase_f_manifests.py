@@ -1219,6 +1219,12 @@ class GitHubProtectionTransport(Protocol):
 
     def get_ref(self, identity: dict[str, Any], ref: str) -> dict[str, Any]: ...
 
+    def get_commit(self, identity: dict[str, Any], sha: str) -> dict[str, Any]: ...
+
+    def compare_commits(
+        self, identity: dict[str, Any], base_sha: str, head_sha: str
+    ) -> dict[str, Any]: ...
+
     def git_fetch_url(self, identity: dict[str, Any]) -> str: ...
 
 
@@ -1252,7 +1258,7 @@ class GitHubApiTransport:
         )
         try:
             with urlopen(request, timeout=self._timeout_seconds) as response:
-                decoded = json.loads(response.read().decode("utf-8"))
+                decoded = _parse_json_without_duplicates(response.read())
                 headers = getattr(response, "headers", None)
                 if headers is None or "Link" not in headers:
                     link_header = None
@@ -1270,7 +1276,7 @@ class GitHubApiTransport:
             if error.code == 404:
                 raise G3ValidationError("github_protection_resource_missing") from error
             raise G3ValidationError("github_protection_api_unavailable") from error
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        except (OSError, UnicodeDecodeError, ValueError) as error:
             raise G3ValidationError("github_protection_api_unavailable") from error
         if not isinstance(decoded, (dict, list)):
             raise G3ValidationError("github_protection_malformed_response")
@@ -1351,6 +1357,20 @@ class GitHubApiTransport:
         if not isinstance(payload, dict):
             raise G3ValidationError("github_protection_malformed_response")
         payload["repository_full_name"] = identity["repository_full_name"]
+        return payload
+
+    def get_commit(self, identity: dict[str, Any], sha: str) -> dict[str, Any]:
+        path = _canonical_publication_api_path(identity, sha)
+        payload = self._get_json(f"{path}/git/commits/{sha}")
+        return _validate_canonical_commit(payload, sha)
+
+    def compare_commits(
+        self, identity: dict[str, Any], base_sha: str, head_sha: str
+    ) -> dict[str, Any]:
+        path = _canonical_publication_api_path(identity, base_sha, head_sha)
+        payload = self._get_json(f"{path}/compare/{base_sha}...{head_sha}")
+        if not isinstance(payload, dict):
+            raise G3ValidationError("historical_compare_malformed")
         return payload
 
     def git_fetch_url(self, identity: dict[str, Any]) -> str:
@@ -3091,10 +3111,17 @@ def _external_monotonic_head_contract(graph: dict[str, Any]) -> dict[str, Any]:
 
 
 def _external_trust_dependency_audit(
-    graph: dict[str, Any]
+    graph: dict[str, Any],
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
 ) -> list[str] | None:
     derived_nodes, derived_edges, derived_roots = _external_dependency_projection()
     contract = graph.get("external_trust_dependency_contract")
+    if resolution_purpose == ResolutionPurpose.HISTORICAL_VALIDATION:
+        historical_contract = _historical_external_dependency_contract()
+        if contract == historical_contract:
+            derived_nodes = historical_contract["nodes"]
+            derived_edges = historical_contract["edges"]
+            derived_roots = historical_contract["terminal_roots"]
     if not isinstance(contract, dict) or set(contract) != {
         "nodes",
         "edges",
@@ -3200,7 +3227,8 @@ def _external_trust_dependency_audit(
 
 
 def _semantic_graph_audits(
-    graph: dict[str, Any], nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]], order: list[str]
+    graph: dict[str, Any], nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]], order: list[str],
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
 ) -> list[dict[str, Any]]:
     audits: list[dict[str, Any]] = []
     identity_cycle = _find_identity_cycle(graph, nodes)
@@ -3279,7 +3307,7 @@ def _semantic_graph_audits(
     implementation_closure = closure(implementation)
     implementation_path = [] if g3 in implementation_closure else [implementation, g3]
     audits.append(_audit_record("implementation_bypass", not implementation_path, len(nodes), len(edges), implementation_path))
-    external_path = _external_trust_dependency_audit(graph)
+    external_path = _external_trust_dependency_audit(graph, resolution_purpose)
     audits.append(
         _audit_record(
             "external_trust_dependency_cycle",
@@ -3292,7 +3320,35 @@ def _semantic_graph_audits(
     return audits
 
 
-def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
+def _historical_external_dependency_contract() -> dict[str, Any]:
+    """Recognize the earlier R12 catalog without executing its obsolete resolver.
+
+    Historical structural audits use this exact earlier contract. They do not
+    rewrite the graph or execute its obsolete resolver. Production publication
+    always uses the current canonical GitHub resolver.
+    """
+    nodes, edges, roots = _external_dependency_projection()
+    legacy_nodes = deepcopy(nodes)
+    publication = next(node for node in legacy_nodes if node["id"] == "published_normative_target")
+    identity = next(node for node in legacy_nodes if node["id"] == "canonical_github_repository_identity")
+    publication.update(stage=-6, discovery="repository_commit",
+                       discovery_fields={"target_ref": "resolver_target_ref"},
+                       resolver_hook="resolve_target_commit")
+    identity["stage"] = -5
+    legacy_nodes.sort(key=lambda node: node["stage"])
+    legacy_edges = deepcopy(edges)
+    for edge in legacy_edges:
+        if edge == {"from": "canonical_github_repository_identity", "to": "published_normative_target"}:
+            edge.update({"from": "published_normative_target", "to": "canonical_github_repository_identity"})
+    legacy = {"nodes": legacy_nodes, "edges": legacy_edges,
+              "terminal_roots": ["published_normative_target"]}
+    return legacy
+
+
+def validate_r12_authority_graph(
+    graph: dict[str, Any],
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
+) -> dict[str, Any]:
     if graph.get("schema_version") != 1:
         raise ValueError("R12 graph schema version mismatch")
     if graph.get("edge_direction") != "from_existing_prerequisite_to_constructed_dependent":
@@ -3441,7 +3497,7 @@ def validate_r12_authority_graph(graph: dict[str, Any]) -> dict[str, Any]:
     if implementation_node not in implementation_closure or not required_inputs["implementation_readiness_specification"] == [g3_node]:
         raise ValueError("R12 implementation gate remains reachable without G3")
 
-    audits = _semantic_graph_audits(graph, nodes, edges, order)
+    audits = _semantic_graph_audits(graph, nodes, edges, order, resolution_purpose)
     failed_audit = next((audit for audit in audits if not audit["passed"]), None)
     if failed_audit:
         raise ValueError(
@@ -3598,7 +3654,7 @@ def _fixture_ed25519_sign(seed: bytes, message: bytes) -> str:
 
 def git_blob(path: Path) -> str:
     return subprocess.check_output(
-        ["git", "hash-object", str(path)], cwd=ROOT, text=True
+        ["git", "--no-replace-objects", "hash-object", str(path)], cwd=ROOT, text=True
     ).strip()
 
 
@@ -4054,7 +4110,13 @@ def validate_historical_review_artifact(
         raise G3ValidationError(
             context.publication_error_category or "historical_publication_proof_unavailable"
         )
-    if binding.purpose != ResolutionPurpose.HISTORICAL_VALIDATION:
+    if (
+        binding.purpose != ResolutionPurpose.HISTORICAL_VALIDATION
+        or binding.selected_target_sha != context.expected_target_commit
+        or binding.repository_id != CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_id"]
+        or binding.repository_full_name != CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_full_name"]
+        or binding.publication_ref != CANONICAL_PUBLICATION_REF
+    ):
         raise G3ValidationError("historical_validation_purpose_required")
     reviewer_id = row.get("reviewer_authority_id")
     artifact_id = row.get("review_artifact_id")
@@ -4078,11 +4140,12 @@ def validate_historical_review_artifact(
     _validate_reviewer_actor_binding(
         context, reviewer, row["role"], require_current_authorization=False
     )
+    currently_authorized = _current_reviewer_actor_is_authorized(context, reviewer)
+    if context.publication_transport is None or _read_canonical_publication_head(context.publication_transport) != binding.published_sha:
+        raise G3ValidationError("publication_head_changed_during_resolution")
     return {
         "historical_cryptographic_validity": True,
-        "currently_authorized": _current_reviewer_actor_is_authorized(
-            context, reviewer
-        ),
+        "currently_authorized": currently_authorized,
     }
 
 
@@ -6628,7 +6691,7 @@ def make_synthetic_context() -> G3AuthorityContext:
 
 def _git_output(repository: Path, arguments: list[str]) -> bytes:
     return subprocess.check_output(
-        ["git", *arguments], cwd=repository, stderr=subprocess.DEVNULL
+        ["git", "--no-replace-objects", *arguments], cwd=repository, stderr=subprocess.DEVNULL
     )
 
 
@@ -6682,7 +6745,7 @@ def _publication_is_ancestor(
 ) -> None:
     try:
         subprocess.run(
-            ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+            ["git", "--no-replace-objects", "merge-base", "--is-ancestor", ancestor, descendant],
             cwd=repository,
             check=True,
             stdout=subprocess.DEVNULL,
@@ -6697,7 +6760,7 @@ def read_live_remote_main_sha(repository: Path, remote: str = "origin") -> str:
 
     try:
         output = subprocess.check_output(
-            ["git", "ls-remote", "--heads", remote, "refs/heads/main"],
+            ["git", "--no-replace-objects", "ls-remote", "--heads", remote, "refs/heads/main"],
             cwd=repository,
             stderr=subprocess.PIPE,
         ).decode("ascii")
@@ -6764,6 +6827,7 @@ def publish_reviewed_sha_with_lease(
         subprocess.run(
             [
                 "git",
+                "--no-replace-objects",
                 "push",
                 "--atomic",
                 f"--force-with-lease=refs/heads/main:{expected_old_sha}",
@@ -7172,7 +7236,7 @@ def _read_external_monotonic_head_commit(
         raise G3ValidationError("external_monotonic_head_tree_mismatch") from error
     try:
         blob_sha = subprocess.check_output(
-            ["git", "hash-object", "--stdin"],
+            ["git", "--no-replace-objects", "hash-object", "--stdin"],
             cwd=repository,
             input=raw,
             stderr=subprocess.PIPE,
@@ -7258,7 +7322,7 @@ def _read_live_external_monotonic_head(
         if not isinstance(fetch_url, str) or not fetch_url:
             raise G3ValidationError("external_monotonic_head_transport_unavailable")
         subprocess.run(
-            ["git", "fetch", "--quiet", fetch_url, contract["ref"]],
+            ["git", "--no-replace-objects", "fetch", "--quiet", fetch_url, contract["ref"]],
             cwd=repository,
             check=True,
             stdout=subprocess.PIPE,
@@ -7331,7 +7395,7 @@ def _read_canonical_publication_head(
         if error.category.startswith("publication_"):
             raise
         raise G3ValidationError("publication_api_unavailable") from error
-    except (KeyError, TypeError, OSError, subprocess.CalledProcessError) as error:
+    except (AttributeError, KeyError, TypeError, OSError, subprocess.CalledProcessError) as error:
         raise G3ValidationError("publication_api_unavailable") from error
 
 
@@ -7339,9 +7403,29 @@ def _resolve_publication_dependency(
     repository: Path,
     graph: dict[str, Any],
     transport: GitHubProtectionTransport,
-) -> str:
-    del repository, graph
-    return _read_canonical_publication_head(transport)
+    target_commit: str | None = None,
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
+) -> str | PublicationBinding:
+    del graph
+    published_sha = _read_canonical_publication_head(transport)
+    if target_commit is None:
+        return published_sha
+    _canonical_publication_api_path(CANONICAL_GITHUB_REPOSITORY_IDENTITY, target_commit)
+    if resolution_purpose == ResolutionPurpose.CURRENT_AUTHORIZATION:
+        if published_sha != target_commit:
+            raise G3ValidationError("publication_target_mismatch")
+    elif resolution_purpose == ResolutionPurpose.HISTORICAL_VALIDATION:
+        _verify_historical_publication_lineage(repository, transport, target_commit, published_sha)
+    else:
+        raise G3ValidationError("invalid_resolution_purpose")
+    return PublicationBinding(
+        repository_id=CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_id"],
+        repository_full_name=CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_full_name"],
+        publication_ref=CANONICAL_PUBLICATION_REF,
+        published_sha=published_sha,
+        selected_target_sha=target_commit,
+        purpose=resolution_purpose,
+    )
 
 
 def _resolve_ruleset_protection_dependency(
@@ -7390,7 +7474,25 @@ def resolve_external_dependency(
     repository: Path,
     graph: dict[str, Any],
     dependency_id: str,
+    *,
+    target_commit: str | None = None,
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
+) -> Any:
+    """Production dispatch; callers cannot supply GitHub comparison evidence."""
+    return _resolve_external_dependency_with_transport(
+        repository, graph, dependency_id, GitHubApiTransport(),
+        target_commit=target_commit, resolution_purpose=resolution_purpose,
+    )
+
+
+def _resolve_external_dependency_with_transport(
+    repository: Path,
+    graph: dict[str, Any],
+    dependency_id: str,
     github_api_transport: GitHubProtectionTransport | None = None,
+    *,
+    target_commit: str | None = None,
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
 ) -> Any:
     """Resolve one registered dependency through its typed production hook."""
 
@@ -7403,6 +7505,10 @@ def resolve_external_dependency(
         if github_api_transport is None
         else github_api_transport
     )
+    if target_commit is not None:
+        if dependency_id != "published_normative_target" or dispatch[1] is not _resolve_publication_dependency:
+            raise G3ValidationError("external_dependency_dispatch_contract_mismatch")
+        return dispatch[1](repository, graph, transport, target_commit, resolution_purpose)
     return dispatch[1](repository, graph, transport)
 
 
@@ -7413,7 +7519,7 @@ def read_live_external_monotonic_head(
 ) -> tuple[dict[str, Any], str]:
     """Resolve the live head through the registry-owned GitHub dispatch hook."""
 
-    return resolve_external_dependency(
+    return _resolve_external_dependency_with_transport(
         repository,
         graph,
         "reviewer_bootstrap_external_monotonic_head",
@@ -7447,18 +7553,18 @@ def create_external_monotonic_head_commit(
     _validate_external_monotonic_head_object(record, "0" * 40, parents, graph)
     try:
         blob_sha = subprocess.check_output(
-            ["git", "hash-object", "-w", "--stdin"],
+            ["git", "--no-replace-objects", "hash-object", "-w", "--stdin"],
             cwd=repository,
             input=raw,
             stderr=subprocess.PIPE,
         ).decode("ascii").strip()
         tree_sha = subprocess.check_output(
-            ["git", "mktree"],
+            ["git", "--no-replace-objects", "mktree"],
             cwd=repository,
             input=f"100644 blob {blob_sha}\t{contract['wire_path']}\n".encode("ascii"),
             stderr=subprocess.PIPE,
         ).decode("ascii").strip()
-        arguments = ["git", "commit-tree", tree_sha]
+        arguments = ["git", "--no-replace-objects", "commit-tree", tree_sha]
         for parent in parents:
             arguments.extend(["-p", parent])
         return subprocess.check_output(
@@ -7501,6 +7607,7 @@ def publish_external_monotonic_head_with_cas(
         subprocess.run(
             [
                 "git",
+                "--no-replace-objects",
                 "push",
                 "--atomic",
                 contract["transport"]["remote_name"],
@@ -7755,7 +7862,7 @@ def _load_real_reviewer_bootstrap_trust(
         "reviewer_actor_attestation",
     ):
         _require_external_dependency(dependency_id)
-    external_head, external_commit = resolve_external_dependency(
+    external_head, external_commit = _resolve_external_dependency_with_transport(
         repository,
         graph,
         "reviewer_bootstrap_external_monotonic_head",
@@ -8454,50 +8561,72 @@ def _resolve_real_review_references(
     )
 
 
+def _canonical_publication_api_path(identity: dict[str, Any], *shas: str) -> str:
+    if identity != CANONICAL_GITHUB_REPOSITORY_IDENTITY:
+        raise G3ValidationError("publication_repository_identity_mismatch")
+    if any(not isinstance(sha, str) or re.fullmatch(r"[0-9a-f]{40}", sha) is None for sha in shas):
+        raise G3ValidationError("publication_invalid_commit_sha")
+    return "/repos/" + CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_full_name"]
+
+
+def _validate_canonical_commit(payload: Any, sha: str) -> dict[str, Any]:
+    if (
+        not isinstance(payload, dict)
+        or payload.get("sha") != sha
+        or not isinstance(payload.get("tree"), dict)
+        or not isinstance(payload["tree"].get("sha"), str)
+        or re.fullmatch(r"[0-9a-f]{40}", payload["tree"]["sha"]) is None
+        or not isinstance(payload.get("parents"), list)
+        or any(not isinstance(parent, dict) or not isinstance(parent.get("sha"), str)
+               or re.fullmatch(r"[0-9a-f]{40}", parent["sha"]) is None
+               for parent in payload["parents"])
+    ):
+        raise G3ValidationError("historical_commit_malformed")
+    return payload
+
+
 def _verify_historical_publication_lineage(
     repository: Path,
     transport: GitHubProtectionTransport,
     target_commit: str,
     published_sha: str,
 ) -> None:
-    """Prove an old target belongs to canonical main's fetched Git lineage."""
-
+    """Canonical GitHub existence and comparison; local parentage has no authority."""
+    del repository
+    identity = CANONICAL_GITHUB_REPOSITORY_IDENTITY
+    _canonical_publication_api_path(identity, target_commit, published_sha)
     try:
-        fetch_url = transport.git_fetch_url(CANONICAL_GITHUB_REPOSITORY_IDENTITY)
-        if not isinstance(fetch_url, str) or not fetch_url:
-            raise G3ValidationError("publication_transport_unavailable")
-        subprocess.run(
-            [
-                "git",
-                "fetch",
-                "--quiet",
-                "--no-tags",
-                fetch_url,
-                CANONICAL_PUBLICATION_REF,
-            ],
-            cwd=repository,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        fetched_sha = _git_output(repository, ["rev-parse", "FETCH_HEAD"]).decode().strip()
-        if fetched_sha != published_sha:
-            raise G3ValidationError("publication_head_changed_during_resolution")
-        ancestry = subprocess.run(
-            ["git", "merge-base", "--is-ancestor", target_commit, published_sha],
-            cwd=repository,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        if ancestry.returncode == 1:
+        _validate_canonical_commit(transport.get_commit(identity, target_commit), target_commit)
+        comparison = transport.compare_commits(identity, target_commit, published_sha)
+        if not isinstance(comparison, dict):
+            raise G3ValidationError("historical_compare_malformed")
+        for key in ("base_commit", "merge_base_commit"):
+            value = comparison.get(key)
+            if (not isinstance(value, dict) or not isinstance(value.get("sha"), str)
+                    or re.fullmatch(r"[0-9a-f]{40}", value["sha"]) is None):
+                raise G3ValidationError("historical_compare_malformed")
+        for key in ("ahead_by", "behind_by", "total_commits"):
+            if type(comparison.get(key)) is not int or comparison[key] < 0:
+                raise G3ValidationError("historical_compare_malformed")
+        if comparison.get("status") not in {"identical", "ahead", "behind", "diverged"}:
+            raise G3ValidationError("historical_compare_malformed")
+        identical = target_commit == published_sha
+        if (
+            comparison["base_commit"]["sha"] != target_commit
+            or comparison["merge_base_commit"]["sha"] != target_commit
+            or comparison["behind_by"] != 0
+            or comparison["total_commits"] != comparison["ahead_by"]
+            or (identical and (comparison["status"] != "identical" or comparison["ahead_by"] != 0))
+            or (not identical and (comparison["status"] != "ahead" or comparison["ahead_by"] <= 0))
+        ):
             raise G3ValidationError("historical_target_not_published")
-        if ancestry.returncode != 0:
-            raise G3ValidationError("historical_publication_proof_unavailable")
         if _read_canonical_publication_head(transport) != published_sha:
             raise G3ValidationError("publication_head_changed_during_resolution")
-    except G3ValidationError:
+    except G3ValidationError as error:
+        if error.category == "github_protection_resource_missing":
+            raise G3ValidationError("historical_target_not_published") from error
         raise
-    except (OSError, UnicodeDecodeError, subprocess.CalledProcessError) as error:
+    except (AttributeError, KeyError, TypeError, OSError) as error:
         raise G3ValidationError("historical_publication_proof_unavailable") from error
 
 
@@ -8546,31 +8675,12 @@ def _resolve_real_authority(
     publication_binding: PublicationBinding | None = None
     publication_error_category: str | None = None
     try:
-        published_sha = resolve_external_dependency(
-            repository,
-            graph,
-            "published_normative_target",
-            transport,
+        publication_binding = _resolve_external_dependency_with_transport(
+            repository, graph, "published_normative_target", transport,
+            target_commit=target_commit, resolution_purpose=resolution_purpose,
         )
-        if resolution_purpose == ResolutionPurpose.CURRENT_AUTHORIZATION:
-            if published_sha != target_commit:
-                raise G3ValidationError("publication_target_mismatch")
-        elif resolution_purpose == ResolutionPurpose.HISTORICAL_VALIDATION:
-            _verify_historical_publication_lineage(
-                repository, transport, target_commit, published_sha
-            )
-        else:
-            raise G3ValidationError("invalid_resolution_purpose")
-        publication_binding = PublicationBinding(
-            repository_id=CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_id"],
-            repository_full_name=CANONICAL_GITHUB_REPOSITORY_IDENTITY[
-                "repository_full_name"
-            ],
-            publication_ref=CANONICAL_PUBLICATION_REF,
-            published_sha=published_sha,
-            selected_target_sha=target_commit,
-            purpose=resolution_purpose,
-        )
+        if not isinstance(publication_binding, PublicationBinding):
+            raise G3ValidationError("publication_binding_mismatch")
         resolution["resolved_node_ids"].append("published_normative_target")
     except (G3ValidationError, ValueError) as error:
         publication_error_category = (
@@ -8708,7 +8818,7 @@ def _make_repository_context_with_transport(
     graph = _parse_json_without_duplicates(graph_bytes)
     if not isinstance(graph, dict):
         raise G3ValidationError("authority_graph_bytes_malformed")
-    validate_r12_authority_graph(graph)
+    validate_r12_authority_graph(graph, resolution_purpose)
     publication_transport = (
         GitHubApiTransport()
         if github_api_transport is None
@@ -8797,6 +8907,100 @@ def _make_repository_context_with_transport(
     )
 
 
+def _validate_historical_normative_context(
+    repository: Path, context: G3AuthorityContext
+) -> dict[str, bool]:
+    """Validate published normative bytes, including an unprovisioned draft bundle."""
+    binding = context.publication_binding
+    if context.resolution_purpose != ResolutionPurpose.HISTORICAL_VALIDATION:
+        raise G3ValidationError("historical_validation_purpose_required")
+    if binding is None:
+        raise G3ValidationError(context.publication_error_category or "historical_publication_proof_unavailable")
+    if (
+        binding.purpose != ResolutionPurpose.HISTORICAL_VALIDATION
+        or binding.selected_target_sha != context.expected_target_commit
+        or binding.repository_id != CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_id"]
+        or binding.repository_full_name != CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_full_name"]
+        or binding.publication_ref != CANONICAL_PUBLICATION_REF
+    ):
+        raise G3ValidationError("publication_binding_mismatch")
+    validate_r12_authority_graph(context.graph, ResolutionPurpose.HISTORICAL_VALIDATION)
+    try:
+        def read(path: Path) -> bytes:
+            return _git_output(repository, ["show", f"{context.expected_target_commit}:{path.relative_to(ROOT)}"])
+
+        graph_raw = read(AUTHORITY_GRAPH_PATH)
+        if graph_raw != context.authority_graph_bytes or sha256_bytes(graph_raw) != context.authority_graph_sha256:
+            raise G3ValidationError("authority_graph_identity_mismatch")
+        bundle = _parse_json_without_duplicates(read(BUNDLE_PATH))
+        trace = _parse_json_without_duplicates(read(TRACE_PATH))
+        if (not isinstance(bundle, dict) or bundle.get("schema_version") != 1
+                or bundle.get("artifact_kind") != "phase_f_specification_bundle_manifest_candidate"
+                or bundle.get("status") != "DRAFT_NO_AUTHORITY" or bundle.get("eligible_for_g3") is not False
+                or not isinstance(trace, dict) or trace.get("schema_version") != 1
+                or trace.get("artifact_kind") != "phase_f_derived_traceability_manifest"
+                or trace.get("semantic_authority") is not False):
+            raise G3ValidationError("historical_normative_bundle_malformed")
+        inputs = bundle["bundle_inputs"]
+        payload = {key: value for key, value in inputs.items() if key != "sha256"}
+        if inputs["sha256"] != sha256_bytes(canonical_json_bytes(payload)):
+            raise G3ValidationError("historical_normative_bundle_hash_mismatch")
+        paths = {"architecture_plan": ARCH, "wire_specification": SPECS["F-WIRE"],
+                 "scientific_specification": SPECS["F-SCI"], "operations_specification": SPECS["F-OPS"],
+                 "conformance_specification": SPECS["F-CNF"], "implementation_readiness_specification": SPECS["F-IMPL"],
+                 "migration_ledger": MIGRATION_LEDGER, "normative_traceability_matrix": NORMATIVE_MATRIX_PATH,
+                 "authority_graph": AUTHORITY_GRAPH_PATH, "generated_traceability_manifest": TRACE_PATH}
+        expected = {key: sha256_bytes(read(path)) for key, path in paths.items()}
+        if (inputs["source_sha256s"] != expected
+                or inputs["authority_graph_sha256"] != context.authority_graph_sha256
+                or bundle["target_revision"] != {"type": "source_input_fingerprint", "sha256": inputs["sha256"]}):
+            raise G3ValidationError("historical_normative_source_binding_mismatch")
+        for field, path in {"architecture_plan": ARCH, "traceability_manifest": TRACE_PATH,
+                            "migration_ledger": MIGRATION_LEDGER, "normative_traceability_matrix": NORMATIVE_MATRIX_PATH,
+                            "authority_graph": AUTHORITY_GRAPH_PATH}.items():
+            if bundle[field]["path"] != str(path.relative_to(ROOT)) or bundle[field]["sha256"] != sha256_bytes(read(path)):
+                raise G3ValidationError("historical_normative_source_binding_mismatch")
+        components = bundle["component_specifications"]
+        if (not isinstance(components, list) or len(components) != len(SPECS)
+                or {row["path"]: row["sha256"] for row in components}
+                != {str(path.relative_to(ROOT)): sha256_bytes(read(path)) for path in SPECS.values()}):
+            raise G3ValidationError("historical_normative_source_binding_mismatch")
+        if (trace["authority_graph"]["sha256"] != context.authority_graph_sha256
+                or trace["normative_matrix"]["sha256"] != expected["normative_traceability_matrix"]):
+            raise G3ValidationError("authority_graph_binding_mismatch")
+        expected_generated = {
+            edge["from"]: sha256_bytes(read(ROOT / context.graph["node_identity_rules"][edge["from"]]["path"]))
+            for edge in _graph_edges_for(context.graph, "generated_traceability_manifest", "generated_from")
+        }
+        if trace["generated_source_sha256s"] != expected_generated:
+            raise G3ValidationError("historical_normative_source_binding_mismatch")
+        expected_bindings = {}
+        for edge in _graph_edges_for(context.graph, "specification_bundle_inputs", "binds"):
+            source = edge["from"]
+            rule = context.graph["node_identity_rules"][source]
+            source_hash = sha256_bytes(read(ROOT / rule["path"])) if rule["type"] == "repository_file_sha256" else None
+            expected_bindings[source] = {"authority_id": None, "sha256": source_hash, "target": None}
+        if inputs["authority_bindings"] != expected_bindings:
+            raise G3ValidationError("historical_normative_authority_binding_mismatch")
+    except G3ValidationError:
+        raise
+    except (ValueError, KeyError, TypeError, AttributeError, subprocess.CalledProcessError) as error:
+        raise G3ValidationError("historical_normative_bundle_malformed") from error
+    if context.publication_transport is None or _read_canonical_publication_head(context.publication_transport) != binding.published_sha:
+        raise G3ValidationError("publication_head_changed_during_resolution")
+    return {"historical_publication_valid": True, "historical_normative_structure_valid": True,
+            "current_operational_authority": False}
+
+
+def validate_historical_normative_target(
+    repository: Path | None = None, target_ref: str = "HEAD"
+) -> dict[str, bool]:
+    repository = ROOT if repository is None else Path(repository).resolve()
+    context = make_repository_context(repository, target_ref,
+                                      resolution_purpose=ResolutionPurpose.HISTORICAL_VALIDATION)
+    return _validate_historical_normative_context(repository, context)
+
+
 def make_repository_context(
     repository: Path | None = None,
     target_ref: str = "HEAD",
@@ -8816,7 +9020,7 @@ def make_repository_context(
 
 def _fixture_git(repository: Path, arguments: list[str], input_bytes: bytes | None = None) -> bytes:
     return subprocess.check_output(
-        ["git", *arguments], cwd=repository, input=input_bytes, stderr=subprocess.PIPE
+        ["git", "--no-replace-objects", *arguments], cwd=repository, input=input_bytes, stderr=subprocess.PIPE
     )
 
 
@@ -9145,7 +9349,7 @@ class FixtureGitHubProtectionTransport:
         self._check()
         try:
             sha = subprocess.check_output(
-                ["git", "rev-parse", f"--verify", ref],
+                ["git", "--no-replace-objects", "rev-parse", f"--verify", ref],
                 cwd=self.remote,
                 stderr=subprocess.PIPE,
             ).decode("ascii").strip()
@@ -9156,6 +9360,33 @@ class FixtureGitHubProtectionTransport:
             "ref": ref,
             "object": {"sha": sha, "type": "commit"},
         }
+
+    def get_commit(self, identity: dict[str, Any], sha: str) -> dict[str, Any]:
+        self._check()
+        _canonical_publication_api_path(identity, sha)
+        try:
+            tree = _git_output(self.remote, ["rev-parse", f"{sha}^{{tree}}"]).decode().strip()
+            parents = _git_output(self.remote, ["show", "-s", "--format=%P", sha]).decode().split()
+        except subprocess.CalledProcessError as error:
+            raise G3ValidationError("github_protection_resource_missing") from error
+        return {"sha": sha, "tree": {"sha": tree}, "parents": [{"sha": parent} for parent in parents]}
+
+    def compare_commits(
+        self, identity: dict[str, Any], base_sha: str, head_sha: str
+    ) -> dict[str, Any]:
+        # TEST_ONLY server emulator: exclusively inspect the isolated remote,
+        # never the caller's local repository or replacement metadata.
+        self._check()
+        _canonical_publication_api_path(identity, base_sha, head_sha)
+        try:
+            merge = _git_output(self.remote, ["merge-base", base_sha, head_sha]).decode().strip()
+            ahead = int(_git_output(self.remote, ["rev-list", "--count", f"{base_sha}..{head_sha}"]))
+            behind = int(_git_output(self.remote, ["rev-list", "--count", f"{head_sha}..{base_sha}"]))
+        except subprocess.CalledProcessError as error:
+            raise G3ValidationError("github_protection_resource_missing") from error
+        status = "diverged" if ahead and behind else "ahead" if ahead else "behind" if behind else "identical"
+        return {"base_commit": {"sha": base_sha}, "merge_base_commit": {"sha": merge},
+                "status": status, "ahead_by": ahead, "behind_by": behind, "total_commits": ahead}
 
     def git_fetch_url(self, identity: dict[str, Any]) -> str:
         self._check()
@@ -9206,7 +9437,7 @@ class RawGitHubApiFixtureTransport(GitHubApiTransport):
         }
         try:
             sha = subprocess.check_output(
-                ["git", "rev-parse", "--verify", contract["ref"]],
+                ["git", "--no-replace-objects", "rev-parse", "--verify", contract["ref"]],
                 cwd=self.remote,
                 stderr=subprocess.PIPE,
             ).decode("ascii").strip()
@@ -9221,7 +9452,7 @@ class RawGitHubApiFixtureTransport(GitHubApiTransport):
         }
         try:
             publication_sha = subprocess.check_output(
-                ["git", "rev-parse", "--verify", CANONICAL_PUBLICATION_REF],
+                ["git", "--no-replace-objects", "rev-parse", "--verify", CANONICAL_PUBLICATION_REF],
                 cwd=self.remote,
                 stderr=subprocess.PIPE,
             ).decode("ascii").strip()
@@ -10261,7 +10492,7 @@ def run_regression_self_tests() -> None:
         )
         reject_value_error(
             "production external dependency resolution omission",
-            lambda: resolve_external_dependency(
+            lambda: _resolve_external_dependency_with_transport(
                 ROOT, graph, "reviewer_bootstrap_external_monotonic_head"
             ),
         )
@@ -10285,7 +10516,7 @@ def run_regression_self_tests() -> None:
             reject_value_error(label, lambda: validate_r12_authority_graph(graph))
             reject_value_error(
                 label + " dispatch",
-                lambda: resolve_external_dependency(
+                lambda: _resolve_external_dependency_with_transport(
                     ROOT, graph, "reviewer_bootstrap_external_monotonic_head"
                 ),
             )
@@ -10316,7 +10547,7 @@ def run_regression_self_tests() -> None:
         )
         reject_value_error(
             "canonical publication resolver dispatch removed",
-            lambda: resolve_external_dependency(
+            lambda: _resolve_external_dependency_with_transport(
                 ROOT, graph, "published_normative_target"
             ),
         )
@@ -10348,7 +10579,7 @@ def run_regression_self_tests() -> None:
     try:
         reject_value_error(
             "canonical publication production dispatch removed",
-            lambda: resolve_external_dependency(
+            lambda: _resolve_external_dependency_with_transport(
                 ROOT, graph, "published_normative_target"
             ),
         )

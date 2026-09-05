@@ -109,13 +109,63 @@ canonical main once at resolution start and again immediately before current
 operational `GO`; the two heads and selected target must all be equal. A head
 change during resolution fails closed.
 
-`HISTORICAL_VALIDATION` is a separate non-authorizing purpose. It may validate
-an old target only when that exact commit is in the ancestry of a canonical
-main head fetched from the canonical repository transport. This permits a
-published `A` to remain historically verifiable after main advances `A -> B`,
-but never makes `A` current, returns operational `GO`, advances currentness,
-or establishes G3 eligibility. A historical context is rejected by the
-current-authorization entrypoint.
+`HISTORICAL_VALIDATION` is a separate non-authorizing purpose. Historical
+publication validity is established only through canonical GitHub commit
+existence plus canonical-main ancestry/equality. Local Git ancestry is
+non-authoritative. The same registry-owned `published_normative_target`
+resolver constructs the fixed repository API paths internally, using exact
+40-hex target and main SHAs. It reads `/git/commits/{target}` and requires the
+exact returned target SHA and a well-formed commit object. It then reads
+`/compare/{target}...{main_start}` and requires both `base_commit.sha` and
+`merge_base_commit.sha` to equal the target, `behind_by=0`, and canonical
+nonnegative integer counts. Equality requires `status=identical` and zero
+counts; a strict ancestor requires `status=ahead`, positive `ahead_by`, and
+`total_commits=ahead_by`. Missing, malformed, contradictory, diverged, and
+other-branch-only evidence fails closed. Commit existence alone is insufficient.
+
+The resolver re-reads authenticated canonical main after comparison, and
+historical validators re-read it immediately before returning validity. A
+changed head fails closed without retry. The binding retains
+`purpose=HISTORICAL_VALIDATION`; it cannot authorize current G3 even if a caller
+changes the context purpose. Current authorization requires a fresh exact-main
+proof. REAL entrypoints select `GitHubApiTransport`; response fixtures are
+available only through private test entrypoints.
+
+`refs/replace/*`, grafts (including `.git/info/grafts`), local refs,
+remote-tracking refs, alternate object stores, `origin/main`, remote URLs, and
+SSH aliases cannot establish historical publication. Remaining local Git
+support reads disable replacement-object semantics. No local fetch, commit
+parent, or ancestry command participates in the historical publication proof.
+
+Historical graph validation recognizes the exact earlier R12 external catalog
+as a historical representation, without executing its obsolete local-commit
+resolver or changing the original graph bytes/hash. All other graph structural
+checks still apply. Historical validation does not retroactively require later
+provisioning state: a target's valid `UNPROVISIONED` binding remains meaningful.
+`validate_historical_normative_target` validates the committed graph and draft
+normative bundle, source hashes, and component bindings under that contract;
+it reports current operational authority as false. Issued review artifacts
+continue to require their historical signature, reviewer, root, and issuance
+proof checks. Neither path advances currentness or the accepted-head checkpoint.
+
+This permits published `A` to remain historically verifiable after main
+advances `A -> B`, but never makes `A` current, returns operational `GO`, or
+establishes G3 eligibility. The current graph catalog and current authority
+lifecycle requirements remain strict.
+
+Historical-publication traceability (part of `F-OPS-008`):
+
+| Requirement | Production implementation | Production-path regression | Evidence |
+| --- | --- | --- | --- |
+| AC-HIST-007–030, 041–046 | `_resolve_publication_dependency`, `GitHubApiTransport.get_commit/compare_commits`, `_verify_historical_publication_lineage` | `tests/phase_f_historical_publication.py`: H1–H13, resolver/transport omissions | Canonical raw-response acceptance/rejection and local-manipulation invariance |
+| AC-HIST-031–037 | `_historical_external_dependency_contract`, `validate_historical_normative_target`, `validate_historical_review_artifact` | H14–H16 and malformed graph/bundle cases | Published e5deb189 and 76561751 target-relative bundle checks; current authority false |
+| AC-HIST-038–042, 053 | `validate_g3_tag`, purpose-bound `PublicationBinding` | H17–H18 and existing generator `--self-test` publication matrix | Exact-main current positive; unpublished/current and mode escalation reject |
+
+The external graph remains 22 nodes and 27 edges: commit lookup, comparison,
+and main re-read are mandatory operations within the existing atomic
+publication resolver, with the same canonical repository prerequisite. They
+are not independently selectable authority nodes. Removing either transport
+operation or substituting a local resolver fails the publication gate.
 
 After Stage E, advance only by publishing one canonical successor with exactly
 one Git parent, `sequence + 1`, and predecessor commit/head/hash bindings. The
