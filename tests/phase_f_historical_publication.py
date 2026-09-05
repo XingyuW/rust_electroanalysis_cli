@@ -24,10 +24,15 @@ class CanonicalResponses(m.GitHubApiTransport):
         self.calls = []
         self.end_head = head
         self.reads = 0
-        self.commit = {"sha": target, "tree": {"sha": "b" * 40}, "parents": []}
+        self.commit = {"sha": target, "url": m._canonical_response_url("git/commits", target),
+                       "tree": {"sha": "b" * 40, "url": m._canonical_response_url("git/trees", "b" * 40)}, "parents": []}
         self.comparison = {"base_commit": {"sha": target}, "merge_base_commit": {"sha": target},
                            "status": "identical" if target == head else "ahead", "behind_by": 0,
                            "ahead_by": 0 if target == head else 1, "total_commits": 0 if target == head else 1}
+        self.comparison.update(url=m._canonical_response_url("compare", target, head),
+            base_commit={"sha": target, "url": m._canonical_response_url("commits", target)},
+            merge_base_commit={"sha": target, "url": m._canonical_response_url("commits", target)},
+            commits=[] if target == head else [{"sha": head, "url": m._canonical_response_url("commits", head)}])
         self.identity = {"id": 1273879958, "name": "rust_electroanalysis_cli",
                          "full_name": "XingyuW/rust_electroanalysis_cli", "owner": {"login": "XingyuW"}}
 
@@ -43,6 +48,10 @@ class CanonicalResponses(m.GitHubApiTransport):
             if not self.exists:
                 raise m.G3ValidationError("github_protection_resource_missing")
             return deepcopy(self.commit), None
+        if path == base + "/git/commits/" + self.head:
+            head = deepcopy(self.commit)
+            head.update(sha=self.head, url=m._canonical_response_url("git/commits", self.head))
+            return head, None
         if path == base + "/compare/" + self.target + "..." + self.head:
             return deepcopy(self.comparison), None
         raise AssertionError("Unexpected canonical API path: " + path)

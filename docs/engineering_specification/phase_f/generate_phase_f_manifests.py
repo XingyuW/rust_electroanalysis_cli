@@ -1369,9 +1369,7 @@ class GitHubApiTransport:
     ) -> dict[str, Any]:
         path = _canonical_publication_api_path(identity, base_sha, head_sha)
         payload = self._get_json(f"{path}/compare/{base_sha}...{head_sha}")
-        if not isinstance(payload, dict):
-            raise G3ValidationError("historical_compare_malformed")
-        return payload
+        return _validate_canonical_comparison(payload, base_sha, head_sha)
 
     def git_fetch_url(self, identity: dict[str, Any]) -> str:
         return (
@@ -3349,8 +3347,10 @@ def validate_r12_authority_graph(
     graph: dict[str, Any],
     resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
 ) -> dict[str, Any]:
-    if graph.get("schema_version") != 1:
-        raise ValueError("R12 graph schema version mismatch")
+    if (type(graph.get("schema_version")) is not int or graph.get("schema_version") != 1
+            or graph.get("artifact_kind") != "phase_f_r12_artifact_authority_graph"
+            or graph.get("authority_status") != "NORMATIVE_CANDIDATE"):
+        raise ValueError("R12 graph schema version/kind mismatch")
     if graph.get("edge_direction") != "from_existing_prerequisite_to_constructed_dependent":
         raise ValueError("R12 graph edge direction mismatch")
     semantics = graph.get("edge_type_semantics")
@@ -5365,8 +5365,8 @@ def parse_pipe_row(line: str) -> list[str]:
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
 
 
-def parse_r11_test_catalog() -> dict[str, dict[str, str]]:
-    text = R11_SOURCE.read_text()
+def parse_r11_test_catalog(read: Callable[[Path], bytes] = Path.read_bytes) -> dict[str, dict[str, str]]:
+    text = read(R11_SOURCE).decode("utf-8")
     section = text.split("### 53.10", 1)[1].split("### 53.11", 1)[0]
     catalog: dict[str, dict[str, str]] = {}
     for line in section.splitlines():
@@ -5390,8 +5390,8 @@ def parse_r11_test_catalog() -> dict[str, dict[str, str]]:
     return catalog
 
 
-def parse_r11_evidence_catalog() -> dict[str, dict[str, str]]:
-    text = R11_SOURCE.read_text()
+def parse_r11_evidence_catalog(read: Callable[[Path], bytes] = Path.read_bytes) -> dict[str, dict[str, str]]:
+    text = read(R11_SOURCE).decode("utf-8")
     section = text.split("### 53.11", 1)[1].split("### 53.12", 1)[0]
     catalog: dict[str, dict[str, str]] = {}
     for line in section.splitlines():
@@ -5462,23 +5462,23 @@ def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]
     return catalog
 
 
-def load_reference_catalogs() -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
-    tests = parse_r11_test_catalog()
-    r12_tests = parse_r12_test_catalog()
+def load_reference_catalogs(read: Callable[[Path], bytes] = Path.read_bytes) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
+    tests = parse_r11_test_catalog(read)
+    r12_tests = parse_r12_test_catalog(read(SPECS["F-CNF"]).decode("utf-8"))
     if set(tests).intersection(r12_tests):
         raise ValueError("R11/R12 test catalog ID collision")
     tests.update(r12_tests)
-    evidence = parse_r11_evidence_catalog()
+    evidence = parse_r11_evidence_catalog(read)
     return tests, evidence
 
 
-def load_normative_matrix() -> list[dict[str, Any]]:
+def load_normative_matrix(read: Callable[[Path], bytes] = Path.read_bytes) -> list[dict[str, Any]]:
     try:
-        matrix = json.loads(NORMATIVE_MATRIX_PATH.read_text())
+        matrix = _parse_json_without_duplicates(read(NORMATIVE_MATRIX_PATH))
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError("R12 normative traceability matrix is unreadable") from error
     if (
-        matrix.get("schema_version") != 1
+        type(matrix.get("schema_version")) is not int or matrix.get("schema_version") != 1
         or matrix.get("artifact_kind") != "phase_f_r12_normative_traceability_matrix"
         or matrix.get("authority_status") != "NORMATIVE_CANDIDATE"
     ):
@@ -5837,8 +5837,8 @@ def validate_r11_and_migration() -> None:
         raise ValueError(f"R11 finding migration set mismatch: {findings}")
 
 
-def validate_f0_decisions() -> None:
-    text = ARCH.read_text()
+def validate_f0_decisions(read: Callable[[Path], bytes] = Path.read_bytes) -> None:
+    text = read(ARCH).decode("utf-8")
     section = text.split("## 5. Minimal governance core", 1)[0].split(
         "## 4. F0 owner-decision authority", 1
     )[1]
@@ -5848,8 +5848,8 @@ def validate_f0_decisions() -> None:
         raise ValueError(f"F0 decision set mismatch: {decision_ids}")
 
 
-def parse_architecture() -> list[dict[str, object]]:
-    text = ARCH.read_text()
+def parse_architecture(read: Callable[[Path], bytes] = Path.read_bytes) -> list[dict[str, object]]:
+    text = read(ARCH).decode("utf-8")
     entries: list[dict[str, object]] = []
     for match in re.finditer(
         r'<a id="(f-arch-\d{3})"></a>\n`(F-ARCH-\d{3})`', text
@@ -5874,9 +5874,9 @@ def parse_architecture() -> list[dict[str, object]]:
     return entries
 
 
-def parse_spec(prefix: str, path: Path) -> list[dict[str, object]]:
+def parse_spec(prefix: str, path: Path, read: Callable[[Path], bytes] = Path.read_bytes) -> list[dict[str, object]]:
     entries: list[dict[str, object]] = []
-    for line in path.read_text().splitlines():
+    for line in read(path).decode("utf-8").splitlines():
         if not line.startswith("| <a id="):
             continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
@@ -5905,7 +5905,7 @@ def parse_spec(prefix: str, path: Path) -> list[dict[str, object]]:
     return entries
 
 
-def validate_traceability(entries: list[dict[str, object]]) -> None:
+def validate_traceability(entries: list[dict[str, object]], read: Callable[[Path], bytes] = Path.read_bytes) -> None:
     expected_ids = EXPECTED_ARCHITECTURE_IDS + [
         requirement_id
         for prefix in SPECS
@@ -5927,9 +5927,7 @@ def validate_traceability(entries: list[dict[str, object]]) -> None:
         requirement_id = entry["requirement_id"]
         path = ROOT / str(entry["authority_document"])
         anchor = str(entry["authority_anchor"])[1:]
-        if not path.is_file():
-            raise ValueError(f"missing authority document: {path}")
-        occurrences = path.read_text().count(f'id="{anchor}"')
+        occurrences = read(path).decode("utf-8").count(f'id="{anchor}"')
         if occurrences != 1:
             raise ValueError(
                 f"authority anchor {anchor} in {path} occurs {occurrences} times"
@@ -6010,8 +6008,8 @@ def validate_semantic_traceability(
     return mapping
 
 
-def validate_schema_usage(matrix: list[dict[str, Any]]) -> dict[str, list[str]]:
-    inherited = set(parse_schema_catalog_ids(R11_SOURCE.read_text()))
+def validate_schema_usage(matrix: list[dict[str, Any]], read: Callable[[Path], bytes] = Path.read_bytes) -> dict[str, list[str]]:
+    inherited = set(parse_schema_catalog_ids(read(R11_SOURCE).decode("utf-8")))
     schema_ids = inherited | R12_SCHEMA_IDS
     forward: dict[str, set[str]] = {}
     inverse: dict[str, set[str]] = {schema_id: set() for schema_id in schema_ids}
@@ -6048,14 +6046,14 @@ def load_r12_authority_graph() -> tuple[dict[str, Any], dict[str, Any]]:
     return graph, validate_r12_authority_graph(graph)
 
 
-def load_phase_f_entries() -> tuple[
+def load_phase_f_entries(read: Callable[[Path], bytes] = Path.read_bytes) -> tuple[
     list[dict[str, object]], dict[str, dict[str, str]], dict[str, dict[str, str]]
 ]:
-    matrix = load_normative_matrix()
-    entries = parse_architecture()
+    matrix = load_normative_matrix(read)
+    entries = parse_architecture(read)
     for prefix, path in SPECS.items():
-        entries.extend(parse_spec(prefix, path))
-    test_catalog, evidence_catalog = load_reference_catalogs()
+        entries.extend(parse_spec(prefix, path, read))
+    test_catalog, evidence_catalog = load_reference_catalogs(read)
     matrix_by_id = {row["requirement_id"]: row for row in matrix}
     for entry in entries:
         requirement_id = entry["requirement_id"]
@@ -6075,21 +6073,24 @@ def load_phase_f_entries() -> tuple[
                 "schema_ids": list(row["schema_ids"]),
             }
         )
-    validate_traceability(entries)
+    validate_traceability(entries, read)
     validate_semantic_traceability(entries, matrix, test_catalog, evidence_catalog)
-    validate_schema_usage(matrix)
+    validate_schema_usage(matrix, read)
     validate_reference_catalogs(entries, test_catalog, evidence_catalog)
     return entries, test_catalog, evidence_catalog
 
 
-def build_traceability() -> dict[str, object]:
-    validate_inventory()
-    validate_r11_and_migration()
-    validate_f0_decisions()
-    validate_wire_catalog()
-    validate_kat_spec()
-    graph, graph_audit = load_r12_authority_graph()
-    entries, test_catalog, evidence_catalog = load_phase_f_entries()
+def build_traceability(read: Callable[[Path], bytes] = Path.read_bytes,
+                       purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION) -> dict[str, object]:
+    if purpose == ResolutionPurpose.CURRENT_AUTHORIZATION:
+        validate_inventory()
+        validate_r11_and_migration()
+        validate_wire_catalog()
+        validate_kat_spec()
+    validate_f0_decisions(read)
+    graph = _parse_json_without_duplicates(read(AUTHORITY_GRAPH_PATH))
+    graph_audit = validate_r12_authority_graph(graph, purpose)
+    entries, test_catalog, evidence_catalog = load_phase_f_entries(read)
     by_id = {entry["requirement_id"]: entry for entry in entries}
     for child in entries:
         for parent_id in child["upstream_requirement_ids"]:
@@ -6099,9 +6100,9 @@ def build_traceability() -> dict[str, object]:
     for entry in entries:
         entry["downstream_child_requirements"] = sorted(set(entry["downstream_child_requirements"]))
     generated_source_sha256s = {
-        edge["from"]: sha256(
+        edge["from"]: sha256_bytes(read(
             ROOT / graph["node_identity_rules"][edge["from"]]["path"]
-        )
+        ))
         for edge in _graph_edges_for(graph, "generated_traceability_manifest", "generated_from")
     }
     return {
@@ -6122,21 +6123,26 @@ def build_traceability() -> dict[str, object]:
         },
         "normative_matrix": {
             "path": str(NORMATIVE_MATRIX_PATH.relative_to(ROOT)),
-            "sha256": sha256(NORMATIVE_MATRIX_PATH),
+            "sha256": sha256_bytes(read(NORMATIVE_MATRIX_PATH)),
             "requirement_count": EXPECTED_R12_REQUIREMENT_COUNT,
         },
         "authority_graph": {
             "path": str(AUTHORITY_GRAPH_PATH.relative_to(ROOT)),
-            "sha256": sha256(AUTHORITY_GRAPH_PATH),
+            "sha256": sha256_bytes(read(AUTHORITY_GRAPH_PATH)),
             "audit": graph_audit,
         },
-        "schema_usage": validate_schema_usage(load_normative_matrix()),
+        "schema_usage": validate_schema_usage(load_normative_matrix(read), read),
         "generated_source_sha256s": generated_source_sha256s,
         "requirements": sorted(entries, key=lambda row: row["requirement_id"]),
     }
 
 
-def build_bundle_inputs(trace_sha: str) -> dict[str, object]:
+def _git_blob_bytes(raw: bytes) -> str:
+    return hashlib.sha1(f"blob {len(raw)}\0".encode("ascii") + raw).hexdigest()
+
+
+def build_bundle_inputs(trace_sha: str, read: Callable[[Path], bytes] = Path.read_bytes,
+                       purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION) -> dict[str, object]:
     input_paths = {
         "architecture_plan": ARCH,
         "wire_specification": SPECS["F-WIRE"],
@@ -6149,11 +6155,11 @@ def build_bundle_inputs(trace_sha: str) -> dict[str, object]:
         "authority_graph": AUTHORITY_GRAPH_PATH,
     }
     source_sha256s = {
-        name: sha256(path) for name, path in sorted(input_paths.items())
+        name: sha256_bytes(read(path)) for name, path in sorted(input_paths.items())
     }
     source_sha256s["generated_traceability_manifest"] = trace_sha
-    graph = json.loads(AUTHORITY_GRAPH_PATH.read_text())
-    validate_r12_authority_graph(graph)
+    graph = _parse_json_without_duplicates(read(AUTHORITY_GRAPH_PATH))
+    validate_r12_authority_graph(graph, purpose)
     authority_bindings: dict[str, dict[str, str | None]] = {}
     for edge in _graph_edges_for(graph, "specification_bundle_inputs", "binds"):
         source = edge["from"]
@@ -6161,7 +6167,7 @@ def build_bundle_inputs(trace_sha: str) -> dict[str, object]:
         if rule["type"] == "repository_file_sha256":
             authority_bindings[source] = {
                 "authority_id": None,
-                "sha256": sha256(ROOT / rule["path"]),
+                "sha256": sha256_bytes(read(ROOT / rule["path"])),
                 "target": None,
             }
         else:
@@ -6173,7 +6179,7 @@ def build_bundle_inputs(trace_sha: str) -> dict[str, object]:
     payload = {
         "schema_version": 1,
         "artifact_kind": "phase_f_specification_bundle_inputs",
-        "authority_graph_sha256": sha256(AUTHORITY_GRAPH_PATH),
+        "authority_graph_sha256": sha256_bytes(read(AUTHORITY_GRAPH_PATH)),
         "source_sha256s": source_sha256s,
         "authority_bindings": authority_bindings,
     }
@@ -6183,16 +6189,17 @@ def build_bundle_inputs(trace_sha: str) -> dict[str, object]:
     }
 
 
-def build_bundle(trace_sha: str) -> dict[str, object]:
-    bundle_inputs = build_bundle_inputs(trace_sha)
+def build_bundle(trace_sha: str, read: Callable[[Path], bytes] = Path.read_bytes,
+                       purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION) -> dict[str, object]:
+    bundle_inputs = build_bundle_inputs(trace_sha, read, purpose)
     input_fingerprint = str(bundle_inputs["sha256"])
     components = []
     for path in SPECS.values():
         components.append(
             {
                 "path": str(path.relative_to(ROOT)),
-                "sha256": sha256(path),
-                "git_blob": git_blob(path),
+                "sha256": sha256_bytes(read(path)),
+                "git_blob": _git_blob_bytes(read(path)),
                 "independent_review_bundle_sha256": None,
                 "review_status": "PENDING",
                 "p0_count": None,
@@ -6206,8 +6213,8 @@ def build_bundle(trace_sha: str) -> dict[str, object]:
         "eligible_for_g3": False,
         "architecture_plan": {
             "path": str(ARCH.relative_to(ROOT)),
-            "sha256": sha256(ARCH),
-            "git_blob": git_blob(ARCH),
+            "sha256": sha256_bytes(read(ARCH)),
+            "git_blob": _git_blob_bytes(read(ARCH)),
             "approved_tag": None,
         },
         "f0_decisions": {"approved_tag": None, "decision_bundle_sha256": None},
@@ -6219,15 +6226,15 @@ def build_bundle(trace_sha: str) -> dict[str, object]:
         },
         "migration_ledger": {
             "path": str(MIGRATION_LEDGER.relative_to(ROOT)),
-            "sha256": sha256(MIGRATION_LEDGER),
+            "sha256": sha256_bytes(read(MIGRATION_LEDGER)),
         },
         "normative_traceability_matrix": {
             "path": str(NORMATIVE_MATRIX_PATH.relative_to(ROOT)),
-            "sha256": sha256(NORMATIVE_MATRIX_PATH),
+            "sha256": sha256_bytes(read(NORMATIVE_MATRIX_PATH)),
         },
         "authority_graph": {
             "path": str(AUTHORITY_GRAPH_PATH.relative_to(ROOT)),
-            "sha256": sha256(AUTHORITY_GRAPH_PATH),
+            "sha256": sha256_bytes(read(AUTHORITY_GRAPH_PATH)),
         },
         "target_revision": {
             "type": "source_input_fingerprint",
@@ -8569,20 +8576,79 @@ def _canonical_publication_api_path(identity: dict[str, Any], *shas: str) -> str
     return "/repos/" + CANONICAL_GITHUB_REPOSITORY_IDENTITY["repository_full_name"]
 
 
+def _canonical_response_url(endpoint: str, sha: str, head: str | None = None) -> str:
+    """Construct exact identity; never normalize a provider-supplied URL alias."""
+    identity = CANONICAL_GITHUB_REPOSITORY_IDENTITY
+    path = _canonical_publication_api_path(identity, sha, *(() if head is None else (head,)))
+    if endpoint not in {"git/commits", "git/trees", "commits", "compare"}:
+        raise G3ValidationError("publication_invalid_endpoint")
+    if (endpoint == "compare") != (head is not None):
+        raise G3ValidationError("publication_invalid_endpoint")
+    suffix = sha if head is None else f"{sha}...{head}"
+    return f"{identity['api_origin']}{path}/{endpoint}/{suffix}"
+
+
+def _validate_response_object_identity(payload: Any, endpoint: str, sha: str | None = None) -> str:
+    if not isinstance(payload, dict):
+        raise G3ValidationError("historical_response_identity_mismatch")
+    actual = payload.get("sha")
+    _canonical_publication_api_path(CANONICAL_GITHUB_REPOSITORY_IDENTITY, actual)
+    if ((sha is not None and actual != sha)
+            or payload.get("url") != _canonical_response_url(endpoint, actual)):
+        raise G3ValidationError("historical_response_identity_mismatch")
+    return actual
+
+
 def _validate_canonical_commit(payload: Any, sha: str) -> dict[str, Any]:
-    if (
-        not isinstance(payload, dict)
-        or payload.get("sha") != sha
-        or not isinstance(payload.get("tree"), dict)
-        or not isinstance(payload["tree"].get("sha"), str)
-        or re.fullmatch(r"[0-9a-f]{40}", payload["tree"]["sha"]) is None
-        or not isinstance(payload.get("parents"), list)
-        or any(not isinstance(parent, dict) or not isinstance(parent.get("sha"), str)
-               or re.fullmatch(r"[0-9a-f]{40}", parent["sha"]) is None
-               for parent in payload["parents"])
-    ):
+    """Required evidence: SHA/URL, tree SHA/URL, and every parent SHA/URL.
+
+    Author, message, signature, HTML links, and other informational fields are
+    not publication evidence and are ignored. Missing identity never defaults.
+    """
+    _validate_response_object_identity(payload, "git/commits", sha)
+    _validate_response_object_identity(payload.get("tree"), "git/trees")
+    if not isinstance(payload.get("parents"), list):
         raise G3ValidationError("historical_commit_malformed")
+    for parent in payload["parents"]:
+        _validate_response_object_identity(parent, "git/commits")
     return payload
+
+
+def _validate_canonical_comparison(comparison: Any, base: str, head: str) -> dict[str, Any]:
+    """Only unpaginated comparisons: min(total, 250) objects, ending at HEAD.
+
+    GitHub documents that the unpaginated final commit is the most recent of
+    the entire comparison. No page/per_page requests or pagination links enter
+    this proof. File diffs, authors and informational links are not evidence.
+    https://docs.github.com/en/rest/commits/commits#compare-two-commits
+    """
+    expected_url = _canonical_response_url("compare", base, head)
+    if not isinstance(comparison, dict) or comparison.get("url") != expected_url:
+        raise G3ValidationError("historical_compare_identity_mismatch")
+    for key in ("base_commit", "merge_base_commit"):
+        _validate_response_object_identity(comparison.get(key), "commits")
+    for key in ("ahead_by", "behind_by", "total_commits"):
+        if type(comparison.get(key)) is not int or comparison[key] < 0:
+            raise G3ValidationError("historical_compare_malformed")
+    commits = comparison.get("commits")
+    if not isinstance(commits, list) or len(commits) != min(comparison["total_commits"], 250):
+        raise G3ValidationError("historical_compare_commit_list_mismatch")
+    shas = [_validate_response_object_identity(commit, "commits") for commit in commits]
+    if len(shas) != len(set(shas)) or base in shas:
+        raise G3ValidationError("historical_compare_commit_list_mismatch")
+    identical = base == head
+    if (
+        comparison["base_commit"]["sha"] != base
+        or comparison["merge_base_commit"]["sha"] != base
+        or comparison["behind_by"] != 0
+        or comparison["total_commits"] != comparison["ahead_by"]
+        or (identical and (comparison.get("status") != "identical" or comparison["ahead_by"] != 0 or commits))
+        or (not identical and (comparison.get("status") != "ahead" or comparison["ahead_by"] <= 0))
+    ):
+        raise G3ValidationError("historical_target_not_published")
+    if not identical and (not shas or shas[-1] != head):
+        raise G3ValidationError("historical_compare_head_mismatch")
+    return comparison
 
 
 def _verify_historical_publication_lineage(
@@ -8597,29 +8663,11 @@ def _verify_historical_publication_lineage(
     _canonical_publication_api_path(identity, target_commit, published_sha)
     try:
         _validate_canonical_commit(transport.get_commit(identity, target_commit), target_commit)
-        comparison = transport.compare_commits(identity, target_commit, published_sha)
-        if not isinstance(comparison, dict):
-            raise G3ValidationError("historical_compare_malformed")
-        for key in ("base_commit", "merge_base_commit"):
-            value = comparison.get(key)
-            if (not isinstance(value, dict) or not isinstance(value.get("sha"), str)
-                    or re.fullmatch(r"[0-9a-f]{40}", value["sha"]) is None):
-                raise G3ValidationError("historical_compare_malformed")
-        for key in ("ahead_by", "behind_by", "total_commits"):
-            if type(comparison.get(key)) is not int or comparison[key] < 0:
-                raise G3ValidationError("historical_compare_malformed")
-        if comparison.get("status") not in {"identical", "ahead", "behind", "diverged"}:
-            raise G3ValidationError("historical_compare_malformed")
-        identical = target_commit == published_sha
-        if (
-            comparison["base_commit"]["sha"] != target_commit
-            or comparison["merge_base_commit"]["sha"] != target_commit
-            or comparison["behind_by"] != 0
-            or comparison["total_commits"] != comparison["ahead_by"]
-            or (identical and (comparison["status"] != "identical" or comparison["ahead_by"] != 0))
-            or (not identical and (comparison["status"] != "ahead" or comparison["ahead_by"] <= 0))
-        ):
-            raise G3ValidationError("historical_target_not_published")
+        if published_sha != target_commit:
+            _validate_canonical_commit(transport.get_commit(identity, published_sha), published_sha)
+        _validate_canonical_comparison(
+            transport.compare_commits(identity, target_commit, published_sha), target_commit, published_sha
+        )
         if _read_canonical_publication_head(transport) != published_sha:
             raise G3ValidationError("publication_head_changed_during_resolution")
     except G3ValidationError as error:
@@ -8926,62 +8974,37 @@ def _validate_historical_normative_context(
         raise G3ValidationError("publication_binding_mismatch")
     validate_r12_authority_graph(context.graph, ResolutionPurpose.HISTORICAL_VALIDATION)
     try:
+        source_bytes: dict[Path, bytes] = {}
+        target = context.expected_target_commit
         def read(path: Path) -> bytes:
-            return _git_output(repository, ["show", f"{context.expected_target_commit}:{path.relative_to(ROOT)}"])
+            if path not in source_bytes:
+                source_bytes[path] = _git_output(repository, ["show", f"{target}:{path.relative_to(ROOT)}"])
+            return source_bytes[path]
 
         graph_raw = read(AUTHORITY_GRAPH_PATH)
         if graph_raw != context.authority_graph_bytes or sha256_bytes(graph_raw) != context.authority_graph_sha256:
             raise G3ValidationError("authority_graph_identity_mismatch")
         bundle = _parse_json_without_duplicates(read(BUNDLE_PATH))
         trace = _parse_json_without_duplicates(read(TRACE_PATH))
-        if (not isinstance(bundle, dict) or bundle.get("schema_version") != 1
+        # Closed V1 pending-draft profile, observed in both published targets.
+        # Selection is schema/lifecycle based, never a target SHA allowlist.
+        # The trusted builders require all F0 null placeholders, exactly five
+        # unique component scopes with PENDING/null reviews, ABSENT migrated
+        # review fields, NO-GO and the complete blocking-reason set. Any review
+        # roles/records/targets or approval claims are unsupported in this
+        # profile; reviewed lifecycles require a separately specified profile.
+        if (not isinstance(bundle, dict) or type(bundle.get("schema_version")) is not int
+                or bundle.get("schema_version") != 1
                 or bundle.get("artifact_kind") != "phase_f_specification_bundle_manifest_candidate"
-                or bundle.get("status") != "DRAFT_NO_AUTHORITY" or bundle.get("eligible_for_g3") is not False
-                or not isinstance(trace, dict) or trace.get("schema_version") != 1
-                or trace.get("artifact_kind") != "phase_f_derived_traceability_manifest"
-                or trace.get("semantic_authority") is not False):
-            raise G3ValidationError("historical_normative_bundle_malformed")
-        inputs = bundle["bundle_inputs"]
-        payload = {key: value for key, value in inputs.items() if key != "sha256"}
-        if inputs["sha256"] != sha256_bytes(canonical_json_bytes(payload)):
-            raise G3ValidationError("historical_normative_bundle_hash_mismatch")
-        paths = {"architecture_plan": ARCH, "wire_specification": SPECS["F-WIRE"],
-                 "scientific_specification": SPECS["F-SCI"], "operations_specification": SPECS["F-OPS"],
-                 "conformance_specification": SPECS["F-CNF"], "implementation_readiness_specification": SPECS["F-IMPL"],
-                 "migration_ledger": MIGRATION_LEDGER, "normative_traceability_matrix": NORMATIVE_MATRIX_PATH,
-                 "authority_graph": AUTHORITY_GRAPH_PATH, "generated_traceability_manifest": TRACE_PATH}
-        expected = {key: sha256_bytes(read(path)) for key, path in paths.items()}
-        if (inputs["source_sha256s"] != expected
-                or inputs["authority_graph_sha256"] != context.authority_graph_sha256
-                or bundle["target_revision"] != {"type": "source_input_fingerprint", "sha256": inputs["sha256"]}):
-            raise G3ValidationError("historical_normative_source_binding_mismatch")
-        for field, path in {"architecture_plan": ARCH, "traceability_manifest": TRACE_PATH,
-                            "migration_ledger": MIGRATION_LEDGER, "normative_traceability_matrix": NORMATIVE_MATRIX_PATH,
-                            "authority_graph": AUTHORITY_GRAPH_PATH}.items():
-            if bundle[field]["path"] != str(path.relative_to(ROOT)) or bundle[field]["sha256"] != sha256_bytes(read(path)):
-                raise G3ValidationError("historical_normative_source_binding_mismatch")
-        components = bundle["component_specifications"]
-        if (not isinstance(components, list) or len(components) != len(SPECS)
-                or {row["path"]: row["sha256"] for row in components}
-                != {str(path.relative_to(ROOT)): sha256_bytes(read(path)) for path in SPECS.values()}):
-            raise G3ValidationError("historical_normative_source_binding_mismatch")
-        if (trace["authority_graph"]["sha256"] != context.authority_graph_sha256
-                or trace["normative_matrix"]["sha256"] != expected["normative_traceability_matrix"]):
-            raise G3ValidationError("authority_graph_binding_mismatch")
-        expected_generated = {
-            edge["from"]: sha256_bytes(read(ROOT / context.graph["node_identity_rules"][edge["from"]]["path"]))
-            for edge in _graph_edges_for(context.graph, "generated_traceability_manifest", "generated_from")
-        }
-        if trace["generated_source_sha256s"] != expected_generated:
-            raise G3ValidationError("historical_normative_source_binding_mismatch")
-        expected_bindings = {}
-        for edge in _graph_edges_for(context.graph, "specification_bundle_inputs", "binds"):
-            source = edge["from"]
-            rule = context.graph["node_identity_rules"][source]
-            source_hash = sha256_bytes(read(ROOT / rule["path"])) if rule["type"] == "repository_file_sha256" else None
-            expected_bindings[source] = {"authority_id": None, "sha256": source_hash, "target": None}
-        if inputs["authority_bindings"] != expected_bindings:
-            raise G3ValidationError("historical_normative_authority_binding_mismatch")
+                or bundle.get("status") != "DRAFT_NO_AUTHORITY"):
+            raise G3ValidationError("historical_normative_profile_unsupported")
+        expected_bundle = build_bundle(sha256_bytes(read(TRACE_PATH)), read,
+                                       ResolutionPurpose.HISTORICAL_VALIDATION)
+        if canonical_json_bytes(bundle) != canonical_json_bytes(expected_bundle):
+            raise G3ValidationError("historical_normative_bundle_structure_mismatch")
+        expected_trace = build_traceability(read, ResolutionPurpose.HISTORICAL_VALIDATION)
+        if canonical_json_bytes(trace) != canonical_json_bytes(expected_trace):
+            raise G3ValidationError("historical_normative_trace_structure_mismatch")
     except G3ValidationError:
         raise
     except (ValueError, KeyError, TypeError, AttributeError, subprocess.CalledProcessError) as error:
@@ -9369,7 +9392,9 @@ class FixtureGitHubProtectionTransport:
             parents = _git_output(self.remote, ["show", "-s", "--format=%P", sha]).decode().split()
         except subprocess.CalledProcessError as error:
             raise G3ValidationError("github_protection_resource_missing") from error
-        return {"sha": sha, "tree": {"sha": tree}, "parents": [{"sha": parent} for parent in parents]}
+        return {"sha": sha, "url": _canonical_response_url("git/commits", sha),
+                "tree": {"sha": tree, "url": _canonical_response_url("git/trees", tree)},
+                "parents": [{"sha": parent, "url": _canonical_response_url("git/commits", parent)} for parent in parents]}
 
     def compare_commits(
         self, identity: dict[str, Any], base_sha: str, head_sha: str
@@ -9385,7 +9410,11 @@ class FixtureGitHubProtectionTransport:
         except subprocess.CalledProcessError as error:
             raise G3ValidationError("github_protection_resource_missing") from error
         status = "diverged" if ahead and behind else "ahead" if ahead else "behind" if behind else "identical"
-        return {"base_commit": {"sha": base_sha}, "merge_base_commit": {"sha": merge},
+        commits = _git_output(self.remote, ["rev-list", "--reverse", f"{base_sha}..{head_sha}"]).decode().split()
+        return {"url": _canonical_response_url("compare", base_sha, head_sha),
+                "base_commit": {"sha": base_sha, "url": _canonical_response_url("commits", base_sha)},
+                "merge_base_commit": {"sha": merge, "url": _canonical_response_url("commits", merge)},
+                "commits": [{"sha": sha, "url": _canonical_response_url("commits", sha)} for sha in commits[-250:]],
                 "status": status, "ahead_by": ahead, "behind_by": behind, "total_commits": ahead}
 
     def git_fetch_url(self, identity: dict[str, Any]) -> str:
