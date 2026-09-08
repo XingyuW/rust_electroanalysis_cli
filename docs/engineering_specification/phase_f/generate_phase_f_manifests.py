@@ -1089,97 +1089,97 @@ AUTHORITY_ENROLLMENT_APPROVAL_FIELDS = (
 G3_KAT_MUTATIONS = (
     {
         "id": "R12-NEG-G3-WRONG-FIELD-NAME",
-        "operation": "replace first key phase_f_architecture_plan_tag with phase_f_architecture_plan",
+        "operation": "Replace the first key `phase_f_architecture_plan_tag` with `phase_f_architecture_plan`",
         "expected_category": "unknown_field",
     },
     {
         "id": "R12-NEG-G3-LEGACY-FIELD-NAME",
-        "operation": "replace first key with legacy unprefixed architecture_plan_tag",
+        "operation": "Replace the first key with the legacy unprefixed `architecture_plan_tag`",
         "expected_category": "legacy_field_name",
     },
     {
         "id": "R12-NEG-G3-MISSING-REQUIRED-FIELD",
-        "operation": "remove the complete aggregate_review_bundle_sha256 line and its LF",
+        "operation": "Remove the complete `aggregate_review_bundle_sha256=...` line and its LF",
         "expected_category": "missing_required_field",
     },
     {
         "id": "R12-NEG-G3-DUPLICATE-FIELD",
-        "operation": "insert a second approval_decision=GO line immediately before schema_version=1",
+        "operation": "Insert a second complete `approval_decision=GO` line immediately before `schema_version=1`",
         "expected_category": "duplicate_field",
     },
     {
         "id": "R12-NEG-G3-UNEXPECTED-FIELD",
-        "operation": "replace the final schema_version=1 line with unexpected_field=x",
+        "operation": "Replace the final `schema_version=1` line with `unexpected_field=x`",
         "expected_category": "unexpected_field",
     },
     {
         "id": "R12-NEG-G3-WRONG-LINE-ORDER",
-        "operation": "swap the first and second complete lines",
+        "operation": "Swap the first and second complete lines",
         "expected_category": "wrong_field_order",
     },
     {
         "id": "R12-NEG-G3-SCHEMA-VERSION",
-        "operation": "replace schema_version=1 with schema_version=2",
+        "operation": "Replace `schema_version=1` with `schema_version=2`",
         "expected_category": "invalid_schema_version",
     },
     {
         "id": "R12-NEG-G3-MALFORMED-TAG-NAME",
-        "operation": "replace the input tag name with the deterministic malformed name",
+        "operation": "Replace the input tag name with `ism-mechanism-health-v1-f-specification-bundl-approved`; leave body unchanged",
         "expected_category": "invalid_tag_name",
     },
     {
         "id": "R12-NEG-G3-WRONG-ARCHITECTURE-BINDING",
-        "operation": "replace the architecture-plan tag value with the F0 tag value",
+        "operation": "Replace the first value with `ism-mechanism-health-v1-f-f0-decisions-approved`",
         "expected_category": "wrong_architecture_plan_binding",
     },
     {
         "id": "R12-NEG-G3-WRONG-F0-BINDING",
-        "operation": "replace the F0 tag value with the architecture-plan tag value",
+        "operation": "Replace the second value with `ism-mechanism-health-v1-f-plan-approved`",
         "expected_category": "wrong_f0_decisions_binding",
     },
     {
         "id": "R12-NEG-G3-WRONG-BUNDLE-HASH",
-        "operation": "replace the first manifest-hash zero with ASCII a",
+        "operation": "Replace the first zero in `specification_bundle_manifest_sha256` with `a`",
         "expected_category": "wrong_bundle_hash",
     },
     {
         "id": "R12-NEG-G3-MALFORMED-SHA",
-        "operation": "replace the first aggregate-hash one with ASCII z",
+        "operation": "Replace the first zero in `aggregate_review_bundle_sha256` with `z`",
         "expected_category": "malformed_sha256",
     },
     {
         "id": "R12-NEG-G3-TRAILING-WHITESPACE",
-        "operation": "replace approval_decision=GO with approval_decision=GO plus one space",
+        "operation": "Replace `approval_decision=GO` with `approval_decision=GO `",
         "expected_category": "trailing_whitespace",
     },
     {
         "id": "R12-NEG-G3-MISSING-DELIMITER",
-        "operation": "replace the first equals delimiter with one ASCII space",
+        "operation": "Replace the first `=` delimiter with one ASCII space",
         "expected_category": "missing_delimiter",
     },
     {
         "id": "R12-NEG-G3-INVALID-NEWLINE",
-        "operation": "replace the first LF with CRLF",
+        "operation": "Replace the LF after the first line with CRLF",
         "expected_category": "invalid_newline",
     },
     {
         "id": "R12-NEG-G3-EXTRA-TRAILING-CONTENT",
-        "operation": "append trailing plus LF after the required final LF",
+        "operation": "Append `trailing` plus LF after the required final LF",
         "expected_category": "extra_trailing_content",
     },
     {
         "id": "R12-NEG-G3-TRUNCATED-CONTENT",
-        "operation": "remove the final ten bytes, producing a partial final field",
+        "operation": "Remove the final ten bytes, producing a partial final field",
         "expected_category": "truncated_content",
     },
     {
         "id": "R12-NEG-G3-MISSING-FINAL-NEWLINE",
-        "operation": "remove exactly the required final LF byte",
+        "operation": "Remove exactly the required final LF byte",
         "expected_category": "missing_final_newline",
     },
     {
         "id": "R12-NEG-G3-WRONG-APPROVAL-VALUE",
-        "operation": "replace approval_decision=GO with approval_decision=NO-GO",
+        "operation": "Replace `approval_decision=GO` with `approval_decision=NO-GO`",
         "expected_category": "invalid_approval_decision",
     },
 )
@@ -1977,6 +1977,139 @@ class ResolutionPurpose(str, Enum):
 
     CURRENT_AUTHORIZATION = "CURRENT_AUTHORIZATION"
     HISTORICAL_VALIDATION = "HISTORICAL_VALIDATION"
+
+
+class SourceReader(Protocol):
+    """Read normative source bytes from an explicitly selected source."""
+
+    def read_bytes(self, path: Path) -> bytes: ...
+
+    def read_text(self, path: Path) -> str: ...
+
+    def exists(self, path: Path) -> bool: ...
+
+
+class FilesystemSourceReader:
+    """Read the current checkout using normal filesystem semantics."""
+
+    def read_bytes(self, path: Path) -> bytes:
+        return path.read_bytes()
+
+    def read_text(self, path: Path) -> str:
+        return self.read_bytes(path).decode("utf-8")
+
+    def exists(self, path: Path) -> bool:
+        return path.is_file()
+
+
+class CallbackSourceReader:
+    """Compatibility adapter for existing byte-reader callbacks."""
+
+    def __init__(self, read_bytes: Callable[[Path], bytes]):
+        self._read_bytes = read_bytes
+
+    def read_bytes(self, path: Path) -> bytes:
+        return self._read_bytes(path)
+
+    def read_text(self, path: Path) -> str:
+        return self.read_bytes(path).decode("utf-8")
+
+    def exists(self, path: Path) -> bool:
+        try:
+            self.read_bytes(path)
+        except (OSError, subprocess.CalledProcessError):
+            return False
+        return True
+
+
+class GitTargetSourceReader:
+    """Read exact source bytes from one immutable Git target.
+
+    Every read uses the selected full commit SHA and disables replacement
+    objects.  No branch, remote, current file, or historical target code is
+    consulted by this reader.
+    """
+
+    def __init__(self, repository: Path, target_sha: str):
+        if re.fullmatch(r"[0-9a-f]{40}", target_sha) is None:
+            raise ValueError("historical_source_target_malformed")
+        self.repository = Path(repository).resolve()
+        self.target_sha = target_sha
+        self._cache: dict[Path, bytes] = {}
+
+    @staticmethod
+    def _relative_path(path: Path) -> str:
+        try:
+            relative = path.relative_to(ROOT)
+        except ValueError as error:
+            raise ValueError("historical_source_path_outside_repository") from error
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError("historical_source_path_outside_repository")
+        return relative.as_posix()
+
+    def read_bytes(self, path: Path) -> bytes:
+        if path not in self._cache:
+            relative = self._relative_path(path)
+            self._cache[path] = _git_output(
+                self.repository, ["show", f"{self.target_sha}:{relative}"]
+            )
+        return self._cache[path]
+
+    def read_text(self, path: Path) -> str:
+        return self.read_bytes(path).decode("utf-8")
+
+    def exists(self, path: Path) -> bool:
+        try:
+            self.read_bytes(path)
+        except subprocess.CalledProcessError:
+            return False
+        return True
+
+
+SourceReaderLike = SourceReader | Callable[[Path], bytes]
+
+
+def _coerce_source_reader(read: SourceReaderLike | None = None) -> SourceReader:
+    if read is None:
+        return FilesystemSourceReader()
+    if all(hasattr(read, method) for method in ("read_bytes", "read_text", "exists")):
+        return read  # type: ignore[return-value]
+    if callable(read):
+        return CallbackSourceReader(read)
+    raise TypeError("source reader must implement SourceReader or be a byte callback")
+
+
+@dataclass(frozen=True)
+class HistoricalValidationProfile:
+    """The only currently supported historical normative source profile."""
+
+    name: str
+    bundle_schema_version: int
+    bundle_artifact_kind: str
+    bundle_status: str
+
+
+HISTORICAL_V1_PENDING_DRAFT_PROFILE = HistoricalValidationProfile(
+    name="HistoricalProfileV1PendingDraft",
+    bundle_schema_version=1,
+    bundle_artifact_kind="phase_f_specification_bundle_manifest_candidate",
+    bundle_status="DRAFT_NO_AUTHORITY",
+)
+
+
+def _select_historical_validation_profile(
+    bundle: Any,
+) -> HistoricalValidationProfile:
+    profile = HISTORICAL_V1_PENDING_DRAFT_PROFILE
+    if (
+        isinstance(bundle, dict)
+        and type(bundle.get("schema_version")) is int
+        and bundle.get("schema_version") == profile.bundle_schema_version
+        and bundle.get("artifact_kind") == profile.bundle_artifact_kind
+        and bundle.get("status") == profile.bundle_status
+    ):
+        return profile
+    raise G3ValidationError("historical_normative_profile_unsupported")
 
 
 @dataclass(frozen=True)
@@ -5365,8 +5498,9 @@ def parse_pipe_row(line: str) -> list[str]:
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
 
 
-def parse_r11_test_catalog(read: Callable[[Path], bytes] = Path.read_bytes) -> dict[str, dict[str, str]]:
-    text = read(R11_SOURCE).decode("utf-8")
+def parse_r11_test_catalog(read: SourceReaderLike | None = None) -> dict[str, dict[str, str]]:
+    reader = _coerce_source_reader(read)
+    text = reader.read_text(R11_SOURCE)
     section = text.split("### 53.10", 1)[1].split("### 53.11", 1)[0]
     catalog: dict[str, dict[str, str]] = {}
     for line in section.splitlines():
@@ -5390,8 +5524,9 @@ def parse_r11_test_catalog(read: Callable[[Path], bytes] = Path.read_bytes) -> d
     return catalog
 
 
-def parse_r11_evidence_catalog(read: Callable[[Path], bytes] = Path.read_bytes) -> dict[str, dict[str, str]]:
-    text = read(R11_SOURCE).decode("utf-8")
+def parse_r11_evidence_catalog(read: SourceReaderLike | None = None) -> dict[str, dict[str, str]]:
+    reader = _coerce_source_reader(read)
+    text = reader.read_text(R11_SOURCE)
     section = text.split("### 53.11", 1)[1].split("### 53.12", 1)[0]
     catalog: dict[str, dict[str, str]] = {}
     for line in section.splitlines():
@@ -5442,7 +5577,7 @@ def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]
         "expected_result": "PASS with exact decoded fields",
     }:
         raise ValueError(f"R12 test catalog metadata: {row}")
-    positive_ids = {
+    positive_result_ids = {
         "R12-POS-SPEC-BUNDLE-TAG",
         "R12-G3-AUTHORITY-CONTEXT-POS",
         "R12-G3-ARCHITECTURE-REVIEW-BUNDLE-POSITIVE",
@@ -5454,7 +5589,11 @@ def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]
         "R12-G3-REAL-ROOT-ROTATION",
         "R12-DAG-VALID",
     }
-    for test_id in EXPECTED_R12_TEST_CATALOG_IDS - positive_ids:
+    literal_kat_ids = {
+        "R12-POS-SPEC-BUNDLE-TAG",
+        "R12-G3-AUTHORITY-CONTEXT-POS",
+    }
+    for test_id in EXPECTED_R12_TEST_CATALOG_IDS - positive_result_ids:
         if catalog[test_id]["kat_class"] != "constructive_plan_audit":
             raise ValueError(f"R12 constructive test category: {test_id}")
         if catalog[test_id]["expected_result"] != "REJECT":
@@ -5462,19 +5601,21 @@ def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]
     return catalog
 
 
-def load_reference_catalogs(read: Callable[[Path], bytes] = Path.read_bytes) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
-    tests = parse_r11_test_catalog(read)
-    r12_tests = parse_r12_test_catalog(read(SPECS["F-CNF"]).decode("utf-8"))
+def load_reference_catalogs(read: SourceReaderLike | None = None) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
+    reader = _coerce_source_reader(read)
+    tests = parse_r11_test_catalog(reader)
+    r12_tests = parse_r12_test_catalog(reader.read_text(SPECS["F-CNF"]))
     if set(tests).intersection(r12_tests):
         raise ValueError("R11/R12 test catalog ID collision")
     tests.update(r12_tests)
-    evidence = parse_r11_evidence_catalog(read)
+    evidence = parse_r11_evidence_catalog(reader)
     return tests, evidence
 
 
-def load_normative_matrix(read: Callable[[Path], bytes] = Path.read_bytes) -> list[dict[str, Any]]:
+def load_normative_matrix(read: SourceReaderLike | None = None) -> list[dict[str, Any]]:
+    reader = _coerce_source_reader(read)
     try:
-        matrix = _parse_json_without_duplicates(read(NORMATIVE_MATRIX_PATH))
+        matrix = _parse_json_without_duplicates(reader.read_bytes(NORMATIVE_MATRIX_PATH))
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError("R12 normative traceability matrix is unreadable") from error
     if (
@@ -5524,8 +5665,9 @@ def load_normative_matrix(read: Callable[[Path], bytes] = Path.read_bytes) -> li
     return rows
 
 
-def validate_wire_catalog() -> None:
-    wire_text = SPECS["F-WIRE"].read_text()
+def validate_wire_catalog(read: SourceReaderLike | None = None) -> None:
+    reader = _coerce_source_reader(read)
+    wire_text = reader.read_text(SPECS["F-WIRE"])
     grammar = "\n".join(
         [
             "phase_f_architecture_plan_tag=<annotated tag name>",
@@ -5539,6 +5681,10 @@ def validate_wire_catalog() -> None:
     if wire_text.count(grammar) != 1:
         raise ValueError("G3 grammar is missing or duplicated")
 
+    if wire_text.count("## 4. Current R12 schema catalog closure") != 1:
+        raise ValueError("R12 schema catalog closure heading missing or duplicated")
+    if wire_text.count("## 6. Review gate") != 1:
+        raise ValueError("review gate heading missing or duplicated")
     section = wire_text.split("## 4. Current R12 schema catalog closure", 1)[1].split(
         "## 6. Review gate", 1
     )[0]
@@ -5556,7 +5702,7 @@ def validate_wire_catalog() -> None:
             raise ValueError(f"blank schema catalog cell: {identifier}")
         rows[identifier] = cells
 
-    inherited = parse_schema_catalog_ids(R11_SOURCE.read_text())
+    inherited = parse_schema_catalog_ids(reader.read_text(R11_SOURCE))
     expected = set(inherited) | R12_SCHEMA_IDS
     if len(inherited) != 91 or set(rows) != R12_SCHEMA_IDS:
         raise ValueError(
@@ -5693,8 +5839,49 @@ def parse_schema_catalog_ids(text: str) -> list[str]:
     return ids
 
 
-def validate_kat_spec() -> None:
-    text = SPECS["F-CNF"].read_text()
+def validate_kat_spec(read: SourceReaderLike | None = None) -> None:
+    reader = _coerce_source_reader(read)
+    text = reader.read_text(SPECS["F-CNF"])
+    catalog_section = text.split("## 3. Current executable catalog", 1)[1].split(
+        "### 3.1", 1
+    )[0]
+    catalog_rows = {
+        parse_pipe_row(line)[0]: parse_pipe_row(line)
+        for line in catalog_section.splitlines()
+        if line.startswith("| R12-")
+    }
+    positive_result_ids = {
+        "R12-POS-SPEC-BUNDLE-TAG",
+        "R12-G3-AUTHORITY-CONTEXT-POS",
+        "R12-G3-ARCHITECTURE-REVIEW-BUNDLE-POSITIVE",
+        "R12-G3-REVIEW-START-GIT-PUBLISHED",
+        "R12-G3-REAL-FORMAT-POSITIVE",
+        "R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE",
+        "R12-G3-REAL-CURRENTNESS-HISTORY",
+        "R12-G3-REAL-HISTORICAL-RESOLUTION",
+        "R12-G3-REAL-ROOT-ROTATION",
+        "R12-DAG-VALID",
+    }
+    literal_kat_ids = {
+        "R12-POS-SPEC-BUNDLE-TAG",
+        "R12-G3-AUTHORITY-CONTEXT-POS",
+    }
+    if set(catalog_rows) != EXPECTED_R12_TEST_CATALOG_IDS:
+        raise ValueError("R12 KAT catalog set mismatch")
+    for test_id, row in catalog_rows.items():
+        if len(row) != 9 or any(not cell for cell in row) or row[8] != "0":
+            raise ValueError(f"R12 KAT catalog row malformed: {test_id}")
+        expected_class = "literal_kat" if test_id in literal_kat_ids else "constructive_plan_audit"
+        expected_result = "PASS" if test_id in positive_result_ids else "REJECT"
+        if row[1] != expected_class or not row[6].startswith(expected_result):
+            raise ValueError(f"R12 KAT catalog metadata mismatch: {test_id}")
+    mutation_section = text.split("### 3.1", 1)[1].split("## 4.", 1)[0]
+    mutation_rows = {
+        cells[0]: cells
+        for line in mutation_section.splitlines()
+        if line.startswith("| R12-NEG-G3-")
+        for cells in [[cell.strip() for cell in line.strip().strip("|").split("|")]]
+    }
     if len(G3_FIXTURE_BODY) != G3_FIXTURE_BYTE_LENGTH:
         raise ValueError("G3 fixture byte length constant mismatch")
     if sha256_bytes(G3_FIXTURE_BODY) != G3_FIXTURE_SHA256:
@@ -5711,15 +5898,14 @@ def validate_kat_spec() -> None:
         if literal not in text:
             raise ValueError(f"R12 KAT specification is missing: {literal[:80]}")
     for mutation in G3_KAT_MUTATIONS:
-        mutation_row = next(
-            (
-                line
-                for line in text.splitlines()
-                if line.startswith(f"| {mutation['id']} |")
-            ),
-            None,
-        )
-        if mutation_row is None or mutation["expected_category"] not in mutation_row:
+        mutation_row = mutation_rows.get(mutation["id"])
+        if (
+            mutation_row is None
+            or len(mutation_row) != 4
+            or mutation_row[1] != mutation["operation"]
+            or mutation_row[2] != "REJECT"
+            or mutation_row[3] != mutation["expected_category"]
+        ):
             raise ValueError(f"R12 KAT mutation is missing: {mutation['id']}")
 
     positive = check_g3_kat(G3_TAG_NAME, G3_FIXTURE_BODY)
@@ -5731,7 +5917,7 @@ def validate_kat_spec() -> None:
         if result != {"result": "REJECT", "category": mutation["expected_category"]}:
             raise ValueError(f"G3 mutation {mutation['id']} result: {result}")
 
-    operations_text = SPECS["F-OPS"].read_text()
+    operations_text = reader.read_text(SPECS["F-OPS"])
     if any(
         operations_text.count(anchor) != 1
         for anchor in GITHUB_PROTECTION_PINNING_CEREMONY_ANCHORS
@@ -5800,10 +5986,14 @@ def expand_refs(value: str) -> list[str]:
     return found
 
 
-def validate_inventory() -> None:
-    if not ARCH.is_file():
+def validate_inventory(read: SourceReaderLike | None = None) -> None:
+    reader = _coerce_source_reader(read)
+    if not reader.exists(ARCH):
         raise ValueError(f"missing authority document: {ARCH}")
-    actual = {path.name for path in PHASE_F.iterdir() if path.is_file()}
+    if isinstance(reader, FilesystemSourceReader):
+        actual = {path.name for path in PHASE_F.iterdir() if path.is_file()}
+    else:
+        actual = {path.name for path in PHASE_F.iterdir() if reader.exists(path)}
     missing = sorted(REQUIRED_FILENAMES - actual)
     unexpected = sorted(actual - ALLOWED_FILENAMES)
     if missing or unexpected:
@@ -5813,22 +6003,23 @@ def validate_inventory() -> None:
         )
 
 
-def validate_r11_and_migration() -> None:
-    raw = R11_SOURCE.read_bytes()
+def validate_r11_and_migration(read: SourceReaderLike | None = None) -> None:
+    reader = _coerce_source_reader(read)
+    raw = reader.read_bytes(R11_SOURCE)
     if sha256_bytes(raw) != EXPECTED_R11_SHA256:
         raise ValueError("preserved R11 source SHA-256 does not match the authority")
-    if git_blob(R11_SOURCE) != EXPECTED_R11_GIT_BLOB:
+    if _git_blob_bytes(raw) != EXPECTED_R11_GIT_BLOB:
         raise ValueError("preserved R11 source Git blob does not match the authority")
     if len(raw) != EXPECTED_R11_BYTE_COUNT or raw.count(b"\n") != EXPECTED_R11_LINE_COUNT:
         raise ValueError("preserved R11 source line/byte counts do not match the authority")
 
-    source = R11_SOURCE.read_text()
+    source = reader.read_text(R11_SOURCE)
     matrix = source.split("### 53.9", 1)[0].split("### 53.8", 1)[1]
     r11_ids = re.findall(r"^\| (R11-\d{2}) \|", matrix, re.MULTILINE)
     if r11_ids != EXPECTED_R11_IDS:
         raise ValueError(f"R11 requirement set mismatch: {r11_ids}")
 
-    ledger = MIGRATION_LEDGER.read_text()
+    ledger = reader.read_text(MIGRATION_LEDGER)
     migration_ids = re.findall(r"^\| (R11-\d{2}) \|", ledger, re.MULTILINE)
     if migration_ids != EXPECTED_R11_IDS:
         raise ValueError(f"R11 migration set mismatch: {migration_ids}")
@@ -5837,8 +6028,9 @@ def validate_r11_and_migration() -> None:
         raise ValueError(f"R11 finding migration set mismatch: {findings}")
 
 
-def validate_f0_decisions(read: Callable[[Path], bytes] = Path.read_bytes) -> None:
-    text = read(ARCH).decode("utf-8")
+def validate_f0_decisions(read: SourceReaderLike | None = None) -> None:
+    reader = _coerce_source_reader(read)
+    text = reader.read_text(ARCH)
     section = text.split("## 5. Minimal governance core", 1)[0].split(
         "## 4. F0 owner-decision authority", 1
     )[1]
@@ -5848,8 +6040,9 @@ def validate_f0_decisions(read: Callable[[Path], bytes] = Path.read_bytes) -> No
         raise ValueError(f"F0 decision set mismatch: {decision_ids}")
 
 
-def parse_architecture(read: Callable[[Path], bytes] = Path.read_bytes) -> list[dict[str, object]]:
-    text = read(ARCH).decode("utf-8")
+def parse_architecture(read: SourceReaderLike | None = None) -> list[dict[str, object]]:
+    reader = _coerce_source_reader(read)
+    text = reader.read_text(ARCH)
     entries: list[dict[str, object]] = []
     for match in re.finditer(
         r'<a id="(f-arch-\d{3})"></a>\n`(F-ARCH-\d{3})`', text
@@ -5874,9 +6067,10 @@ def parse_architecture(read: Callable[[Path], bytes] = Path.read_bytes) -> list[
     return entries
 
 
-def parse_spec(prefix: str, path: Path, read: Callable[[Path], bytes] = Path.read_bytes) -> list[dict[str, object]]:
+def parse_spec(prefix: str, path: Path, read: SourceReaderLike | None = None) -> list[dict[str, object]]:
+    reader = _coerce_source_reader(read)
     entries: list[dict[str, object]] = []
-    for line in read(path).decode("utf-8").splitlines():
+    for line in reader.read_text(path).splitlines():
         if not line.startswith("| <a id="):
             continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
@@ -5905,7 +6099,8 @@ def parse_spec(prefix: str, path: Path, read: Callable[[Path], bytes] = Path.rea
     return entries
 
 
-def validate_traceability(entries: list[dict[str, object]], read: Callable[[Path], bytes] = Path.read_bytes) -> None:
+def validate_traceability(entries: list[dict[str, object]], read: SourceReaderLike | None = None) -> None:
+    reader = _coerce_source_reader(read)
     expected_ids = EXPECTED_ARCHITECTURE_IDS + [
         requirement_id
         for prefix in SPECS
@@ -5927,7 +6122,7 @@ def validate_traceability(entries: list[dict[str, object]], read: Callable[[Path
         requirement_id = entry["requirement_id"]
         path = ROOT / str(entry["authority_document"])
         anchor = str(entry["authority_anchor"])[1:]
-        occurrences = read(path).decode("utf-8").count(f'id="{anchor}"')
+        occurrences = reader.read_text(path).count(f'id="{anchor}"')
         if occurrences != 1:
             raise ValueError(
                 f"authority anchor {anchor} in {path} occurs {occurrences} times"
@@ -6008,8 +6203,9 @@ def validate_semantic_traceability(
     return mapping
 
 
-def validate_schema_usage(matrix: list[dict[str, Any]], read: Callable[[Path], bytes] = Path.read_bytes) -> dict[str, list[str]]:
-    inherited = set(parse_schema_catalog_ids(read(R11_SOURCE).decode("utf-8")))
+def validate_schema_usage(matrix: list[dict[str, Any]], read: SourceReaderLike | None = None) -> dict[str, list[str]]:
+    reader = _coerce_source_reader(read)
+    inherited = set(parse_schema_catalog_ids(reader.read_text(R11_SOURCE)))
     schema_ids = inherited | R12_SCHEMA_IDS
     forward: dict[str, set[str]] = {}
     inverse: dict[str, set[str]] = {schema_id: set() for schema_id in schema_ids}
@@ -6046,14 +6242,15 @@ def load_r12_authority_graph() -> tuple[dict[str, Any], dict[str, Any]]:
     return graph, validate_r12_authority_graph(graph)
 
 
-def load_phase_f_entries(read: Callable[[Path], bytes] = Path.read_bytes) -> tuple[
+def load_phase_f_entries(read: SourceReaderLike | None = None) -> tuple[
     list[dict[str, object]], dict[str, dict[str, str]], dict[str, dict[str, str]]
 ]:
-    matrix = load_normative_matrix(read)
-    entries = parse_architecture(read)
+    reader = _coerce_source_reader(read)
+    matrix = load_normative_matrix(reader)
+    entries = parse_architecture(reader)
     for prefix, path in SPECS.items():
-        entries.extend(parse_spec(prefix, path, read))
-    test_catalog, evidence_catalog = load_reference_catalogs(read)
+        entries.extend(parse_spec(prefix, path, reader))
+    test_catalog, evidence_catalog = load_reference_catalogs(reader)
     matrix_by_id = {row["requirement_id"]: row for row in matrix}
     for entry in entries:
         requirement_id = entry["requirement_id"]
@@ -6073,24 +6270,32 @@ def load_phase_f_entries(read: Callable[[Path], bytes] = Path.read_bytes) -> tup
                 "schema_ids": list(row["schema_ids"]),
             }
         )
-    validate_traceability(entries, read)
+    validate_traceability(entries, reader)
     validate_semantic_traceability(entries, matrix, test_catalog, evidence_catalog)
-    validate_schema_usage(matrix, read)
+    validate_schema_usage(matrix, reader)
     validate_reference_catalogs(entries, test_catalog, evidence_catalog)
     return entries, test_catalog, evidence_catalog
 
 
-def build_traceability(read: Callable[[Path], bytes] = Path.read_bytes,
-                       purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION) -> dict[str, object]:
+def build_traceability(read: SourceReaderLike | None = None,
+                       purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
+                       historical_profile: HistoricalValidationProfile | None = None) -> dict[str, object]:
+    reader = _coerce_source_reader(read)
     if purpose == ResolutionPurpose.CURRENT_AUTHORIZATION:
-        validate_inventory()
-        validate_r11_and_migration()
-        validate_wire_catalog()
-        validate_kat_spec()
-    validate_f0_decisions(read)
-    graph = _parse_json_without_duplicates(read(AUTHORITY_GRAPH_PATH))
+        validate_inventory(reader)
+    elif purpose == ResolutionPurpose.HISTORICAL_VALIDATION:
+        if historical_profile is None:
+            historical_profile = HISTORICAL_V1_PENDING_DRAFT_PROFILE
+        if historical_profile != HISTORICAL_V1_PENDING_DRAFT_PROFILE:
+            raise ValueError("unsupported historical validation profile")
+    if purpose in {ResolutionPurpose.CURRENT_AUTHORIZATION, ResolutionPurpose.HISTORICAL_VALIDATION}:
+        validate_r11_and_migration(reader)
+        validate_wire_catalog(reader)
+        validate_kat_spec(reader)
+    validate_f0_decisions(reader)
+    graph = _parse_json_without_duplicates(reader.read_bytes(AUTHORITY_GRAPH_PATH))
     graph_audit = validate_r12_authority_graph(graph, purpose)
-    entries, test_catalog, evidence_catalog = load_phase_f_entries(read)
+    entries, test_catalog, evidence_catalog = load_phase_f_entries(reader)
     by_id = {entry["requirement_id"]: entry for entry in entries}
     for child in entries:
         for parent_id in child["upstream_requirement_ids"]:
@@ -6100,7 +6305,7 @@ def build_traceability(read: Callable[[Path], bytes] = Path.read_bytes,
     for entry in entries:
         entry["downstream_child_requirements"] = sorted(set(entry["downstream_child_requirements"]))
     generated_source_sha256s = {
-        edge["from"]: sha256_bytes(read(
+        edge["from"]: sha256_bytes(reader.read_bytes(
             ROOT / graph["node_identity_rules"][edge["from"]]["path"]
         ))
         for edge in _graph_edges_for(graph, "generated_traceability_manifest", "generated_from")
@@ -6123,15 +6328,15 @@ def build_traceability(read: Callable[[Path], bytes] = Path.read_bytes,
         },
         "normative_matrix": {
             "path": str(NORMATIVE_MATRIX_PATH.relative_to(ROOT)),
-            "sha256": sha256_bytes(read(NORMATIVE_MATRIX_PATH)),
+            "sha256": sha256_bytes(reader.read_bytes(NORMATIVE_MATRIX_PATH)),
             "requirement_count": EXPECTED_R12_REQUIREMENT_COUNT,
         },
         "authority_graph": {
             "path": str(AUTHORITY_GRAPH_PATH.relative_to(ROOT)),
-            "sha256": sha256_bytes(read(AUTHORITY_GRAPH_PATH)),
+            "sha256": sha256_bytes(reader.read_bytes(AUTHORITY_GRAPH_PATH)),
             "audit": graph_audit,
         },
-        "schema_usage": validate_schema_usage(load_normative_matrix(read), read),
+        "schema_usage": validate_schema_usage(load_normative_matrix(reader), reader),
         "generated_source_sha256s": generated_source_sha256s,
         "requirements": sorted(entries, key=lambda row: row["requirement_id"]),
     }
@@ -6141,8 +6346,9 @@ def _git_blob_bytes(raw: bytes) -> str:
     return hashlib.sha1(f"blob {len(raw)}\0".encode("ascii") + raw).hexdigest()
 
 
-def build_bundle_inputs(trace_sha: str, read: Callable[[Path], bytes] = Path.read_bytes,
+def build_bundle_inputs(trace_sha: str, read: SourceReaderLike | None = None,
                        purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION) -> dict[str, object]:
+    reader = _coerce_source_reader(read)
     input_paths = {
         "architecture_plan": ARCH,
         "wire_specification": SPECS["F-WIRE"],
@@ -6155,10 +6361,10 @@ def build_bundle_inputs(trace_sha: str, read: Callable[[Path], bytes] = Path.rea
         "authority_graph": AUTHORITY_GRAPH_PATH,
     }
     source_sha256s = {
-        name: sha256_bytes(read(path)) for name, path in sorted(input_paths.items())
+        name: sha256_bytes(reader.read_bytes(path)) for name, path in sorted(input_paths.items())
     }
     source_sha256s["generated_traceability_manifest"] = trace_sha
-    graph = _parse_json_without_duplicates(read(AUTHORITY_GRAPH_PATH))
+    graph = _parse_json_without_duplicates(reader.read_bytes(AUTHORITY_GRAPH_PATH))
     validate_r12_authority_graph(graph, purpose)
     authority_bindings: dict[str, dict[str, str | None]] = {}
     for edge in _graph_edges_for(graph, "specification_bundle_inputs", "binds"):
@@ -6167,7 +6373,7 @@ def build_bundle_inputs(trace_sha: str, read: Callable[[Path], bytes] = Path.rea
         if rule["type"] == "repository_file_sha256":
             authority_bindings[source] = {
                 "authority_id": None,
-                "sha256": sha256_bytes(read(ROOT / rule["path"])),
+                "sha256": sha256_bytes(reader.read_bytes(ROOT / rule["path"])),
                 "target": None,
             }
         else:
@@ -6179,7 +6385,7 @@ def build_bundle_inputs(trace_sha: str, read: Callable[[Path], bytes] = Path.rea
     payload = {
         "schema_version": 1,
         "artifact_kind": "phase_f_specification_bundle_inputs",
-        "authority_graph_sha256": sha256_bytes(read(AUTHORITY_GRAPH_PATH)),
+        "authority_graph_sha256": sha256_bytes(reader.read_bytes(AUTHORITY_GRAPH_PATH)),
         "source_sha256s": source_sha256s,
         "authority_bindings": authority_bindings,
     }
@@ -6189,17 +6395,18 @@ def build_bundle_inputs(trace_sha: str, read: Callable[[Path], bytes] = Path.rea
     }
 
 
-def build_bundle(trace_sha: str, read: Callable[[Path], bytes] = Path.read_bytes,
+def build_bundle(trace_sha: str, read: SourceReaderLike | None = None,
                        purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION) -> dict[str, object]:
-    bundle_inputs = build_bundle_inputs(trace_sha, read, purpose)
+    reader = _coerce_source_reader(read)
+    bundle_inputs = build_bundle_inputs(trace_sha, reader, purpose)
     input_fingerprint = str(bundle_inputs["sha256"])
     components = []
     for path in SPECS.values():
         components.append(
             {
                 "path": str(path.relative_to(ROOT)),
-                "sha256": sha256_bytes(read(path)),
-                "git_blob": _git_blob_bytes(read(path)),
+                "sha256": sha256_bytes(reader.read_bytes(path)),
+                "git_blob": _git_blob_bytes(reader.read_bytes(path)),
                 "independent_review_bundle_sha256": None,
                 "review_status": "PENDING",
                 "p0_count": None,
@@ -6213,8 +6420,8 @@ def build_bundle(trace_sha: str, read: Callable[[Path], bytes] = Path.read_bytes
         "eligible_for_g3": False,
         "architecture_plan": {
             "path": str(ARCH.relative_to(ROOT)),
-            "sha256": sha256_bytes(read(ARCH)),
-            "git_blob": _git_blob_bytes(read(ARCH)),
+            "sha256": sha256_bytes(reader.read_bytes(ARCH)),
+            "git_blob": _git_blob_bytes(reader.read_bytes(ARCH)),
             "approved_tag": None,
         },
         "f0_decisions": {"approved_tag": None, "decision_bundle_sha256": None},
@@ -6226,15 +6433,15 @@ def build_bundle(trace_sha: str, read: Callable[[Path], bytes] = Path.read_bytes
         },
         "migration_ledger": {
             "path": str(MIGRATION_LEDGER.relative_to(ROOT)),
-            "sha256": sha256_bytes(read(MIGRATION_LEDGER)),
+            "sha256": sha256_bytes(reader.read_bytes(MIGRATION_LEDGER)),
         },
         "normative_traceability_matrix": {
             "path": str(NORMATIVE_MATRIX_PATH.relative_to(ROOT)),
-            "sha256": sha256_bytes(read(NORMATIVE_MATRIX_PATH)),
+            "sha256": sha256_bytes(reader.read_bytes(NORMATIVE_MATRIX_PATH)),
         },
         "authority_graph": {
             "path": str(AUTHORITY_GRAPH_PATH.relative_to(ROOT)),
-            "sha256": sha256_bytes(read(AUTHORITY_GRAPH_PATH)),
+            "sha256": sha256_bytes(reader.read_bytes(AUTHORITY_GRAPH_PATH)),
         },
         "target_revision": {
             "type": "source_input_fingerprint",
@@ -8615,11 +8822,13 @@ def _validate_canonical_commit(payload: Any, sha: str) -> dict[str, Any]:
 
 
 def _validate_canonical_comparison(comparison: Any, base: str, head: str) -> dict[str, Any]:
-    """Only unpaginated comparisons: min(total, 250) objects, ending at HEAD.
+    """Validate the bounded unpaginated comparison contract, ending at HEAD.
 
     GitHub documents that the unpaginated final commit is the most recent of
-    the entire comparison. No page/per_page requests or pagination links enter
-    this proof. File diffs, authors and informational links are not evidence.
+    the entire comparison and limits the returned list to 250 commits. No
+    page/per_page requests or pagination links enter this proof. File diffs,
+    authors and informational links are not evidence. The provider does not
+    promise exact cardinality equal to ``min(total_commits, 250)``.
     https://docs.github.com/en/rest/commits/commits#compare-two-commits
     """
     expected_url = _canonical_response_url("compare", base, head)
@@ -8631,7 +8840,7 @@ def _validate_canonical_comparison(comparison: Any, base: str, head: str) -> dic
         if type(comparison.get(key)) is not int or comparison[key] < 0:
             raise G3ValidationError("historical_compare_malformed")
     commits = comparison.get("commits")
-    if not isinstance(commits, list) or len(commits) != min(comparison["total_commits"], 250):
+    if not isinstance(commits, list) or len(commits) > 250:
         raise G3ValidationError("historical_compare_commit_list_mismatch")
     shas = [_validate_response_object_identity(commit, "commits") for commit in commits]
     if len(shas) != len(set(shas)) or base in shas:
@@ -8646,7 +8855,13 @@ def _validate_canonical_comparison(comparison: Any, base: str, head: str) -> dic
         or (not identical and (comparison.get("status") != "ahead" or comparison["ahead_by"] <= 0))
     ):
         raise G3ValidationError("historical_target_not_published")
-    if not identical and (not shas or shas[-1] != head):
+    if identical and (comparison["total_commits"] != 0 or shas):
+        raise G3ValidationError("historical_compare_commit_list_mismatch")
+    if not identical and (
+        not 1 <= len(shas) <= 250
+        or len(shas) > comparison["total_commits"]
+        or shas[-1] != head
+    ):
         raise G3ValidationError("historical_compare_head_mismatch")
     return comparison
 
@@ -8974,35 +9189,30 @@ def _validate_historical_normative_context(
         raise G3ValidationError("publication_binding_mismatch")
     validate_r12_authority_graph(context.graph, ResolutionPurpose.HISTORICAL_VALIDATION)
     try:
-        source_bytes: dict[Path, bytes] = {}
         target = context.expected_target_commit
-        def read(path: Path) -> bytes:
-            if path not in source_bytes:
-                source_bytes[path] = _git_output(repository, ["show", f"{target}:{path.relative_to(ROOT)}"])
-            return source_bytes[path]
+        reader = GitTargetSourceReader(repository, target)
 
-        graph_raw = read(AUTHORITY_GRAPH_PATH)
+        graph_raw = reader.read_bytes(AUTHORITY_GRAPH_PATH)
         if graph_raw != context.authority_graph_bytes or sha256_bytes(graph_raw) != context.authority_graph_sha256:
             raise G3ValidationError("authority_graph_identity_mismatch")
-        bundle = _parse_json_without_duplicates(read(BUNDLE_PATH))
-        trace = _parse_json_without_duplicates(read(TRACE_PATH))
-        # Closed V1 pending-draft profile, observed in both published targets.
-        # Selection is schema/lifecycle based, never a target SHA allowlist.
-        # The trusted builders require all F0 null placeholders, exactly five
-        # unique component scopes with PENDING/null reviews, ABSENT migrated
-        # review fields, NO-GO and the complete blocking-reason set. Any review
-        # roles/records/targets or approval claims are unsupported in this
-        # profile; reviewed lifecycles require a separately specified profile.
-        if (not isinstance(bundle, dict) or type(bundle.get("schema_version")) is not int
-                or bundle.get("schema_version") != 1
-                or bundle.get("artifact_kind") != "phase_f_specification_bundle_manifest_candidate"
-                or bundle.get("status") != "DRAFT_NO_AUTHORITY"):
-            raise G3ValidationError("historical_normative_profile_unsupported")
-        expected_bundle = build_bundle(sha256_bytes(read(TRACE_PATH)), read,
-                                       ResolutionPurpose.HISTORICAL_VALIDATION)
+        bundle = _parse_json_without_duplicates(reader.read_bytes(BUNDLE_PATH))
+        trace = _parse_json_without_duplicates(reader.read_bytes(TRACE_PATH))
+        profile = _select_historical_validation_profile(bundle)
+        try:
+            expected_trace = build_traceability(
+                reader, ResolutionPurpose.HISTORICAL_VALIDATION, profile
+            )
+        except ValueError as error:
+            raise G3ValidationError(
+                "historical_normative_source_validation_failed"
+            ) from error
+        expected_bundle = build_bundle(
+            sha256_bytes(reader.read_bytes(TRACE_PATH)),
+            reader,
+            ResolutionPurpose.HISTORICAL_VALIDATION,
+        )
         if canonical_json_bytes(bundle) != canonical_json_bytes(expected_bundle):
             raise G3ValidationError("historical_normative_bundle_structure_mismatch")
-        expected_trace = build_traceability(read, ResolutionPurpose.HISTORICAL_VALIDATION)
         if canonical_json_bytes(trace) != canonical_json_bytes(expected_trace):
             raise G3ValidationError("historical_normative_trace_structure_mismatch")
     except G3ValidationError:

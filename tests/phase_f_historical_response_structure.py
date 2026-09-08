@@ -141,8 +141,24 @@ class ResponseBinding(unittest.TestCase):
                 commits=[obj(f'{i:040x}') for i in range(1,min(total,250))]+[obj(P)])
             self.assertTrue(final(t)['historical_publication_valid'])
             self.assertTrue(all('?' not in u for u in t.calls))
-            t.comparison['commits'].pop(0)
+            if total > 1:
+                t.comparison['commits'].pop(0)
+                self.assertTrue(final(t)['historical_publication_valid'])
+
+        for commits in [[], [obj(f'{i:040x}') for i in range(1, 251)] + [obj(P)]]:
+            t=Raw()
+            t.comparison.update(ahead_by=251,total_commits=251,commits=commits)
             with self.assertRaises(m.G3ValidationError): final(t)
+        t=Raw()
+        t.comparison.update(ahead_by=1,total_commits=1,commits=[obj('1'*40),obj(P)])
+        with self.assertRaises(m.G3ValidationError): final(t)
+
+    def test_shorter_bounded_compare_list_is_compatible(self):
+        t=Raw()
+        t.comparison.update(ahead_by=251,total_commits=251,
+            commits=[obj(f'{i:040x}') for i in range(1,249)]+[obj(P)])
+        self.assertEqual(final(t), {'historical_publication_valid': True,
+            'historical_normative_structure_valid': True, 'current_operational_authority': False})
 
     def test_removed_semantic_validators_fail_closed(self):
         for name in ['_validate_canonical_commit','_validate_canonical_comparison']:
@@ -170,7 +186,8 @@ class CommittedStructure(unittest.TestCase):
         cls.git('checkout','--detach',P)
         cls.git('config','user.name','TEST_ONLY HRS')
         cls.git('config','user.email','hrs@example.invalid')
-        cls.paths=[m.BUNDLE_PATH,m.TRACE_PATH,m.AUTHORITY_GRAPH_PATH,m.ARCH]
+        cls.paths=[m.BUNDLE_PATH,m.TRACE_PATH,m.AUTHORITY_GRAPH_PATH,m.ARCH,
+            m.R11_SOURCE,m.MIGRATION_LEDGER,*m.SPECS.values(),m.NORMATIVE_MATRIX_PATH]
         cls.original={p: (cls.repo/p.relative_to(m.ROOT)).read_bytes() for p in cls.paths}
         cls.records=[]
         print('Retained committed malformed fixtures:',cls.directory,flush=True)
@@ -183,11 +200,15 @@ class CommittedStructure(unittest.TestCase):
         (self.repo/path.relative_to(m.ROOT)).write_bytes(json.dumps(value,sort_keys=True,indent=2).encode()+b'\n')
 
     def refresh_hashes(self,b,t,g):
-        def raw(p): return (self.repo/p.relative_to(m.ROOT)).read_bytes()
+        def fixture_path(p):
+            if p.is_absolute():
+                return p if p == self.repo or self.repo in p.parents else self.repo/p.relative_to(m.ROOT)
+            return self.repo/p
+        def raw(p): return fixture_path(p).read_bytes()
         def digest(p): return m.sha256_bytes(raw(p))
         t['authority_graph']['sha256']=digest(m.AUTHORITY_GRAPH_PATH)
         for node in t['generated_source_sha256s']:
-            t['generated_source_sha256s'][node]=digest(m.ROOT/g['node_identity_rules'][node]['path'])
+            t['generated_source_sha256s'][node]=digest(Path(g['node_identity_rules'][node]['path']))
         self.save(m.TRACE_PATH,t)
         paths={'architecture_plan':m.ARCH,'wire_specification':m.SPECS['F-WIRE'],
             'scientific_specification':m.SPECS['F-SCI'],'operations_specification':m.SPECS['F-OPS'],
@@ -199,14 +220,35 @@ class CommittedStructure(unittest.TestCase):
         inputs['authority_graph_sha256']=digest(m.AUTHORITY_GRAPH_PATH)
         for node,v in inputs['authority_bindings'].items():
             rule=g['node_identity_rules'][node]
-            if rule['type']=='repository_file_sha256':v['sha256']=digest(m.ROOT/rule['path'])
+            if rule['type']=='repository_file_sha256':v['sha256']=digest(Path(rule['path']))
         for field in ['architecture_plan','traceability_manifest','migration_ledger','normative_traceability_matrix','authority_graph']:
-            p=m.ROOT/b[field]['path'];b[field]['sha256']=digest(p)
+            p=self.repo/Path(b[field]['path']);b[field]['sha256']=digest(p)
             if 'git_blob' in b[field]:b[field]['git_blob']=m._git_blob_bytes(raw(p))
         inputs['sha256']=m.sha256_bytes(m.canonical_json_bytes({k:v for k,v in inputs.items() if k!='sha256'}))
         b['target_revision']['sha256']=inputs['sha256']
         self.save(m.BUNDLE_PATH,b)
         self.assertEqual(inputs['sha256'],m.sha256_bytes(m.canonical_json_bytes({k:v for k,v in inputs.items() if k!='sha256'})))
+
+    def replace_text(self, path, old, new):
+        fixture = self.repo/path.relative_to(m.ROOT)
+        text = fixture.read_text()
+        self.assertIn(old, text)
+        fixture.write_text(text.replace(old, new, 1))
+
+    def commit_source_attack(self, name, mutate):
+        for path, raw in self.original.items():
+            (self.repo/path.relative_to(m.ROOT)).write_bytes(raw)
+        b=json.loads(self.original[m.BUNDLE_PATH]);t=json.loads(self.original[m.TRACE_PATH]);g=json.loads(self.original[m.AUTHORITY_GRAPH_PATH])
+        mutate()
+        self.save(m.AUTHORITY_GRAPH_PATH,g)
+        self.refresh_hashes(b,t,g)
+        self.git('add','.')
+        self.git('commit','-qm','TEST_ONLY historical source attack: '+name)
+        sha=self.git('rev-parse','HEAD')
+        with self.assertRaises((m.G3ValidationError,ValueError)) as error:
+            final(Raw(sha,sha),self.repo)
+        self.assertNotIn('publication',str(error.exception))
+        self.records.append({'case':name,'sha':sha,'rejected':str(error.exception)})
 
     def test_architecture_F0_inventory(self):
         for name in ['missing F0 owner decision','duplicate F0 owner decision','duplicate F0 JSON member']:
@@ -267,6 +309,55 @@ class CommittedStructure(unittest.TestCase):
                 with self.assertRaises((m.G3ValidationError,ValueError)) as error:final(Raw(sha,sha),self.repo)
                 self.assertNotIn('publication',str(error.exception))
                 self.records.append({'case':name,'sha':sha,'rejected':str(error.exception)})
+        (self.directory/'results.json').write_text(json.dumps(self.records,indent=2)+'\n')
+        self.assertEqual(self.git('status','--porcelain=v1'),'')
+
+    def test_historical_source_attack_matrix(self):
+        r11_line = '| R11-01 |'
+        migration_line = next(line for line in self.original[m.MIGRATION_LEDGER].decode().splitlines(keepends=True) if line.startswith(r11_line))
+        f0_line = next(line for line in self.original[m.ARCH].decode().splitlines(keepends=True) if line.startswith('| `F-OD-01` |'))
+        actor_row = next(line for line in self.original[m.SPECS['F-WIRE']].decode().splitlines(keepends=True) if line.startswith('| PhaseFReviewerActorAttestationV1 |'))
+        actor_anchor = '<a id="schema-def-PhaseFReviewerActorAttestationV1"></a>'
+        kat_row = next(line for line in self.original[m.SPECS['F-CNF']].decode().splitlines(keepends=True) if line.startswith('| R12-NEG-G3-WRONG-FIELD-NAME |'))
+
+        def mutate_r11(mutator):
+            path = self.repo/m.R11_SOURCE.relative_to(m.ROOT)
+            path.write_bytes(mutator(path.read_bytes()))
+
+        def duplicate_normative_row():
+            path = self.repo/m.NORMATIVE_MATRIX_PATH.relative_to(m.ROOT)
+            matrix = json.loads(path.read_text())
+            matrix['requirements'].append(deepcopy(matrix['requirements'][0]))
+            path.write_text(json.dumps(matrix, sort_keys=True, indent=2)+'\n')
+
+        attacks = [
+            ('R1 altered exact-pinned R11 bytes', lambda: mutate_r11(lambda raw: raw[:100] + bytes([raw[100] ^ 1]) + raw[101:])),
+            ('R11 truncated', lambda: mutate_r11(lambda raw: raw[:-1])),
+            ('R11 extra content', lambda: mutate_r11(lambda raw: raw+b'\nextra')),
+            ('R1 missing migration inventory', lambda: self.replace_text(m.MIGRATION_LEDGER, migration_line, '')),
+            ('migration inventory duplicate', lambda: self.replace_text(m.MIGRATION_LEDGER, migration_line, migration_line+ migration_line)),
+            ('migration unknown ID', lambda: self.replace_text(m.MIGRATION_LEDGER, '| R11-01 |', '| R11-99 |')),
+            ('migration wrong R11 reference', lambda: self.replace_text(m.MIGRATION_LEDGER, '| R11-01 |', '| R11-02 |')),
+            ('R1 missing required actor-attestation schema anchor', lambda: self.replace_text(m.SPECS['F-WIRE'], actor_anchor+'\n', '')),
+            ('schema anchor renamed', lambda: self.replace_text(m.SPECS['F-WIRE'], actor_anchor, actor_anchor.replace('ActorAttestation', 'RenamedActorAttestation'))),
+            ('R1 missing required actor-attestation catalog row', lambda: self.replace_text(m.SPECS['F-WIRE'], actor_row, '')),
+            ('schema catalog duplicate', lambda: self.replace_text(m.SPECS['F-WIRE'], actor_row, actor_row+actor_row)),
+            ('schema catalog wrong authority kind', lambda: self.replace_text(m.SPECS['F-WIRE'], 'PhaseFReviewerActorAttestationV1 | SIGNED_EXTERNAL_AUTHORITY', 'PhaseFReviewerActorAttestationV1 | WRONG_AUTHORITY')),
+            ('KAT row removed', lambda: self.replace_text(m.SPECS['F-CNF'], kat_row, '')),
+            ('KAT row duplicated', lambda: self.replace_text(m.SPECS['F-CNF'], kat_row, kat_row+kat_row)),
+            ('KAT wrong requirement mapping', lambda: self.replace_text(m.SPECS['F-CNF'], kat_row, kat_row.replace('Replace the first key', 'Replace an unrelated field', 1))),
+            ('KAT malformed mapping', lambda: self.replace_text(m.SPECS['F-CNF'], kat_row, kat_row.replace('unknown_field', 'malformed_category', 1))),
+            ('KAT unsupported schema reference', lambda: self.replace_text(m.NORMATIVE_MATRIX_PATH, 'PhaseFReviewerActorAttestationV1', 'PhaseFUnsupportedSchemaV1')),
+            ('wire source section removed', lambda: self.replace_text(m.SPECS['F-WIRE'], '## 4. Current R12 schema catalog closure', '## 4. Removed schema catalog closure')),
+            ('wire required heading renamed', lambda: self.replace_text(m.SPECS['F-WIRE'], '## 6. Review gate', '## 6. Renamed review gate')),
+            ('architecture F-OD inventory removed', lambda: self.replace_text(m.ARCH, f0_line, '')),
+            ('architecture F-OD duplicate', lambda: self.replace_text(m.ARCH, f0_line, f0_line+f0_line)),
+            ('normative matrix required row removed', lambda: self.replace_text(m.NORMATIVE_MATRIX_PATH, '"requirement_id": "F-ARCH-001"', '"requirement_id": "F-ARCH-001_REMOVED"')),
+            ('normative matrix duplicate row', duplicate_normative_row),
+        ]
+        for name, mutate in attacks:
+            with self.subTest(name=name):
+                self.commit_source_attack(name, mutate)
         (self.directory/'results.json').write_text(json.dumps(self.records,indent=2)+'\n')
         self.assertEqual(self.git('status','--porcelain=v1'),'')
 
