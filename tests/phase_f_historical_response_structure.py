@@ -178,9 +178,7 @@ class ResponseBinding(unittest.TestCase):
 class CommittedStructure(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cache=Path.home()/'Library/Caches/Codex/reviews/rust_electroanalysis_cli'
-        cache.mkdir(parents=True,exist_ok=True)
-        cls.directory=Path(tempfile.mkdtemp(prefix='phase-f-hrs-structures-',dir=cache))
+        cls.directory=Path(tempfile.mkdtemp(prefix='phase-f-hrs-structures-'))
         cls.repo=cls.directory/'repository'
         subprocess.run(['git','clone','--no-hardlinks','--no-checkout',str(ROOT),str(cls.repo)],check=True,capture_output=True)
         cls.git('checkout','--detach',P)

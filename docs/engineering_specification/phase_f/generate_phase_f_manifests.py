@@ -113,7 +113,7 @@ EXPECTED_MIGRATION_COMPLETENESS = (
 
 
 @dataclass(frozen=True)
-class MigrationRow:
+class MigrationObligationRow:
     """The closed six-cell contract for one R11 normative obligation."""
 
     r11_requirement: str
@@ -125,7 +125,7 @@ class MigrationRow:
 
 
 @dataclass(frozen=True)
-class FindingMigrationRow:
+class MigratedFindingRow:
     """The closed three-cell contract for one migrated R11 finding."""
 
     finding: str
@@ -133,34 +133,87 @@ class FindingMigrationRow:
     status: str
 
 
+@dataclass(frozen=True)
+class MigrationCompleteness:
+    """The typed completeness block for the immutable V1 ledger."""
+
+    r11_current_normative_obligations: int
+    r12_architecture_self_closed: int
+    r12_wire_owned: int
+    r12_sci_owned: int
+    r12_ops_owned: int
+    r12_cnf_owned: int
+    r12_impl_owned: int
+    missing: int
+    unowned: int
+    duplicated_conflicting_ownership: int
+    migrated_findings_missing: int
+
+    def as_lines(self) -> tuple[str, ...]:
+        return (
+            f"R11_CURRENT_NORMATIVE_OBLIGATIONS={self.r11_current_normative_obligations}",
+            f"R12_ARCHITECTURE_SELF_CLOSED={self.r12_architecture_self_closed}",
+            f"R12_WIRE_OWNED={self.r12_wire_owned}",
+            f"R12_SCI_OWNED={self.r12_sci_owned}",
+            f"R12_OPS_OWNED={self.r12_ops_owned}",
+            f"R12_CNF_OWNED={self.r12_cnf_owned}",
+            f"R12_IMPL_OWNED={self.r12_impl_owned}",
+            f"missing={self.missing}",
+            f"unowned={self.unowned}",
+            f"duplicated_conflicting_ownership={self.duplicated_conflicting_ownership}",
+            f"migrated_findings_missing={self.migrated_findings_missing}",
+        )
+
+
+@dataclass(frozen=True)
+class MigrationLedgerV1:
+    """The complete typed representation of HistoricalProfileV1PendingDraft."""
+
+    source_sha256: str
+    source_git_blob: str
+    obligation_rows: tuple[MigrationObligationRow, ...]
+    finding_rows: tuple[MigratedFindingRow, ...]
+    completeness: MigrationCompleteness
+    lossless_migration_rule: str
+    finding_migration_disclaimer: str
+    completeness_explanation: str
+    authority_closure: str
+
+
+# Keep the old names available to the existing semantic fixtures while making
+# the production model's purpose explicit.
+MigrationRow = MigrationObligationRow
+FindingMigrationRow = MigratedFindingRow
+
+
 EXPECTED_MIGRATION_ROWS = (
-    MigrationRow("R11-01", "Literal plan tag parser plus real-Git property", "Conformance `F-CNF-004`", "unchanged/refined", "add R12 architecture tag candidate", "PENDING"),
-    MigrationRow("R11-02", "Literal trust tag/parser/binding", "Wire `F-WIRE-005,F-WIRE-007`; Conformance `F-CNF-004`", "unchanged", "none", "PENDING"),
-    MigrationRow("R11-03", "Opaque retention storage bytes after identity validation", "Operations `F-OPS-007`; Conformance `F-CNF-002`", "unchanged", "none", "PENDING"),
-    MigrationRow("R11-04", "Literal incident/resolution progression and hashes", "Operations `F-OPS-004`; Conformance `F-CNF-001`", "unchanged", "none", "PENDING"),
-    MigrationRow("R11-05", "Exact release retention composition", "Operations `F-OPS-006`; Conformance `F-CNF-002`", "unchanged", "none", "PENDING"),
-    MigrationRow("R11-06", "Exact campaign membership, static protocol separation", "Operations `F-OPS-006`; Conformance `F-CNF-002`", "unchanged", "none", "PENDING"),
-    MigrationRow("R11-07", "Complete 15-metric KAT or narrow property only", "Operations `F-OPS-003`; Conformance `F-CNF-003`", "unchanged", "none", "PENDING"),
-    MigrationRow("R11-08", "Explicit constructive authority DAG", "Architecture `F-ARCH-017`; Conformance `F-CNF-005`; Implementation `F-IMPL-007`", "refined for G3", "authoritative typed R12 graph with exact source-kind/relation/destination-kind tuples, mandatory per-edge `none`/`serialized_binding` obligations, root SHA-256 binding into specification inputs, derived node/semantic/serialized/builder/validator projections, a production resolver dependency registry projected into the external trust DAG, computed hash/self-Git/self-reference/future-object/target/bypass audits, and isolated root-change/real-format/external-CAS fixture coverage", "PENDING"),
-    MigrationRow("R11-09", "One anchor and catalog row per identifier", "Wire `F-WIRE-008`; Conformance `F-CNF-005`", "refined", "add bundle-tag schema", "PENDING"),
-    MigrationRow("R11-10", "Exhaustive nested usage rows", "Wire `F-WIRE-008`; Conformance `F-CNF-005`", "unchanged", "reconcile new schema use", "PENDING"),
-    MigrationRow("R11-11", "Exact catalog metadata", "Wire `F-WIRE-008`; Conformance `F-CNF-005`", "unchanged", "add new row", "PENDING"),
-    MigrationRow("R11-12", "Traceability only from derived inverse", "Architecture `F-ARCH-022`; Conformance `F-CNF-005`", "refined to JSON normative matrix plus derived manifest", "exact bidirectional semantic and schema-usage reconciliation", "PENDING"),
-    MigrationRow("R11-13", "Complete literal inputs; honest result class", "Conformance `F-CNF-003,F-CNF-006`", "unchanged", "none", "PENDING"),
-    MigrationRow("R11-14", "No KAT/evidence/claim promotion", "Architecture `F-ARCH-002,F-ARCH-017`; Scientific `F-SCI-009`; Conformance `F-CNF-007`", "unchanged", "none", "PENDING"),
-    MigrationRow("R11-15", "Campaign/static terminology", "Operations `F-OPS-006`; Conformance `F-CNF-002`", "unchanged", "none", "PENDING"),
-    MigrationRow("R11-16", "Structurally valid Markdown", "Conformance `F-CNF-005`", "unchanged", "run across all current docs", "PENDING"),
-    MigrationRow("R11-17", "Preserve closed safety/science/Phase-E/P2", "Architecture `F-ARCH-003,F-ARCH-013..017`; Conformance `F-CNF-008`; Implementation `F-IMPL-006`", "unchanged", "regression replay", "PENDING"),
-    MigrationRow("R11-18", "Exact schema set/inverse coverage", "Wire `F-WIRE-008`; Conformance `F-CNF-005`", "forward-refined", "R11 remains 91; the R12 expected set becomes 98 (91 inherited plus `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`, `PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`, `PhaseFReviewerBootstrapCurrentnessProofV1`, `PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`, and `PhaseFReviewerBootstrapExternalMonotonicHeadV1`) and is invertible through the R12 matrix `schema_ids` cells", "PENDING"),
-    MigrationRow("R11-19", "Future F-EV only real; KATs only tests", "Scientific `F-SCI-010`; Conformance `F-CNF-007`", "unchanged", "none", "PENDING"),
-    MigrationRow("R11-20", "Exactly 20 owner decisions", "Architecture `F-ARCH-006`; Wire `F-WIRE-004`; Conformance `F-CNF-005`", "unchanged", "none", "PENDING"),
+    MigrationObligationRow("R11-01", "Literal plan tag parser plus real-Git property", "Conformance `F-CNF-004`", "unchanged/refined", "add R12 architecture tag candidate", "PENDING"),
+    MigrationObligationRow("R11-02", "Literal trust tag/parser/binding", "Wire `F-WIRE-005,F-WIRE-007`; Conformance `F-CNF-004`", "unchanged", "none", "PENDING"),
+    MigrationObligationRow("R11-03", "Opaque retention storage bytes after identity validation", "Operations `F-OPS-007`; Conformance `F-CNF-002`", "unchanged", "none", "PENDING"),
+    MigrationObligationRow("R11-04", "Literal incident/resolution progression and hashes", "Operations `F-OPS-004`; Conformance `F-CNF-001`", "unchanged", "none", "PENDING"),
+    MigrationObligationRow("R11-05", "Exact release retention composition", "Operations `F-OPS-006`; Conformance `F-CNF-002`", "unchanged", "none", "PENDING"),
+    MigrationObligationRow("R11-06", "Exact campaign membership, static protocol separation", "Operations `F-OPS-006`; Conformance `F-CNF-002`", "unchanged", "none", "PENDING"),
+    MigrationObligationRow("R11-07", "Complete 15-metric KAT or narrow property only", "Operations `F-OPS-003`; Conformance `F-CNF-003`", "unchanged", "none", "PENDING"),
+    MigrationObligationRow("R11-08", "Explicit constructive authority DAG", "Architecture `F-ARCH-017`; Conformance `F-CNF-005`; Implementation `F-IMPL-007`", "refined for G3", "authoritative typed R12 graph with exact source-kind/relation/destination-kind tuples, mandatory per-edge `none`/`serialized_binding` obligations, root SHA-256 binding into specification inputs, derived node/semantic/serialized/builder/validator projections, a production resolver dependency registry projected into the external trust DAG, computed hash/self-Git/self-reference/future-object/target/bypass audits, and isolated root-change/real-format/external-CAS fixture coverage", "PENDING"),
+    MigrationObligationRow("R11-09", "One anchor and catalog row per identifier", "Wire `F-WIRE-008`; Conformance `F-CNF-005`", "refined", "add bundle-tag schema", "PENDING"),
+    MigrationObligationRow("R11-10", "Exhaustive nested usage rows", "Wire `F-WIRE-008`; Conformance `F-CNF-005`", "unchanged", "reconcile new schema use", "PENDING"),
+    MigrationObligationRow("R11-11", "Exact catalog metadata", "Wire `F-WIRE-008`; Conformance `F-CNF-005`", "unchanged", "add new row", "PENDING"),
+    MigrationObligationRow("R11-12", "Traceability only from derived inverse", "Architecture `F-ARCH-022`; Conformance `F-CNF-005`", "refined to JSON normative matrix plus derived manifest", "exact bidirectional semantic and schema-usage reconciliation", "PENDING"),
+    MigrationObligationRow("R11-13", "Complete literal inputs; honest result class", "Conformance `F-CNF-003,F-CNF-006`", "unchanged", "none", "PENDING"),
+    MigrationObligationRow("R11-14", "No KAT/evidence/claim promotion", "Architecture `F-ARCH-002,F-ARCH-017`; Scientific `F-SCI-009`; Conformance `F-CNF-007`", "unchanged", "none", "PENDING"),
+    MigrationObligationRow("R11-15", "Campaign/static terminology", "Operations `F-OPS-006`; Conformance `F-CNF-002`", "unchanged", "none", "PENDING"),
+    MigrationObligationRow("R11-16", "Structurally valid Markdown", "Conformance `F-CNF-005`", "unchanged", "run across all current docs", "PENDING"),
+    MigrationObligationRow("R11-17", "Preserve closed safety/science/Phase-E/P2", "Architecture `F-ARCH-003,F-ARCH-013..017`; Conformance `F-CNF-008`; Implementation `F-IMPL-006`", "unchanged", "regression replay", "PENDING"),
+    MigrationObligationRow("R11-18", "Exact schema set/inverse coverage", "Wire `F-WIRE-008`; Conformance `F-CNF-005`", "forward-refined", "R11 remains 91; the R12 expected set becomes 98 (91 inherited plus `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`, `PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`, `PhaseFReviewerBootstrapCurrentnessProofV1`, `PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`, and `PhaseFReviewerBootstrapExternalMonotonicHeadV1`) and is invertible through the R12 matrix `schema_ids` cells", "PENDING"),
+    MigrationObligationRow("R11-19", "Future F-EV only real; KATs only tests", "Scientific `F-SCI-010`; Conformance `F-CNF-007`", "unchanged", "none", "PENDING"),
+    MigrationObligationRow("R11-20", "Exactly 20 owner decisions", "Architecture `F-ARCH-006`; Wire `F-WIRE-004`; Conformance `F-CNF-005`", "unchanged", "none", "PENDING"),
 )
 EXPECTED_FINDING_MIGRATION_ROWS = (
-    FindingMigrationRow("F-PLAN-R11-P1-01 storage/schema conflation", "`F-CNF-001,F-CNF-002`, G2 Conformance", "OPEN pending independent review"),
-    FindingMigrationRow("F-PLAN-R11-P1-02 catalog/usage metadata", "`F-WIRE-008,F-CNF-005`, G2 Wire/Conformance", "OPEN pending independent review"),
-    FindingMigrationRow("F-PLAN-R11-P1-03 incomplete parser/DAG/monitoring positives", "`F-CNF-003..006`, G2 Conformance", "OPEN pending independent review"),
-    FindingMigrationRow("F-PLAN-R11-P1-04 campaign/static membership", "`F-OPS-006,F-CNF-002`, G2 Operations/Conformance", "OPEN pending independent review"),
-    FindingMigrationRow("F-PLAN-R11-P3-01 Markdown fence integrity", "`F-CNF-005`, G2 Conformance", "OPEN pending independent review"),
+    MigratedFindingRow("F-PLAN-R11-P1-01 storage/schema conflation", "`F-CNF-001,F-CNF-002`, G2 Conformance", "OPEN pending independent review"),
+    MigratedFindingRow("F-PLAN-R11-P1-02 catalog/usage metadata", "`F-WIRE-008,F-CNF-005`, G2 Wire/Conformance", "OPEN pending independent review"),
+    MigratedFindingRow("F-PLAN-R11-P1-03 incomplete parser/DAG/monitoring positives", "`F-CNF-003..006`, G2 Conformance", "OPEN pending independent review"),
+    MigratedFindingRow("F-PLAN-R11-P1-04 campaign/static membership", "`F-OPS-006,F-CNF-002`, G2 Operations/Conformance", "OPEN pending independent review"),
+    MigratedFindingRow("F-PLAN-R11-P3-01 Markdown fence integrity", "`F-CNF-005`, G2 Conformance", "OPEN pending independent review"),
 )
 R12_SCHEMA_IDS = {
     "PhaseFSpecificationBundleApprovalV1",
@@ -6139,56 +6192,299 @@ def _migration_destination_ids(
     }
 
 
-def _validate_migration_ledger_semantics(reader: SourceReader) -> None:
-    ledger = reader.read_text(MIGRATION_LEDGER)
-    source_declaration = (
-        "Source: `phase_f_r11_normative_source.md`, SHA-256\n"
-        f"`{EXPECTED_R11_SHA256}`,\n"
-        f"Git blob `{EXPECTED_R11_GIT_BLOB}`."
-    )
-    if ledger.count(source_declaration) != 1:
-        raise ValueError("migration ledger R11 source declaration mismatch")
-    for invariant in (
-        "The R11 §53.8 matrix is the single current R11 requirement set.",
-        "Every row is\nmapped below;",
-        "Every row is\nmapped below; distributed field closures, anchors, usage rows, ACs, tests,",
-        "fixtures, and F-EVs travel with their mapped requirement through the explicit\nclause-adoption tables in the destination documents.",
-        "Historical R1–R10 prose\nremains provenance and is not silently promoted to a second current authority.",
-    ):
-        if ledger.count(invariant) != 1:
-            raise ValueError("migration ledger lossless-migration rule mismatch")
+MIGRATION_LEDGER_TITLE = "# Phase F R11 → R12 Lossless Migration Ledger"
+MIGRATION_LEDGER_HEADINGS = (
+    MIGRATION_LEDGER_TITLE,
+    "## 1. Source and rule",
+    "## 2. Normative-obligation migration",
+    "## 3. R11 finding migration",
+    "## 4. Completeness result",
+    "## 5. R12 authority-closure remediation",
+)
+MIGRATION_SOURCE_DECLARATION = (
+    "Source: `phase_f_r11_normative_source.md`, SHA-256\n"
+    f"`{EXPECTED_R11_SHA256}`,\n"
+    f"Git blob `{EXPECTED_R11_GIT_BLOB}`."
+)
+MIGRATION_LOSSLESS_RULE = (
+    "The R11 §53.8 matrix is the single current R11 requirement set. Every row is\n"
+    "mapped below; distributed field closures, anchors, usage rows, ACs, tests,\n"
+    "fixtures, and F-EVs travel with their mapped requirement through the explicit\n"
+    "clause-adoption tables in the destination documents. Historical R1–R10 prose\n"
+    "remains provenance and is not silently promoted to a second current authority."
+)
+MIGRATION_FINDING_DISCLAIMER = (
+    "No author disposition is upgraded to CLOSED by this refactor."
+)
+MIGRATION_COMPLETENESS_EXPLANATION = (
+    "Rows with multiple refining documents have one semantic owner and one or more\n"
+    "verification/implementation consumers; that is traceability, not conflicting\n"
+    "normative ownership. Independent reviews remain PENDING, so G2 and G3 are not\n"
+    "approved."
+)
+MIGRATION_AUTHORITY_CLOSURE = (
+    "The current R12 closure adds no approval result. The immutable\n"
+    "`PhaseFMigratedFindingReviewV1` schema is a future independent-review object;\n"
+    "the five migrated findings remain pending fresh independent disposition. The\n"
+    "bundle binds a typed nullable reference to that object and stays fail closed\n"
+    "until a genuine external review exists. The exact R12 artifact-level graph,\n"
+    "semantic traceability matrix, shared G3 validator, real-format resolver,\n"
+    "serialized binding checks, and all lifecycle/staleness checks are defined as\n"
+    "planning contracts only. This remediation does not fabricate a review artifact\n"
+    "for its own work. `PhaseFReviewerActorAttestationV1`,\n"
+    "`PhaseFReviewerBootstrapTrustRootV1`, and\n"
+    "`PhaseFReviewerBootstrapCurrentnessProofV1`, and\n"
+    "`PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`, and\n"
+    "`PhaseFReviewerBootstrapExternalMonotonicHeadV1` are forward R12 additive schemas:\n"
+    "the bootstrap root and signed currentness proof establish the narrow pre-G0\n"
+    "reviewer trust domain, the protected Git external head establishes the live\n"
+    "monotonic currentness source, the resolver checkpoint caches that accepted\n"
+    "head, and the attestation binds each REAL reviewer support record to that\n"
+    "chain without changing R11 fields, registry record kinds,\n"
+    "relation enums, or the authority graph. This remediation creates no real root,\n"
+    "actor identity, enrollment, attestation, review, approval, or publication\n"
+    "authority."
+)
+EXPECTED_MIGRATION_COMPLETENESS_MODEL = MigrationCompleteness(
+    r11_current_normative_obligations=20,
+    r12_architecture_self_closed=3,
+    r12_wire_owned=5,
+    r12_sci_owned=3,
+    r12_ops_owned=5,
+    r12_cnf_owned=3,
+    r12_impl_owned=1,
+    missing=0,
+    unowned=0,
+    duplicated_conflicting_ownership=0,
+    migrated_findings_missing=0,
+)
 
-    migration_cells = _closed_markdown_table(
-        ledger,
-        "## 2. Normative-obligation migration",
-        "## 3. R11 finding migration",
+
+def _render_migration_table(
+    headers: tuple[str, ...], rows: tuple[tuple[str, ...], ...]
+) -> str:
+    header = "| " + " | ".join(headers) + " |"
+    separator = "|" + "|".join("---" for _ in headers) + "|"
+    rendered_rows = [
+        "| " + " | ".join(cells) + " |" for cells in rows
+    ]
+    return "\n".join((header, separator, *rendered_rows))
+
+
+def render_migration_ledger_v1(ledger: MigrationLedgerV1) -> bytes:
+    """Serialize the one supported V1 ledger representation, byte-for-byte."""
+
+    completeness_block = "```text\n" + "\n".join(
+        ledger.completeness.as_lines()
+    ) + "\n```"
+    return (
+        MIGRATION_LEDGER_TITLE
+        + "\n\n"
+        + "## 1. Source and rule\n\n"
+        + "Source: `phase_f_r11_normative_source.md`, SHA-256\n"
+        + f"`{ledger.source_sha256}`,\n"
+        + f"Git blob `{ledger.source_git_blob}`.\n\n"
+        + ledger.lossless_migration_rule
+        + "\n\n"
+        + "## 2. Normative-obligation migration\n\n"
+        + _render_migration_table(
+            MIGRATION_TABLE_HEADERS,
+            tuple(
+                (
+                    row.r11_requirement,
+                    row.semantic_obligation,
+                    row.r12_destination,
+                    row.semantics,
+                    row.further_closure,
+                    row.review_status,
+                )
+                for row in ledger.obligation_rows
+            ),
+        )
+        + "\n\n"
+        + "## 3. R11 finding migration\n\n"
+        + ledger.finding_migration_disclaimer
+        + "\n\n"
+        + _render_migration_table(
+            FINDING_MIGRATION_TABLE_HEADERS,
+            tuple(
+                (row.finding, row.new_owner_gate, row.status)
+                for row in ledger.finding_rows
+            ),
+        )
+        + "\n\n"
+        + "## 4. Completeness result\n\n"
+        + completeness_block
+        + "\n\n"
+        + ledger.completeness_explanation
+        + "\n\n"
+        + "## 5. R12 authority-closure remediation\n\n"
+        + ledger.authority_closure
+        + "\n"
+    ).encode("utf-8")
+
+
+def _strict_migration_table_rows(
+    section: str,
+    headers: tuple[str, ...],
+    expected_rows: int,
+    table_name: str,
+    prefix: tuple[str, ...],
+) -> tuple[tuple[str, ...], ...]:
+    lines = section.splitlines()
+    separator = "|" + "|".join("---" for _ in headers) + "|"
+    expected_prefix = (*prefix, "| " + " | ".join(headers) + " |", separator)
+    if lines[: len(expected_prefix)] != list(expected_prefix):
+        raise ValueError(f"{table_name} canonical header envelope mismatch")
+    if len(lines) != len(expected_prefix) + expected_rows + 1 or lines[-1] != "":
+        raise ValueError(f"{table_name} canonical row envelope mismatch")
+
+    rows: list[tuple[str, ...]] = []
+    for line in lines[len(expected_prefix) : -1]:
+        if not line.startswith("| ") or not line.endswith(" |"):
+            raise ValueError(f"{table_name} boundary mismatch")
+        parts = line.split("|")
+        if len(parts) != len(headers) + 2 or parts[0] != "" or parts[-1] != "":
+            raise ValueError(f"{table_name} boundary cell mismatch")
+        cells: list[str] = []
+        for padded in parts[1:-1]:
+            if len(padded) < 2 or padded[0] != " " or padded[-1] != " ":
+                raise ValueError(f"{table_name} padding mismatch")
+            cell = padded[1:-1]
+            if not cell or cell[0] in " \t\u00a0" or cell[-1] in " \t\u00a0":
+                raise ValueError(f"{table_name} cell whitespace mismatch")
+            if "\t" in cell or "\u00a0" in cell:
+                raise ValueError(f"{table_name} noncanonical whitespace")
+            cells.append(cell)
+        rows.append(tuple(cells))
+    return tuple(rows)
+
+
+def _parse_migration_completeness(section: str) -> MigrationCompleteness:
+    prefix = "\n\n```text\n"
+    suffix = "\n```\n\n" + MIGRATION_COMPLETENESS_EXPLANATION + "\n\n"
+    if not section.startswith(prefix) or not section.endswith(suffix):
+        raise ValueError("migration completeness envelope mismatch")
+    block = section[len(prefix) : -len(suffix)]
+    fields = block.splitlines()
+    expected_keys = tuple(line.split("=", 1)[0] for line in EXPECTED_MIGRATION_COMPLETENESS)
+    if len(fields) != len(expected_keys):
+        raise ValueError("migration completeness field cardinality")
+    values: list[int] = []
+    for field, expected_key in zip(fields, expected_keys):
+        key, separator, value = field.partition("=")
+        if separator != "=" or key != expected_key or not re.fullmatch(r"[0-9]+", value):
+            raise ValueError("migration completeness field grammar")
+        values.append(int(value))
+    return MigrationCompleteness(*values)
+
+
+def parse_migration_ledger_v1(raw_bytes: bytes) -> MigrationLedgerV1:
+    """Parse only the closed HistoricalProfileV1PendingDraft document grammar."""
+
+    try:
+        text = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError("migration ledger must be UTF-8") from error
+    if "\r" in text or not raw_bytes.endswith(b"\n") or raw_bytes.endswith(b"\n\n"):
+        raise ValueError("migration ledger line-ending envelope mismatch")
+    if "<!--" in text or "-->" in text:
+        raise ValueError("migration ledger HTML comments are not canonical authority")
+    headings = re.findall(r"^(?:#|##) .+$", text, re.MULTILINE)
+    if headings != list(MIGRATION_LEDGER_HEADINGS):
+        raise ValueError("migration ledger heading grammar mismatch")
+
+    positions = [text.index(heading) for heading in MIGRATION_LEDGER_HEADINGS]
+    if positions[0] != 0 or text[len(MIGRATION_LEDGER_TITLE) : positions[1]] != "\n\n":
+        raise ValueError("migration ledger title envelope mismatch")
+    sections = [
+        text[start + len(heading) : end]
+        for heading, start, end in zip(
+            MIGRATION_LEDGER_HEADINGS[1:], positions[1:], positions[2:] + [len(text)]
+        )
+    ]
+    source_section, obligation_section, finding_section, completeness_section, closure_section = sections
+    if source_section != "\n\n" + MIGRATION_SOURCE_DECLARATION + "\n\n" + MIGRATION_LOSSLESS_RULE + "\n\n":
+        raise ValueError("migration ledger source/rule prose mismatch")
+
+    obligation_cells = _strict_migration_table_rows(
+        obligation_section,
         MIGRATION_TABLE_HEADERS,
         len(EXPECTED_R11_IDS),
         "normative migration",
+        ("", ""),
     )
-    migration_rows = tuple(MigrationRow(*cells) for cells in migration_cells)
+    finding_cells = _strict_migration_table_rows(
+        finding_section,
+        FINDING_MIGRATION_TABLE_HEADERS,
+        len(EXPECTED_R11_FINDINGS),
+        "finding migration",
+        ("", "", MIGRATION_FINDING_DISCLAIMER, ""),
+    )
+    completeness = _parse_migration_completeness(completeness_section)
+    if closure_section != "\n\n" + MIGRATION_AUTHORITY_CLOSURE + "\n":
+        raise ValueError("migration ledger authority-closure prose mismatch")
+    if text.count("```") != 2:
+        raise ValueError("migration ledger fenced authority multiplicity")
+
+    return MigrationLedgerV1(
+        source_sha256=EXPECTED_R11_SHA256,
+        source_git_blob=EXPECTED_R11_GIT_BLOB,
+        obligation_rows=tuple(MigrationObligationRow(*cells) for cells in obligation_cells),
+        finding_rows=tuple(MigratedFindingRow(*cells) for cells in finding_cells),
+        completeness=completeness,
+        lossless_migration_rule=MIGRATION_LOSSLESS_RULE,
+        finding_migration_disclaimer=MIGRATION_FINDING_DISCLAIMER,
+        completeness_explanation=MIGRATION_COMPLETENESS_EXPLANATION,
+        authority_closure=MIGRATION_AUTHORITY_CLOSURE,
+    )
+
+
+# The table lists verification consumers as well as the single semantic owner.
+# Therefore ownership is a reviewed V1 rule, not the first destination token.
+MIGRATION_SEMANTIC_OWNER_BY_R11 = {
+    "R11-01": "R12_CNF_OWNED",
+    "R11-02": "R12_WIRE_OWNED",
+    "R11-03": "R12_OPS_OWNED",
+    "R11-04": "R12_OPS_OWNED",
+    "R11-05": "R12_OPS_OWNED",
+    "R11-06": "R12_OPS_OWNED",
+    "R11-07": "R12_CNF_OWNED",
+    "R11-08": "R12_ARCHITECTURE_SELF_CLOSED",
+    "R11-09": "R12_WIRE_OWNED",
+    "R11-10": "R12_WIRE_OWNED",
+    "R11-11": "R12_WIRE_OWNED",
+    "R11-12": "R12_ARCHITECTURE_SELF_CLOSED",
+    "R11-13": "R12_SCI_OWNED",
+    "R11-14": "R12_SCI_OWNED",
+    "R11-15": "R12_OPS_OWNED",
+    "R11-16": "R12_CNF_OWNED",
+    "R11-17": "R12_IMPL_OWNED",
+    "R11-18": "R12_WIRE_OWNED",
+    "R11-19": "R12_SCI_OWNED",
+    "R11-20": "R12_ARCHITECTURE_SELF_CLOSED",
+}
+
+
+def _validate_migration_ledger_semantics(reader: SourceReader) -> None:
+    raw = reader.read_bytes(MIGRATION_LEDGER)
+    typed = parse_migration_ledger_v1(raw)
+    if render_migration_ledger_v1(typed) != raw:
+        raise ValueError("migration ledger noncanonical serialization")
+    if typed.source_sha256 != EXPECTED_R11_SHA256 or typed.source_git_blob != EXPECTED_R11_GIT_BLOB:
+        raise ValueError("migration ledger R11 source declaration mismatch")
+
+    migration_rows = typed.obligation_rows
     if migration_rows != EXPECTED_MIGRATION_ROWS:
         raise ValueError("R11 migration semantic contract mismatch")
     if [row.r11_requirement for row in migration_rows] != EXPECTED_R11_IDS:
         raise ValueError("R11 migration order mismatch")
 
-    finding_cells = _closed_markdown_table(
-        ledger,
-        "## 3. R11 finding migration",
-        "## 4. Completeness result",
-        FINDING_MIGRATION_TABLE_HEADERS,
-        len(EXPECTED_R11_FINDINGS),
-        "finding migration",
-    )
-    finding_rows = tuple(FindingMigrationRow(*cells) for cells in finding_cells)
+    finding_rows = typed.finding_rows
     if finding_rows != EXPECTED_FINDING_MIGRATION_ROWS:
         raise ValueError("R11 finding migration semantic contract mismatch")
     if [row.finding.split(" ", 1)[0] for row in finding_rows] != EXPECTED_R11_FINDINGS:
         raise ValueError("R11 finding migration order mismatch")
-
-    completeness_block = "```text\n" + "\n".join(EXPECTED_MIGRATION_COMPLETENESS) + "\n```"
-    if ledger.count(completeness_block) != 1:
-        raise ValueError("migration completeness block mismatch")
 
     destination_ids = _migration_destination_ids(reader)
     for row in migration_rows:
@@ -6201,11 +6497,15 @@ def _validate_migration_ledger_semantics(reader: SourceReader) -> None:
             if reference not in destination_ids.get(prefix, set()):
                 raise ValueError(f"migration destination does not exist: {reference}")
 
-    # Recompute the portions that are derivable from the closed row tables, then
-    # compare the profile's literal ownership assertions as one exact block.
-    profile_counts = {
-        key: int(next(line.split("=", 1)[1] for line in EXPECTED_MIGRATION_COMPLETENESS if line.startswith(key + "=")))
-        for key in (
+    completeness = typed.completeness
+    if completeness != EXPECTED_MIGRATION_COMPLETENESS_MODEL:
+        raise ValueError("migration completeness block mismatch")
+    owner_counts = {
+        owner: sum(
+            MIGRATION_SEMANTIC_OWNER_BY_R11[row.r11_requirement] == owner
+            for row in migration_rows
+        )
+        for owner in (
             "R12_ARCHITECTURE_SELF_CLOSED",
             "R12_WIRE_OWNED",
             "R12_SCI_OWNED",
@@ -6214,8 +6514,17 @@ def _validate_migration_ledger_semantics(reader: SourceReader) -> None:
             "R12_IMPL_OWNED",
         )
     }
-    if sum(profile_counts.values()) != len(migration_rows):
-        raise ValueError(f"migration owner-count total mismatch: {profile_counts}")
+    expected_owner_counts = {
+        "R12_ARCHITECTURE_SELF_CLOSED": completeness.r12_architecture_self_closed,
+        "R12_WIRE_OWNED": completeness.r12_wire_owned,
+        "R12_SCI_OWNED": completeness.r12_sci_owned,
+        "R12_OPS_OWNED": completeness.r12_ops_owned,
+        "R12_CNF_OWNED": completeness.r12_cnf_owned,
+        "R12_IMPL_OWNED": completeness.r12_impl_owned,
+    }
+    if owner_counts != expected_owner_counts:
+        raise ValueError(f"migration semantic-owner counts mismatch: {owner_counts}")
+
     recomputed = {
         "R11_CURRENT_NORMATIVE_OBLIGATIONS": len(migration_rows),
         "missing": len(set(EXPECTED_R11_IDS) - {row.r11_requirement for row in migration_rows}),
@@ -6223,14 +6532,16 @@ def _validate_migration_ledger_semantics(reader: SourceReader) -> None:
         "duplicated_conflicting_ownership": len(migration_rows) - len({row.r11_requirement for row in migration_rows}),
         "migrated_findings_missing": len(set(EXPECTED_R11_FINDINGS) - {row.finding.split(" ", 1)[0] for row in finding_rows}),
     }
-    expected_recomputed = {
-        key: int(next(line.split("=", 1)[1] for line in EXPECTED_MIGRATION_COMPLETENESS if line.startswith(key + "=")))
-        for key in recomputed
-    }
-    if recomputed != expected_recomputed:
+    if recomputed != {
+        "R11_CURRENT_NORMATIVE_OBLIGATIONS": completeness.r11_current_normative_obligations,
+        "missing": completeness.missing,
+        "unowned": completeness.unowned,
+        "duplicated_conflicting_ownership": completeness.duplicated_conflicting_ownership,
+        "migrated_findings_missing": completeness.migrated_findings_missing,
+    }:
         raise ValueError(f"migration completeness recomputation mismatch: {recomputed}")
 
-    if _git_blob_bytes(reader.read_bytes(MIGRATION_LEDGER)) != EXPECTED_MIGRATION_LEDGER_GIT_BLOB:
+    if _git_blob_bytes(raw) != EXPECTED_MIGRATION_LEDGER_GIT_BLOB:
         raise ValueError("migration ledger known-good V1 Git blob mismatch")
 
 
