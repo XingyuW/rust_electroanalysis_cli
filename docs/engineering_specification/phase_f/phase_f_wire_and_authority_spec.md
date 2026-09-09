@@ -81,10 +81,14 @@ therefore declares one narrow terminal trust domain at
 `PRE_G0_REVIEWER_BOOTSTRAP`. Its graph-pinned genesis root identity and
 public-key fingerprint are immutable, while roots and proofs are discovered
 from content-addressed history directories. A caller cannot select a different
-key or trust root at validation time. The graph contract uses zero placeholders
-in this candidate because no real root is provisioned by this remediation; a
-subsequent reviewed target must replace them with the externally provisioned
-root identity.
+key or trust root at validation time. One externally constructed REAL genesis
+root candidate now exists. This graph candidate pins its exact `root_id` and
+public-key fingerprint, and the public root object is present in the
+graph-declared content-addressed history. These facts do not make the root
+authoritative. Authority requires this exact forward revision to receive fresh
+cumulative independent technical review with `P0=0` and `P1=0`, be published at
+its exact reviewed SHA, and pass authenticated post-publication revalidation.
+No currentness proof or monotonic head has yet been provisioned.
 
 <a id="schema-def-PhaseFReviewerBootstrapTrustRootV1"></a>
 `SCHEMA_DEF[PhaseFReviewerBootstrapTrustRootV1]` is the immutable terminal
@@ -221,15 +225,15 @@ The candidate graph stores the observed Stage B binding with
 `state_digest=7740d26753fa2aece88a3d01388fade840e08f23b29d55788bb8a3c0b8743ceb`.
 These pins remain untrusted until this exact candidate receives fresh
 cumulative independent technical review with `P0=0` and `P1=0`, is published
-at the exact reviewed SHA, and passes post-publication revalidation; monotonic
-genesis remains prohibited until Stage D succeeds. Missing or hidden bypass
-data, API identity mismatch, unavailable or insufficiently privileged API
-access, ruleset deletion/replacement, a changed history/version, disabled
-enforcement, a wrong ref condition, or any bypass actor fails closed. GitHub
-platform integrity and the authenticated Rulesets API are terminal external
-assumptions; repository administrators are not treated as invisible
-cryptographic roots, and any observable protection change invalidates REAL
-authorization.
+at the exact reviewed SHA, and passes post-publication revalidation. A REAL
+currentness proof and monotonic genesis remain unprovisioned and prohibited for
+this candidate. Missing or hidden bypass data, API identity mismatch,
+unavailable or insufficiently privileged API access, ruleset
+deletion/replacement, a changed history/version, disabled enforcement, a wrong
+ref condition, or any bypass actor fails closed. GitHub platform integrity and
+the authenticated Rulesets API are terminal external assumptions; repository
+administrators are not treated as invisible cryptographic roots, and any
+observable protection change invalidates REAL authorization.
 
 For `get_ruleset_history`, the authenticated transport derives one immutable
 pagination scope from the original trusted repository identity and pinned
@@ -442,14 +446,16 @@ The R12 resolver loads the graph-pinned bootstrap root and exact currentness
 proof from `.phase_f_authority/reviewer_bootstrap/`, validates complete-file
 hashes, root/proof IDs, the root signature, subject registry head, validity
 window, lifecycle, and verifier key, and then resolves each verifier-signed
-attestation. The canonical repository intentionally contains no real root or
-proof; production `real` resolution therefore fails closed until an
-externally provisioned, independently reviewed target supplies those exact
-objects. The isolated `real_test` fixture supplies explicitly marked
-`TEST_ONLY` root/proof/attestation material only for conformance. TEST_ONLY
-material can never authorize REAL mode. This additive contract changes no R11
-field, R11 registry record kind, registry relation enum, or 28-node/76-edge
-R12 authority graph.
+attestation. This forward candidate contains the exact public REAL genesis root
+object but intentionally contains no REAL currentness proof, monotonic head,
+reviewer identity, or reviewer attestation. Production `real` resolution
+therefore fails closed; the root remains non-authoritative pending fresh review,
+exact-SHA publication, and authenticated post-publication revalidation. The
+isolated `real_test` fixture supplies explicitly marked `TEST_ONLY`
+root/proof/attestation material only for conformance. TEST_ONLY material can
+never authorize REAL mode. This additive contract changes no R11 field, R11
+registry record kind, registry relation enum, or 28-node/76-edge R12 authority
+graph.
 
 ### 4.3 Canonical independent-review bundle wire
 

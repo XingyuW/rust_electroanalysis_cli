@@ -10,7 +10,7 @@
   "artifact_kind": "phase_f_specification_bundle_manifest_candidate",
   "authority_graph": {
     "path": "docs/engineering_specification/phase_f/phase_f_r12_authority_graph.json",
-    "sha256": "6a4e2cb59d0cc640bb97ba565bff7ea14731f824e92dd095190fcb095fe9bb8d"
+    "sha256": "20d6d01c1ad5f7f846c2e615babdbf9a8cc4ebf6f24178636be2f1678650f89e"
   },
   "blocking_reasons": [
     "architecture_plan_tag_absent",
@@ -49,7 +49,7 @@
       },
       "component_wire_spec": {
         "authority_id": null,
-        "sha256": "4dd3dba3a6abe83c9c11133ac036d78f1f4d2463caa8c0ac696b6d86ee0d0acd",
+        "sha256": "87af3338b564de7b70cdfd7ce43cb1709cc98abf9f133387a7ecb5f19946a5f4",
         "target": null
       },
       "f0_approval": {
@@ -59,7 +59,7 @@
       },
       "generated_traceability_manifest": {
         "authority_id": null,
-        "sha256": "b52e03d8b4a771f75e3f9d25d95f91fd217dd5e31dc94e42c0b6d18177e739d0",
+        "sha256": "46e8a047a9cc57d516fa4cb994dc2e204889ebcf082118f044234415327266cf",
         "target": null
       },
       "migration_ledger": {
@@ -73,31 +73,31 @@
         "target": null
       }
     },
-    "authority_graph_sha256": "6a4e2cb59d0cc640bb97ba565bff7ea14731f824e92dd095190fcb095fe9bb8d",
+    "authority_graph_sha256": "20d6d01c1ad5f7f846c2e615babdbf9a8cc4ebf6f24178636be2f1678650f89e",
     "schema_version": 1,
-    "sha256": "330cd7f1358b0e2b03f3555e095be2cda5bb07e1bf8c935a8ce2a2fe94a0324b",
+    "sha256": "e175279dbe0d20b245ec860685588d7104a8fbdf0eaf21d2fd113571720efdee",
     "source_sha256s": {
       "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
-      "authority_graph": "6a4e2cb59d0cc640bb97ba565bff7ea14731f824e92dd095190fcb095fe9bb8d",
+      "authority_graph": "20d6d01c1ad5f7f846c2e615babdbf9a8cc4ebf6f24178636be2f1678650f89e",
       "conformance_specification": "036486c599f1929ac3555af67e8f65047ffadcc851cd0ab19d35981cb667349f",
-      "generated_traceability_manifest": "b52e03d8b4a771f75e3f9d25d95f91fd217dd5e31dc94e42c0b6d18177e739d0",
+      "generated_traceability_manifest": "46e8a047a9cc57d516fa4cb994dc2e204889ebcf082118f044234415327266cf",
       "implementation_readiness_specification": "79b1d070ce2329f3a80e21d0e5ac91cc1512570d66ec0e33e8602cc28a28bb62",
       "migration_ledger": "760180da3b5b3fb9b44493fb0326c5e2efeb14e39175cad157dfeee154ee716f",
       "normative_traceability_matrix": "eb6b03be80b8a44bec46b77d78b4cbc56d3d7083ad38226726aa82b009fc1bc9",
       "operations_specification": "69f8f55ee4498f66697c101a0972c2e9e58446dabc38a4ecb1b29431a5aa7748",
       "scientific_specification": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
-      "wire_specification": "4dd3dba3a6abe83c9c11133ac036d78f1f4d2463caa8c0ac696b6d86ee0d0acd"
+      "wire_specification": "87af3338b564de7b70cdfd7ce43cb1709cc98abf9f133387a7ecb5f19946a5f4"
     }
   },
   "component_specifications": [
     {
-      "git_blob": "241082c2fa341343b1276652ac24b0afd27511b0",
+      "git_blob": "0704a33e790178496b3efa9dfe78f1a4561c3e6a",
       "independent_review_bundle_sha256": null,
       "p0_count": null,
       "p1_count": null,
       "path": "docs/engineering_specification/phase_f/phase_f_wire_and_authority_spec.md",
       "review_status": "PENDING",
-      "sha256": "4dd3dba3a6abe83c9c11133ac036d78f1f4d2463caa8c0ac696b6d86ee0d0acd"
+      "sha256": "87af3338b564de7b70cdfd7ce43cb1709cc98abf9f133387a7ecb5f19946a5f4"
     },
     {
       "git_blob": "4f65fa473572e1be067bab4e9c321cd0bde266cc",
@@ -165,11 +165,11 @@
   "schema_version": 1,
   "status": "DRAFT_NO_AUTHORITY",
   "target_revision": {
-    "sha256": "330cd7f1358b0e2b03f3555e095be2cda5bb07e1bf8c935a8ce2a2fe94a0324b",
+    "sha256": "e175279dbe0d20b245ec860685588d7104a8fbdf0eaf21d2fd113571720efdee",
     "type": "source_input_fingerprint"
   },
   "traceability_manifest": {
     "path": "docs/engineering_specification/phase_f/phase_f_traceability_manifest.json",
-    "sha256": "b52e03d8b4a771f75e3f9d25d95f91fd217dd5e31dc94e42c0b6d18177e739d0"
+    "sha256": "46e8a047a9cc57d516fa4cb994dc2e204889ebcf082118f044234415327266cf"
   }
 }

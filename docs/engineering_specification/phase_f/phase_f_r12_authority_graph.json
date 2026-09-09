@@ -12,8 +12,8 @@
     "root_authority_kind": "PhaseFReviewerBootstrapTrustRootV1",
     "currentness_proof_authority_kind": "PhaseFReviewerBootstrapCurrentnessProofV1",
     "accepted_head_checkpoint_authority_kind": "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
-    "root_id": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "root_public_key_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+    "root_id": "sha256:12714168c6a0c4b09d8b278e706dfb9bd041adeac03ddd015b6997a89f99b029",
+    "root_public_key_fingerprint": "b20491ddf5dc01bac706cb6ecb625451d55af32766ff141d68cd856196b21dfd",
     "allowed_purposes": [
       "reviewer_actor_attestation",
       "reviewer_currentness",
