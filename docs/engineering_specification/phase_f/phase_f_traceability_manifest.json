@@ -113,23 +113,23 @@
       ]
     },
     "path": "docs/engineering_specification/phase_f/phase_f_r12_authority_graph.json",
-    "sha256": "20d6d01c1ad5f7f846c2e615babdbf9a8cc4ebf6f24178636be2f1678650f89e"
+    "sha256": "81d489d9bd6d1c20dfbfd025df19f747bea2be212c2013c63e14724ee06560f8"
   },
   "generated_source_sha256s": {
     "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
-    "component_conformance_spec": "036486c599f1929ac3555af67e8f65047ffadcc851cd0ab19d35981cb667349f",
+    "component_conformance_spec": "657a191ac29928e00fa3f27be61c94cd25981531cefaa0bc649958da5a5af6bf",
     "component_implementation_spec": "79b1d070ce2329f3a80e21d0e5ac91cc1512570d66ec0e33e8602cc28a28bb62",
-    "component_operations_spec": "69f8f55ee4498f66697c101a0972c2e9e58446dabc38a4ecb1b29431a5aa7748",
+    "component_operations_spec": "38550336d529ceb19d7b50bd2518f52fde2e38bb67f9ba9fd551d1b03cf2b848",
     "component_scientific_spec": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
-    "component_wire_spec": "87af3338b564de7b70cdfd7ce43cb1709cc98abf9f133387a7ecb5f19946a5f4",
+    "component_wire_spec": "db544437e8c1c669ab08d1e0b4b571e3ed4fbe41dcc2df7276a1dd648e4aeb64",
     "migration_ledger": "760180da3b5b3fb9b44493fb0326c5e2efeb14e39175cad157dfeee154ee716f",
-    "normative_traceability_matrix": "eb6b03be80b8a44bec46b77d78b4cbc56d3d7083ad38226726aa82b009fc1bc9"
+    "normative_traceability_matrix": "9e2d156d2f3d66d71a57172744a9dad22da3919b84e7fe9932253ff061319550"
   },
   "generation_rule": "docs/engineering_specification/phase_f/generate_phase_f_manifests.py",
   "normative_matrix": {
     "path": "docs/engineering_specification/phase_f/phase_f_r12_normative_traceability_matrix.json",
     "requirement_count": 64,
-    "sha256": "eb6b03be80b8a44bec46b77d78b4cbc56d3d7083ad38226726aa82b009fc1bc9"
+    "sha256": "9e2d156d2f3d66d71a57172744a9dad22da3919b84e7fe9932253ff061319550"
   },
   "reference_catalogs": {
     "future_real_evidence": {
@@ -137,7 +137,7 @@
       "source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md"
     },
     "tests": {
-      "count": 122,
+      "count": 123,
       "r11_source": "docs/engineering_specification/phase_f/phase_f_r11_normative_source.md",
       "r12_source": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md"
     }
@@ -802,7 +802,9 @@
     {
       "authority_anchor": "#F-CNF-001",
       "authority_document": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
-      "constructive_audit_ids": [],
+      "constructive_audit_ids": [
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
+      ],
       "downstream_child_requirements": [],
       "expected_lifecycle_stage": "G2",
       "f0_decision_dependencies": [],
@@ -826,7 +828,8 @@
         "R11-KAT-INCIDENT",
         "R11-POS-PLAN",
         "R11-POS-TRUST",
-        "R11-CX-04"
+        "R11-CX-04",
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-017",
@@ -1804,7 +1807,8 @@
         "R11-DAG-AUDIT",
         "R11-CX-08",
         "R12-G3-REAL-FORMAT-POSITIVE",
-        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
       ],
       "downstream_child_requirements": [
         "F-IMPL-002"
@@ -1830,7 +1834,8 @@
         "R11-CX-08",
         "R11-CX-18",
         "R12-G3-REAL-FORMAT-POSITIVE",
-        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-016",
@@ -2400,7 +2405,8 @@
         "R11-CX-10",
         "R11-CX-11",
         "R11-CX-12",
-        "R11-CX-13"
+        "R11-CX-13",
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
       ],
       "downstream_child_requirements": [
         "F-CNF-001",
@@ -2434,7 +2440,8 @@
         "R11-CX-11",
         "R11-CX-12",
         "R11-CX-13",
-        "R11-CX-17"
+        "R11-CX-17",
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-015",

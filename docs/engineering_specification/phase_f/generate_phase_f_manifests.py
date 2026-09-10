@@ -17,7 +17,7 @@ import sys
 import tempfile
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from enum import Enum
@@ -374,6 +374,9 @@ ACTOR_IDENTITY_DIGEST_DOMAIN = b"mhi_phase_f_reviewer_actor_identity_v1\0"
 REVIEWER_ACTOR_ATTESTATION_DOMAIN = (
     b"mhi_phase_f_reviewer_actor_attestation_v1\0"
 )
+REVIEWER_BOOTSTRAP_VERIFIER_AUTHORITY_DOMAIN = (
+    b"mhi_phase_f_reviewer_bootstrap_verifier_authority_v1\0"
+)
 REVIEWER_BOOTSTRAP_ROOT_DOMAIN = (
     b"mhi_phase_f_reviewer_bootstrap_trust_root_v1\0"
 )
@@ -388,6 +391,13 @@ REVIEWER_BOOTSTRAP_SUBJECT_REGISTRY_DOMAIN = (
 )
 AUTHORITY_ENROLLMENT_DOMAIN = b"mhi_phase_f_authority_enrollment_v1\0"
 REVIEWER_BOOTSTRAP_STAGE = "PRE_G0_REVIEWER_BOOTSTRAP"
+MAX_REAL_CURRENTNESS_LIFETIME_SECONDS = 604800
+REAL_CURRENTNESS_WINDOW_POLICY = (
+    "valid_from_lt_valid_until_and_real_lifetime_le_604800_and_"
+    "valid_from_le_validation_time_le_valid_until"
+)
+REVIEWER_VERIFIER_AUTHORITY_SCOPE = "sign_phase_f_reviewer_actor_attestation_only"
+IDENTITY_EVIDENCE_HASH_POLICY = "sha256_exact_retained_external_evidence_package_bytes"
 REVIEWER_BOOTSTRAP_SCOPE = [
     "reviewer_actor_attestation",
     "reviewer_currentness",
@@ -1090,6 +1100,7 @@ R12_G3_TEST_IDS = [
     "R12-G3-REAL-ACTOR-ATTESTATION-POSITIVE",
     "R12-G3-REAL-ACTOR-ATTESTATION-NEGATIVE-MATRIX",
     "R12-G3-REAL-CURRENTNESS-HISTORY",
+    "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX",
     "R12-G3-REAL-HISTORICAL-RESOLUTION",
     "R12-G3-REAL-ROOT-ROTATION",
     "R12-G3-REAL-DISTINCT-EVIDENCE-SAME-PERSON",
@@ -1156,6 +1167,9 @@ EXPECTED_R12_TEST_CATALOG_IDS = {
     *R12_G3_TEST_IDS,
     *R12_TRACE_TEST_IDS,
     *R12_DAG_TEST_IDS,
+}
+LEGACY_R12_TEST_CATALOG_IDS = EXPECTED_R12_TEST_CATALOG_IDS - {
+    "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
 }
 
 G3_TAG_NAME = "ism-mechanism-health-v1-f-specification-bundle-approved"
@@ -2315,6 +2329,25 @@ def reviewer_actor_identity_digest(actor_subject_id: str) -> str:
     )
 
 
+def reviewer_bootstrap_verifier_authority_id(
+    current_verifier_public_key: str,
+    current_verifier_public_key_fingerprint: str,
+) -> str:
+    """Derive the key-bound authority ID embedded in a currentness proof."""
+
+    return "sha256:" + sha256_bytes(
+        REVIEWER_BOOTSTRAP_VERIFIER_AUTHORITY_DOMAIN
+        + canonical_jcs_bytes(
+            {
+                "current_verifier_public_key": current_verifier_public_key,
+                "current_verifier_public_key_fingerprint": (
+                    current_verifier_public_key_fingerprint
+                ),
+            }
+        )
+    )
+
+
 def reviewer_actor_attestation_id(attestation: dict[str, Any]) -> str:
     payload = {
         key: value
@@ -3276,7 +3309,10 @@ def _find_identity_cycle(
     return None
 
 
-def _reviewer_bootstrap_trust_contract(graph: dict[str, Any]) -> dict[str, Any]:
+def _reviewer_bootstrap_trust_contract(
+    graph: dict[str, Any],
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
+) -> dict[str, Any]:
     contract = graph.get("reviewer_bootstrap_trust_contract")
     if not isinstance(contract, dict) or set(contract) != REVIEWER_BOOTSTRAP_TRUST_CONTRACT_KEYS:
         raise ValueError("R12 reviewer bootstrap trust contract is not closed")
@@ -3305,7 +3341,15 @@ def _reviewer_bootstrap_trust_contract(graph: dict[str, Any]) -> dict[str, Any]:
         or contract["transition_policy"]
         != "forward_signed_replacement_with_resolver_checkpoint"
         or contract["currentness_window_policy"]
-        != "valid_from_le_validation_time_le_valid_until"
+        not in {
+            REAL_CURRENTNESS_WINDOW_POLICY,
+            "valid_from_le_validation_time_le_valid_until",
+        }
+        or (
+            contract["currentness_window_policy"]
+            == "valid_from_le_validation_time_le_valid_until"
+            and resolution_purpose != ResolutionPurpose.HISTORICAL_VALIDATION
+        )
     ):
         raise ValueError("R12 reviewer bootstrap trust contract metadata mismatch")
     return contract
@@ -3628,7 +3672,7 @@ def validate_r12_authority_graph(
         for rule in identity_rules.values()
     ):
         raise ValueError("R12 identity-cycle rule is not typed")
-    _reviewer_bootstrap_trust_contract(graph)
+    _reviewer_bootstrap_trust_contract(graph, resolution_purpose)
     _external_monotonic_head_contract(graph)
     if not isinstance(graph.get("external_trust_dependency_contract"), dict):
         raise ValueError("R12 external trust dependency contract is missing")
@@ -4617,7 +4661,9 @@ def _validate_reviewer_bootstrap_root_object(
 def _validate_reviewer_bootstrap_root_history(
     context: G3AuthorityContext,
 ) -> dict[str, dict[str, Any]]:
-    contract = _reviewer_bootstrap_trust_contract(context.graph)
+    contract = _reviewer_bootstrap_trust_contract(
+        context.graph, context.resolution_purpose
+    )
     roots = dict(context.reviewer_bootstrap_root_history)
     if isinstance(context.reviewer_bootstrap_root, dict):
         roots.setdefault(context.reviewer_bootstrap_root.get("root_id"), context.reviewer_bootstrap_root)
@@ -4664,7 +4710,9 @@ def _validate_reviewer_bootstrap_proof_object(
     proofs: dict[str, dict[str, Any]],
     require_current_window: bool,
 ) -> dict[str, dict[str, str]]:
-    contract = _reviewer_bootstrap_trust_contract(context.graph)
+    contract = _reviewer_bootstrap_trust_contract(
+        context.graph, context.resolution_purpose
+    )
     root = roots.get(proof.get("root_id"))
     if (
         set(proof)
@@ -4684,6 +4732,10 @@ def _validate_reviewer_bootstrap_proof_object(
         or not re.fullmatch(RUNTIME_STABLE_ID_PATTERN, proof["current_verifier_authority_id"])
         or not isinstance(proof.get("current_verifier_public_key"), str)
         or not re.fullmatch(ED25519_PUBLIC_KEY_PATTERN, proof["current_verifier_public_key"])
+        or not isinstance(proof.get("current_verifier_public_key_fingerprint"), str)
+        or not re.fullmatch(
+            r"[0-9a-f]{64}", proof["current_verifier_public_key_fingerprint"]
+        )
         or sha256_bytes(bytes.fromhex(proof["current_verifier_public_key"]))
         != proof.get("current_verifier_public_key_fingerprint")
         or not isinstance(proof.get("root_lifecycle"), str)
@@ -4700,6 +4752,18 @@ def _validate_reviewer_bootstrap_proof_object(
         or not isinstance(proof.get("invalidated"), bool)
     ):
         raise G3ValidationError("invalid_reviewer_bootstrap_currentness")
+    expected_verifier_authority_id = reviewer_bootstrap_verifier_authority_id(
+        proof["current_verifier_public_key"],
+        proof["current_verifier_public_key_fingerprint"],
+    )
+    if proof["current_verifier_authority_id"] != expected_verifier_authority_id:
+        raise G3ValidationError("reviewer_bootstrap_verifier_authority_id_mismatch")
+    if (
+        proof["current_verifier_public_key"] == root["root_public_key"]
+        or proof["current_verifier_public_key_fingerprint"]
+        == root["root_public_key_fingerprint"]
+    ):
+        raise G3ValidationError("reviewer_bootstrap_verifier_root_key_reuse")
     sequence = proof["sequence"]
     previous_id = proof.get("previous_proof_id")
     previous_sha = proof.get("previous_proof_sha256")
@@ -4757,8 +4821,14 @@ def _validate_reviewer_bootstrap_proof_object(
         )
     except ValueError as error:
         raise G3ValidationError("malformed_reviewer_bootstrap_validity_window") from error
-    if valid_from > valid_until:
+    if valid_from >= valid_until:
         raise G3ValidationError("malformed_reviewer_bootstrap_validity_window")
+    validity_lifetime = int((valid_until - valid_from).total_seconds())
+    if (
+        proof.get("authority_class") == "REAL"
+        and validity_lifetime > MAX_REAL_CURRENTNESS_LIFETIME_SECONDS
+    ):
+        raise G3ValidationError("real_reviewer_bootstrap_currentness_lifetime_exceeded")
     if require_current_window and not valid_from <= datetime.now(timezone.utc) <= valid_until:
         raise G3ValidationError("stale_reviewer_bootstrap_currentness")
     subject_index = _bootstrap_subject_index(proof)
@@ -4839,7 +4909,9 @@ def _validate_reviewer_bootstrap_checkpoint(
     checkpoint: dict[str, Any],
     current_proof: dict[str, Any],
 ) -> None:
-    contract = _reviewer_bootstrap_trust_contract(context.graph)
+    contract = _reviewer_bootstrap_trust_contract(
+        context.graph, context.resolution_purpose
+    )
     if (
         set(checkpoint)
         - {"bytes", "canonical_object", "complete_file_sha256", "content_unchanged"}
@@ -5674,7 +5746,10 @@ def parse_r11_evidence_catalog(read: SourceReaderLike | None = None) -> dict[str
     return catalog
 
 
-def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]:
+def parse_r12_test_catalog(
+    text: str | None = None,
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
+) -> dict[str, dict[str, str]]:
     text = SPECS["F-CNF"].read_text() if text is None else text
     section = text.split("## 3. Current executable catalog", 1)[1].split(
         "### 3.1", 1
@@ -5696,7 +5771,12 @@ def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]
             "fixture_scope": cells[2],
             "expected_result": cells[6],
         }
-    if set(catalog) != EXPECTED_R12_TEST_CATALOG_IDS:
+    expected_catalog_ids = (
+        LEGACY_R12_TEST_CATALOG_IDS
+        if resolution_purpose == ResolutionPurpose.HISTORICAL_VALIDATION
+        else EXPECTED_R12_TEST_CATALOG_IDS
+    )
+    if set(catalog) != expected_catalog_ids:
         raise ValueError(f"R12 test catalog set: {sorted(catalog)}")
     row = catalog["R12-POS-SPEC-BUNDLE-TAG"]
     if row != {
@@ -5721,7 +5801,7 @@ def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]
         "R12-POS-SPEC-BUNDLE-TAG",
         "R12-G3-AUTHORITY-CONTEXT-POS",
     }
-    for test_id in EXPECTED_R12_TEST_CATALOG_IDS - positive_result_ids:
+    for test_id in expected_catalog_ids - positive_result_ids:
         if catalog[test_id]["kat_class"] != "constructive_plan_audit":
             raise ValueError(f"R12 constructive test category: {test_id}")
         if catalog[test_id]["expected_result"] != "REJECT":
@@ -5729,10 +5809,15 @@ def parse_r12_test_catalog(text: str | None = None) -> dict[str, dict[str, str]]
     return catalog
 
 
-def load_reference_catalogs(read: SourceReaderLike | None = None) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
+def load_reference_catalogs(
+    read: SourceReaderLike | None = None,
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
+) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
     reader = _coerce_source_reader(read)
     tests = parse_r11_test_catalog(reader)
-    r12_tests = parse_r12_test_catalog(reader.read_text(SPECS["F-CNF"]))
+    r12_tests = parse_r12_test_catalog(
+        reader.read_text(SPECS["F-CNF"]), resolution_purpose
+    )
     if set(tests).intersection(r12_tests):
         raise ValueError("R11/R12 test catalog ID collision")
     tests.update(r12_tests)
@@ -5793,7 +5878,10 @@ def load_normative_matrix(read: SourceReaderLike | None = None) -> list[dict[str
     return rows
 
 
-def validate_wire_catalog(read: SourceReaderLike | None = None) -> None:
+def validate_wire_catalog(
+    read: SourceReaderLike | None = None,
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
+) -> None:
     reader = _coerce_source_reader(read)
     wire_text = reader.read_text(SPECS["F-WIRE"])
     grammar = "\n".join(
@@ -5903,17 +5991,25 @@ def validate_wire_catalog(read: SourceReaderLike | None = None) -> None:
     if wire_text.count(bootstrap_root_anchor) != 1:
         raise ValueError("reviewer bootstrap trust-root definition anchor missing or duplicated")
     bootstrap_currentness_row = rows["PhaseFReviewerBootstrapCurrentnessProofV1"]
-    if bootstrap_currentness_row != [
+    expected_bootstrap_currentness_row = [
         "PhaseFReviewerBootstrapCurrentnessProofV1",
         "SIGNED_EXTERNAL_AUTHORITY",
         "#schema-def-PhaseFReviewerBootstrapCurrentnessProofV1",
         "sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding currentness_proof_id and signature; complete-file SHA-256 covers every field including signature",
         "root-signed pre-G0 reviewer verifier, subject-registry, and currentness snapshot",
-        "strict schema, root signature, root binding, sequence/head, validity window, verifier key, subject-head uniqueness, revocation, compromise, and supersession validation",
+        "strict schema, root signature, root binding, sequence/head, key-bound verifier ID, root/verifier key separation, subject-head uniqueness, REAL validity ordering and 604800-second ceiling, current-time window, revocation, compromise, and supersession validation",
         "PRE_G0_REVIEWER_BOOTSTRAP; current proof required before every REAL reviewer identity",
         "external signed authority object; bootstrap reviewer trust only and no architecture, release, or downstream approval authority",
         "INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapCurrentnessProofV1)",
-    ]:
+    ]
+    legacy_bootstrap_currentness_row = list(expected_bootstrap_currentness_row)
+    legacy_bootstrap_currentness_row[5] = (
+        "strict schema, root signature, root binding, sequence/head, validity window, verifier key, subject-head uniqueness, revocation, compromise, and supersession validation"
+    )
+    allowed_bootstrap_currentness_rows = {tuple(expected_bootstrap_currentness_row)}
+    if resolution_purpose == ResolutionPurpose.HISTORICAL_VALIDATION:
+        allowed_bootstrap_currentness_rows.add(tuple(legacy_bootstrap_currentness_row))
+    if tuple(bootstrap_currentness_row) not in allowed_bootstrap_currentness_rows:
         raise ValueError("reviewer bootstrap currentness schema catalog metadata mismatch")
     bootstrap_currentness_anchor = '<a id="schema-def-PhaseFReviewerBootstrapCurrentnessProofV1"></a>'
     if wire_text.count(bootstrap_currentness_anchor) != 1:
@@ -5967,7 +6063,10 @@ def parse_schema_catalog_ids(text: str) -> list[str]:
     return ids
 
 
-def validate_kat_spec(read: SourceReaderLike | None = None) -> None:
+def validate_kat_spec(
+    read: SourceReaderLike | None = None,
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
+) -> None:
     reader = _coerce_source_reader(read)
     text = reader.read_text(SPECS["F-CNF"])
     catalog_section = text.split("## 3. Current executable catalog", 1)[1].split(
@@ -5994,7 +6093,12 @@ def validate_kat_spec(read: SourceReaderLike | None = None) -> None:
         "R12-POS-SPEC-BUNDLE-TAG",
         "R12-G3-AUTHORITY-CONTEXT-POS",
     }
-    if set(catalog_rows) != EXPECTED_R12_TEST_CATALOG_IDS:
+    expected_catalog_ids = (
+        LEGACY_R12_TEST_CATALOG_IDS
+        if resolution_purpose == ResolutionPurpose.HISTORICAL_VALIDATION
+        else EXPECTED_R12_TEST_CATALOG_IDS
+    )
+    if set(catalog_rows) != expected_catalog_ids:
         raise ValueError("R12 KAT catalog set mismatch")
     for test_id, row in catalog_rows.items():
         if len(row) != 9 or any(not cell for cell in row) or row[8] != "0":
@@ -6057,8 +6161,14 @@ def validate_reference_catalogs(
     entries: list[dict[str, object]],
     test_catalog: dict[str, dict[str, str]],
     evidence_catalog: dict[str, dict[str, str]],
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
 ) -> None:
-    if len(test_catalog) != EXPECTED_R11_TEST_COUNT + len(EXPECTED_R12_TEST_CATALOG_IDS):
+    expected_r12_catalog_ids = (
+        LEGACY_R12_TEST_CATALOG_IDS
+        if resolution_purpose == ResolutionPurpose.HISTORICAL_VALIDATION
+        else EXPECTED_R12_TEST_CATALOG_IDS
+    )
+    if len(test_catalog) != EXPECTED_R11_TEST_COUNT + len(expected_r12_catalog_ids):
         raise ValueError(f"test catalog count: {len(test_catalog)}")
     if len(evidence_catalog) != EXPECTED_R11_EVIDENCE_COUNT:
         raise ValueError(f"evidence catalog count: {len(evidence_catalog)}")
@@ -6778,7 +6888,10 @@ def load_r12_authority_graph() -> tuple[dict[str, Any], dict[str, Any]]:
     return graph, validate_r12_authority_graph(graph)
 
 
-def load_phase_f_entries(read: SourceReaderLike | None = None) -> tuple[
+def load_phase_f_entries(
+    read: SourceReaderLike | None = None,
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
+) -> tuple[
     list[dict[str, object]], dict[str, dict[str, str]], dict[str, dict[str, str]]
 ]:
     reader = _coerce_source_reader(read)
@@ -6786,7 +6899,7 @@ def load_phase_f_entries(read: SourceReaderLike | None = None) -> tuple[
     entries = parse_architecture(reader)
     for prefix, path in SPECS.items():
         entries.extend(parse_spec(prefix, path, reader))
-    test_catalog, evidence_catalog = load_reference_catalogs(reader)
+    test_catalog, evidence_catalog = load_reference_catalogs(reader, resolution_purpose)
     matrix_by_id = {row["requirement_id"]: row for row in matrix}
     for entry in entries:
         requirement_id = entry["requirement_id"]
@@ -6809,7 +6922,9 @@ def load_phase_f_entries(read: SourceReaderLike | None = None) -> tuple[
     validate_traceability(entries, reader)
     validate_semantic_traceability(entries, matrix, test_catalog, evidence_catalog)
     validate_schema_usage(matrix, reader)
-    validate_reference_catalogs(entries, test_catalog, evidence_catalog)
+    validate_reference_catalogs(
+        entries, test_catalog, evidence_catalog, resolution_purpose
+    )
     return entries, test_catalog, evidence_catalog
 
 
@@ -6826,12 +6941,12 @@ def build_traceability(read: SourceReaderLike | None = None,
             raise ValueError("unsupported historical validation profile")
     if purpose in {ResolutionPurpose.CURRENT_AUTHORIZATION, ResolutionPurpose.HISTORICAL_VALIDATION}:
         validate_r11_and_migration(reader)
-        validate_wire_catalog(reader)
-        validate_kat_spec(reader)
+        validate_wire_catalog(reader, purpose)
+        validate_kat_spec(reader, purpose)
     validate_f0_decisions(reader)
     graph = _parse_json_without_duplicates(reader.read_bytes(AUTHORITY_GRAPH_PATH))
     graph_audit = validate_r12_authority_graph(graph, purpose)
-    entries, test_catalog, evidence_catalog = load_phase_f_entries(reader)
+    entries, test_catalog, evidence_catalog = load_phase_f_entries(reader, purpose)
     by_id = {entry["requirement_id"]: entry for entry in entries}
     for child in entries:
         for parent_id in child["upstream_requirement_ids"]:
@@ -8586,6 +8701,7 @@ def _load_real_reviewer_bootstrap_trust(
     graph: dict[str, Any],
     allow_test_only: bool,
     advance_checkpoint: bool,
+    resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
     github_api_transport: GitHubProtectionTransport | None = None,
 ) -> tuple[
     dict[str, Any],
@@ -8602,7 +8718,7 @@ def _load_real_reviewer_bootstrap_trust(
     live Git ref is read and validated first, including its exact commit parent.
     """
 
-    contract = _reviewer_bootstrap_trust_contract(graph)
+    contract = _reviewer_bootstrap_trust_contract(graph, resolution_purpose)
     for dependency_id in (
         "reviewer_bootstrap_external_monotonic_head",
         "reviewer_bootstrap_root",
@@ -9067,6 +9183,7 @@ def _resolve_real_review_references(
                 graph,
                 allow_test_only,
                 resolution_purpose == ResolutionPurpose.CURRENT_AUTHORIZATION,
+                resolution_purpose,
                 github_api_transport,
             )
         )
@@ -9943,6 +10060,10 @@ def _fixture_bootstrap_proof(
 ) -> dict[str, Any]:
     """Build a valid signed test-only proof from an immutable predecessor."""
 
+    # The optional label is retained for fixture call-site compatibility, but
+    # it is never an authority input. The proof ID is key-derived below.
+    del verifier_authority_id
+
     proof = {
         key: deepcopy(predecessor[key])
         for key in REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS
@@ -9965,12 +10086,13 @@ def _fixture_bootstrap_proof(
     )
     if verifier_seed is not None:
         verifier_public_key, _ = _fixture_ed25519_keypair(verifier_seed)
-        proof["current_verifier_authority_id"] = verifier_authority_id or (
-            f"fixture-bootstrap-verifier-{sequence}"
-        )
         proof["current_verifier_public_key"] = verifier_public_key
         proof["current_verifier_public_key_fingerprint"] = sha256_bytes(
             bytes.fromhex(verifier_public_key)
+        )
+        proof["current_verifier_authority_id"] = reviewer_bootstrap_verifier_authority_id(
+            verifier_public_key,
+            proof["current_verifier_public_key_fingerprint"],
         )
     if subject_bindings is not None:
         proof["subject_bindings"] = deepcopy(subject_bindings)
@@ -10476,6 +10598,19 @@ def _isolated_real_fixture(
     graph["reviewer_bootstrap_trust_contract"][
         "root_public_key_fingerprint"
     ] = bootstrap_root["root_public_key_fingerprint"]
+    if authority_class == "REAL":
+        fixture_valid_from = datetime.now(timezone.utc).replace(microsecond=0)
+        fixture_valid_from -= timedelta(seconds=1)
+        fixture_valid_until = fixture_valid_from + timedelta(
+            seconds=MAX_REAL_CURRENTNESS_LIFETIME_SECONDS
+        )
+    else:
+        fixture_valid_from = datetime.strptime(
+            "2020-01-01T00:00:00Z", "%Y-%m-%dT%H:%M:%SZ"
+        ).replace(tzinfo=timezone.utc)
+        fixture_valid_until = datetime.strptime(
+            "2099-12-31T23:59:59Z", "%Y-%m-%dT%H:%M:%SZ"
+        ).replace(tzinfo=timezone.utc)
     subject_bindings = [
         {
             "actor_subject_id": f"fixture-natural-person-{index}",
@@ -10498,17 +10633,20 @@ def _isolated_real_fixture(
         "previous_proof_id": None,
         "previous_proof_sha256": None,
         "head_id": "",
-        "current_verifier_authority_id": "fixture-bootstrap-verifier",
         "current_verifier_public_key": bootstrap_verifier_public_key,
         "current_verifier_public_key_fingerprint": sha256_bytes(
             bytes.fromhex(bootstrap_verifier_public_key)
+        ),
+        "current_verifier_authority_id": reviewer_bootstrap_verifier_authority_id(
+            bootstrap_verifier_public_key,
+            sha256_bytes(bytes.fromhex(bootstrap_verifier_public_key)),
         ),
         "subject_registry_head_sha256": reviewer_bootstrap_subject_registry_head_sha256(
             0, subject_bindings
         ),
         "subject_bindings": subject_bindings,
-        "valid_from": "2020-01-01T00:00:00Z",
-        "valid_until": "2099-12-31T23:59:59Z",
+        "valid_from": fixture_valid_from.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "valid_until": fixture_valid_until.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "root_lifecycle": "ACTIVE",
         "root_revoked": False,
         "root_compromised": False,
@@ -13647,6 +13785,7 @@ def run_regression_self_tests() -> None:
     root_change_staleness_tests = 0
     currentness_history_tests = 0
     currentness_history_negative_tests = 0
+    currentness_policy_negative_tests = 0
     historical_review_resolution_tests = 0
     root_rotation_tests = 0
     external_head_positive_tests = 0
@@ -14898,6 +15037,279 @@ def run_regression_self_tests() -> None:
                 raise AssertionError(
                     f"production-format fixture positive result: {production_positive}"
                 )
+            production_proof = production_context.reviewer_bootstrap_currentness
+            production_root = production_context.reviewer_bootstrap_root
+            if production_proof is None or production_root is None:
+                raise AssertionError("production-format currentness fixture is incomplete")
+            production_valid_from = datetime.strptime(
+                production_proof["valid_from"], "%Y-%m-%dT%H:%M:%SZ"
+            ).replace(tzinfo=timezone.utc)
+            production_valid_until = datetime.strptime(
+                production_proof["valid_until"], "%Y-%m-%dT%H:%M:%SZ"
+            ).replace(tzinfo=timezone.utc)
+            if (
+                int((production_valid_until - production_valid_from).total_seconds())
+                != MAX_REAL_CURRENTNESS_LIFETIME_SECONDS
+                or production_proof["current_verifier_authority_id"]
+                != reviewer_bootstrap_verifier_authority_id(
+                    production_proof["current_verifier_public_key"],
+                    production_proof["current_verifier_public_key_fingerprint"],
+                )
+            ):
+                raise AssertionError("production-format currentness fixture policy boundary is invalid")
+
+            def rebuild_currentness_proof(
+                context: G3AuthorityContext,
+                mutate: Callable[[dict[str, Any]], None],
+                signing_seed: bytes = bootstrap_root_seed,
+            ) -> None:
+                proof = context.reviewer_bootstrap_currentness
+                if proof is None:
+                    raise AssertionError("production-format currentness proof is missing")
+                mutate(proof)
+                proof["subject_registry_head_sha256"] = (
+                    reviewer_bootstrap_subject_registry_head_sha256(
+                        proof["sequence"], proof["subject_bindings"]
+                    )
+                )
+                proof["head_id"] = reviewer_bootstrap_currentness_head_id(proof)
+                proof["currentness_proof_id"] = reviewer_bootstrap_currentness_proof_id(
+                    proof
+                )
+                signing_payload = {
+                    key: proof[key]
+                    for key in REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS
+                    if key != "signature"
+                }
+                proof["signature"] = _fixture_ed25519_sign(
+                    signing_seed,
+                    REVIEWER_BOOTSTRAP_CURRENTNESS_DOMAIN
+                    + canonical_jcs_bytes(signing_payload),
+                )
+                raw = canonical_json_bytes(
+                    {
+                        key: proof[key]
+                        for key in REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS
+                    }
+                )
+                proof["canonical_object"] = json.loads(raw)
+                proof["bytes"] = raw
+                proof["complete_file_sha256"] = sha256_bytes(raw)
+
+            def currentness_policy_reject(
+                label: str,
+                mutate: Callable[[dict[str, Any]], None],
+                *,
+                rebuild: bool = True,
+                signing_seed: bytes = bootstrap_root_seed,
+            ) -> None:
+                nonlocal currentness_policy_negative_tests
+                mutant = deepcopy(production_context)
+                if rebuild:
+                    rebuild_currentness_proof(mutant, mutate, signing_seed)
+                else:
+                    proof = mutant.reviewer_bootstrap_currentness
+                    if proof is None:
+                        raise AssertionError("production-format currentness proof is missing")
+                    mutate(proof)
+                proof = mutant.reviewer_bootstrap_currentness
+                if proof is None:
+                    raise AssertionError("production-format currentness proof is missing")
+                reject_value_error(
+                    label,
+                    lambda: _validate_reviewer_bootstrap_proof_object(
+                        mutant,
+                        proof,
+                        mutant.reviewer_bootstrap_root_history,
+                        mutant.reviewer_bootstrap_proof_history,
+                        require_current_window=True,
+                    ),
+                )
+                currentness_policy_negative_tests += 1
+
+            currentness_policy_reject(
+                "arbitrary verifier authority ID",
+                lambda proof: proof.update({
+                    "current_verifier_authority_id": "sha256:" + "e" * 64
+                }),
+                rebuild=False,
+            )
+            currentness_policy_reject(
+                "verifier ID derived from wrong public key",
+                lambda proof: proof.update({
+                    "current_verifier_authority_id": reviewer_bootstrap_verifier_authority_id(
+                        "f" * 64, proof["current_verifier_public_key_fingerprint"]
+                    )
+                }),
+                rebuild=False,
+            )
+            currentness_policy_reject(
+                "verifier ID derived from wrong fingerprint",
+                lambda proof: proof.update({
+                    "current_verifier_authority_id": reviewer_bootstrap_verifier_authority_id(
+                        proof["current_verifier_public_key"], "e" * 64
+                    )
+                }),
+                rebuild=False,
+            )
+            currentness_policy_reject(
+                "root key reused as verifier",
+                lambda proof: proof.update({
+                    "current_verifier_public_key": production_root["root_public_key"],
+                    "current_verifier_public_key_fingerprint": production_root[
+                        "root_public_key_fingerprint"
+                    ],
+                }),
+            )
+            currentness_policy_reject(
+                "root fingerprint reused as verifier",
+                lambda proof: proof.update({
+                    "current_verifier_public_key_fingerprint": production_root[
+                        "root_public_key_fingerprint"
+                    ]
+                }),
+            )
+            currentness_policy_reject(
+                "zero-length REAL validity window",
+                lambda proof: proof.update({
+                    "valid_until": proof["valid_from"]
+                }),
+            )
+            currentness_policy_reject(
+                "reverse REAL validity window",
+                lambda proof: proof.update({
+                    "valid_from": proof["valid_until"],
+                    "valid_until": proof["valid_from"],
+                }),
+            )
+            currentness_policy_reject(
+                "REAL lifetime 604801 seconds",
+                lambda proof: proof.update({
+                    "valid_until": (
+                        production_valid_from
+                        + timedelta(seconds=MAX_REAL_CURRENTNESS_LIFETIME_SECONDS + 1)
+                    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+                }),
+            )
+            currentness_policy_reject(
+                "REAL lifetime multiple years",
+                lambda proof: proof.update({
+                    "valid_until": (
+                        production_valid_from + timedelta(days=365 * 2)
+                    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+                }),
+            )
+            policy_now = datetime.now(timezone.utc).replace(microsecond=0)
+            currentness_policy_reject(
+                "expired REAL proof",
+                lambda proof: proof.update({
+                    "valid_from": (policy_now - timedelta(days=2)).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                    "valid_until": (policy_now - timedelta(days=1)).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                }),
+            )
+            currentness_policy_reject(
+                "future REAL proof",
+                lambda proof: proof.update({
+                    "valid_from": (policy_now + timedelta(seconds=1)).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                    "valid_until": (
+                        policy_now
+                        + timedelta(seconds=MAX_REAL_CURRENTNESS_LIFETIME_SECONDS + 1)
+                    ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                }),
+            )
+            currentness_policy_reject(
+                "empty subject registry",
+                lambda proof: proof.update({"subject_bindings": []}),
+            )
+            currentness_policy_reject(
+                "duplicate subject registry entry",
+                lambda proof: proof.update({
+                    "subject_bindings": [
+                        deepcopy(proof["subject_bindings"][0]),
+                        deepcopy(proof["subject_bindings"][0]),
+                        *deepcopy(proof["subject_bindings"][1:]),
+                    ]
+                }),
+            )
+            currentness_policy_reject(
+                "evidence alias across subjects",
+                lambda proof: proof["subject_bindings"][1].update({
+                    "identity_evidence_sha256": proof["subject_bindings"][0][
+                        "identity_evidence_sha256"
+                    ]
+                }),
+            )
+            currentness_policy_reject(
+                "malformed evidence hash",
+                lambda proof: proof["subject_bindings"][0].update({
+                    "identity_evidence_sha256": "not-a-sha256"
+                }),
+            )
+            rotated_verifier_public_key, _ = _fixture_ed25519_keypair(
+                b"phase-f-r12-fixture-rotated-verifier-policy"
+            )
+            rotated_verifier_fingerprint = sha256_bytes(
+                bytes.fromhex(rotated_verifier_public_key)
+            )
+            currentness_policy_reject(
+                "verifier rotation with stale authority ID",
+                lambda proof: proof.update({
+                    "current_verifier_public_key": rotated_verifier_public_key,
+                    "current_verifier_public_key_fingerprint": rotated_verifier_fingerprint,
+                }),
+            )
+            currentness_policy_reject(
+                "verifier rotation retaining old key-bound ID",
+                lambda proof: proof.update({
+                    "current_verifier_public_key": rotated_verifier_public_key,
+                    "current_verifier_public_key_fingerprint": rotated_verifier_fingerprint,
+                    "current_verifier_authority_id": production_proof[
+                        "current_verifier_authority_id"
+                    ],
+                }),
+            )
+            verifier_signed_mutant = deepcopy(production_context)
+            verifier_signed_proof = verifier_signed_mutant.reviewer_bootstrap_currentness
+            if verifier_signed_proof is None:
+                raise AssertionError("production-format currentness proof is missing")
+            verifier_signing_payload = {
+                key: verifier_signed_proof[key]
+                for key in REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS
+                if key != "signature"
+            }
+            verifier_signed_proof["signature"] = _fixture_ed25519_sign(
+                b"phase-f-r12-fixture-bootstrap-verifier",
+                REVIEWER_BOOTSTRAP_CURRENTNESS_DOMAIN
+                + canonical_jcs_bytes(verifier_signing_payload),
+            )
+            verifier_signed_raw = canonical_json_bytes(
+                {
+                    key: verifier_signed_proof[key]
+                    for key in REVIEWER_BOOTSTRAP_CURRENTNESS_FIELDS
+                }
+            )
+            verifier_signed_proof["canonical_object"] = json.loads(verifier_signed_raw)
+            verifier_signed_proof["bytes"] = verifier_signed_raw
+            verifier_signed_proof["complete_file_sha256"] = sha256_bytes(
+                verifier_signed_raw
+            )
+            reject_value_error(
+                "verifier signs currentness proof",
+                lambda: _validate_reviewer_bootstrap_proof_object(
+                    verifier_signed_mutant,
+                    verifier_signed_proof,
+                    verifier_signed_mutant.reviewer_bootstrap_root_history,
+                    verifier_signed_mutant.reviewer_bootstrap_proof_history,
+                    require_current_window=True,
+                ),
+            )
+            currentness_policy_negative_tests += 1
             publication_identity_tests += 1
 
             def require_publication_reject(
@@ -16661,6 +17073,7 @@ def run_regression_self_tests() -> None:
         f"explicit_g3_bypass_accepted={explicit_g3_bypass_accepted} "
         f"currentness_history_tests={currentness_history_tests} "
         f"currentness_history_negative_tests={currentness_history_negative_tests} "
+        f"currentness_policy_negative_tests={currentness_policy_negative_tests} "
         f"historical_review_resolution_tests={historical_review_resolution_tests} "
         f"root_rotation_tests={root_rotation_tests} "
         f"review_start_git_positive={review_start_git_positive_tests} "

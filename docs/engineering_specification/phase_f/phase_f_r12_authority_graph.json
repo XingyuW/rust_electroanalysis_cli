@@ -20,7 +20,7 @@
       "reviewer_subject_registry"
     ],
     "transition_policy": "forward_signed_replacement_with_resolver_checkpoint",
-    "currentness_window_policy": "valid_from_le_validation_time_le_valid_until"
+    "currentness_window_policy": "valid_from_lt_valid_until_and_real_lifetime_le_604800_and_valid_from_le_validation_time_le_valid_until"
   },
   "external_monotonic_head_contract": {
     "authority_kind": "PhaseFReviewerBootstrapExternalMonotonicHeadV1",

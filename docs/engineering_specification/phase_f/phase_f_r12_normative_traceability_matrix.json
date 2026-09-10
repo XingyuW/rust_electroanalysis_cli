@@ -530,7 +530,9 @@
     {
       "authority_anchor": "#F-CNF-001",
       "authority_document": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
-      "constructive_audit_ids": [],
+      "constructive_audit_ids": [
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
+      ],
       "expected_lifecycle_stage": "G2",
       "f0_decision_dependencies": [],
       "future_real_evidence_ids": [],
@@ -553,7 +555,8 @@
         "R11-KAT-INCIDENT",
         "R11-POS-PLAN",
         "R11-POS-TRUST",
-        "R11-CX-04"
+        "R11-CX-04",
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-017",
@@ -1469,7 +1472,8 @@
         "R11-DAG-AUDIT",
         "R11-CX-08",
         "R12-G3-REAL-FORMAT-POSITIVE",
-        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
       ],
       "expected_lifecycle_stage": "G2",
       "f0_decision_dependencies": [
@@ -1492,7 +1496,8 @@
         "R11-CX-08",
         "R11-CX-18",
         "R12-G3-REAL-FORMAT-POSITIVE",
-        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX"
+        "R12-G3-REAL-FORMAT-NEGATIVE-MATRIX",
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-016",
@@ -1992,7 +1997,8 @@
         "R11-CX-10",
         "R11-CX-11",
         "R11-CX-12",
-        "R11-CX-13"
+        "R11-CX-13",
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
       ],
       "expected_lifecycle_stage": "G2",
       "f0_decision_dependencies": [
@@ -2019,7 +2025,8 @@
         "R11-CX-11",
         "R11-CX-12",
         "R11-CX-13",
-        "R11-CX-17"
+        "R11-CX-17",
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-015",

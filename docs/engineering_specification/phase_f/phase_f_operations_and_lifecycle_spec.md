@@ -18,7 +18,7 @@ Scientific authority.
 | <a id="F-OPS-005"></a>`F-OPS-005` | `F-ARCH-015,F-ARCH-016,F-OD-14,F-OD-15,F-OD-16` | Key compromise/revocation and registry compromise immediately remove affected authority. Emergency handling cannot bypass signatures, review, immutable Git publication, state consequences, or subsequent recovery/re-enrollment requirements. | §15 |
 | <a id="F-OPS-006"></a>`F-OPS-006` | `F-ARCH-016,F-OD-18,F-OD-19,F-OD-20` | Retention membership is exact-set equality. Campaign is manifest plus every package object; protocol and other static release authorities remain outside the campaign set. Release retention adds every bound static authority, accepted PASS monitoring through `audited_at`, and applicable incident/resolution records, de-duplicated by kind/SHA. | §§15, 53.2–53.6, R11-03..06/R11-15 |
 | <a id="F-OPS-007"></a>`F-OPS-007` | `F-ARCH-016,F-OD-20` | Every retained identity has the required primary plus backup copies, distinct immutable URIs, matching SHA/length, availability, freshness, access control, and authorized replacement. Failure suspends or blocks as applicable. | §§15, 44–46, 53.2–53.4 |
-| <a id="F-OPS-008"></a>`F-OPS-008` | `F-ARCH-016,F-ARCH-021,F-OD-17,F-OD-18,F-OD-19,F-OD-20` | Claim currentness continuously requires an unexpired authority, a live non-equivocating registry and protected external reviewer-bootstrap head, monitoring PASS, no blocking incident/compromise, and valid retention. Loss of any prerequisite prevents ACTIVE use. | §§14–15 |
+| <a id="F-OPS-008"></a>`F-OPS-008` | `F-ARCH-016,F-ARCH-021,F-OD-17,F-OD-18,F-OD-19,F-OD-20` | Claim currentness continuously requires an unexpired authority, a live non-equivocating registry and protected external reviewer-bootstrap head, monitoring PASS, no blocking incident/compromise, and valid retention. Loss of any prerequisite prevents ACTIVE use. Reviewer currentness additionally requires a root-signed key-bound verifier authority, distinct root/verifier keys, `valid_from < valid_until`, and a REAL lifetime no greater than 604800 UTC seconds; renewal and subject/verifier/root changes use immutable successor proofs. | §§14–15 |
 
 ## 3. Review gate
 
@@ -166,6 +166,84 @@ and main re-read are mandatory operations within the existing atomic
 publication resolver, with the same canonical repository prerequisite. They
 are not independently selectable authority nodes. Removing either transport
 operation or substituting a local resolver fails the publication gate.
+
+### 3.1.2 Reviewer-bootstrap currentness and provisioning operations
+
+The signed `PhaseFReviewerBootstrapCurrentnessProofV1` is the persisted
+representation of the current verifier authority. No separate verifier
+authority object or external DAG node is introduced. The verifier's sole
+authority is to sign `PhaseFReviewerActorAttestationV1`; it cannot sign a
+currentness proof, replace the root, advance the monotonic head, approve a
+specification, become a reviewer merely by holding the verifier key, or create
+G3 authority. Currentness proofs remain root-signed, root replacements remain
+predecessor-root-signed, and actor attestations remain verifier-signed.
+
+The verifier authority ID is derived, never selected by an operator:
+
+```text
+domain = mhi_phase_f_reviewer_bootstrap_verifier_authority_v1\0
+preimage = domain || JCS({
+  "current_verifier_public_key": <64 lowercase hex>,
+  "current_verifier_public_key_fingerprint": <64 lowercase hex>
+})
+current_verifier_authority_id = sha256(SHA256(preimage))
+```
+
+The fingerprint is SHA-256 over the verifier's 32-byte public key. REAL
+validation rejects reuse of either the root public key or root fingerprint.
+Changing verifier key material necessarily changes the authority ID. A
+rotation is only a root-signed immutable successor proof containing the new
+ID/key/fingerprint triple; historical attestations remain cryptographically
+verifiable under their issuance proof, while the old verifier cannot issue new
+currently authorized attestations after monotonic-head advancement.
+
+If a current verifier is suspected compromised or revoked, issuance under it
+stops immediately. A replacement proof must be root-signed and externally
+advanced before issuance resumes. Historical validity does not imply current
+authorization. There is no automatic renewal, unsigned extension, or
+in-place modification. A successor proof is required before expiry for
+continuous availability, whenever the verifier, root, active subject set, or
+any signed currentness state changes, and after verifier compromise/revocation
+or subject removal/revocation.
+
+REAL proof construction uses a maximum validity lifetime of exactly `604800`
+UTC seconds. At a genesis or renewal ceremony, the operator obtains one
+trustworthy UTC-second timestamp, freezes it as `valid_from`, sets
+`valid_until = valid_from + 604800 seconds`, freezes all other fields, computes
+the subject-registry head, currentness head ID, and proof ID, freezes the exact
+signing bytes, and only then accesses the root private key. After root-key
+access begins, only `signature` may change. Current validation requires
+`valid_from < valid_until` and
+`valid_from <= validation_time <= valid_until`; there is no grace period after
+expiry, and expired or future authority fails closed. Historical validation
+checks the encoded ordering and REAL lifetime limit without requiring today's
+time to lie inside the old window.
+
+The first REAL proof intended to bootstrap the first independent five-role
+review requires at least five distinct natural-person subjects capable of the
+canonical roles `scientific_metrology`, `architecture_data`, `security`,
+`compatibility`, and `operations_governance`. Role names remain in later
+reviewer attestation records, not in `subject_bindings`. More than five active
+subjects is permitted. Enrollment as a bootstrap subject is not independent
+reviewer status; the remediation author is excluded from the five reviewer
+slots, so at least five reviewer-eligible natural persons distinct from that
+author must be provisioned.
+
+`subject_bindings` remains exactly
+`actor_subject_id`, `identity_evidence_sha256`, and `subject_status`. Subjects
+are sorted and unique, each contained status is `ACTIVE`, and one retained
+evidence hash cannot map to multiple active subjects. For each subject,
+`identity_evidence_sha256` is SHA-256 over the exact retained external
+identity-evidence package bytes. The package must support the claimed
+natural-person identity and one-natural-person/one-active-subject enforcement;
+the verifier/operator validates it before inclusion and retains it outside
+public Git. The public proof contains only the opaque subject ID and hash, not
+identity documents or unnecessary PII. File-backed verifier secret storage
+uses an operator-readable-only `0700` parent directory and `0600` private-key
+file, remains outside Git/generated artifacts and `/tmp`, is never logged, and
+is separate from root-key storage; keychain/HSM storage may provide an
+equivalent or stronger control. This revision provisions no verifier key or
+REAL subject.
 
 After Stage E, advance only by publishing one canonical successor with exactly
 one Git parent, `sequence + 1`, and predecessor commit/head/hash bindings. The
