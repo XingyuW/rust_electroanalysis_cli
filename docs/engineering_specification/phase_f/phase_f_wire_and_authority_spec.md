@@ -166,6 +166,19 @@ fingerprint is SHA-256 of the 32-byte public key. REAL validation rejects a
 verifier public key or fingerprint equal to the root's corresponding value.
 This key-bound identity makes every verifier-key change a new authority ID.
 
+The closed cross-spec formula anchor is exactly:
+
+```text
+PHASE_F_VERIFIER_ID_FORMULA_V1
+domain = ASCII("mhi_phase_f_reviewer_bootstrap_verifier_authority_v1") || 0x00
+preimage = JCS({"current_verifier_public_key":"<64 lowercase hex>","current_verifier_public_key_fingerprint":"<64 lowercase hex>"})
+current_verifier_authority_id = "sha256:" || lowercase_hex(SHA256(domain || preimage))
+sha256_operations = 1
+```
+
+There is exactly one SHA-256 operation over `domain || JCS(preimage)`; the
+hexadecimal result is not hashed again and the `sha256:` prefix is mandatory.
+
 The signed fields `verifier_lifecycle`, `verifier_revoked`,
 `verifier_compromised`, and `verifier_superseded_by` are the verifier's
 fail-closed lifecycle state. A suspected compromise prohibits new attestations
@@ -209,13 +222,19 @@ the five reviewer slots.
 `actor_subject_id`, `identity_evidence_sha256`, and `subject_status`. The
 subject list remains sorted and unique, every contained status is `ACTIVE`,
 and one SHA-256 evidence hash cannot identify multiple active subjects. The
-evidence hash is SHA-256 over the exact retained external identity-evidence
-package bytes. Those bytes remain outside public Git; they must support the
-claimed natural-person identity and one-person/one-active-subject enforcement
-and must be validated by the verifier/operator before inclusion. The public
-proof contains only the opaque subject ID and evidence hash, never the evidence
-or unnecessary PII. The retention binding is therefore a unique byte-package
-preimage policy, not an invented or caller-selected alias.
+evidence hash is the domain-separated SHA-256 of the canonical JCS external
+evidence manifest, never of ZIP/tar/directory container bytes. Each manifest
+has exactly `schema_version`, `evidence_package_kind`, `actor_subject_id`,
+`evidence_objects`, and `person_equivalence_check`; each evidence object has
+exactly `object_kind`, lowercase `sha256`, and canonical nonnegative
+`byte_length`. Objects are unique and sorted by
+`(object_kind,sha256,byte_length)`. The person-equivalence record contains the
+sorted active-subject and same-batch subject sets checked and the exact result
+`NO_NATURAL_PERSON_MATCH`. A match prohibits a new subject and reuses the
+existing stable subject. Hash uniqueness alone is not identity authority.
+Manifests and evidence remain outside public Git; the verifier/operator
+validates them before inclusion. The public proof contains only the opaque
+subject ID and manifest digest, never evidence or unnecessary PII.
 
 `valid_from <= validation_time <= valid_until` is required for the current
 head. Root and verifier lifecycle, revocation, compromise, and supersession
@@ -444,14 +463,33 @@ or session-generated values are not eligible actor subjects. The
 pre-G0 bootstrap subject registry. The authority keeps the
 identity and anti-alias evidence outside this canonical file, issues one
 subject for one underlying natural person, preserves that subject across key
-or enrollment rotation, and never places PII in this contract. The
-`identity_evidence_sha256` binding is SHA-256 over the exact retained external
-identity-evidence package bytes. The package must support the claimed
-natural-person identity and one-natural-person/one-active-subject enforcement;
-the verifier/operator validates it before inclusion and retains the package
-outside public Git. The role and independence evidence fields are also opaque
-SHA-256 references to retained external evidence; hashes alone are not identity
-authority, and no sensitive evidence is serialized in this contract.
+or enrollment rotation, and never places PII in this contract. The public
+`identity_evidence_sha256` is derived only from the closed, non-public JCS
+manifest below; it is never a hash of ZIP/tar/directory container bytes:
+
+```text
+schema_version,evidence_package_kind,actor_subject_id,evidence_objects,
+person_equivalence_check
+evidence_objects[*] = object_kind,sha256,byte_length
+person_equivalence_check = active_subject_ids_checked,
+proposed_batch_subject_ids_checked,result=NO_NATURAL_PERSON_MATCH
+identity_evidence_sha256 = lowercase_hex(
+  SHA256(ASCII("mhi_phase_f_reviewer_identity_evidence_package_v1") || 0x00 ||
+        JCS(canonical_external_evidence_manifest))
+)
+```
+
+Evidence objects are exact immutable retained bytes represented by lowercase
+SHA-256 and a canonical nonnegative byte length. Entries are unique and sorted
+by `(object_kind,sha256,byte_length)`. The provisioning authority audits the
+underlying natural-person equivalence against every active subject and every
+other proposed subject in the batch and records the exact checked subject sets
+and a no-match result. A match prohibits a new subject and reuses the stable
+existing subject. Hash uniqueness alone is not identity authority. The
+verifier/operator validates the manifest before inclusion and retains it and
+all sensitive evidence outside public Git. The role and independence evidence
+fields are also opaque SHA-256 references to retained external evidence; no
+sensitive evidence is serialized in this contract.
 
 The attestation binds one exact tagged `trust_source` object:
 

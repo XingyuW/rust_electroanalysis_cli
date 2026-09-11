@@ -472,6 +472,24 @@ empty, duplicate, evidence-alias, and malformed subject bindings. Historical
 validation retains the encoded REAL lifetime check but omits the current-time
 membership check, while TEST_ONLY fixture material remains non-authorizing.
 
+The verifier-ID normative anchor is shared verbatim with Wire and Operations:
+
+```text
+PHASE_F_VERIFIER_ID_FORMULA_V1
+domain = ASCII("mhi_phase_f_reviewer_bootstrap_verifier_authority_v1") || 0x00
+preimage = JCS({"current_verifier_public_key":"<64 lowercase hex>","current_verifier_public_key_fingerprint":"<64 lowercase hex>"})
+current_verifier_authority_id = "sha256:" || lowercase_hex(SHA256(domain || preimage))
+sha256_operations = 1
+```
+
+The fixed KAT is:
+
+```text
+verifier_id_kat_public_key = 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+verifier_id_kat_fingerprint = 4773d12e2371bb935b9a0f5439b4a1c3ad3f2414b86980f8418d1cfabdfadfef
+verifier_id_kat_expected = sha256:acba264db4eaf82c6f766a42c934a6bc9d687496b743f707eb8c2d30d35011ba
+```
+
 The history matrix accepts forward sequence `0→1→2` only after complete-chain
 validation, external-head advancement, and atomic checkpoint advancement. It
 rejects missing or wrong predecessors, gaps, duplicate sequence children,

@@ -113,15 +113,15 @@
       ]
     },
     "path": "docs/engineering_specification/phase_f/phase_f_r12_authority_graph.json",
-    "sha256": "81d489d9bd6d1c20dfbfd025df19f747bea2be212c2013c63e14724ee06560f8"
+    "sha256": "032806be75d1f6d0d46626e61eae128db3dbe3eb3899959f2774cbc93fa37be9"
   },
   "generated_source_sha256s": {
     "architecture_plan": "597c179fa6d0a6eececa2ae350020edcda04e9555c3ec3043ddbd0168b47bcd9",
-    "component_conformance_spec": "657a191ac29928e00fa3f27be61c94cd25981531cefaa0bc649958da5a5af6bf",
+    "component_conformance_spec": "a2508e25367298a663637f6c4d1f15721fcb23396cc016941ee10f50b962375e",
     "component_implementation_spec": "79b1d070ce2329f3a80e21d0e5ac91cc1512570d66ec0e33e8602cc28a28bb62",
-    "component_operations_spec": "38550336d529ceb19d7b50bd2518f52fde2e38bb67f9ba9fd551d1b03cf2b848",
+    "component_operations_spec": "f0381ca43b6e2975d0258f56a5c0a9e48ebd82047b40f4aff85f3e1b1d895b22",
     "component_scientific_spec": "72ae8580be9994dc7e0e63f2087d87b22d4562c98be764a46848918795614fc3",
-    "component_wire_spec": "db544437e8c1c669ab08d1e0b4b571e3ed4fbe41dcc2df7276a1dd648e4aeb64",
+    "component_wire_spec": "2a01840b830edcf9e4043b6c85acb7e7c4dc0211090418e2ba63b694f4637841",
     "migration_ledger": "760180da3b5b3fb9b44493fb0326c5e2efeb14e39175cad157dfeee154ee716f",
     "normative_traceability_matrix": "9e2d156d2f3d66d71a57172744a9dad22da3919b84e7fe9932253ff061319550"
   },

@@ -1,6 +1,7 @@
 {
   "artifact_kind": "phase_f_r12_artifact_authority_graph",
   "authority_status": "NORMATIVE_CANDIDATE",
+  "verifier_authority_id_formula": "sha256_prefix_single_hash_domain_jcs_public_key_fingerprint_v1",
   "edge_direction": "from_existing_prerequisite_to_constructed_dependent",
   "reviewer_bootstrap_trust_contract": {
     "stage": "PRE_G0_REVIEWER_BOOTSTRAP",

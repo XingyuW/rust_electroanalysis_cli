@@ -178,16 +178,20 @@ specification, become a reviewer merely by holding the verifier key, or create
 G3 authority. Currentness proofs remain root-signed, root replacements remain
 predecessor-root-signed, and actor attestations remain verifier-signed.
 
-The verifier authority ID is derived, never selected by an operator:
+The verifier authority ID is derived, never selected by an operator. The
+closed formula used by Wire, Operations, Conformance, graph metadata, and
+production code is:
 
 ```text
-domain = mhi_phase_f_reviewer_bootstrap_verifier_authority_v1\0
-preimage = domain || JCS({
-  "current_verifier_public_key": <64 lowercase hex>,
-  "current_verifier_public_key_fingerprint": <64 lowercase hex>
-})
-current_verifier_authority_id = sha256(SHA256(preimage))
+PHASE_F_VERIFIER_ID_FORMULA_V1
+domain = ASCII("mhi_phase_f_reviewer_bootstrap_verifier_authority_v1") || 0x00
+preimage = JCS({"current_verifier_public_key":"<64 lowercase hex>","current_verifier_public_key_fingerprint":"<64 lowercase hex>"})
+current_verifier_authority_id = "sha256:" || lowercase_hex(SHA256(domain || preimage))
+sha256_operations = 1
 ```
+
+The single SHA-256 result is lower-case hexadecimal and is prefixed with
+`sha256:`. The hexadecimal digest is never hashed again.
 
 The fingerprint is SHA-256 over the verifier's 32-byte public key. REAL
 validation rejects reuse of either the root public key or root fingerprint.
@@ -218,6 +222,39 @@ access begins, only `signature` may change. Current validation requires
 expiry, and expired or future authority fails closed. Historical validation
 checks the encoded ordering and REAL lifetime limit without requiring today's
 time to lie inside the old window.
+
+Current authorization is target-relative and binds every reviewer attestation
+to the exact root ID/complete-file hash, currentness-proof ID/complete-file
+hash, and verifier authority ID selected by the live protected monotonic head.
+An attestation issued under an earlier proof remains historically verifiable
+under that proof, but it is not current authority after the head advances,
+even when its subject is still ACTIVE or its signed `created_at` is backdated.
+`created_at` is syntax-validated and must lie inside its issuance proof window;
+it is not the verifier-rotation or current-authority cutoff.
+
+Historical resolution propagates `HISTORICAL_VALIDATION` through every nested
+authority context. The selected historical target owns the currentness-window
+policy: legacy targets use their former
+`valid_from <= validation_time <= valid_until` structural semantics without a
+604800-second issuance ceiling, while the closed current profile requires
+`valid_from < valid_until` and REAL encoded lifetime at most 604800 seconds.
+Historical checks validate encoded timestamps and signatures without requiring
+today's wall clock to be inside an expired historical window; historical
+validity never creates current authorization.
+
+The seven-day REAL lifetime bounds stale verifier, subject, and root exposure
+without requiring daily root-key access or daily monotonic-head churn. Normal
+renewal therefore requires at most approximately weekly root-signing access;
+all payload construction and validation occurs before root-key access, which
+is limited to the final signature operation. Renewal begins no later than 48
+hours before `valid_until`, with a target monotonic-head completion no later
+than 24 hours before expiry. Missing that objective does not extend authority.
+At `validation_time > valid_until` validation fails closed with no grace period
+and no unsigned emergency extension. If renewal fails before expiry, reviewer
+bootstrap authority becomes unavailable until a valid root-signed successor is
+published and the protected monotonic head advances normally. Compromise or
+revocation follows the applicable rotation procedure; availability never
+weakens the fail-closed rule.
 
 The first REAL proof intended to bootstrap the first independent five-role
 review requires at least five distinct natural-person subjects capable of the

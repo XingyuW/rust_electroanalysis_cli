@@ -397,7 +397,47 @@ REAL_CURRENTNESS_WINDOW_POLICY = (
     "valid_from_le_validation_time_le_valid_until"
 )
 REVIEWER_VERIFIER_AUTHORITY_SCOPE = "sign_phase_f_reviewer_actor_attestation_only"
-IDENTITY_EVIDENCE_HASH_POLICY = "sha256_exact_retained_external_evidence_package_bytes"
+IDENTITY_EVIDENCE_HASH_POLICY = (
+    "sha256_domain_separated_canonical_external_evidence_manifest_v1"
+)
+IDENTITY_EVIDENCE_MANIFEST_SCHEMA_VERSION = 1
+IDENTITY_EVIDENCE_PACKAGE_KIND = "natural_person_identity_evidence"
+IDENTITY_EVIDENCE_PACKAGE_DOMAIN = (
+    b"mhi_phase_f_reviewer_identity_evidence_package_v1\0"
+)
+IDENTITY_EVIDENCE_MANIFEST_FIELDS = {
+    "schema_version",
+    "evidence_package_kind",
+    "actor_subject_id",
+    "evidence_objects",
+    "person_equivalence_check",
+}
+IDENTITY_EVIDENCE_OBJECT_FIELDS = {"object_kind", "sha256", "byte_length"}
+IDENTITY_EVIDENCE_PERSON_EQUIVALENCE_FIELDS = {
+    "active_subject_ids_checked",
+    "proposed_batch_subject_ids_checked",
+    "result",
+}
+IDENTITY_EVIDENCE_NO_MATCH_RESULT = "NO_NATURAL_PERSON_MATCH"
+VERIFIER_AUTHORITY_ID_FORMULA_ID = (
+    "sha256_prefix_single_hash_domain_jcs_public_key_fingerprint_v1"
+)
+VERIFIER_ID_NORMATIVE_ANCHOR = (
+    "PHASE_F_VERIFIER_ID_FORMULA_V1\n"
+    'domain = ASCII("mhi_phase_f_reviewer_bootstrap_verifier_authority_v1") || 0x00\n'
+    'preimage = JCS({"current_verifier_public_key":"<64 lowercase hex>",'
+    '"current_verifier_public_key_fingerprint":"<64 lowercase hex>"})\n'
+    'current_verifier_authority_id = "sha256:" || lowercase_hex(SHA256(domain || preimage))\n'
+    "sha256_operations = 1"
+)
+VERIFIER_ID_KAT_PUBLIC_KEY = "00112233445566778899aabbccddeeff" * 2
+VERIFIER_ID_KAT_FINGERPRINT = (
+    "4773d12e2371bb935b9a0f5439b4a1c3ad3f2414b86980f8418d1cfabdfadfef"
+)
+VERIFIER_ID_KAT_EXPECTED = (
+    "sha256:acba264db4eaf82c6f766a42c934a6bc9d687496b743f707eb8c2d30d35011ba"
+)
+LEGACY_IDENTITY_EVIDENCE_HASH_POLICY = "retain_external_identity_evidence_hash_binding"
 REVIEWER_BOOTSTRAP_SCOPE = [
     "reviewer_actor_attestation",
     "reviewer_currentness",
@@ -2348,6 +2388,199 @@ def reviewer_bootstrap_verifier_authority_id(
     )
 
 
+def canonical_identity_evidence_manifest_bytes(manifest: object) -> bytes:
+    """Canonicalize the non-public identity-evidence manifest.
+
+    The manifest, rather than a ZIP/tar/directory container, is the identity
+    preimage.  It contains only opaque subject IDs, immutable object hashes and
+    an auditable no-match decision; it never contains PII or evidence bytes.
+    """
+
+    if not isinstance(manifest, dict) or set(manifest) != IDENTITY_EVIDENCE_MANIFEST_FIELDS:
+        raise ValueError("identity_evidence_manifest_schema_mismatch")
+    if (
+        type(manifest["schema_version"]) is not int
+        or manifest["schema_version"] != IDENTITY_EVIDENCE_MANIFEST_SCHEMA_VERSION
+        or manifest["evidence_package_kind"] != IDENTITY_EVIDENCE_PACKAGE_KIND
+        or not isinstance(manifest["actor_subject_id"], str)
+        or not re.fullmatch(RUNTIME_STABLE_ID_PATTERN, manifest["actor_subject_id"])
+    ):
+        raise ValueError("identity_evidence_manifest_metadata_mismatch")
+
+    evidence_objects = manifest["evidence_objects"]
+    if not isinstance(evidence_objects, list) or not evidence_objects:
+        raise ValueError("identity_evidence_manifest_objects_missing")
+    normalized_objects: list[dict[str, object]] = []
+    object_keys: set[tuple[str, str, int]] = set()
+    object_hashes: set[tuple[str, int]] = set()
+    for evidence_object in evidence_objects:
+        if not isinstance(evidence_object, dict) or set(evidence_object) != IDENTITY_EVIDENCE_OBJECT_FIELDS:
+            raise ValueError("identity_evidence_manifest_object_schema_mismatch")
+        object_kind = evidence_object["object_kind"]
+        object_hash = evidence_object["sha256"]
+        byte_length = evidence_object["byte_length"]
+        if (
+            not isinstance(object_kind, str)
+            or not object_kind
+            or not isinstance(object_hash, str)
+            or re.fullmatch(r"[0-9a-f]{64}", object_hash) is None
+            or type(byte_length) is not int
+            or byte_length < 0
+        ):
+            raise ValueError("identity_evidence_manifest_object_malformed")
+        object_key = (object_kind, object_hash, byte_length)
+        hash_key = (object_hash, byte_length)
+        if object_key in object_keys or hash_key in object_hashes:
+            raise ValueError("identity_evidence_manifest_duplicate_object")
+        object_keys.add(object_key)
+        object_hashes.add(hash_key)
+        normalized_objects.append(
+            {"object_kind": object_kind, "sha256": object_hash, "byte_length": byte_length}
+        )
+    normalized_objects.sort(key=lambda value: (value["object_kind"], value["sha256"], value["byte_length"]))
+
+    person_check = manifest["person_equivalence_check"]
+    if not isinstance(person_check, dict) or set(person_check) != IDENTITY_EVIDENCE_PERSON_EQUIVALENCE_FIELDS:
+        raise ValueError("identity_evidence_manifest_person_check_schema_mismatch")
+    active_subjects = person_check["active_subject_ids_checked"]
+    proposed_subjects = person_check["proposed_batch_subject_ids_checked"]
+    for values, error in (
+        (active_subjects, "identity_evidence_manifest_active_subjects_malformed"),
+        (proposed_subjects, "identity_evidence_manifest_batch_subjects_malformed"),
+    ):
+        if (
+            not isinstance(values, list)
+            or any(not isinstance(value, str) or re.fullmatch(RUNTIME_STABLE_ID_PATTERN, value) is None for value in values)
+            or values != sorted(values)
+            or len(values) != len(set(values))
+        ):
+            raise ValueError(error)
+    if set(active_subjects).intersection(proposed_subjects):
+        raise ValueError("identity_evidence_manifest_subject_set_overlap")
+    if manifest["actor_subject_id"] in set(active_subjects).union(proposed_subjects):
+        raise ValueError("identity_evidence_manifest_subject_already_checked")
+    if person_check["result"] != IDENTITY_EVIDENCE_NO_MATCH_RESULT:
+        raise ValueError("identity_evidence_manifest_person_match")
+
+    canonical_manifest = {
+        "schema_version": IDENTITY_EVIDENCE_MANIFEST_SCHEMA_VERSION,
+        "evidence_package_kind": IDENTITY_EVIDENCE_PACKAGE_KIND,
+        "actor_subject_id": manifest["actor_subject_id"],
+        "evidence_objects": normalized_objects,
+        "person_equivalence_check": {
+            "active_subject_ids_checked": list(active_subjects),
+            "proposed_batch_subject_ids_checked": list(proposed_subjects),
+            "result": IDENTITY_EVIDENCE_NO_MATCH_RESULT,
+        },
+    }
+    return canonical_jcs_bytes(canonical_manifest)
+
+
+def identity_evidence_sha256_for_manifest(manifest: object) -> str:
+    """Return the public digest for one canonical external evidence manifest."""
+
+    return sha256_bytes(
+        IDENTITY_EVIDENCE_PACKAGE_DOMAIN
+        + canonical_identity_evidence_manifest_bytes(manifest)
+    )
+
+
+def validate_identity_evidence_provisioning_batch(
+    manifests: list[object], active_subject_ids: list[str]
+) -> dict[str, str]:
+    """Validate the auditable anti-alias set for a TEST_ONLY provisioning batch.
+
+    A real provisioning authority performs the natural-person equivalence
+    check out of band.  This validator ensures that the retained manifest
+    records exactly which active and same-batch subjects were checked and that
+    no new subject can be admitted for a known match.
+    """
+
+    if active_subject_ids != sorted(active_subject_ids) or len(active_subject_ids) != len(set(active_subject_ids)):
+        raise ValueError("identity_evidence_active_subject_set_malformed")
+    normalized: list[dict[str, object]] = []
+    subject_ids: set[str] = set()
+    digests: dict[str, str] = {}
+    for manifest in manifests:
+        canonical = canonical_identity_evidence_manifest_bytes(manifest)
+        decoded = json.loads(canonical)
+        subject = decoded["actor_subject_id"]
+        if subject in subject_ids:
+            raise ValueError("identity_evidence_duplicate_subject")
+        subject_ids.add(subject)
+        normalized.append(decoded)
+        digests[subject] = identity_evidence_sha256_for_manifest(decoded)
+    proposed = sorted(subject_ids)
+    for manifest in normalized:
+        check = manifest["person_equivalence_check"]
+        if check["active_subject_ids_checked"] != active_subject_ids or check["proposed_batch_subject_ids_checked"] != [
+            subject for subject in proposed if subject != manifest["actor_subject_id"]
+        ]:
+            raise ValueError("identity_evidence_batch_audit_set_mismatch")
+    return digests
+
+
+def _test_only_identity_evidence_manifest(index: int, total: int) -> dict[str, object]:
+    """Construct deterministic non-PII evidence metadata for fixture tests only."""
+
+    subject = f"fixture-natural-person-{index}"
+    other_subjects = [
+        f"fixture-natural-person-{candidate}"
+        for candidate in range(1, total + 1)
+        if candidate != index
+    ]
+    retained_bytes = f"TEST_ONLY fixture identity evidence {index}".encode()
+    return {
+        "schema_version": IDENTITY_EVIDENCE_MANIFEST_SCHEMA_VERSION,
+        "evidence_package_kind": IDENTITY_EVIDENCE_PACKAGE_KIND,
+        "actor_subject_id": subject,
+        "evidence_objects": [
+            {
+                "object_kind": "TEST_ONLY_fixture_identity_object",
+                "sha256": sha256_bytes(retained_bytes),
+                "byte_length": len(retained_bytes),
+            }
+        ],
+        "person_equivalence_check": {
+            "active_subject_ids_checked": [],
+            "proposed_batch_subject_ids_checked": other_subjects,
+            "result": IDENTITY_EVIDENCE_NO_MATCH_RESULT,
+        },
+    }
+
+
+def validate_verifier_authority_id_formula_consistency(
+    read: SourceReaderLike | None = None,
+) -> None:
+    """Keep Wire, Operations, Conformance, graph metadata and code identical."""
+
+    reader = _coerce_source_reader(read)
+    for path in (SPECS["F-WIRE"], SPECS["F-OPS"], SPECS["F-CNF"]):
+        text = reader.read_text(path)
+        if text.count(VERIFIER_ID_NORMATIVE_ANCHOR) != 1:
+            raise ValueError("verifier_authority_id_normative_anchor_drift")
+    graph = _parse_json_without_duplicates(reader.read_bytes(AUTHORITY_GRAPH_PATH))
+    if (
+        not isinstance(graph, dict)
+        or graph.get("verifier_authority_id_formula") != VERIFIER_AUTHORITY_ID_FORMULA_ID
+    ):
+        raise ValueError("verifier_authority_id_graph_formula_drift")
+    if VERIFIER_ID_KAT_FINGERPRINT != sha256_bytes(bytes.fromhex(VERIFIER_ID_KAT_PUBLIC_KEY)):
+        raise ValueError("verifier_authority_id_kat_fingerprint_mismatch")
+    if reviewer_bootstrap_verifier_authority_id(
+        VERIFIER_ID_KAT_PUBLIC_KEY, VERIFIER_ID_KAT_FINGERPRINT
+    ) != VERIFIER_ID_KAT_EXPECTED:
+        raise ValueError("verifier_authority_id_kat_mismatch")
+    conformance = reader.read_text(SPECS["F-CNF"])
+    kat_lines = (
+        f"verifier_id_kat_public_key = {VERIFIER_ID_KAT_PUBLIC_KEY}",
+        f"verifier_id_kat_fingerprint = {VERIFIER_ID_KAT_FINGERPRINT}",
+        f"verifier_id_kat_expected = {VERIFIER_ID_KAT_EXPECTED}",
+    )
+    if any(conformance.count(line) != 1 for line in kat_lines):
+        raise ValueError("verifier_authority_id_kat_anchor_drift")
+
+
 def reviewer_actor_attestation_id(attestation: dict[str, Any]) -> str:
     payload = {
         key: value
@@ -3656,6 +3889,12 @@ def validate_r12_authority_graph(
             or graph.get("artifact_kind") != "phase_f_r12_artifact_authority_graph"
             or graph.get("authority_status") != "NORMATIVE_CANDIDATE"):
         raise ValueError("R12 graph schema version/kind mismatch")
+    if (
+        resolution_purpose == ResolutionPurpose.CURRENT_AUTHORIZATION
+        and graph.get("verifier_authority_id_formula")
+        != VERIFIER_AUTHORITY_ID_FORMULA_ID
+    ):
+        raise ValueError("R12 verifier authority formula metadata mismatch")
     if graph.get("edge_direction") != "from_existing_prerequisite_to_constructed_dependent":
         raise ValueError("R12 graph edge direction mismatch")
     semantics = graph.get("edge_type_semantics")
@@ -4187,6 +4426,29 @@ def _resolve_historical_reviewer_bootstrap_proof(
     return root, proof, subject_index
 
 
+def _attestation_binds_current_bootstrap_proof(
+    attestation: dict[str, Any],
+    current_root: dict[str, Any],
+    current_proof: dict[str, Any],
+) -> bool:
+    """Require the exact root/proof/verifier selected by the live head."""
+
+    trust_source = attestation.get("trust_source")
+    return (
+        isinstance(trust_source, dict)
+        and trust_source.get("root_id") == current_root.get("root_id")
+        and trust_source.get("root_sha256") == current_root.get("complete_file_sha256")
+        and trust_source.get("currentness_proof_id")
+        == current_proof.get("currentness_proof_id")
+        and trust_source.get("currentness_proof_sha256")
+        == current_proof.get("complete_file_sha256")
+        and attestation.get("eligibility_verifier_authority_id")
+        == current_proof.get("current_verifier_authority_id")
+        and attestation.get("independence_verifier_authority_id")
+        == current_proof.get("current_verifier_authority_id")
+    )
+
+
 def _validate_reviewer_actor_binding(
     context: G3AuthorityContext,
     reviewer: dict[str, Any],
@@ -4242,9 +4504,11 @@ def _validate_reviewer_actor_binding(
     ):
         raise G3ValidationError("stale_reviewer_actor_attestation")
     if require_current_authorization:
-        _, _, current_subject_index = _validate_reviewer_bootstrap_context(context)
+        current_root, current_proof, current_subject_index = _validate_reviewer_bootstrap_context(
+            context, require_current_authorization=True
+        )
     else:
-        current_subject_index = None
+        current_root = current_proof = current_subject_index = None
     trust_source = attestation.get("trust_source")
     if (
         not isinstance(trust_source, dict)
@@ -4268,6 +4532,10 @@ def _validate_reviewer_actor_binding(
         != issuance_proof.get("current_verifier_authority_id")
     ):
         raise G3ValidationError("reviewer_actor_attestation_trust_source_mismatch")
+    if require_current_authorization and not _attestation_binds_current_bootstrap_proof(
+        attestation, current_root, current_proof
+    ):
+        raise G3ValidationError("reviewer_actor_attestation_not_currently_authorized")
     actor_subject_id = attestation.get("actor_subject_id")
     if not isinstance(actor_subject_id, str) or not re.fullmatch(
         RUNTIME_STABLE_ID_PATTERN, actor_subject_id
@@ -4458,13 +4726,19 @@ def _current_reviewer_actor_is_authorized(
     context: G3AuthorityContext, reviewer: dict[str, Any]
 ) -> bool:
     try:
-        _, _, subject_index = _validate_reviewer_bootstrap_context(context)
+        current_root, current_proof, subject_index = _validate_reviewer_bootstrap_context(
+            context, require_current_authorization=False
+        )
     except G3ValidationError:
         return False
     attestation = context.reviewer_actor_attestations.get(
         reviewer.get("actor_attestation_id")
     )
     if not isinstance(attestation, dict):
+        return False
+    if not _attestation_binds_current_bootstrap_proof(
+        attestation, current_root, current_proof
+    ):
         return False
     subject = subject_index.get(attestation.get("actor_subject_id"))
     return bool(
@@ -4587,7 +4861,10 @@ def _validate_reviewer_bootstrap_root_object(
         or root.get("authority_scope") != REVIEWER_BOOTSTRAP_SCOPE
         or root.get("subject_uniqueness_policy") != "one_natural_person_one_subject"
         or root.get("evidence_retention_policy")
-        != "retain_external_identity_evidence_hash_binding"
+        not in {
+            IDENTITY_EVIDENCE_HASH_POLICY,
+            LEGACY_IDENTITY_EVIDENCE_HASH_POLICY,
+        }
         or root.get("rotation_policy")
         != "forward_signed_replacement_with_predecessor_signature"
         or root.get("compromise_policy") != "immediate_reject"
@@ -4821,11 +5098,15 @@ def _validate_reviewer_bootstrap_proof_object(
         )
     except ValueError as error:
         raise G3ValidationError("malformed_reviewer_bootstrap_validity_window") from error
-    if valid_from >= valid_until:
+    policy = contract["currentness_window_policy"]
+    if valid_from > valid_until or (
+        policy == REAL_CURRENTNESS_WINDOW_POLICY and valid_from >= valid_until
+    ):
         raise G3ValidationError("malformed_reviewer_bootstrap_validity_window")
     validity_lifetime = int((valid_until - valid_from).total_seconds())
     if (
         proof.get("authority_class") == "REAL"
+        and policy == REAL_CURRENTNESS_WINDOW_POLICY
         and validity_lifetime > MAX_REAL_CURRENTNESS_LIFETIME_SECONDS
     ):
         raise G3ValidationError("real_reviewer_bootstrap_currentness_lifetime_exceeded")
@@ -4950,19 +5231,28 @@ def _validate_reviewer_bootstrap_checkpoint(
 
 def _validate_reviewer_bootstrap_context(
     context: G3AuthorityContext,
+    require_current_authorization: bool | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, dict[str, str]]]:
+    if require_current_authorization is None:
+        require_current_authorization = (
+            context.resolution_purpose == ResolutionPurpose.CURRENT_AUTHORIZATION
+        )
     root = context.reviewer_bootstrap_root
     proof = context.reviewer_bootstrap_currentness
     if not isinstance(root, dict) or not isinstance(proof, dict):
         raise G3ValidationError("unresolved_reviewer_bootstrap_trust")
     roots = _validate_reviewer_bootstrap_root_history(context)
-    proofs = _validate_reviewer_bootstrap_proof_history(context, roots, require_current_window=True)
+    proofs = _validate_reviewer_bootstrap_proof_history(
+        context, roots, require_current_window=require_current_authorization
+    )
     current_proof = proofs.get(proof.get("currentness_proof_id"))
     if current_proof is not proof:
         raise G3ValidationError("reviewer_bootstrap_current_head_mismatch")
     if proof["sequence"] != max(item["sequence"] for item in proofs.values()):
         raise G3ValidationError("reviewer_bootstrap_current_head_rollback")
-    _validate_reviewer_bootstrap_proof_object(context, proof, roots, proofs, True)
+    _validate_reviewer_bootstrap_proof_object(
+        context, proof, roots, proofs, require_current_authorization
+    )
     if roots.get(proof.get("root_id")) is not root:
         raise G3ValidationError("reviewer_bootstrap_current_root_mismatch")
     checkpoint = context.reviewer_bootstrap_accepted_head
@@ -5883,6 +6173,8 @@ def validate_wire_catalog(
     resolution_purpose: ResolutionPurpose = ResolutionPurpose.CURRENT_AUTHORIZATION,
 ) -> None:
     reader = _coerce_source_reader(read)
+    if resolution_purpose == ResolutionPurpose.CURRENT_AUTHORIZATION:
+        validate_verifier_authority_id_formula_consistency(reader)
     wire_text = reader.read_text(SPECS["F-WIRE"])
     grammar = "\n".join(
         [
@@ -8844,6 +9136,7 @@ def _load_real_reviewer_bootstrap_trust(
         reviewer_bootstrap_root_history=roots,
         reviewer_bootstrap_proof_history=proofs,
         reviewer_bootstrap_accepted_head=checkpoint,
+        resolution_purpose=resolution_purpose,
     )
     validated_roots = _validate_reviewer_bootstrap_root_history(probe)
     _validate_reviewer_bootstrap_proof_history(probe, validated_roots)
@@ -8863,7 +9156,11 @@ def _load_real_reviewer_bootstrap_trust(
     if maximum_sequence != external_head["sequence"]:
         raise G3ValidationError("local_proof_history_external_head_mismatch")
     _validate_reviewer_bootstrap_proof_object(
-        probe, candidate, validated_roots, proofs, require_current_window=True
+        probe,
+        candidate,
+        validated_roots,
+        proofs,
+        require_current_window=resolution_purpose == ResolutionPurpose.CURRENT_AUTHORIZATION,
     )
 
     def materialize_checkpoint_record(value: dict[str, Any]) -> None:
@@ -8908,7 +9205,10 @@ def _load_real_reviewer_bootstrap_trust(
     probe.reviewer_bootstrap_root = validated_roots[current["root_id"]]
     probe.reviewer_bootstrap_currentness = current
     probe.reviewer_bootstrap_accepted_head = checkpoint
-    _validate_reviewer_bootstrap_context(probe)
+    _validate_reviewer_bootstrap_context(
+        probe,
+        require_current_authorization=resolution_purpose == ResolutionPurpose.CURRENT_AUTHORIZATION,
+    )
     return (
         probe.reviewer_bootstrap_root,
         probe.reviewer_bootstrap_currentness,
@@ -8993,6 +9293,7 @@ def _load_real_reviewer_actor_attestation(
         authority_graph_bytes=b"",
         reviewer_bootstrap_root_history=bootstrap_root_history,
         reviewer_bootstrap_proof_history=bootstrap_proof_history,
+        resolution_purpose=ResolutionPurpose.HISTORICAL_VALIDATION,
     )
     issuance_root, issuance_proof, _ = _resolve_historical_reviewer_bootstrap_proof(
         historical_context,
@@ -9012,6 +9313,20 @@ def _load_real_reviewer_actor_attestation(
         UTC_SECOND_TIMESTAMP_PATTERN, decoded["created_at"]
     ):
         raise G3ValidationError("malformed_reviewer_actor_attestation_timestamp")
+    try:
+        created_at = datetime.strptime(
+            decoded["created_at"], "%Y-%m-%dT%H:%M:%SZ"
+        ).replace(tzinfo=timezone.utc)
+        proof_valid_from = datetime.strptime(
+            issuance_proof["valid_from"], "%Y-%m-%dT%H:%M:%SZ"
+        ).replace(tzinfo=timezone.utc)
+        proof_valid_until = datetime.strptime(
+            issuance_proof["valid_until"], "%Y-%m-%dT%H:%M:%SZ"
+        ).replace(tzinfo=timezone.utc)
+    except (KeyError, TypeError, ValueError) as error:
+        raise G3ValidationError("malformed_reviewer_actor_attestation_timestamp") from error
+    if not proof_valid_from <= created_at <= proof_valid_until:
+        raise G3ValidationError("reviewer_actor_attestation_timestamp_outside_issuance_window")
     if (
         decoded.get("lifecycle") != "ACTIVE"
         or decoded.get("stale") is not False
@@ -10576,7 +10891,7 @@ def _isolated_real_fixture(
         ),
         "authority_scope": REVIEWER_BOOTSTRAP_SCOPE,
         "subject_uniqueness_policy": "one_natural_person_one_subject",
-        "evidence_retention_policy": "retain_external_identity_evidence_hash_binding",
+        "evidence_retention_policy": IDENTITY_EVIDENCE_HASH_POLICY,
         "rotation_policy": "forward_signed_replacement_with_predecessor_signature",
         "compromise_policy": "immediate_reject",
         "predecessor_root_id": None,
@@ -10614,8 +10929,8 @@ def _isolated_real_fixture(
     subject_bindings = [
         {
             "actor_subject_id": f"fixture-natural-person-{index}",
-            "identity_evidence_sha256": sha256_bytes(
-                f"fixture-identity-evidence-{index}".encode()
+            "identity_evidence_sha256": identity_evidence_sha256_for_manifest(
+                _test_only_identity_evidence_manifest(index, len(REVIEW_ROLE_ORDER))
             ),
             "subject_status": "ACTIVE",
         }
@@ -10839,8 +11154,8 @@ def _isolated_real_fixture(
             "schema_version": 1,
             "actor_subject_id": f"fixture-natural-person-{index}",
             "actor_class": "natural_person",
-            "actor_identity_evidence_sha256": sha256_bytes(
-                f"fixture-identity-evidence-{index}".encode()
+            "actor_identity_evidence_sha256": identity_evidence_sha256_for_manifest(
+                _test_only_identity_evidence_manifest(index, len(REVIEW_ROLE_ORDER))
             ),
             "trust_source": {
                 "type": REVIEWER_BOOTSTRAP_TRUST_SOURCE,
@@ -10867,7 +11182,7 @@ def _isolated_real_fixture(
             "independence_verifier_authority_id": bootstrap_currentness[
                 "current_verifier_authority_id"
             ],
-            "created_at": "2026-01-01T00:00:00Z",
+            "created_at": bootstrap_currentness["valid_from"],
             **lifecycle_fields,
             "signature": "",
         }
@@ -11255,6 +11570,59 @@ def run_regression_self_tests() -> None:
         except ValueError:
             return
         raise AssertionError(f"regression did not reject: {label}")
+
+    validate_verifier_authority_id_formula_consistency()
+    evidence_manifests = [
+        _test_only_identity_evidence_manifest(index, len(REVIEW_ROLE_ORDER))
+        for index in range(1, len(REVIEW_ROLE_ORDER) + 1)
+    ]
+    evidence_digests = validate_identity_evidence_provisioning_batch(
+        evidence_manifests, []
+    )
+    reordered = deepcopy(evidence_manifests[0])
+    reordered["evidence_objects"] = list(reversed(reordered["evidence_objects"]))
+    if identity_evidence_sha256_for_manifest(reordered) != evidence_digests[
+        "fixture-natural-person-1"
+    ]:
+        raise AssertionError("evidence manifest ordering changed its canonical digest")
+    duplicate_object = deepcopy(evidence_manifests[0])
+    duplicate_object["evidence_objects"].append(
+        deepcopy(duplicate_object["evidence_objects"][0])
+    )
+    reject_value_error(
+        "duplicate canonical evidence object",
+        lambda: identity_evidence_sha256_for_manifest(duplicate_object),
+    )
+    reject_value_error(
+        "unknown canonical evidence manifest field",
+        lambda: identity_evidence_sha256_for_manifest(
+            {**evidence_manifests[0], "unexpected": "TEST_ONLY"}
+        ),
+    )
+    reject_value_error(
+        "missing canonical evidence manifest field",
+        lambda: identity_evidence_sha256_for_manifest(
+            {key: value for key, value in evidence_manifests[0].items() if key != "evidence_objects"}
+        ),
+    )
+    same_person_different_packages = {
+        evidence_digests["fixture-natural-person-1"]: "TEST_ONLY-person-a",
+        evidence_digests["fixture-natural-person-2"]: "TEST_ONLY-person-a",
+    }
+    reject_value_error(
+        "same TEST_ONLY person represented by different packages",
+        lambda: _validate_fixture_same_person_distinct_evidence(
+            same_person_different_packages,
+            {
+                evidence_digests["fixture-natural-person-1"]: "fixture-natural-person-1",
+                evidence_digests["fixture-natural-person-2"]: "fixture-natural-person-2",
+            },
+        ),
+    )
+    if evidence_digests["fixture-natural-person-1"] == evidence_digests[
+        "fixture-natural-person-2"
+    ]:
+        raise AssertionError("distinct TEST_ONLY fixture people collided")
 
     def must_reject(label: str, mutate: object) -> None:
         mutant = deepcopy(entries)
@@ -15066,6 +15434,9 @@ def run_regression_self_tests() -> None:
                 proof = context.reviewer_bootstrap_currentness
                 if proof is None:
                     raise AssertionError("production-format currentness proof is missing")
+                content_unchanged = proof.pop("content_unchanged", True)
+                for metadata_key in ("bytes", "canonical_object", "complete_file_sha256"):
+                    proof.pop(metadata_key, None)
                 mutate(proof)
                 proof["subject_registry_head_sha256"] = (
                     reviewer_bootstrap_subject_registry_head_sha256(
@@ -15095,6 +15466,7 @@ def run_regression_self_tests() -> None:
                 proof["canonical_object"] = json.loads(raw)
                 proof["bytes"] = raw
                 proof["complete_file_sha256"] = sha256_bytes(raw)
+                proof["content_unchanged"] = content_unchanged
 
             def currentness_policy_reject(
                 label: str,
@@ -15126,6 +15498,45 @@ def run_regression_self_tests() -> None:
                     ),
                 )
                 currentness_policy_negative_tests += 1
+
+            historical_policy_context = deepcopy(production_context)
+            historical_policy_context.graph = deepcopy(production_context.graph)
+            historical_policy_context.graph["reviewer_bootstrap_trust_contract"][
+                "currentness_window_policy"
+            ] = "valid_from_le_validation_time_le_valid_until"
+            historical_policy_context.resolution_purpose = ResolutionPurpose.HISTORICAL_VALIDATION
+            historical_policy_context.reviewer_bootstrap_currentness = deepcopy(
+                production_proof
+            )
+            rebuild_currentness_proof(
+                historical_policy_context,
+                lambda proof: proof.update(
+                    {
+                        "valid_from": "2020-01-01T00:00:00Z",
+                        "valid_until": "2099-12-31T23:59:59Z",
+                    }
+                ),
+            )
+            historical_policy_proof = historical_policy_context.reviewer_bootstrap_currentness
+            if historical_policy_proof is None:
+                raise AssertionError("historical policy proof was not rebuilt")
+            historical_policy_context.reviewer_bootstrap_proof_history = {
+                historical_policy_proof["currentness_proof_id"]: historical_policy_proof
+            }
+            _validate_reviewer_bootstrap_proof_object(
+                historical_policy_context,
+                historical_policy_proof,
+                historical_policy_context.reviewer_bootstrap_root_history,
+                historical_policy_context.reviewer_bootstrap_proof_history,
+                require_current_window=False,
+            )
+            reject_value_error(
+                "legacy currentness policy selected for current authorization",
+                lambda: _reviewer_bootstrap_trust_contract(
+                    historical_policy_context.graph,
+                    ResolutionPurpose.CURRENT_AUTHORIZATION,
+                ),
+            )
 
             currentness_policy_reject(
                 "arbitrary verifier authority ID",
@@ -15588,15 +15999,83 @@ def run_regression_self_tests() -> None:
             )
             if historical_result != {
                 "historical_cryptographic_validity": True,
-                "currently_authorized": True,
+                "currently_authorized": False,
             }:
                 raise AssertionError(
                     f"historical review resolution changed after proof advancement: {historical_result}"
                 )
-            if validate_g3_tag(G3_TAG_NAME, history_body, advanced_context)[
-                "approval_decision"
-            ] != "GO":
-                raise AssertionError("current review validation rejected an active historical attestation")
+            historical_reviewer = advanced_context.reviewer_authorities[
+                historical_row["reviewer_authority_id"]
+            ]
+            historical_attestation = advanced_context.reviewer_actor_attestations[
+                historical_reviewer["actor_attestation_id"]
+            ]
+            old_verifier_minted_attestation = deepcopy(historical_attestation)
+            for metadata_key in (
+                "bytes",
+                "canonical_object",
+                "complete_file_sha256",
+                "signature_verified",
+                "source_path",
+            ):
+                old_verifier_minted_attestation.pop(metadata_key, None)
+            old_verifier_minted_attestation["attestation_id"] = ""
+            old_verifier_minted_attestation["independence_evidence_sha256"] = sha256_bytes(
+                b"TEST_ONLY old verifier minted attestation evidence"
+            )
+            old_verifier_minted_attestation["attestation_id"] = reviewer_actor_attestation_id(
+                old_verifier_minted_attestation
+            )
+            old_verifier_signing_payload = {
+                key: value
+                for key, value in old_verifier_minted_attestation.items()
+                if key != "signature"
+            }
+            old_verifier_minted_attestation["signature"] = _fixture_ed25519_sign(
+                b"phase-f-r12-fixture-bootstrap-verifier",
+                REVIEWER_ACTOR_ATTESTATION_DOMAIN
+                + canonical_jcs_bytes(old_verifier_signing_payload),
+            )
+            old_verifier_minted_bytes = canonical_json_bytes(
+                old_verifier_minted_attestation
+            )
+            old_verifier_minted_attestation.update(
+                {
+                    "canonical_object": json.loads(old_verifier_minted_bytes),
+                    "bytes": old_verifier_minted_bytes,
+                    "complete_file_sha256": sha256_bytes(old_verifier_minted_bytes),
+                    "signature_verified": True,
+                }
+            )
+            advanced_context.reviewer_actor_attestations[
+                old_verifier_minted_attestation["attestation_id"]
+            ] = old_verifier_minted_attestation
+            old_verifier_minted_reviewer = deepcopy(historical_reviewer)
+            old_verifier_minted_reviewer["actor_attestation_id"] = (
+                old_verifier_minted_attestation["attestation_id"]
+            )
+            old_verifier_minted_reviewer["actor_attestation_reference"] = {
+                "immutable_uri": (
+                    f"{REVIEWER_ACTOR_ATTESTATION_URI_PREFIX}"
+                    f"{old_verifier_minted_attestation['attestation_id']}"
+                ),
+                "sha256": old_verifier_minted_attestation["complete_file_sha256"],
+                "byte_length": str(len(old_verifier_minted_bytes)),
+            }
+            reject_value_error(
+                "old verifier newly mints an attestation after proof advancement",
+                lambda: _validate_reviewer_actor_binding(
+                    advanced_context,
+                    old_verifier_minted_reviewer,
+                    historical_row["role"],
+                    True,
+                ),
+            )
+            currentness_history_negative_tests += 1
+            reject_value_error(
+                "old proof attestation remains current after monotonic rotation",
+                lambda: validate_g3_tag(G3_TAG_NAME, history_body, advanced_context),
+            )
             historical_review_resolution_tests += 1
             rollback_checkpoint = _checkpoint_for_proof(
                 history_proof_0, history_root, True
@@ -15877,10 +16356,10 @@ def run_regression_self_tests() -> None:
                 raise AssertionError("old-root historical attestation was not resolvable")
             root_rotation_tests += 1
             historical_review_resolution_tests += 1
-            if validate_g3_tag(G3_TAG_NAME, rotation_body, rotated_context)[
-                "approval_decision"
-            ] != "GO":
-                raise AssertionError("root rotation invalidated an otherwise active historical review")
+            reject_value_error(
+                "old-root attestation remains current after root rotation",
+                lambda: validate_g3_tag(G3_TAG_NAME, rotation_body, rotated_context),
+            )
         finally:
             rotation_temporary.cleanup()
 
