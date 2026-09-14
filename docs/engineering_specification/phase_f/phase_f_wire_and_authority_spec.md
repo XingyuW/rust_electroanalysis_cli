@@ -22,10 +22,10 @@ the R12 graph placement and resolver closure without redefining that wire.
 | <a id="F-WIRE-002"></a>`F-WIRE-002` | `F-ARCH-017` | Every content-derived ID uses the unique NUL-terminated domain separator, complete semantic payload, exact exclusions, and no registry back pointer or future-object cycle. Complete-file SHA is computed after the file is complete. | §3 |
 | <a id="F-WIRE-003"></a>`F-WIRE-003` | `F-ARCH-007,F-ARCH-008` | Every R12 graph node claiming `PhaseFIndependentReviewBundleV1` uses the exact inherited R11 seven-field bundle: `schema_version`, `review_bundle_id`, `target`, `reviews`, `aggregate_p0_count`, `aggregate_p1_count`, and `aggregate_decision`. Its five rows are in canonical role order, use the exact R11 six-field row, and derive arithmetic aggregates and the GO predicate. | R11 §§3, 5 plus R12 graph/refinement |
 | <a id="F-WIRE-004"></a>`F-WIRE-004` | `F-ARCH-006,F-OD-01,F-OD-02,F-OD-03,F-OD-04,F-OD-05,F-OD-06,F-OD-07,F-OD-08,F-OD-09,F-OD-10,F-OD-11,F-OD-12,F-OD-13,F-OD-14,F-OD-15,F-OD-16,F-OD-17,F-OD-18,F-OD-19,F-OD-20` | `PhaseFDecisionBundleV1`, its 20 value variants, ordering, runtime projection wire, and no-future-F1-object rules are exact. | §4, §53.7 decision anchors |
-| <a id="F-WIRE-005"></a>`F-WIRE-005` | `F-ARCH-015,F-ARCH-017,F-OD-04,F-OD-13,F-OD-14,F-OD-15,F-OD-16` | Ed25519 keys/signatures, enrollment, trust bindings, registry record/head, object/record/relation kinds, subject hashes, relation ordering, genesis, sequence, resolver, compromise, emergency wire, and the additive pre-G0 reviewer bootstrap root/currentness/subject-registry, verifier-issued actor-attestation, and externally anchored monotonic-head contracts are exact and fail closed. The currentness proof is the sole persisted verifier-authority representation: its root-signed key-bound verifier ID has attestation-only scope, distinct root/verifier key material, immutable rotation semantics, and the REAL validity ceiling defined in §4.1. | §§5.2, 8, 9, 15 emergency wire, 53.7 anchors |
+| <a id="F-WIRE-005"></a>`F-WIRE-005` | `F-ARCH-015,F-ARCH-017,F-OD-04,F-OD-13,F-OD-14,F-OD-15,F-OD-16` | Ed25519 keys/signatures, enrollment, trust bindings, registry record/head, object/record/relation kinds, subject hashes, relation ordering, genesis, sequence, resolver, compromise, emergency wire, and the additive pre-G0 reviewer bootstrap root/currentness/subject-registry, verifier-issued actor-attestation, and externally anchored monotonic-head contracts are exact and fail closed. The currentness proof is the sole persisted verifier-authority representation: its root-signed key-bound verifier ID has attestation-only scope, distinct root/verifier key material, immutable rotation semantics, and the REAL validity ceiling defined in §4.1. Subject-registry admission also carries the root-signed six-field equivalence binding and a digest of the replayable private audit manifest. | §§5.2, 8, 9, 15 emergency wire, 53.7 anchors |
 | <a id="F-WIRE-006"></a>`F-WIRE-006` | `F-ARCH-012..016,F-ARCH-021` | Retrieval, package, dependency, physical identity/custody, power, metrology, cohort, release, claim-state, monitoring, incident, resolution, and retention schema field closures are exact; scientific/operational interpretation remains with its owning spec. | §§10–15, 53.7 anchors |
 | <a id="F-WIRE-007"></a>`F-WIRE-007` | `F-ARCH-008,F-ARCH-009,F-ARCH-010` | Every durable tag is annotated and uses exact target/body/prerequisite validation. Add `ism-mechanism-health-v1-f-specification-bundle-approved` with the exact ordered body fields `phase_f_architecture_plan_tag`, `phase_f_f0_decisions_tag`, `specification_bundle_manifest_sha256`, `aggregate_review_bundle_sha256`, `approval_decision`, `schema_version`; their exact values and byte grammar are defined in §3, and `approval_decision` is `GO`. | §6 plus this row |
-| <a id="F-WIRE-008"></a>`F-WIRE-008` | `F-ARCH-004,F-ARCH-005,F-ARCH-017` | The current schema set has exactly the 91 R11 identifiers plus `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`, `PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`, `PhaseFReviewerBootstrapCurrentnessProofV1`, `PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`, and `PhaseFReviewerBootstrapExternalMonotonicHeadV1`; every schema has one definition anchor, category, exact field closure, identity/hash rule, producer, validator, stage, registry behavior, and exhaustive nested usage rows. | §§53.7, 53.12 |
+| <a id="F-WIRE-008"></a>`F-WIRE-008` | `F-ARCH-004,F-ARCH-005,F-ARCH-017` | The current schema set has exactly the 91 R11 identifiers plus `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`, `PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`, `PhaseFReviewerBootstrapCurrentnessProofV1`, `PhaseFReviewerBootstrapSubjectBindingV1`, `PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`, and `PhaseFReviewerBootstrapExternalMonotonicHeadV1`; every schema has one definition anchor, category, exact field closure, identity/hash rule, producer, validator, stage, registry behavior, and exhaustive nested usage rows. | §§53.7, 53.12 |
 | <a id="F-WIRE-009"></a>`F-WIRE-009` | `F-ARCH-017,F-ARCH-021` | `PhaseFCheckerBuildEvidenceV1` and `PhaseFCheckerReadinessEvidenceV1` each add required `specification_bundle_approval_tag:RUNTIME_CANONICAL_TEXT_V1` and `specification_bundle_manifest_sha256:SHA256_V1` fields. Enrollment binds readiness, and every later authority binds that chain transitively. A missing or mismatched G3 binding invalidates readiness and every descendant. | New R12 closure |
 
 ## 3. Specification-bundle tag grammar
@@ -68,6 +68,7 @@ baseline. The current R12 schema set is exactly those 91 identifiers plus the
 `PhaseFSpecificationBundleApprovalV1`, `PhaseFMigratedFindingReviewV1`,
 `PhaseFReviewerActorAttestationV1`, `PhaseFReviewerBootstrapTrustRootV1`,
 `PhaseFReviewerBootstrapCurrentnessProofV1`,
+`PhaseFReviewerBootstrapSubjectBindingV1`,
 `PhaseFReviewerBootstrapAcceptedHeadCheckpointV1`, and
 `PhaseFReviewerBootstrapExternalMonotonicHeadV1` rows below. The generator
 checks this set equality and validates every new row's anchor and every
@@ -144,9 +145,13 @@ The root signs `currentness_proof_id` and every other field except
 pre-G0 genesis proof and has no predecessor or predecessor hash; later proofs
 require an exact predecessor ID and complete-file SHA and a strictly newer
 sequence. The resolver validates every proof in the history, not only the
-selected head. `subject_bindings` is sorted and contains the
-closed fields `actor_subject_id`, `identity_evidence_sha256`, and
-`subject_status`; one evidence hash may map to only one active subject. The
+selected head. `subject_bindings` is sorted and contains the closed fields
+`actor_subject_id`, `identity_evidence_sha256`, `subject_status`,
+`equivalence_decision`, `equivalence_checked_subject_ids`, and
+`equivalence_audit_sha256`; one evidence hash may map to only one admitted
+subject, including subjects later marked `INACTIVE`. For a new subject the
+decision is exactly `NO_NATURAL_PERSON_MATCH`, and the checked IDs are the
+complete sorted historical-plus-same-proof set excluding the candidate. The
 subject-head hash is recomputed from the exact sorted bindings and sequence.
 The current verifier authority is represented only by this root-signed proof;
 no parallel verifier authority object or graph node exists. Its exact scope is
@@ -218,23 +223,31 @@ attestation records bind roles. Enrollment as a bootstrap subject does not make
 someone an independent reviewer, and the remediation author is excluded from
 the five reviewer slots.
 
-`subject_bindings` remains exactly the three fields
-`actor_subject_id`, `identity_evidence_sha256`, and `subject_status`. The
-subject list remains sorted and unique, every contained status is `ACTIVE`,
-and one SHA-256 evidence hash cannot identify multiple active subjects. The
-evidence hash is the domain-separated SHA-256 of the canonical JCS external
-evidence manifest, never of ZIP/tar/directory container bytes. Each manifest
-has exactly `schema_version`, `evidence_package_kind`, `actor_subject_id`,
-`evidence_objects`, and `person_equivalence_check`; each evidence object has
-exactly `object_kind`, lowercase `sha256`, and canonical nonnegative
-`byte_length`. Objects are unique and sorted by
-`(object_kind,sha256,byte_length)`. The person-equivalence record contains the
-sorted active-subject and same-batch subject sets checked and the exact result
-`NO_NATURAL_PERSON_MATCH`. A match prohibits a new subject and reuses the
-existing stable subject. Hash uniqueness alone is not identity authority.
-Manifests and evidence remain outside public Git; the verifier/operator
-validates them before inclusion. The public proof contains only the opaque
-subject ID and manifest digest, never evidence or unnecessary PII.
+`subject_bindings` has the exact six fields
+`actor_subject_id`, `identity_evidence_sha256`, `subject_status`,
+`equivalence_decision`, `equivalence_checked_subject_ids`, and
+`equivalence_audit_sha256`. These fields are part of the root-signed proof and
+the subject-registry-head commitment. A new subject requires the exact result
+`NO_NATURAL_PERSON_MATCH`; the provisioning validator derives the complete
+comparison set from immutable proof history and the same successor proof,
+including historically removed or inactive subjects. The private evidence
+manifest has exactly `schema_version`, `evidence_package_kind`, and
+`evidence_objects`; it is subject-independent, so assigning another opaque
+subject does not change the evidence digest. Each evidence object has exactly
+`object_kind`, lowercase `sha256`, and canonical nonnegative `byte_length`,
+with unique entries sorted by `(object_kind,sha256,byte_length)`. The private
+equivalence-audit manifest has exactly
+`schema_version`, `candidate_actor_subject_id`,
+`candidate_identity_evidence_sha256`, `checked_subjects`, `decision`, and
+`decision_evidence_objects`; its checked entries are the exact sorted
+`actor_subject_id`/`identity_evidence_sha256` pairs and its digest uses the
+domain `mhi_phase_f_reviewer_person_equivalence_audit_v1\0`. The provisioning
+validator must receive and validate that actual audit manifest; an unsigned
+caller declaration is not an authority decision. Manifests and evidence
+remain outside public Git; the root signature over the resulting binding is
+the authoritative, replayable subject-registry admission. The public proof
+contains only opaque IDs, hashes, statuses, the no-match decision, and checked
+opaque IDs, never evidence or PII.
 
 `valid_from <= validation_time <= valid_until` is required for the current
 head. Root and verifier lifecycle, revocation, compromise, and supersession
@@ -464,15 +477,13 @@ pre-G0 bootstrap subject registry. The authority keeps the
 identity and anti-alias evidence outside this canonical file, issues one
 subject for one underlying natural person, preserves that subject across key
 or enrollment rotation, and never places PII in this contract. The public
-`identity_evidence_sha256` is derived only from the closed, non-public JCS
-manifest below; it is never a hash of ZIP/tar/directory container bytes:
+`identity_evidence_sha256` is derived only from the closed,
+subject-independent non-public JCS evidence manifest below; it is never a hash
+of ZIP/tar/directory container bytes:
 
 ```text
-schema_version,evidence_package_kind,actor_subject_id,evidence_objects,
-person_equivalence_check
+schema_version,evidence_package_kind,evidence_objects
 evidence_objects[*] = object_kind,sha256,byte_length
-person_equivalence_check = active_subject_ids_checked,
-proposed_batch_subject_ids_checked,result=NO_NATURAL_PERSON_MATCH
 identity_evidence_sha256 = lowercase_hex(
   SHA256(ASCII("mhi_phase_f_reviewer_identity_evidence_package_v1") || 0x00 ||
         JCS(canonical_external_evidence_manifest))
@@ -481,15 +492,30 @@ identity_evidence_sha256 = lowercase_hex(
 
 Evidence objects are exact immutable retained bytes represented by lowercase
 SHA-256 and a canonical nonnegative byte length. Entries are unique and sorted
-by `(object_kind,sha256,byte_length)`. The provisioning authority audits the
-underlying natural-person equivalence against every active subject and every
-other proposed subject in the batch and records the exact checked subject sets
-and a no-match result. A match prohibits a new subject and reuses the stable
-existing subject. Hash uniqueness alone is not identity authority. The
-verifier/operator validates the manifest before inclusion and retains it and
-all sensitive evidence outside public Git. The role and independence evidence
-fields are also opaque SHA-256 references to retained external evidence; no
-sensitive evidence is serialized in this contract.
+by `(object_kind,sha256,byte_length)`. A separate private audit manifest has
+the exact fields `schema_version`, `candidate_actor_subject_id`,
+`candidate_identity_evidence_sha256`, `checked_subjects`, `decision`, and
+`decision_evidence_objects`; its checked subject entries are exact sorted
+`actor_subject_id`/`identity_evidence_sha256` pairs and its decision is exactly
+`NO_NATURAL_PERSON_MATCH`. Its digest is
+
+```text
+equivalence_audit_sha256 = lowercase_hex(
+  SHA256(ASCII("mhi_phase_f_reviewer_person_equivalence_audit_v1") || 0x00 ||
+        JCS(canonical_private_equivalence_audit_manifest))
+)
+```
+
+The provisioning authority must receive and validate that actual audit
+manifest against immutable history and the proposed batch; a caller-supplied
+decision string is not sufficient. The validated digest and exact decision
+fields are included in the root-signed subject binding, making admission
+authoritative and replayable. A match prohibits a new subject and reuses the
+stable existing subject. Hash uniqueness alone is not identity authority. The
+verifier/operator validates both manifests before inclusion and retains them
+and all sensitive evidence outside public Git. The role and independence
+evidence fields are also opaque SHA-256 references to retained external
+evidence; no sensitive evidence is serialized in this contract.
 
 The attestation binds one exact tagged `trust_source` object:
 
@@ -664,11 +690,22 @@ authority object defined in §4.2. It has no omitted, additional, or unsigned
 alternate form; its semantic ID, signature preimage, complete-file SHA, and
 bootstrap-root/currentness requirements are exact.
 
+<a id="schema-def-PhaseFReviewerBootstrapSubjectBindingV1"></a>
+`SCHEMA_DEF[PhaseFReviewerBootstrapSubjectBindingV1]` is the exact nested
+subject-registry admission object in §4.1. Its closed fields are
+`actor_subject_id`, `identity_evidence_sha256`, `subject_status`,
+`equivalence_decision`, `equivalence_checked_subject_ids`, and
+`equivalence_audit_sha256`. It has no standalone semantic ID: the complete
+object participates in the root-signed currentness proof and
+`subject_registry_head_sha256`. The evidence and audit manifests it references
+remain private and are validated before root signing.
+
 | identifier | category | exact field-closure pointer | semantic identity / complete-file hash meaning | concrete producer | actual validator | exact stage/set | exact registry behavior | traceability |
 |---|---|---|---|---|---|---|---|---|
 | PhaseFSpecificationBundleApprovalV1 | TAG_BODY | #schema-def-PhaseFSpecificationBundleApprovalV1 | no JSON semantic ID; SHA-256 of the exact six-line annotated tag-message bytes including the final LF | independent five-role specification-bundle approval gate | exact §3 tag-name/body parser plus target, architecture approval, F0 approval, five component-review, traceability, migrated-finding, aggregate-review, and `approval_decision=GO` validator | G3 specification-bundle approval, after architecture/F0 approvals and all five component reviews | TAG_BODY; Git annotated-tag message only; no registry subject and no registry record | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFSpecificationBundleApprovalV1) |
 | PhaseFMigratedFindingReviewV1 | TOP_LEVEL_WIRE | #schema-def-PhaseFMigratedFindingReviewV1 | no registry subject before G3; SHA-256 of the complete canonical review object excluding its own ID field | independent migrated-finding review panel | strict migrated-review schema, closed finding-disposition/count/decision validator, exact bundle-input target, concrete five-role review records and independence, lifecycle, staleness, and hash validator | G2 review prerequisite for the specification bundle | external authority object; registry publication is prohibited before later gate authority | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFMigratedFindingReviewV1) |
 | PhaseFReviewerActorAttestationV1 | SIGNED_EXTERNAL_AUTHORITY | #schema-def-PhaseFReviewerActorAttestationV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated JCS semantic payload excluding attestation_id and signature; complete-file SHA-256 covers every field including signature | reviewer-bootstrap-verifier-issued natural-person reviewer actor eligibility and independence attestation | strict schema, domain-separated identity derivation, tagged trust-source binding, subject-registry anti-alias, role evidence, lifecycle, currentness, and strict Ed25519 signature verification | REAL reviewer identity prerequisite for every five-role review bundle | external signed authority object; rooted in the permanent pre-G0 bootstrap domain; no reviewer back-pointer or downstream registry enrollment is permitted | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerActorAttestationV1) |
+| PhaseFReviewerBootstrapSubjectBindingV1 | NESTED_WIRE | #schema-def-PhaseFReviewerBootstrapSubjectBindingV1 | no independent semantic ID; included in the root-signed currentness proof and subject-registry-head SHA-256 | bootstrap subject-registry provisioning validator | strict six-field binding closure, historical comparison-set derivation, evidence/audit digest binding, and subject/evidence uniqueness validator | PRE_G0_REVIEWER_BOOTSTRAP; nested subject-registry state in every currentness proof | nested root-signed state only; no standalone authority record | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapSubjectBindingV1) |
 | PhaseFReviewerBootstrapTrustRootV1 | EXTERNAL_TRUST_ANCHOR | #schema-def-PhaseFReviewerBootstrapTrustRootV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding root_id and replacement_signature; complete-file SHA-256 covers every field | normative terminal pre-G0 reviewer bootstrap trust root and subject-uniqueness policy | strict schema, graph-pinned root identity and key fingerprint, narrow purpose scope, lifecycle, rotation, and compromise validation | PRE_G0_REVIEWER_BOOTSTRAP; before G0 and every downstream review gate | immutable external trust anchor; not a Phase F registry record and cannot authorize scientific, architecture, release, or unrelated registry mutations | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapTrustRootV1) |
 | PhaseFReviewerBootstrapCurrentnessProofV1 | SIGNED_EXTERNAL_AUTHORITY | #schema-def-PhaseFReviewerBootstrapCurrentnessProofV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding currentness_proof_id and signature; complete-file SHA-256 covers every field including signature | root-signed pre-G0 reviewer verifier, subject-registry, and currentness snapshot | strict schema, root signature, root binding, sequence/head, key-bound verifier ID, root/verifier key separation, subject-head uniqueness, REAL validity ordering and 604800-second ceiling, current-time window, revocation, compromise, and supersession validation | PRE_G0_REVIEWER_BOOTSTRAP; current proof required before every REAL reviewer identity | external signed authority object; bootstrap reviewer trust only and no architecture, release, or downstream approval authority | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapCurrentnessProofV1) |
 | PhaseFReviewerBootstrapAcceptedHeadCheckpointV1 | RESOLVER_STATE | #schema-def-PhaseFReviewerBootstrapAcceptedHeadCheckpointV1 | sha256:<lowercase_hex>; SHA-256 of the domain-separated canonical semantic payload excluding checkpoint_id; complete-file SHA-256 covers every field | resolver-owned accepted currentness-head cache | strict schema, checkpoint identity, root/proof/complete-file binding, monotonic sequence, fork detection, and atomic persistence validation | PRE_G0_REVIEWER_BOOTSTRAP; resolver state required before every REAL reviewer identity | resolver state outside the authority repository; never a registry subject and never an approval or signing authority | INVERSE(R12_CURRENT_NORMATIVE_REQUIREMENT_MATRIX,PhaseFReviewerBootstrapAcceptedHeadCheckpointV1) |

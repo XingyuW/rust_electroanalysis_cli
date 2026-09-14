@@ -531,7 +531,8 @@
       "authority_anchor": "#F-CNF-001",
       "authority_document": "docs/engineering_specification/phase_f/phase_f_conformance_and_kat_spec.md",
       "constructive_audit_ids": [
-        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX",
+        "R12-G3-REAL-HISTORICAL-CURRENTNESS-POLICY"
       ],
       "expected_lifecycle_stage": "G2",
       "f0_decision_dependencies": [],
@@ -556,7 +557,8 @@
         "R11-POS-PLAN",
         "R11-POS-TRUST",
         "R11-CX-04",
-        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX",
+        "R12-G3-REAL-HISTORICAL-CURRENTNESS-POLICY"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-017",
@@ -775,6 +777,7 @@
         "R12-DAG-EXTERNAL-TRUST-CLOSURE",
         "R12-G3-REAL-CURRENTNESS-HISTORY",
         "R12-G3-REAL-HISTORICAL-RESOLUTION",
+        "R12-G3-REAL-HISTORICAL-CURRENTNESS-POLICY",
         "R12-G3-REAL-ROOT-ROTATION",
         "R12-G3-REAL-DISTINCT-EVIDENCE-SAME-PERSON",
         "R12-G3-MIGRATED-PENDING-P1",
@@ -818,6 +821,7 @@
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
         "PhaseFReviewerBootstrapTrustRootV1",
+        "PhaseFReviewerBootstrapSubjectBindingV1",
         "PhaseFSpecificationBundleApprovalV1"
       ],
       "test_ids": [
@@ -869,6 +873,7 @@
         "R12-DAG-EXTERNAL-TRUST-CLOSURE",
         "R12-G3-REAL-CURRENTNESS-HISTORY",
         "R12-G3-REAL-HISTORICAL-RESOLUTION",
+        "R12-G3-REAL-HISTORICAL-CURRENTNESS-POLICY",
         "R12-G3-REAL-ROOT-ROTATION",
         "R12-G3-REAL-DISTINCT-EVIDENCE-SAME-PERSON",
         "R12-G3-MIGRATED-PENDING-P1",
@@ -1998,7 +2003,8 @@
         "R11-CX-11",
         "R11-CX-12",
         "R11-CX-13",
-        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX",
+        "R12-G3-REAL-HISTORICAL-CURRENTNESS-POLICY"
       ],
       "expected_lifecycle_stage": "G2",
       "f0_decision_dependencies": [
@@ -2016,6 +2022,7 @@
         "PhaseFReviewerBootstrapAcceptedHeadCheckpointV1",
         "PhaseFReviewerActorAttestationV1",
         "PhaseFReviewerBootstrapCurrentnessProofV1",
+        "PhaseFReviewerBootstrapSubjectBindingV1",
         "PhaseFReviewerBootstrapTrustRootV1"
       ],
       "test_ids": [
@@ -2026,7 +2033,8 @@
         "R11-CX-12",
         "R11-CX-13",
         "R11-CX-17",
-        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX"
+        "R12-G3-REAL-CURRENTNESS-POLICY-NEGATIVE-MATRIX",
+        "R12-G3-REAL-HISTORICAL-CURRENTNESS-POLICY"
       ],
       "upstream_requirement_ids": [
         "F-ARCH-015",

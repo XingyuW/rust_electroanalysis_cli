@@ -266,16 +266,24 @@ reviewer status; the remediation author is excluded from the five reviewer
 slots, so at least five reviewer-eligible natural persons distinct from that
 author must be provisioned.
 
-`subject_bindings` remains exactly
-`actor_subject_id`, `identity_evidence_sha256`, and `subject_status`. Subjects
-are sorted and unique, each contained status is `ACTIVE`, and one retained
-evidence hash cannot map to multiple active subjects. For each subject,
-`identity_evidence_sha256` is SHA-256 over the exact retained external
-identity-evidence package bytes. The package must support the claimed
-natural-person identity and one-natural-person/one-active-subject enforcement;
-the verifier/operator validates it before inclusion and retains it outside
-public Git. The public proof contains only the opaque subject ID and hash, not
-identity documents or unnecessary PII. File-backed verifier secret storage
+Each `subject_bindings` entry has the exact fields
+`actor_subject_id`, `identity_evidence_sha256`, `subject_status`,
+`equivalence_decision`, `equivalence_checked_subject_ids`, and
+`equivalence_audit_sha256`. Subjects are sorted and unique, each current
+status is `ACTIVE` or `INACTIVE`, and one retained evidence hash cannot map to
+multiple admitted subjects, including one later marked `INACTIVE`. For each new
+subject, the provisioning validator receives a subject-independent canonical
+private evidence manifest and a separate canonical private equivalence-audit
+manifest, derives the complete historical-plus-same-proof comparison set,
+requires the exact `NO_NATURAL_PERSON_MATCH` decision, and recomputes both
+digests. The root signature over these binding fields is the authoritative
+subject-registry admission; a caller-declared result is not authority. The
+evidence digest is the domain-separated SHA-256 of the evidence manifest, and
+the audit digest uses
+`mhi_phase_f_reviewer_person_equivalence_audit_v1\0`; neither private manifest
+nor retained evidence is stored in public Git. The public proof contains only
+opaque IDs, hashes, statuses, the decision, and checked opaque IDs, not
+identity documents or PII. File-backed verifier secret storage
 uses an operator-readable-only `0700` parent directory and `0600` private-key
 file, remains outside Git/generated artifacts and `/tmp`, is never logged, and
 is separate from root-key storage; keychain/HSM storage may provide an
