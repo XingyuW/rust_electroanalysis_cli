@@ -8,6 +8,22 @@ automatically diagnoses fouling, reference failure, contact failure, or a
 physical mechanism. Transient health features retain analyte, step, direction,
 matrix, and temperature context and are not averaged across incompatible events.
 
+
+## v0.2.0 release status
+
+v0.2.0 is a **usable research-software release** for the electrochemical analysis
+workflows documented below. Software release readiness is intentionally separate from
+Phase F REAL governance authority.
+
+**Phase F REAL authority remains NO-GO.** The REAL reviewer-bootstrap requirement is
+not satisfied: reviewer readiness is currently `0 / 5`, and no REAL reviewer
+verifier, reviewer subjects, currentness proof, or protected monotonic head has been
+provisioned. TEST_ONLY validation evidence is non-authoritative and is not promoted by
+this release.
+
+See [v0.2.0 release notes](docs/releases/v0.2.0.md) and the
+[Phase F REAL-authority status](docs/engineering_specification/phase_f/phase_f_real_authority_status.md).
+
 ---
 
 ## Table of Contents

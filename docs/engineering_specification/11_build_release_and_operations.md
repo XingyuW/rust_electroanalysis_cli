@@ -2,7 +2,7 @@
 
 **Identifier:** `DOC-11`  
 **Status:** Verified from repository inspection  
-**Last Updated:** 2026-07-19
+**Last Updated:** 2026-09-24
 
 ---
 
@@ -73,9 +73,9 @@ From `Cargo.toml` `[profile.release]`:
 
 ## 8. Versioning
 
-- Current version: `0.1.0` (in `Cargo.toml`)
+- Current version: `0.2.0` (in `Cargo.toml`)
 - Version is embedded in provenance records via `env!("CARGO_PKG_VERSION")`
-- No changelog or release notes file exists
+- Changelog: `CHANGELOG.md`; release notes: `docs/releases/v0.2.0.md`
 
 ## 9. Packaging
 
@@ -94,7 +94,7 @@ No packaging configuration (`.deb`, `.rpm`, Homebrew, etc.) exists. Distribution
   5. `cargo clippy --all-targets --all-features -- -D warnings`
   6. `cargo test --all`
   7. `cargo build --release`
-- **No deployment step**: CI only validates; no artifact uploads or releases
+- **No deployment step**: CI validates builds/tests only; tags/releases are a separate publication action
 
 ## 11. Reproducibility
 
