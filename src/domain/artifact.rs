@@ -418,7 +418,9 @@ fn is_symlink_error(error: &std::io::Error) -> bool {
     }
     #[cfg(target_os = "linux")]
     {
-        matches!(error.raw_os_error(), Some(40))
+        // O_NOFOLLOW | O_DIRECTORY rejects an intermediate symlink with
+        // ENOTDIR (20); a final symlink is rejected with ELOOP (40).
+        matches!(error.raw_os_error(), Some(20) | Some(40))
     }
 }
 
