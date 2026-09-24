@@ -11,7 +11,7 @@
 | dataset_source_file_sha256 | 59955a38c93193740ffeb7abc9b4b2a2e5df37ea715c041d1978c7819a1ff657 |
 | approval_record_id | NA |
 | approval_trust_store_sha256 | NA |
-| software_version | 0.1.0 |
+| software_version | 0.2.0 |
 | git_commit | NA |
 
 ## Cohort Coverage
