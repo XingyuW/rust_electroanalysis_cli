@@ -1,5 +1,7 @@
 # rust_electroanalysis_cli — Electrochemical Data Analysis CLI
 
+For the complete user guide, see [docs/USER_MANUAL.md](docs/USER_MANUAL.md).
+
 `rust_electroanalysis_cli` is a command-line tool for electrochemical data workflows, including EIS fitting/search and OCPT/sensor time-series analysis pipelines (`transient`, `calibration`, `mechanism`, `signal`, `health`, `estimate`).
 
 Mechanism and health integrations use explicit stable ISM component IDs. A fitted
@@ -33,7 +35,6 @@ See [v0.2.0 release notes](docs/releases/v0.2.0.md) and the
   - [Supported Input Formats](#supported-input-formats)
   - [Runtime Requirements](#runtime-requirements)
   - [Subsystems Overview](#subsystems-overview)
-  - [Key Capabilities](#key-capabilities)
 - [2. Scientific Data Model](#2-scientific-data-model)
   - [Core Types](#core-types)
   - [Experiment TOML Schema](#experiment-toml-schema)
@@ -2716,7 +2717,7 @@ its absence does not change the reduced-order model's claims.
 
 ## 22. License
 
-This project is distributed as open source under the terms of the [MIT License](LICENSE).
+This project is distributed as open source under the terms of the [MIT License](https://opensource.org/license/mit/).
 
 ---
 
