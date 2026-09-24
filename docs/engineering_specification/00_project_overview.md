@@ -2,7 +2,7 @@
 
 **Identifier:** `DOC-00`  
 **Status:** Verified from repository inspection  
-**Last Updated:** 2026-07-19
+**Last Updated:** 2026-09-24
 
 ---
 
@@ -130,7 +130,7 @@
 
 ## 10. Current Maturity and Limitations
 
-- **Maturity**: Active development (version 0.1.0). All 8 top-level commands have implementations. Tests exist for all major workflows.
+- **Maturity**: Active development (version 0.2.0). All 8 top-level commands have implementations. Tests exist for all major workflows.
 - **Limitations**:
   - Only linear regression implemented for plot overlays (no polynomial, exponential, etc.)
   - ECM search uses a genetic algorithm with fixed seed circuits; no exhaustive enumeration option

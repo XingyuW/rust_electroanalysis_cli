@@ -12,7 +12,7 @@
       "byte_length": 30901,
       "output_kind": "mhi_validation_report",
       "relative_path": "mhi_validation_report.schema1.json",
-      "sha256": "d72d6b0baef4b6ba59b3b7c62e8eb5ff4639212538c5f72ab425e83d28e000cb"
+      "sha256": "c6be441d12c1c83ebce397cb8e5dff1c054ea91bc1e3c4ba9c7b454ba3e8d205"
     },
     {
       "byte_length": 755,
@@ -54,7 +54,7 @@
       "byte_length": 5014,
       "output_kind": "validation_summary_markdown",
       "relative_path": "validation_summary.md",
-      "sha256": "95b8924d68faed70b6639a3be580b370cd70db7fa8817f442db93df0f17a1898"
+      "sha256": "2a339dbc72d9644d7a158a9db98f8a57be0328066cdc217a238fd2fffe0fb37b"
     }
   ],
   "git_commit": null,
@@ -63,5 +63,5 @@
   "publication_mode": "create_new",
   "report_id": "sha256:4960a05cd3e8b228dde475408101a9a161ebe2990d6746011aada14d371d0f3e",
   "schema_version": 1,
-  "software_version": "0.1.0"
+  "software_version": "0.2.0"
 }

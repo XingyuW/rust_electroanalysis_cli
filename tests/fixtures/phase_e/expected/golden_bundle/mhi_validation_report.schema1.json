@@ -845,7 +845,7 @@
     },
     "git_commit": null,
     "protocol_sha256": "c141c0f28246bb16edcca79e05caee065516c7b06770d08a536b31a43857cf17",
-    "software_version": "0.1.0"
+    "software_version": "0.2.0"
   },
   "record_accounting": [
     {
